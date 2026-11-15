@@ -35,7 +35,7 @@ use terminal_check_tables::{
 };
 use terminal_psi::TerminalMachine;
 
-use crate::{Discharge, Discharged, Evidence, Hypotheses, Knowledge, refusal};
+use crate::{Discharge, Discharged, Evidence, Hypotheses, refusal};
 
 /// Re-verifies saved evidence for `obligation` of `machine`: the goal and
 /// hypotheses are this consumer's own, the certificate is the saved one.
@@ -61,7 +61,7 @@ pub fn reverify(
                 "no such machine",
             )
         })?;
-    let prepared = crate::prepare(module, domains, machine, tables, Knowledge::All)?;
+    let prepared = crate::prepare(module, domains, machine, tables)?;
     let row = *terminal_check_tables::row(
         &tables.obligations,
         obligation,
@@ -507,6 +507,9 @@ impl Transport<'_> {
                     relation: child(relation)?,
                 }
             }
+            ProofRule::IntegerPowerOfTwoOrder { order } => ProofRule::IntegerPowerOfTwoOrder {
+                order: child(order)?,
+            },
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
                 ProofRule::IntegerMathOrderTranslation {
                     relation: child(relation)?,
@@ -740,7 +743,7 @@ pub fn reverify_specialization(
                 "no such machine",
             )
         })?;
-    let prepared = crate::prepare(module, domains, specialization, tables, Knowledge::All)?;
+    let prepared = crate::prepare(module, domains, specialization, tables)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let mut references = prepared.references(&module.structural_types);

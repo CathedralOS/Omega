@@ -20,19 +20,17 @@ use target::TargetProfile;
 
 pub struct RuntimePermissionInput<'a> {
     pub(crate) declarations: &'a PreparedRuntimePolicy,
-    pub(crate) execution: &'a selected_dispatch::SelectedExecution,
-    pub(crate) sources: &'a package_compilation::CheckedSourceCustody,
+    pub(crate) compilation: &'a products::CheckedCompilation,
 }
 
 impl<'a> RuntimePermissionInput<'a> {
     pub fn from_compilation(
         declarations: &'a PreparedRuntimePolicy,
-        checked: &'a compilation_products::CheckedCompilation,
+        checked: &'a products::CheckedCompilation,
     ) -> Self {
         Self {
             declarations,
-            execution: checked.execution(),
-            sources: checked.sources(),
+            compilation: checked,
         }
     }
 }
@@ -47,18 +45,31 @@ pub struct TerminalPermissionAcceptance {
 
 impl TerminalPermissionAcceptance {
     pub fn from_public_build(input: &RuntimePermissionInput<'_>) -> Result<Self, Vec<Diagnostic>> {
-        let package = input.sources.package_identity().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "assumed binding risk rows require the consuming root package",
-            )]
-        })?;
-        let target = input.execution.target_profile().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "assumed binding risk rows require an exact product target",
-            )]
-        })?;
+        let package = input
+            .compilation
+            .sources()
+            .package_identity()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "assumed binding risk rows require the consuming root package",
+                )]
+            })?;
+        let target = input
+            .compilation
+            .execution()
+            .target_profile()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "assumed binding risk rows require an exact product target",
+                )]
+            })?;
         let evaluated = input.declarations.evaluated_assumptions();
-        let installed = input.execution.plans().assumed_bindings().len();
+        let installed = input
+            .compilation
+            .execution()
+            .plans()
+            .assumed_bindings()
+            .len();
         if evaluated == 0 || evaluated != installed {
             return Err(vec![Diagnostic::error(
                 "assumed binding risk rows do not match the public Build evaluation",

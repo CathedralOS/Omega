@@ -20,24 +20,24 @@ use std::process::id;
 mod key;
 mod record_codec;
 
-pub(crate) use key::{compiled_review_key, compiled_review_key_with_identity};
+pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
     AcceptedSemanticBinding, CheckedSourceCacheLimits, ConsumedSourceUnit,
     IndependentComponentDescription, PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
-use package_evidence::encoding::PackagePolicyRecoveryLimits;
-use package_evidence::record::PackagePolicyBaseline;
-use package_source::ImmutableSourceResolution;
 use record_codec::{decode_record, encode_record};
+use review_evidence::encoding::PackagePolicyRecoveryLimits;
+use review_evidence::record::PackagePolicyBaseline;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_acquisition::ImmutableSourceResolution;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::review_set::CompilerIssuedPackageReview;
 use crate::declarations::{DependencyPurpose, PackageKey};
-use package_evidence::record::SemanticBindingReviewCandidate;
+use review_evidence::record::SemanticBindingReviewCandidate;
 
 const RECORD_EXTENSION: &str = "rec";
 const DEFAULT_MAX_RECORDS: usize = 256;
@@ -107,7 +107,7 @@ impl CachedCompiledReview {
         let limits = PackagePolicyRecoveryLimits::default();
         let policy = PackagePolicyBaseline::recover_canonical(&self.policy_bytes, limits).ok()?;
         let (policy_rows, _) = policy
-            .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())
+            .canonical_rows_with_limits(review_evidence::record::PackagePolicyRowLimits::default())
             .ok()?;
         let policy_commitment = crate::digest_encoder::content_identity(&self.policy_bytes);
         let review = CompilerIssuedPackageReview {

@@ -52,7 +52,7 @@ pub fn prepare<'input>(
         )?;
         let components =
             crate::components::prepare_components(request.components, artifact.view())?;
-        let selections = terminal_installation::admit_target_machine_selections(
+        let selections = terminal_installation::terminal_target_context(
             artifact.view(),
             proposal.target_profile().target_name(),
         );
@@ -96,7 +96,10 @@ pub fn prepare<'input>(
             .flat_map(|component| &component.calls)
             .collect::<Vec<_>>();
         let work = terminal_psi_to_abstract_operations::prepare_native_execution_with_components(
-            proposal, artifact, &recipes, &calls,
+            proposal,
+            retained.authorization(),
+            &recipes,
+            &calls,
         )?
         .with_evidence(retained.evidence().cloned())?;
         let scalars = NativeScalarCompletion::new(

@@ -20,12 +20,14 @@ fn invocation(text: &str) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     elaborate(
         boundary_calls::typed(text),
         terminal_codec::TerminalPublication::Invocation,
+        &[],
     )
 }
 
 fn elaborate(
     typed: typed_trees::TypedTrees,
     publication: terminal_codec::TerminalPublication,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     let entry = typed
         .machines()
@@ -41,7 +43,7 @@ fn elaborate(
             providers: None,
             declaration_metadata: &[],
             entries: &[entry],
-            subjects: &[],
+            subjects,
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
@@ -136,22 +138,168 @@ fn redundant_markers_keep_the_result_and_create_no_crossing() {
     );
 }
 
+/// Two calls that may suspend, each an operation of its caller: `wrapped`
+/// waits and returns what it got, and `main` keeps `kept` across its own
+/// wait to compare afterwards.
+const SUSPENDING: &str = r#"
+public machine may_wait() -> u32 suspends { 7 }
+public machine wrapped() -> u32 suspends {
+    let waited: u32 = suspend may_wait();
+    waited
+}
+machine main(kept: u32) crashes Trap {
+    let answer: u32 = suspend wrapped();
+    transition answer == kept {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+"#;
+
+/// calls_and_outcomes.md, "Suspension": "A suspension site binds the exact
+/// call, checked crossing, callee, and commitment to the complete ordered
+/// live frontier." Each call that may suspend is an operation with a
+/// crossing, and the module states one site and one plan for it. What is
+/// live across `main`'s wait is `kept`, which it compares afterwards; the
+/// call's own result is not, since "the operation is incomplete and its
+/// result is not established" while it is parked.
 #[test]
-fn a_real_suspension_requires_evidence_beyond_its_marker() {
+fn a_call_that_may_suspend_is_a_crossing_with_its_live_frontier() {
+    let accepted = accepted(SUSPENDING);
+    let module = &accepted.elaboration.module;
+    let crossings: Vec<_> = module
+        .operations()
+        .filter_map(|operation| operation.suspension_crossing)
+        .collect();
+    assert_eq!(crossings.len(), 2);
+    assert_eq!(module.suspension_call_sites.len(), 2);
+    assert_eq!(module.suspension_call_plans.len(), 2);
+    assert_eq!(module.suspension_call_plan_count, 2);
+    let frontiers: Vec<usize> = module
+        .suspension_call_plans
+        .iter()
+        .map(|plan| plan.live_values.len())
+        .collect();
+    assert!(frontiers.contains(&0), "{frontiers:?}");
+    assert!(frontiers.contains(&1), "{frontiers:?}");
+    let kept = module
+        .suspension_call_plans
+        .iter()
+        .flat_map(|plan| &plan.live_values)
+        .next()
+        .unwrap();
+    assert!(matches!(
+        kept.place,
+        terminal_psi::TerminalSuspensionPlace::Scalar(_)
+    ));
+    assert_eq!(
+        kept.storage,
+        terminal_psi::TerminalSuspensionStorage::Parameter
+    );
+    // The marker is still owed where the envelope needs it.
+    violation(
+        &SUSPENDING.replace("= suspend may_wait();", "= block may_wait();"),
+        "requires a suspend acknowledgement",
+    );
+}
+
+/// A crossing is the checker's to reconstruct, not the producer's to
+/// assert: "Matching a producer's site and plan is not enough: deleting both
+/// must not erase a required crossing", and "Missing, duplicate, redirected,
+/// or understated rows reject."
+#[test]
+fn a_missing_or_altered_crossing_is_not_accepted() {
+    let refusal = |alter: &dyn Fn(&mut typed_trees_to_terminal_psi::Elaboration)| {
+        let mut elaboration = invocation(SUSPENDING).unwrap();
+        alter(&mut elaboration);
+        let refused = crate::operational::judge(&elaboration).unwrap_err();
+        assert_eq!(
+            refused.reason,
+            RefusalReason::ForeignIdentity,
+            "{refused:?}"
+        );
+        refused.detail
+    };
+    // The site, the plan and the operation's crossing are all deleted.
+    assert_eq!(
+        refusal(&|elaboration| {
+            let module = &mut elaboration.module;
+            module.suspension_call_sites.clear();
+            module.suspension_call_plans.clear();
+            module.suspension_call_plan_count = 0;
+            for machine in &mut module.machines {
+                for block in &mut machine.blocks {
+                    for operation in &mut block.operations {
+                        operation.suspension_crossing = None;
+                    }
+                }
+            }
+        }),
+        "a possibly suspending call carries no suspension crossing"
+    );
+    // A live value is left out of a plan.
+    assert_eq!(
+        refusal(&|elaboration| {
+            for plan in &mut elaboration.module.suspension_call_plans {
+                plan.live_values.clear();
+                plan.live_value_count = 0;
+            }
+        }),
+        "a suspension plan is not the live frontier of its call"
+    );
+    // A site commits to another frontier.
+    assert_eq!(
+        refusal(&|elaboration| {
+            elaboration.module.suspension_call_sites[0].frontier_commitment = [0; 32];
+        }),
+        "a suspension site does not commit to the live frontier of its call"
+    );
+    // An operation that cannot suspend claims a crossing.
+    assert_eq!(
+        refusal(&|elaboration| {
+            let crossing = elaboration.module.suspension_call_plans[0].crossing;
+            let operation = elaboration
+                .module
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| operation.suspension_crossing.is_none())
+                .unwrap();
+            operation.suspension_crossing = Some(crossing);
+        }),
+        "a suspension crossing is on an operation that cannot suspend"
+    );
+}
+
+/// A call a machine ends with is lowered to its terminator, and a crossing
+/// is a property of an operation, so a possibly suspending terminal call is
+/// still refused by name.
+#[test]
+fn a_terminal_call_that_may_suspend_is_refused_by_name() {
     let text = BLOCKING
         .replace("blocks", "suspends")
         .replace("block ", "suspend ");
     match judge(invocation(&text)).unwrap() {
-        RouteVerdict::FallBack(refused) => assert!(
-            refused.detail.contains("continuation, carry and loan"),
-            "{refused:?}"
+        RouteVerdict::FallBack(refused) => assert_eq!(
+            refused.detail,
+            "a possibly suspending terminal call needs a checked suspension crossing"
         ),
-        other => panic!("actual suspension remains unfinished: {other:?}"),
+        RouteVerdict::Accepted(accepted) => {
+            // The route lowered the final call as an operation: then it is
+            // a crossing like any other.
+            assert!(
+                accepted
+                    .elaboration
+                    .module
+                    .operations()
+                    .any(|operation| operation.suspension_crossing.is_some())
+            );
+        }
+        other => panic!("{other:?}"),
     }
-    violation(
-        &text.replace("{ suspend may_wait() }", "{ block may_wait() }"),
-        "requires a suspend acknowledgement",
-    );
 }
 
 #[test]
@@ -370,7 +518,19 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
 #[test]
 fn a_call_with_no_normal_return_keeps_its_acknowledgement() {
     let text = LOOP.replace("_ -> done()", "_ -> block again(false)");
-    let accepted = accepted(&text);
+    // This test uses a body-derived outcome, so declare the anonymous source
+    // unit explicitly. A closure-only request supplies no local summary unit.
+    let local = |text: &str| {
+        judge(elaborate(
+            boundary_calls::typed(text),
+            terminal_codec::TerminalPublication::Invocation,
+            &[None],
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = local(&text) else {
+        panic!("the acknowledged local call must be accepted")
+    };
     assert!(
         accepted.elaboration.module.machines[0]
             .blocks
@@ -380,9 +540,29 @@ fn a_call_with_no_normal_return_keeps_its_acknowledgement() {
                 terminal_psi::Terminator::InvokeNoNormal { .. }
             ))
     );
-    violation(
-        &text.replace("block again(true)", "again(true)"),
-        "requires a block acknowledgement",
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(32))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
+        ),
+        "{status:?}"
+    );
+    let RouteVerdict::Rejected { violations, .. } =
+        local(&text.replace("block again(true)", "again(true)"))
+    else {
+        panic!("non-return must not erase the call acknowledgement")
+    };
+    assert!(
+        violations.iter().any(|violation| violation
+            .message()
+            .contains("requires a block acknowledgement")),
+        "{violations:?}"
     );
 }
 
@@ -412,6 +592,7 @@ fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
     let RouteVerdict::Accepted(accepted) = judge(elaborate(
         typed,
         terminal_codec::TerminalPublication::Portable,
+        &[],
     ))
     .unwrap() else {
         panic!("portable source must be accepted");

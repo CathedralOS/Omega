@@ -10,8 +10,8 @@ use provider_planning::program_entry::{
 impl CheckedCompilation {
     pub fn program_entry_with_calling_plans(
         &self,
-        program: &psi_compiler::PortableTerminalProgram,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        program: &source_compiler::PortableTerminalProgram,
+        providers: &[effects::provider_plan::ProviderPlan],
         evaluator: provider_planning::calling_policy_plans::CallingPolicyEvaluator,
     ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
@@ -116,7 +116,7 @@ fn requirement_identity<'schema>(
 }
 
 fn schema_custody(
-    program: &psi_compiler::PortableTerminalProgram,
+    program: &source_compiler::PortableTerminalProgram,
     declaration: &str,
 ) -> Result<semantic_vocabulary::compiler_evaluation::DeclarationCustody, String> {
     program

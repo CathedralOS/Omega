@@ -13,7 +13,7 @@ pub(crate) mod call_foundations {
         validate_structural_path, validate_structural_qualifications,
     };
     use crate::codec_error::{CodecError, malformed};
-    use semantic_vocabulary::StructuralPlaceKind;
+    use semantic_vocabulary::{IntegerValue, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         Block, BoundaryDeclarationRole, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
@@ -127,15 +127,130 @@ pub(crate) mod call_foundations {
     pub(crate) fn validate_no_normal_invocation(
         module: &TerminalModule,
         block: &Block,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
+        sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Result<(), CodecError> {
-        let Terminator::InvokeNoNormal { callee, .. } = block.terminator else {
+        let Terminator::InvokeNoNormal {
+            callee,
+            required_contract,
+            arguments,
+            erased_arguments,
+            ..
+        } = &block.terminator
+        else {
             return Ok(());
         };
-        match terminal_semantics::control_graph::normal_completion_possible(module, callee) {
+        let contract = module
+            .invocation_machine_contract(*callee, *required_contract)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "no-normal invocation has no exact declared callee contract",
+            ))?;
+        // A genuinely empty declared result excludes normal completion even
+        // when the body syntactically returns an impossible input. The visible
+        // invocation contract, including a selected requirement, is the owner
+        // of this promise; a private implementation cannot replace it.
+        if let TerminalMachineResult::Structural(result) = &contract.result
+            && inhabitation.status(result.structural_type)
+                == terminal_semantics::inhabitation::Status::ProvedEmpty
+        {
+            return Ok(());
+        }
+        if published_postcondition_is_false(
+            contract,
+            arguments,
+            erased_arguments,
+            scalar_index,
+            sources,
+        )? {
+            return Ok(());
+        }
+        if required_contract.is_some() {
+            return malformed("no-normal invocation has no published return exclusion");
+        }
+        match terminal_semantics::control_graph::normal_completion_possible(module, *callee) {
             Ok(false) => Ok(()),
             Ok(true) => malformed("no-normal invocation callee has a normal return"),
             Err(_) => malformed("no-normal invocation has no exact closed callee control graph"),
         }
+    }
+
+    fn boolean_actual(
+        value: ValueId,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
+        sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+    ) -> Option<bool> {
+        if sources.scalar_type(value) != Some(ScalarType::Boolean) {
+            return None;
+        }
+        match terminal_semantics::scalar_constant_value(value, |value| {
+            scalar_index.constant_origin(value)
+        })? {
+            (ScalarType::Boolean, IntegerValue::Unsigned(0)) => Some(false),
+            (ScalarType::Boolean, IntegerValue::Unsigned(1)) => Some(true),
+            _ => None,
+        }
+    }
+
+    fn published_postcondition_is_false(
+        contract: &terminal_psi::MachineContract,
+        arguments: &[ValueId],
+        erased_arguments: &[ScalarTerm],
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
+        sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+    ) -> Result<bool, CodecError> {
+        use terminal_semantics::inhabitation::{boolean_value_with, predicates_are_false_with};
+
+        if contract.parameters.len() != arguments.len()
+            || contract.erased_scalar_formals.len() != erased_arguments.len()
+        {
+            return malformed("no-normal invocation has the wrong scalar argument arity");
+        }
+        // Only genuine parameters of this visible contract name actuals.
+        // Looking a callee result/foreign ID up directly in the caller's
+        // constant index would let coincident numeric IDs invent a promise.
+        // Bind once, then borrow each retained clause without copying trees.
+        let mut booleans = Vec::with_capacity(arguments.len() + erased_arguments.len());
+        for (formal, actual) in contract.parameters.iter().zip(arguments) {
+            if sources.scalar_type(*actual) != Some(formal.scalar_type) {
+                return malformed("no-normal invocation has no exact scalar argument source");
+            }
+            let known = (formal.scalar_type == ScalarType::Boolean)
+                .then(|| boolean_actual(*actual, scalar_index, sources))
+                .flatten();
+            booleans.push((formal.id, known));
+        }
+        for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
+            if actual.scalar_type() != formal.scalar_type {
+                return malformed("no-normal invocation erased argument has the wrong carrier");
+            }
+            let known = (formal.scalar_type == ScalarType::Boolean)
+                .then(|| {
+                    boolean_value_with(actual, |value| boolean_actual(value, scalar_index, sources))
+                })
+                .flatten();
+            booleans.push((formal.id, known));
+        }
+        booleans.sort_unstable_by_key(|(formal, _)| *formal);
+        if booleans.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return malformed("no-normal invocation repeats a scalar formal identity");
+        }
+        Ok(contract.ensures.iter().any(|clause| {
+            predicates_are_false_with(std::slice::from_ref(&clause.proposition), |value| {
+                if contract
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == value)
+                {
+                    None
+                } else {
+                    booleans
+                        .binary_search_by_key(&value, |(formal, _)| *formal)
+                        .ok()
+                        .and_then(|index| booleans[index].1)
+                }
+            })
+        }))
     }
 
     pub(crate) fn validate_call_unit(
@@ -1026,6 +1141,395 @@ pub(crate) mod call_foundations {
             }
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod no_normal_result_tests {
+        use super::*;
+        use semantic_vocabulary::{
+            ContractId, EdgeId, MachineId, ObligationId, OperationId, Proposition,
+        };
+        use terminal_psi::{
+            BoundaryParameterKind, ContractClause, MachineContract, StructuralRecordStorage,
+            StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+            TerminalIdentityIndex, ValueDeclaration,
+        };
+        use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
+
+        fn invocation(required_contract: Option<ContractId>) -> Block {
+            let mut block =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap())
+                    .blocks
+                    .remove(0);
+            block.terminator = Terminator::InvokeNoNormal {
+                edge: EdgeId::new(1).unwrap(),
+                static_reach_binding: None,
+                required_contract,
+                callee: MachineId::new(1).unwrap(),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            };
+            block
+        }
+
+        fn validate_caller(
+            module: &TerminalModule,
+            caller: &TerminalMachine,
+            query: &Inhabitation,
+        ) -> Result<(), CodecError> {
+            let index = terminal_semantics::MachineScalarIndex::new(caller);
+            let sources = terminal_semantics::normal_completion::ReturnSources::new(caller)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+            super::validate_no_normal_invocation(module, &caller.blocks[0], query, &index, &sources)
+        }
+
+        fn validate_no_normal_invocation(
+            module: &TerminalModule,
+            block: &Block,
+            query: &Inhabitation,
+        ) -> Result<(), CodecError> {
+            let mut caller =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap());
+            caller.blocks[0] = block.clone();
+            validate_caller(module, &caller, query)
+        }
+
+        fn selected_contract(callee: &TerminalMachine) -> MachineContract {
+            let mut public = callee.contract.clone();
+            public.id = ContractId::new(2).unwrap();
+            public.selected_application = Some(terminal_psi::StaticRequirementDispatch {
+                conformance_application_report_fingerprint: 0,
+                conformance_application_commitment: Default::default(),
+                public_requirement_identity: Default::default(),
+                declaring_trait_identity: Default::default(),
+                requirement_identity: Default::default(),
+                realization_identity: Default::default(),
+                realization_callable_identity: Default::default(),
+                realization: callee.id,
+            });
+            public
+        }
+
+        fn boolean(raw: u64) -> ValueDeclaration {
+            ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }
+        }
+
+        fn boolean_term(raw: u64) -> ScalarTerm {
+            ScalarTerm::Value {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            }
+        }
+
+        fn clause(proposition: Proposition) -> ContractClause {
+            ContractClause {
+                obligation: ObligationId::new(1).unwrap(),
+                proposition,
+            }
+        }
+
+        fn published(proposition: Proposition) -> (TerminalModule, TerminalMachine) {
+            let mut module = TerminalModule::declarations();
+            let mut callee =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
+            callee.result = TerminalMachineResult::Scalar(boolean(42));
+            let mut contract = selected_contract(&callee);
+            contract.ensures.push(clause(proposition));
+            module.declaration_contracts.push(contract);
+            module.machines.push(callee);
+            let mut caller =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap());
+            caller.blocks[0] = invocation(Some(ContractId::new(2).unwrap()));
+            (module, caller)
+        }
+
+        fn constant(caller: &mut TerminalMachine, raw: u64, value: bool) {
+            caller.blocks[0].operations.push(Operation::unsuspended(
+                OperationId::new(raw).unwrap(),
+                OperationResult::Scalar(boolean(raw)),
+                OperationKind::BooleanConstant { value },
+            ));
+        }
+
+        #[test]
+        fn an_inhabited_normal_result_does_not_justify_a_forged_no_normal_call() {
+            let mut module = TerminalModule::declarations();
+            module
+                .machines
+                .push(crate::semantic_module::entry_tests::unit_machine(
+                    MachineId::new(1).unwrap(),
+                ));
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            assert_eq!(
+                validate_no_normal_invocation(&module, &invocation(None), &query),
+                malformed("no-normal invocation callee has a normal return"),
+            );
+        }
+
+        #[test]
+        fn a_selected_returning_contract_does_not_inherit_a_private_infinite_loop() {
+            let mut module = TerminalModule::declarations();
+            let mut callee =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
+            callee.blocks[0].terminator = Terminator::Jump {
+                edge: EdgeId::new(1).unwrap(),
+                target: callee.entry,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+            let public = selected_contract(&callee);
+            module.declaration_contracts.push(public);
+            module.machines.push(callee);
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            // The local graph is valid evidence at an ordinary local call.
+            validate_no_normal_invocation(&module, &invocation(None), &query).unwrap();
+            // A selected public Unit result carries no such promise. This
+            // tests the guard separately from conformance metadata admission.
+            assert_eq!(
+                validate_no_normal_invocation(
+                    &module,
+                    &invocation(Some(ContractId::new(2).unwrap())),
+                    &query,
+                ),
+                malformed("no-normal invocation has no published return exclusion"),
+            );
+        }
+
+        #[test]
+        fn only_the_visible_false_postcondition_excludes_normal_return() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let (mut module, caller) = published(Proposition::Falsehood);
+            validate_caller(&module, &caller, &query).unwrap();
+            // These guard fixtures isolate contract visibility from the
+            // separate conformance/evidence checks on a complete artifact.
+            module.declaration_contracts[0].ensures[0].proposition = Proposition::Truth;
+            module.machines[0]
+                .ensures
+                .push(clause(Proposition::Falsehood));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+        }
+
+        #[test]
+        fn published_boolean_parameters_use_exact_typed_actuals() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let (mut module, mut caller) = published(Proposition::Equal(
+                boolean_term(7),
+                ScalarTerm::Boolean(false),
+            ));
+            module.declaration_contracts[0].parameters.push(boolean(7));
+            let Terminator::InvokeNoNormal { arguments, .. } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            arguments.push(ValueId::new(9).unwrap());
+            constant(&mut caller, 9, true);
+            validate_caller(&module, &caller, &query).unwrap();
+            let mut wrong = boolean(9);
+            wrong.scalar_type = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            );
+            caller.blocks[0].operations[0].result = OperationResult::Scalar(wrong);
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            caller.blocks[0].operations[0].result = OperationResult::Scalar(boolean(9));
+            caller.blocks[0].operations[0].kind = OperationKind::BooleanConstant { value: false };
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            caller.blocks[0].operations.clear();
+            caller.parameters.push(boolean(9));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            caller.parameters.clear();
+            caller.result = TerminalMachineResult::Scalar(boolean(9));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            let Terminator::InvokeNoNormal { arguments, .. } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            arguments.clear();
+            assert!(validate_caller(&module, &caller, &query).is_err());
+        }
+
+        #[test]
+        fn erased_actuals_use_the_shared_caller_scoped_term_evaluator() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let (mut module, mut caller) = published(Proposition::Equal(
+                boolean_term(7),
+                ScalarTerm::Boolean(false),
+            ));
+            module.declaration_contracts[0]
+                .erased_scalar_formals
+                .push(boolean(7));
+            constant(&mut caller, 9, false);
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments.push(ScalarTerm::BooleanNot {
+                operand: Box::new(boolean_term(9)),
+            });
+            validate_caller(&module, &caller, &query).unwrap();
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments[0] = ScalarTerm::Boolean(false);
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments[0] = ScalarTerm::StructuralRead {
+                root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                scalar_type: ScalarType::Boolean,
+            };
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments[0] = ScalarTerm::BooleanNot {
+                operand: Box::new(boolean_term(42)),
+            };
+            caller.result = TerminalMachineResult::Scalar(boolean(42));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+        }
+
+        #[test]
+        fn coincident_caller_constants_do_not_bind_result_or_foreign_contract_ids() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            for unbound in [42, 99] {
+                let (module, mut caller) = published(Proposition::Equal(
+                    boolean_term(unbound),
+                    ScalarTerm::Boolean(false),
+                ));
+                constant(&mut caller, unbound, true);
+                assert!(validate_caller(&module, &caller, &query).is_err());
+            }
+        }
+
+        #[test]
+        fn an_empty_result_excludes_completion_despite_a_physical_structural_return() {
+            use semantic_vocabulary::{PlaceId, StructuralTypeId};
+
+            let mut module = TerminalModule::declarations();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            module.structural_types.push(StructuralTypeDeclaration {
+                id: structural_type,
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: vec![Proposition::Falsehood],
+            });
+            let parameter = StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                structural_type,
+                access: StructuralAccess::Owned,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            let input = StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            };
+            let mut callee =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
+            callee
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            callee.structural_parameters.push(parameter.clone());
+            callee.structural_places.push(input);
+            callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            });
+            callee.structural_places.push(StructuralPlaceDeclaration {
+                id: PlaceId::new(2).unwrap(),
+                kind: StructuralPlaceKind::Result,
+            });
+            callee.blocks[0].terminator = Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: parameter.place,
+                returned_claims: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+            let callee_id = callee.id;
+            module.machines.push(callee);
+            let mut caller =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap());
+            caller
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            caller.structural_parameters.push(parameter);
+            caller.structural_places.push(input);
+            caller.blocks[0] = invocation(None);
+            let Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            structural_arguments.push(StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                StructuralAccess::Owned,
+            ));
+            assert!(
+                terminal_semantics::control_graph::normal_completion_possible(&module, callee_id)
+                    .unwrap()
+            );
+            let query =
+                Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter()))
+                    .unwrap();
+            // This tests the raw type/physical-graph admission boundary. No
+            // source acceptance or proof receipt is manufactured for the call.
+            validate_caller(&module, &caller, &query).unwrap();
+            module.structural_types[0].requires[0] = Proposition::Truth;
+            let query =
+                Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter()))
+                    .unwrap();
+            assert_eq!(
+                validate_caller(&module, &caller, &query),
+                malformed("no-normal invocation callee has a normal return")
+            );
+        }
     }
 }
 pub(crate) mod declaration_foundations {
@@ -2413,6 +2917,7 @@ pub(crate) mod machine_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         transfers: &mut super::storage_foundations::StructuralTransferInputs<'_>,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
         if let Err(reason) = machine.validate_parameter_order() {
             return malformed(reason);
@@ -2473,12 +2978,34 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
+        let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
+        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(module, machine, block)?;
-            super::call_foundations::validate_no_normal_invocation(module, block)?;
+            super::call_foundations::validate_no_normal_invocation(
+                module,
+                block,
+                inhabitation,
+                &scalar_index,
+                &return_sources,
+            )?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())
+    }
+
+    fn validate_normal_return_shapes<'machine>(
+        machine: &'machine TerminalMachine,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    ) -> Result<terminal_semantics::normal_completion::ReturnSources<'machine>, CodecError> {
+        let sources = terminal_semantics::normal_completion::ReturnSources::new(machine)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        for block in &machine.blocks {
+            sources
+                .validate_return(&machine.result, &block.terminator, inhabitation)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
+        Ok(sources)
     }
 
     fn validate_block_parameters(
@@ -2774,6 +3301,165 @@ pub(crate) mod machine_foundations {
             }
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod normal_return_shape_tests {
+        use super::*;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, MachineId, PlaceId, Proposition, ScalarType,
+            StructuralTypeId, ValueId,
+        };
+        use terminal_psi::{
+            StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralRecordStorage,
+            StructuralResultDeclaration, StructuralTypeDeclaration, TerminalIdentityIndex,
+            TerminalMachineResult, ValueDeclaration,
+        };
+        use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
+
+        fn scalar(raw: u64, scalar_type: ScalarType) -> ValueDeclaration {
+            ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type,
+                qualifications: Default::default(),
+            }
+        }
+
+        fn record(raw: u64, empty: bool) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                id: StructuralTypeId::new(raw).unwrap(),
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: if empty {
+                    vec![Proposition::Falsehood]
+                } else {
+                    Vec::new()
+                },
+            }
+        }
+
+        fn machine() -> TerminalMachine {
+            crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap())
+        }
+
+        fn return_record(machine: &mut TerminalMachine, structural_type: StructuralTypeId) {
+            let place = PlaceId::new(1).unwrap();
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    structural_type,
+                    access: StructuralAccess::Owned,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine.blocks[0].terminator = Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: place,
+                returned_claims: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+        }
+
+        fn structural_result(structural_type: StructuralTypeId) -> TerminalMachineResult {
+            TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            })
+        }
+
+        #[test]
+        fn normal_returns_match_actual_unit_and_scalar_sources() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let mut machine = machine();
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = TerminalMachineResult::Scalar(scalar(2, ScalarType::Boolean));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.parameters.push(scalar(1, ScalarType::Boolean));
+            machine.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = TerminalMachineResult::Unit;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.result = TerminalMachineResult::Scalar(scalar(
+                2,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+            ));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.parameters.clear();
+            machine.result = TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean));
+            // Neither the result placeholder nor an erased proof input is an
+            // executable scalar, even when its identity and type agree.
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine
+                .erased_scalar_formals
+                .push(scalar(1, ScalarType::Boolean));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
+
+        #[test]
+        fn only_the_actual_owned_empty_source_can_cross_return_kinds() {
+            let types = [record(1, true), record(2, false)];
+            let query = Inhabitation::prepare(&TerminalContracts::new(&types)).unwrap();
+            let mut machine = machine();
+            return_record(&mut machine, types[0].id);
+            for result in [
+                TerminalMachineResult::Unit,
+                TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean)),
+                structural_result(types[1].id),
+            ] {
+                machine.result = result;
+                validate_normal_return_shapes(&machine, &query).unwrap();
+            }
+            machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_parameters[0].access = StructuralAccess::Owned;
+            machine.result = TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean));
+            machine.structural_parameters[0].structural_type = types[1].id;
+            // An unrelated empty declaration grants no authority to return
+            // this inhabited record under a scalar result header.
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_parameters[0].structural_type = types[0].id;
+            machine.structural_places.clear();
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
+
+        #[test]
+        fn ordinary_structural_returns_require_the_declared_carrier() {
+            let types = [record(1, false), record(2, false)];
+            let query = Inhabitation::prepare(&TerminalContracts::new(&types)).unwrap();
+            let mut machine = machine();
+            return_record(&mut machine, types[0].id);
+            machine.result = structural_result(types[0].id);
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = structural_result(types[1].id);
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_places[0].kind = StructuralPlaceKind::Result;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
     }
 }
 pub(crate) mod native_layouts {
@@ -3497,15 +4183,6 @@ pub(crate) mod reference_outputs {
         module: &TerminalModule,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<(), CodecError> {
-        if terminal_semantics::closed_conformances::is_checked_body_family_contract(
-            module, boundary,
-        ) {
-            return if boundary.reference_outputs.is_empty() {
-                Ok(())
-            } else {
-                malformed("checked-body family contract carries opaque reference outputs")
-            };
-        }
         if !provider_outputs_cover_writable_slots(&module.structural_types, boundary) {
             return malformed("boundary reference parameter contract has incomplete leaf coverage");
         }
@@ -3902,7 +4579,7 @@ pub(crate) mod scalar_applications {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::sections::semantic_module::target_family_tests::{identity_table, unit_machine};
+        use crate::sections::semantic_module::entry_tests::{identity_table, unit_machine};
         use semantic_vocabulary::MachineId;
         use terminal_psi::{
             ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
@@ -4353,32 +5030,6 @@ pub(crate) mod scalar_fields {
         for machine in &module.machines {
             for operation in machine.operations() {
                 match &operation.kind {
-                    OperationKind::EstablishZeroedStructural {} => {
-                        let result = operation.result.structural().ok_or(
-                            CodecError::MalformedStructuralFoundation(
-                                "zero provisioning lost its structural result",
-                            ),
-                        )?;
-                        if !terminal_semantics::zeroed_structural_fields_satisfy(
-                            module.structural_types.iter(),
-                            result.structural_type,
-                            |field| {
-                                required(module, field.id).is_ok_and(|domains| {
-                                    domains.iter().all(|id| {
-                                        super::scalar_domain(module, *id).is_some_and(|domain| {
-                                            domain.predicate.is_none()
-                                                && domain.establishment_routes.is_none()
-                                                && domain.has_no_required_memberships()
-                                        })
-                                    })
-                                })
-                            },
-                        ) {
-                            return malformed(
-                                "zero provisioning cannot establish scalar field membership",
-                            );
-                        }
-                    }
                     OperationKind::EstablishRecord { fields }
                     | OperationKind::EstablishStructuralCase { fields, .. } => {
                         for field in fields {
@@ -4808,432 +5459,29 @@ pub(crate) mod scalar_observations {
     }
 }
 pub(crate) mod scalar_qualifications {
-
-    use super::{
-        CodecError, TerminalModule, Terminator, malformed, qualification_domains, scalar_domain,
-        values,
-    };
-    use semantic_vocabulary::{Proposition, PropositionContext};
-    use terminal_psi::{ScalarDomainEstablishmentRoute, ScalarReturnOrigin, ScalarReturnSite};
-
-    pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
-        let catalog = &module.scalar_qualifications;
-        for domain in &catalog.domains {
-            if !domain.required_memberships_are_well_formed(&catalog.domains) {
-                return malformed(
-                    "scalar domain has ambiguous, cyclic or wrong-carrier prerequisites",
-                );
+    pub(crate) fn validate(module: &terminal_psi::TerminalModule) -> Result<(), crate::CodecError> {
+        use terminal_semantics::scalar_qualifications::ScalarQualificationError as Error;
+        terminal_semantics::scalar_qualifications::validate(module).map_err(|error| match error {
+            Error::MalformedStructuralFoundation(detail) => {
+                crate::CodecError::MalformedStructuralFoundation(detail)
             }
-            if module
-                .identities
-                .text(domain.identity)
-                .is_none_or(str::is_empty)
-            {
-                return malformed("scalar domain has no retained identity");
-            }
-            if domain
-                .establishment_routes
-                .as_deref()
-                .is_some_and(|routes| !routes.is_empty())
-                && domain.predicate.is_none()
-            {
-                return malformed("routed scalar domain lost its predicate component");
-            }
-            if let Some(predicate) = &domain.predicate {
-                PropositionContext::from_value_types([(predicate.subject, domain.carrier)])
-                    .and_then(|context| context.validate(&predicate.proposition))
-                    .map_err(CodecError::MalformedProposition)?;
-                let mut exact = predicate.subject.get() == 1;
-                exact &= predicate.proposition.visit_value_ids(|value| {
-                    exact &= value == predicate.subject;
-                });
-                if !exact {
-                    return malformed("scalar domain predicate escapes its formal subject");
-                }
-            }
-            if domain
-                .establishment_routes
-                .as_deref()
-                .unwrap_or_default()
-                .iter()
-                .any(|route| {
-                    module
-                        .identities
-                        .text(route.identity())
-                        .is_none_or(str::is_empty)
-                        || module
-                            .identities
-                            .text(route.declaration().identity())
-                            .is_none_or(str::is_empty)
-                })
-            {
-                return malformed("scalar domain lost an issuer identity");
-            }
-        }
-        for set in &catalog.sets {
-            if set
-                .domains
-                .iter()
-                .any(|id| !catalog.domains.iter().any(|domain| domain.id == *id))
-            {
-                return malformed("scalar qualification set names an absent domain");
-            }
-        }
-        for coercion in &catalog.coercions {
-            let machine = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == coercion.machine)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar coercion lost its machine",
-                ))?;
-            let source = values(machine)
-                .find(|value| value.id == coercion.source)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar coercion lost its source",
-                ))?;
-            let destination = values(machine)
-                .find(|value| value.id == coercion.destination)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar coercion lost its destination",
-                ))?;
-            let source_domains = qualification_domains(module, source.qualifications).ok_or(
-                CodecError::MalformedStructuralFoundation("scalar coercion lost its source set"),
-            )?;
-            let destination_domains = qualification_domains(module, destination.qualifications)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar coercion lost its destination set",
-                ))?;
-            for id in destination_domains {
-                let domain = scalar_domain(module, *id).ok_or(
-                    CodecError::MalformedStructuralFoundation("scalar coercion domain is absent"),
-                )?;
-                if domain
-                    .missing_membership_requirements(&catalog.domains, source_domains)
-                    .is_none_or(|missing| {
-                        missing.iter().any(|node| {
-                            node.predicate.is_some()
-                                || node.establishment_routes.is_some()
-                                || !node.has_no_required_memberships()
-                        })
-                    })
-                {
-                    return malformed(
-                        "scalar coercion cannot establish a predicate or routed qualification",
-                    );
-                }
-            }
-        }
-        for returned in &catalog.returns {
-            let machine = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == returned.machine)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar return lost its machine",
-                ))?;
-            let result = machine
-                .result
-                .scalar_ref()
-                .into_iter()
-                .chain(values(machine))
-                .find(|result| result.id == returned.result)
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar return lost its result",
-                ))?;
-            let domain = scalar_domain(module, returned.domain).ok_or(
-                CodecError::MalformedStructuralFoundation("scalar return lost its domain"),
-            )?;
-            let bound = match returned.site {
-                ScalarReturnSite::NormalExit => machine.result.scalar_ref().is_some_and(|result| result.id == returned.result)
-                    && machine.blocks.iter().any(|block| matches!(block.terminator,
-                        Terminator::Return { edge, value, .. } if edge == returned.edge && value == returned.source)),
-                ScalarReturnSite::Completion { argument_ordinal } => machine.blocks.iter().any(|block| {
-                    let Terminator::Jump { edge, target, ref arguments, .. } = block.terminator else { return false; };
-                    edge == returned.edge && arguments.get(argument_ordinal as usize) == Some(&returned.source)
-                        && machine.blocks.iter().find(|block| block.id == target)
-                            .and_then(|block| block.parameters.get(argument_ordinal as usize))
-                            .is_some_and(|destination| destination.id == returned.result && destination.id != returned.source)
-                }),
-            };
-            if result.scalar_type != domain.carrier
-                || !catalog
-                    .sets
-                    .iter()
-                    .any(|set| set.id == result.qualifications && set.domains.contains(&domain.id))
-                || !bound
-            {
-                return malformed("scalar membership is not bound to its exact normal result");
-            }
-            if let Some(predicate) = &domain.predicate
-                && returned.site == ScalarReturnSite::NormalExit
-            {
-                let mut expected = predicate.proposition.clone();
-                expected.remap_value_ids(|_| result.id);
-                let complete = match &expected {
-                    Proposition::Conjunction(predicates) => predicates.iter().all(|predicate| {
-                        machine
-                            .contract
-                            .ensures
-                            .iter()
-                            .any(|clause| retains_conjunct(&clause.proposition, predicate))
-                    }),
-                    Proposition::Truth => true,
-                    _ => machine
-                        .contract
-                        .ensures
-                        .iter()
-                        .any(|clause| retains_conjunct(&clause.proposition, &expected)),
-                };
-                if !complete {
-                    return malformed("scalar result contract lost its domain predicate");
-                }
-            }
-            let source = values(machine)
-                .find(|source| {
-                    source.id == returned.source && source.scalar_type == result.scalar_type
-                })
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "scalar return lost its same-carrier source",
-                ))?;
-            if matches!(returned.site, ScalarReturnSite::Completion { .. })
-                && catalog
-                    .sets
-                    .iter()
-                    .any(|set| set.id == source.qualifications && set.domains.contains(&domain.id))
-            {
-                return malformed("scalar return completion does not add its named membership");
-            }
-            for origin in &returned.origins {
-                let authorized = match origin {
-                    ScalarReturnOrigin::Vacuous => {
-                        matches!(returned.site, ScalarReturnSite::Completion { .. })
-                            && domain.predicate.is_none()
-                            && domain.establishment_routes.is_none()
-                            && domain.has_no_required_memberships()
-                    }
-                    ScalarReturnOrigin::Forwarded => catalog.sets.iter().any(|set| {
-                        set.id == source.qualifications
-                            && domain
-                                .missing_membership_requirements(&catalog.domains, &set.domains)
-                                .is_some_and(|missing| missing.is_empty())
-                    }),
-                    ScalarReturnOrigin::Established { route } => {
-                        let declaration = machine.declaration.as_ref().ok_or(
-                            CodecError::MalformedStructuralFoundation(
-                                "scalar issuer lost its checked declaration",
-                            ),
-                        )?;
-                        match domain.establishment_routes.as_deref().unwrap_or_default().get(*route as usize) {
-                            Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
-                                (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
-                                    .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
-                                        callable, declaration.specialization.as_ref().map(|application| &application.commitment),
-                                    )) && issuer.identity() == declaration.semantic_declaration)
-                                    || declaration.specialization.as_ref().is_some_and(|specialization| {
-                                        *machine_identity == specialization.template_callable
-                                            && issuer.identity() == specialization.template_semantic_declaration
-                                            && module.identities.text(specialization.template_callable).is_some_and(|identity| !identity.is_empty())
-                                    })
-                            }
-                            Some(ScalarDomainEstablishmentRoute::CheckedRequirement { declaration: issuer, requirement_identity }) => {
-                                module.closed_conformance_applications.iter().any(|application| {
-                                    application.rows.iter().any(|row| {
-                                        row.public_requirement_identity == *requirement_identity
-                                            && row.requirement_declaration == *issuer
-                                            && row.realization_callable_identity == Some(declaration.callable)
-                                            && application.realization_callables.iter().any(|callable| {
-                                                callable.source_callable_identity == declaration.callable
-                                                    && callable.callable == terminal_psi::TargetMachineCallable::Machine(machine.id)
-                                            })
-                                    })
-                                })
-                            }
-                            _ => false,
-                        }
-                    }
-                };
-                let prerequisites = if matches!(origin, ScalarReturnOrigin::Established { .. }) {
-                    let supplied = qualification_domains(module, source.qualifications).ok_or(
-                        CodecError::MalformedStructuralFoundation(
-                            "scalar issuer lost its source qualification set",
-                        ),
-                    )?;
-                    domain
-                        .missing_membership_requirements(&catalog.domains, supplied)
-                        .is_some_and(|missing| {
-                            missing.iter().all(|node| {
-                                node.id == domain.id || node.establishment_routes.is_none()
-                            })
-                        })
-                } else {
-                    true
-                };
-                if !authorized || !prerequisites {
-                    let machine_identity = machine
-                        .declaration
-                        .as_ref()
-                        .and_then(|declaration| module.identities.text(declaration.callable))
-                        .map(str::to_owned)
-                        .unwrap_or_else(|| format!("machine:{}", machine.id.get()));
-                    let source_memberships: Option<Vec<String>> =
-                        qualification_domains(module, source.qualifications).map(|memberships| {
-                            memberships
-                                .iter()
-                                .map(|membership| {
-                                    scalar_domain(module, *membership)
-                                        .and_then(|domain| module.identities.text(domain.identity))
-                                        .map(str::to_owned)
-                                        .unwrap_or_else(|| format!("domain:{}", membership.get()))
-                                })
-                                .collect()
-                        });
-                    let issuer = match origin {
-                        ScalarReturnOrigin::Established { route } => domain
-                            .establishment_routes
-                            .as_deref()
-                            .unwrap_or_default()
-                            .get(*route as usize)
-                            .map(|route| {
-                                let callable = match route {
-                                    ScalarDomainEstablishmentRoute::ExactMachine {
-                                        machine_identity,
-                                        ..
-                                    } => module.identities.text(*machine_identity),
-                                    _ => None,
-                                };
-                                (
-                                    callable,
-                                    module.identities.text(route.declaration().identity()),
-                                )
-                            }),
-                        _ => None,
-                    };
-                    let returned_declaration = machine.declaration.as_ref().map(|declaration| {
-                        module.identities.text(declaration.semantic_declaration)
-                    });
-                    return Err(CodecError::MalformedScalarReturnFoundation {
-                        machine: machine_identity,
-                        domain: module
-                            .identities
-                            .text(domain.identity)
-                            .unwrap_or("<missing domain identity>")
-                            .to_owned(),
-                        edge: returned.edge,
-                        source: returned.source,
-                        result: returned.result,
-                        reason: format!(
-                            "scalar return origin does not match its source or authorized issuer: site={:?}, origin={origin:?}, source memberships={source_memberships:?}, origin authorized={authorized}, prerequisites satisfied={prerequisites}, issuer={issuer:?}, returned declaration={returned_declaration:?}",
-                            returned.site,
-                        ),
-                    });
-                }
-            }
-        }
-        for machine in &module.machines {
-            for block in &machine.blocks {
-                let successors = match &block.terminator {
-                    Terminator::Jump {
-                        edge,
-                        target,
-                        arguments,
-                        ..
-                    } => vec![(*edge, *target, arguments.as_slice())],
-                    Terminator::Conditional {
-                        when_true,
-                        when_false,
-                        ..
-                    } => vec![
-                        (
-                            when_true.edge,
-                            when_true.target,
-                            when_true.arguments.as_slice(),
-                        ),
-                        (
-                            when_false.edge,
-                            when_false.target,
-                            when_false.arguments.as_slice(),
-                        ),
-                    ],
-                    _ => Vec::new(),
-                };
-                for (edge, target, arguments) in successors {
-                    let target = machine
-                        .blocks
-                        .iter()
-                        .find(|block| block.id == target)
-                        .ok_or(CodecError::MalformedStructuralFoundation(
-                            "scalar successor target is absent",
-                        ))?;
-                    for (ordinal, (argument, destination)) in
-                        arguments.iter().zip(&target.parameters).enumerate()
-                    {
-                        let source = values(machine).find(|value| value.id == *argument).ok_or(
-                            CodecError::MalformedStructuralFoundation(
-                                "scalar successor source is absent",
-                            ),
-                        )?;
-                        for domain in &catalog.domains {
-                            let contains = |qualification| {
-                                catalog.sets.iter().any(|set| {
-                                    set.id == qualification && set.domains.contains(&domain.id)
-                                })
-                            };
-                            if contains(destination.qualifications) && !contains(source.qualifications)
-                                && !catalog.coercions.iter().any(|row| row.machine == machine.id && row.edge == edge
-                                    && row.source == source.id && row.destination == destination.id && row.argument_ordinal as usize == ordinal)
-                                && !catalog.returns.iter().any(|row| row.machine == machine.id && row.edge == edge
-                                    && row.source == source.id && row.result == destination.id && row.domain == domain.id
-                                    && matches!(row.site, ScalarReturnSite::Completion { argument_ordinal } if argument_ordinal as usize == ordinal))
-                            {
-                                return malformed("scalar successor introduces membership without its checked return completion");
-                            }
-                        }
-                    }
-                }
-            }
-            let Some(result) = machine.result.scalar() else {
-                continue;
-            };
-            let Some(set) = catalog
-                .sets
-                .iter()
-                .find(|set| set.id == result.qualifications)
-            else {
-                continue;
-            };
-            for domain in set.domains.iter().filter(|id| {
-                catalog.domains.iter().any(|domain| {
-                    domain.id == **id
-                        && domain
-                            .required_domain_closure(&catalog.domains)
-                            .is_none_or(|required| {
-                                required
-                                    .iter()
-                                    .any(|node| node.establishment_routes.is_some())
-                            })
-                })
-            }) {
-                for block in &machine.blocks {
-                    if let Terminator::Return { edge, .. } = block.terminator
-                        && !catalog.returns.iter().any(|row| {
-                            row.machine == machine.id && row.edge == edge && row.domain == *domain
-                        })
-                    {
-                        return malformed(
-                            "routed scalar return has no establishment or forwarding row",
-                        );
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
-        actual == expected
-            || matches!(actual, Proposition::Conjunction(children)
-            if children.iter().any(|child| retains_conjunct(child, expected)))
+            Error::MalformedProposition(error) => crate::CodecError::MalformedProposition(error),
+            Error::MalformedScalarReturnFoundation {
+                machine,
+                domain,
+                edge,
+                source,
+                result,
+                reason,
+            } => crate::CodecError::MalformedScalarReturnFoundation {
+                machine,
+                domain,
+                edge,
+                source,
+                result,
+                reason,
+            },
+        })
     }
 }
 pub(crate) mod storage_foundations {
@@ -5993,122 +6241,6 @@ pub(crate) mod storage_foundations {
                 );
             }
             Ok(())
-        }
-    }
-    pub(crate) mod representation_geometry {
-
-        use crate::codec_error::{CodecError, malformed};
-        use semantic_vocabulary::{ScalarType, StructuralTypeId};
-        use terminal_psi::{
-            LayoutApplicationId, StructuralPathSegment, StructuralRecordStorage,
-            StructuralTypeShape, TargetLayoutApplication, TargetLayoutInput,
-            TargetLayoutRealization, TerminalModule,
-        };
-        use terminal_semantics::{
-            RecordStorageResolver, ReferenceStorageGeometry, StorageGeometryError,
-        };
-
-        pub(crate) fn fixed_region_is_compatible(
-            module: &TerminalModule,
-            source: StructuralTypeId,
-            path: &[StructuralPathSegment],
-            reference: StructuralTypeId,
-            stored: Option<ScalarType>,
-        ) -> Result<bool, CodecError> {
-            let Some(StructuralTypeShape::Reference { referent, .. }) =
-                module.structural_type(reference).map(|row| &row.shape)
-            else {
-                return Ok(false);
-            };
-            let mut pending = vec![source, *referent];
-            let mut visited = std::collections::BTreeSet::new();
-            let mut applications = Vec::<&TargetLayoutApplication>::new();
-            while let Some(carrier) = pending.pop() {
-                if !visited.insert(carrier) {
-                    continue;
-                }
-                let declaration = module.structural_type(carrier).ok_or(
-                    CodecError::MalformedStructuralFoundation(
-                        "reference geometry lost its declaration",
-                    ),
-                )?;
-                match &declaration.shape {
-                    StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                    StructuralTypeShape::Record { fields, storage } => {
-                        if let StructuralRecordStorage::TargetLayout(id) = storage {
-                            let application = module
-                                .target_layout_applications
-                                .iter()
-                                .find(|row| row.id == *id && row.record == carrier)
-                                .ok_or(CodecError::MalformedStructuralFoundation(
-                                    "reference geometry lost its exact layout application",
-                                ))?;
-                            applications.push(application);
-                        }
-                        pending.extend(
-                            fields
-                                .iter()
-                                .filter(|field| !field.relevance.is_erased())
-                                .filter_map(|field| field.field_type.as_structural()),
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            let Some(first) = applications.first() else {
-                return Ok(ReferenceStorageGeometry::new(
-                    module.structural_types.iter(),
-                    |application| Err(StorageGeometryError::UnresolvedExtent(application)),
-                )
-                .region_source_compatible(source, path, reference, stored));
-            };
-            if first.target_inputs.is_empty()
-                || applications
-                    .iter()
-                    .any(|row| row.target_inputs != first.target_inputs)
-            {
-                return malformed("reference geometry has no common complete layout input roster");
-            }
-            for input in &first.target_inputs {
-                let mut geometry =
-                    ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
-                        Err(StorageGeometryError::UnresolvedExtent(application))
-                    })
-                    .with_record_storage(RetainedLayout { module, input });
-                if !geometry.region_source_compatible(source, path, reference, stored) {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        }
-
-        struct RetainedLayout<'module> {
-            module: &'module TerminalModule,
-            input: &'module TargetLayoutInput,
-        }
-
-        impl RecordStorageResolver for RetainedLayout<'_> {
-            fn realization(
-                &self,
-                record: StructuralTypeId,
-                application: LayoutApplicationId,
-            ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
-                self.module
-                    .target_layout_applications
-                    .iter()
-                    .find(|row| row.id == application && row.record == record)
-                    .and_then(|application| {
-                        application.realizations.iter().find(|row| {
-                            row.target == self.input.target
-                                && row.pointer_size == self.input.pointer_size
-                                && row.pointer_alignment == self.input.pointer_alignment
-                                && row.case_tag_size == self.input.case_tag_size
-                                && row.case_tag_alignment == self.input.case_tag_alignment
-                                && row.little_endian == self.input.little_endian
-                        })
-                    })
-                    .ok_or(StorageGeometryError::UnresolvedLayout(record))
-            }
         }
     }
     pub(crate) mod structural_fields {
@@ -7255,10 +7387,9 @@ pub(crate) mod storage_foundations {
         reference_byte_field_compatible, reference_carrier_memberships,
         reference_preserves_ancestor_qualifications, reference_source_projection_accessible,
         reference_source_projection_compatible, reference_source_storage_path,
-        reference_storage_source_compatible, resident_reference_plan, runtime_structural_field,
-        scalar_field_store_preserves_content, scalar_field_store_preserves_domain_content,
-        scalar_projection_entails_membership, store_preserves_content,
-        structural_memberships_disjoint_from_write,
+        resident_reference_plan, runtime_structural_field, scalar_field_store_preserves_content,
+        scalar_field_store_preserves_domain_content, scalar_projection_entails_membership,
+        store_preserves_content, structural_memberships_disjoint_from_write,
     };
 
     fn reference_store_carrier<'path>(
@@ -7474,12 +7605,18 @@ pub(crate) mod storage_foundations {
             *access,
         )?;
         if let Some(storage) = storage {
-            let offset_type = declared_scalar_type(machine, storage.byte_offset);
-            let offset_is_u64 = matches!(offset_type, Some(ScalarType::Integer(integer))
-                if !integer.is_address() && integer.bits() == Some(64)
-                    && integer.sign() == IntegerSign::Unsigned);
-            if !offset_is_u64 {
-                return malformed("reference storage offset is not a u64 scalar");
+            terminal_semantics::validate_reference_view_source(module, machine, source.place)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+            let producer = machine.operations().find(|candidate| {
+                candidate
+                    .result
+                    .as_scalar()
+                    .is_some_and(|result| result.id == storage.byte_offset)
+            });
+            if !producer.is_some_and(|producer| {
+                terminal_semantics::reference_view_offset_is_zero(producer, storage.byte_offset)
+            }) {
+                return malformed("reference storage view requires its captured zero offset");
             }
         }
         let compatible = match storage {
@@ -7492,13 +7629,14 @@ pub(crate) mod storage_foundations {
                 let (_, prefix) = source_path.split_last().expect("matched range");
                 let array = validate_structural_path(module, source_type, prefix)?;
                 validate_storage_interpretation(module, array, result.structural_type, *access)?;
-                representation_geometry::fixed_region_is_compatible(
+                terminal_semantics::reference_view_compatible(
                     module,
                     source_type,
                     source_path,
                     result.structural_type,
                     storage.stored_scalar,
-                )?
+                )
+                .map_err(CodecError::MalformedStructuralFoundation)?
             }
             Some(storage) => {
                 let observed = (*access == StructuralAccess::SharedBorrow)
@@ -7511,22 +7649,26 @@ pub(crate) mod storage_foundations {
                         )
                     })
                     .flatten();
-                let source_type = match observed {
+                let presentation = match observed {
                     Some(observed) => observed,
                     None => validate_structural_path(module, source_type, source_path)?,
                 };
                 validate_storage_interpretation(
                     module,
-                    source_type,
+                    presentation,
                     result.structural_type,
                     *access,
                 )?;
-                reference_storage_source_compatible(
-                    module.structural_types.iter(),
+                // A field's displayed type can be wider than its stored codec.
+                // Keep the original coordinates when measuring its backing.
+                terminal_semantics::reference_view_compatible(
+                    module,
                     source_type,
+                    source_path,
                     result.structural_type,
                     storage.stored_scalar,
                 )
+                .map_err(CodecError::MalformedStructuralFoundation)?
             }
             None => reference_source_projection_compatible(
                 module.structural_types.iter(),
@@ -7566,7 +7708,16 @@ pub(crate) mod storage_foundations {
         if !compatible {
             return malformed("reference establishment has incompatible source storage geometry");
         }
-        if result.multiplicity != StructuralMultiplicity::Affine
+        // A shared reference can be copied while each copy keeps its loan.
+        // Exclusive references still require a single affine descriptor.
+        let valid_multiplicity = result.multiplicity == StructuralMultiplicity::Affine
+            || result.multiplicity == StructuralMultiplicity::Unrestricted
+                && *access == StructuralAccess::SharedBorrow
+                && terminal_semantics::is_copyable_carrier(
+                    module.structural_types.iter(),
+                    result.structural_type,
+                );
+        if !valid_multiplicity
             || !result.qualifications.is_empty()
             || !result.claims.is_empty()
             || *access != source.access
@@ -8148,6 +8299,227 @@ pub(crate) mod storage_foundations {
             );
         }
         Ok(())
+    }
+    #[cfg(test)]
+    mod reference_view_receiving_tests {
+        use super::validate_establish_reference;
+        use crate::codec_error::CodecError;
+        use crate::sections::semantic_module::entry_tests::unit_machine;
+        use semantic_vocabulary::{
+            AuthoredFieldStorage, AuthoredRecordStorage, IntegerSign, IntegerType, IntegerValue,
+            MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
+            StructuralTypeId, ValueId,
+        };
+        use terminal_psi::*;
+
+        #[test]
+        fn byte_views_measure_the_original_field_and_keep_reference_crossings() {
+            // This field presents u64 but occupies four bytes. Its logical
+            // read type must not authorize an eight-byte view of that storage.
+            let ty = |raw| StructuralTypeId::new(raw).unwrap();
+            let scalar =
+                |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+            let mut module = TerminalModule::declarations();
+            let shapes = [
+                StructuralTypeShape::PrimitiveScalar(scalar(64)),
+                StructuralTypeShape::PrimitiveScalar(scalar(8)),
+                StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: TerminalIdentityIndex(7),
+                        field_type: StructuralFieldType::Scalar(scalar(64)),
+                        storage: Some(AuthoredFieldStorage::Scalar {
+                            byte_offset: 0,
+                            stored_scalar: Some(scalar(32)),
+                        }),
+                        inline_carrier: Some(ty(1)),
+                        relevance: BindingRelevance::Relevant,
+                    }],
+                    storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                        byte_size: 4,
+                        byte_alignment: 4,
+                    }),
+                },
+                StructuralTypeShape::FixedArray {
+                    element: ty(2),
+                    length: ArrayExtent::Literal(8),
+                },
+                StructuralTypeShape::Reference {
+                    referent: ty(4),
+                    access: StructuralAccess::SharedBorrow,
+                },
+                StructuralTypeShape::Reference {
+                    referent: ty(1),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ];
+            for (index, shape) in shapes.into_iter().enumerate() {
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: ty(index as u64 + 1),
+                    identity: TerminalIdentityIndex(index as u32 + 1),
+                    shape,
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    copyable: true,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: false,
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                });
+            }
+            let source = PlaceId::new(1).unwrap();
+            let offset = ValueId::new(1).unwrap();
+            let mut machine = unit_machine(MachineId::new(1).unwrap());
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: source,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place: source,
+                    position: 0,
+                    structural_type: ty(3),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            machine.blocks[0].operations.push(Operation {
+                id: OperationId::new(1).unwrap(),
+                static_reach_binding: None,
+                required_contract: None,
+                suspension_crossing: None,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: offset,
+                    scalar_type: scalar(64),
+                    qualifications: Default::default(),
+                }),
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(0),
+                },
+            });
+            let mut formation = Operation {
+                id: OperationId::new(2).unwrap(),
+                static_reach_binding: None,
+                required_contract: None,
+                suspension_crossing: None,
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: PlaceId::new(2).unwrap(),
+                    structural_type: ty(5),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishReference {
+                    source: StructuralArgument {
+                        place: source,
+                        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(7))],
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    storage: Some(ReferenceStorageView {
+                        byte_offset: offset,
+                        stored_scalar: None,
+                    }),
+                },
+            };
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has incompatible source storage geometry"
+                ))
+            );
+            let StructuralTypeShape::Record { fields, storage } =
+                &mut module.structural_types[2].shape
+            else {
+                unreachable!()
+            };
+            fields[0].storage = Some(AuthoredFieldStorage::Scalar {
+                byte_offset: 0,
+                stored_scalar: Some(scalar(64)),
+            });
+            *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                byte_size: 8,
+                byte_alignment: 8,
+            });
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Ok(())
+            );
+
+            // The source producer marks shared references as copyable. The
+            // importer must retain that permission without granting it to
+            // an exclusive reference or inventing a linear claim.
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Unrestricted;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Ok(())
+            );
+            let StructuralTypeShape::Reference { access, .. } =
+                &mut module.structural_types[4].shape
+            else {
+                unreachable!()
+            };
+            *access = StructuralAccess::MutableBorrow;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.access = StructuralAccess::MutableBorrow;
+            machine.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has inconsistent carrier ownership or access"
+                ))
+            );
+            let StructuralTypeShape::Reference { access, .. } =
+                &mut module.structural_types[4].shape
+            else {
+                unreachable!()
+            };
+            *access = StructuralAccess::SharedBorrow;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.access = StructuralAccess::SharedBorrow;
+            machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Linear;
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference establishment has inconsistent carrier ownership or access"
+                ))
+            );
+            let OperationResult::Structural(result) = &mut formation.result else {
+                unreachable!()
+            };
+            result.multiplicity = StructuralMultiplicity::Affine;
+
+            // A reference result can retain its own narrower physical codec.
+            // Reducing its referent to u64 must not erase the crossing fence.
+            machine.structural_parameters[0].structural_type = ty(6);
+            machine.structural_parameters[0].access = StructuralAccess::Owned;
+            let OperationKind::EstablishReference { source, .. } = &mut formation.kind else {
+                unreachable!()
+            };
+            source.path = vec![StructuralPathSegment::Referent];
+            assert_eq!(
+                validate_establish_reference(&module, &machine, &formation),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "reference view crossing requires its captured physical storage correspondence"
+                ))
+            );
+        }
     }
 }
 pub(crate) mod structural_type_foundations {
@@ -10129,14 +10501,13 @@ use semantic_vocabulary::{
 use std::collections::BTreeSet;
 use terminal_psi::types::atomic_once_outcome_cases;
 use terminal_psi::{
-    AtomicAccessEvent, BoundaryDeclarationRole, ByteSequenceCarrier, Operation, OperationKind,
-    OperationResult, ReferenceOriginProjection, ScalarDomainDeclaration, StructuralAccess,
-    StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
-    TerminalRootServiceReach, Terminator, ValueDeclaration, call_structural_pair_pattern,
-    field_by_identity, find_structural_case, record_or_mixed_shape_pattern,
-    structural_leaf_copy_pair_pattern,
+    AtomicAccessEvent, ByteSequenceCarrier, Operation, OperationKind, OperationResult,
+    ReferenceOriginProjection, ScalarDomainDeclaration, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathQualification, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalModule, TerminalRootServiceReach, Terminator,
+    ValueDeclaration, call_structural_pair_pattern, field_by_identity, find_structural_case,
+    record_or_mixed_shape_pattern, structural_leaf_copy_pair_pattern,
 };
 use terminal_semantics::descriptor_results::terminal_payload_contract;
 use terminal_semantics::{
@@ -10708,7 +11079,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
     validate_access_lifecycle_plans(module).map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_target_families(module)?;
+    validate_portable_entry(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;
     installed_interrupts::validate(module)?;
@@ -10897,8 +11268,16 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         }
     }
     let mut transfers = storage_foundations::StructuralTransferInputs::new(module);
+    let contracts =
+        terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
+    let inhabitation = terminal_semantics::inhabitation::Inhabitation::prepare(&contracts)
+        .map_err(|_| {
+            CodecError::MalformedStructuralFoundation(
+                "no-normal validation has incomplete declared type contracts",
+            )
+        })?;
     for machine in &module.machines {
-        machine_foundations::validate_machine(module, machine, &mut transfers)?;
+        machine_foundations::validate_machine(module, machine, &mut transfers, &inhabitation)?;
     }
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
@@ -10955,84 +11334,12 @@ fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecErro
     Ok(())
 }
 
-fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
-    use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
-
+fn validate_portable_entry(module: &TerminalModule) -> Result<(), CodecError> {
     match module.entry {
         None if module.root_service_reach == TerminalRootServiceReach::default() => {}
-        Some(TargetMachineCallable::Machine(machine)) if module.machine(machine).is_some() => {}
-        Some(head @ TargetMachineCallable::Boundary(boundary))
-            if module.target_machine_families.iter().any(|family| {
-                family.canonical == head
-                    && !family.members.iter().any(|member| member.callable == head)
-            }) && module
-                .boundary_machine(boundary)
-                .is_some_and(|declaration| {
-                    declaration.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
-                        && declaration.role == BoundaryDeclarationRole::Callable
-                }) => {}
-        _ => return malformed("portable entry has no retained machine or target-family head"),
-    }
-    let mut owners = BTreeSet::new();
-    for family in &module.target_machine_families {
-        if family.head_contract == [0; 32] {
-            return malformed("target-family head has no checked contract commitment");
-        }
-        if family.members.is_empty() {
-            return malformed("target family has no members");
-        }
-        if !family
-            .members
-            .iter()
-            .any(|member| member.callable == family.canonical)
-        {
-            let TargetMachineCallable::Boundary(head) = family.canonical else {
-                return malformed("independent target-family head is not a machine contract");
-            };
-            if module.boundary_machine(head).is_none_or(|declaration| {
-                declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
-                    || declaration.role != BoundaryDeclarationRole::Callable
-            }) {
-                return malformed("independent target-family head has no machine declaration");
-            }
-        }
-        for member in &family.members {
-            if member.target.is_empty() || !owners.insert(member.callable) {
-                return malformed("target-family member has an empty tag or repeated callable");
-            }
-            if member.callable != family.canonical
-                && module
-                    .target_machine_families
-                    .binary_search_by_key(&member.callable, |family| family.canonical)
-                    .is_ok()
-            {
-                return malformed("target-family head is a member of another family");
-            }
-            match member.callable {
-                TargetMachineCallable::Machine(machine) => {
-                    if !matches!(
-                        member.supply,
-                        TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary
-                    ) || !module.machine(machine).is_some()
-                    {
-                        return malformed(
-                            "target-family checked member has no matching body supply",
-                        );
-                    }
-                }
-                TargetMachineCallable::Boundary(boundary) => {
-                    if member.supply == TargetMachineSupply::CheckedBody
-                        || module.boundary_machine(boundary).is_none_or(|declaration| {
-                            declaration.role != BoundaryDeclarationRole::Callable
-                        })
-                    {
-                        return malformed(
-                            "target-family opaque member has no matching declaration supply",
-                        );
-                    }
-                }
-            }
-        }
+        Some(terminal_psi::TargetMachineCallable::Machine(machine))
+            if module.machine(machine).is_some() => {}
+        _ => return malformed("portable entry has no retained executable machine"),
     }
     terminal_semantics::borrowed_storage::validate_write_frames(module)
         .map_err(CodecError::MalformedWriteFrame)?;

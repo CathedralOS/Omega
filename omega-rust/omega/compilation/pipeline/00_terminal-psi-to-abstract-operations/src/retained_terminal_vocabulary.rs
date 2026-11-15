@@ -497,6 +497,8 @@ mod providers {
         name,
         provider_type,
         provider_type_package_identity,
+        provider_declaration,
+        row_numeric_realizations,
         target,
         schema,
         identities,
@@ -523,33 +525,12 @@ mod providers {
         requirement_identity
     });
 
-    record_fields!(backend_plan::SelectedFamilyRealizationSource {
-        head_declaration_identity,
-        head_callable_identity,
-        target,
-        selected_requirement_identity,
-        provider_plan_report_identity,
-        provider_plan_digest
-    });
-
     record_fields!(effects::SelectedRequirementSpecialization {
         provider_plan_report_identity,
         selected_requirement_identity,
         selected_machine_identity,
         requirement_identity,
         machine_identity
-    });
-
-    record_fields!(effects::SelectedTargetFamilyRealization {
-        terminal,
-        target,
-        head,
-        member,
-        head_identity,
-        member_identity,
-        selected_requirement_identity,
-        provider_plan_report_identity,
-        provider_plan_digest
     });
 
     record_variants!(effects::provider_plan::ServiceEntryAuthorityFlow {
@@ -703,12 +684,6 @@ mod providers {
         11 => InterruptEntry,
         12 => RootMemoryAccess,
         13 => ProcessInput,
-    });
-
-    record_fields!(backend_plan::TerminalTargetProviderPlan {
-        plan,
-        provider_declaration,
-        row_numeric_realizations
     });
 
     record_fields!(backend_plan::TerminalTargetProviderProposal {
@@ -1613,6 +1588,10 @@ mod semantic {
         102 => IntegerEmbed,
         103 => AsmStoreGdtr,
         104 => AsmLoadGdtr,
+        105 => AddressOf,
+        106 => CodeLayout,
+        107 => QuotientLift,
+        108 => QuotientDefine,
     });
 
     record_variants!(language_semantics::CarryAddress {

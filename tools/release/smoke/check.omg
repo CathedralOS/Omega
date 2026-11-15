@@ -1,9 +1,0 @@
-
-machine accept(value: i32)
-requires value > 0
-{
-}
-
-machine main() {
-    accept(5);
-}

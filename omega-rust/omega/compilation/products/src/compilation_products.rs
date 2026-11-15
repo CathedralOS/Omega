@@ -755,4 +755,5 @@ impl CompileReport {
 }
 
 #[cfg(test)]
+#[path = "package_path_tests.rs"]
 mod package_path_tests;

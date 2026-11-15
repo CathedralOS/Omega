@@ -578,7 +578,7 @@ fn authority_walks_follow_the_evaluated_machine_and_leave_unused_code_out() {
             },
         ));
     let walk = |module: &TerminalModule| {
-        crate::SynchronousCallGraph::new(module, None, None)
+        crate::SynchronousCallGraph::new(module, None)
             .unwrap()
             .from_root(MachineId::new(1).unwrap())
             .map(|closure| {

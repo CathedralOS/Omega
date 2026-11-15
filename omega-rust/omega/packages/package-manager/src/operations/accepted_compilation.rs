@@ -17,8 +17,9 @@ package build session.
 */
 
 use crate::declarations::BuildDeclarationKind;
-use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::iter::empty;
+#[path = "accepted_compilation_identity.rs"]
 mod identity;
 pub(crate) use identity::compiler_input_identity;
 
@@ -54,9 +55,7 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::new(
         crate::review::CompileResolvedPackageReviewCause::Compilation {
             package: package.clone(),
-            failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
-                message.into(),
-            )]),
+            failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(message.into())]),
         },
     )
 }
@@ -81,7 +80,7 @@ impl ProjectCompilationAdmissionRequest<'_> {
 
     pub fn refuse_compilation(
         self,
-        refused: compilation_products::CompileFailure,
+        refused: products::CompileFailure,
     ) -> Vec<ProjectCompilationOutcome> {
         let accounting = refused
             .source_completion_accounting()
@@ -211,7 +210,7 @@ fn admit_project(
     let mut product = request.product;
     let groups = match &mut product {
         CompilationProduct::Native(native) => {
-            compilation_products::compile_request::partition_installation_assumptions(
+            products::compile_request::partition_installation_assumptions(
                 std::mem::take(&mut native.installation_assumptions),
                 &profiles,
             )
@@ -641,34 +640,6 @@ fn prepare_occurrence_contexts(
                 None
             }
             .unwrap_or_else(|| build_settings::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
-            let inputs = if !is_root && !request.verify {
-                match custody.compiled_review_cache_dir() {
-                    Some(directory) => {
-                        let identity =
-                            compiler_input_identity().map_err(|error| failure(&key, error))?;
-                        let input_key = crate::review::compiled_review_key_with_identity(
-                            key.identity(),
-                            purpose,
-                            target,
-                            execution_profile,
-                            &entry,
-                            &inputs,
-                            &snapshot,
-                            identity,
-                        );
-                        inputs.with_native_product_retention(
-                            package_compilation::CompilerProductRetention::new(
-                                directory.to_path_buf(),
-                                input_key,
-                                identity,
-                            ),
-                        )
-                    }
-                    None => inputs,
-                }
-            } else {
-                inputs
-            };
             occurrences.push(AdmittedOccurrence {
                 key: key.clone(),
                 context,

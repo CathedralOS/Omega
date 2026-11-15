@@ -8,7 +8,7 @@ use super::CompilationSession;
 use super::PreparedProductTarget;
 use super::checking::{check_product_source, complete_prepared_build};
 use crate::execution_settlement::SelectedCompileOutcome;
-use compilation_products::{CompileFailure, PreparedPackageBuild};
+use products::{CompileFailure, PreparedPackageBuild};
 
 impl CompilationSession {
     pub(super) fn select_build_batch<Owner>(
@@ -18,7 +18,7 @@ impl CompilationSession {
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
         let mut applications = Vec::with_capacity(builds.len());
-        let mut canonical_sources: Vec<compilation_products::CheckedProductSource> = Vec::new();
+        let mut canonical_sources: Vec<products::CheckedProductSource> = Vec::new();
         let mut groups: Vec<Vec<(usize, Owner, PreparedPackageBuild)>> = Vec::new();
         for (position, (owner, build)) in builds.into_iter().enumerate() {
             artifacts::compile_timings::counters::record_checked_compilation();

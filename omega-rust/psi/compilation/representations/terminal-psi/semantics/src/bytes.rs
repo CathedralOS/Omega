@@ -1162,7 +1162,7 @@ pub(crate) mod byte_sequence_predicates {
             machine,
             machine
                 .operations()
-                .find_map(|operation| integer_constant(operation, value)),
+                .find_map(|operation| scalar_operation_literal(operation, value)),
             || {
                 machine.blocks.iter().find_map(|block| {
                     block
@@ -1175,7 +1175,12 @@ pub(crate) mod byte_sequence_predicates {
         )
     }
 
-    fn integer_constant(
+    /// Read a literal from the exact operation that owns this value. The
+    /// caller borrows it from the same machine's draft coordinates or final
+    /// index, never from a coincident numeric ID in another machine. This
+    /// function authenticates the operation's result ID and scalar tag; a
+    /// signature placeholder alone supplies no operation.
+    pub fn scalar_operation_literal(
         operation: &Operation,
         value: semantic_vocabulary::ValueId,
     ) -> Option<(
@@ -1183,10 +1188,21 @@ pub(crate) mod byte_sequence_predicates {
         semantic_vocabulary::IntegerValue,
     )> {
         let result = operation.result.scalar_ref()?;
-        let terminal_psi::OperationKind::IntegerConstant { value: literal } = operation.kind else {
+        if result.id != value {
             return None;
+        }
+        let literal = match (&operation.kind, result.scalar_type) {
+            (
+                terminal_psi::OperationKind::IntegerConstant { value },
+                semantic_vocabulary::ScalarType::Integer(_),
+            ) => *value,
+            (
+                terminal_psi::OperationKind::BooleanConstant { value },
+                semantic_vocabulary::ScalarType::Boolean,
+            ) => semantic_vocabulary::IntegerValue::Unsigned(u128::from(u8::from(*value))),
+            _ => return None,
         };
-        (result.id == value).then_some((result.scalar_type, literal))
+        Some((result.scalar_type, literal))
     }
 
     fn scalar_constant_origin_with(
@@ -1293,7 +1309,7 @@ pub(crate) mod byte_sequence_predicates {
         ) -> Option<ScalarConstantOrigin> {
             if let Some((scalar_type, literal)) = self
                 .definitions(value)
-                .find_map(|operation| integer_constant(operation, value))
+                .find_map(|operation| scalar_operation_literal(operation, value))
             {
                 return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
             }
@@ -1311,6 +1327,192 @@ pub(crate) mod byte_sequence_predicates {
                 .take_while(|(target, _)| *target == owner)
                 .map(|(_, arguments)| *arguments);
             incoming_scalar_origin(bindings, ordinal)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{
+            BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+            OperationId, ScalarType, ValueId,
+        };
+        use terminal_psi::{
+            Block, MachineContract, Operation, OperationKind, OperationResult,
+            RegisterTargetApplicability, TerminalMachine, Terminator, ValueDeclaration,
+        };
+
+        fn value(raw: u64, scalar_type: ScalarType) -> ValueDeclaration {
+            ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type,
+                qualifications: Default::default(),
+            }
+        }
+
+        fn constant(raw: u64, scalar_type: ScalarType, kind: OperationKind) -> Operation {
+            Operation::unsuspended(
+                OperationId::new(raw).unwrap(),
+                OperationResult::Scalar(value(raw, scalar_type)),
+                kind,
+            )
+        }
+
+        #[test]
+        fn boolean_literals_keep_their_type_and_exact_zero_or_one_value() {
+            let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+            for boolean in [false, true] {
+                let operation = constant(
+                    1,
+                    ScalarType::Boolean,
+                    OperationKind::BooleanConstant { value: boolean },
+                );
+                assert_eq!(
+                    scalar_operation_literal(&operation, ValueId::new(1).unwrap()),
+                    Some((
+                        ScalarType::Boolean,
+                        IntegerValue::Unsigned(u128::from(u8::from(boolean)))
+                    ))
+                );
+                assert_eq!(
+                    scalar_operation_literal(&operation, ValueId::new(2).unwrap()),
+                    None
+                );
+                let wrong_type = constant(
+                    1,
+                    u8_type,
+                    OperationKind::BooleanConstant { value: boolean },
+                );
+                assert_eq!(
+                    scalar_operation_literal(&wrong_type, ValueId::new(1).unwrap()),
+                    None
+                );
+            }
+            let integer = constant(
+                1,
+                u8_type,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(7),
+                },
+            );
+            assert_eq!(
+                scalar_operation_literal(&integer, ValueId::new(1).unwrap()),
+                Some((u8_type, IntegerValue::Unsigned(7)))
+            );
+            let wrong_type = constant(
+                1,
+                ScalarType::Boolean,
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(1),
+                },
+            );
+            assert_eq!(
+                scalar_operation_literal(&wrong_type, ValueId::new(1).unwrap()),
+                None
+            );
+        }
+
+        #[test]
+        fn the_existing_machine_index_resolves_boolean_forwarding_without_rebinding_parameters() {
+            let first = BlockId::new(1).unwrap();
+            let second = BlockId::new(2).unwrap();
+            let formal = value(1, ScalarType::Boolean);
+            let mut entry = Block::plain(
+                first,
+                vec![formal],
+                Terminator::Jump {
+                    edge: EdgeId::new(1).unwrap(),
+                    target: second,
+                    arguments: vec![ValueId::new(2).unwrap()],
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    cleanup_actions: Vec::new(),
+                },
+            );
+            entry.operations.push(constant(
+                2,
+                ScalarType::Boolean,
+                OperationKind::BooleanConstant { value: true },
+            ));
+            let join = Block::plain(
+                second,
+                vec![value(3, ScalarType::Boolean)],
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(2).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            );
+            let machine = TerminalMachine {
+                assembly_target_requirement: RegisterTargetApplicability::Any,
+                id: MachineId::new(1).unwrap(),
+                attachment: None,
+                nominal_cleanup_subject: None,
+                ranked_scc: None,
+                structural_places: Vec::new(),
+                call_formations: Vec::new(),
+                block_entry_claims: Vec::new(),
+                loan_completions: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: first,
+                blocks: vec![entry, join],
+                contract: MachineContract::empty(ContractId::new(1).unwrap()),
+            };
+            let index = MachineScalarIndex::new(&machine);
+            let expected = Some((ScalarType::Boolean, IntegerValue::Unsigned(1)));
+            assert_eq!(
+                scalar_constant_value(ValueId::new(2).unwrap(), |value| index
+                    .constant_origin(value)),
+                expected
+            );
+            assert_eq!(
+                scalar_constant_value(ValueId::new(3).unwrap(), |value| index
+                    .constant_origin(value)),
+                expected
+            );
+            assert_eq!(
+                scalar_constant_value(ValueId::new(1).unwrap(), |value| index
+                    .constant_origin(value)),
+                None
+            );
+            assert_eq!(
+                scalar_constant_value(ValueId::new(99).unwrap(), |value| index
+                    .constant_origin(value)),
+                None
+            );
+            assert_eq!(
+                scalar_constant_value(ValueId::new(2).unwrap(), |value| {
+                    machine_scalar_constant_origin(&machine, value)
+                }),
+                expected
+            );
+        }
+
+        #[test]
+        fn mixed_boolean_incoming_values_do_not_prove_a_constant() {
+            for equal in [false, true] {
+                let actual =
+                    scalar_constant_value(ValueId::new(3).unwrap(), |value| match value.get() {
+                        1 => Some(ScalarConstantOrigin::Literal(
+                            ScalarType::Boolean,
+                            IntegerValue::Unsigned(1),
+                        )),
+                        2 => Some(ScalarConstantOrigin::Literal(
+                            ScalarType::Boolean,
+                            IntegerValue::Unsigned(u128::from(u8::from(equal))),
+                        )),
+                        3 => Some(ScalarConstantOrigin::Incoming(vec![
+                            ValueId::new(1).unwrap(),
+                            ValueId::new(2).unwrap(),
+                        ])),
+                        _ => None,
+                    });
+                assert_eq!(
+                    actual,
+                    equal.then_some((ScalarType::Boolean, IntegerValue::Unsigned(1)))
+                );
+            }
         }
     }
 }

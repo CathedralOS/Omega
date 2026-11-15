@@ -49,7 +49,7 @@ fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
     BuildEvaluationSponsor::new_with_measurement(
         limits,
         evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
         },
     )
@@ -1215,8 +1215,8 @@ fn unbound_build_invocation(project_name: &str) {
     }
     let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
         temporary.path(),
-        package_source::LocalSourceLimits::default(),
-        package_source::ExternalSourceContext::derive(b"build-charge-sdk"),
+        source_acquisition::LocalSourceLimits::default(),
+        source_acquisition::ExternalSourceContext::derive(b"build-charge-sdk"),
     )
     .expect("acquire source before its Build declares an owner");
     let capture = acquired.source_capture().clone();
@@ -1282,10 +1282,10 @@ fn unbound_build_invocation(project_name: &str) {
         "{project_name}: acquired_unbound_build_joined_named_product_native_and_terminal_exit0_without_live_source_or_replay"
     );
 
-    let other = package_source::local::operations::capture_local_source_input(
+    let other = source_acquisition::local::operations::capture_local_source_input(
         fixture_package_inputs::repo_root()
             .join("tests/fixtures/pass/build/activation_yields_without_replay"),
-        package_source::LocalSourceLimits::default(),
+        source_acquisition::LocalSourceLimits::default(),
     )
     .expect("different acquired namespace for refusal control");
     let wrong_capture = unbound_join_inputs(&capture, other.tree().clone(), project_name);
@@ -1968,7 +1968,7 @@ fn completed_build_target_fanout() {
     }));
     products.push(((host, true), compiler::PreparedPackageProduct {
         build,
-        product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        product: compiler::CompilationProduct::Native(products::NativeProductRequest {
             installation_assumptions: Vec::new(),
             retain_native_inputs: false,
             image: Default::default(),

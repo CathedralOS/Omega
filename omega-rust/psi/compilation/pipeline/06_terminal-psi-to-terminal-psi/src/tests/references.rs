@@ -843,7 +843,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance
-            .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -875,5 +875,402 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     assert_eq!(
         conflicts[0].statement,
         "storage is changed while a conflicting reference remains live"
+    );
+}
+
+// The permission created by a reference formation has its own lifecycle,
+// independently of whether its shared reference type admits later copies.
+const SHARED_REFERENCE_FORMATION: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/fixtures/run/ownership/shared_reference_formation/main.omg"
+));
+
+fn shared_reference_source() -> String {
+    SHARED_REFERENCE_FORMATION.replace("machine main()", "machine build_entry()")
+}
+
+#[test]
+fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
+    let source = shared_reference_source();
+    let verdict = super::build_purpose::judge_build(&source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the source's shared field reference must be checked: {verdict:?}");
+    };
+    let formed = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishReference { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        formed.len(),
+        1,
+        "the source forms exactly one persistent reference"
+    );
+    let result = formed[0].result.structural().unwrap();
+    assert!(
+        accepted
+            .elaboration
+            .module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == result.structural_type)
+            .unwrap()
+            .copyable,
+        "the shared reference type retains copy permission"
+    );
+    assert_eq!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Affine,
+        "the formation must own its fresh permission carrier: {:?}",
+        formed[0]
+    );
+    terminal_semantics::structural_effect_leaf_observation(formed[0]).unwrap();
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "forming the reference must preserve the caller's seven-value oracle: {status:?}"
+    );
+}
+
+#[test]
+fn a_shared_reference_copy_keeps_the_original_formation_owned() {
+    let source = shared_reference_source().replace(
+        "observe(held);",
+        "let copied: &u32 = held; observe(held); observe(copied);",
+    );
+    let verdict = super::build_purpose::judge_build(&source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("shared reference copying must preserve both loans: {verdict:?}");
+    };
+    let operations = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let formation = operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishReference { .. }
+            )
+        })
+        .unwrap()
+        .result
+        .structural()
+        .unwrap();
+    assert_eq!(
+        formation.multiplicity,
+        terminal_psi::StructuralMultiplicity::Affine
+    );
+    assert!(
+        operations.iter().any(|operation| matches!(
+            operation.kind,
+            terminal_psi::OperationKind::StructuralLeafCopy { .. }
+        ) && operation
+            .result
+            .structural()
+            .is_some_and(|result| result.structural_type == formation.structural_type
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted)),
+        "a later descriptor copy keeps the shared type's unrestricted copy permission"
+    );
+    // Ordinary copies still have their type's unrestricted custody. The
+    // creation rule cannot authorize an affine retagging of that copy.
+    let (machine_id, copy_id) = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::StructuralLeafCopy { .. }
+                    ) && operation
+                        .result
+                        .structural()
+                        .is_some_and(|result| result.structural_type == formation.structural_type)
+                })
+                .map(|operation| (machine.id, operation.id))
+        })
+        .unwrap();
+    let mut retagged = accepted
+        .elaboration
+        .module
+        .machine(machine_id)
+        .unwrap()
+        .clone();
+    let result = retagged
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.id == copy_id)
+        .unwrap();
+    let terminal_psi::OperationResult::Structural(result) = &mut result.result else {
+        unreachable!()
+    };
+    result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+    assert!(matches!(terminal_semantics::plain_affine::plan(&retagged,
+        &accepted.elaboration.module.structural_types),
+        Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
+            if detail == "place custody disagrees with its exact type declaration"));
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "both shared copies must close before the root replacement: {status:?}"
+    );
+}
+
+#[test]
+fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/ownership/reference_live_across_replacement/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    let verdict = super::build_purpose::judge_build(&source).unwrap();
+    let RouteVerdict::Rejected { conflicts, .. } = verdict else {
+        panic!("the captured field loan must exclude its overlapping store: {verdict:?}");
+    };
+    assert!(
+        !conflicts.is_empty(),
+        "the live reference must retain its loan conflict"
+    );
+}
+
+#[test]
+fn canonical_reference_creation_rejects_an_unowned_carrier() {
+    // The direct producer lookup and supplied-row validation share one
+    // lifecycle catalog. Only the creation owns a new permission carrier.
+    for row in terminal_semantics::StructuralEffectSemanticRow::ALL {
+        assert_eq!(
+            terminal_semantics::StructuralEffectSemanticRow::for_tag(row.tag()),
+            Some(row)
+        );
+    }
+    assert!(
+        terminal_semantics::StructuralEffectSemanticRow::for_tag(
+            terminal_semantics::OperationSemanticTag::BooleanConstant
+        )
+        .is_none()
+    );
+    let verdict = super::build_purpose::judge_build(&shared_reference_source()).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    // A receiving type cannot stand in for the field's actual primitive
+    // declaration. Keep the exact producer-published carrier independently.
+    let mut wrong_carrier_types = accepted.elaboration.module.structural_types.clone();
+    let owner = wrong_carrier_types
+        .iter()
+        .position(|declaration| {
+            declaration.shape.direct_fields().is_some_and(|fields| {
+                fields.iter().any(|field| {
+                    matches!(
+                        field.field_type,
+                        terminal_psi::StructuralFieldType::Scalar(_)
+                    ) && field.inline_carrier.is_some()
+                })
+            })
+        })
+        .unwrap();
+    let reference_type = wrong_carrier_types
+        .iter()
+        .find(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            )
+        })
+        .unwrap()
+        .id;
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } =
+        &mut wrong_carrier_types[owner].shape
+    else {
+        panic!("the source's Item field must remain a record")
+    };
+    fields[0].inline_carrier = Some(reference_type);
+    assert!(
+        terminal_semantics::validate_inline_carriers(
+            &wrong_carrier_types,
+            &wrong_carrier_types[owner]
+        )
+        .is_err()
+    );
+    let mut foreign_producer = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.operations().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishReference { .. }
+                )
+            })
+        })
+        .unwrap()
+        .clone();
+    let formed = foreign_producer
+        .operations()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishReference { .. }
+            )
+        })
+        .unwrap();
+    let result_place = formed.result.structural().unwrap().place;
+    let wrong_producer = semantic_vocabulary::OperationId::new(formed.id.get() + 1).unwrap();
+    let declaration = foreign_producer
+        .structural_places
+        .iter_mut()
+        .find(|place| place.id == result_place)
+        .unwrap();
+    let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+        &mut declaration.kind
+    else {
+        unreachable!()
+    };
+    *producer = wrong_producer;
+    assert!(
+        matches!(terminal_semantics::plain_affine::plan(&foreign_producer,
+        &accepted.elaboration.module.structural_types),
+        Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
+            if detail == "permission result has no exact reference producer declaration")
+    );
+    let mut formed = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishReference { .. }
+            )
+        })
+        .unwrap()
+        .clone();
+    let terminal_psi::OperationResult::Structural(result) = &mut formed.result else {
+        unreachable!()
+    };
+    result.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+    assert_eq!(
+        terminal_semantics::structural_effect_leaf_observation(&formed),
+        Err(
+            terminal_semantics::OperationSemanticError::StructuralEffectActionShapeMismatch(
+                terminal_semantics::OperationSemanticTag::EstablishReference
+            )
+        )
+    );
+}
+
+/// loans.md, "Reborrow lineage and access": a Mutable parent may form a
+/// Shared child ("Freeze mutation until the complete shared cohort ends;
+/// restore once"). An exclusive loan the program writes for a parameter that
+/// only observes is that: the place must admit the exclusive loan, and the
+/// callee receives observation. Each refused or rejected twin differs from
+/// an accepted program in the one thing named beside it.
+#[test]
+fn an_exclusive_loan_is_lent_on_to_a_parameter_that_only_observes() {
+    use super::build_purpose::judge_build;
+    let verdict = |build: &str| match judge_build(build) {
+        Err(crate::CompilationRefusal::Elaboration(refusal))
+        | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            accepted.publish_invocation().unwrap();
+            "accepted".to_owned()
+        }
+        Ok(RouteVerdict::Rejected { violations, .. }) => violations
+            .first()
+            .map_or("rejected".to_owned(), |first| first.statement.clone()),
+        other => panic!("{other:?}"),
+    };
+    let program = |binding: &str, call: &str| {
+        format!(
+            "data Pair {{ left: u32; right: u32; }}
+machine see(pair: &Pair) -> u32 {{ pair.left }}
+machine both(first: &Pair, second: &Pair) -> u32 {{ first.left }}
+machine relay(pair: &mut Pair) -> u32 {{ see(&mut pair) }}
+machine watch(pair: &Pair) -> u32 {{ see(&pair) }}
+machine build_entry() {{
+    let {binding}: Pair = Pair {{ left: 1, right: 2 }};
+    let mut other: Pair = Pair {{ left: 3, right: 4 }};
+    use({call});
+    pair_left(pair.left);
+}}
+machine use(seen: u32) {{ }}
+machine pair_left(left: u32) {{ }}"
+        )
+    };
+    // The loan as written, through a reference the machine holds, and beside
+    // a loan of other storage.
+    for call in [
+        "see(&mut pair)",
+        "relay(&mut pair)",
+        "watch(&pair)",
+        "both(&mut pair, &other)",
+        "both(&mut pair, &mut other)",
+    ] {
+        assert_eq!(verdict(&program("mut pair", call)), "accepted", "{call}");
+    }
+    // The place does not admit an exclusive loan.
+    assert_eq!(
+        verdict(&program("pair", "see(&mut pair)")),
+        "call exclusive loan of an immutable binding"
+    );
+    // The exclusive loan overlaps another loan of its storage.
+    for call in ["both(&mut pair, &pair)", "both(&pair, &mut pair)"] {
+        assert_eq!(
+            verdict(&program("mut pair", call)),
+            "call exclusive loan for a shared formal beside another loan of its storage",
+            "{call}"
+        );
+    }
+    // The other direction has no row: observation does not become mutation.
+    assert!(
+        verdict(&program("mut pair", "relay(&pair)")).contains("lends only immutable access"),
+        "{}",
+        verdict(&program("mut pair", "relay(&pair)"))
     );
 }

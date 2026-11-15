@@ -21,11 +21,16 @@ use installation_evidence::ProviderExecutionEvidence;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
 use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 
+#[path = "dynamic_elf.rs"]
 mod dynamic_elf;
+#[path = "identity.rs"]
 mod identity;
+#[path = "mixed_structural_scalar.rs"]
 mod mixed_structural_scalar;
+#[path = "provider_execution.rs"]
 mod provider_execution;
 #[cfg(test)]
+#[path = "native_artifact_tests.rs"]
 mod tests;
 
 use crate::physical::{
@@ -767,8 +772,7 @@ pub struct NativeSelectedProviderPlan {
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
     external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
-    family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
-    family_realization_identities: TerminalIdentityTable,
+    identities: TerminalIdentityTable,
     closed_requirement_rows: Vec<(String, String)>,
     assumed_requirement_rows: Vec<(String, String)>,
     assumed_relationships: Vec<effects::AssumedBindingContractSelection>,
@@ -800,13 +804,7 @@ impl NativeSelectedProviderPlan {
                     ),
                     requirements,
                 );
-                projected.family_realization_rows = selection
-                    .family_realization_rows()
-                    .iter()
-                    .filter(|row| row.provider_plan_report_identity == report_identity)
-                    .cloned()
-                    .collect();
-                projected.family_realization_identities = selection.identities().clone();
+                projected.identities = selection.identities().clone();
                 projected.closed_requirement_rows = selection
                     .specialized_requirement_rows()
                     .iter()
@@ -869,8 +867,7 @@ impl NativeSelectedProviderPlan {
             plan_digest,
             requirement_identities,
             external_requirement_applications: Vec::new(),
-            family_realization_rows: Vec::new(),
-            family_realization_identities: TerminalIdentityTable::from(vec![String::new()]),
+            identities: TerminalIdentityTable::from(vec![String::new()]),
             closed_requirement_rows: Vec::new(),
             assumed_requirement_rows: Vec::new(),
             assumed_relationships: Vec::new(),
@@ -938,10 +935,6 @@ impl NativeSelectedProviderPlan {
         &self.requirement_identities
     }
 
-    pub fn family_realization_rows(&self) -> &[effects::SelectedTargetFamilyRealization] {
-        &self.family_realization_rows
-    }
-
     pub fn external_requirement_applications(&self) -> &[SelectedExternalRequirementApplication] {
         &self.external_requirement_applications
     }
@@ -950,12 +943,12 @@ impl NativeSelectedProviderPlan {
         let mut previous = None;
         for row in &self.external_requirement_applications {
             let requirement = self
-                .family_realization_identities
+                .identities
                 .text(row.requirement_identity)
                 .filter(|identity| !identity.is_empty())
                 .ok_or("native external coordinate lost its closed requirement")?;
             let selected = self
-                .family_realization_identities
+                .identities
                 .text(row.selected_requirement_identity)
                 .filter(|identity| !identity.is_empty())
                 .ok_or("native external coordinate lost its selected requirement")?;
@@ -974,15 +967,10 @@ impl NativeSelectedProviderPlan {
                         closed == requirement
                             && selected.as_str()
                                 != self
-                                    .family_realization_identities
+                                    .identities
                                     .text(row.selected_requirement_identity)
                                     .unwrap_or_default()
                     })
-                || self.family_realization_rows.iter().any(|family| {
-                    (family.head_identity == row.requirement_identity
-                        || family.member_identity == row.requirement_identity)
-                        && family.selected_requirement_identity != row.selected_requirement_identity
-                })
             {
                 return Err(
                     "native external coordinate changed its exact selected plan or requirement roster",
@@ -993,8 +981,8 @@ impl NativeSelectedProviderPlan {
         Ok(())
     }
 
-    pub fn family_realization_identities(&self) -> &TerminalIdentityTable {
-        &self.family_realization_identities
+    pub fn identities(&self) -> &TerminalIdentityTable {
+        &self.identities
     }
 
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
@@ -1006,22 +994,13 @@ impl NativeSelectedProviderPlan {
             return supplied;
         }
 
-        if let Some(row) = self.external_requirement_applications.iter().find(|row| {
-            self.family_realization_identities
-                .text(row.requirement_identity)
-                == Some(requirement)
-        }) {
+        if let Some(row) = self
+            .external_requirement_applications
+            .iter()
+            .find(|row| self.identities.text(row.requirement_identity) == Some(requirement))
+        {
             return self
-                .family_realization_identities
-                .text(row.selected_requirement_identity)
-                .unwrap_or(requirement);
-        }
-        if let Some(row) = self.family_realization_rows.iter().find(|row| {
-            self.family_realization_identities.text(row.head_identity) == Some(requirement)
-                || self.family_realization_identities.text(row.member_identity) == Some(requirement)
-        }) {
-            return self
-                .family_realization_identities
+                .identities
                 .text(row.selected_requirement_identity)
                 .unwrap_or(requirement);
         }

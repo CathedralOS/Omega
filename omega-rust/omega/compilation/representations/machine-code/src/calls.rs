@@ -446,13 +446,6 @@ pub mod internal {
             completion_receipts: Vec<CompletionReceipt>,
         },
         Authored,
-        TargetFamily {
-            boundary: BoundaryMachineId,
-            member: MachineId,
-            target: String,
-            completion_claim_sources: Vec<abstract_operations::CompletionClaimSource>,
-            completion_receipts: Vec<CompletionReceipt>,
-        },
         InstalledProvider {
             boundary: BoundaryMachineId,
             provider: Box<ProviderCandidateConformance>,

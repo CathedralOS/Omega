@@ -63,6 +63,7 @@ pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;
+mod ranking;
 
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PlaceId,
@@ -117,6 +118,9 @@ struct Head {
     member: MachineId,
     block: BlockId,
     parameters: Vec<ValueId>,
+    /// The position in `parameters` of the subject of the member's
+    /// `terminates by` witness, when it supplies one (`ranking`).
+    subject: Option<usize>,
 }
 
 /// Lowers machine `id`. `component` holds the members of its call component
@@ -133,6 +137,7 @@ pub(crate) fn machine(
     callables: &crate::callables::CallableNamespace,
     boundaries: &crate::boundaries::BoundaryNamespace,
     requirement: bool,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = signatures.get(id.into(), id)?;
@@ -157,6 +162,7 @@ pub(crate) fn machine(
         callables,
         boundaries,
         &body.slots,
+        qualifications,
     )?;
     // A requirement is its formals, its result and its contract. It has no
     // block: the entry block opened above for those identities is dropped.
@@ -188,6 +194,7 @@ pub(crate) fn signature_header(
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
     boundaries: &crate::boundaries::BoundaryNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     callable_header(
         context,
@@ -198,6 +205,7 @@ pub(crate) fn signature_header(
         callables,
         boundaries,
         crate::callable_headers::CallableCrashPolicy::Closed,
+        qualifications,
     )
 }
 
@@ -209,6 +217,7 @@ pub(crate) fn static_signature_header(
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
     boundaries: &crate::boundaries::BoundaryNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     let policy = if matches!(signature.crashes, crate::body::CrashCeiling::Inferred) {
         crate::callable_headers::CallableCrashPolicy::Open
@@ -216,7 +225,15 @@ pub(crate) fn static_signature_header(
         crate::callable_headers::CallableCrashPolicy::Closed
     };
     callable_header(
-        context, signature, signatures, outcomes, records, callables, boundaries, policy,
+        context,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        policy,
+        qualifications,
     )
 }
 
@@ -229,11 +246,12 @@ fn callable_header(
     callables: &crate::callables::CallableNamespace,
     boundaries: &crate::boundaries::BoundaryNamespace,
     crash_policy: crate::callable_headers::CallableCrashPolicy,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
     // Header preparation constructs formals and the result without lowering
     // a body or looking up an invocation-specific public declaration.
     let declarations = IdTable::default();
-    let (lowering, _, formals, result) = begin(
+    let (mut lowering, _, formals, result) = begin(
         context,
         signature,
         Signatures {
@@ -247,6 +265,7 @@ fn callable_header(
         callables,
         boundaries,
         &signature.parameters,
+        qualifications,
     )?;
     let routes = match &signature.crashes {
         crate::body::CrashCeiling::DeclaredNone => Vec::new(),
@@ -276,9 +295,18 @@ fn begin<'a>(
     callables: &'a crate::callables::CallableNamespace,
     boundaries: &'a crate::boundaries::BoundaryNamespace,
     slots: &'a [ValueType],
+    qualifications: &'a mut crate::qualifications::Qualifications,
 ) -> Checked<(Lowering<'a>, BlockId, Formals, TerminalMachineResult)> {
     let mut lowering = Lowering::new(
-        id, signature, signatures, outcomes, records, callables, boundaries, slots,
+        id,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        slots,
+        qualifications,
     );
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
     let (formals, result) = lowering.formals()?;
@@ -340,7 +368,7 @@ fn contract_header(
         published_synchronous_entries: outcome.synchronous_entries.clone(),
         termination: match signature.termination {
             crate::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
-            crate::Termination::Promised | crate::Termination::Witnessed => {
+            crate::Termination::Promised | crate::Termination::Witnessed(_) => {
                 semantic_vocabulary::Termination::Terminates
             }
         },
@@ -364,6 +392,7 @@ pub(crate) fn declaration_contract(
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
+    qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<MachineContract> {
     let selected = selected_body
         .map(|body| terminal_check_tables::row(outcomes, body, caller, Construct::Machine))
@@ -400,6 +429,7 @@ pub(crate) fn declaration_contract(
         callables,
         signatures.boundaries,
         &signature.parameters,
+        qualifications,
     );
     let (formals, result) = lowering.formals()?;
     let ensures = signature
@@ -418,9 +448,9 @@ pub(crate) fn declaration_contract(
             })
         })
         .collect::<Checked<Vec<_>>>()?;
-    Ok(contract_header(
-        id, signature, formals, result, ensures, &outcome,
-    ))
+    let mut contract = contract_header(id, signature, formals, result, ensures, &outcome);
+    lowering.qualify_contract(&mut contract)?;
+    Ok(contract)
 }
 
 impl<'a> Lowering<'a> {
@@ -433,7 +463,9 @@ impl<'a> Lowering<'a> {
         callables: &'a crate::callables::CallableNamespace,
         boundaries: &'a crate::boundaries::BoundaryNamespace,
         slot_types: &'a [ValueType],
+        qualifications: &'a mut crate::qualifications::Qualifications,
     ) -> Self {
+        let coercions_start = qualifications.catalog.coercions.len();
         Self {
             id,
             signature,
@@ -453,15 +485,20 @@ impl<'a> Lowering<'a> {
             source_folded_calls: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
+            operation_locations: IdTable::default(),
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
             selected: Vec::new(),
             slot_types,
+            qualifications,
+            coercions_start,
+            value_qualifications: Vec::new(),
             published: Vec::new(),
             heads: Vec::new(),
             invariants: Vec::new(),
             borrowed_roots: Vec::new(),
+            exclusive_roots: Vec::new(),
             joining: 0,
             fallthrough: None,
         }
@@ -515,6 +552,9 @@ impl Lowering<'_> {
                 });
                 formals.order.push(BoundaryParameterKind::Structural);
                 self.borrowed_roots.push(place);
+                if borrowed.access == language_core::ReferenceAccess::Mutable {
+                    self.exclusive_roots.push(place);
+                }
                 *self.slot_mut(position)? = Some(if scalar {
                     Bound::Home(place)
                 } else {
@@ -542,6 +582,7 @@ impl Lowering<'_> {
                         return Err(self.internal("scalar formals are not the first values"));
                     }
                     formals.scalars.push(declaration(value, scalar_type));
+                    self.qualify(value, value_type.qualification())?;
                     formals.order.push(BoundaryParameterKind::Scalar);
                     *self.slot_mut(position)? = Some(Bound::Scalar(value));
                 }
@@ -587,6 +628,7 @@ impl Lowering<'_> {
                 if value.get() != formals.scalars.len() as u64 + 1 {
                     return Err(self.internal("the result does not follow the scalar formals"));
                 }
+                self.qualify(value, value_type.qualification())?;
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
             Some(value_type @ ValueType::Record(record, _, _)) => {
@@ -625,6 +667,7 @@ impl Lowering<'_> {
                 return Err(self.internal("erased formals do not follow the result"));
             }
             formals.erased.push(declaration(value, scalar_type));
+            self.qualify(value, signature.parameters[*position].qualification())?;
             *self.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
         }
         let bindings: Vec<_> = formals
@@ -654,6 +697,14 @@ struct Lowering<'a> {
     records: &'a Records<'a>,
     callables: &'a crate::callables::CallableNamespace,
     boundaries: &'a crate::boundaries::BoundaryNamespace,
+    qualifications: &'a mut crate::qualifications::Qualifications,
+    /// The first qualification edge minted by this machine, carried from
+    /// construction instead of searching all preceding machines' edges.
+    coercions_start: usize,
+    /// Complete declared types indexed by the values this lowering minted.
+    /// Synthetic proof temporaries have no qualification; expression results
+    /// and formals set theirs through the same owner before publication.
+    value_qualifications: Vec<Option<crate::body::Qualification>>,
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
@@ -685,6 +736,9 @@ struct Lowering<'a> {
     )>,
     call_formations: Vec<terminal_psi::CallFormation>,
     blocks: IdTable<BlockId, Draft>,
+    /// Coordinates of emitted operations in this in-progress machine. A call
+    /// reads exact scalar definitions without rescanning all earlier blocks.
+    operation_locations: IdTable<OperationId, Option<(BlockId, usize)>>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
     /// The program point after the last thing emitted in `current`.
@@ -704,9 +758,13 @@ struct Lowering<'a> {
     heads: Vec<Head>,
     invariants: Vec<ScalarBlockInvariant>,
     /// The roots of this machine's borrowed formals: storage the caller
-    /// lent, so a loan of a place beneath one reborrows the incoming loan
+    /// lent, in increasing place order. Formals allocate roots in that order.
+    /// A loan of a place beneath one reborrows the incoming loan
     /// (`Lender::Incoming`) rather than lending owned storage.
     borrowed_roots: Vec<PlaceId>,
+    /// Those of `borrowed_roots` lent with `&mut`: the only borrowed storage
+    /// an owned value may be moved out of (`places::record`).
+    exclusive_roots: Vec<PlaceId>,
     /// How many operands that only some paths evaluate and that rejoin
     /// (the right of `&&` and `||`, an arm of a value `match`) enclose what
     /// is being lowered. A home made there would hold the local on those
@@ -718,8 +776,8 @@ struct Lowering<'a> {
     fallthrough: Option<crate::Branch>,
 }
 
-/// What lowering an evaluation reached: its result, or the call that never
-/// returns at which every path of it ended.
+/// What lowering an evaluation reached: its result, or the expression with
+/// no normal result at which every path of it ended.
 #[derive(Debug)]
 pub(super) enum Reached<T> {
     Value(T),
@@ -774,6 +832,70 @@ fn successor(edge: EdgeId, target: BlockId, arguments: Vec<ValueId>) -> Successo
 }
 
 impl<'a> Lowering<'a> {
+    /// A real owned value whose declared domain excludes every inhabitant.
+    /// A borrowed referent, provider attachment or result placeholder is not
+    /// such a value and cannot eliminate its consumer's continuation.
+    fn empty_owned_value(&self, root: PlaceId) -> bool {
+        self.roots.get(root).is_some_and(|(kind, ty)| {
+            !matches!(
+                kind,
+                StructuralPlaceKind::Result | StructuralPlaceKind::ProviderAttachment { .. }
+            ) && self.borrowed_roots.binary_search(&root).is_err()
+                && self.records.inhabitation.status(*ty)
+                    == terminal_semantics::inhabitation::Status::ProvedEmpty
+        })
+    }
+
+    fn qualify(
+        &mut self,
+        value: ValueId,
+        qualification: crate::body::Qualification,
+    ) -> Checked<()> {
+        self.value_qualifications
+            .resize(self.tables.values.len(), None);
+        let slot = usize::try_from(value.get() - 1)
+            .ok()
+            .and_then(|index| self.value_qualifications.get_mut(index))
+            .ok_or_else(|| terminal_check_tables::Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine: self.id,
+                concerns: Construct::Machine,
+                detail: "a qualification names a value outside this lowering".into(),
+            })?;
+        if slot.is_some_and(|previous| previous != qualification) {
+            return Err(self.internal("a qualification change reused its operand's value identity"));
+        }
+        *slot = Some(qualification);
+        Ok(())
+    }
+
+    fn qualify_declaration(&mut self, value: &mut ValueDeclaration) -> Checked<()> {
+        let qualification = self
+            .value_qualifications
+            .get((value.id.get() - 1) as usize)
+            .copied()
+            .flatten()
+            .unwrap_or(crate::body::Qualification::NONE);
+        value.qualifications =
+            self.qualifications
+                .scalar(self.id, value.scalar_type, qualification)?;
+        Ok(())
+    }
+
+    fn qualify_contract(&mut self, contract: &mut MachineContract) -> Checked<()> {
+        for value in contract
+            .parameters
+            .iter_mut()
+            .chain(&mut contract.erased_scalar_formals)
+        {
+            self.qualify_declaration(value)?;
+        }
+        if let TerminalMachineResult::Scalar(value) = &mut contract.result {
+            self.qualify_declaration(value)?;
+        }
+        Ok(())
+    }
+
     /// Lowers one body's statements into the open block, and the implicit
     /// Unit completion when they fall off the end.
     ///
@@ -872,6 +994,7 @@ impl<'a> Lowering<'a> {
                 let value =
                     self.value(scalar_type, ValueOrigin::BlockParameter { block, position });
                 self.parameter(block, value, scalar_type)?;
+                self.qualify(value, value_type.qualification())?;
                 parameters.push(value);
             }
             if !signature.requires.is_empty() {
@@ -886,10 +1009,21 @@ impl<'a> Lowering<'a> {
                     arrivals: Vec::new(),
                 });
             }
+            let subject = match signature.termination {
+                crate::Termination::Witnessed(ranking) => {
+                    let subject = usize::try_from(ranking.subject)
+                        .ok()
+                        .filter(|subject| *subject < parameters.len())
+                        .ok_or_else(|| self.internal("a ranking subject past the formals"))?;
+                    Some(subject)
+                }
+                crate::Termination::Silent | crate::Termination::Promised => None,
+            };
             self.heads.push(Head {
                 member: *member,
                 block,
                 parameters,
+                subject,
             });
         }
         let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
@@ -1053,7 +1187,7 @@ impl<'a> Lowering<'a> {
     }
 
     fn signature_header(
-        &self,
+        &mut self,
         formals: Formals,
         result: TerminalMachineResult,
         crash_routes: Vec<terminal_psi::CrashRouteBucket>,
@@ -1083,7 +1217,8 @@ impl<'a> Lowering<'a> {
         };
         let id =
             ContractId::new(self.id.get()).ok_or_else(|| self.internal("contract identity"))?;
-        let proof = contract_header(id, self.signature, formals, result, ensures, &outcome);
+        let mut proof = contract_header(id, self.signature, formals, result, ensures, &outcome);
+        self.qualify_contract(&mut proof)?;
         Ok(SignatureHeader {
             crash_policy: crate::callable_headers::CallableCrashPolicy::Closed,
             scalar_parameters: proof.parameters.clone(),
@@ -1133,7 +1268,7 @@ impl<'a> Lowering<'a> {
             .collect();
         let outcome =
             terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?;
-        let contract = contract_header(
+        let mut contract = contract_header(
             contract_id,
             self.signature,
             formals,
@@ -1141,13 +1276,38 @@ impl<'a> Lowering<'a> {
             ensures,
             outcome,
         );
+        self.qualify_contract(&mut contract)?;
+        for block in &mut blocks {
+            for value in &mut block.parameters {
+                self.qualify_declaration(value)?;
+            }
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationResult::Scalar(value) = &mut operation.result {
+                    self.qualify_declaration(value)?;
+                }
+            }
+        }
         let structural_places = self
             .roots
             .iter()
             .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
             .collect();
         self.call_formations.sort_unstable_by_key(|row| row.site);
-        let machine = TerminalMachine {
+        // The one cycle a witness ranks is the loop of the machine that
+        // wrote it (`components` refuses a witness on a cycle of several
+        // machines), so a ranked head stands alone.
+        let ranked = match self.heads.as_slice() {
+            [head] => head.subject.map(|subject| ranking::RankedHead {
+                block: head.block,
+                subject,
+                rank: head.parameters[subject],
+            }),
+            heads if heads.iter().any(|head| head.subject.is_some()) => {
+                return Err(self.internal("a ranking on a call cycle of several machines"));
+            }
+            _ => None,
+        };
+        let mut machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
             attachment: None,
@@ -1163,6 +1323,12 @@ impl<'a> Lowering<'a> {
             blocks,
             contract,
         };
+        if let Some(head) = ranked {
+            machine.ranked_scc =
+                ranking::rank(&machine, head, &mut self.tables, &mut self.sources)?;
+        }
+        self.qualifications
+            .complete(&machine, self.coercions_start)?;
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
         Ok(Lowered {

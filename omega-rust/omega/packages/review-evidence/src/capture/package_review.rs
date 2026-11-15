@@ -1,17 +1,16 @@
 /*
 Compiler-boundary assembly of `PackageReviewEvidence` (`project_package_review`).
 
-We retain the build handoff's exact package, source-consumption, observation,
-and target checks. Policy projection then refuses until the accepted route
-publishes its contract custody; these metadata checks do not manufacture a
-review capsule or grant consumer permissions.
+The build handoff's package, source-consumption, observation and target must
+agree with the accepted source before policy projection. Canonical sizing
+then applies the caller's budget before returning any review capsule.
 */
 
 use crate::SemanticBindingProjectionError;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::PackageReviewEvidence;
-use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
+use products::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
@@ -68,11 +67,26 @@ pub fn project_package_review(
     {
         return Err(Error::IdentityMismatch);
     }
-    let _ = (
+    let policy = super::project_checked_package_policy(checked, target, package)
+        .map_err(Error::Projection)?;
+    let policy_canonical_bytes = policy.canonical_bytes().map_err(Error::Encoding)?.len();
+    if policy_canonical_bytes > maximum_policy_canonical_bytes {
+        return Err(Error::PolicyBudget);
+    }
+    // The projection presently refuses every owned boundary declaration.
+    // Consequently it can describe no service/hosted binding nomination;
+    // accepted dependency decisions remain the exact supplied input rows.
+    Ok(PackageReviewEvidence {
+        source_consumption_commitment,
         selected_build_machine_identity,
-        maximum_policy_canonical_bytes,
-    );
-    Err(Error::Projection(super::unavailable_projection(
-        "package review policy",
-    )))
+        build_evaluation_usage: checked.build().evaluation_usage,
+        build_observation_summary: checked.build().observation_summary.clone(),
+        restricted_build_requests: checked.build_admission().restricted_build_requests.clone(),
+        semantic_bindings: checked.sources().accepted_semantic_bindings().to_vec(),
+        service_binding_candidates: Vec::new(),
+        hosted_exit_binding_candidates: Vec::new(),
+        build_handoff,
+        policy,
+        policy_canonical_bytes,
+    })
 }

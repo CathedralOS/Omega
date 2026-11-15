@@ -7,7 +7,7 @@ and the [command-line contract](../../spec/build/command_line.md), including its
 [required acceptance](../../spec/build/command_line.md#required-acceptance)
 sections; this note keeps only the implementation route. The CLI recognizes
 `omega source rewrite` but reports it as not implemented
-(`omega-rust/omega/application/cli/src/arguments/mod.rs`). The marker work
+(`omega-rust/omega/application/src/arguments/mod.rs`). The marker work
 belongs to **STATIC-MACHINE-MIGRATION** and the source rewrite and CLI work to
 **RC-RELEASE-RECORD-AND-CLOSURE** in [TASKS.md](../../../TASKS.md). Delete this
 note when both close.

@@ -311,6 +311,6 @@ transaction is recoverable rather than two simultaneously visible renames:
 recover pending intent before reading accepted state, stop on unrelated edits,
 and never delete pending publication state as disposable cache. Exact command
 and interruption behavior belongs to the
-[command](../../../omega-rust/omega/packages/package-manager/src/package_manager/README.md)
+[command](../../../omega-rust/omega/packages/package-manager/README.md#install-and-update)
 and [publication](../../../omega-rust/omega/packages/package-manager/src/operations/publication/README.md)
 owners.

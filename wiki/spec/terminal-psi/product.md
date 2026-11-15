@@ -30,13 +30,12 @@ or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
 and instructions are later realization facts.
 
-The optional portable default root names either one concrete machine or an independent
-target-family contract. A family contract has no executable body: the receiving
-installation resolves its exact tagged member from the retained catalog before
-creating execution state or a native plan. The root, every member, and the
-canonical semantic identity remain unchanged across installations. Selection
-establishes catalog membership only; entry backing, provider authority and
-checked source-entry correspondence remain separate admission obligations.
+The optional portable default root names one concrete executable machine.
+A boundary declaration is not an executable root, and the portable product has
+no target-body family catalog or deployment-tag lookup. Build selects ordinary
+providers for exact requirement applications; installation retains those
+selections separately from the immutable program. Changing the execution target
+does not implicitly replace a source body or turn a bodyless contract into code.
 
 A declaration-only checking product has no default root or root-service reach.
 It can retain real scalar-evaluation machines and supplied callable declarations;
@@ -99,7 +98,7 @@ rows carry ContractEvidence rather than Callable role: their schema owner create
 no provider demand, and receiving execution cannot install or invoke those rows.
 The in-process native proposal retains complete declaration-qualified checked
 choices, their full originating plan digest and original row, and closed
-specialization/family coordinates. Lowering consumes that projection once;
+specialization coordinates. Lowering consumes that projection once;
 scope and installation match its choosing declaration against canonical candidates.
 Shared physical code does not merge choices: native call custody rejoins the
 exact installed conformance rather than inferring a provider from the callee.
@@ -239,7 +238,7 @@ including [content-identified anonymous roots](../build/declarations.md#default-
 Dependency references preserve those identities across separate consumption;
 importing a product does not re-own its declarations. This provenance is distinct
 from the exact product's semantic digest and its later native realization.
-Reloading or moving a product, or clearing a compiler cache, cannot rename its
+Reloading or moving a product cannot rename its
 declarations. No global catalog of previous compilations establishes identity
 or acceptance. Products missing required provenance must reject the affected
 nominal import rather than guess it from a path or same-spelled declaration.
@@ -273,8 +272,8 @@ and possession does not grant realization authority.
 Omega selects the exact implementation through those Build provider rows, not
 through a target modifier on a source declaration. Every implementation remains
 checked independently of selection; selected ABI, import, layout, and ISA
-applicability is a realization obligation. Retained target-family rows are
-not accepted Psi product semantics.
+applicability is a realization obligation. The portable module contains no
+executable target-family catalog.
 
 An unused representation application is not a validated concrete target plan.
 [Demand-driven layout formation](../layouts/plans.md#layout-demand-and-validation)

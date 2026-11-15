@@ -84,6 +84,14 @@ pub enum DeferredRequest {
     /// A domain cast whose operand carries a compiler-owned domain or a
     /// constraint no declaration answered, which no entry can name yet.
     DomainCastUnnamedConstraint,
+    /// A call of a mathematical definition with an argument built at its
+    /// parameter's type (a constructor, string, array or match): the
+    /// parameter has a mathematical type, and no pass lands a value there.
+    MathematicalCallDestination,
+    /// A call with an argument built at its parameter's type, whose callee's
+    /// parameters typing does not select: a machine with no state, or a name
+    /// several trait requirements share.
+    CallParameterSelection,
     /// A machine with one body per target that binds type or lifetime
     /// parameters or conformance bounds: holding each body to the shared
     /// signature means matching the two telescopes binder for binder, and
@@ -102,6 +110,13 @@ pub enum DeferredRequest {
     /// checked as usual" even where a statement never executes
     /// (`state_contracts.md`), so a name none of them answers is an error.
     UndeclaredValueName,
+    /// A call written `Sum::Case(..)`, whose name is a case of the sum it is
+    /// qualified by. A violation: "A sum value is written as a case
+    /// literal", and "Cases, nested data and attached domains share their
+    /// owner's member namespace; data does not own machine declarations.
+    /// Collisions reject rather than selecting by priority"
+    /// (`data_and_literals.md`), so no machine can have that name.
+    CaseCalledAsMachine,
 }
 
 impl DeferredRequest {
@@ -109,7 +124,10 @@ impl DeferredRequest {
     /// reader that demands its declaration rejects the program rather than
     /// calling it unsupported.
     pub fn is_violation(self) -> bool {
-        matches!(self, Self::UndeclaredCallName | Self::UndeclaredValueName)
+        matches!(
+            self,
+            Self::UndeclaredCallName | Self::UndeclaredValueName | Self::CaseCalledAsMachine
+        )
     }
 
     /// The construct as a refusal names it, after the word "declaration";
@@ -154,6 +172,12 @@ impl DeferredRequest {
             Self::DomainCastUnnamedConstraint => {
                 "holding a domain cast over a compiler-owned or unresolved domain, which no pass accounts for yet"
             }
+            Self::MathematicalCallDestination => {
+                "holding a mathematical call with an argument no pass builds at its parameter's type yet"
+            }
+            Self::CallParameterSelection => {
+                "holding a call whose callee's parameter types typing does not select yet"
+            }
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
             }
@@ -164,6 +188,10 @@ impl DeferredRequest {
             Self::UndeclaredValueName => {
                 "this expression names a value nothing the program declares: an unknown name is \
                  an error wherever it appears"
+            }
+            Self::CaseCalledAsMachine => {
+                "this call names a case of a sum, and a case is not a machine: a sum value is \
+                 written as a case literal, `Sum::Case { .. }`"
             }
         }
     }

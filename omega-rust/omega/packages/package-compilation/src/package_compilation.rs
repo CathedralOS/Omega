@@ -11,7 +11,7 @@ into two parts:
    dependency alias maps.
 2. `PackageCompilationTargetInputs`, which holds the checked activation purpose,
    dependency `PackageBuildHandoff` bundles, accepted semantic bindings,
-   independent component descriptions, and optional product retention coordinates.
+   and independent component descriptions.
 */
 
 /*
@@ -30,16 +30,27 @@ reachable closures and cycle checks; `build_handoffs.rs`, `provider_selections.r
 Build outputs; and `errors.rs` defines `PackageCompilationInputError`.
 */
 
+#[path = "bindings.rs"]
 mod bindings;
+#[path = "build_handoffs.rs"]
 mod build_handoffs;
+#[path = "construction.rs"]
 mod construction;
+#[path = "dependency_graph.rs"]
 mod dependency_graph;
+#[path = "errors.rs"]
 mod errors;
+#[path = "native_bindings.rs"]
 mod native_bindings;
+#[path = "native_evaluation.rs"]
 mod native_evaluation;
+#[path = "native_output_codec.rs"]
 pub mod native_output_codec;
+#[path = "provider_defaults.rs"]
 mod provider_defaults;
+#[path = "provider_selection_codec.rs"]
 pub mod provider_selection_codec;
+#[path = "provider_selections.rs"]
 mod provider_selections;
 pub use native_bindings::{
     NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
@@ -77,33 +88,6 @@ pub struct PackageCompilationTargetInputs {
     semantic_role_discovery: bool,
     independent_component_descriptions:
         BTreeMap<PackageKeyIdentity, IndependentComponentDescription>,
-    native_product_retention: Option<CompilerProductRetention>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompilerProductRetention {
-    directory: PathBuf,
-    input_key: [u8; 32],
-    compiler_identity: [u8; 32],
-}
-
-impl CompilerProductRetention {
-    pub fn new(directory: PathBuf, input_key: [u8; 32], compiler_identity: [u8; 32]) -> Self {
-        Self {
-            directory,
-            input_key,
-            compiler_identity,
-        }
-    }
-    pub fn directory(&self) -> &Path {
-        &self.directory
-    }
-    pub const fn input_key(&self) -> &[u8; 32] {
-        &self.input_key
-    }
-    pub const fn compiler_identity(&self) -> &[u8; 32] {
-        &self.compiler_identity
-    }
 }
 
 impl Default for PackageCompilationTargetInputs {
@@ -114,7 +98,6 @@ impl Default for PackageCompilationTargetInputs {
             accepted_semantic_bindings: BTreeMap::new(),
             semantic_role_discovery: false,
             independent_component_descriptions: BTreeMap::new(),
-            native_product_retention: None,
         }
     }
 }
@@ -147,15 +130,6 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
-    pub fn with_native_product_retention(mut self, retention: CompilerProductRetention) -> Self {
-        self.target.native_product_retention = Some(retention);
-        self
-    }
-
-    pub fn native_product_retention(&self) -> Option<&CompilerProductRetention> {
-        self.target.native_product_retention.as_ref()
-    }
-
     pub(crate) fn require_same_shared_product_sources(&self, other: &Self) -> Result<(), String> {
         for (identity, record) in &self.source.packages {
             if let Some(previous) = other.source.packages.get(identity)
@@ -353,14 +327,12 @@ impl PackageCompilationInputs {
             accepted_semantic_bindings,
             semantic_role_discovery,
             independent_component_descriptions,
-            native_product_retention,
         } = target;
         let mut inputs = Self {
             source,
             target: PackageCompilationTargetInputs {
                 purpose,
                 semantic_role_discovery,
-                native_product_retention,
                 ..PackageCompilationTargetInputs::default()
             },
         };

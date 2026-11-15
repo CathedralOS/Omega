@@ -88,8 +88,8 @@ pub struct TerminalRuntimeObservation {
     pub stderr: Vec<u8>,
     pub private_entry_ram: Vec<(u32, Vec<u8>)>,
     pub effects: Vec<terminal_interpreter::TerminalEffect>,
-    pub work_usage: psi_work::WorkUsage, // Logical work consumed, including independently executing children.
-    pub work_suspensions: u64,           // Work pauses resumed by this sponsor.
+    pub work_usage: terminal_work::WorkUsage, // Logical work consumed, including independently executing children.
+    pub work_suspensions: u64,                // Work pauses resumed by this sponsor.
     pub component_suspensions: u64, // Pauses where a producing child still owned its invocation.
 }
 
@@ -251,7 +251,7 @@ pub fn execute_sliced(
             .map(|provisions| provisions.target_slot().owner.target_name())
     });
     let target_machines = execution_target
-        .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
+        .map(|target| terminal_interpreter::terminal_target_context(artifact, target));
     let target_layouts = target_machines
         .as_ref()
         .map(|selected| {
@@ -413,7 +413,7 @@ pub fn execute_sliced(
     }
     let first_quantum = request.work_budget.min(quantum.get());
     let mut remaining = request.work_budget - first_quantum;
-    let mut work = psi_work::WorkMeter::with_budget(first_quantum);
+    let mut work = terminal_work::WorkMeter::with_budget(first_quantum);
     let mut work_suspensions = 0u64;
     let mut component_suspensions = 0u64;
     let status = loop {

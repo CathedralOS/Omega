@@ -9,6 +9,7 @@ applied frame records (`frames`, re-exported at `storage` and
 `storage::frame_layout`).
 */
 
+#[path = "storage_frames.rs"]
 mod frames;
 
 pub use frames::{

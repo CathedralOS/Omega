@@ -42,20 +42,19 @@ isolates target instruction encoding, operand-footprint verification, call
 template formation, and frame-offset arithmetic from the control-flow layout and
 branch-relaxation passes in Stages 08 and 09.
 
-To prevent a routing or encoding defect from self-certifying, our independent
-replay (`validation::validate`, `:IndependentByteReplay`) never calls the
-producer's route table or encoders. Instead, it checks the frame-space address
-equations directly (`frame_address::validate_address`) and invokes the target
-ISA's independent byte decoders (`isa_x86_64` / `isa_aarch64`) to verify that
-every interned byte slice decodes to the declared alternative, register views,
-implicit unit effects, and size bounds.
+The optional replay (`validation::validate`, `:IndependentByteReplay`) checks
+frame-space address equations directly (`frame_address::validate_address`) and
+uses target ISA byte decoders for ordinary fixed forms. Call-template checks
+reuse the target encoder recipes to compare placeholder bytes and footprints;
+their independence does not extend to those shared recipes. The producer does
+not run replay on its own output.
 */
 
 /*
 Provenance and custody boundaries:
 
 We consume `CurrentSelectedProgram` (`selected-instructions`),
-`PostAllocationMachinePlan` (`physical-instructions`, produced by Stage 06),
+`PostAllocationMachinePlan` (`post-allocation-machine`, produced by Stage 06),
 `ValidatedPhysicalRegisterModel` (`register-model`), and an optional
 `TargetFrameLayoutPlan` (`machine-code`). We produce
 `StagedOptimizedSelectedFormEncoding`, which wraps an immutable
@@ -87,7 +86,7 @@ use machine_code::{
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
     TargetFrameLayoutPlan,
 };
-use physical_instructions::{
+use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
     PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
 };

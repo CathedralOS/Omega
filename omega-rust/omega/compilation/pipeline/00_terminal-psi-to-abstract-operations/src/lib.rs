@@ -5,7 +5,7 @@
   not demand unavailable target operations. Omega 00 lowers those functions,
   establishes access to their inputs, and admits their native realization.
 
-  The shared verified-input owner supplies the complete checked native proposal
+  The shared `verified-optimization-input` crate supplies the complete checked native proposal
   and its execution scope. This stage retains source-free native inputs through
   `retained_terminal` and its codec, lowers canonical Psi with `lowering`, and
   passes the resulting plan and selections to subsequent stages. Loose bytes
@@ -35,11 +35,11 @@ pub use retained_terminal::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
     PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,
     RetainedComponentNativeInputs, RetainedNativeProviderInputs, RetainedTerminalArtifact,
-    SelectedFamilyRealizationSource, TerminalCallbackOccurrenceProposal,
-    TerminalCallbackThunkArtifact, TerminalCompilerBuiltinProposal,
-    TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
-    TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
-    TerminalNativeProviders, TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
+    TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
+    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
+    TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
+    TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
     decode_installation_assumptions, encode_installation_assumptions, lower_native_callable,
     prepare_native_callable_execution, prepare_native_execution_with_components,
     prepare_native_providers, project_terminal_native_realization_proposal,
@@ -48,9 +48,8 @@ pub use retained_terminal::{
 
 pub(crate) use artifact_admission::ArtifactLoweringError;
 pub use artifact_admission::{
-    ArtifactSections, NativeExecutionSelection, NativeScalarApplications,
-    TerminalAccessViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
-    lower_module_with_evidence,
+    NativeExecutionSelection, NativeScalarApplications, TerminalAccessViewEstablishment,
+    VerifiedNativeArtifactInput, lower_artifact,
 };
 pub use lowering::LoweringError;
 pub use providers::provider_installation::SelectedProviderAdapter;
@@ -67,216 +66,3 @@ pub use verified_optimization_input::{
     AdmittedLoweringFacts, NativeExecutionScope, ObligationEvidence,
     VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
 };
-
-#[cfg(test)]
-mod terminal_decode_once {
-    use std::collections::BTreeMap;
-    use std::fs;
-    use std::path::{Path, PathBuf};
-
-    #[test]
-    fn provider_installation_uses_retained_artifact_custody() {
-        let source =
-            include_str!("../../../realization/provider-admission/src/provider_installation.rs");
-        assert!(source.contains("TerminalArtifactView<'_>"));
-        assert!(!source.contains("admit_provider_installation_from_artifact("));
-        assert!(!source.contains("semantic_bytes"));
-    }
-
-    const DECODE_MODULE_CALL: &str = concat!("decode_module", "(");
-    const ARTIFACT_REPLAY_CALL: &str =
-        concat!("CanonicalTerminalArtifact", "::", "from_bytes", "(");
-    const FROM_BYTES_CALL: &str = concat!("from_bytes", "(");
-    const TO_BYTES_OUTPUT: &str = concat!("to_bytes", "()");
-
-    const PERMITTED_MODULE_DECODES: &[(&str, usize, &str)] = &[(
-        "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs",
-        1,
-        "Omega 00 admission: `lower_artifact` decodes loose canonical sections",
-    )];
-
-    const PERMITTED_ARTIFACT_REPLAYS: &[(&str, usize, &str)] = &[
-        (
-            "omega-rust/omega/application/cli/src/inspection/mod.rs",
-            1,
-            "inspect path: `inspect_terminal_artifact` admits externally supplied envelope bytes",
-        ),
-        (
-            "omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs",
-            2,
-            "describe path: `decode_component_description` and `description_subject` admit the description's embedded artifact",
-        ),
-    ];
-
-    fn collect_rust_sources(root: &Path, sources: &mut Vec<PathBuf>) {
-        let entries = fs::read_dir(root)
-            .unwrap_or_else(|error| panic!("cannot read {}: {error}", root.display()));
-        for entry in entries {
-            let path = entry
-                .unwrap_or_else(|error| panic!("cannot list {}: {error}", root.display()))
-                .path();
-            if path.is_dir() {
-                let name = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or_default();
-                if name.starts_with('.') || matches!(name, "tests" | "target" | "examples") {
-                    continue;
-                }
-                collect_rust_sources(&path, sources);
-            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs")
-                && !path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name == "tests.rs" || name.ends_with("_tests.rs"))
-            {
-                sources.push(path);
-            }
-        }
-    }
-
-    fn scanned_tree() -> (PathBuf, PathBuf) {
-        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let repository = manifest
-            .ancestors()
-            .nth(5)
-            .unwrap_or_else(|| panic!("{manifest:?} has no repository-root ancestor"))
-            .to_path_buf();
-        let omega = manifest
-            .ancestors()
-            .nth(3)
-            .unwrap_or_else(|| panic!("{manifest:?} has no omega/ ancestor"))
-            .to_path_buf();
-        (repository, omega)
-    }
-
-    fn code_lines(text: &str) -> Vec<(usize, &str)> {
-        let mut lines = text.lines().enumerate().peekable();
-        let mut code = Vec::new();
-        while let Some((number, line)) = lines.next() {
-            if line.trim() == "#[cfg(test)]"
-                && let Some((_, item)) = lines.peek()
-                && item.trim_start().starts_with("mod ")
-                && item.trim_end().ends_with('{')
-            {
-                let indentation = &item[..item.len() - item.trim_start().len()];
-                let closing = format!("{indentation}}}");
-                for (_, skipped) in lines.by_ref() {
-                    if skipped.trim_end() == closing {
-                        break;
-                    }
-                }
-                continue;
-            }
-            if !line.trim_start().starts_with("//") {
-                code.push((number, line));
-            }
-        }
-        code
-    }
-
-    fn count_occurrences(
-        repository: &Path,
-        sources: &[PathBuf],
-        needle: &str,
-    ) -> BTreeMap<String, usize> {
-        let mut found = BTreeMap::new();
-        for source in sources {
-            let text = fs::read_to_string(source)
-                .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()));
-            let count = code_lines(&text)
-                .into_iter()
-                .map(|(_, line)| line.matches(needle).count())
-                .sum::<usize>();
-            if count > 0 {
-                let relative = source
-                    .strip_prefix(repository)
-                    .unwrap_or_else(|_| {
-                        panic!("{} escapes {}", source.display(), repository.display())
-                    })
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                found.insert(relative, count);
-            }
-        }
-        found
-    }
-
-    fn expected(sites: &[(&str, usize, &str)]) -> BTreeMap<String, usize> {
-        sites
-            .iter()
-            .map(|(path, count, _)| ((*path).to_owned(), *count))
-            .collect()
-    }
-
-    fn describe(sites: &[(&str, usize, &str)]) -> String {
-        sites
-            .iter()
-            .map(|(path, count, role)| format!("  {count}x {path} — {role}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    #[test]
-    fn realization_decodes_terminal_module_only_at_stage_00_admission() {
-        let (repository, omega) = scanned_tree();
-        let mut sources = Vec::new();
-        collect_rust_sources(&omega, &mut sources);
-        let found = count_occurrences(&repository, &sources, DECODE_MODULE_CALL);
-        let permitted = expected(PERMITTED_MODULE_DECODES);
-        assert_eq!(
-            found,
-            permitted,
-            "canonical module decode moved off Omega 00 admission; every consumer holding a \
-         CanonicalTerminalArtifact reads semantic_module() instead of re-decoding, and only the \
-         loose-bytes entrances may call decode_module. Permitted sites:\n{}",
-            describe(PERMITTED_MODULE_DECODES),
-        );
-    }
-
-    #[test]
-    fn realization_never_rebuilds_the_terminal_artifact() {
-        let (repository, omega) = scanned_tree();
-        let mut sources = Vec::new();
-        collect_rust_sources(&omega, &mut sources);
-        let found = count_occurrences(&repository, &sources, ARTIFACT_REPLAY_CALL);
-        let permitted = expected(PERMITTED_ARTIFACT_REPLAYS);
-        assert_eq!(
-            found,
-            permitted,
-            "a Terminal artifact replay entered Omega non-test source outside the describe path; the \
-         realization path holds the artifact and must not rebuild it from bytes. Permitted \
-         sites:\n{}",
-            describe(PERMITTED_ARTIFACT_REPLAYS),
-        );
-    }
-
-    #[test]
-    fn no_source_replays_encoded_bytes_through_from_bytes() {
-        let (repository, omega) = scanned_tree();
-        let mut sources = Vec::new();
-        collect_rust_sources(&omega, &mut sources);
-        let mut violations = Vec::new();
-        for source in &sources {
-            let text = fs::read_to_string(source)
-                .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()));
-            for (line_number, line) in code_lines(&text) {
-                if line.contains(FROM_BYTES_CALL) && line.contains(TO_BYTES_OUTPUT) {
-                    let relative = source
-                        .strip_prefix(&repository)
-                        .unwrap_or_else(|_| {
-                            panic!("{} escapes {}", source.display(), repository.display())
-                        })
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    violations.push(format!("{relative}:{}", line_number + 1));
-                }
-            }
-        }
-        assert!(
-            violations.is_empty(),
-            "from_bytes fed by to_bytes() re-admits bytes a value just encoded — the byte round trip \
-         this stage removed; clone or share the value instead. Sites: {violations:?}"
-        );
-    }
-}

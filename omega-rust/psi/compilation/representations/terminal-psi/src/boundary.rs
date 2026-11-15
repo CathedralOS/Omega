@@ -227,6 +227,22 @@ pub(crate) mod conformances {
         pub callable: crate::TargetMachineCallable,
         pub application_commitment: Option<[u8; 32]>,
         pub method_arguments: Vec<crate::ClosedReachArgument>,
+        /// The original public signature's lifetime membership for this
+        /// complete method tuple. Each group relates all of its possible
+        /// incoming backing sources to its result descriptors. It describes
+        /// the interface; actual formation and loan completion are still owed.
+        /// `None` is unavailable, while `Some([])` declares no borrowed result.
+        pub result_lifetimes: Option<Vec<DeclaredResultLifetime>>,
+    }
+
+    /// One declared lifetime, without depending on its source spelling or the
+    /// body that implements it. Grouping avoids copying the same input union
+    /// once for every result field. An empty input set is caller-chosen and
+    /// supplies no backing or retention authority by itself.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct DeclaredResultLifetime {
+        pub inputs: Vec<crate::BoundaryLifetimeDependency>,
+        pub results: Vec<Vec<crate::StructuralPathSegment>>,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -427,6 +443,30 @@ pub(crate) mod conformances {
             bytes.extend((value.len() as u64).to_le_bytes());
             bytes.extend(value);
         }
+        fn path(
+            bytes: &mut Vec<u8>,
+            identities: &TerminalIdentityTable,
+            path: &[crate::StructuralPathSegment],
+        ) {
+            bytes.extend((path.len() as u64).to_le_bytes());
+            for segment in path {
+                if let crate::StructuralPathSegment::Field(field) = segment {
+                    bytes.push(crate::structural_path_encoding::SegmentTag::Field as u8);
+                    text(bytes, identities, *field);
+                } else {
+                    crate::structural_path_encoding::encode_structural_path_segment(
+                        bytes,
+                        segment,
+                        |bytes, value| bytes.extend(value),
+                        |bytes, scalar| {
+                            bytes.extend(callable_result_bytes(
+                                ClosedConformanceCallableResult::Scalar(scalar),
+                            ));
+                        },
+                    );
+                }
+            }
+        }
         let mut bytes = Vec::new();
         bytes.extend((application.schemas.len() as u64).to_le_bytes());
         for schema in &application.schemas {
@@ -499,6 +539,43 @@ pub(crate) mod conformances {
                     }
                 }
             }
+            bytes.push(u8::from(applied.result_lifetimes.is_some()));
+            if let Some(lifetimes) = &applied.result_lifetimes {
+                bytes.extend((lifetimes.len() as u64).to_le_bytes());
+                for lifetime in lifetimes {
+                    bytes.extend((lifetime.inputs.len() as u64).to_le_bytes());
+                    for input in &lifetime.inputs {
+                        let (tag, argument_index, access) = match input {
+                            crate::BoundaryLifetimeDependency::Referent {
+                                argument_index,
+                                access,
+                            } => (0, *argument_index, *access),
+                            crate::BoundaryLifetimeDependency::Stored {
+                                argument_index,
+                                access,
+                                ..
+                            } => (1, *argument_index, *access),
+                        };
+                        bytes.push(tag);
+                        bytes.extend(argument_index.to_le_bytes());
+                        bytes.push(match access {
+                            crate::StructuralAccess::Owned => 0,
+                            crate::StructuralAccess::SharedBorrow => 1,
+                            crate::StructuralAccess::MutableBorrow => 2,
+                            crate::StructuralAccess::WriteOnlyBorrow => 3,
+                        });
+                        if let crate::BoundaryLifetimeDependency::Stored { path: source, .. } =
+                            input
+                        {
+                            path(&mut bytes, identities, source);
+                        }
+                    }
+                    bytes.extend((lifetime.results.len() as u64).to_le_bytes());
+                    for result in &lifetime.results {
+                        path(&mut bytes, identities, result);
+                    }
+                }
+            }
         }
         bytes
     }
@@ -508,7 +585,7 @@ pub(crate) mod conformances {
         application: &ClosedConformanceApplication,
     ) -> ClosedConformanceApplicationCommitment {
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-            b"omega.psi.terminal.closed-conformance-application.v7\0",
+            b"omega.psi.terminal.closed-conformance-application.v8\0",
         );
         digest.raw(&closed_conformance_application_bytes(
             identities,
@@ -1789,7 +1866,8 @@ pub use conformances::{
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
     ClosedConformanceSchema, ClosedConformanceSchemaKind, ClosedConformanceStaticApplication,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    DeclaredResultLifetime, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
 };
 pub use declarations::{
     BoundaryContentGuarantee, BoundaryDeclarationRole, BoundaryLifetimeDependency,
@@ -1822,9 +1900,18 @@ pub(crate) mod result_regions {
     };
     use semantic_vocabulary::StructuralTypeId;
 
+    /// Borrow result regions one leaf at a time. A selected declaration can
+    /// share one input union across many result leaves without first copying
+    /// that union into a result-by-input table.
     pub trait ReferenceResultShape {
-        fn result(&self) -> &BoundaryMachineResult;
-        fn reference_regions(&self) -> &[TerminalDynamicReferenceRegion];
+        fn result(&self) -> std::borrow::Cow<'_, BoundaryMachineResult>;
+        fn maximum_reference_leaves(&self) -> usize;
+        fn reference_regions<'a>(
+            &'a self,
+            path: &'a [crate::StructuralPathSegment],
+        ) -> impl Iterator<
+            Item = Result<std::borrow::Cow<'a, TerminalDynamicReferenceRegion>, &'static str>,
+        > + 'a;
         fn structural_parameter_count(&self) -> usize;
         fn structural_parameter(
             &self,
@@ -1833,11 +1920,22 @@ pub(crate) mod result_regions {
     }
 
     impl ReferenceResultShape for BoundaryMachineDeclaration {
-        fn result(&self) -> &BoundaryMachineResult {
-            &self.result
+        fn result(&self) -> std::borrow::Cow<'_, BoundaryMachineResult> {
+            std::borrow::Cow::Borrowed(&self.result)
         }
-        fn reference_regions(&self) -> &[TerminalDynamicReferenceRegion] {
-            &self.result_reference_regions
+        fn maximum_reference_leaves(&self) -> usize {
+            self.result_reference_regions.len()
+        }
+        fn reference_regions<'a>(
+            &'a self,
+            path: &'a [crate::StructuralPathSegment],
+        ) -> impl Iterator<
+            Item = Result<std::borrow::Cow<'a, TerminalDynamicReferenceRegion>, &'static str>,
+        > + 'a {
+            self.result_reference_regions
+                .iter()
+                .filter(move |region| region.path == path)
+                .map(|region| Ok(std::borrow::Cow::Borrowed(region)))
         }
         fn structural_parameter_count(&self) -> usize {
             self.structural_parameters.len()
@@ -1852,11 +1950,22 @@ pub(crate) mod result_regions {
         }
     }
     impl ReferenceResultShape for TerminalDynamicSlot {
-        fn result(&self) -> &BoundaryMachineResult {
-            &self.result
+        fn result(&self) -> std::borrow::Cow<'_, BoundaryMachineResult> {
+            std::borrow::Cow::Borrowed(&self.result)
         }
-        fn reference_regions(&self) -> &[TerminalDynamicReferenceRegion] {
-            &self.result_reference_regions
+        fn maximum_reference_leaves(&self) -> usize {
+            self.result_reference_regions.len()
+        }
+        fn reference_regions<'a>(
+            &'a self,
+            path: &'a [crate::StructuralPathSegment],
+        ) -> impl Iterator<
+            Item = Result<std::borrow::Cow<'a, TerminalDynamicReferenceRegion>, &'static str>,
+        > + 'a {
+            self.result_reference_regions
+                .iter()
+                .filter(move |region| region.path == path)
+                .map(|region| Ok(std::borrow::Cow::Borrowed(region)))
         }
         fn structural_parameter_count(&self) -> usize {
             self.structural_parameters.len()

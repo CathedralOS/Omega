@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 register-homes = { path = "../register-homes" }
-physical-instructions = { path = "../post-allocation-machine" }
+post-allocation-machine = { path = "../post-allocation-machine" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 function-identity = { path = "../../../foundation/function-identity" }
 optimization-core = { path = "../../../foundation/optimization-core" }

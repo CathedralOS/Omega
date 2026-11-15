@@ -77,8 +77,15 @@ fn prepare_saved_project(root: &str, target: &str, output: &str) -> Result<()> {
             .map_err(|error| format!("canonical Psi: {error:?}"))?,
     );
     let (recovered, permissions, assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(canonical, inputs)
-            .map_err(diagnostics)?;
+        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
+            {
+                let authorization = pending.terminal.authorization().clone();
+                authorization.require_artifact(&canonical)?;
+                authorization
+            },
+            inputs,
+        )
+        .map_err(diagnostics)?;
     if recovered != pending.terminal
         || permissions != pending.accepted_package_permissions
         || !assumptions.is_empty()
@@ -100,7 +107,7 @@ fn prepare_project(
     session: &mut orchestration::BuildSession,
     preparation: package_manager::operations::LocalProjectPreparation,
     target: target::TargetProfile,
-) -> Result<Box<compilation_products::PendingNativeProduct>> {
+) -> Result<Box<products::PendingNativeProduct>> {
     let resolved = orchestration::resolve_project_sources(
         session,
         orchestration::ProjectSourceRequest {
@@ -125,13 +132,13 @@ fn prepare_project(
             snapshot: None,
             verify: false,
             timings: false,
-            product: CompilationProduct::Native(compilation_products::NativeProductRequest {
+            product: CompilationProduct::Native(products::NativeProductRequest {
                 retain_native_inputs: true,
                 installation_assumptions: Vec::new(),
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
                 terminal_authority_policy:
-                    compilation_products::compile_request::current_terminal_authority_policy(),
+                    products::compile_request::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: Default::default(),
             }),
@@ -199,15 +206,25 @@ fn finish_checked_product(
         .map_err(|error| failure(error.into_diagnostics()))
 }
 
-pub(super) fn finish(directory: &str, output: &str, records: &[String]) -> Result<()> {
+pub(super) fn finish(
+    directory: &str,
+    output: &str,
+    records: &[String],
+    producer: &terminal_installation::HostProducerTrust,
+) -> Result<()> {
     compiler::checked::run_on_compile_thread(|| {
-        finish_saved_project(directory, output, records)
+        finish_saved_project(directory, output, records, producer)
             .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])
     })
     .map_err(diagnostics)
 }
 
-fn finish_saved_project(directory: &str, output: &str, records: &[String]) -> Result<()> {
+fn finish_saved_project(
+    directory: &str,
+    output: &str,
+    records: &[String],
+    producer: &terminal_installation::HostProducerTrust,
+) -> Result<()> {
     let directory = Path::new(directory);
     let bytes = read_bounded(
         directory
@@ -228,16 +245,20 @@ fn finish_saved_project(directory: &str, output: &str, records: &[String]) -> Re
             .map_err(|error| format!("canonical Psi: {error:?}"))?,
     );
     let (retained, permissions, original_assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(canonical, &inputs)
-            .map_err(diagnostics)?;
+        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
+            terminal_installation::authorize_terminal_artifact(canonical, Some(producer))?,
+            &inputs,
+        )
+        .map_err(diagnostics)?;
     if !original_assumptions.is_empty() {
         return Err("prepared inputs already contain installation assumptions".into());
     }
     let mut assumptions = Vec::new();
     for record in records {
-        assumptions.extend(compilation_products::decode_installation_assumptions(
-            &read_bounded(record, 1024 * 1024)?,
-        )?);
+        assumptions.extend(products::decode_installation_assumptions(&read_bounded(
+            record,
+            1024 * 1024,
+        )?)?);
     }
     let proposal = retained
         .native_realization_proposal()
@@ -248,8 +269,8 @@ fn finish_saved_project(directory: &str, output: &str, records: &[String]) -> Re
             installation_assumptions: &assumptions,
             private_entry_ram: &[],
             optimization_selections: proposal.post_terminal_optimizations().selections(),
-            terminal_authority_policy:
-                compilation_products::compile_request::current_terminal_authority_policy(),
+            terminal_authority_policy: products::compile_request::current_terminal_authority_policy(
+            ),
             accepted_package_terminal_authority_permission_policy: permissions,
             terminal_authority_permission_policy: None,
             image_request: image_emission::ExecutableImageEmissionRequest::direct(

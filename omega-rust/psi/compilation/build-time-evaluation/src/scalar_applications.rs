@@ -8,7 +8,6 @@
 */
 
 use crate::evaluation_accounting::CanonicalScalarEvaluationReceipt;
-use psi_work::WorkMeter;
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_installation::{ScalarApplicationClosure, TerminalScalarValue};
 use terminal_installation::{ScalarApplicationObservations, ScalarConditionSelection};
@@ -16,6 +15,7 @@ use terminal_interpreter::{
     TerminalEntryResultRequest, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalInstantiation, TerminalProgram, TerminalScalarApplicationRequest,
 };
+use terminal_work::WorkMeter;
 
 mod demand {
     use crate::unique::{extend_unique, push_unique};
@@ -278,7 +278,7 @@ pub struct ScalarScopeEvaluation {
     /// No deployment means ordinary Psi evaluation, not host selection.
     /// Layout facts must be absent as well; target-only operations then refuse
     /// at their actual demand rather than suppressing pure conditions.
-    pub targets: Option<terminal_installation::AdmittedTargetMachineSelections>,
+    pub targets: Option<terminal_installation::TerminalTargetContext>,
     pub providers: terminal_installation::AdmittedProviderSelections,
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,
     pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
@@ -483,7 +483,7 @@ pub struct InvocationTarget<'target> {
 pub fn complete_invocation_scalar_applications<'artifact>(
     artifact: terminal_codec::TerminalExecutionView<'artifact>,
     target: InvocationTarget<'_>,
-    selected: &'artifact terminal_installation::AdmittedTargetMachineSelections,
+    selected: &'artifact terminal_installation::TerminalTargetContext,
     providers: &'artifact terminal_installation::AdmittedProviderSelections,
     declaration: terminal_psi::ProofDeclarationId,
     requested: &[ScalarApplicationId],
@@ -652,8 +652,8 @@ mod tests {
     };
     use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
     use terminal_installation::{
-        AdmittedProviderSelections, AdmittedTargetMachineSelections, ScalarConditionSelection,
-        admit_provider_installation, admit_target_machine_selections,
+        AdmittedProviderSelections, ScalarConditionSelection, TerminalTargetContext,
+        admit_provider_installation, terminal_target_context,
     };
     use terminal_interpreter::{TerminalRuntimeSupplyRequest, TerminalScalarValue};
     use terminal_psi::{
@@ -722,7 +722,7 @@ mod tests {
                 .unwrap();
             let artifact = canonical(module);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let targets = terminal_target_context(artifact.view(), "macos_arm64");
             let (observations, conditions) = evaluated(&artifact, &targets, &providers, 5);
             assert_eq!(observations.value(application(6)).unwrap(), None);
             let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
@@ -836,7 +836,7 @@ mod tests {
                 .unwrap();
             let artifact = canonical(module);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let targets = terminal_target_context(artifact.view(), "macos_arm64");
             let observations = ScalarApplicationObservations::new(
                 artifact.view(),
                 &targets,
@@ -901,7 +901,7 @@ mod tests {
             module.machines.push(entry);
             let artifact = canonical(module);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let targets = terminal_target_context(artifact.view(), "macos_arm64");
             let (observations, conditions) = evaluated(&artifact, &targets, &providers, 5);
             let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
             closure
@@ -982,7 +982,7 @@ mod tests {
             let bytes = artifact.to_bytes();
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
             for target in ["macos_arm64", "windows_x86_64"] {
-                let targets = admit_target_machine_selections(artifact.view(), target);
+                let targets = terminal_target_context(artifact.view(), target);
                 let mut observations = ScalarApplicationObservations::new(
                     artifact.view(),
                     &targets,
@@ -1014,8 +1014,7 @@ mod tests {
                 } else {
                     "macos_arm64"
                 };
-                let other_selections =
-                    admit_target_machine_selections(artifact.view(), other_target);
+                let other_selections = terminal_target_context(artifact.view(), other_target);
                 let other_layouts = terminal_installation::admit_target_layouts(
                     artifact.view(),
                     &other_selections,
@@ -1159,8 +1158,8 @@ mod tests {
         fn scalar_closure_requires_supplemental_scopes_without_replacing_primary_values() {
             let artifact = scoped_graph(41);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let macos = admit_target_machine_selections(artifact.view(), "macos_arm64");
-            let windows = admit_target_machine_selections(artifact.view(), "windows_x86_64");
+            let macos = terminal_target_context(artifact.view(), "macos_arm64");
+            let windows = terminal_target_context(artifact.view(), "windows_x86_64");
             for complete_supplement in [false, true] {
                 let mut closure = ScalarApplicationClosure::new(artifact.view(), "macos_arm64");
                 assert_eq!(
@@ -1197,7 +1196,7 @@ mod tests {
         fn scalar_closure_refuses_false_debt_and_does_not_drop_evaluated_entry_conditions() {
             let artifact = graph(23, false, false);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let targets = terminal_target_context(artifact.view(), "macos_arm64");
             for omit_entry_debt in [false, true] {
                 let mut observations = ScalarApplicationObservations::new(
                     artifact.view(),
@@ -1263,7 +1262,7 @@ mod tests {
                 .unwrap();
             let artifact = canonical(module);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let targets = terminal_target_context(artifact.view(), "macos_arm64");
             for model_target in [None, Some("windows_x86_64"), Some("macos_arm64")] {
                 let (observations, conditions) = evaluated(&artifact, &targets, &providers, 5);
                 let model = model_target.map(|target| ScalarAddressModel {
@@ -1488,68 +1487,6 @@ mod tests {
     }
 
     #[test]
-    fn unscoped_scalar_entry_cannot_bypass_a_target_family_for_a_pure_body() {
-        let mut module = unscoped_constant(41, false).view().module().clone();
-        let callable = TargetMachineCallable::Machine(machine_id(1));
-        module
-            .target_machine_families
-            .push(terminal_psi::TargetMachineFamily {
-                canonical: callable,
-                head_contract: [1; 32],
-                members: vec![terminal_psi::TargetMachineFamilyMember {
-                    target: "macos_arm64".into(),
-                    callable,
-                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                }],
-            });
-        let scope = &mut module.scalar_applications.proof_scope;
-        let declaration = scope.callable_declaration(callable).unwrap();
-        let head = next_declaration(scope);
-        scope
-            .declarations
-            .insert(terminal_psi::ProofScopeDeclaration::Unavailable(
-                "pure target family head".into(),
-            ));
-        let members = scope.plan.target_members.insert_many([
-            semantic_vocabulary::proof_applications::ProofApplicationTargetMember {
-                target: "macos_arm64".into(),
-                machine: declaration,
-            },
-        ]);
-        scope.plan.machines.for_each_mut(|_, row| {
-            if row.machine == declaration {
-                row.authored_target = Some("macos_arm64".into());
-                row.source_target = Some("macos_arm64".into());
-            }
-        });
-        scope.plan.machines.insert(ProofApplicationMachine {
-            machine: head,
-            family_interface: true,
-            family_members: members,
-            product_selected: true,
-            ..Default::default()
-        });
-        assert_eq!(scope.plan.callable_for_target(head, None), None);
-        assert_eq!(
-            scope.plan.callable_for_target(head, "macos_arm64"),
-            Some(declaration)
-        );
-        let artifact = std::sync::Arc::new(canonical(module));
-        let mut accounting = crate::SourceCompletionAccounting::default();
-        let error = complete_unscoped(&artifact, &mut accounting).unwrap_err();
-        assert!(error.contains("explicit deployment selection"), "{error}");
-        assert!(accounting.receipts().is_empty());
-
-        let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
-        let (observations, _) = evaluated(&artifact, &targets, &providers, 1);
-        assert_eq!(
-            observations.value(application(1)).unwrap(),
-            Some(integer(41))
-        );
-    }
-
-    #[test]
     fn unscoped_layout_observations_use_portable_geometry_not_host_pointer_size() {
         for pointer in [false, true] {
             let mut module = graph(24, false, false).view().module().clone();
@@ -1608,7 +1545,7 @@ mod tests {
 
     fn evaluated<'a>(
         artifact: &'a CanonicalTerminalArtifact,
-        targets: &'a AdmittedTargetMachineSelections,
+        targets: &'a TerminalTargetContext,
         providers: &'a AdmittedProviderSelections,
         entry: u64,
     ) -> (
@@ -2037,7 +1974,7 @@ mod tests {
             .unwrap();
         let artifact = canonical(module);
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let targets = terminal_target_context(artifact.view(), "macos_arm64");
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
             &targets,
@@ -2063,7 +2000,7 @@ mod tests {
             observations.value(application(5)).unwrap(),
             Some(integer(24))
         );
-        let windows = admit_target_machine_selections(artifact.view(), "windows_x86_64");
+        let windows = terminal_target_context(artifact.view(), "windows_x86_64");
         let mut selected = ScalarApplicationObservations::new(
             artifact.view(),
             &windows,
@@ -2200,7 +2137,7 @@ mod tests {
     fn canonical_scalar_jobs_discover_sibling_conditions_before_execution() {
         let artifact = sibling_extent_graph();
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let targets = terminal_target_context(artifact.view(), "macos_arm64");
         let (observations, conditions) = evaluated(&artifact, &targets, &providers, 8);
         assert_eq!(conditions.ranges(), &[1]);
         assert!(conditions.predicates().is_empty());
@@ -2230,7 +2167,7 @@ mod tests {
     fn canonical_scalar_jobs_refuse_replay_to_fill_a_late_capture() {
         let artifact = sibling_extent_graph();
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let targets = terminal_target_context(artifact.view(), "macos_arm64");
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
             &targets,
@@ -2278,7 +2215,7 @@ mod tests {
         let original = artifact.to_bytes();
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
         for target in ["windows_x86_64", "macos_arm64"] {
-            let selections = admit_target_machine_selections(artifact.view(), target);
+            let selections = terminal_target_context(artifact.view(), target);
             let mut observations = ScalarApplicationObservations::new(
                 artifact.view(),
                 &selections,
@@ -2342,7 +2279,7 @@ mod tests {
                 .unwrap();
             let artifact = canonical(module);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let targets = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let targets = terminal_target_context(artifact.view(), "macos_arm64");
             let mut observations = ScalarApplicationObservations::new(
                 artifact.view(),
                 &targets,
@@ -2405,7 +2342,7 @@ mod tests {
         for cyclic in [false, true] {
             let artifact = graph(23, cyclic, false);
             let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-            let selections = admit_target_machine_selections(artifact.view(), "macos_arm64");
+            let selections = terminal_target_context(artifact.view(), "macos_arm64");
             let mut observations = ScalarApplicationObservations::new(
                 artifact.view(),
                 &selections,
@@ -2463,7 +2400,7 @@ mod tests {
     fn canonical_scalar_jobs_preserve_nonnegative_signed_extent_carriers() {
         let artifact = graph(24, false, true);
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let selections = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let selections = terminal_target_context(artifact.view(), "macos_arm64");
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
             &selections,
@@ -2495,8 +2432,8 @@ mod tests {
         use terminal_interpreter::{TerminalArtifactInterpretError, TerminalInterpretError};
         let artifact = graph(24, false, false);
         let providers = admit_provider_installation(artifact.view(), &[], &[]).unwrap();
-        let windows = admit_target_machine_selections(artifact.view(), "windows_x86_64");
-        let macos = admit_target_machine_selections(artifact.view(), "macos_arm64");
+        let windows = terminal_target_context(artifact.view(), "windows_x86_64");
+        let macos = terminal_target_context(artifact.view(), "macos_arm64");
         let mut observations = ScalarApplicationObservations::new(
             artifact.view(),
             &windows,

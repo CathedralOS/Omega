@@ -1,2 +1,2 @@
-machine `bad_value` state `entry` terminal expression expects `i32`, got `String`
+this quoted literal is a shared view of bytes, `&[u8]`, and the place it is supplied to holds a `i32`
 in package `bad_sibling`

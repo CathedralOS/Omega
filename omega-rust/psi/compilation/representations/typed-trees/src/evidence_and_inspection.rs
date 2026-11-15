@@ -416,7 +416,6 @@ pub mod evidence {
                 }
                 TypeReferenceNode::Callable { .. }
                 | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => None,
             }
         }
@@ -517,7 +516,6 @@ pub mod evidence {
                     TypeReferenceNode::Callable { .. }
                     | TypeReferenceNode::Named { .. }
                     | TypeReferenceNode::ConstExpression(_)
-                    | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::Unit => false,
                 }
             }
@@ -703,7 +701,6 @@ pub mod evidence {
                 TypeReferenceNode::Callable { .. }
                 | TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
-                | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Unit => {}
             }
@@ -1259,9 +1256,9 @@ pub mod evidence {
                         ..TypeIdentityRequest::ordinary(type_reference)
                     })
                 }
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => program.display_type_reference(type_reference),
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                    program.display_type_reference(type_reference)
+                }
             }
         }
 
@@ -5350,10 +5347,6 @@ pub mod inspection {
                 ConstExpression {
                     expression: ExpressionSnapshot,
                 },
-                DynamicTrait {
-                    name: String,
-                    arguments: Vec<TypeReferenceSnapshot>,
-                },
                 Named {
                     name: String,
                 },
@@ -5517,16 +5510,6 @@ pub mod inspection {
                             expression: expression_snapshot(program, *expression),
                         }
                     }
-                    TypeReferenceNode::DynamicTrait {
-                        name, arguments, ..
-                    } => TypeReferenceSnapshot::DynamicTrait {
-                        name: name.to_string(),
-                        arguments: program
-                            .type_reference_handles(*arguments)
-                            .iter()
-                            .map(|argument| type_reference_snapshot(program, *argument))
-                            .collect(),
-                    },
                     TypeReferenceNode::Named { name, .. } => TypeReferenceSnapshot::Named {
                         name: name.to_string(),
                     },
@@ -5879,17 +5862,8 @@ pub mod inspection {
             pub template: u32,
             pub instance: u32,
             pub template_parameter_count: usize,
-            pub type_arguments: Vec<String>,
-            pub const_arguments: Vec<String>,
-            pub type_argument_identities: Vec<String>,
-            pub const_argument_identities: Vec<String>,
-            pub machine_arguments: Vec<u32>,
             pub conformance_arguments: Vec<u32>,
             pub conformance_application_count: usize,
-            pub operator_realization_count: usize,
-            pub normalized_template_identity: String,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            pub accepted_template_commitment: Option<String>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -6163,19 +6137,6 @@ pub mod inspection {
                     template: specialization.template.arena_index(),
                     instance: specialization.instance.arena_index(),
                     template_parameter_count: specialization.template_parameters.len(),
-                    type_arguments: specialization.type_arguments.clone(),
-                    const_arguments: specialization.const_arguments.clone(),
-                    type_argument_identities: specialization
-                        .type_argument_identities
-                        .clone(),
-                    const_argument_identities: specialization
-                        .const_argument_identities
-                        .clone(),
-                    machine_arguments: specialization
-                        .machine_arguments
-                        .iter()
-                        .map(|symbol| symbol.arena_index())
-                        .collect(),
                     conformance_arguments: specialization
                         .conformance_arguments
                         .iter()
@@ -6184,13 +6145,6 @@ pub mod inspection {
                     conformance_application_count: specialization
                         .conformance_applications
                         .len(),
-                    operator_realization_count: specialization.operator_realizations.len(),
-                    normalized_template_identity: specialization
-                        .normalized_template_identity
-                        .clone(),
-                    accepted_template_commitment: specialization
-                        .accepted_template_commitment
-                        .clone(),
                 })
                 .collect(),
             ranking_expression_custody: program

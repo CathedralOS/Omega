@@ -6,7 +6,7 @@
 //! selection `origin/main` emitted for that same geometry.
 
 use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractResult, AbstractStructuralCaseSuccessor,
 };
 use calling_conventions::{CallSignature, CallingPolicy};
@@ -145,20 +145,22 @@ fn membership_behind_pointer() -> String {
         vec![sum, reference],
         function_with_body(
             vec![parameter(ty(2))],
-            vec![
-                AbstractOperation::StructuralCaseMembership {
-                    psi_operation: op(1),
-                    result: boolean_result(),
-                    source: place(1),
-                    path: vec![StructuralPathSegment::Referent],
-                    case: case_id(1),
-                },
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-            vec![entry(1, 0)],
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::StructuralCaseMembership {
+                        psi_operation: op(1),
+                        result: boolean_result(),
+                        source: place(1),
+                        path: vec![StructuralPathSegment::Referent],
+                        case: case_id(1),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
         ),
     );
     let geometry = geometry(&plan, ty(2), &[StructuralPathSegment::Referent]);
@@ -187,19 +189,21 @@ fn establish_case() -> String {
         vec![sum],
         function_with_body(
             Vec::new(),
-            vec![
-                AbstractOperation::EstablishCase {
-                    psi_operation: op(1),
-                    result: result.clone(),
-                    result_case: case_id(1),
-                    fields: Vec::new(),
-                },
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-            vec![entry(1, 0)],
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::EstablishCase {
+                        psi_operation: op(1),
+                        result: result.clone(),
+                        result_case: case_id(1),
+                        fields: Vec::new(),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
         ),
     );
     let layout = sum_layout(&plan, ty(1));
@@ -235,28 +239,30 @@ fn activation_claim() -> String {
         vec![sum],
         function_with_body(
             vec![parameter_at(2, ty(1))],
-            vec![
-                AbstractOperation::IntegerConstant {
-                    psi_operation: op(1),
-                    result: val(1),
-                    scalar_type: ScalarType::Integer(integer),
-                    value: IntegerValue::Unsigned(4),
-                },
-                AbstractOperation::EstablishActivationClaim {
-                    psi_operation: op(2),
-                    result: result.clone(),
-                    bound: 8,
-                    committed: val(1),
-                    backing_type: ty(1),
-                    established_case: case_id(1),
-                    rejected_case: case_id(2),
-                },
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(1),
-                    cleanup_actions: Vec::new(),
-                },
-            ],
-            vec![entry(1, 0)],
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::IntegerConstant {
+                        psi_operation: op(1),
+                        result: val(1),
+                        scalar_type: ScalarType::Integer(integer),
+                        value: IntegerValue::Unsigned(4),
+                    },
+                    AbstractOperation::EstablishActivationClaim {
+                        psi_operation: op(2),
+                        result: result.clone(),
+                        bound: 8,
+                        committed: val(1),
+                        backing_type: ty(1),
+                        established_case: case_id(1),
+                        rejected_case: case_id(2),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
         ),
     );
     let layout = sum_layout(&plan, ty(1));
@@ -315,21 +321,29 @@ fn dispatch(
         function_with_body(
             vec![parameter(root)],
             vec![
-                AbstractOperation::StructuralCase {
-                    source: place(1),
-                    path: path.clone(),
-                    cases: arms.clone(),
-                },
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(3),
-                    cleanup_actions: Vec::new(),
-                },
-                AbstractOperation::ReturnUnit {
-                    psi_edge: edge(4),
-                    cleanup_actions: Vec::new(),
-                },
+                entry(
+                    1,
+                    vec![AbstractOperation::StructuralCase {
+                        source: place(1),
+                        path: path.clone(),
+                        cases: arms.clone(),
+                    }],
+                ),
+                entry(
+                    2,
+                    vec![AbstractOperation::ReturnUnit {
+                        psi_edge: edge(3),
+                        cleanup_actions: Vec::new(),
+                    }],
+                ),
+                entry(
+                    3,
+                    vec![AbstractOperation::ReturnUnit {
+                        psi_edge: edge(4),
+                        cleanup_actions: Vec::new(),
+                    }],
+                ),
             ],
-            vec![entry(1, 0), entry(2, 1), entry(3, 2)],
         ),
     );
     let geometry = geometry(&plan, root, &path);
@@ -505,7 +519,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
         BoundaryOriginFacts {
             program_entry: None,
             assumed_bindings: &[],
-            target_machine_selections: None,
+            target_context: None,
             module: &module,
         },
         &callable_roots,
@@ -676,8 +690,7 @@ fn plan(
 
 fn function_with_body(
     structural_parameters: Vec<StructuralParameterDeclaration>,
-    operations: Vec<AbstractOperation>,
-    block_entries: Vec<AbstractBlockEntry>,
+    blocks: Vec<AbstractBlock>,
 ) -> AbstractFunction {
     AbstractFunction {
         machine: machine(),
@@ -690,8 +703,7 @@ fn function_with_body(
         entry_claims: Vec::new(),
         block_entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
-        block_entries,
-        operations,
+        blocks,
     }
 }
 
@@ -825,12 +837,12 @@ fn home(
     }
 }
 
-fn entry(id: u64, operation_offset: usize) -> AbstractBlockEntry {
-    AbstractBlockEntry {
+fn entry(id: u64, operations: Vec<AbstractOperation>) -> AbstractBlock {
+    AbstractBlock {
         block: block_id(id),
         structural_parameters: Vec::new(),
         parameters: Vec::new(),
-        operation_offset,
+        operations,
     }
 }
 
@@ -997,19 +1009,21 @@ fn ordinary_comparison_metadata_does_not_recover_a_missing_retained_operand_type
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
     let mut function = function_with_body(
         Vec::new(),
-        vec![
-            AbstractOperation::IntegerEqual {
-                psi_operation: op(1),
-                result: ValueId::new(3).unwrap(),
-                left: ValueId::new(1).unwrap(),
-                right: ValueId::new(2).unwrap(),
-            },
-            AbstractOperation::ReturnUnit {
-                psi_edge: edge(1),
-                cleanup_actions: Vec::new(),
-            },
-        ],
-        vec![entry(1, 0)],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerEqual {
+                    psi_operation: op(1),
+                    result: ValueId::new(3).unwrap(),
+                    left: ValueId::new(1).unwrap(),
+                    right: ValueId::new(2).unwrap(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
     );
     function.parameters = [1, 2]
         .map(|id| abstract_operations::AbstractParameter {

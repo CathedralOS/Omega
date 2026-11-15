@@ -222,13 +222,40 @@ The last argument is the ordering: `NoOrdering`, `Receive`, `Publish`,
 [atomic contracts](../spec/language/concurrency.md) before designing a
 lock-free protocol.
 
-## What the compiler does not prove for you
+## Deadlock checking is the default
 
-Memory safety covers parked tasks. It does not prove that something will wake
-them. Check for the usual deadlocks: two tasks each waiting on the other, two
-paths taking locks in opposite orders, a receive with no reachable sender.
-[Protocol proofs](../spec/language/concurrency.md#protocol-proofs) covers how
-to state and prove progress when you need it.
+This section states the required contract. Automatic enforcement remains
+implementation work under [DEFAULT-SYNCHRONIZATION-CHECKING](../../TASKS.md).
+
+An executable or installed composition must establish that its synchronization
+cannot internally deadlock. Ordinary code uses the checked contracts of its
+locks, channels and task runtime; wrappers preserve those contracts through
+calls. Standard supported patterns are checked automatically. A custom protocol
+must establish the same obligations, and missing evidence prevents admission.
+
+The compiler accounts for the actual resources held while waiting:
+
+- Taking A then B conflicts with taking B then A unless checked protocol
+  evidence excludes the dangerous combination. Two parameters may name one lock.
+- A parent waiting for a child cannot occupy the only worker the child needs.
+  Suspending helps only for resources the selected runtime actually releases.
+- Two channel peers that both receive first need a valid initial message or
+  another checked enabling action; merely having a sender is insufficient.
+- An interrupt cannot wait for a lock held by code it prevents from running.
+  Checked exclusion, non-waiting access or deferred work can establish safety.
+
+A deadlocked group is still a failure while another task runs a heartbeat.
+Timeout and cancellation help only when their handling paths can actually run.
+Code cannot hide a wait by replacing it with an unbounded atomic retry loop.
+The diagnostic distinguishes a conflicting protocol from evidence the checker
+could not establish.
+
+Deadlock freedom does not promise fair scheduling, livelock freedom, termination
+of every task, an external response or a deadline. A server may wait for external
+input under its admitted contract. Stronger progress and real-time guarantees need their
+own provider and environment premises. Automatic cleanup remains non-waiting;
+waiting shutdown is explicit protocol code. See
+[protocol proofs](../spec/language/concurrency.md#protocol-proofs).
 
 ## Where next
 

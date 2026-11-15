@@ -1,8 +1,13 @@
 /*
 We materialize explicit fixed-view copies (`fixed_view_copy`) across
-authenticated precolored segment transitions and independently replay the
-transformed selected CFG, while re-exporting `pressure_rematerialization` for
-the shared allocation-recovery surface.
+authenticated precolored segment transitions, producing a transformed selected
+CFG, while re-exporting `pressure_rematerialization` for the shared
+allocation-recovery surface.
+
+Nothing replays the transformed CFG (see
+`omega-rust/pipeline.md#verification-placement`): `FixedViewCopyReceipt` binds
+the copy plan's identity to the identities and counts of its inputs and of the
+transformed program, and records no second check.
 */
 
 pub(crate) mod fixed_view_copy {
@@ -698,7 +703,7 @@ pub(crate) mod fixed_view_copy {
                 source_legality: legality.receipt().identity(),
                 register_environment,
                 allocator_availability: legality.receipt().allocator_availability(),
-                source_evidence: FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
+                source_evidence: FixedViewCopySourceEvidence {
                     fixed_intervals: fixed.receipt().identity(),
                     split_requirements: requirements.receipt().identity(),
                     segment_homes: homes.receipt().identity(),
@@ -1083,20 +1088,20 @@ pub(crate) mod fixed_view_copy {
             pub(crate) usage: OptimizationWorkUsage,
         }
     }
-    pub(crate) mod validate {
+    pub(crate) mod receipt {
         pub(crate) mod seal {
             use selected_instructions::{SelectedProgram, selected_instruction_plan_identity};
 
             use crate::{
-                FixedViewCopyPlan, FixedViewCopyValidationReceipt, ValidatedFixedViewCopies,
+                FixedViewCopyPlan, FixedViewCopyReceipt, MaterializedFixedViewCopies,
                 fixed_view_copy_identity,
             };
 
-            pub(crate) fn seal_validation(
+            pub(crate) fn seal_copies(
                 selected: &SelectedProgram,
                 plan: FixedViewCopyPlan,
-            ) -> ValidatedFixedViewCopies {
-                let receipt = FixedViewCopyValidationReceipt {
+            ) -> MaterializedFixedViewCopies {
+                let receipt = FixedViewCopyReceipt {
                     identity: fixed_view_copy_identity(&plan),
                     source_selected: plan.source_selected,
                     source_ranges: plan.source_ranges,
@@ -1112,10 +1117,10 @@ pub(crate) mod fixed_view_copy {
                     function_count: plan.transformed.functions.len(),
                     copy_count: plan.copies.len(),
                 };
-                ValidatedFixedViewCopies { plan, receipt }
+                MaterializedFixedViewCopies { plan, receipt }
             }
         }
-        pub(crate) use seal::seal_validation;
+        pub(crate) use seal::seal_copies;
     }
     pub(crate) mod work {
         use optimization_core::OptimizationWorkUsage;
@@ -1305,7 +1310,7 @@ pub(crate) mod fixed_view_copy {
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         policy: FixedViewCopyPolicy,
         budget: optimization_core::OptimizationWorkBudget,
-    ) -> Result<ValidatedFixedViewCopies, FixedViewCopyError> {
+    ) -> Result<MaterializedFixedViewCopies, FixedViewCopyError> {
         let plan = compute::compute_terminal_fixed_view_copies(
             selected,
             ranges,
@@ -1321,12 +1326,12 @@ pub(crate) mod fixed_view_copy {
             policy,
             budget,
         )?;
-        Ok(validate::seal_validation(selected, plan))
+        Ok(receipt::seal_copies(selected, plan))
     }
 
     copy_receipt! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub struct FixedViewCopyValidationReceipt {
+        pub struct FixedViewCopyReceipt {
             pub(crate) identity: FixedViewCopyIdentity,
             pub(crate) source_selected: SelectedInstructionPlanIdentity,
             pub(crate) source_ranges: LiveRangeIdentity,
@@ -1345,17 +1350,17 @@ pub(crate) mod fixed_view_copy {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ValidatedFixedViewCopies {
+    pub struct MaterializedFixedViewCopies {
         pub(crate) plan: FixedViewCopyPlan,
-        pub(crate) receipt: FixedViewCopyValidationReceipt,
+        pub(crate) receipt: FixedViewCopyReceipt,
     }
 
-    impl ValidatedFixedViewCopies {
+    impl MaterializedFixedViewCopies {
         pub const fn plan(&self) -> &FixedViewCopyPlan {
             &self.plan
         }
-        receipt_accessor_rows!(ref ValidatedFixedViewCopies {
-            receipt: FixedViewCopyValidationReceipt,
+        receipt_accessor_rows!(ref MaterializedFixedViewCopies {
+            receipt: FixedViewCopyReceipt,
         });
     }
 
@@ -1431,13 +1436,13 @@ pub(crate) use crate::pressure_rematerialization_recovery as pressure_rematerial
 pub(crate) use fixed_view_copy::materialize_fixed_view_copies;
 pub use fixed_view_copy::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, ValidatedFixedViewCopies, fixed_view_copy_identity,
+    FixedViewCopySourceEvidence, MaterializedFixedViewCopies, fixed_view_copy_identity,
 };
-pub(crate) use fixed_view_copy::{FixedViewCopyError, FixedViewCopyValidationReceipt};
+pub(crate) use fixed_view_copy::{FixedViewCopyError, FixedViewCopyReceipt};
 pub(crate) use pressure_rematerialization::{
     FunctionPressureRematerialization, PressureRematerializationAction,
-    PressureRematerializationPlan, PressureRematerializationRewrite,
-    PressureRematerializationValidationReceipt, pressure_rematerialization_identity,
+    PressureRematerializationPlan, PressureRematerializationReceipt,
+    PressureRematerializationRewrite, pressure_rematerialization_identity,
 };
 pub use pressure_rematerialization::{
     PressureRematerializationError, PressureRematerializationPolicy,

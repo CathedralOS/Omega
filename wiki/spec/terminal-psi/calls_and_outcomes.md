@@ -76,9 +76,17 @@ changes the original source retroactively. Every
 incoming edge is checked independently. A result annotation, ordinary constant,
 load or arithmetic operation cannot establish membership by itself.
 
-These declarations do not encode predicate proofs or routed authority. Those
-theories require their own evidence vocabulary rather than an assertion that
-they are obligation-free. Qualification adds no runtime tag, storage or operation;
+Predicate and routed scalar domains retain their declared theory in the same
+catalog. Establishment additionally names a checked completion under the
+[retained origin rules](encoding.md): a predicate is the exact
+destination invariant proved on every actual arrival, while an issuer route
+must independently match the checked callable or closed conformance. Neither a
+predicate-free tag coercion nor a proved predicate grants issuer authority.
+Qualified scalar formals and results retain their predicates in the ordinary
+entry and result contracts; missing predicates reject before those contracts
+can become proof premises. Primitive scalar storage and scalar fields retain
+the complete type too, including through borrowed storage and writes.
+Qualification adds no runtime tag, storage or operation;
 the ordinary edge transports the payload. Host scalar arguments alone do not
 establish a qualified entry contract.
 An interpreter must reject qualified host inputs without the required evidence.

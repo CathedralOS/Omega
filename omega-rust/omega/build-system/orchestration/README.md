@@ -64,7 +64,7 @@ or separate calling-policy publications.
 
 [source_resolution.rs](src/build_execution/source_resolution.rs) owns executed
 discovery for those consumers and package commands. Its
-[readiness scheduler](src/build_execution/source_resolution/readiness.rs) keeps
+[readiness scheduler](src/compile/build_execution/source_resolution_readiness.rs) keeps
 the suspended activation alive while acquiring the exact issued Build
 dependency, settling that dependency's own graph, and asking Psi for the named
 checked Terminal implementation. Installation checks the exact requirement and

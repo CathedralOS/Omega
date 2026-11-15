@@ -292,11 +292,9 @@ fn execute_accepted_project(project: &Path) {
         "{:?}",
         observation.status
     );
-    let published = compilation_products::publication::publish_compilation(
-        report,
-        &project.join("build/native-product"),
-    )
-    .unwrap();
+    let published =
+        products::publication::publish_compilation(report, &project.join("build/native-product"))
+            .unwrap();
     let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
         .output()
         .unwrap();

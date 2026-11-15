@@ -42,11 +42,11 @@ use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::timings;
 use limits::Budget;
 use package_compilation::build_execution::RestrictedBuildRequest;
-use package_evidence::encoding::PackageReviewEncodingError;
-use package_evidence::record::PackagePolicyRowKind;
-use package_source::ImmutableSourceResolution;
+use review_evidence::encoding::PackageReviewEncodingError;
+use review_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::Digest;
+use source_acquisition::ImmutableSourceResolution;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

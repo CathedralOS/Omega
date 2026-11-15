@@ -17,6 +17,7 @@ Provenance:
 use diagnostics::Diagnostic;
 use source::{SourceFile, SourceOrigin};
 
+#[path = "source_consumption_checked_sources.rs"]
 mod checked_sources;
 pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
 

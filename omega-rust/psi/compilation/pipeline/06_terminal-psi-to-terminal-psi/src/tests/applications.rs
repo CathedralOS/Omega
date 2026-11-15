@@ -258,46 +258,64 @@ fn source_application_cannot_change_its_payload_type() {
     );
 }
 
+/// `Optional` declared in the program's own source, so the full check of the
+/// program owes the declaration itself and not only its applications. The
+/// declaration is read as written; each application is judged where a type
+/// applies it, so the twin that stores a `bool` in an `Optional<u64>` is
+/// still refused at that field, and not accepted.
 #[test]
-fn a_local_generic_data_template_remains_unserved() {
-    let typed = source_program_in_scope("7u64", false);
-    let optional = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "Optional")
-        .unwrap();
-    assert_eq!(
-        typed.symbols.symbol_source_origin(optional.symbol),
-        Some(source::SourceOrigin::User)
-    );
-    let entry = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "entry")
-        .unwrap()
-        .symbol;
-    let verdicts = crate::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
-            &typed,
-            typed_trees_to_terminal_psi::Compilation {
-                calling: None,
-                providers: None,
-
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[None],
-                purpose: source::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .program,
-    );
-    assert!(
-        matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refused))]
-        if refused.detail == "type generic data"),
-        "{verdicts:?}"
-    );
+fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
+    for (payload, accepted) in [("7u64", true), ("true", false)] {
+        let typed = source_program_in_scope(payload, false);
+        let optional = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Optional")
+            .unwrap();
+        assert_eq!(
+            typed.symbols.symbol_source_origin(optional.symbol),
+            Some(source::SourceOrigin::User)
+        );
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let verdicts = crate::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    calling: None,
+                    providers: None,
+                    declaration_metadata: &[],
+                    entries: &[entry],
+                    subjects: &[None],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        );
+        // The first verdict is the program's closed bodies, `entry` with
+        // its three applications among them. Each generic machine of the
+        // pasted file has a verdict of its own after it, and one of those
+        // is refused for a contract this route does not read; none is
+        // refused for the data declaration any more.
+        let closed = match verdicts.first() {
+            Some(Ok(RouteVerdict::Accepted(_))) => accepted,
+            Some(Ok(RouteVerdict::FallBack(refused))) => {
+                !accepted && refused.detail.contains("record literal field type")
+            }
+            _ => false,
+        };
+        let declaration_refused = verdicts.iter().any(|verdict| {
+            matches!(verdict, Ok(RouteVerdict::FallBack(refused))
+                if refused.detail.contains("generic data"))
+        });
+        assert!(closed && !declaration_refused, "{payload}: {verdicts:?}");
+    }
 }

@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI20`) for retained native
+  Compiler-private binary persistence (`OMGNTI26`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -994,7 +994,6 @@ mod selection {
         installation_reach_resolutions,
         specialized_requirement_rows,
         external_requirement_applications,
-        family_realization_rows,
         toolchain_settled_identities,
         identities,
     });
@@ -1450,7 +1449,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI23";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI26";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1458,6 +1457,32 @@ const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_provider_plan_keeps_its_selecting_and_numeric_declarations() {
+        // Recovery transports inert candidates; admission is a separate check.
+        let plan = effects::provider_plan::ProviderPlan {
+            provider_declaration: Some("SelectedMap".into()),
+            row_numeric_realizations: vec![Some("NumericDeclaration".into()), None],
+            ..Default::default()
+        };
+        let mut output = RecordWriter::new(RecordLimits::default());
+        plan.write(&mut output).unwrap();
+        let bytes = output.finish();
+        let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
+        let recovered = effects::provider_plan::ProviderPlan::read(&mut input).unwrap();
+        input.finish().unwrap();
+        assert_eq!(recovered, plan);
+        assert_eq!(
+            recovered.provider_declaration.as_deref(),
+            Some("SelectedMap")
+        );
+        assert_eq!(
+            recovered.row_numeric_realizations[0].as_deref(),
+            Some("NumericDeclaration")
+        );
+        assert_eq!(recovered.row_numeric_realizations[1], None);
+    }
 
     #[test]
     fn retired_entry_field_record_schema_is_rejected() {
@@ -1477,6 +1502,9 @@ mod tests {
             b"OMGNTI20",
             b"OMGNTI21",
             b"OMGNTI22",
+            b"OMGNTI23",
+            b"OMGNTI24",
+            b"OMGNTI25",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1500,7 +1528,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI24", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI27", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };
@@ -1548,9 +1576,7 @@ fn capture(
     let TerminalNativeProposalRequest {
         evaluated_binding_identities,
         direct_boundary_leaves,
-        provider_declarations,
         target_profile,
-        family_realizations,
         boundaries,
         native_target,
         program_entry,
@@ -1572,9 +1598,7 @@ fn capture(
     for leaf in direct_boundary_leaves {
         leaf.write(&mut output)?;
     }
-    write_values(provider_declarations, &mut output)?;
     target_profile.write(&mut output)?;
-    write_values(family_realizations, &mut output)?;
     boundaries
         .selected_provider_plans
         .clone()
@@ -1585,7 +1609,6 @@ fn capture(
         plan,
         semantic_schema,
         row_executions,
-        row_numeric_realizations,
     } in &boundaries.selected_provider_provenance
     {
         plan.write(&mut output)?;
@@ -1596,7 +1619,6 @@ fn capture(
             // preparation reconciles it with the canonical declaration.
             execution.write(&mut output)?;
         }
-        write_values(row_numeric_realizations, &mut output)?;
     }
     boundaries.calling_applications.write(&mut output)?;
     native_target.write(&mut output)?;
@@ -1626,13 +1648,11 @@ struct IntrinsicPlanRecord {
     plan: effects::provider_plan::ProviderPlan,
     semantic_schema: effects::provider_plan::ServiceSchema,
     row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
-    row_numeric_realizations: Vec<Option<String>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
     plan,
     semantic_schema,
     row_executions,
-    row_numeric_realizations
 });
 
 struct DerivationInputs {
@@ -1641,9 +1661,7 @@ struct DerivationInputs {
     physical_adapter_requested: bool,
     provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
     leaves: Vec<backend_plan::DirectBoundaryLeaf>,
-    provider_declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
     profile: Option<target::TargetProfile>,
-    families: Vec<backend_plan::SelectedFamilyRealizationSource>,
     selected: effects::SelectedProviderPlanFacts,
     intrinsic_provenance: Vec<IntrinsicPlanRecord>,
     calling: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -1681,9 +1699,7 @@ impl DerivationInputs {
             physical_adapter_requested: RecordValue::read(input)?,
             provider_proposals: RecordValue::read(input)?,
             leaves: RecordValue::read(input)?,
-            provider_declarations: RecordValue::read(input)?,
             profile: RecordValue::read(input)?,
-            families: RecordValue::read(input)?,
             selected: RecordValue::read(input)?,
             intrinsic_provenance: RecordValue::read(input)?,
             calling: RecordValue::read(input)?,
@@ -1708,7 +1724,7 @@ impl DerivationInputs {
 }
 
 pub fn recover_native_derivation_inputs(
-    artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    authorization: terminal_installation::AuthorizedTerminalArtifact,
     bytes: &[u8],
 ) -> Result<
     (
@@ -1718,6 +1734,7 @@ pub fn recover_native_derivation_inputs(
     ),
     Vec<Diagnostic>,
 > {
+    let artifact = authorization.shared_artifact();
     let error = |reason: String| vec![Diagnostic::error(reason)];
     let mut reader = RecordReader::new(bytes, RecordLimits::default())
         .map_err(|reason| error(reason.to_string()))?;
@@ -1731,9 +1748,7 @@ pub fn recover_native_derivation_inputs(
         physical_adapter_requested,
         provider_proposals,
         leaves,
-        provider_declarations,
         profile,
-        families,
         selected,
         intrinsic_provenance,
         calling,
@@ -1768,9 +1783,7 @@ pub fn recover_native_derivation_inputs(
     let request = TerminalNativeProposalRequest {
         evaluated_binding_identities: &evaluated_binding_identities,
         direct_boundary_leaves: leaves.iter().collect(),
-        provider_declarations: &provider_declarations,
         target_profile: profile,
-        family_realizations: &families,
         boundaries: crate::BoundaryApplicationSettlement {
             selected_provider_plans: &selected,
             selected_provider_provenance: intrinsic_provenance
@@ -1780,7 +1793,6 @@ pub fn recover_native_derivation_inputs(
                         plan: &row.plan,
                         semantic_schema: &row.semantic_schema,
                         row_executions: &row.row_executions,
-                        row_numeric_realizations: &row.row_numeric_realizations,
                     },
                 )
                 .collect(),
@@ -1797,15 +1809,15 @@ pub fn recover_native_derivation_inputs(
         x86_scalar_fma_provider: fma,
     };
     let mut proposal =
-        project_terminal_native_realization_proposal(&artifact, checked_entry, request)?;
+        project_terminal_native_realization_proposal(artifact, checked_entry, request)?;
     if physical_adapter_requested || entry_adapter_requested {
         proposal
-            .bind_physical_adapter(&artifact)
+            .bind_physical_adapter(artifact)
             .map_err(|reason| error(reason.to_owned()))?;
     }
     Ok((
         RetainedTerminalArtifact::new_with_native_realization_proposal(
-            artifact,
+            authorization,
             proposal.with_target_provider_proposals(provider_proposals),
         ),
         accepted,

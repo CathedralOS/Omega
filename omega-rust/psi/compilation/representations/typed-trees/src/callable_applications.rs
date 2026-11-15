@@ -4,6 +4,252 @@ applied machine instances, trait and conformance scopes, domain scopes, and
 requirement instances in `TypedTrees`.
 */
 
+impl crate::TypedTrees {
+    /// Land a static scalar at its binder's carrier before either describing
+    /// or specializing the application. Names arrive already resolved; only
+    /// the canonical value codec, never a rendered decimal name, supplies a value.
+    pub fn prepare_callable_scalar_argument(
+        &self,
+        primitive: crate::types::PrimitiveType,
+        argument: &crate::expression::StaticMachineArgument,
+    ) -> Result<crate::expression::ExpressionNode, &'static str> {
+        use crate::expression::ExpressionNode;
+        use crate::types::PrimitiveType;
+        use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+        use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
+
+        if argument.application.is_some() || argument.evidence_projection.is_some() {
+            return Err("a static scalar requires a closed value operand");
+        }
+        if let Some(literal) = &argument.const_literal
+            && (argument.symbol.is_valid()
+                || !argument.path.is_empty()
+                || (argument.type_reference.is_valid()
+                    && self
+                        .static_const_literal_from_type_reference(argument.type_reference)
+                        .as_ref()
+                        != Some(literal)))
+        {
+            return Err("a scalar literal cannot also select another operand");
+        }
+        let literal = argument.const_literal.clone().or_else(|| {
+            argument
+                .type_reference
+                .is_valid()
+                .then(|| self.static_const_literal_from_type_reference(argument.type_reference))
+                .flatten()
+        });
+        if let Some(literal) = literal {
+            let landed_type = primitive
+                .landed_landing_fixed()
+                .ok_or("an integer argument requires an integer carrier")?;
+            let landing = IntegerLanding {
+                landed_type,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            };
+            if literal.landing().is_some_and(|stated| stated != landing)
+                || !literal
+                    .value_bignum()
+                    .is_some_and(|value| landed_type.value_carrier().admits(&value))
+            {
+                return Err("a static integer is outside its declared carrier");
+            }
+            return Ok(ExpressionNode::Integer(literal.with_landing(landing)));
+        }
+        if primitive == PrimitiveType::Bool
+            && let Some(value) = argument.closed_boolean()
+        {
+            return Ok(ExpressionNode::Boolean(value));
+        }
+        let canonical = if argument.symbol.is_valid() {
+            if self
+                .const_declaration_by_symbol(argument.symbol)
+                .is_some_and(|declaration| {
+                    !matches!(
+                        self.type_reference_node(declaration.declared_type),
+                        crate::types::TypeReferenceNode::Named { .. }
+                    ) || self.primitive_type_reference(declaration.declared_type) != Some(primitive)
+                })
+            {
+                return Err("a named constant does not have its binder's carrier");
+            }
+            crate::canonical_const_declaration_value(self, argument.symbol)
+        } else if argument.type_reference.is_valid() {
+            match self.type_reference_node(argument.type_reference) {
+                crate::types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                    CanonicalConstValue::from_atom(name.as_str())
+                }
+                crate::types::TypeReferenceNode::ConstExpression(value) => {
+                    if let ExpressionNode::Boolean(value) = self.expression_table.expression(*value)
+                    {
+                        Some(CanonicalConstValue::boolean(*value))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        } else {
+            argument
+                .path
+                .first()
+                .filter(|_| argument.path.len() == 1)
+                .and_then(|name| CanonicalConstValue::from_atom(name.as_str()))
+        }
+        .ok_or("a static scalar requires its canonical closed value")?;
+        match canonical
+            .decode_encoding()
+            .ok_or("a static scalar has a malformed canonical value")?
+        {
+            DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value,
+            } if primitive.landed_landing_fixed() == Some(integer_type) => {
+                let text = value.to_string();
+                let literal = IntegerLiteral::from_parts(
+                    text.starts_with('-'),
+                    IntegerRadix::Decimal,
+                    text.trim_start_matches('-'),
+                )
+                .map_err(|_| "a canonical integer lost its literal representation")?;
+                Ok(ExpressionNode::Integer(literal.with_landing(
+                    IntegerLanding {
+                        landed_type: integer_type,
+                        domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                    },
+                )))
+            }
+            DecodedCanonicalConstValue::Boolean(value) if primitive == PrimitiveType::Bool => {
+                Ok(ExpressionNode::Boolean(value))
+            }
+            _ => Err("a static scalar does not have its binder's carrier"),
+        }
+    }
+
+    /// Form the declaration's complete supported tuple without requesting an
+    /// executable instance. The generic type node retains the selected owner
+    /// and arguments in that owner's exact binder order, including landed values.
+    pub(crate) fn prepare_callable_operand_application(
+        &mut self,
+        selected: &crate::expression::StaticMachineArgument,
+        owner: symbols::SymbolHandle,
+    ) -> Result<
+        (
+            crate::types::TypeReferenceHandle,
+            Vec<crate::static_applications::StaticMachineBinding>,
+        ),
+        &'static str,
+    > {
+        use crate::data::TypeParameterKind;
+        use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+        use crate::types::TypeReferenceNode;
+        let owner = self.static_operand_region_supplier(selected, owner)?;
+        let machine = self
+            .machine_by_symbol(selected.symbol)
+            .or_else(|| self.machine_holding_state(selected.symbol))
+            .ok_or("a callable application requires its selected declaration")?;
+        let declaration = machine.symbol;
+        let name = machine.name.clone();
+        let parameters = self.machine_callable_parameters(machine);
+        let application = selected.application.as_deref();
+        if application.is_some_and(|application| application.member.is_valid())
+            || application.map_or(0, |application| application.arguments.len()) != parameters.len()
+            || application.map_or(0, |application| application.lifetime_arguments.len())
+                != machine.lifetime_parameters.len()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.bounds != crate::data::DataProperties::default())
+            || (application.is_some()
+                && (!machine.conformance_bounds.is_empty()
+                    || !machine.declared_type_equations.is_empty()))
+        {
+            return Err("a callable application requires its complete admitted tuple and premises");
+        }
+        let Some(application) = application else {
+            let reference = self.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: declaration,
+                name,
+            });
+            self.type_reference_table
+                .retain_operand_lifetime_owner(reference, owner)?;
+            return Ok((reference, Vec::new()));
+        };
+        let mut arguments = Vec::with_capacity(parameters.len());
+        let mut bindings = Vec::with_capacity(parameters.len());
+        for (parameter, argument) in parameters.iter().zip(&application.arguments) {
+            let reference = match parameter.kind {
+                TypeParameterKind::Type => {
+                    if argument.const_literal.is_some()
+                        || argument.evidence_projection.is_some()
+                        || (!argument.type_reference.is_valid()
+                            && (!self.symbols.symbols().nodes().is_valid(argument.symbol)
+                                || !matches!(
+                                    self.symbols.get(argument.symbol).kind,
+                                    symbols::SymbolKind::BuiltinType
+                                        | symbols::SymbolKind::Data
+                                        | symbols::SymbolKind::TypeParameter
+                                )))
+                    {
+                        return Err("a callable type argument requires its resolved type");
+                    }
+                    let reference = self.static_operand_type_reference_in_scope(argument, owner)?;
+                    if matches!(
+                        self.type_reference_node(reference),
+                        TypeReferenceNode::ConstExpression(_)
+                    ) {
+                        return Err("a callable type argument cannot be a value");
+                    }
+                    reference
+                }
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
+                    if !matches!(
+                        self.type_reference_node(type_reference),
+                        TypeReferenceNode::Named { .. }
+                    ) {
+                        return Err("a callable scalar requires its admitted declared carrier");
+                    }
+                    let primitive = self
+                        .primitive_type_reference(type_reference)
+                        .ok_or("a callable scalar requires its admitted carrier")?;
+                    let value = self.prepare_callable_scalar_argument(primitive, argument)?;
+                    let expression = self.expression_table.insert(value);
+                    self.type_reference_table
+                        .insert(TypeReferenceNode::ConstExpression(expression))
+                }
+                _ => {
+                    return Err(
+                        "a callable application requires its admitted callable or conformance argument",
+                    );
+                }
+            };
+            arguments.push(reference);
+            bindings.push(StaticMachineBinding {
+                parameter: parameter.symbol,
+                value: if parameter.kind.is_const_or_value() {
+                    StaticMachineBindingValue::Const(reference)
+                } else {
+                    StaticMachineBindingValue::Type(reference)
+                },
+            });
+        }
+        let arguments = self
+            .type_reference_table
+            .insert_type_reference_handles(arguments);
+        let reference = self
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: declaration,
+                base_name: name,
+                lifetime_arguments: application.lifetime_arguments.to_vec(),
+                arguments,
+            });
+        self.type_reference_table
+            .retain_operand_lifetime_owner(reference, owner)?;
+        Ok((reference, bindings))
+    }
+}
+
 pub(crate) mod call_targets {
     pub(crate) mod applications {
         use super::super::CallableApplication;
@@ -1034,6 +1280,7 @@ pub(crate) mod data_cleanup_scopes {
                 static_argument_owner: SymbolHandle::invalid(),
                 selected_providers: Vec::new(),
                 symbols: Vec::new(),
+                declaration_symbols: Default::default(),
                 active_requirements: Vec::new(),
                 active_runtime_contracts: Vec::new(),
                 source_binders: parameters
@@ -1137,6 +1384,7 @@ pub(crate) mod domain_scopes {
                     .then_some((source_subject, subject))
                     .into_iter()
                     .collect(),
+                declaration_symbols: Default::default(),
                 active_requirements: Vec::new(),
                 active_runtime_contracts: Vec::new(),
                 source_binders: parameters
@@ -1425,6 +1673,47 @@ pub(crate) mod machine_instances {
                 Self::Capture(receipt) => receipt.binding_application,
             }
         }
+
+        /// Rejoins an executable entry to the exact declaration retained when
+        /// its application was produced. State order and symbol provenance do
+        /// not supply missing correspondence.
+        pub fn entry_template(
+            self,
+            program: &TypedTrees,
+            entry: SymbolHandle,
+        ) -> Result<SymbolHandle, &'static str> {
+            let span = match self {
+                Self::Specialization(receipt) => receipt.states,
+                Self::Capture(receipt) => receipt.states,
+            };
+            let source = program
+                .machine(self.template())
+                .ok_or("executable application lost its template machine")?;
+            let instance = program
+                .machine(self.instance())
+                .ok_or("executable application lost its instance machine")?;
+            let source_states = program.machine_states(source);
+            let instance_states = program.machine_states(instance);
+            let states = program
+                .captured_machine_states
+                .span(span)
+                .ok_or("executable application lost its entry correspondence")?;
+            if states.len() != source_states.len() || states.len() != instance_states.len() {
+                return Err("executable application has incomplete entry correspondence");
+            }
+            let mut selected = states.iter().filter(|state| state.instance == entry);
+            let (Some(mapping), None) = (selected.next(), selected.next()) else {
+                return Err("executable application has no unique entry correspondence");
+            };
+            if !instance_states.iter().any(|state| state.symbol == entry)
+                || !source_states
+                    .iter()
+                    .any(|state| state.symbol == mapping.template)
+            {
+                return Err("executable application entry belongs to another template");
+            }
+            Ok(mapping.template)
+        }
     }
     impl TypedTrees {
         /// Read enclosing applications from their exact instance receipts, from
@@ -1588,50 +1877,10 @@ pub(crate) mod machine_instances {
             };
             let mut current = instance_state;
             for receipt in path {
-                let Some(source) = self.machine(receipt.template()) else {
+                let Ok(template) = receipt.entry_template(self, current) else {
                     return false;
                 };
-                let Some(realized) = self.machine(receipt.instance()) else {
-                    return false;
-                };
-                let source_states = self.machine_states(source);
-                let instance_states = self.machine_states(realized);
-                if source_states.len() != instance_states.len() {
-                    return false;
-                }
-                current = match receipt {
-                    MachineInstantiation::Specialization(_) => {
-                        let mut selected = instance_states
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, state)| state.symbol == current);
-                        let Some((ordinal, _)) = selected.next() else {
-                            return false;
-                        };
-                        if selected.next().is_some() {
-                            return false;
-                        }
-                        source_states[ordinal].symbol
-                    }
-                    MachineInstantiation::Capture(capture) => {
-                        let states = self.captured_machine_states.span_or_empty(capture.states);
-                        if states.len() != source_states.len() {
-                            return false;
-                        }
-                        let mut selected = states.iter().filter(|state| state.instance == current);
-                        let Some(mapping) = selected.next() else {
-                            return false;
-                        };
-                        if selected.next().is_some()
-                            || !source_states
-                                .iter()
-                                .any(|state| state.symbol == mapping.template)
-                        {
-                            return false;
-                        }
-                        mapping.template
-                    }
-                };
+                current = template;
             }
             current == source_state
         }
@@ -3818,15 +4067,6 @@ pub(crate) mod payloads {
                         arguments: self.type_arguments(program, arguments)?,
                     }
                 }
-                types::TypeReferenceNode::DynamicTrait {
-                    symbol,
-                    name,
-                    arguments,
-                } => types::TypeReferenceNode::DynamicTrait {
-                    symbol: self.symbol(symbol),
-                    name,
-                    arguments: self.type_arguments(program, arguments)?,
-                },
                 types::TypeReferenceNode::ConstExpression(expression) => {
                     types::TypeReferenceNode::ConstExpression(self.expression(program, expression)?)
                 }
@@ -3947,6 +4187,7 @@ pub(crate) mod payloads {
                 }
             }
             let mut symbols = self.symbols.clone();
+            symbols.extend(self.declaration_symbols.rebinding().iter().copied());
             for handle in &rows {
                 if let expression::ExpressionNode::Name(path) =
                     program.expression_table.expression(*handle)
@@ -3961,8 +4202,18 @@ pub(crate) mod payloads {
                     }
                 }
             }
-            let call_targets = rows
-                .iter()
+            let call_targets = self.expression_call_targets(program, &rows)?;
+            program.expression_table.remap_symbols_in(copied, &symbols);
+            self.apply_expression_rows(program, &rows, call_targets)?;
+            Ok(copied)
+        }
+
+        pub(crate) fn expression_call_targets(
+            &self,
+            program: &TypedTrees,
+            rows: &[expression::ExpressionHandle],
+        ) -> Result<Vec<Option<super::call_targets::AppliedCallTarget>>, &'static str> {
+            rows.iter()
                 .map(
                     |handle| match program.expression_table.expression(*handle) {
                         expression::ExpressionNode::Call(call) => {
@@ -3971,133 +4222,194 @@ pub(crate) mod payloads {
                         _ => Ok(None),
                     },
                 )
-                .collect::<Result<Vec<_>, _>>()?;
-            program.expression_table.remap_symbols_in(copied, &symbols);
-            for (handle, call_target) in rows.into_iter().zip(call_targets) {
+                .collect()
+        }
+
+        /// Specialization and contract application share the ownership of all
+        /// types retained by copied expressions. Keep this exhaustive over node
+        /// kinds so a new node cannot silently retain a template's type rows.
+        pub(crate) fn apply_expression_rows(
+            &mut self,
+            program: &mut TypedTrees,
+            rows: &[expression::ExpressionHandle],
+            call_targets: Vec<Option<super::call_targets::AppliedCallTarget>>,
+        ) -> Result<(), &'static str> {
+            for (&handle, call_target) in rows.iter().zip(call_targets) {
+                let carrier = program
+                    .expression_table
+                    .constructed_value_type_reference(handle);
+                if carrier.is_valid() {
+                    let carrier = self.type_reference(program, carrier)?;
+                    program
+                        .expression_table
+                        .set_constructed_value_type_reference(handle, carrier);
+                }
+                let required = program
+                    .expression_table
+                    .construction_required_type_reference(handle);
+                if required.is_valid() {
+                    let required = self.type_reference(program, required)?;
+                    program
+                        .expression_table
+                        .set_construction_required_type_reference(handle, required);
+                }
                 let node = program.expression_table.expression(handle).clone();
                 let applied = match node {
-                expression::ExpressionNode::Name(path) => {
-                    if path.head_symbol.is_valid()
-                        && program.symbols.get(path.head_symbol).kind
-                            == symbols::SymbolKind::ConformanceParameter
-                    {
-                        continue;
-                    }
-                    if self
-                        .static_arguments
-                        .iter()
-                        .any(|(binder, _)| *binder == path.head_symbol)
-                    {
-                        return Err(
-                            "applied evidence expression requires an exact requirement namespace mapping",
-                        );
-                    }
-                    if let Some((_, argument)) = self
-                        .types
-                        .iter()
-                        .rev()
-                        .find(|(binder, _)| *binder == path.head_symbol)
-                    {
-                        let argument = *argument;
-                        let carrier = program
-                            .data_type_parameter_by_symbol(path.head_symbol)
-                            .and_then(|parameter| match parameter.kind {
-                                crate::data::TypeParameterKind::Const { type_reference }
-                                | crate::data::TypeParameterKind::Value { type_reference } => {
-                                    Some(type_reference)
-                                }
-                                _ => None,
-                            });
-                        let carrier = match carrier {
-                            Some(carrier) => self.type_reference(program, carrier)?,
-                            None => types::TypeReferenceHandle::invalid(),
-                        };
-                        let replacement =
-                            Self::selected_value_expression(program, argument, carrier)?;
-                        Some(program.expression_table.expression(replacement).clone())
-                    } else {
-                        None
-                    }
-                }
-                expression::ExpressionNode::StructLiteral(mut literal) if literal.application_type.is_valid() => {
-                    literal.application_type =
-                        self.type_reference(program, literal.application_type)?;
-                    Some(expression::ExpressionNode::StructLiteral(literal))
-                }
-                expression::ExpressionNode::Match(mut dispatch) if program.expression_table.match_arms(dispatch.arms).iter().any(|arm|
-                    matches!(arm.pattern, expression::MatchPattern::Destructure(pattern) if pattern.application_type.is_valid())) => {
-                    let mut arms = program.expression_table.match_arms(dispatch.arms).to_vec();
-                    for arm in &mut arms {
-                        if let expression::MatchPattern::Destructure(ref mut pattern) = arm.pattern {
-                            pattern.application_type = self.type_reference(program, pattern.application_type)?;
+                    expression::ExpressionNode::Name(path) => {
+                        if path.static_application.is_valid() {
+                            let mut argument = program
+                                .expression_table
+                                .static_member(path.static_application)
+                                .ok_or("copied name lost its retained static operand")?
+                                .clone();
+                            self.static_arguments(program, std::slice::from_mut(&mut argument))?;
+                            *program
+                                .expression_table
+                                .static_member_mut(path.static_application)
+                                .ok_or("copied name lost its retained static operand")? = argument;
+                        }
+                        if path.head_symbol.is_valid()
+                            && program.symbols.get(path.head_symbol).kind
+                                == symbols::SymbolKind::ConformanceParameter
+                        {
+                            continue;
+                        }
+                        if self
+                            .static_arguments
+                            .iter()
+                            .any(|(binder, _)| *binder == path.head_symbol)
+                        {
+                            return Err(
+                                "applied evidence expression requires an exact requirement namespace mapping",
+                            );
+                        }
+                        if let Some((_, argument)) = self
+                            .types
+                            .iter()
+                            .rev()
+                            .find(|(binder, _)| *binder == path.head_symbol)
+                        {
+                            let argument = *argument;
+                            let carrier = program
+                                .data_type_parameter_by_symbol(path.head_symbol)
+                                .and_then(|parameter| match parameter.kind {
+                                    crate::data::TypeParameterKind::Const { type_reference }
+                                    | crate::data::TypeParameterKind::Value { type_reference } => {
+                                        Some(type_reference)
+                                    }
+                                    _ => None,
+                                });
+                            let carrier = match carrier {
+                                Some(carrier) => self.type_reference(program, carrier)?,
+                                None => types::TypeReferenceHandle::invalid(),
+                            };
+                            let replacement =
+                                Self::selected_value_expression(program, argument, carrier)?;
+                            Some(program.expression_table.expression(replacement).clone())
+                        } else {
+                            None
                         }
                     }
-                    dispatch.arms = program.expression_table.insert_match_arms(arms);
-                    Some(expression::ExpressionNode::Match(dispatch))
-                }
-                expression::ExpressionNode::Cast(mut cast) => {
-                    cast.target_type = self.type_reference(program, cast.target_type)?;
-                    cast.result_type = self.type_reference(program, cast.result_type)?;
-                    cast.semantic_domain_arguments =
-                        self.type_arguments(program, cast.semantic_domain_arguments)?;
-                    let arguments = program.type_reference_table
-                        .type_reference_handles(cast.semantic_domain_arguments).to_vec();
-                    cast.semantic_domain_id = Self::domain_identity(
-                        program,
-                        cast.semantic_domain_symbol,
-                        &arguments,
-                        cast.semantic_domain_id,
-                    )?;
-                    Some(expression::ExpressionNode::Cast(cast))
-                }
-                expression::ExpressionNode::TypeExpression(reference) => {
-                    Some(expression::ExpressionNode::TypeExpression(
-                        self.type_reference(program, reference)?,
-                    ))
-                }
-                expression::ExpressionNode::ZeroValue(reference) => Some(
-                    expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
-                ),
-                expression::ExpressionNode::Call(mut call) => {
-                    if let Some(runtime) = &mut call.runtime_call {
-                        runtime.contract = self.runtime_contract(program, runtime.contract)?;
+                    expression::ExpressionNode::StructLiteral(mut literal) => {
+                        literal.application_type =
+                            self.type_reference(program, literal.application_type)?;
+                        Some(expression::ExpressionNode::StructLiteral(literal))
                     }
-                    call.requirement_application =
-                        self.type_reference(program, call.requirement_application)?;
-                    call.exact_coercion_target =
-                        self.type_reference(program, call.exact_coercion_target)?;
-                    if let Some(request) = &mut call.installed_interrupt_operation {
-                        request.invalidate_preparation();
-                        self.static_arguments(program, std::slice::from_mut(&mut request.registrar))?;
-                        self.static_arguments(program, std::slice::from_mut(&mut request.timer_slot))?;
+                    expression::ExpressionNode::Match(mut dispatch) => {
+                        let mut arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+                        for arm in &mut arms {
+                            if let expression::MatchPattern::Destructure(ref mut pattern) =
+                                arm.pattern
+                            {
+                                pattern.application_type =
+                                    self.type_reference(program, pattern.application_type)?;
+                            }
+                        }
+                        dispatch.arms = program.expression_table.insert_match_arms(arms);
+                        Some(expression::ExpressionNode::Match(dispatch))
                     }
-                    self.static_arguments(program, &mut call.machine_arguments)?;
-                    if let Some(query) = &mut call.native_code_layout {
-                        self.static_arguments(program, std::slice::from_mut(&mut query.operand))?;
+                    expression::ExpressionNode::Cast(mut cast) => {
+                        cast.target_type = self.type_reference(program, cast.target_type)?;
+                        cast.result_type = self.type_reference(program, cast.result_type)?;
+                        cast.semantic_domain_arguments =
+                            self.type_arguments(program, cast.semantic_domain_arguments)?;
+                        let arguments = program
+                            .type_reference_table
+                            .type_reference_handles(cast.semantic_domain_arguments)
+                            .to_vec();
+                        cast.semantic_domain_id = Self::domain_identity(
+                            program,
+                            cast.semantic_domain_symbol,
+                            &arguments,
+                            cast.semantic_domain_id,
+                        )?;
+                        Some(expression::ExpressionNode::Cast(cast))
                     }
-                    for application in crate::references::StaticArgumentCall::Expression(handle, &call).applications() {
-                        self.apply_static_machine_application(program, application)?;
+                    expression::ExpressionNode::TypeExpression(reference) => {
+                        Some(expression::ExpressionNode::TypeExpression(
+                            self.type_reference(program, reference)?,
+                        ))
                     }
-                    if let Some(target) = call_target {
-                        self.apply_call_target(program, &mut call, target)?;
+                    expression::ExpressionNode::ZeroValue(reference) => {
+                        Some(expression::ExpressionNode::ZeroValue(
+                            self.type_reference(program, reference)?,
+                        ))
                     }
-                    Some(expression::ExpressionNode::Call(call))
-                }
-                expression::ExpressionNode::MachineValue(mut value) => {
-                    value.type_reference = self.type_reference(program, value.type_reference)?;
-                    self.static_arguments(program, std::slice::from_mut(&mut value.selected))?;
-                    self.apply_static_machine_application(program, value.application)?;
-                    value.conformance = self.symbol(value.conformance);
-                    value.requirement = self.symbol(value.requirement);
-                    Some(expression::ExpressionNode::MachineValue(value))
-                }
-                _ => None,
-            };
+                    expression::ExpressionNode::Call(mut call) => {
+                        if let Some(runtime) = &mut call.runtime_call {
+                            runtime.contract = self.runtime_contract(program, runtime.contract)?;
+                        }
+                        if let Some(request) = &mut call.installed_interrupt_operation {
+                            request.invalidate_preparation();
+                        }
+                        call.requirement_application =
+                            self.type_reference(program, call.requirement_application)?;
+                        call.exact_coercion_target =
+                            self.type_reference(program, call.exact_coercion_target)?;
+                        self.static_arguments(program, &mut call.machine_arguments)?;
+                        for argument in call.request_static_arguments_mut() {
+                            self.static_arguments(program, std::slice::from_mut(argument))?;
+                        }
+                        for application in
+                            crate::references::StaticArgumentCall::Expression(handle, &call)
+                                .applications()
+                        {
+                            self.apply_static_machine_application(program, application)?;
+                        }
+                        if let Some(target) = call_target {
+                            self.apply_call_target(program, &mut call, target)?;
+                        }
+                        Some(expression::ExpressionNode::Call(call))
+                    }
+                    expression::ExpressionNode::MachineValue(mut value) => {
+                        value.type_reference =
+                            self.type_reference(program, value.type_reference)?;
+                        self.static_arguments(program, std::slice::from_mut(&mut value.selected))?;
+                        self.apply_static_machine_application(program, value.application)?;
+                        value.conformance = self.symbol(value.conformance);
+                        value.requirement = self.symbol(value.requirement);
+                        Some(expression::ExpressionNode::MachineValue(value))
+                    }
+                    expression::ExpressionNode::SavedSubject(_)
+                    | expression::ExpressionNode::ArrayLiteral(_)
+                    | expression::ExpressionNode::Atomic(_)
+                    | expression::ExpressionNode::Binary(_)
+                    | expression::ExpressionNode::Boolean(_)
+                    | expression::ExpressionNode::Float(_)
+                    | expression::ExpressionNode::UndeterminedNaN(_)
+                    | expression::ExpressionNode::Indexed(_)
+                    | expression::ExpressionNode::Integer(_)
+                    | expression::ExpressionNode::Member(_)
+                    | expression::ExpressionNode::Borrow(_)
+                    | expression::ExpressionNode::Range(_)
+                    | expression::ExpressionNode::String(_)
+                    | expression::ExpressionNode::Unary(_) => None,
+                };
                 if let Some(applied) = applied {
                     *program.expression_table.expression_mut(handle) = applied;
                 }
             }
-            Ok(copied)
+            Ok(())
         }
 
         fn apply_static_machine_application(
@@ -4423,6 +4735,231 @@ mod declaration_invocations {
             Ok(true)
         }
 
+        /// A selected body and its public requirement have distinct binders.
+        /// Close the public header from the exact retained body application,
+        /// then keep that occurrence beside the ordinary closed requirement.
+        pub fn prepare_selected_requirement_application(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            dispatch: &crate::StaticRequirementDispatch,
+            original: SymbolHandle,
+        ) -> Result<(), &'static str> {
+            use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(application)
+                || !self.symbols.symbols().nodes().is_valid(original)
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(dispatch.evidence_parameter)
+            {
+                return Err("selected public application has stale source coordinates");
+            }
+            let invocation = self.static_machine_application(application).clone();
+            let receipt = self
+                .machine_instantiation(invocation.lexical_owner)?
+                .ok_or("selected public application lost its supplying instance")?;
+            let bound = self
+                .evidence_bound_requirement(
+                    receipt.template(),
+                    dispatch.evidence_parameter,
+                    original,
+                )
+                .map_err(|_| "selected public application lost its exact bound")?
+                .ok_or("selected public application has no requirement bound")?;
+            if bound.signature.symbol != dispatch.requirement
+                || bound.application.declaration.symbol != dispatch.declaring_trait
+            {
+                return Err("selected public application changed its requirement");
+            }
+            let source = self
+                .applied_callable_signature(&bound.application, bound.signature.symbol)
+                .or_else(|| {
+                    bound
+                        .application
+                        .keeps_declared_signatures(self)
+                        .then_some(bound.signature)
+                })
+                .ok_or("selected public application lost its applied source header")?
+                .clone();
+            let environment = bound.application.environment();
+            let required = self.state_signature_type_parameters(&source).to_vec();
+            if required.is_empty() {
+                return Ok(());
+            }
+            let (_, declaration) = self
+                .trait_machine_signature(source.symbol)
+                .ok_or("selected public application lost its authored requirement")?;
+            let authored = self.state_signature_type_parameters(declaration).to_vec();
+            let provider = self
+                .machine_by_symbol(invocation.binding_declaration)
+                .ok_or("selected public application lost its binding declaration")?;
+            if provider.symbol != dispatch.realization_machine {
+                return Err("selected public application binds another realization");
+            }
+            let supplied = self.machine_callable_parameters(provider);
+            let mut bindings = self
+                .static_machine_application_bindings(application)
+                .to_vec();
+            if required.len() != authored.len()
+                || required.len() != supplied.len()
+                || supplied.len() != bindings.len()
+                || !source.lifetime_parameters.is_empty()
+                || !invocation.lifetime_bindings.is_empty()
+            {
+                return Err("selected public application needs its complete invocation telescope");
+            }
+            bindings.sort_unstable_by_key(|binding| {
+                (
+                    binding.parameter.arena_index(),
+                    binding.parameter.generation(),
+                )
+            });
+            if bindings
+                .windows(2)
+                .any(|pair| pair[0].parameter == pair[1].parameter)
+            {
+                return Err("selected realization repeats an invocation binder");
+            }
+            let mut public_bindings = Vec::with_capacity(required.len());
+            let mut public_arguments = Vec::with_capacity(required.len());
+            for ((required, authored), supplied) in required.iter().zip(authored).zip(supplied) {
+                let crate::data::TypeParameterKind::Const {
+                    type_reference: expected,
+                } = required.kind
+                else {
+                    return Err("selected public application has an unserved binder kind");
+                };
+                let crate::data::TypeParameterKind::Const {
+                    type_reference: actual,
+                } = supplied.kind
+                else {
+                    return Err("selected realization has another binder kind");
+                };
+                let primitive = self
+                    .primitive_type_reference(expected)
+                    .filter(|expected| self.primitive_type_reference(actual) == Some(*expected))
+                    .ok_or("selected realization value binder has another carrier")?;
+                let Ok(position) = bindings.binary_search_by_key(
+                    &(supplied.symbol.arena_index(), supplied.symbol.generation()),
+                    |binding| {
+                        (
+                            binding.parameter.arena_index(),
+                            binding.parameter.generation(),
+                        )
+                    },
+                ) else {
+                    return Err("selected realization binder has no unique argument");
+                };
+                let binding = &bindings[position];
+                let StaticMachineBindingValue::Const(reference) = binding.value else {
+                    return Err("selected realization binder has no static value");
+                };
+                let argument = self.static_operand_from_type_reference(reference)?;
+                self.prepare_callable_scalar_argument(primitive, &argument)?;
+                public_bindings.push(StaticMachineBinding {
+                    parameter: authored.symbol,
+                    value: StaticMachineBindingValue::Const(reference),
+                });
+                public_arguments.push(argument);
+            }
+            let mut existing = self
+                .applied_callable_signatures
+                .declaration_rows(application, invocation.lexical_owner);
+            let previous = existing.next().map(|(handle, _)| handle);
+            if existing.next().is_some() {
+                return Err("selected call has several prepared public applications");
+            }
+            drop(existing);
+            let arguments = self
+                .static_machine_application_arguments(application)
+                .iter()
+                .map(|argument| {
+                    self.declared_static_operand_identity(
+                        crate::type_identity::DeclaredStaticOperandIdentityRequest {
+                            operand: crate::type_identity::IndexIdentityArgument::StaticArgument(
+                                argument,
+                            ),
+                            lexical_owner: invocation.lexical_owner,
+                            binders: &[],
+                            lifetime_binders: &[],
+                        },
+                    )
+                    .ok_or("selected call argument has no exact declared identity")
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let public = self.expression_table.retain_static_machine_application(
+                source.symbol,
+                source.name.clone(),
+                &public_arguments,
+            );
+            let row = self.expression_table.static_machine_application_mut(public);
+            row.lexical_owner = invocation.lexical_owner;
+            row.binding_declaration = source.symbol;
+            self.expression_table
+                .set_static_machine_application_bindings(public, &public_bindings);
+            let trait_arguments = self.materialize_trait_application_arguments(&environment)?;
+            let closed = self.instantiate_requirement_application(
+                &environment,
+                source.symbol,
+                &trait_arguments,
+                public,
+            )?;
+            let signature = self
+                .closed_requirement_application(closed)
+                .ok_or("selected public application lost its closed requirement")?
+                .signature
+                .clone();
+            let bindings = self
+                .expression_table
+                .snapshot_static_machine_bindings(application);
+            let arguments = self.callable_argument_identities.insert_many(arguments);
+            let prepared = AppliedCallableSignature {
+                owner: AppliedCallableOwner::RequirementInvocation {
+                    declaration: source.symbol,
+                    application,
+                    lexical_owner: invocation.lexical_owner,
+                    source,
+                    bindings,
+                    lifetimes: Default::default(),
+                    arguments,
+                },
+                signature,
+            };
+            if let Some(previous) = previous {
+                self.applied_callable_signatures
+                    .replace(previous, prepared)?;
+            } else {
+                self.applied_callable_signatures.insert(prepared);
+            }
+            Ok(())
+        }
+
+        pub(crate) fn selected_requirement_invocation_signature(
+            &self,
+            owner: SymbolHandle,
+            application: StaticMachineApplicationHandle,
+            source: &StateSignature,
+        ) -> Result<Option<&StateSignature>, &'static str> {
+            if !application.is_valid() {
+                return Ok(None);
+            }
+            let mut rows = self
+                .applied_callable_signatures
+                .declaration_rows(application, owner);
+            let Some((_, prepared)) = rows.next() else {
+                return Ok(None);
+            };
+            if rows.next().is_some()
+                || !self.bodyless_application_matches(prepared, source.symbol, source, application)
+            {
+                return Err("selected public application changed after preparation");
+            }
+            Ok(Some(&prepared.signature))
+        }
+
         /// Look up this occurrence, not another call with equal rendered
         /// arguments. Mutated source bindings cannot reuse an earlier header.
         pub fn bodyless_callable_signature(
@@ -4504,7 +5041,10 @@ mod declaration_invocations {
                 && self.symbols.symbols().nodes().is_valid(*lexical_owner)
                 && *lexical_owner == invocation.lexical_owner
                 && source == actual_source
-                && prepared.signature.symbol == source.symbol
+                && (prepared.signature.symbol == source.symbol
+                    || self
+                        .closed_requirement_application(prepared.signature.symbol)
+                        .is_some_and(|closed| closed.template == source.symbol))
                 && bindings.len() == actual_bindings.len()
                 && invocation.bindings.len() == actual_bindings.len()
                 && source.type_parameters.len() == actual_bindings.len()
@@ -6076,12 +6616,12 @@ pub(crate) mod selected_operands {
             use numerics::literals::{IntegerLiteral, IntegerRadix};
             match self.type_reference_table.type_reference(reference) {
                 types::TypeReferenceNode::ConstExpression(value) => {
-                    let expression::ExpressionNode::Integer(literal) =
-                        self.expression_table.expression(*value)
-                    else {
-                        return None;
-                    };
-                    Some(literal.clone())
+                    match self.expression_table.expression(*value) {
+                        expression::ExpressionNode::Integer(literal) => Some(literal.clone()),
+                        // A calculation over literals is the literal of its
+                        // value (`const_integer::closed_literal`).
+                        _ => crate::const_integer::closed_literal(&self.expression_table, *value),
+                    }
                 }
                 types::TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
                     let mut spelling = name.as_str();
@@ -8420,6 +8960,7 @@ pub(crate) struct CallableApplication {
         crate::static_applications::StaticMachineApplicationHandle,
     )>,
     symbols: Vec<(SymbolHandle, SymbolHandle)>,
+    declaration_symbols: crate::PreparedSymbolRebinding,
     active_requirements: Vec<(SymbolHandle, SymbolHandle)>,
     source_binders: Vec<(crate::name::Identifier, SymbolHandle)>,
     active_runtime_contracts: Vec<(
@@ -8639,7 +9180,9 @@ impl CallableApplication {
             .iter()
             .rev()
             .find(|(symbol, _)| *symbol == original)
-            .map_or(original, |(_, replacement)| *replacement)
+            .map(|(_, replacement)| *replacement)
+            .or_else(|| self.declaration_symbols.execution_symbol(original))
+            .unwrap_or(original)
     }
 
     fn nominal_contract(
@@ -8916,6 +9459,57 @@ impl TypedTrees {
             ..CallableApplication::default()
         }
         .type_reference(self, original)
+    }
+
+    /// Applies one declaration's types throughout a copied entry and its clauses.
+    /// Signatures, local annotations, patterns, static operands and expression
+    /// metadata all use the same substitution owner; applying a domain also
+    /// rebuilds its semantic identity from the substituted arguments.
+    pub fn apply_copied_callable_types<'state>(
+        &mut self,
+        entries: impl IntoIterator<Item = (SymbolHandle, &'state mut crate::state::State, usize, usize)>,
+        symbols: crate::SymbolRebinding<'_>,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<(), &'static str> {
+        let mut application = CallableApplication {
+            types: substitutions.to_vec(),
+            ..CallableApplication::default()
+        };
+        for &(source, target) in symbols.iter() {
+            application
+                .declaration_symbols
+                .insert_execution(source, target);
+        }
+        for (declaration, state, first_expression, expression_count) in entries {
+            application.region_scope = declaration;
+            let rows = self
+                .expression_table
+                .iter_expressions_from(first_expression)
+                .take(expression_count)
+                .map(|(handle, _)| handle)
+                .collect::<Vec<_>>();
+            state.return_type = application.type_reference(self, state.return_type)?;
+            for parameter in state.parameters.handles() {
+                let original = self.state_parameters.get(parameter).type_reference;
+                let applied = application.type_reference(self, original)?;
+                self.state_parameters.get_mut(parameter).type_reference = applied;
+            }
+            for handle in state.statement_nodes.handles() {
+                let Some(local) = self.statement_table.statement(handle).as_local_data() else {
+                    continue;
+                };
+                let original = local.type_reference;
+                let applied = application.type_reference(self, original)?;
+                if let crate::statement::StatementNode::LocalData(local) =
+                    self.statement_table.statement_mut(handle)
+                {
+                    local.type_reference = applied;
+                }
+            }
+            let call_targets = application.expression_call_targets(self, &rows)?;
+            application.apply_expression_rows(self, &rows, call_targets)?;
+        }
+        Ok(())
     }
 
     pub fn apply_static_application_type(

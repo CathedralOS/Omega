@@ -930,7 +930,7 @@ pub(crate) mod execution {
 
     fn chain_ledger(
         psi: terminal_psi::TerminalPsiIdentity,
-        work_schedule: psi_work::WorkScheduleIdentity,
+        work_schedule: terminal_work::WorkScheduleIdentity,
         initial_identity: OptimizationUnitIdentity,
         output: OptimizationUnitIdentity,
         commits: &[PsiOptimizationCommit],
@@ -959,7 +959,7 @@ pub(crate) mod execution {
     fn finish_loop_invariant_scalar_motion_step(
         step: &PsiPassStep,
         psi: terminal_psi::TerminalPsiIdentity,
-        work_schedule: psi_work::WorkScheduleIdentity,
+        work_schedule: terminal_work::WorkScheduleIdentity,
         initial_identity: OptimizationUnitIdentity,
         session: VerifiedPsiOptimizationSession,
         commits: Vec<PsiOptimizationCommit>,

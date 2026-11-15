@@ -1,9 +1,12 @@
-use kit::main;
-machine build(builder: &mut Build) {
+use kit;
+machine build(builder: &mut Build)
+suspends
+{
     Build::application(builder, "build_scope_deps");
     builder.freestanding = true;
     let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
     dependency::with_alias(&mut kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
-    let x: i32 = v();
+    suspend Build::prepare_dependency(builder, kit_registration);
+    let x: i32 = kit::v();
 }

@@ -9,10 +9,13 @@ there is no merge queue.
 `.github/workflows/admission.yml` is the only check a pull request needs. It
 builds no compiler: a prebuilt `xtask` runs `check-rules` on the title, body
 and diff, then `fmt --check` when Rust files changed, which runs one `rustfmt`
-per CPU. A pull request can restore a cache only from its own runs or from
-main's, so the same workflow runs on pushes to main that change `tools/xtask`,
-`Cargo.lock` or the toolchain, and saves the built `xtask` there for every
-pull request to restore.
+per CPU. `tools/xtask/bootstrap-mbx.sh` lives under `tools/xtask/` so
+`admission.yml`'s `tools/xtask/**` push filter and cache key cover it alongside
+the `xtask` crate, installing checksum-verified `mbx` from `tools/mbx-version`.
+A pull request can restore a cache only from its own runs or from main's, so
+the same workflow runs on pushes to main that change `tools/xtask`,
+`Cargo.lock` or the toolchain, and saves the built `xtask` there for every pull
+request to restore.
 
 ## Post-merge check
 
@@ -43,9 +46,9 @@ The run reverts nothing; that is a later step of
 
 ## Administration
 
-`main-ruleset.json` still describes the retired merge-queue ruleset, which
-required `compiler-check`; it is not the live protection on main and is kept
-here until it is replaced. Inspect the repository's existing rulesets before
+Live branch and ruleset protection for `main` is stored in GitHub repository
+settings rather than checked into this directory. Inspect the repository's
+existing rulesets (for example via `gh api repos/:owner/:repo/rulesets`) before
 applying any definition, and update the named ruleset rather than creating a
 duplicate. Admin access is needed only to configure rules; ordinary write
 access suffices to open and merge pull requests. Changing protection is an

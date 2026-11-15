@@ -35,9 +35,9 @@ pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::EvaluationInvocationAccount;
-use psi_work::WorkUsage;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::TargetMachineCallable;
+use terminal_work::WorkUsage;
 
 pub type TerminalCallingPolicyAdmission = terminal_installation::AdmittedCompilerEvaluation;
 
@@ -45,7 +45,7 @@ pub fn admit_terminal_calling_policy(
     artifact: &CanonicalTerminalArtifact,
     declaration: terminal_psi::ProofDeclarationId,
     target: target::TargetProfile,
-    providers: &[backend_plan::TerminalTargetProviderPlan],
+    providers: &[effects::provider_plan::ProviderPlan],
     requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
     authority: Option<&dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>,
 ) -> Result<TerminalCallingPolicyAdmission, String> {
@@ -86,7 +86,7 @@ pub type CallingScalarEvaluator =
         &str,
         &[semantic_vocabulary::ScalarApplicationId],
         Option<&terminal_installation::ScalarAddressModel>,
-        &mut psi_work::WorkMeter,
+        &mut terminal_work::WorkMeter,
     )
         -> Result<terminal_installation::ScalarConditionSelection<'artifact>, String>;
 
@@ -104,13 +104,13 @@ pub struct CallingPolicyEvaluator {
 }
 
 pub(super) mod scalar_completion {
-    use psi_work::WorkMeter;
     use semantic_vocabulary::ScalarApplicationId;
     use terminal_codec::CanonicalTerminalArtifact;
     use terminal_installation::{
         AdmittedProviderSelections, AdmittedScalarApplications, CallingAbiStorageDemand,
         ScalarAddressModel, ScalarApplicationClosure, ScalarApplicationObservations,
     };
+    use terminal_work::WorkMeter;
 
     pub enum CallingScalarScope<'request> {
         Invocation {
@@ -156,8 +156,7 @@ pub(super) mod scalar_completion {
         for scope in scopes {
             let profile = target::TargetProfile::from_canonical_target_name(&scope)
                 .map_err(|error| error.message)?;
-            let selected =
-                terminal_installation::admit_target_machine_selections(artifact.view(), &scope);
+            let selected = terminal_installation::terminal_target_context(artifact.view(), &scope);
             let facts = profile
                 .layout_target_facts()
                 .ok_or("calling scalar target has no immutable layout catalogue")?;

@@ -19,14 +19,14 @@ pub mod requests;
 /// Build script make their calls at the same operation numbers.
 pub(crate) fn is_call_at(
     effect: &terminal_interpreter::TerminalEffect,
-    site: psi_compiler::BuildCallSite,
+    site: source_compiler::BuildCallSite,
 ) -> bool {
     matches!(
         effect,
         terminal_interpreter::TerminalEffect::BoundaryCall {
             site: actual,
             ..
-        } if site == psi_compiler::BuildCallSite {
+        } if site == source_compiler::BuildCallSite {
             machine: actual.machine,
             operation: actual.operation,
             boundary: actual.boundary,
@@ -57,8 +57,8 @@ pub(crate) fn require_effect_owner(
 #[cfg(test)]
 mod tests {
     use super::is_call_at;
-    use psi_compiler::BuildCallSite;
     use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+    use source_compiler::BuildCallSite;
     use terminal_interpreter::TerminalEffect;
 
     fn site(machine: u64, operation: u64, boundary: u64) -> BuildCallSite {

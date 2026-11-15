@@ -3,8 +3,8 @@
 //! retaining a declaration alone does not activate it.
 
 use super::ProductCodeSource;
-use compilation_products::ProductTerminalPublication;
 use diagnostics::Diagnostic;
+use products::ProductTerminalPublication;
 use provider_planning::calling_policy_plans::CallingProgram;
 use provider_planning::target_supply::TargetSupplyExecutionInputs;
 use semantic_vocabulary::BoundaryMachineId;
@@ -16,7 +16,7 @@ pub fn prepare_provider_execution_inputs(
     sources: &package_compilation::CheckedSourceCustody,
     profile: target::TargetProfile,
     reached: &[BoundaryMachineId],
-    observer: &mut impl psi_compiler::PsiCompilationObserver,
+    observer: &mut impl source_compiler::PsiCompilationObserver,
 ) -> Result<TargetSupplyExecutionInputs, Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     sources

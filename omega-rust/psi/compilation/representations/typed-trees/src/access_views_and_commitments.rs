@@ -1258,9 +1258,11 @@ pub(crate) mod access_views {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct PlanLaidLayout {
+        /// The original storage application retains the semantic type and the
+        /// complete selected policy arguments. A report of that selection
+        /// cannot replace this source occurrence.
         pub application: TypeReferenceHandle,
         pub semantic_type: TypeReferenceHandle,
-        pub policy_application: crate::ClosedConformanceApplication,
         pub target_inputs: Vec<layout_plans::LayoutTargetFacts>,
         pub data_name: String,
         pub data_symbol: symbols::SymbolHandle,
@@ -1465,26 +1467,9 @@ pub(crate) mod commitments {
         pub template_parameters: HandleSpan<data::TypeParameter>,
         pub binding_application: crate::static_applications::StaticMachineApplicationHandle,
         pub instance: symbols::SymbolHandle,
-        pub type_arguments: Vec<String>,
-        pub const_arguments: Vec<String>,
-        pub type_argument_identities: Vec<String>,
-        pub const_argument_identities: Vec<String>,
-        pub machine_arguments: Vec<symbols::SymbolHandle>,
+        pub states: HandleSpan<CapturedMachineState>,
         pub conformance_arguments: Vec<symbols::SymbolHandle>,
         pub conformance_applications: Vec<ClosedConformanceApplication>,
-        pub operator_realizations: Vec<crate::operator::ClosedOperatorRealizationApplication>,
-        pub normalized_template_identity: String,
-        pub accepted_template_commitment: Option<String>,
-    }
-
-    digest_commitment! {
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        MachineSpecializationCommitment
-    }
-
-    digest_commitment! {
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        MachineTemplateCommitment
     }
 
     #[derive(Debug, Clone, Default, compiler_storage::Record)]
@@ -1554,15 +1539,6 @@ pub(crate) mod commitments {
         ClosedConformanceApplicationCommitment
     }
 
-    impl MachineSpecialization {
-        pub fn is_const_only(&self) -> bool {
-            self.type_argument_identities.is_empty()
-                && self.machine_arguments.is_empty()
-                && self.conformance_arguments.is_empty()
-                && self.conformance_applications.is_empty()
-        }
-    }
-
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct ClosedConformanceRowIdentity {
         pub declaring_trait: symbols::SymbolHandle,
@@ -1628,22 +1604,6 @@ pub(crate) mod commitments {
         pub requirement: symbols::SymbolHandle,
         pub realization_machine: symbols::SymbolHandle,
         pub realization_state: symbols::SymbolHandle,
-    }
-
-    pub fn machine_specialization_matches_template_identity(
-        typed: &crate::TypedTrees,
-        specialization: &MachineSpecialization,
-        machine_identity: &str,
-        machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    ) -> bool {
-        typed
-            .symbols
-            .symbol_package_identity(specialization.template)
-            == machine_package_identity
-            && specialization
-                .normalized_template_identity
-                .split_once('|')
-                .is_some_and(|(_, callable)| callable == machine_identity)
     }
 }
 

@@ -1,6 +1,9 @@
 /* Exact source-constant evaluation used by declaration retention and synthesis. */
 
+use numerics::bignum::BigInt;
+
 mod anonymous {
+    use super::BigInt;
     /* Exact anonymous values, independent of their eventual const landing. */
 
     use super::fact_values::ConstFactValue;
@@ -33,7 +36,7 @@ mod anonymous {
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
         warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Option<i128>, String> {
+    ) -> Result<Option<BigInt>, String> {
         evaluate_anonymous_numeric_expression(syntax, expression)?
             .map(|value| value.into_integer(syntax, warnings))
             .transpose()
@@ -122,18 +125,11 @@ mod anonymous {
             self,
             syntax: &SyntaxTrees,
             warnings: &mut Vec<Diagnostic>,
-        ) -> Result<i128, String> {
+        ) -> Result<BigInt, String> {
             let value = self.value;
             let integer = value.to_integer_exact().ok_or_else(|| format!(
         "exact anonymous value `{value}` cannot land in an integer const argument; type an operand if typed integer division was intended"
     ))?;
-            let value = integer
-                .to_i64()
-                .map(i128::from)
-                .or_else(|| integer.to_u64().map(i128::from))
-                .ok_or_else(|| {
-                    "integer const argument exceeds the signed/unsigned 64-bit envelope".to_owned()
-                })?;
             if let Some((origin, fractional_value)) = self.fractional {
                 // Implicit const-argument landing after a fractional
                 // intermediate rejects (numeric_values.md); an explicit
@@ -142,7 +138,9 @@ mod anonymous {
                     "anonymous arithmetic with the exact fractional intermediate `{fractional_value}` cannot land implicitly as integer `{integer}`; cast the complete anonymous expression with `as` to land its exact value, or type an operand if typed integer division was intended"
                 )).with_source_span(syntax.expressions.source_span(origin)));
             }
-            Ok(value)
+            super::values::const_integer_within_budget(integer).ok_or_else(|| {
+                "integer const evaluation exceeds its canonical-value resource budget".to_owned()
+            })
         }
 
         pub(super) fn binary(
@@ -251,10 +249,10 @@ mod anonymous {
         syntax: &SyntaxTrees,
         item: &Item,
         spelling: OperatorSpelling,
-    ) -> Option<Vec<Option<String>>> {
+    ) -> Option<Vec<Option<syntax_trees::types::TypeReferenceHandle>>> {
         match item {
             Item::Machine(machine) if machine.spelling == Some(spelling) => {
-                Some(machine_parameter_names(syntax, machine))
+                Some(machine_parameter_types(syntax, machine))
             }
             Item::Operator(operator) if operator.spelling == Some(spelling) => {
                 Some(vec![None, None])
@@ -278,7 +276,10 @@ mod anonymous {
         with the machine's own type binders left unread: `T` can carry any
         operand, so it stays `None`.
     */
-    fn machine_parameter_names(syntax: &SyntaxTrees, machine: &Machine) -> Vec<Option<String>> {
+    fn machine_parameter_types(
+        syntax: &SyntaxTrees,
+        machine: &Machine,
+    ) -> Vec<Option<syntax_trees::types::TypeReferenceHandle>> {
         let binder_names: Vec<&str> = syntax_items(syntax)
             .type_parameters(machine.type_parameters)
             .iter()
@@ -296,8 +297,7 @@ mod anonymous {
                 let name = syntax_type_references(syntax)
                     .type_reference(parameter.type_reference)
                     .as_named()?;
-                (!binder_names.contains(&name.as_str(syntax)))
-                    .then(|| name.as_str(syntax).to_string())
+                (!binder_names.contains(&name.as_str(syntax))).then_some(parameter.type_reference)
             })
             .collect()
     }
@@ -318,6 +318,7 @@ mod anonymous {
         operator: BinaryOperator,
         left: &ConstFactValue,
         right: &ConstFactValue,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> bool {
         let Some(spelling) = binary_operator_spelling(operator) else {
             return false;
@@ -325,8 +326,8 @@ mod anonymous {
         syntax.root_items().any(|item| {
             authored_spelling_parameters(syntax, item, spelling).is_some_and(|parameters| {
                 parameters.len() != 2
-                    || parameter_binds(parameters[0].as_deref(), left)
-                        && parameter_binds(parameters[1].as_deref(), right)
+                    || parameter_binds(syntax, parameters[0], left, selection)
+                        && parameter_binds(syntax, parameters[1], right, selection)
             })
         })
     }
@@ -338,17 +339,48 @@ mod anonymous {
         integer carriers — never a nominal `Nat`, `f32` or `Quantity`; a Boolean
         binds `bool`.
     */
-    fn parameter_binds(parameter_name: Option<&str>, operand: &ConstFactValue) -> bool {
-        let Some(name) = parameter_name else {
+    fn parameter_binds(
+        syntax: &SyntaxTrees,
+        parameter_type: Option<syntax_trees::types::TypeReferenceHandle>,
+        operand: &ConstFactValue,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    ) -> bool {
+        let Some(parameter_type) = parameter_type else {
             return true;
         };
+        let Some(selection) = selection else {
+            return true;
+        };
+        let Some(name) = syntax
+            .type_references
+            .type_reference(parameter_type)
+            .as_named()
+        else {
+            return true;
+        };
+        let Some(atom) = selection.builtin_type(syntax, name) else {
+            return selection
+                .type_declaration_kind(syntax, name)
+                .ok()
+                .flatten()
+                .is_none();
+        };
         use super::fact_values::ConstFactValue;
-        match operand {
-            ConstFactValue::DeclaredInteger { integer_type, .. } => name == integer_type.name(),
-            ConstFactValue::Integer(_) | ConstFactValue::Anonymous(_) => {
-                LandedIntegerType::from_name(name).is_some()
-            }
-            ConstFactValue::Boolean(_) => name == "bool",
+        match (operand, atom) {
+            (
+                ConstFactValue::DeclaredInteger { integer_type, .. },
+                symbols::BuiltinTypeAtom::Integer(carrier),
+            ) => *integer_type == LandedIntegerType::Fixed(carrier),
+            (
+                ConstFactValue::DeclaredInteger { integer_type, .. },
+                symbols::BuiltinTypeAtom::Address,
+            ) => *integer_type == LandedIntegerType::Addr,
+            (
+                ConstFactValue::Integer(_) | ConstFactValue::Anonymous(_),
+                symbols::BuiltinTypeAtom::Integer(_) | symbols::BuiltinTypeAtom::Address,
+            ) => true,
+            (ConstFactValue::Boolean(_), symbols::BuiltinTypeAtom::Bool) => true,
+            _ => false,
         }
     }
 
@@ -377,13 +409,15 @@ mod anonymous {
                         .literal(syntax)
                         .is_some_and(|literal| literal.landing().is_none()) => {}
                 ExpressionNode::Binary(binary) => {
-                    if !matches!(
-                        binary.operator,
-                        BinaryOperator::Add
-                            | BinaryOperator::Subtract
-                            | BinaryOperator::Multiply
-                            | BinaryOperator::Divide
-                    ) {
+                    if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact
+                        || !matches!(
+                            binary.operator,
+                            BinaryOperator::Add
+                                | BinaryOperator::Subtract
+                                | BinaryOperator::Multiply
+                                | BinaryOperator::Divide
+                        )
+                    {
                         return false;
                     }
                     active.push(expression);
@@ -398,6 +432,7 @@ mod anonymous {
     }
 }
 mod arguments {
+    use super::BigInt;
     /* Constant evaluation: arguments. */
     use super::super::{
         BinaryOperator, CanonicalConstValue, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
@@ -417,7 +452,7 @@ mod arguments {
     use crate::preparation::generic_data::canonicalize_monomorphizable_argument_handles;
     use crate::preparation::generic_data::closed_argument_identity;
     use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
-    use crate::preparation::generic_data::const_integer_in_envelope;
+    use crate::preparation::generic_data::const_integer_within_budget;
     use crate::preparation::generic_data::integer_literal_value;
     use crate::preparation::generic_data::monomorphizable_argument_slugs;
     use crate::preparation::generic_data::selected_generic_data;
@@ -618,7 +653,7 @@ mod arguments {
                     selection,
                     &HashMap::new(),
                     &HashSet::new(),
-                    const_integer_type(syntax, parameter_type),
+                    const_integer_type(syntax, parameter_type, selection),
                     warnings,
                 )
                 .and_then(EvaluatedConst::into_concrete)
@@ -627,8 +662,10 @@ mod arguments {
                         "const argument expression for `{base}` is invalid for `{destination}`: {reason}"
                     )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
-                    if let Some(integer_type) = const_integer_type(syntax, parameter_type) {
-                        validate_syntax_integer_range(&integer_type.name(), value)
+                    if let Some(integer_type) =
+                        const_integer_type(syntax, parameter_type, selection)
+                    {
+                        validate_syntax_integer_range(integer_type, &value)
                             .map_err(Diagnostic::error)?;
                     }
                     syntax.tables.type_references.replace_type_reference(
@@ -681,7 +718,7 @@ mod arguments {
         else {
             return Ok(None);
         };
-        if !const_arguments_fit_declarations(syntax, base_info, &argument_handles) {
+        if !const_arguments_fit_declarations(syntax, base_info, &argument_handles, selection) {
             return Ok(None);
         }
         if !base_is_fully_monomorphizable(syntax, generic_data, selection, base_info) {
@@ -712,6 +749,7 @@ mod arguments {
         syntax: &SyntaxTrees,
         base_info: &GenericData,
         arguments: &[TypeReferenceHandle],
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> bool {
         base_info
             .const_parameter_types
@@ -740,11 +778,11 @@ mod arguments {
                     Some(ConstScalarSpelling::Integer(value)) => value,
                     Some(ConstScalarSpelling::Boolean(_)) | None => return false,
                 };
-                let Some(integer_type) = LandedIntegerType::from_name(type_name.as_str(syntax))
+                let Some(integer_type) = const_integer_type(syntax, *parameter_type, selection)
                 else {
                     return false;
                 };
-                integer_type.admits_i128(value)
+                integer_type.value_carrier().admits(&value)
             })
     }
 
@@ -753,15 +791,15 @@ mod arguments {
         Names use the source-scoped declaration selection shared with resolution;
         unrelated private constants never contribute a value.
         Anonymous arithmetic retains rational intermediates until its integer
-        landing. Already-typed arithmetic keeps the current signed/unsigned 64-bit
-        envelope. Shifts and bitwise operations use the matched const parameter's
+        landing. Already-typed arithmetic retains its exact value and selected
+        carrier range. Shifts and bitwise operations use the matched const parameter's
         declared width and signedness.
     */
     pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
-        parameter_values: &HashMap<String, i128>,
+        parameter_values: &HashMap<String, BigInt>,
         symbolic_parameters: &HashSet<String>,
         integer_type: Option<LandedIntegerType>,
         warnings: &mut Vec<Diagnostic>,
@@ -772,9 +810,7 @@ mod arguments {
         match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(value) => integer_literal_value(value)
                 .map(EvaluatedConst::Concrete)
-                .ok_or_else(|| {
-                    "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
-                }),
+                .ok_or_else(|| "integer operand has no exact const value".to_string()),
             ExpressionNode::Name {
                 members: path,
                 application: path_application,
@@ -782,7 +818,7 @@ mod arguments {
                 let members = syntax.expressions.identifier_path_members(path.to_owned());
                 let name = members.joined_path_in(syntax);
                 if let Some(value) = parameter_values.get(&name) {
-                    Ok(EvaluatedConst::Concrete(*value))
+                    Ok(EvaluatedConst::Concrete(value.clone()))
                 } else if symbolic_parameters.contains(&name) {
                     Ok(EvaluatedConst::Symbolic(name))
                 } else {
@@ -807,12 +843,15 @@ mod arguments {
                         Some(selection),
                     )?;
                     match value.decode_encoding() {
-                        Some(DecodedCanonicalConstValue::Integer { type_name, value }) => {
+                        Some(DecodedCanonicalConstValue::Integer {
+                            integer_type: actual,
+                            value,
+                        }) => {
                             if let Some(expected) = integer_type
-                                && type_name != expected.name()
+                                && actual != expected
                             {
                                 return Err(format!(
-                                    "constant `{name}` has carrier `{type_name}`, expected `{}`",
+                                    "constant `{name}` has carrier `{actual}`, expected `{}`",
                                     expected.name(),
                                 ));
                             }
@@ -850,7 +889,7 @@ mod arguments {
                 admit_integer_operator(
                     binary.operator,
                     match &right {
-                        EvaluatedConst::Concrete(right) => Some(*right),
+                        EvaluatedConst::Concrete(right) => Some(right),
                         EvaluatedConst::Symbolic(_) => None,
                     },
                 )?;
@@ -859,7 +898,13 @@ mod arguments {
                 else {
                     return Ok(left.or_symbolic(right));
                 };
-                apply_integer_operator(binary.operator, *left, *right, integer_type)
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return Err(
+                        "policy-qualified const arithmetic requires its selected evaluator"
+                            .to_owned(),
+                    );
+                }
+                apply_integer_operator(binary.operator, left, right, integer_type)
                     .map(EvaluatedConst::Concrete)
             }
             _ => Err("expression is not a symbolic integer const expression".to_string()),
@@ -874,20 +919,14 @@ mod arguments {
     */
     pub(in crate::preparation::generic_data) fn admit_integer_operator(
         operator: BinaryOperator,
-        right: Option<i128>,
+        right: Option<&BigInt>,
     ) -> Result<(), String> {
         match (operator, right) {
-            (BinaryOperator::Divide, Some(0)) => Err("division by zero is invalid".to_string()),
-            (BinaryOperator::Modulo, Some(0)) => Err("remainder by zero is invalid".to_string()),
-            (BinaryOperator::ShiftLeft, Some(amount))
-                if amount < 0 || amount >= i128::from(u64::BITS) =>
-            {
-                Err("left shift exceeds the `u64` width".to_string())
+            (BinaryOperator::Divide, Some(value)) if value.is_zero() => {
+                Err("division by zero is invalid".to_string())
             }
-            (BinaryOperator::ShiftRight, Some(amount))
-                if amount < 0 || amount >= i128::from(u64::BITS) =>
-            {
-                Err("right shift exceeds the `u64` width".to_string())
+            (BinaryOperator::Modulo, Some(value)) if value.is_zero() => {
+                Err("remainder by zero is invalid".to_string())
             }
             (
                 BinaryOperator::Add
@@ -912,60 +951,117 @@ mod arguments {
         The builtin integer meaning of one admitted operator over two known
         values. Every constant evaluator in this stage computes through here, so
         addition, typed division and the declared-width shifts and bitwise
-        operators have one definition. The result is only held to the signed and
-        unsigned 64-bit envelope; a caller that knows the operation's carrier
-        checks the result against that carrier itself.
+        operators have one definition. Values stay exact until the selected
+        carrier checks them; host scalar bounds never define their meaning.
     */
     pub(in crate::preparation::generic_data) fn apply_integer_operator(
         operator: BinaryOperator,
-        left: i128,
-        right: i128,
+        left: &BigInt,
+        right: &BigInt,
         integer_type: Option<LandedIntegerType>,
-    ) -> Result<i128, String> {
-        let in_envelope = |value: Option<i128>, operation: &str| {
-            value
-                .and_then(const_integer_in_envelope)
-                .ok_or_else(|| format!("{operation} exceeds the signed/unsigned 64-bit envelope"))
-        };
-        match operator {
-            BinaryOperator::Add => in_envelope(left.checked_add(right), "addition"),
-            BinaryOperator::Subtract => in_envelope(left.checked_sub(right), "subtraction"),
-            BinaryOperator::Multiply => in_envelope(left.checked_mul(right), "multiplication"),
-            BinaryOperator::Divide => left
-                .checked_div(right)
-                .ok_or_else(|| "division by zero is invalid".to_string()),
-            BinaryOperator::Modulo => left
-                .checked_rem(right)
-                .ok_or_else(|| "remainder by zero is invalid".to_string()),
+    ) -> Result<BigInt, String> {
+        admit_integer_operator(operator, Some(right))?;
+        if let Some(integer_type) = integer_type {
+            validate_declared_integer(integer_type, left)?;
+            if !matches!(
+                operator,
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+            ) {
+                validate_declared_integer(integer_type, right)?;
+            }
+        }
+        let value = match operator {
+            BinaryOperator::Add => left.add(right),
+            BinaryOperator::Subtract => left.sub(right),
+            BinaryOperator::Multiply => {
+                if !left.is_zero()
+                    && !right.is_zero()
+                    && left
+                        .bit_length()
+                        .saturating_add(right.bit_length())
+                        .saturating_sub(1)
+                        > super::values::MAXIMUM_CONST_INTEGER_BITS
+                {
+                    return Err(
+                        "integer multiplication exceeds the const-evaluation resource budget"
+                            .to_owned(),
+                    );
+                }
+                left.mul(right)
+            }
+            BinaryOperator::Divide | BinaryOperator::Modulo => {
+                let (quotient, remainder) = left
+                    .div_rem(right)
+                    .ok_or("integer division has no defined result")?;
+                // Remainder owes the common quotient's representability too:
+                // signed MIN % -1 is invalid under Exact even though r is zero.
+                if let Some(integer_type) = integer_type {
+                    validate_declared_integer(integer_type, &quotient)?;
+                }
+                if operator == BinaryOperator::Divide {
+                    quotient
+                } else {
+                    remainder
+                }
+            }
             BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight
             | BinaryOperator::BitwiseAnd
             | BinaryOperator::BitwiseOr
             | BinaryOperator::BitwiseXor => {
-                evaluate_declared_width_operation(operator, left, right, integer_type)
+                evaluate_declared_width_operation(operator, left, right, integer_type)?
             }
-            _ => Err(
-                "only integer arithmetic, shifts, and bitwise operators are supported".to_string(),
-            ),
+            _ => {
+                return Err(
+                    "only integer arithmetic, shifts, and bitwise operators are supported"
+                        .to_owned(),
+                );
+            }
+        };
+        let value = const_integer_within_budget(value)
+            .ok_or("integer evaluation exceeds the canonical-value resource budget")?;
+        if let Some(integer_type) = integer_type {
+            validate_declared_integer(integer_type, &value).map_err(|reason| {
+                let operation = match operator {
+                    BinaryOperator::Add => "addition",
+                    BinaryOperator::Subtract => "subtraction",
+                    BinaryOperator::Multiply => "multiplication",
+                    BinaryOperator::Divide => "division",
+                    BinaryOperator::Modulo => "remainder",
+                    BinaryOperator::ShiftLeft => "left shift",
+                    BinaryOperator::ShiftRight => "right shift",
+                    _ => "bitwise operation",
+                };
+                format!("{operation} exceeds the declared `{integer_type}` range: {reason}")
+            })?;
         }
+        Ok(value)
     }
 
     pub(in crate::preparation::generic_data) fn const_integer_type(
         syntax: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Option<LandedIntegerType> {
         let name = syntax_type_references(syntax)
             .type_reference(type_reference)
             .as_named()?;
-        LandedIntegerType::from_name(name.as_str(syntax))
+        match selection?.builtin_type(syntax, name)? {
+            symbols::BuiltinTypeAtom::Integer(carrier) => Some(LandedIntegerType::Fixed(carrier)),
+            symbols::BuiltinTypeAtom::Address => Some(LandedIntegerType::Addr),
+            _ => None,
+        }
     }
 
     /* Reject a value outside its declared integer carrier's range. */
     pub(crate) fn validate_declared_integer(
         integer_type: LandedIntegerType,
-        value: i128,
+        value: &BigInt,
     ) -> Result<(), String> {
-        if !integer_type.admits_i128(value) {
+        if value.bit_length() > super::values::MAXIMUM_CONST_INTEGER_BITS {
+            return Err("integer constant exceeds its canonical-value resource budget".to_owned());
+        }
+        if !integer_type.value_carrier().admits(value) {
             return Err(format!(
                 "integer value `{value}` is outside the declared `{}` range",
                 integer_type.name()
@@ -976,51 +1072,38 @@ mod arguments {
 
     pub(in crate::preparation::generic_data) fn generic_const_integer_types(
         syntax: &SyntaxTrees,
-        generic_name: &str,
+        generic_name: &Identifier,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Vec<Option<LandedIntegerType>> {
-        syntax
-            .root_items()
-            .find_map(|item| {
-                let definition = item.as_data()?;
-                (definition.name.as_str(syntax) == generic_name).then(|| {
-                    syntax_items(syntax)
-                        .type_parameters(definition.type_parameters)
-                        .iter()
-                        .map(|parameter| match parameter.kind {
-                            TypeParameterKind::Const { type_reference } => {
-                                const_integer_type(syntax, type_reference)
-                            }
-                            _ => None,
-                        })
-                        .collect()
-                })
+        selection
+            .and_then(|selection| selection.data(syntax, generic_name).ok())
+            .map(|definition| {
+                syntax_items(syntax)
+                    .type_parameters(definition.type_parameters)
+                    .iter()
+                    .map(|parameter| match parameter.kind {
+                        TypeParameterKind::Const { type_reference } => {
+                            const_integer_type(syntax, type_reference, selection)
+                        }
+                        _ => None,
+                    })
+                    .collect()
             })
             .unwrap_or_default()
     }
 
     pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
         operator: BinaryOperator,
-        left: i128,
-        right: i128,
+        left: &BigInt,
+        right: &BigInt,
         integer_type: Option<LandedIntegerType>,
-    ) -> Result<i128, String> {
+    ) -> Result<BigInt, String> {
         let Some(integer_type) = integer_type else {
             return Err(
                 "shifts and bitwise operators require a declared integer const type".to_string(),
             );
         };
-        /*
-            These operators are folded in a host integer here, which holds
-            the word and its modulus only up to 64 bits.
-        */
-        if integer_type.bit_width() > 64 {
-            return Err(format!(
-                "const shifts and bitwise operators are not yet evaluated at the `{}` width",
-                integer_type.name()
-            ));
-        }
-        let modulus = 1i128 << integer_type.bit_width();
-        if !integer_type.admits_i128(left) {
+        if !integer_type.value_carrier().admits(left) {
             return Err(format!(
                 "left operand `{left}` is outside the declared `{}` range",
                 integer_type.name()
@@ -1029,25 +1112,35 @@ mod arguments {
 
         match operator {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
-                let amount = u32::try_from(right)
-                    .ok()
-                    .filter(|amount| u64::from(*amount) < integer_type.bit_width())
+                let amount = right
+                    .to_u64()
+                    .filter(|amount| *amount < integer_type.bit_width())
                     .ok_or_else(|| {
                         format!(
                             "shift count must be non-negative and below the declared `{}` width",
                             integer_type.name()
                         )
                     })?;
-                if operator == BinaryOperator::ShiftRight {
-                    return Ok(left >> amount);
+                if left.is_zero() {
+                    return Ok(BigInt::zero());
                 }
-                let shifted = left.checked_shl(amount).ok_or_else(|| {
-                    format!(
-                        "left shift exceeds the declared `{}` range",
-                        integer_type.name()
-                    )
-                })?;
-                if !integer_type.admits_i128(shifted) {
+                if operator == BinaryOperator::ShiftRight {
+                    if amount >= left.bit_length() as u64 {
+                        return Ok(BigInt::from(if left.is_negative() { -1 } else { 0 }));
+                    }
+                    let amount = usize::try_from(amount)
+                        .map_err(|_| "right shift exceeds host indexing resources")?;
+                    return Ok(left.shr_bits(amount));
+                }
+                let amount = usize::try_from(amount)
+                    .ok()
+                    .filter(|amount| {
+                        left.bit_length().saturating_add(*amount)
+                            <= super::values::MAXIMUM_CONST_INTEGER_BITS
+                    })
+                    .ok_or("left shift exceeds the const-evaluation resource budget")?;
+                let shifted = left.shl_bits(amount);
+                if !integer_type.value_carrier().admits(&shifted) {
                     return Err(format!(
                         "left shift exceeds the declared `{}` range",
                         integer_type.name()
@@ -1056,39 +1149,33 @@ mod arguments {
                 Ok(shifted)
             }
             BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
-                if !integer_type.admits_i128(right) {
+                if !integer_type.value_carrier().admits(right) {
                     return Err(format!(
                         "right operand `{right}` is outside the declared `{}` range",
                         integer_type.name()
                     ));
                 }
-                let mask = modulus - 1;
-                let left_bits = left & mask;
-                let right_bits = right & mask;
-                let result_bits = match operator {
-                    BinaryOperator::BitwiseAnd => left_bits & right_bits,
-                    BinaryOperator::BitwiseOr => left_bits | right_bits,
-                    BinaryOperator::BitwiseXor => left_bits ^ right_bits,
-                    _ => unreachable!(),
+                use numerics::bignum::IntegerBitwiseOperation;
+                let operation = match operator {
+                    BinaryOperator::BitwiseAnd => IntegerBitwiseOperation::And,
+                    BinaryOperator::BitwiseOr => IntegerBitwiseOperation::Or,
+                    BinaryOperator::BitwiseXor => IntegerBitwiseOperation::Xor,
+                    _ => return Err("not a bitwise integer operation".to_owned()),
                 };
-                if integer_type.is_signed() && result_bits >= modulus >> 1 {
-                    Ok(result_bits - modulus)
-                } else {
-                    Ok(result_bits)
-                }
+                Ok(left.bitwise(right, operation))
             }
-            _ => unreachable!("caller provides only shifts and bitwise operators"),
+            _ => Err("not a shift or bitwise integer operation".to_owned()),
         }
     }
 
     #[derive(Debug)]
     pub(in crate::preparation::generic_data) enum EvaluatedConst {
-        Concrete(i128),
+        Concrete(BigInt),
         Symbolic(String),
     }
 
     impl EvaluatedConst {
-        pub(in crate::preparation::generic_data) fn into_concrete(self) -> Result<i128, String> {
+        pub(in crate::preparation::generic_data) fn into_concrete(self) -> Result<BigInt, String> {
             match self {
                 Self::Concrete(value) => Ok(value),
                 Self::Symbolic(name) => Err(format!(
@@ -1106,6 +1193,7 @@ mod arguments {
     }
 }
 mod domains {
+    use super::BigInt;
     /* Constant evaluation: domains. */
     use super::super::{
         CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionNode, HashMap, HashSet,
@@ -1125,18 +1213,14 @@ mod domains {
     use crate::preparation::generic_data::evaluate_const_argument_expression;
     use crate::preparation::generic_data::source_modules::module_path;
     use crate::preparation::generic_data::syntax_type_identity;
-    use crate::preparation::generic_data::validate_const_index_type;
     use crate::preparation::generic_data::validate_syntax_integer_range;
     use crate::preparation::generic_data::work_domain::TypePositionPurpose;
     use language_semantics::const_value::DecodedCanonicalConstValue;
 
     pub(in crate::preparation::generic_data) fn integer_literal_value(
         value: &IntegerLiteral,
-    ) -> Option<i128> {
-        value
-            .value_i64()
-            .map(i128::from)
-            .or_else(|| value.value_u64().map(i128::from))
+    ) -> Option<BigInt> {
+        value.value_bignum()
     }
 
     pub(in crate::preparation::generic_data) fn qualified_const_name(
@@ -1201,12 +1285,92 @@ mod domains {
         warnings: &mut Vec<Diagnostic>,
         work: &super::super::work_domain::SynthesisWork<'_>,
     ) -> Result<(), Diagnostic> {
+        let constraints: Vec<_> = {
+            work.type_positions(syntax, TypePositionPurpose::Identity, true)
+                .into_iter()
+                .flat_map(|reference| {
+                    let TypeReferenceNode::Constrained { constraints, .. } =
+                        syntax.type_references.type_reference(reference)
+                    else {
+                        return Vec::new();
+                    };
+                    syntax_type_references(syntax)
+                        .constraints(*constraints)
+                        .iter()
+                        .filter_map(|constraint| {
+                            if let syntax_trees::types::TypeConstraintNode::Domain(domain) =
+                                constraint
+                            {
+                                Some(domain.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        };
+        let declarations = work.declarations(syntax);
+        let expressions =
+            super::super::uses::selected_machine_expression_handles(syntax, &declarations);
+        let mut applications = constraints
+            .into_iter()
+            .map(|constraint| {
+                (
+                    constraint.name.as_str(syntax).to_owned(),
+                    constraint.arguments,
+                    constraint.name.source_span(),
+                )
+            })
+            .collect::<Vec<_>>();
+        applications.extend(syntax.expressions.iter_expressions().filter_map(
+            |(handle, expression)| {
+                if !work.owns_new_expression(handle) && !expressions.contains(handle) {
+                    return None;
+                }
+                let ExpressionNode::Cast(cast) = expression else {
+                    return None;
+                };
+                if cast.semantic_domain.is_empty() {
+                    return None;
+                }
+                let members =
+                    syntax_expressions(syntax).identifier_path_members(cast.semantic_domain);
+                let name = members.joined_path_in(syntax);
+                let mut reference = members.first()?.source_span();
+                for member in members.iter().skip(1) {
+                    if member.source_span().source_id != reference.source_id {
+                        break;
+                    }
+                    reference.span.end = member.source_span().span.end;
+                }
+                Some((name, cast.semantic_domain_arguments, reference))
+            },
+        ));
+        if applications.is_empty() {
+            return Ok(());
+        }
+        // Prepare only the families selected by this completion's actual work.
+        // Unrelated library declarations are lookup context, not another worklist.
+        let selected_families = applications
+            .iter()
+            .map(|(name, _, reference)| {
+                selection
+                    .and_then(|selection| selection.domain_family(syntax, name, *reference, None))
+                    .map(|(_, definition)| definition.name.source_span())
+            })
+            .collect::<Vec<_>>();
         let mut families = Vec::<ClosedDomainFamily>::new();
 
         for item in syntax.root_items() {
             let Some(definition) = item.as_domain() else {
                 continue;
             };
+            if selection.is_some()
+                && !selected_families.contains(&Some(definition.name.source_span()))
+            {
+                continue;
+            }
             let parameters = syntax_items(syntax).type_parameters(definition.type_parameters);
             let header_arguments =
                 syntax_type_references(syntax).type_reference_handles(definition.index_arguments);
@@ -1240,7 +1404,10 @@ mod domains {
                         })
                     }
                     TypeParameterKind::Const { type_reference } => {
-                        validate_const_index_type(syntax, type_reference, &mut HashSet::new())
+                        super::values::validate_selected_const_index_type(
+                            syntax, type_reference, &mut Vec::new(), selection,
+                            &crate::preparation::declaration_selection::GenericApplicationSubstitution::new(),
+                        )
                         .map_err(|reason| {
                             Diagnostic::error(format!(
                                 "indexed domain `{}::{}` has an ineligible index type: {reason}",
@@ -1315,86 +1482,16 @@ mod domains {
             });
         }
 
-        let constraints = if work.is_all() {
-            syntax.tables.type_references.domain_constraints()
-        } else {
-            work.type_positions(syntax, TypePositionPurpose::Identity, true)
-                .into_iter()
-                .flat_map(|reference| {
-                    let TypeReferenceNode::Constrained { constraints, .. } =
-                        syntax.type_references.type_reference(reference)
-                    else {
-                        return Vec::new();
-                    };
-                    syntax_type_references(syntax)
-                        .constraints(*constraints)
-                        .iter()
-                        .filter_map(|constraint| {
-                            if let syntax_trees::types::TypeConstraintNode::Domain(domain) =
-                                constraint
-                            {
-                                Some(domain.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect()
-        };
-        let declarations = work.declarations(syntax);
-        let expressions =
-            super::super::uses::selected_machine_expression_handles(syntax, &declarations);
-        let mut applications = constraints
-            .into_iter()
-            .map(|constraint| {
-                (
-                    constraint.name.as_str(syntax).to_owned(),
-                    constraint.arguments,
-                    constraint.name.source_span(),
-                )
-            })
-            .collect::<Vec<_>>();
-        applications.extend(syntax.expressions.iter_expressions().filter_map(
-            |(handle, expression)| {
-                if !work.is_all()
-                    && !work.owns_new_expression(handle)
-                    && !expressions.contains(handle)
-                {
-                    return None;
-                }
-                let ExpressionNode::Cast(cast) = expression else {
-                    return None;
-                };
-                if cast.semantic_domain.is_empty() {
-                    return None;
-                }
-                let members =
-                    syntax_expressions(syntax).identifier_path_members(cast.semantic_domain);
-                let name = members.joined_path_in(syntax);
-                let mut reference = members.first()?.source_span();
-                for member in members.iter().skip(1) {
-                    if member.source_span().source_id != reference.source_id {
-                        break;
-                    }
-                    reference.span.end = member.source_span().span.end;
-                }
-                Some((name, cast.semantic_domain_arguments, reference))
-            },
-        ));
-
         let concrete_data_positions = collect_data_type_reference_positions(syntax, false);
-        for (name, argument_span, reference) in applications {
+        for ((name, argument_span, _reference), selected) in
+            applications.into_iter().zip(selected_families)
+        {
             let family = match selection {
-                Some(selection) => selection
-                    .domain_family(syntax, &name, reference, None)
-                    .and_then(|(_, definition)| {
-                        families.iter().find(|family| {
-                            family.declaration.source_span() == definition.name.source_span()
-                                && family.declaration.as_str(syntax)
-                                    == definition.name.as_str(syntax)
-                        })
-                    }),
+                Some(_) => selected.and_then(|declaration| {
+                    families
+                        .iter()
+                        .find(|family| family.declaration.source_span() == declaration)
+                }),
                 None => families.iter().find(|family| family.path == name),
             };
             let Some(family) = family else {
@@ -1529,7 +1626,7 @@ mod domains {
                     selection,
                     &HashMap::new(),
                     &HashSet::new(),
-                    const_integer_type(syntax, *parameter_type),
+                    const_integer_type(syntax, *parameter_type, selection),
                     warnings,
                 )
                 .and_then(EvaluatedConst::into_concrete)
@@ -1539,10 +1636,12 @@ mod domains {
                         family_name
                     )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
-                    if const_integer_type(syntax, *parameter_type).is_some() {
-                        let required = syntax_type_identity(syntax, *parameter_type)
-                            .map_err(Diagnostic::error)?;
-                        validate_syntax_integer_range(&required, value)
+                    if const_integer_type(syntax, *parameter_type, selection).is_some() {
+                        let integer_type = const_integer_type(syntax, *parameter_type, selection)
+                            .ok_or_else(|| {
+                            Diagnostic::error("const index lost its integer carrier")
+                        })?;
+                        validate_syntax_integer_range(integer_type, &value)
                             .map_err(Diagnostic::error)?;
                     }
                     syntax.tables.type_references.replace_type_reference(
@@ -1564,24 +1663,22 @@ mod domains {
 #[path = "preparation_const_initializers.rs"]
 mod initializers;
 mod fact_values {
+    use super::BigInt;
     /* Values used while discharging closed generic facts, not a proof IR. */
-
-    use crate::preparation::generic_data::checked_fact_integer;
-    use crate::preparation::generic_data::const_integer_in_envelope;
 
     use super::super::{
         BinaryOperator, CanonicalConstValue, Diagnostic, ExpressionHandle, SyntaxTrees,
     };
     use super::anonymous::AnonymousNumericValue;
-    use super::arguments::{evaluate_declared_width_operation, validate_declared_integer};
+    use super::arguments::validate_declared_integer;
     use numerics::literals::LandedIntegerType;
     use std::cmp::Ordering;
 
     pub(crate) enum ConstFactValue {
         Anonymous(AnonymousNumericValue),
-        Integer(i128),
+        Integer(BigInt),
         DeclaredInteger {
-            value: i128,
+            value: BigInt,
             integer_type: LandedIntegerType,
         },
         Boolean(bool),
@@ -1594,11 +1691,11 @@ mod fact_values {
         there is no anonymous rational here: declaration-site discharge binds only
         completed canonical values.
     */
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     pub(crate) enum ConstScalarValue {
-        Integer(i128),
+        Integer(BigInt),
         DeclaredInteger {
-            value: i128,
+            value: BigInt,
             integer_type: LandedIntegerType,
         },
         Boolean(bool),
@@ -1608,9 +1705,11 @@ mod fact_values {
         pub(crate) fn from_canonical(value: &super::super::CanonicalConstValue) -> Option<Self> {
             use language_semantics::const_value::DecodedCanonicalConstValue;
             match value.decode_encoding()? {
-                DecodedCanonicalConstValue::Integer { value, type_name } => {
-                    let integer_type = LandedIntegerType::from_name(&type_name)?;
-                    validate_declared_integer(integer_type, value).ok()?;
+                DecodedCanonicalConstValue::Integer {
+                    value,
+                    integer_type,
+                } => {
+                    validate_declared_integer(integer_type, &value).ok()?;
                     Some(Self::DeclaredInteger {
                         value,
                         integer_type,
@@ -1636,9 +1735,15 @@ mod fact_values {
         }
     }
 
+    impl From<BigInt> for ConstScalarValue {
+        fn from(value: BigInt) -> Self {
+            Self::Integer(value)
+        }
+    }
+
     impl From<i128> for ConstScalarValue {
         fn from(value: i128) -> Self {
-            Self::Integer(value)
+            Self::Integer(BigInt::from(value))
         }
     }
 
@@ -1653,7 +1758,7 @@ mod fact_values {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) enum ConstScalarSpelling {
         Canonical(CanonicalConstValue),
-        Integer(i128),
+        Integer(BigInt),
         Boolean(bool),
     }
 
@@ -1662,7 +1767,7 @@ mod fact_values {
             if let Some(value) = CanonicalConstValue::from_atom(name) {
                 return Some(Self::Canonical(value));
             }
-            if let Ok(value) = name.parse::<i128>() {
+            if let Some(value) = BigInt::from_decimal_str(name) {
                 return Some(Self::Integer(value));
             }
             language_semantics::const_value::boolean_literal_spelling(name).map(Self::Boolean)
@@ -1674,7 +1779,7 @@ mod fact_values {
             self,
             syntax: &SyntaxTrees,
             warnings: &mut Vec<Diagnostic>,
-        ) -> Result<Option<i128>, String> {
+        ) -> Result<Option<BigInt>, String> {
             match self {
                 Self::Anonymous(value) => value.into_integer(syntax, warnings).map(Some),
                 Self::Integer(value) => Ok(Some(value)),
@@ -1682,7 +1787,7 @@ mod fact_values {
                     value,
                     integer_type,
                 } => {
-                    validate_declared_integer(integer_type, value)?;
+                    validate_declared_integer(integer_type, &value)?;
                     Ok(Some(value))
                 }
                 Self::Boolean(_) => Ok(None),
@@ -1747,33 +1852,10 @@ mod fact_values {
             return Err("const fact operands have incompatible types".to_owned());
         };
         match operator {
-            Add => checked_fact_integer(left.checked_add(right), "addition"),
-            Subtract => checked_fact_integer(left.checked_sub(right), "subtraction"),
-            Multiply => checked_fact_integer(left.checked_mul(right), "multiplication"),
-            Divide => left
-                .checked_div(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "division by zero is invalid".to_string()),
-            Modulo => left
-                .checked_rem(right)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "remainder by zero is invalid".to_string()),
-            ShiftLeft if left >= 0 => u32::try_from(right)
-                .ok()
-                .filter(|amount| *amount < u64::BITS)
-                .and_then(|amount| left.checked_shl(amount))
-                .and_then(const_integer_in_envelope)
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "left shift exceeds the `u64` width".to_string()),
-            ShiftRight if left >= 0 => u32::try_from(right)
-                .ok()
-                .filter(|amount| *amount < u64::BITS)
-                .and_then(|amount| left.checked_shr(amount))
-                .map(ConstFactValue::Integer)
-                .ok_or_else(|| "right shift exceeds the `u64` width".to_string()),
-            BitwiseAnd if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left & right)),
-            BitwiseOr if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left | right)),
-            BitwiseXor if left >= 0 && right >= 0 => Ok(ConstFactValue::Integer(left ^ right)),
+            Add | Subtract | Multiply | Divide | Modulo => {
+                super::arguments::apply_integer_operator(operator, &left, &right, None)
+                    .map(ConstFactValue::Integer)
+            }
             Equal => Ok(ConstFactValue::Boolean(left == right)),
             NotEqual => Ok(ConstFactValue::Boolean(left != right)),
             Greater => Ok(ConstFactValue::Boolean(left > right)),
@@ -1782,7 +1864,8 @@ mod fact_values {
             LessOrEqual => Ok(ConstFactValue::Boolean(left <= right)),
             And | Or => Err("logical operators require boolean operands".to_string()),
             ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => Err(
-                "signed shifts and bitwise operators require declared-width semantics".to_string(),
+                "shifts and bitwise operators require retained declared-width semantics"
+                    .to_string(),
             ),
         }
     }
@@ -1829,7 +1912,7 @@ mod fact_values {
                 );
             }
         };
-        let mut operand = |value: ConstFactValue| -> Result<i128, String> {
+        let mut operand = |value: ConstFactValue| -> Result<BigInt, String> {
             let (value, operand_type) = match value {
                 ConstFactValue::DeclaredInteger {
                     value,
@@ -1843,12 +1926,12 @@ mod fact_values {
                     return Err("const fact integer operation lost its declared carrier".to_owned());
                 }
             };
-            validate_declared_integer(operand_type, value)?;
+            validate_declared_integer(operand_type, &value)?;
             Ok(value)
         };
         let left = operand(left)?;
         let right = operand(right)?;
-        if right == 0 {
+        if right.is_zero() {
             match operator {
                 Divide => return Err("division by zero is invalid".to_owned()),
                 Modulo => return Err("remainder by zero is invalid".to_owned()),
@@ -1867,27 +1950,9 @@ mod fact_values {
         if let Some(value) = comparison {
             return Ok(ConstFactValue::Boolean(value));
         }
-        let value = match operator {
-            Add => left.checked_add(right),
-            Subtract => left.checked_sub(right),
-            Multiply => left.checked_mul(right),
-            Divide => left.checked_div(right),
-            Modulo => {
-                let quotient = left
-                    .checked_div(right)
-                    .ok_or_else(|| "const fact division is undefined".to_owned())?;
-                validate_declared_integer(integer_type, quotient)?;
-                left.checked_rem(right)
-            }
-            ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => Some(
-                evaluate_declared_width_operation(operator, left, right, Some(integer_type))?,
-            ),
-            _ => return Err("logical operators require boolean operands".to_owned()),
-        }
-        .ok_or_else(|| {
-            "const fact integer operation is undefined or exceeds its declared range".to_owned()
-        })?;
-        validate_declared_integer(integer_type, value)?;
+        let value =
+            super::arguments::apply_integer_operator(operator, &left, &right, Some(integer_type))?;
+        validate_declared_integer(integer_type, &value)?;
         Ok(ConstFactValue::DeclaredInteger {
             value,
             integer_type,
@@ -1895,6 +1960,7 @@ mod fact_values {
     }
 }
 mod facts {
+    use super::BigInt;
     /*
         Declaration-site domain discharge shares the closed fact evaluator used by
         generic data. Initializer probes determine values, not membership: ordinary
@@ -1952,7 +2018,7 @@ mod facts {
     pub(crate) fn evaluate_const_fact_expression(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
+        parameter_values: &HashMap<String, impl Clone + Into<ConstScalarValue>>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstFactValue>, String> {
@@ -1973,7 +2039,7 @@ mod facts {
     fn evaluate_const_fact_expression_at(
         syntax: &SyntaxTrees,
         expression: ExpressionHandle,
-        parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
+        parameter_values: &HashMap<String, impl Clone + Into<ConstScalarValue>>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         subject: Option<ConstFactSubject<'_>>,
         warnings: &mut Vec<Diagnostic>,
@@ -2005,9 +2071,8 @@ mod facts {
         let warning_start = warnings.len();
         let result = (|| match syntax.expressions.expression(expression) {
             ExpressionNode::Integer(literal) => {
-                let value = integer_literal_value(literal).ok_or_else(|| {
-                    "integer operand must fit the signed/unsigned 64-bit envelope".to_string()
-                })?;
+                let value = integer_literal_value(literal)
+                    .ok_or_else(|| "integer operand has no exact const value".to_string())?;
                 let Some(landing) = literal.landing() else {
                     return Ok(Some(ConstFactValue::Integer(value)));
                 };
@@ -2015,7 +2080,7 @@ mod facts {
                     return Ok(None);
                 }
                 let integer_type = landing.landed_type;
-                validate_declared_integer(integer_type, value)?;
+                validate_declared_integer(integer_type, &value)?;
                 Ok(Some(ConstFactValue::DeclaredInteger {
                     value,
                     integer_type,
@@ -2033,7 +2098,7 @@ mod facts {
                     return Ok(subject.scalar().map(ConstScalarValue::into_fact_value));
                 }
                 if let Some(value) = parameter_values.get(&name) {
-                    return Ok(Some((*value).into().into_fact_value()));
+                    return Ok(Some(value.clone().into().into_fact_value()));
                 }
                 if let Some(selection) = selection {
                     let Some(first) = members.first() else {
@@ -2077,7 +2142,7 @@ mod facts {
                 Ok(fields
                     .iter()
                     .find(|(name, _)| name.as_str() == member.member.as_str(syntax))
-                    .map(|(_, value)| value.into_fact_value()))
+                    .map(|(_, value)| value.clone().into_fact_value()))
             }
             ExpressionNode::Indexed(indexed) => {
                 let Some(ConstSubjectBinding::Elements(elements)) =
@@ -2099,7 +2164,7 @@ mod facts {
                 };
                 Ok(elements
                     .get(index)
-                    .copied()
+                    .cloned()
                     .flatten()
                     .map(|value| value.into_fact_value()))
             }
@@ -2113,6 +2178,9 @@ mod facts {
                 UnaryOperator::BitwiseNot => Ok(None),
             },
             ExpressionNode::Binary(binary) => {
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return Ok(None);
+                }
                 let builtin = has_builtin_const_operator(syntax, binary);
                 if !builtin
                     && matches!(
@@ -2129,7 +2197,9 @@ mod facts {
                 let Some(right) = evaluate_child!(binary.right)? else {
                     return Ok(None);
                 };
-                if !builtin && authored_operator_can_bind(syntax, binary.operator, &left, &right) {
+                if !builtin
+                    && authored_operator_can_bind(syntax, binary.operator, &left, &right, selection)
+                {
                     return Ok(None);
                 }
                 evaluate_const_fact_binary(
@@ -2158,8 +2228,8 @@ mod facts {
     pub(crate) fn evaluate_const_membership_fact(
         syntax: &SyntaxTrees,
         membership: &syntax_trees::item::ProofMembershipFact,
-        parameter_values: &HashMap<String, i128>,
-        parameter_type_names: &HashMap<String, String>,
+        parameter_values: &HashMap<String, BigInt>,
+        parameter_types: &HashMap<String, LandedIntegerType>,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<bool>, String> {
@@ -2182,10 +2252,10 @@ mod facts {
         else {
             return Ok(None);
         };
-        let Some(value) = parameter_values.get(parameter_name.as_str(syntax)).copied() else {
+        let Some(value) = parameter_values.get(parameter_name.as_str(syntax)).cloned() else {
             return Ok(None);
         };
-        let Some(parameter_type) = parameter_type_names.get(parameter_name.as_str(syntax)) else {
+        let Some(integer_type) = parameter_types.get(parameter_name.as_str(syntax)).copied() else {
             return Ok(None);
         };
         let members = syntax.items.identifier_path_members(membership.domain);
@@ -2193,8 +2263,11 @@ mod facts {
         evaluate_named_const_domain(
             syntax,
             &domain_path,
-            parameter_type,
-            ConstSubjectBinding::Scalar(ConstScalarValue::Integer(value)),
+            &integer_type.name(),
+            ConstSubjectBinding::Scalar(ConstScalarValue::DeclaredInteger {
+                value,
+                integer_type,
+            }),
             &mut Vec::new(),
             members
                 .first()
@@ -2215,16 +2288,27 @@ mod facts {
         comparisons, deeper member chains, and slots without a scalar leaf stay
         undecided and their facts keep the declaration fenced.
     */
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     enum ConstSubjectBinding<'a> {
         Scalar(ConstScalarValue),
-        Record(&'a [(String, ConstScalarValue)]),
+        /*
+            A record carrier's scalar-decodable field ledger, beside the selected
+            declaration's authored properties that carrier bounds are checked
+            against.
+        */
+        Record {
+            fields: &'a [(String, ConstScalarValue)],
+            properties: syntax_trees::item::DataProperties,
+        },
         Elements(&'a [Option<ConstScalarValue>]),
         /*
             The scalar-decodable payload field ledger of a variant carrier's
-            statically selected case.
+            statically selected case, with the selected declaration's properties.
         */
-        Variant(&'a [(String, ConstScalarValue)]),
+        Variant {
+            fields: &'a [(String, ConstScalarValue)],
+            properties: syntax_trees::item::DataProperties,
+        },
     }
 
     /*
@@ -2234,7 +2318,7 @@ mod facts {
     #[derive(Clone, Copy)]
     enum ConstFactSubject<'a> {
         Value {
-            binding: Option<ConstSubjectBinding<'a>>,
+            binding: Option<&'a ConstSubjectBinding<'a>>,
         },
         /*
             Bare lexical fields in a data or active-case predicate. The complete
@@ -2259,7 +2343,7 @@ mod facts {
                 && matches!(syntax.expressions.identifier_path_members(path.to_owned()), [name] if name.as_str(syntax) == "self")
         }
 
-        fn binding(self) -> Option<ConstSubjectBinding<'a>> {
+        fn binding(self) -> Option<&'a ConstSubjectBinding<'a>> {
             match self {
                 Self::Value { binding, .. } => binding,
                 Self::Fields(_) => None,
@@ -2268,7 +2352,7 @@ mod facts {
 
         fn scalar(self) -> Option<ConstScalarValue> {
             match self.binding() {
-                Some(ConstSubjectBinding::Scalar(value)) => Some(value),
+                Some(ConstSubjectBinding::Scalar(value)) => Some(value.clone()),
                 _ => None,
             }
         }
@@ -2276,7 +2360,8 @@ mod facts {
         fn fields(self) -> Option<&'a [(String, ConstScalarValue)]> {
             match self.binding() {
                 Some(
-                    ConstSubjectBinding::Record(fields) | ConstSubjectBinding::Variant(fields),
+                    ConstSubjectBinding::Record { fields, .. }
+                    | ConstSubjectBinding::Variant { fields, .. },
                 ) => Some(fields),
                 _ => None,
             }
@@ -2285,14 +2370,13 @@ mod facts {
 
     fn node_subject_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
         match value {
-            CanonicalConstNode::Integer { type_name, value } => {
-                LandedIntegerType::from_name(type_name).map(|integer_type| {
-                    ConstScalarValue::DeclaredInteger {
-                        value: *value,
-                        integer_type,
-                    }
-                })
-            }
+            CanonicalConstNode::Integer {
+                integer_type,
+                value,
+            } => Some(ConstScalarValue::DeclaredInteger {
+                value: value.clone(),
+                integer_type: *integer_type,
+            }),
             CanonicalConstNode::Boolean(value) => Some(ConstScalarValue::Boolean(*value)),
             _ => None,
         }
@@ -2636,7 +2720,7 @@ mod facts {
                 syntax,
                 domain.name.as_str(syntax),
                 carrier,
-                subject_binding,
+                subject_binding.clone(),
                 &mut Vec::new(),
                 domain.name.source_span(),
                 selection,
@@ -2648,7 +2732,7 @@ mod facts {
                 domain.name.as_str(syntax),
                 domain.arguments,
                 carrier,
-                subject_binding,
+                subject_binding.clone(),
                 &HashMap::new(),
                 &[],
                 &mut Vec::new(),
@@ -2735,27 +2819,27 @@ mod facts {
         Whether the concrete const carrier satisfies every requirement a domain
         declares on its abstract carrier parameter — the checked application
         evidence the bound calls for. Builtin scalar carriers are `copy` and ride
-        the permissive carry policy; a named `data` carrier answers from its
-        authored `properties`. Any other carrier declines rather than guessing.
+        the permissive carry policy; a nominal `data` carrier answers from the
+        authored `properties` its selected declaration attached to the bound
+        value, so same-named data in another package cannot answer for it. Any
+        other carrier declines rather than guessing.
     */
     fn carrier_satisfies_declared_bounds(
-        syntax: &SyntaxTrees,
-        carrier: &str,
         bounds: &syntax_trees::item::DataProperties,
+        binding: &ConstSubjectBinding<'_>,
     ) -> bool {
-        let properties = crate::constant::is_builtin_scalar_carrier(carrier)
-            .then_some(syntax_trees::item::DataProperties {
+        let properties = match binding {
+            ConstSubjectBinding::Scalar(ConstScalarValue::Integer(_))
+            | ConstSubjectBinding::Elements(_) => None,
+            ConstSubjectBinding::Scalar(
+                ConstScalarValue::DeclaredInteger { .. } | ConstScalarValue::Boolean(_),
+            ) => Some(syntax_trees::item::DataProperties {
                 multiplicity: Multiplicity::Unrestricted,
                 carry: Some(CarryPolicy::PERMISSIVE),
-            })
-            .or_else(|| {
-                syntax.root_items().find_map(|item| match item {
-                    Item::Data(definition) if definition.name.as_str(syntax) == carrier => {
-                        Some(definition.properties)
-                    }
-                    _ => None,
-                })
-            });
+            }),
+            ConstSubjectBinding::Record { properties, .. }
+            | ConstSubjectBinding::Variant { properties, .. } => Some(*properties),
+        };
         let Some(properties) = properties else {
             return false;
         };
@@ -2819,7 +2903,7 @@ mod facts {
             });
         let binding = if let Some(parameter) = carrier_parameter {
             if parameter.bounds != syntax_trees::item::DataProperties::default()
-                && !carrier_satisfies_declared_bounds(syntax, carrier, &parameter.bounds)
+                && !carrier_satisfies_declared_bounds(&parameter.bounds, &subject_binding)
             {
                 return Ok(None);
             }
@@ -2840,7 +2924,7 @@ mod facts {
                     "domain `{domain_key}` has carrier `{domain_carrier}`, but the const value has carrier `{carrier}`",
                 ));
             }
-            Some(subject_binding)
+            Some(&subject_binding)
         };
         let subject = Some(ConstFactSubject::Value { binding });
         let warning_start = warnings.len();
@@ -2860,7 +2944,7 @@ mod facts {
                         syntax,
                         &path,
                         carrier,
-                        subject_binding,
+                        subject_binding.clone(),
                         visiting,
                         first.source_span(),
                         selection,
@@ -3046,12 +3130,14 @@ mod facts {
                             parameter.name.as_str(syntax),
                         ));
                     }
-                    crate::preparation::generic_data::validate_syntax_integer_range(
-                        &required, bound,
-                    )?;
-                    let Some(integer_type) = LandedIntegerType::from_name(&required) else {
+                    let Some(integer_type) = crate::preparation::generic_data::const_integer_type(
+                        syntax,
+                        parameter_type,
+                        selection,
+                    ) else {
                         return Ok(None);
                     };
+                    validate_declared_integer(integer_type, &bound)?;
                     ConstScalarValue::DeclaredInteger {
                         value: bound,
                         integer_type,
@@ -3061,15 +3147,24 @@ mod facts {
                     value,
                     integer_type,
                 } => {
-                    if integer_type.name() != required {
+                    if Some(integer_type)
+                        != crate::preparation::generic_data::const_integer_type(
+                            syntax,
+                            parameter_type,
+                            selection,
+                        )
+                    {
                         return Err(format!(
                             "index argument for `{authored}::{}` has canonical type `{}`, expected `{required}`",
                             parameter.name.as_str(syntax),
                             integer_type.name(),
                         ));
                     }
-                    validate_declared_integer(integer_type, value)?;
-                    bound
+                    validate_declared_integer(integer_type, &value)?;
+                    ConstScalarValue::DeclaredInteger {
+                        value,
+                        integer_type,
+                    }
                 }
                 ConstScalarValue::Boolean(_) if required != "bool" => {
                     return Err(format!(
@@ -3116,7 +3211,7 @@ mod facts {
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<ConstScalarValue>, String> {
         let integer_type =
-            crate::preparation::generic_data::const_integer_type(syntax, parameter_type);
+            crate::preparation::generic_data::const_integer_type(syntax, parameter_type, selection);
         let boolean_type = matches!(
             syntax.type_references.type_reference(parameter_type),
             TypeReferenceNode::Named(name) if name.as_str(syntax) == "bool"
@@ -3139,7 +3234,7 @@ mod facts {
                     }
                     Some(ConstScalarSpelling::Integer(value)) => {
                         if let Some(integer_type) = integer_type {
-                            validate_declared_integer(integer_type, value)?;
+                            validate_declared_integer(integer_type, &value)?;
                             return Ok(Some(ConstScalarValue::DeclaredInteger {
                                 value,
                                 integer_type,
@@ -3171,7 +3266,7 @@ mod facts {
                             "index argument for `{family_name}::{parameter_name}` has carrier `{actual}`, expected `{required}`"
                         ));
                     }
-                    return Ok(Some(*value));
+                    return Ok(Some(value.clone()));
                 }
                 if let Some(selection) = selection
                     && let Some(definition) = selection
@@ -3215,8 +3310,9 @@ mod facts {
                 .map_err(|reason| {
                     format!("index argument expression for `{family_name}` is invalid: {reason}")
                 })?;
-                let required = syntax_type_identity(syntax, parameter_type)?;
-                crate::preparation::generic_data::validate_syntax_integer_range(&required, value)?;
+                let integer_type =
+                    integer_type.ok_or("const index lost its declared integer carrier")?;
+                validate_declared_integer(integer_type, &value)?;
                 Ok(Some(ConstScalarValue::Integer(value)))
             }
             _ => Ok(None),
@@ -3293,23 +3389,25 @@ mod facts {
         let array_elements: Vec<Option<ConstScalarValue>>;
         let variant_fields: Vec<(String, ConstScalarValue)>;
         let (carrier, subject_binding) = match value {
-            CanonicalConstNode::Integer { type_name, value } => {
-                let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
-                    return Err(CONSTRAINED_CONST_FENCE.to_owned());
-                };
-                (
-                    type_name.clone(),
-                    ConstSubjectBinding::Scalar(ConstScalarValue::DeclaredInteger {
-                        value: *value,
-                        integer_type,
-                    }),
-                )
-            }
+            CanonicalConstNode::Integer {
+                integer_type,
+                value,
+            } => (
+                integer_type.name(),
+                ConstSubjectBinding::Scalar(ConstScalarValue::DeclaredInteger {
+                    value: value.clone(),
+                    integer_type: *integer_type,
+                }),
+            ),
             CanonicalConstNode::Boolean(value) => (
                 "bool".to_owned(),
                 ConstSubjectBinding::Scalar(ConstScalarValue::Boolean(*value)),
             ),
-            CanonicalConstNode::Record { type_name, fields } => {
+            CanonicalConstNode::Record {
+                type_name,
+                properties,
+                fields,
+            } => {
                 record_fields = fields
                     .iter()
                     .filter_map(|(name, field)| {
@@ -3318,7 +3416,10 @@ mod facts {
                     .collect();
                 (
                     type_name.clone(),
-                    ConstSubjectBinding::Record(&record_fields),
+                    ConstSubjectBinding::Record {
+                        fields: &record_fields,
+                        properties: *properties,
+                    },
                 )
             }
             CanonicalConstNode::Array { type_name, values } => {
@@ -3329,7 +3430,10 @@ mod facts {
                 )
             }
             CanonicalConstNode::Variant {
-                type_name, fields, ..
+                type_name,
+                properties,
+                fields,
+                ..
             } => {
                 variant_fields = fields
                     .iter()
@@ -3339,7 +3443,10 @@ mod facts {
                     .collect();
                 (
                     type_name.clone(),
-                    ConstSubjectBinding::Variant(&variant_fields),
+                    ConstSubjectBinding::Variant {
+                        fields: &variant_fields,
+                        properties: *properties,
+                    },
                 )
             }
             _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
@@ -3350,7 +3457,7 @@ mod facts {
                 syntax,
                 constraint,
                 &carrier,
-                subject_binding,
+                subject_binding.clone(),
                 selection,
                 &mut warnings,
                 "the const leaf value",
@@ -3549,6 +3656,9 @@ mod facts {
                 .map(|result| result.map(|proof| ConstFactValue::Boolean(proof.holds())))
             }
             ExpressionNode::Binary(binary) => {
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return Ok(None);
+                }
                 let builtin = has_builtin_const_operator(syntax, binary);
                 if !builtin
                     && matches!(
@@ -3585,7 +3695,9 @@ mod facts {
                 else {
                     return Ok(None);
                 };
-                if !builtin && authored_operator_can_bind(syntax, binary.operator, &left, &right) {
+                if !builtin
+                    && authored_operator_can_bind(syntax, binary.operator, &left, &right, selection)
+                {
                     return Ok(None);
                 }
                 evaluate_const_fact_binary(
@@ -3964,11 +4076,7 @@ mod templates {
                     }
                 }
                 TypeReferenceNode::Slice { element_type } => self.reference(*element_type, inputs),
-                TypeReferenceNode::Generic { arguments, .. }
-                | TypeReferenceNode::DynamicTrait {
-                    trait_arguments: arguments,
-                    ..
-                } => {
+                TypeReferenceNode::Generic { arguments, .. } => {
                     for &argument in syntax.type_references.type_reference_handles(*arguments) {
                         self.reference(argument, inputs);
                     }
@@ -4224,7 +4332,7 @@ mod templates {
                 let arguments = syntax_type_references(syntax)
                     .type_reference_handles(arguments)
                     .to_vec();
-                let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
+                let integer_types = generic_const_integer_types(syntax, &base_name, selection);
                 for (index, argument) in arguments.into_iter().enumerate() {
                     let node = syntax_type_references(syntax)
                         .type_reference(argument)
@@ -4283,9 +4391,7 @@ mod templates {
                 "a scoped type selection must resolve before scalar template normalization"
                     .to_owned(),
             ),
-            TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Named(_)
-            | TypeReferenceNode::Unit => Ok(()),
+            TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => Ok(()),
         }
     }
 
@@ -4433,11 +4539,7 @@ mod templates {
                 }
             }
             TypeReferenceNode::Slice { element_type } => visit_child!(*element_type),
-            TypeReferenceNode::Generic { arguments, .. }
-            | TypeReferenceNode::DynamicTrait {
-                trait_arguments: arguments,
-                ..
-            } => {
+            TypeReferenceNode::Generic { arguments, .. } => {
                 for argument in syntax_type_references(syntax).type_reference_handles(*arguments) {
                     visit_child!(*argument);
                 }
@@ -4531,29 +4633,6 @@ mod templates {
     }
 
     /*
-        Collect the same declared callable inputs used by data specialization,
-        retaining which inputs form a public signature for constant evaluation.
-    */
-    pub(in crate::preparation::generic_data) fn collect_callable_type_reference_positions(
-        syntax: &SyntaxTrees,
-    ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
-        let mut positions = Vec::new();
-        let mut public_positions = Vec::new();
-        visit_callable_type_inputs(
-            syntax,
-            syntax.root_item_handles(),
-            |reference, is_public_signature| {
-                let start = positions.len();
-                collect_type_positions(syntax, reference, &mut positions, true);
-                if is_public_signature {
-                    public_positions.extend_from_slice(&positions[start..]);
-                }
-            },
-        );
-        (positions, public_positions)
-    }
-
-    /*
         Every concrete callable publishes its declared type inputs here. Constant
         evaluation and closed data specialization consume this same list, including
         bodyless requirements. Open declarations remain templates in both routes.
@@ -4616,6 +4695,11 @@ mod templates {
     }
 }
 mod values {
+    use super::BigInt;
+    // Four bits per canonical decimal byte is a conservative work ceiling for
+    // every encodable integer. It limits evaluation allocation, not carrier width.
+    pub(super) const MAXIMUM_CONST_INTEGER_BITS: usize =
+        language_semantics::const_value::CanonicalConstValue::MAXIMUM_ENCODING_BYTES * 4;
     /*
         Structural const values under exact declaration-site carrier selection.
 
@@ -4639,7 +4723,7 @@ mod values {
     */
     use super::super::{
         CanonicalConstValue, ConstDefinition, DataDefinition, DataMember, ExpressionHandle,
-        ExpressionNode, FixedArrayLength, HandleSpan, HashSet, Identifier, Item, SyntaxTrees,
+        ExpressionNode, FixedArrayLength, HandleSpan, Identifier, Item, SyntaxTrees,
         TypeReferenceHandle, TypeReferenceNode,
     };
     use crate::tables::syntax_items;
@@ -4652,7 +4736,6 @@ mod values {
         substituted_generic_arguments,
     };
     use crate::preparation::generic_data::ClosedArgumentIdentity;
-    use crate::preparation::generic_data::ConstFactValue;
     use crate::preparation::generic_data::arguments::{
         closed_argument_identity, closed_parameter_argument_identity,
     };
@@ -4667,8 +4750,8 @@ mod values {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(in crate::preparation::generic_data) enum CanonicalConstNode {
         Integer {
-            type_name: String,
-            value: i128,
+            integer_type: LandedIntegerType,
+            value: BigInt,
         },
         Boolean(bool),
         Float {
@@ -4679,12 +4762,19 @@ mod values {
             type_name: String,
             values: Vec<CanonicalConstNode>,
         },
+        /*
+            `properties` are the selected nominal declaration's authored data
+            properties, carried with the value so carrier-bound checks rejoin the
+            declaration that owns it instead of reselecting by `type_name`.
+        */
         Record {
             type_name: String,
+            properties: syntax_trees::item::DataProperties,
             fields: Vec<(String, CanonicalConstNode)>,
         },
         Variant {
             type_name: String,
+            properties: syntax_trees::item::DataProperties,
             case_name: String,
             fields: Vec<(String, CanonicalConstNode)>,
         },
@@ -4693,9 +4783,10 @@ mod values {
     impl CanonicalConstNode {
         pub(in crate::preparation::generic_data) fn encoding(&self) -> String {
             match self {
-                Self::Integer { type_name, value } => {
-                    framed("integer", [type_name.clone(), value.to_string()])
-                }
+                Self::Integer {
+                    integer_type,
+                    value,
+                } => framed("integer", [integer_type.name(), value.to_string()]),
                 Self::Boolean(value) => framed("boolean", [if *value { "true" } else { "false" }]),
                 Self::Float { format, bits } => match format {
                     numerics::literals::FloatFormat::F32 => format!("float:f32:{bits:08x}"),
@@ -4706,7 +4797,9 @@ mod values {
                     std::iter::once(type_name.as_str().to_owned())
                         .chain(values.iter().map(Self::encoding)),
                 ),
-                Self::Record { type_name, fields } => framed(
+                Self::Record {
+                    type_name, fields, ..
+                } => framed(
                     "record",
                     std::iter::once(type_name.clone()).chain(
                         fields
@@ -4718,6 +4811,7 @@ mod values {
                     type_name,
                     case_name,
                     fields,
+                    ..
                 } => framed(
                     "variant",
                     [type_name.clone(), case_name.clone()].into_iter().chain(
@@ -4749,7 +4843,9 @@ mod values {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
-                Self::Record { type_name, fields } => format!(
+                Self::Record {
+                    type_name, fields, ..
+                } => format!(
                     "{type_name} {{ {} }}",
                     fields
                         .iter()
@@ -4761,11 +4857,13 @@ mod values {
                     type_name,
                     case_name,
                     fields,
+                    ..
                 } if fields.is_empty() => format!("{type_name}::{case_name}"),
                 Self::Variant {
                     type_name,
                     case_name,
                     fields,
+                    ..
                 } => format!(
                     "{type_name}::{case_name} {{ {} }}",
                     fields
@@ -4943,7 +5041,7 @@ mod values {
                             super::integer_literal_value(literal)
                                 .map(|value| value.to_string())
                                 .ok_or_else(|| {
-                                    "integer literal exceeds const envelope".to_owned()
+                                    "integer literal has no exact const value".to_owned()
                                 })?
                         }
                         syntax_trees::expression::ExpressionNode::Name {
@@ -5117,7 +5215,9 @@ mod values {
     ) -> Result<String, String> {
         match syntax.type_references.type_reference(reference) {
             TypeReferenceNode::Named(name)
-                if !crate::constant::is_builtin_scalar_carrier(name.as_str(syntax)) =>
+                if !selection
+                    .and_then(|selection| selection.builtin_type(syntax, name))
+                    .is_some_and(crate::constant::is_builtin_scalar_carrier) =>
             {
                 let origin = syntax.type_references.generic_application_origin(reference);
                 if origin.is_valid() && origin != reference {
@@ -5412,9 +5512,14 @@ mod values {
             syntax.type_references.type_reference(required),
         ) {
             (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => {
-                let primitive = |name: &str| crate::constant::is_builtin_scalar_carrier(name);
-                if primitive(left.as_str(syntax)) || primitive(right.as_str(syntax)) {
-                    return Ok(left.as_str(syntax) == right.as_str(syntax));
+                let left_atom =
+                    selection.and_then(|selection| selection.builtin_type(syntax, left));
+                let right_atom =
+                    selection.and_then(|selection| selection.builtin_type(syntax, right));
+                if left_atom.is_some_and(crate::constant::is_builtin_scalar_carrier)
+                    || right_atom.is_some_and(crate::constant::is_builtin_scalar_carrier)
+                {
+                    return Ok(left_atom.is_some() && left_atom == right_atom);
                 }
                 Ok(std::ptr::eq(
                     selected_data(syntax, left, selection)?,
@@ -5452,20 +5557,6 @@ mod values {
             (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => Ok(true),
             _ => Ok(false),
         }
-    }
-
-    pub(in crate::preparation::generic_data) fn validate_const_index_type(
-        syntax: &SyntaxTrees,
-        type_reference: TypeReferenceHandle,
-        _visiting: &mut HashSet<String>,
-    ) -> Result<(), String> {
-        validate_selected_const_index_type(
-            syntax,
-            type_reference,
-            &mut Vec::new(),
-            None,
-            &GenericApplicationSubstitution::new(),
-        )
     }
 
     /*
@@ -5527,7 +5618,7 @@ mod values {
         Ok(Some(*semantic_type))
     }
 
-    fn validate_selected_const_index_type(
+    pub(super) fn validate_selected_const_index_type(
         syntax: &SyntaxTrees,
         type_reference: TypeReferenceHandle,
         visiting: &mut Vec<source::SourceSpan>,
@@ -5586,14 +5677,29 @@ mod values {
         canonical_const_result(syntax, definition.type_reference, node, selection)
     }
 
-    /*
-        Close structural array geometry through the same selected declaration used
-        for its value. A spelling is not an extent: source custody selects the owner,
-        canonical scalar validation establishes its carrier, and only a completed
-        literal is observable here. Calls and unresolved values remain with the
-        evaluation scheduler; reading them here would invent dependency readiness.
-    */
+    /* Structural geometry consumes values selected by the lexical resolver. */
     pub(crate) fn closed_fixed_array_length(
+        syntax: &SyntaxTrees,
+        length: &FixedArrayLength,
+        substitution: &GenericApplicationSubstitution,
+        selection: Option<&ConstantSelection>,
+    ) -> Result<usize, String> {
+        if let FixedArrayLength::ConstParameter(name) = length
+            && !substitution.contains_key(name.as_str(syntax))
+        {
+            return selection
+                .ok_or_else(|| "array extent has no resolved value selection".to_owned())?
+                .selected_array_length(name.source_span());
+        }
+        declared_fixed_array_length(syntax, length, substitution, selection)
+    }
+
+    /*
+        A constant declaration has no activation-local bindings. Its own selected
+        header and substituted binders determine the declared value's array carrier.
+        Generic use-site geometry instead requires the resolved reader above.
+    */
+    fn declared_fixed_array_length(
         syntax: &SyntaxTrees,
         length: &FixedArrayLength,
         substitution: &GenericApplicationSubstitution,
@@ -5720,15 +5826,16 @@ mod values {
         let no_bindings = GenericApplicationSubstitution::new();
         match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Named(name) => {
-            if crate::constant::is_structural_scalar_carrier(name.as_str(syntax)) {
+            let atom = selection.and_then(|selection| selection.builtin_type(syntax, name));
+            if atom.is_some_and(crate::constant::is_structural_scalar_carrier) {
                 return Ok(());
             }
             if purpose == ConstValuePurpose::Declaration
-                && matches!(name.as_str(syntax), "f32" | "f64")
+                && matches!(atom, Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64))
             {
                 return Ok(());
             }
-            if matches!(name.as_str(syntax), "f32" | "f64") {
+            if matches!(atom, Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)) {
                 return Err(format!(
                     "`{name}` is not eligible as a const index: runtime floating/text identity is not canonical structural data"
                 , name = name.as_str(syntax)));
@@ -5858,7 +5965,7 @@ mod values {
             element_type,
             length,
         } => {
-            closed_fixed_array_length(syntax, length, substitution, selection)?;
+            declared_fixed_array_length(syntax, length, substitution, selection)?;
             validate_selected_const_type(syntax,
                 *element_type,
                 visiting,
@@ -5872,7 +5979,7 @@ mod values {
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Callable { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
+
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::StaticSelection(_)
  => Err(
@@ -5967,8 +6074,12 @@ mod values {
                 Ok(node)
             }
             TypeReferenceNode::Named(type_name)
-                if LandedIntegerType::from_name(type_name.as_str(syntax)).is_some() =>
+                if super::arguments::const_integer_type(syntax, expected_type, selection)
+                    .is_some() =>
             {
+                let integer_type =
+                    super::arguments::const_integer_type(syntax, expected_type, selection)
+                        .ok_or("integer constant lost its selected carrier")?;
                 let ExpressionNode::Integer(literal) = syntax.expressions.expression(expression)
                 else {
                     return Err(format!(
@@ -5977,7 +6088,7 @@ mod values {
                     ));
                 };
                 if literal.landing().is_some_and(|landing| {
-                    landing.landed_type.name() != type_name.as_str(syntax)
+                    landing.landed_type != integer_type
                         || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                 }) {
                     return Err(format!(
@@ -5986,10 +6097,10 @@ mod values {
                     ));
                 }
                 let value = integer_literal_value(literal)
-                    .ok_or_else(|| "integer literal exceeds the const-value envelope".to_owned())?;
-                validate_syntax_integer_range(type_name.as_str(syntax), value)?;
+                    .ok_or_else(|| "integer literal has no exact const value".to_owned())?;
+                super::arguments::validate_declared_integer(integer_type, &value)?;
                 Ok(CanonicalConstNode::Integer {
-                    type_name: type_name.as_str(syntax).to_owned(),
+                    integer_type,
                     value,
                 })
             }
@@ -6122,7 +6233,7 @@ mod values {
                 element_type,
                 length,
             } => {
-                let length = closed_fixed_array_length(syntax, length, substitution, selection)?;
+                let length = declared_fixed_array_length(syntax, length, substitution, selection)?;
                 let ExpressionNode::ArrayLiteral(values) =
                     syntax.expressions.expression(expression)
                 else {
@@ -6214,7 +6325,7 @@ mod values {
                 element_type,
                 length,
             } => {
-                let length = closed_fixed_array_length(syntax, length, substitution, selection)?;
+                let length = declared_fixed_array_length(syntax, length, substitution, selection)?;
                 Ok(format!(
                     "[{}; {length}]",
                     substituted_type_label(syntax, *element_type, substitution, selection)?
@@ -6319,6 +6430,7 @@ mod values {
                     )?;
                     Ok(CanonicalConstNode::Variant {
                         type_name: type_name.to_owned(),
+                        properties: definition.properties,
                         case_name: case_name.as_str(syntax).to_owned(),
                         fields,
                     })
@@ -6350,6 +6462,7 @@ mod values {
                     )?;
                     Ok(CanonicalConstNode::Record {
                         type_name: type_name.to_owned(),
+                        properties: definition.properties,
                         fields,
                     })
                 }
@@ -6411,6 +6524,7 @@ mod values {
                 }
                 Ok(CanonicalConstNode::Variant {
                     type_name: type_name.to_owned(),
+                    properties: definition.properties,
                     case_name: case_name.as_str(syntax).to_owned(),
                     fields: Vec::new(),
                 })
@@ -6477,14 +6591,13 @@ mod values {
     }
 
     pub(in crate::preparation::generic_data) fn validate_syntax_integer_range(
-        type_name: &str,
-        value: i128,
+        integer_type: LandedIntegerType,
+        value: &BigInt,
     ) -> Result<(), String> {
-        let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
-            return Err(format!("`{type_name}` is not an integer const type"));
-        };
-        if !integer_type.admits_i128(value) {
-            Err(format!("const value `{value}` does not fit `{type_name}`"))
+        if !integer_type.value_carrier().admits(value) {
+            Err(format!(
+                "const value `{value}` does not fit `{integer_type}`"
+            ))
         } else {
             Ok(())
         }
@@ -6548,11 +6661,13 @@ mod values {
                 type_name,
                 case_name,
                 fields,
+                ..
             } if type_name == "Nat" && case_name == "Zero" && fields.is_empty() => Ok(0),
             CanonicalConstNode::Variant {
                 type_name,
                 case_name,
                 fields,
+                ..
             } if type_name == "Nat" && case_name == "Succ" => {
                 let previous = fields
                     .iter()
@@ -6580,20 +6695,10 @@ mod values {
         left
     }
 
-    pub(in crate::preparation::generic_data) fn const_integer_in_envelope(
-        value: i128,
-    ) -> Option<i128> {
-        (value >= i128::from(i64::MIN) && value <= i128::from(u64::MAX)).then_some(value)
-    }
-
-    pub(in crate::preparation::generic_data) fn checked_fact_integer(
-        value: Option<i128>,
-        operation: &str,
-    ) -> Result<ConstFactValue, String> {
-        value
-            .and_then(const_integer_in_envelope)
-            .map(ConstFactValue::Integer)
-            .ok_or_else(|| format!("{operation} exceeds the signed/unsigned 64-bit envelope"))
+    pub(in crate::preparation::generic_data) fn const_integer_within_budget(
+        value: BigInt,
+    ) -> Option<BigInt> {
+        (value.bit_length() <= MAXIMUM_CONST_INTEGER_BITS).then_some(value)
     }
 }
 
@@ -6617,10 +6722,10 @@ pub(crate) use initializers::fold_closed_scalar_initializers;
 use remainder::validate_anonymous_remainder;
 pub(in crate::preparation) use templates::collect_type_positions;
 pub(super) use templates::{
-    capture_machine_runtime_template_names, collect_callable_type_reference_positions,
-    collect_data_type_reference_positions, collect_selected_type_reference_positions,
-    collect_stored_type_reference_positions, normalize_generic_template_const_expressions,
-    replace_const_expression_names_from, replace_machine_const_expression_names_from,
+    capture_machine_runtime_template_names, collect_data_type_reference_positions,
+    collect_selected_type_reference_positions, collect_stored_type_reference_positions,
+    normalize_generic_template_const_expressions, replace_const_expression_names_from,
+    replace_machine_const_expression_names_from,
 };
 pub(in crate::preparation) use values::canonicalize_selected_const_definition;
 pub(crate) use values::closed_fixed_array_length;
@@ -6628,6 +6733,5 @@ pub(super) use values::{
     ConstPredicateAdmission, canonicalize_const_expression,
     canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
-    checked_fact_integer, const_integer_in_envelope, syntax_type_identity,
-    validate_const_index_type, validate_syntax_integer_range,
+    const_integer_within_budget, syntax_type_identity, validate_syntax_integer_range,
 };

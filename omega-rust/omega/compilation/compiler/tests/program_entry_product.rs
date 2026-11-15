@@ -300,7 +300,10 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
             );
             assert!(module.calling_abi_signatures.is_empty());
             let native_code = executable
-                .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+                .produce(
+                    Default::default(),
+                    &mut source_compiler::UnmeasuredProduction,
+                )
                 .unwrap()
                 .into_shared_portable()
                 .unwrap();

@@ -1,0 +1,346 @@
+/*
+    Source-issued Build companions retained beside a Terminal Psi program:
+    Build bindings, native locators and formations, Build requests, product
+    queries, filesystem protocol calls, and standalone Build providers.
+
+    Each companion is bound to the exact custody identity of its Terminal
+    program. These are the record shapes; `build_companions` fills them from
+    the accepted elaboration.
+*/
+
+mod native_locator {
+    use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId};
+    use std::sync::Arc;
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TerminalBuildNativeLocator {
+        pub structural_type: StructuralTypeId,
+        pub widths: [u64; 3],
+        pub shape: Arc<TerminalBuildValueShape>,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum TerminalBuildValueShape {
+        Scalar(ScalarType),
+        Array { length: u64, element: Arc<Self> },
+        Sum { cases: Vec<TerminalBuildValueCase> },
+    }
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TerminalBuildValueCase {
+        pub id: StructuralCaseId,
+        pub name: String,
+        pub fields: Vec<TerminalBuildValueField>,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TerminalBuildValueField {
+        pub id: StructuralFieldId,
+        pub name: String,
+        pub shape: Arc<TerminalBuildValueShape>,
+    }
+}
+pub use native_locator::{
+    TerminalBuildNativeLocator, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape,
+};
+
+use crate::TerminalBuildQueryCall;
+use language_semantics::build_requests::BuildCallSite;
+use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
+use language_semantics::declaration_selection::{
+    BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
+};
+use semantic_vocabulary::BoundaryMachineId;
+use std::sync::Arc;
+use terminal_codec::TerminalExecutionView;
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct TerminalBuildProviderRequirement {
+    pub declaration: terminal_psi::NominalDeclarationIdentity,
+    pub application: terminal_psi::TerminalIdentityIndex,
+    pub boundaries: Vec<BoundaryMachineId>,
+}
+
+pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProviderRequirement>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum TerminalBuildBindingOperation {
+    AwaitProvider,
+    Prepare,
+    PrepareTests, // Test-group registration, prepared on the Build's `tests` facet.
+    Bind,
+    BindNative,
+    Select,
+    SelectProvider,
+    Exclude,
+}
+
+#[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
+pub struct TerminalBuildBindingCall {
+    pub site: BuildCallSite,
+    pub action: TerminalBuildBindingOperation,
+    pub request: TerminalBuildSelectionRequest,
+    pub selecting_machine: Option<source::SourceSpan>,
+    pub static_environment: Option<Arc<ProductStaticEnvironment>>,
+    pub native_locator: Option<TerminalBuildNativeLocator>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TerminalBuildBindings {
+    identity: terminal_codec::TerminalExecutionIdentity,
+    calls: Arc<[TerminalBuildBindingCall]>,
+    queries: Arc<[TerminalBuildQueryCall]>,
+    declarations: Arc<[Arc<ProductDeclarationRequest>]>,
+    native_formations: Arc<[NativeBindingFormation]>,
+}
+
+impl TerminalBuildBindings {
+    pub fn queries_for(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+    ) -> Option<&Arc<[TerminalBuildQueryCall]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.queries)
+    }
+    pub fn calls_for(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+    ) -> Option<&Arc<[TerminalBuildBindingCall]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.calls)
+    }
+
+    pub fn declarations_for(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+    ) -> Option<&Arc<[Arc<ProductDeclarationRequest>]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.declarations)
+    }
+
+    pub fn native_formations_for(
+        &self,
+        artifact: TerminalExecutionView<'_>,
+    ) -> Option<&Arc<[NativeBindingFormation]>> {
+        (self.identity == artifact.custody_identity()).then_some(&self.native_formations)
+    }
+
+    pub(crate) fn new(
+        artifact: TerminalExecutionView<'_>,
+        calls: impl Into<Arc<[TerminalBuildBindingCall]>>,
+        declarations: impl Into<Arc<[Arc<ProductDeclarationRequest>]>>,
+        queries: impl Into<Arc<[TerminalBuildQueryCall]>>,
+        native_formations: impl Into<Arc<[NativeBindingFormation]>>,
+    ) -> Self {
+        Self {
+            identity: artifact.custody_identity(),
+            calls: calls.into(),
+            queries: queries.into(),
+            declarations: declarations.into(),
+            native_formations: native_formations.into(),
+        }
+    }
+}
+
+pub(crate) fn validate_companions(
+    artifact: TerminalExecutionView<'_>,
+    bindings: &[TerminalBuildBindingCall],
+    queries: &[TerminalBuildQueryCall],
+    requests: &[build_requests::TerminalBuildRequestCall],
+    filesystem: &[build_filesystem::TerminalBuildFilesystemCall],
+) -> Result<(), &'static str> {
+    validate_sites(
+        artifact,
+        bindings
+            .iter()
+            .map(|call| call.site)
+            .chain(queries.iter().map(|call| call.site))
+            .chain(requests.iter().map(|call| call.site))
+            .chain(filesystem.iter().map(|call| call.site)),
+    )
+}
+
+fn validate_sites(
+    artifact: TerminalExecutionView<'_>,
+    sites: impl IntoIterator<Item = BuildCallSite>,
+) -> Result<(), &'static str> {
+    let mut emitted = Vec::new();
+    for machine in &artifact.module().machines {
+        for operation in machine.operations() {
+            if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind {
+                if artifact.module().boundary_machine(boundary).is_none() {
+                    return Err("Build boundary call has no emitted declaration");
+                }
+                emitted.push((machine.id, operation.id, boundary));
+            }
+        }
+    }
+    emitted.sort_unstable();
+    let mut sites = sites
+        .into_iter()
+        .map(|site| (site.machine, site.operation, site.boundary))
+        .collect::<Vec<_>>();
+    sites.sort_unstable();
+    if sites
+        .windows(2)
+        .any(|pair| (pair[0].0, pair[0].1) == (pair[1].0, pair[1].1))
+    {
+        return Err("Build boundary call has duplicate source companions");
+    }
+    if sites
+        .iter()
+        .any(|site| emitted.binary_search(site).is_err())
+    {
+        return Err("Build companion has no exact emitted boundary call");
+    }
+    Ok(())
+}
+
+pub(crate) mod build_filesystem {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum TerminalBuildFilesystemOperation {
+        ResolveSource,
+        ResolveOutput,
+        NamedInput,
+        Open,
+        Read,
+        CloseSource,
+        Create,
+        Write,
+        CloseOutput,
+        IncludeSource,
+        Require,
+        CanComplete,
+        Complete,
+        Fail,
+        RequiredPath,
+    }
+
+    #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TerminalBuildFilesystemCall {
+        pub site: language_semantics::build_requests::BuildCallSite,
+        pub action: TerminalBuildFilesystemOperation,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct TerminalBuildFilesystem {
+        identity: terminal_codec::TerminalExecutionIdentity,
+        calls: std::sync::Arc<[TerminalBuildFilesystemCall]>,
+    }
+
+    impl TerminalBuildFilesystem {
+        pub fn calls_for(
+            &self,
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+        ) -> Option<&std::sync::Arc<[TerminalBuildFilesystemCall]>> {
+            (self.identity == artifact.custody_identity()).then_some(&self.calls)
+        }
+
+        pub(crate) fn new(
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+            calls: impl Into<std::sync::Arc<[TerminalBuildFilesystemCall]>>,
+        ) -> Self {
+            Self {
+                identity: artifact.custody_identity(),
+                calls: calls.into(),
+            }
+        }
+    }
+}
+
+pub(crate) mod build_provider {
+    pub struct ProducedBuildProvider {
+        code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
+        path: String,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        declaration: String,
+        requirement: String,
+        application: String,
+    }
+
+    impl ProducedBuildProvider {
+        pub(crate) fn new(
+            code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
+            path: String,
+            package: semantic_vocabulary::PackageKeyIdentity,
+            declaration: String,
+            requirement: String,
+            application: String,
+        ) -> Self {
+            Self {
+                code,
+                path,
+                package,
+                declaration,
+                requirement,
+                application,
+            }
+        }
+
+        pub fn artifact(
+            &self,
+        ) -> Option<&std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>> {
+            self.code.as_ref()
+        }
+        pub fn path(&self) -> &str {
+            &self.path
+        }
+        pub fn package(&self) -> semantic_vocabulary::PackageKeyIdentity {
+            self.package
+        }
+        pub fn declaration(&self) -> &str {
+            &self.declaration
+        }
+        pub fn requirement(&self) -> &str {
+            &self.requirement
+        }
+        pub fn application(&self) -> &str {
+            &self.application
+        }
+    }
+}
+
+pub(crate) mod build_queries {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum TerminalBuildQueryOperation {
+        Entry,
+        Schema,
+        Provider,
+        SchemaPath,
+        ProviderPath,
+    }
+
+    #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TerminalBuildQueryCall {
+        pub site: language_semantics::build_requests::BuildCallSite,
+        pub action: TerminalBuildQueryOperation,
+        pub occurrence: source::SourceSpan,
+    }
+}
+
+pub(crate) mod build_requests {
+
+    pub use language_semantics::build_requests::{
+        BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    };
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct TerminalBuildRequests {
+        identity: terminal_codec::TerminalExecutionIdentity,
+        calls: std::sync::Arc<[TerminalBuildRequestCall]>,
+    }
+
+    impl TerminalBuildRequests {
+        pub fn calls_for(
+            &self,
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+        ) -> Option<&std::sync::Arc<[TerminalBuildRequestCall]>> {
+            (self.identity == artifact.custody_identity()).then_some(&self.calls)
+        }
+
+        pub(crate) fn new(
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+            calls: impl Into<std::sync::Arc<[TerminalBuildRequestCall]>>,
+        ) -> Self {
+            Self {
+                identity: artifact.custody_identity(),
+                calls: calls.into(),
+            }
+        }
+    }
+}

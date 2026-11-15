@@ -13,7 +13,7 @@ use provider_planning::target_supply::{
     PreparedTargetSupply, ReachedBoundaryRequirement, SettledTargetSupply, SupplyAuthority,
     SupplyPlanning, TargetSupplyRequest,
 };
-use psi_compiler::AcceptedTerminalSource;
+use source_compiler::AcceptedTerminalSource;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -36,7 +36,7 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
 
 /// An accepted fixture keeps the same publication used by provider execution.
 struct AcceptedFixture {
-    publication: Arc<compilation_products::ProductTerminalPublication>,
+    publication: Arc<products::ProductTerminalPublication>,
 }
 
 impl std::ops::Deref for AcceptedFixture {
@@ -56,7 +56,7 @@ impl std::ops::Deref for AcceptedFixture {
 /// it.
 fn accepted(supplied: &str, program: &str) -> (AcceptedFixture, Vec<TargetProviderDefaults>) {
     let (source, defaults, roster) = judged(supplied, program);
-    let publication = compilation_products::ProductTerminalPublication::judge(
+    let publication = products::ProductTerminalPublication::judge(
         source,
         roster,
         optimization_core::OptimizationSelections::default(),
@@ -77,7 +77,7 @@ fn judged(
 ) -> (
     Arc<typed_trees::FrozenTypedTrees>,
     Vec<TargetProviderDefaults>,
-    compilation_products::ProductRoster,
+    products::ProductRoster,
 ) {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
@@ -139,7 +139,7 @@ fn judged(
         .expect("the program declares main")
         .symbol;
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    let roster = compilation_products::ProductRoster {
+    let roster = products::ProductRoster {
         entries: vec![entry],
         subject: Some(package()),
         ..Default::default()
@@ -151,8 +151,8 @@ fn judged(
 #[derive(Debug)]
 struct Supplied {
     supply: PreparedTargetSupply,
-    roster: compilation_products::ProductRoster,
-    publication: Arc<compilation_products::ProductTerminalPublication>,
+    roster: products::ProductRoster,
+    publication: Arc<products::ProductTerminalPublication>,
     rejudged: bool,
 }
 
@@ -190,11 +190,11 @@ fn supplied_on(
 fn supplied_product(
     source: Arc<typed_trees::FrozenTypedTrees>,
     defaults: Vec<TargetProviderDefaults>,
-    roster: compilation_products::ProductRoster,
+    roster: products::ProductRoster,
     target: &str,
 ) -> Result<Supplied, String> {
     let original = Arc::new(
-        compilation_products::ProductTerminalPublication::judge(
+        products::ProductTerminalPublication::judge(
             source,
             roster,
             optimization_core::OptimizationSelections::default(),
@@ -231,7 +231,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
         "{SLOT}Native satisfies Service {{ machine go() reaches none crashes Trap {{ }} }}{NATIVE_DEFAULT}"
     );
     let (source, defaults, mut roster) = judged(&declarations, REACHES);
-    let original = compilation_products::ProductTerminalPublication::judge(
+    let original = products::ProductTerminalPublication::judge(
         Arc::clone(&source),
         roster.clone(),
         optimization_core::OptimizationSelections::default(),
@@ -254,11 +254,11 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
                 .is_some_and(|name| name.as_str() == "Native")
         })
         .unwrap();
-    roster.supplies.push(psi_compiler::TerminalSourceSupply {
+    roster.supplies.push(source_compiler::TerminalSourceSupply {
         slot: requirement.symbol,
         provider: native.symbol,
     });
-    let error = compilation_products::ProductTerminalPublication::judge(
+    let error = products::ProductTerminalPublication::judge(
         source,
         roster,
         optimization_core::OptimizationSelections::default(),
@@ -411,7 +411,7 @@ fn a_target_demands_what_its_own_chosen_providers_reach() {
 #[test]
 fn a_chosen_provider_the_module_does_not_hold_is_refused() {
     let (source, defaults, roster) = judged(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
-    let publication = compilation_products::ProductTerminalPublication::judge(
+    let publication = products::ProductTerminalPublication::judge(
         source,
         roster,
         optimization_core::OptimizationSelections::default(),
@@ -484,13 +484,13 @@ fn profile() -> target::TargetProfile {
 /// The provider plans of `settled`, formed over the module and slot schemas
 /// of `accepted` as a product of the target forms them.
 fn plans(
-    publication: &compilation_products::ProductTerminalPublication,
+    publication: &products::ProductTerminalPublication,
     settled: &SettledTargetSupply,
-) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, String> {
+) -> Result<Vec<effects::provider_plan::ProviderPlan>, String> {
     if settled.requirements().is_empty() {
         return settled
             .realize_no_demand()
-            .map(|realized| realized.provider_declarations())
+            .map(|realized| realized.provider_declarations().to_vec())
             .map_err(first);
     }
     let accepted = publication.accepted().map_err(first)?;
@@ -507,7 +507,7 @@ fn plans(
 /// The selected execution a product of `profile` forms from `settled`.
 fn execution(
     profile: Option<target::TargetProfile>,
-    publication: &compilation_products::ProductTerminalPublication,
+    publication: &products::ProductTerminalPublication,
     settled: &SettledTargetSupply,
 ) -> Result<selected_dispatch::SelectedExecution, String> {
     if settled.requirements().is_empty() {
@@ -535,7 +535,7 @@ fn execution(
 /// publication/calling/native/permission producer. No Build or imported package
 /// was executed by this fixture, so source sealing records that exact absence.
 fn execution_inputs(
-    publication: &compilation_products::ProductTerminalPublication,
+    publication: &products::ProductTerminalPublication,
     settled: &SettledTargetSupply,
 ) -> Result<provider_planning::target_supply::TargetSupplyExecutionInputs, String> {
     let accepted = publication.accepted().map_err(first)?;
@@ -565,7 +565,7 @@ fn execution_inputs(
         &sources,
         profile,
         &reached,
-        &mut psi_compiler::UnmeasuredProduction,
+        &mut source_compiler::UnmeasuredProduction,
     )
     .map_err(first)
 }
@@ -573,7 +573,10 @@ fn execution_inputs(
 /// The Terminal artifact a product of the accepted source is checked on.
 fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
     let program = accepted
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
         .expect("the accepted source publishes")
         .into_shared_portable()
         .expect("the publication is portable");
@@ -759,14 +762,14 @@ const WHOLE_SLOT: &str = "public boundary trait Service {\n    machine go() reac
 /// The settled supply of `WHOLE_SLOT`'s provider for a program that reaches
 /// `go`, and the product whose module judged the provider.
 fn whole_slot() -> (
-    Arc<compilation_products::ProductTerminalPublication>,
+    Arc<products::ProductTerminalPublication>,
     SettledTargetSupply,
 ) {
     let (source, defaults, mut roster) = judged(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES);
     let choices = compiler::prepare_provider_choices(&source, &[profile()], &[], &[], &defaults)
         .expect("normalize the exact target's source provider policy");
-    roster.normalization = Arc::new(compilation_products::SourceNormalizationInputs {
-        calling: compilation_products::SourceCallingInputs {
+    roster.normalization = Arc::new(products::SourceNormalizationInputs {
+        calling: products::SourceCallingInputs {
             applications: choices.calling_applications,
             entries: Vec::new(),
         },
@@ -834,6 +837,15 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
         "Native"
     );
     assert_eq!(plan.target, TARGET);
+    for candidate in &module.provider_candidates {
+        assert_eq!(
+            plan.provider_declaration.as_deref(),
+            module
+                .identities
+                .text(candidate.provider_declaration.identity()),
+        );
+    }
+    assert_eq!(plan.row_numeric_realizations, vec![None; plan.rows.len()]);
     let mut methods = plan
         .rows
         .iter()
@@ -853,6 +865,7 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
         .selection
         .as_ref()
         .expect("the plan's rows join the artifact's candidates");
+    assert_eq!(selection.plans, execution.plans().plans());
     let mut installed = selection
         .checked_candidates
         .iter()
@@ -901,7 +914,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     );
 
     let mut crossed = plans(&publication, &settled).expect("the plan covers its slot");
-    let rows = &mut crossed[0].plan.rows;
+    let rows = &mut crossed[0].rows;
     let machines = rows
         .iter()
         .map(|row| match row.binding {

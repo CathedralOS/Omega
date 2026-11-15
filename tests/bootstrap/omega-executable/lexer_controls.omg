@@ -1,4 +1,4 @@
-// Combined with exact declarations from source/psi/lex/lexer.omg.
+// Combined with exact declarations from source/psi/pipeline/00_source_files_to_tokens.omg.
 machine identifier_boundaries() -> u8 {
     let start_0: bool = is_identifier_start(0 as +Trapping);
     let continue_0: bool = is_identifier_continue(0 as +Trapping);

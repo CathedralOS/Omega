@@ -744,28 +744,6 @@ fn same_type_values(
                     return Ok(false);
                 }
             }
-            (
-                TypeReference::DynamicTrait {
-                    symbol: left,
-                    arguments: left_arguments,
-                    ..
-                },
-                TypeReference::DynamicTrait {
-                    symbol: right,
-                    arguments: right_arguments,
-                    ..
-                },
-            ) => {
-                if !left.is_valid() || !right.is_valid() {
-                    return Err(error(
-                        source,
-                        "an inferred dynamic type argument has no exact selected trait",
-                    ));
-                }
-                if left != right || !span(&mut pending, program, left_arguments, right_arguments) {
-                    return Ok(false);
-                }
-            }
             (TypeReference::Slice(left), TypeReference::Slice(right)) => pending.push((
                 program
                     .tables

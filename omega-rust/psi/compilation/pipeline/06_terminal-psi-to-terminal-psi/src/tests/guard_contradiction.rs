@@ -138,6 +138,7 @@ fn calls_with(argument: u128) -> (typed_trees_to_terminal_psi::Elaboration, Disc
         expression(
             ExpressionKind::Strict {
                 operation: Strict::Equal,
+                policy: None,
                 left: Box::new(slot(0, u32_type())),
                 right: Box::new(unsigned(0)),
             },

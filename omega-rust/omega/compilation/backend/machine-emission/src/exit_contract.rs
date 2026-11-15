@@ -1,7 +1,7 @@
 /*
-We stage and replay the whole-function exit contract that proves every exit, call, trap, and preserved-register effect of each function matches its target ABI and frame disposition.
+We construct whole-function exit contracts from the current machine layout, checking ABI preservation, stack disposition and exit effects while recording their evidence. The producer joins exact input identities and computes the contract once; it does not replay layout stages or the record it just produced.
 
-When function realization calls `stage_whole_function_exit_contract_for_layout`, we first replay the resolved layout and layout optimization against the selected instruction plan, post-allocation machine plan, and selected-form encoding. We then compute the `WholeFunctionExitContract` over the selected layout (`compute_inner`)—checking callee-saved and link-register writes against the frame's granted permissions, verifying that non-return instructions leave the stack pointer balanced and match their catalog memory/control footprints, and recording every return, hosted process exit, and authored crash—and admit the contract only after independent record replay (`validate_exit_record`).
+Retained-artifact validation calls `validate_exit_record_for_replayed_layout` after separately validating the layout and optimization. That path checks the stored contract independently, including callee-saved and link-register effects, returns, process exits and authored crashes. Production and replay retain distinct entrypoints.
 */
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -22,7 +22,7 @@ pub use machine_code::{
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
-use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
+use post_allocation_machine::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::{
@@ -30,12 +30,7 @@ use register_model::{
     ValidatedPhysicalRegisterModel,
 };
 use resolved_layout_to_resolved_layout::{
-    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
-    validate_resolved_layout_optimization,
-};
-use selected_form_encoding_to_resolved_layout::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-    validate_optimized_resolved_selected_form_layout,
+    OptimizedX86BranchRelaxationError, ResolvedLayoutOptimization,
 };
 use selected_instructions::{
     MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -53,11 +48,11 @@ use crate::frame_layout::{
 use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedWholeFunctionExitContract {
+pub struct StagedWholeFunctionExitContract {
     contract: Arc<WholeFunctionExitContract>,
 }
 
-impl ValidatedWholeFunctionExitContract {
+impl StagedWholeFunctionExitContract {
     pub fn contract(&self) -> &WholeFunctionExitContract {
         &self.contract
     }
@@ -68,9 +63,7 @@ impl ValidatedWholeFunctionExitContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
-    Layout(OptimizedResolvedSelectedFormLayoutError),
     Relaxation(OptimizedX86BranchRelaxationError),
-    LayoutOptimization(ResolvedLayoutOptimizationError),
     OptimizationCustodyMismatch,
     RootMismatch,
     UnsupportedTargetPolicy,
@@ -117,7 +110,7 @@ enum EntryAssumptionKind {
 
 struct ValidationInputs<'a> {
     selected: &'a selected_instructions::SelectedInstructionPlan,
-    machine: &'a physical_instructions::PostAllocationMachinePlan,
+    machine: &'a post_allocation_machine::PostAllocationMachinePlan,
     physical: &'a ValidatedPhysicalRegisterModel,
     encoding: &'a StagedOptimizedSelectedFormEncoding,
     layout: &'a ResolvedMachineLayout,
@@ -143,14 +136,12 @@ pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelected
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
     frame: Option<(
         &ValidatedTargetFrameLayout,
         &ValidatedTargetFrameProtocolEncoding,
     )>,
-) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
-    validate_layout(selected, machine, physical, encoding, baseline, layout)?;
+) -> Result<StagedWholeFunctionExitContract, WholeFunctionExitContractError> {
     let custody = layout_custody(layout);
     let contract = compute_inner(
         selected,
@@ -161,17 +152,7 @@ pub(crate) fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelected
         custody,
         frame,
     )?;
-    validate_exit_record(
-        selected,
-        machine,
-        physical,
-        encoding,
-        layout.layout(),
-        custody,
-        frame,
-        &contract,
-    )?;
-    Ok(ValidatedWholeFunctionExitContract {
+    Ok(StagedWholeFunctionExitContract {
         contract: Arc::new(contract),
     })
 }
@@ -187,7 +168,7 @@ pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnaly
         &ValidatedTargetFrameLayout,
         &ValidatedTargetFrameProtocolEncoding,
     )>,
-    contract: &ValidatedWholeFunctionExitContract,
+    contract: &StagedWholeFunctionExitContract,
 ) -> Result<(), WholeFunctionExitContractError> {
     validate_exit_record(
         selected,
@@ -199,27 +180,6 @@ pub(crate) fn validate_exit_record_for_replayed_layout<S: ValidatedSelectedAnaly
         frame,
         contract.contract(),
     )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &ResolvedLayoutOptimization,
-) -> Result<(), WholeFunctionExitContractError> {
-    validate_optimized_resolved_selected_form_layout(
-        selected.current_program(),
-        machine.machine().plan(),
-        physical,
-        encoding.program(),
-        baseline,
-    )
-    .map_err(WholeFunctionExitContractError::Layout)?;
-    validate_resolved_layout_optimization(physical, baseline.program(), layout.selections(), layout)
-        .map_err(WholeFunctionExitContractError::LayoutOptimization)
 }
 
 fn layout_custody(layout: &ResolvedLayoutOptimization) -> WholeFunctionExitLayoutCustody {
@@ -1357,7 +1317,7 @@ fn frame_permissions(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_preservation_writes(
-    machine: &physical_instructions::PostAllocationMachineInstruction,
+    machine: &post_allocation_machine::PostAllocationMachineInstruction,
     encoding: &SelectedFormEncodingRow,
     callee_saved: &BTreeSet<RegisterUnitId>,
     link_units: &BTreeSet<RegisterUnitId>,
@@ -1634,7 +1594,6 @@ fn validate_process_exit(
                         || !matches!(
                             row.call.source,
                             target_operations::NativeCallOrigin::InstalledProvider { .. }
-                                | target_operations::NativeCallOrigin::TargetFamily { .. }
                         )
                         || row.call.validate_source(&[]).is_err()
                         || call.provenance.edges != [completion_edge]
@@ -2307,7 +2266,7 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot }
+                == post_allocation_machine::PhysicalAddressOperation::SaveFloatingControl { slot }
                 && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         }
         (
@@ -2321,7 +2280,9 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::RestoreFloatingControl { slot }
+                == post_allocation_machine::PhysicalAddressOperation::RestoreFloatingControl {
+                    slot,
+                }
                 && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
         }
         (
@@ -2402,7 +2363,7 @@ fn validate_non_return(
             byte_count == u16::from(width.byte_size())
                 && address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::LoadPacked {
+                    == post_allocation_machine::PhysicalAddressOperation::LoadPacked {
                         base_operand: 0,
                         byte_offset,
                         width,
@@ -2415,7 +2376,7 @@ fn validate_non_return(
         ) => {
             address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::StorePacked {
+                    == post_allocation_machine::PhysicalAddressOperation::StorePacked {
                         base_operand: 0,
                         byte_offset,
                         width,
@@ -2430,7 +2391,7 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Structural { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::HostedReadByte { slot }
+                == post_allocation_machine::PhysicalAddressOperation::HostedReadByte { slot }
                 && effects.trap == MachineEncodedTrapBehavior::HostedReadFailureV1
         }
         (
@@ -2442,7 +2403,7 @@ fn validate_non_return(
                 slot,
                 selected_instructions::LocalStorageSlotId::Boundary { .. }
             ) && address.symbolic
-                == physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot }
+                == post_allocation_machine::PhysicalAddressOperation::HostedWriteByteI32 { slot }
                 && effects.trap == MachineEncodedTrapBehavior::HostedWriteFailureV1
         }
         (
@@ -2456,7 +2417,7 @@ fn validate_non_return(
             matches!(byte_size, 1 | 2 | 4 | 8)
                 && address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::Store {
+                    == post_allocation_machine::PhysicalAddressOperation::Store {
                         base_operand: 0,
                         byte_offset,
                         byte_size,
@@ -2469,7 +2430,7 @@ fn validate_non_return(
         ) => {
             address.displacement == i64::from(byte_offset)
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::AddressOffset {
+                    == post_allocation_machine::PhysicalAddressOperation::AddressOffset {
                         base_operand: 0,
                         byte_offset,
                     }
@@ -2484,7 +2445,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load8Indexed {
+                == post_allocation_machine::PhysicalAddressOperation::Load8Indexed {
                     base_operand: 0,
                     index_operand: 1,
                 }
@@ -2499,7 +2460,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load64 {
+                == post_allocation_machine::PhysicalAddressOperation::Load64 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2513,7 +2474,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load8 {
+                == post_allocation_machine::PhysicalAddressOperation::Load8 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2527,7 +2488,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load16 {
+                == post_allocation_machine::PhysicalAddressOperation::Load16 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2555,7 +2516,7 @@ fn validate_non_return(
                 && effects.external_operand_reads == if form.write { vec![0, 1] } else { vec![0] }
                 && effects.external_operand_writes == if form.write { vec![] } else { vec![1] }
                 && address.symbolic
-                    == physical_instructions::PhysicalAddressOperation::AccessorScalarAccess {
+                    == post_allocation_machine::PhysicalAddressOperation::AccessorScalarAccess {
                         base_operand: 0,
                         byte_offset,
                         form,
@@ -2571,7 +2532,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Load32 {
+                == post_allocation_machine::PhysicalAddressOperation::Load32 {
                     base_operand: 0,
                     byte_offset,
                 }
@@ -2582,7 +2543,7 @@ fn validate_non_return(
             Some(address),
         ) => {
             address.symbolic
-                == physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset }
+                == post_allocation_machine::PhysicalAddressOperation::Store64 { slot, byte_offset }
         }
         (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
             kind,
@@ -2871,7 +2832,7 @@ fn validated_aarch64_addressed_form_fixture(
     instruction: SelectedInstructionId,
     alternative: selected_instructions::MachineAlternativeKey,
     kind: SelectedInstructionKind,
-    symbolic: physical_instructions::PhysicalAddressOperation,
+    symbolic: post_allocation_machine::PhysicalAddressOperation,
 ) -> (
     machine_code::SelectedFormEncodedRowStore,
     SelectedFormEncodingRow,
@@ -2947,7 +2908,7 @@ mod tests {
         X86BranchRelaxationIdentity,
     };
     use optimization_core::Optimization;
-    use physical_instructions::PhysicalAddressOperation;
+    use post_allocation_machine::PhysicalAddressOperation;
     use selected_instructions::{
         AtomicForm, AtomicWidth, FloatResultPolicyForm, IeeeFloatArithmeticForm,
         IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier,
@@ -2966,7 +2927,7 @@ mod tests {
             post_allocation_manifest:
                 optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes([2; 32]),
             post_allocation_machine:
-                physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
+                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([3; 32]),
             register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes(
                 [4; 32],
             ),

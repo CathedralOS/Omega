@@ -6,7 +6,7 @@
 
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
-use psi_compiler::PortableTerminalProgram;
+use source_compiler::PortableTerminalProgram;
 use std::sync::{Arc, OnceLock};
 
 /// The source choices bound after preparation to its actual returned owner.
@@ -15,7 +15,7 @@ use std::sync::{Arc, OnceLock};
 #[derive(Debug, Clone, Default)]
 pub struct SourceNormalizationInputs {
     pub calling: SourceCallingInputs,
-    pub providers: Vec<psi_compiler::TerminalProviderSelectionInput>,
+    pub providers: Vec<source_compiler::TerminalProviderSelectionInput>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -35,7 +35,7 @@ pub struct SourceProgramEntryInput {
 pub struct SourceCallingContext<'source> {
     source: &'source typed_trees::TypedTrees,
     applications: &'source [typed_trees::trait_definition::TraitApplicationEnvironment],
-    entries: Vec<psi_compiler::TerminalProgramEntryContractSelection<'source>>,
+    entries: Vec<source_compiler::TerminalProgramEntryContractSelection<'source>>,
 }
 
 impl SourceCallingInputs {
@@ -50,7 +50,7 @@ impl SourceCallingInputs {
                 .entries
                 .iter()
                 .map(
-                    |entry| psi_compiler::TerminalProgramEntryContractSelection {
+                    |entry| source_compiler::TerminalProgramEntryContractSelection {
                         target: &entry.target,
                         application: &entry.application,
                         physical_source_digest: entry.physical_source_digest,
@@ -63,9 +63,9 @@ impl SourceCallingInputs {
 }
 
 impl SourceCallingContext<'_> {
-    pub fn selection(&self) -> Option<psi_compiler::TerminalCallingPolicySelections<'_>> {
+    pub fn selection(&self) -> Option<source_compiler::TerminalCallingPolicySelections<'_>> {
         (!self.entries.is_empty() || !self.applications.is_empty()).then_some(
-            psi_compiler::TerminalCallingPolicySelections {
+            source_compiler::TerminalCallingPolicySelections {
                 source: self.source,
                 applications: self.applications,
                 entries: &self.entries,
@@ -78,8 +78,8 @@ impl SourceNormalizationInputs {
     pub fn providers<'source>(
         &'source self,
         source: &'source typed_trees::TypedTrees,
-    ) -> Option<psi_compiler::TerminalProviderSelections<'source>> {
-        (!self.providers.is_empty()).then_some(psi_compiler::TerminalProviderSelections {
+    ) -> Option<source_compiler::TerminalProviderSelections<'source>> {
+        (!self.providers.is_empty()).then_some(source_compiler::TerminalProviderSelections {
             source,
             choices: &self.providers,
         })
@@ -94,11 +94,11 @@ impl SourceNormalizationInputs {
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    accepted: Option<(Arc<psi_compiler::AcceptedTerminalSource>, ProductRoster)>,
+    accepted: Option<(Arc<source_compiler::AcceptedTerminalSource>, ProductRoster)>,
 }
 
 /// What a Product compilation asks the lowered-form checker to judge: the
-/// roots the evaluated Build states (`psi_compiler::TerminalSourceCompilation`
+/// roots the evaluated Build states (`source_compiler::TerminalSourceCompilation`
 /// holds the same fields by reference). It is kept beside the judgment it
 /// produced because provider settlement extends it: the supply chosen for a
 /// requirement the accepted module reaches is a further root of the same
@@ -119,7 +119,7 @@ pub struct ProductRoster {
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
     /// The providers chosen to supply boundary slots: the Build's own
     /// selections first, then what settlement chose for reached requirements.
-    pub supplies: Vec<psi_compiler::TerminalSourceSupply>,
+    pub supplies: Vec<source_compiler::TerminalSourceSupply>,
     pub normalization: Arc<SourceNormalizationInputs>,
 }
 
@@ -127,13 +127,13 @@ impl ProductRoster {
     /// Borrow the full roster for source preparation and judgment alike.
     pub fn preparation_compilation(
         &self,
-    ) -> Result<psi_compiler::TerminalSourceCompilation<'_>, Vec<Diagnostic>> {
+    ) -> Result<source_compiler::TerminalSourceCompilation<'_>, Vec<Diagnostic>> {
         if !self.normalization.is_empty() {
             return Err(vec![Diagnostic::error(
                 "source choices must bind to the actual prepared owner before judgment",
             )]);
         }
-        Ok(psi_compiler::TerminalSourceCompilation {
+        Ok(source_compiler::TerminalSourceCompilation {
             declaration_metadata: &self.declaration_metadata,
             entries: &self.entries,
             subjects: std::slice::from_ref(&self.subject),
@@ -156,11 +156,11 @@ impl ProductRoster {
     pub fn judge(
         &self,
         typed: Arc<typed_trees::FrozenTypedTrees>,
-    ) -> Result<Arc<psi_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
+    ) -> Result<Arc<source_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
         let calling = self.normalization.calling.borrow(&typed);
-        let accepted = psi_compiler::AcceptedTerminalSource::judge(
+        let accepted = source_compiler::AcceptedTerminalSource::judge(
             Arc::clone(&typed),
-            psi_compiler::TerminalSourceCompilation {
+            source_compiler::TerminalSourceCompilation {
                 declaration_metadata: &self.declaration_metadata,
                 entries: &self.entries,
                 subjects: std::slice::from_ref(&self.subject),
@@ -262,7 +262,7 @@ impl ProductTerminalPublication {
         Ok(())
     }
 
-    pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
+    pub fn accepted(&self) -> Result<&source_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
         // The factory seals the module the unoptimized check judged. A
         // nonempty selection needs the second lowered-form check, which has
         // no route yet.

@@ -3,7 +3,7 @@
 // workspace and rejecting paths that escape the workspace root.
 
 use build_declarations::WorkspaceMemberPath;
-use package_source::SourceRelativePath;
+use source_acquisition::SourceRelativePath;
 
 pub(crate) fn normalize_member_path(
     requester_member: Option<&str>,

@@ -1,3 +1,5 @@
+module build_support;
+
 public machine generated_value() -> i32 { 7 }
 
 public machine generate_companion(template: &[u8; 6]) -> [u8; 6] {

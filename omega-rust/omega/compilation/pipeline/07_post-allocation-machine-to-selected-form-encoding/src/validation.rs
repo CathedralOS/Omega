@@ -48,7 +48,7 @@ use machine_code::{
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
     TargetFrameLayoutPlan,
 };
-use physical_instructions::{PostAllocationMachineInstruction, PostAllocationMachinePlan};
+use post_allocation_machine::{PostAllocationMachineInstruction, PostAllocationMachinePlan};
 use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     CurrentSelectedProgram, MachineEncodedEffects, MachineSizeKnowledge, SelectedFunction,
@@ -366,10 +366,10 @@ pub(crate) fn validate_row(
 
 fn admits_address_operation(
     kind: SelectedInstructionKind,
-    operation: physical_instructions::PhysicalAddressOperation,
+    operation: post_allocation_machine::PhysicalAddressOperation,
 ) -> bool {
     use SelectedInstructionKind as Kind;
-    use physical_instructions::PhysicalAddressOperation as Operation;
+    use post_allocation_machine::PhysicalAddressOperation as Operation;
     if let (
         Kind::AccessorScalarAccess {
             form,
@@ -999,7 +999,7 @@ mod tests {
         SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
         SelectedFormEncodingIdentity,
     };
-    use physical_instructions::PostAllocationMachineIdentity;
+    use post_allocation_machine::PostAllocationMachineIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;
 
     use super::{Error, validate_aggregate};

@@ -23,11 +23,11 @@ mod snapshot;
 use crate::Hex;
 use crate::resolution::source::{PackageSourceCustody, PackageSourceSelectionEvidenceError};
 use crate::review::timings;
-use package_source::SourceResolveError;
 use snapshot::{
     capture_snapshot, file_content_requires_standalone_audit, render_entry, render_resolution,
     revalidate_snapshot, side_token,
 };
+use source_acquisition::SourceResolveError;
 use std::collections::BTreeSet;
 use std::fmt;
 

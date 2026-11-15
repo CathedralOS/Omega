@@ -6,11 +6,11 @@
 use crate::checked::CheckedCompilation;
 use crate::checked::PreparedProductTarget;
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::{
+use diagnostics::Diagnostic;
+use products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
     CompileFailure,
 };
-use diagnostics::Diagnostic;
 use provider_planning::target_supply::{SettledTargetSupply, SlotSchema};
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// out, and the plan of its provider is refused by the slot's requirement
 /// (`SettledTargetSupply::plans`).
 pub fn settled_slot_schemas(
-    accepted: &psi_compiler::AcceptedTerminalSource,
+    accepted: &source_compiler::AcceptedTerminalSource,
     settled: &SettledTargetSupply,
 ) -> Vec<SlotSchema> {
     let mut schemas = Vec::<SlotSchema>::new();
@@ -38,18 +38,18 @@ pub fn settled_slot_schemas(
 }
 
 pub(crate) struct SelectedProviderCustody {
-    pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
+    pub(crate) terminal_publication: Arc<products::ProductTerminalPublication>,
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
-    pub(crate) source_inspection: Arc<compilation_products::SelectedProviderSource>,
-    pub(crate) build: Arc<compilation_products::ComputedBuildConfig>,
+    pub(crate) source_inspection: Arc<products::SelectedProviderSource>,
+    pub(crate) build: Arc<products::ComputedBuildConfig>,
     pub(crate) build_admission: BuildAdmission,
     pub(crate) sources: Arc<package_compilation::CheckedSourceCustody>,
     pub(crate) timings: CompileTimings,
 }
 
 pub(crate) struct SelectedProductTarget {
-    pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
+    pub(crate) runtime_policy: Arc<review_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
 }
 
@@ -62,12 +62,12 @@ impl SelectedProductTarget {
         let execution = settle_execution(source, profile, entry)?;
         Ok(Self {
             runtime_policy: Arc::new(
-                package_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
+                review_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
             ),
             custody: SelectedProviderCustody {
                 terminal_publication: Arc::clone(&source.terminal_publication),
                 source_completion_accounting: source.source_completion_accounting.clone(),
-                source_inspection: Arc::new(compilation_products::SelectedProviderSource::new(
+                source_inspection: Arc::new(products::SelectedProviderSource::new(
                     Arc::clone(&source.provider_inventory),
                     Arc::clone(execution.shared_plans()),
                 )),
@@ -153,10 +153,10 @@ impl SelectedProductTarget {
 fn selected_boundary_implementations(
     module: &terminal_psi::TerminalModule,
     realization: &provider_planning::target_supply::RealizedTargetSupply,
-) -> Result<Vec<psi_compiler::CallableBoundaryImplementation>, Vec<Diagnostic>> {
+) -> Result<Vec<source_compiler::CallableBoundaryImplementation>, Vec<Diagnostic>> {
     let mut bindings = Vec::new();
     for declaration in realization.provider_declarations() {
-        if !declaration.plan.rows.iter().any(|row| {
+        if !declaration.rows.iter().any(|row| {
             matches!(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
@@ -164,14 +164,8 @@ fn selected_boundary_implementations(
         }) {
             continue;
         }
-        let owner = declaration.provider_declaration.as_deref().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "chosen provider has no exact nominal declaration",
-            )]
-        })?;
-        let selected =
-            backend_plan::selected_provider_candidate_rows(&declaration.plan, owner, module)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let selected = backend_plan::selected_provider_candidate_rows(declaration, module)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for row in selected {
             for position in row.candidate_positions {
                 let candidate = module.provider_candidates.get(position).ok_or_else(|| {
@@ -179,7 +173,7 @@ fn selected_boundary_implementations(
                         "chosen provider lost its authenticated candidate coordinate",
                     )]
                 })?;
-                bindings.push(psi_compiler::CallableBoundaryImplementation {
+                bindings.push(source_compiler::CallableBoundaryImplementation {
                     boundary: candidate.boundary,
                     machine: candidate.candidate,
                 });
@@ -280,14 +274,14 @@ fn settle_execution(
 
 pub(crate) struct SelectedCompileOutcome {
     pub(crate) result: Result<SelectedProductTarget, CompileFailure>,
-    pub(crate) independent_components: compilation_products::IndependentComponentDiscovery,
+    pub(crate) independent_components: products::IndependentComponentDiscovery,
     // Separately selected test roots over the same checked source, in roster
     // order (wiki/spec/build/testing.md). Empty when no enabled group exists.
     pub(crate) tests: Vec<(
-        compilation_products::TestRootIdentity,
+        products::TestRootIdentity,
         Result<SelectedProductTarget, CompileFailure>,
     )>,
-    pub(crate) test_notes: Vec<compilation_products::TestRosterEntry>,
+    pub(crate) test_notes: Vec<products::TestRosterEntry>,
 }
 
 impl SelectedCompileOutcome {

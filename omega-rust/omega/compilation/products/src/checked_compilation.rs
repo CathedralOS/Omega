@@ -24,6 +24,7 @@ use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
 use typed_trees::FrozenTypedTrees;
 
+#[path = "checked_compilation_report.rs"]
 mod report;
 
 pub use report::{
@@ -39,7 +40,7 @@ pub struct CheckedCompilationInputs {
 }
 
 /// ```compile_fail
-/// fn replace_program(checked: &mut compilation_products::CheckedCompilation) {
+/// fn replace_program(checked: &mut products::CheckedCompilation) {
 ///     let _ = &mut checked.execution;
 /// }
 /// ```

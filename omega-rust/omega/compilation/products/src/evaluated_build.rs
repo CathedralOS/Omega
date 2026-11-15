@@ -36,7 +36,7 @@ pub struct BuildConstants {
     /// The constants the accepted Build module names
     /// (`AcceptedTerminalSource::constants_read`), each with its declaration
     /// and the value the judged source recorded for it.
-    pub read: Vec<psi_compiler::ConstantRead>,
+    pub read: Vec<source_compiler::ConstantRead>,
 }
 
 pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;
@@ -162,8 +162,11 @@ impl BuildConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ComputedBuildConfig {
+    /// The Build judgment whose produced invocation returned this configuration.
+    /// Settings and observation digests cannot reconstruct its checked contracts.
+    pub accepted_build: Option<std::sync::Arc<source_compiler::AcceptedTerminalSource>>,
     pub config: BuildConfig,
     pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
     pub declared_product_selections:
@@ -181,6 +184,84 @@ pub struct ComputedBuildConfig {
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
+}
+
+// Retaining a judgment changes custody, not the meaning of Build's output.
+// Fresh equivalent executions already compare by their values and observations;
+// an Arc address must not become another output/cache identity.
+impl PartialEq for ComputedBuildConfig {
+    fn eq(&self, other: &Self) -> bool {
+        let Self {
+            accepted_build: _,
+            config,
+            root_binding_requests,
+            declared_product_selections,
+            product_selection_requests,
+            native_formations,
+            native_binding_requests,
+            behavior_exclusion_requests,
+            project_declaration,
+            optimization_report_request,
+            evaluation_usage,
+            observation_summary,
+            selected_build_machine_symbol,
+            generated_sources,
+        } = self;
+        config == &other.config
+            && root_binding_requests == &other.root_binding_requests
+            && declared_product_selections == &other.declared_product_selections
+            && product_selection_requests == &other.product_selection_requests
+            && native_formations == &other.native_formations
+            && native_binding_requests == &other.native_binding_requests
+            && behavior_exclusion_requests == &other.behavior_exclusion_requests
+            && project_declaration == &other.project_declaration
+            && optimization_report_request == &other.optimization_report_request
+            && evaluation_usage == &other.evaluation_usage
+            && observation_summary == &other.observation_summary
+            && selected_build_machine_symbol == &other.selected_build_machine_symbol
+            && generated_sources == &other.generated_sources
+    }
+}
+
+impl Eq for ComputedBuildConfig {}
+
+impl std::fmt::Debug for ComputedBuildConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // A diagnostic describes the configuration, not every table and body
+        // in the retained source judgment.
+        formatter
+            .debug_struct("ComputedBuildConfig")
+            .field("accepted_build", &self.accepted_build.is_some())
+            .field("config", &self.config)
+            .field("root_binding_requests", &self.root_binding_requests)
+            .field(
+                "declared_product_selections",
+                &self.declared_product_selections,
+            )
+            .field(
+                "product_selection_requests",
+                &self.product_selection_requests,
+            )
+            .field("native_formations", &self.native_formations)
+            .field("native_binding_requests", &self.native_binding_requests)
+            .field(
+                "behavior_exclusion_requests",
+                &self.behavior_exclusion_requests,
+            )
+            .field("project_declaration", &self.project_declaration)
+            .field(
+                "optimization_report_request",
+                &self.optimization_report_request,
+            )
+            .field("evaluation_usage", &self.evaluation_usage)
+            .field("observation_summary", &self.observation_summary)
+            .field(
+                "selected_build_machine_symbol",
+                &self.selected_build_machine_symbol,
+            )
+            .field("generated_sources", &self.generated_sources)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -242,6 +323,9 @@ pub struct IndependentComponentDiscovery {
 
 impl ComputedBuildConfig {
     pub fn with_execution_observation(&self, execution: &Self) -> Result<Self, String> {
+        if self.accepted_build.is_some() && execution.accepted_build.is_none() {
+            return Err("source cohort execution lost its accepted Build judgment".into());
+        }
         if self.native_formations != execution.native_formations
             || self.native_binding_requests != execution.native_binding_requests
             || self
@@ -258,6 +342,7 @@ impl ComputedBuildConfig {
             return Err("source cohort execution changed native Build intent or its code".into());
         }
         let mut application = self.clone();
+        application.accepted_build = execution.accepted_build.clone();
         application.config.native_binding_evaluation =
             execution.config.native_binding_evaluation.clone();
         if let Some(previous) = &self.config.native_binding_evaluation {

@@ -11,14 +11,13 @@ boundary trait MacosArm64PhysicalEntry {
     machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32 reaches none crashes Trap crashes Abort;
 }
 
-data MacosArm64 {}
 MacosArm64CallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        MacosArm64::plan(signature)
+        macos_arm64_entry_plan(signature)
     }
 }
 
-machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count {
@@ -53,11 +52,11 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
-        transition HostedEntryShapes::integer_shape(&argc, 4)
-            && HostedEntryShapes::integer_shape(&argv, 8)
-            && HostedEntryShapes::integer_shape(&envp, 8)
-            && HostedEntryShapes::integer_shape(&apple, 8)
-            && HostedEntryShapes::integer_shape(&result, 4)
+        transition hosted_entry_integer_shape(&argc, 4)
+            && hosted_entry_integer_shape(&argv, 8)
+            && hosted_entry_integer_shape(&envp, 8)
+            && hosted_entry_integer_shape(&apple, 8)
+            && hosted_entry_integer_shape(&result, 4)
         {
             true -> build_physical()
             _ -> reject()
@@ -68,12 +67,12 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // X-register identity plus a four-byte fragment denotes W0.
-        output.call.parameters[0] = MacosArm64::word(4, 0);
-        output.call.parameters[1] = MacosArm64::word(8, 1);
-        output.call.parameters[2] = MacosArm64::word(8, 2);
-        output.call.parameters[3] = MacosArm64::word(8, 3);
+        output.call.parameters[0] = macos_arm64_entry_word(4, 0);
+        output.call.parameters[1] = macos_arm64_entry_word(8, 1);
+        output.call.parameters[2] = macos_arm64_entry_word(8, 2);
+        output.call.parameters[3] = macos_arm64_entry_word(8, 3);
         output.call.has_result = true;
-        output.call.result = MacosArm64::word(4, 0);
+        output.call.result = macos_arm64_entry_word(4, 0);
         transition { _ -> finish(output) }
     }
 
@@ -96,7 +95,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 
     machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
-        transition HostedEntryShapes::extent_shape(image, &signature) && HostedEntryShapes::extent_shape(storage, &signature) {
+        transition hosted_entry_extent_shape(image, &signature) && hosted_entry_extent_shape(storage, &signature) {
             true -> build_semantic()
             _ -> reject()
         }
@@ -105,8 +104,8 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine build_semantic() -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.parameter_count = 2;
-        output.call.parameters[0] = HostedEntryShapes::arm_extent_value(0, 1);
-        output.call.parameters[1] = HostedEntryShapes::arm_extent_value(2, 3);
+        output.call.parameters[0] = hosted_entry_arm_extent_value(0, 1);
+        output.call.parameters[1] = hosted_entry_arm_extent_value(2, 3);
         transition { _ -> finish(output) }
     }
 
@@ -182,7 +181,7 @@ machine MacosArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-machine MacosArm64::word(bytes: u64, register: u64) -> ValuePlacement {
+machine macos_arm64_entry_word(bytes: u64, register: u64) -> ValuePlacement {
     let mut value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;

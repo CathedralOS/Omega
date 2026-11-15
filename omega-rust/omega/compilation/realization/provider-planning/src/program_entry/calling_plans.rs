@@ -24,7 +24,7 @@ pub struct ProgramEntryCallingPlanRequest<'source> {
     pub semantic_requirement: &'source str,
     pub physical_requirement: &'source str,
     pub physical_source_digest: [u8; 32],
-    pub providers: &'source [backend_plan::TerminalTargetProviderPlan],
+    pub providers: &'source [effects::provider_plan::ProviderPlan],
     pub requester: DeclarationCustody,
     pub authority: Option<&'source dyn DeclarationSelectionAuthority>,
 }

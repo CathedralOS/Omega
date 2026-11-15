@@ -44,7 +44,7 @@ impl CallingProgram {
         policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        providers: &[effects::provider_plan::ProviderPlan],
         requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
         authority: Option<
             &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
@@ -61,7 +61,7 @@ impl CallingProgram {
         )?;
         let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+            work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let limits = BuildEvaluationSponsorLimits::new(
@@ -80,7 +80,7 @@ impl CallingProgram {
         let account = sponsor
             .begin_invocation(measurement, limits.work_budget())
             .map_err(|error| error.to_string())?;
-        let selected = terminal_installation::admit_target_machine_selections(
+        let selected = terminal_installation::terminal_target_context(
             self.artifact.view(),
             target.target_name(),
         );
@@ -142,7 +142,7 @@ impl CallingProgram {
         declaration: &semantic_vocabulary::CallingAbiIdentity,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        providers: &[effects::provider_plan::ProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
         let demand = terminal_installation::CallingAbiStorageDemand::new(
             self.artifact.view(),
@@ -190,7 +190,7 @@ impl CallingProgram {
         demand: &terminal_installation::CallingAbiStorageDemand,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        providers: &[effects::provider_plan::ProviderPlan],
         describe: impl FnOnce(
             &dyn Fn(
                 semantic_vocabulary::ScalarApplicationId,
@@ -227,13 +227,13 @@ impl CallingProgram {
                             declaration,
                             applications: demand.applications(),
                         },
-                        psi_work::WorkMeter::with_invocation(account.clone(), None)
+                        terminal_work::WorkMeter::with_invocation(account.clone(), None)
                             .map_err(|error| format!("calling ABI scalar work: {error:?}"))?,
                     )
                 }
                 CallingStorageScope::Description => (
                     super::scalar_completion::CallingScalarScope::AbiStorage(demand),
-                    psi_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
+                    terminal_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
                 ),
             };
             let completed = super::scalar_completion::complete_calling_scalar_inputs(

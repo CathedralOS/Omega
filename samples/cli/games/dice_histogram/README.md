@@ -8,7 +8,7 @@ mbx run -p omega -- run --both samples/cli/games/dice_histogram/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Complete the ordinary
-[package review](../../../../omega-rust/omega/application/cli/README.md#command-surface)
+[package review](../../../../omega-rust/omega/application/README.md#command-surface)
 when requested. Leave `--target` off `run` to execute on the matching host.
 Enter or EOF closes the native program.
 

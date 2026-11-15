@@ -93,8 +93,8 @@ impl CompileFailure {
     }
 }
 
-impl From<psi_compiler::SourcePreparationFailure> for CompileFailure {
-    fn from(failure: psi_compiler::SourcePreparationFailure) -> Self {
+impl From<source_compiler::SourcePreparationFailure> for CompileFailure {
+    fn from(failure: source_compiler::SourcePreparationFailure) -> Self {
         Self::source_completion(failure.diagnostics, failure.accounting)
     }
 }

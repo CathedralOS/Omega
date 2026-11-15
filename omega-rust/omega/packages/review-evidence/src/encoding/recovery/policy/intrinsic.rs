@@ -90,6 +90,7 @@ pub(in crate::encoding::recovery) fn execution(
 }
 
 #[cfg(test)]
+#[path = "intrinsic_tests.rs"]
 mod tests;
 
 pub(in crate::encoding::recovery) fn integer_comparison(

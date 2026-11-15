@@ -534,6 +534,16 @@ mod integer_types {
             }
         }
 
+        /// The carrier of a width binder: a width is a `u64`
+        /// (`wiki/spec/language/generics.md`, "Integer carrier constraints").
+        pub const fn width_binder() -> Self {
+            Self {
+                carrier: IntegerCarrier::Fixed,
+                sign: IntegerSign::Unsigned,
+                width: IntegerWidth::Bits(64),
+            }
+        }
+
         /*
             The checker's statement of a source carrier. Its values are host
             128-bit integers, so a wider carrier has no statement here yet
@@ -1231,6 +1241,64 @@ mod integer_types {
 
         pub fn literal(value: IntegerValue) -> Self {
             Self::IntegerLiteral(IntegerMathLiteral::from_integer_value(value))
+        }
+
+        /// The least value of `integer`, as a term. A closed width's is its
+        /// literal. A parameter width's is `0` unsigned and `-2^(N-1)`
+        /// signed, over the width binder's own `u64` value
+        /// (`wiki/spec/language/numeric_values.md`, "Width-indexed
+        /// integers": "The unsigned range is `0 <= value < 2^N`; the signed
+        /// range is `-2^(N-1) <= value < 2^(N-1)`").
+        pub fn carrier_minimum(integer: IntegerType) -> Self {
+            if let Some(minimum) = integer.minimum_value() {
+                return Self::literal(minimum);
+            }
+            match integer.sign() {
+                IntegerSign::Unsigned => Self::literal(IntegerValue::Unsigned(0)),
+                IntegerSign::Signed => Self::Subtract(
+                    Box::new(Self::literal(IntegerValue::Signed(0))),
+                    Box::new(Self::width_power(integer, true)),
+                ),
+            }
+        }
+
+        /// The greatest value of `integer`, as a term: a closed width's
+        /// literal, `2^N - 1` unsigned and `2^(N-1) - 1` signed at a
+        /// parameter width.
+        pub fn carrier_maximum(integer: IntegerType) -> Self {
+            if let Some(maximum) = integer.maximum_value() {
+                return Self::literal(maximum);
+            }
+            Self::Subtract(
+                Box::new(Self::width_power(
+                    integer,
+                    integer.sign() == IntegerSign::Signed,
+                )),
+                Box::new(Self::literal(IntegerValue::Unsigned(1))),
+            )
+        }
+
+        /// `2^N`, or `2^(N-1)` when `reduced`, for a parameter width `N`.
+        fn width_power(integer: IntegerType, reduced: bool) -> Self {
+            let IntegerWidth::Parameter(parameter) = integer.width() else {
+                unreachable!("a closed width has literal endpoints");
+            };
+            let width = Self::MathValue {
+                source_type: IntegerType::width_binder(),
+                value: parameter.value,
+            };
+            let count = if reduced {
+                Self::Subtract(
+                    Box::new(width),
+                    Box::new(Self::literal(IntegerValue::Unsigned(1))),
+                )
+            } else {
+                width
+            };
+            Self::ShiftLeft {
+                value: Box::new(Self::literal(IntegerValue::Unsigned(1))),
+                count: Box::new(count),
+            }
         }
 
         pub fn embed(term: ScalarTerm) -> Option<Self> {

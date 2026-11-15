@@ -48,8 +48,8 @@ accepted on it.
 */
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition, PsiSemanticId,
-    ScalarType, StructuralTypeId, ValueId,
+    BlockId, CrashCause, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition,
+    PsiSemanticId, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -503,8 +503,18 @@ pub(crate) fn follow_the_lowered_form(
     lowered: &TerminalMachine,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
     values_are_declared(id, lowered, tables)?;
+    let returned =
+        terminal_semantics::normal_completion::ReturnSources::new(lowered).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?;
     let mut minted = Minted {
         machine: id,
         module,
@@ -534,7 +544,15 @@ pub(crate) fn follow_the_lowered_form(
     // its account.
     let mut edges = vec![false; tables.edges.len()];
     for block in &lowered.blocks {
+        let empty_return = returned
+            .is_uninhabited_return(&block.terminator, inhabitation)
+            .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?;
         for (edge, destination) in successors(&block.terminator) {
+            let destination = if empty_return {
+                Destination::NoNormal
+            } else {
+                destination
+            };
             let concerns = Construct::Edge(edge);
             let row = tables
                 .edges
@@ -633,6 +651,7 @@ pub(crate) fn follow_the_lowered_form(
             // A byte read owes its index bound, as an indexed projection
             // does (byte_views.md, `ByteSequenceRead`).
             if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. }
+            | terminal_psi::OperationKind::ByteSequenceWrite { obligation, .. }
             | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. } =
                 &operation.kind
             {
@@ -644,6 +663,18 @@ pub(crate) fn follow_the_lowered_form(
                         ),
                     },
                     before,
+                )?;
+            }
+            // A trapping primitive owes its own Trap coverage independently
+            // of the same operation's call-contract processing.
+            if matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
+                minted.owed(
+                    ObligationKind::CrashCoverage {
+                        site: CrashSite::Operation(operation.id),
+                        cause: CrashCause::Trap,
+                    },
+                    before,
+                    Construct::Operation(operation.id),
                 )?;
             }
             let site = InvocationSite::Operation(operation.id);
@@ -735,9 +766,20 @@ pub(crate) fn follow_the_lowered_form(
         if let Terminator::Return { edge, .. }
         | Terminator::ReturnUnit { edge, .. }
         | Terminator::ReturnStructural { edge, .. } = &block.terminator
+            && !returned
+                .is_uninhabited_return(&block.terminator, inhabitation)
+                .map_err(|detail| minted.foreign(Construct::Block(block.id), detail))?
         {
             minted.returns(lowered, block.id, *edge)?;
         }
+    }
+
+    // A ranked cycle owes its shared well-foundedness question and one
+    // comparison on each of its edges (control_flow.md: "a shared
+    // well-foundedness question and comparison obligations for every
+    // internal edge").
+    for (kind, point, concerns) in crate::ranking::owed(lowered) {
+        minted.owed(kind, point, concerns)?;
     }
 
     for (obligation, row) in tables.obligations.iter() {
@@ -764,7 +806,9 @@ pub(crate) fn follow_the_lowered_form(
             | ObligationKind::PublishedGuarantee { .. }
             | ObligationKind::ArrivalInvariant { .. }
             | ObligationKind::CrashCoverage { .. }
-            | ObligationKind::IntegerWidthPositive { .. } => {
+            | ObligationKind::IntegerWidthPositive { .. }
+            | ObligationKind::WellFoundedness { .. }
+            | ObligationKind::RankComparison { .. } => {
                 if !minted.obligations[index(obligation.get())] {
                     return Err(minted.foreign(
                         concerns,
@@ -778,9 +822,7 @@ pub(crate) fn follow_the_lowered_form(
             | ObligationKind::Loan { .. }
             | ObligationKind::RestorationWindow { .. }
             | ObligationKind::DomainDebt { .. }
-            | ObligationKind::EstablishmentDebt { .. }
-            | ObligationKind::WellFoundedness { .. }
-            | ObligationKind::RankComparison { .. } => {}
+            | ObligationKind::EstablishmentDebt { .. } => {}
         }
     }
     // An invocation row is where a callee's `ensures` becomes knowledge

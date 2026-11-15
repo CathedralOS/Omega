@@ -82,7 +82,7 @@ pub(crate) mod argument_roots {
         }
         if address_joins.contains(&place) || block_views.contains(&place) {
             let (block, declaration) = function
-                .block_entries
+                .blocks
                 .iter()
                 .find_map(|entry| {
                     entry
@@ -1857,7 +1857,7 @@ pub(crate) mod roster_arguments {
             && result.projected_qualifications.is_empty()
             && result.qualification_establishments.is_empty()
             && result.claims.is_empty()
-            && function.operations.iter().any(|operation| {
+            && function.operations().any(|operation| {
                 matches!(operation,
                 abstract_operations::AbstractOperation::EstablishByteSequenceConcatenation {
                     psi_operation, result, ..
@@ -2352,7 +2352,7 @@ mod structural_scalar {
                     )
                 } else {
                     let block = function
-                        .block_entries
+                        .blocks
                         .iter()
                         .find(|block| block.structural_parameters.contains(destination))
                         .ok_or(unsupported(
@@ -2438,7 +2438,7 @@ mod structural_scalar {
         scalar_shape(value.value, value.scalar_type, false, structural_types)?;
         let exact_source = match source {
             TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
-                function.block_entries.iter().any(|entry| {
+                function.blocks.iter().any(|entry| {
                     entry.block == parameter.block
                         && entry.parameters.iter().any(|declared| {
                             declared.value == parameter.value
@@ -2588,7 +2588,7 @@ pub(crate) mod write_only_primitive_store {
                 {
                     return Err(invalid());
                 }
-                if let Some(entry) = function.block_entries.iter().find(|entry| {
+                if let Some(entry) = function.blocks.iter().find(|entry| {
                     entry.structural_parameters.contains(parameter)
                         && matches!(
                             parameter.access,

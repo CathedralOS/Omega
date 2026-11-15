@@ -24,15 +24,16 @@ and report settlement inside a `PendingNativeProduct`:
 Non-native `CompilationOutput` variants (`Report`, `Inspection`, etc.) are
 already complete and pass through `complete_product` and `complete_products`
 unchanged. When multiple native targets are present, `complete_products` drains
-them across bounded compiler-stack workers via `queue::execute`.
+them on the invocation's execution budget via `queue::execute`.
 
 */
 
+#[path = "native_completion_queue.rs"]
 mod queue;
 
-use compilation_products::PendingNativeProduct;
 use compiler::{CompilationOutput, CompilationProductError};
 use diagnostics::Diagnostic;
+use products::PendingNativeProduct;
 
 pub fn complete_product(
     product: CompilationOutput,
@@ -66,7 +67,7 @@ pub(crate) fn complete_products<Owner: Send>(
 
 enum NativeStop {
     Image(native_compiler::RealizedNativeProduct),
-    RuntimeAdmission(Option<compilation_products::TerminalRuntimeProvisions>),
+    RuntimeAdmission(Option<products::TerminalRuntimeProvisions>),
 }
 
 pub(crate) fn complete_native(
@@ -133,10 +134,10 @@ pub(crate) fn complete_native(
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         }
         let produced = match image {
-            compilation_products::NativeImageDemand::Emit => native_compiler::compile(prepared)
+            products::NativeImageDemand::Emit => native_compiler::compile(prepared)
                 .map(NativeStop::Image)
                 .map_err(|(_, diagnostics)| diagnostics),
-            compilation_products::NativeImageDemand::RuntimeAdmissionOnly => {
+            products::NativeImageDemand::RuntimeAdmissionOnly => {
                 native_compiler::admit_runtime(prepared)
                     .map(NativeStop::RuntimeAdmission)
                     .map_err(|(_, diagnostics)| diagnostics)

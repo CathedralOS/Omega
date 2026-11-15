@@ -197,14 +197,15 @@ pub(crate) mod build_selections {
         // Test-group registration is authorized by the Build's own `tests`
         // facet, the operand it was authored on; every other selection by the
         // original Build value.
-        let preparation = find(match &request {
-            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet() => {
-                "prepare_tests"
-            }
-            _ => "prepare",
+        let tests_facet = matches!(&request,
+            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet());
+        let preparation = find(if tests_facet {
+            "prepare_tests"
+        } else {
+            "prepare"
         })?;
         let commit = find(operation)?;
-        let value_helpers = match &request {
+        let mut value_helpers = match &request {
             BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
             _ if operation == "bind_native" => vec![(1, "build_selection_target")],
             _ if operation == "select_provider" => {
@@ -216,6 +217,9 @@ pub(crate) mod build_selections {
             }
             _ => Vec::new(),
         };
+        if !tests_facet {
+            value_helpers.insert(0, (0, "build_selection_receiver"));
+        }
         let table = &mut target.expression_table;
         let mut members = Default::default();
         let mut member_symbols = Default::default();
@@ -931,15 +935,6 @@ pub(crate) mod capture_product_operands {
                     constraints: self.graph.constraints.insert_many(constraints),
                 }
             }
-            Source::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-                ..
-            } => ProductOperandType::Dynamic {
-                name: self.type_name(name, *symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference)?,
-                arguments: self.types(*arguments)?,
-            },
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }
@@ -1329,6 +1324,7 @@ pub(crate) mod construction_destinations {
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
+    use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
     use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -1350,6 +1346,9 @@ pub(crate) mod construction_destinations {
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
         let mut unlanded = Vec::new();
+        // Values this pass cannot land, each with the request its holder
+        // carries instead (`defer_to_holders`).
+        let mut deferred = Vec::<(ExpressionHandle, DeferredRequest)>::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1364,13 +1363,18 @@ pub(crate) mod construction_destinations {
                         .mathematical_definitions()
                         .iter()
                         .any(|definition| definition.symbol == call.target_symbol)
-                        && arguments
-                            .iter()
-                            .any(|argument| needs_destination(program, *argument))
                     {
-                        return Err(crate::unavailable_judgment(
-                            "mathematical call receiving types",
-                        ));
+                        // A mathematical parameter has a mathematical type,
+                        // not a receiving type a value is built at, and no
+                        // pass lands one there yet.
+                        if let Some(argument) = arguments
+                            .iter()
+                            .find(|argument| needs_destination(program, **argument))
+                        {
+                            deferred
+                                .push((*argument, DeferredRequest::MathematicalCallDestination));
+                        }
+                        continue;
                     }
                     collect_call_destinations(
                         program,
@@ -1515,14 +1519,26 @@ pub(crate) mod construction_destinations {
                 substitutions.push((binder.symbol, actual));
             }
             let parameters = if let Some(contract) = call.runtime_contract {
-                program.state_signature_parameters(
-                    &program
-                        .declared_callable_contract(contract)
-                        .map_err(Diagnostic::error)?
-                        .signature,
+                Some(
+                    program.state_signature_parameters(
+                        &program
+                            .declared_callable_contract(contract)
+                            .map_err(Diagnostic::error)?
+                            .signature,
+                    ),
                 )
             } else {
                 crate::typing_queries::call_target_parameters(program, call.target)?
+            };
+            let Some(parameters) = parameters else {
+                if let Some(argument) = call
+                    .arguments
+                    .iter()
+                    .find(|argument| needs_destination(program, **argument))
+                {
+                    deferred.push((*argument, DeferredRequest::CallParameterSelection));
+                }
+                continue;
             };
             let required: Vec<_> = parameters
                 .iter()
@@ -1623,7 +1639,12 @@ pub(crate) mod construction_destinations {
                 )?;
             }
         }
-        defer_unselected_constructors(program, unselected)?;
+        deferred.extend(
+            unselected
+                .into_iter()
+                .map(|constructor| (constructor, DeferredRequest::ConstructorFieldSelection)),
+        );
+        defer_to_holders(program, deferred)?;
         Ok(cast_destinations)
     }
 
@@ -1641,42 +1662,41 @@ pub(crate) mod construction_destinations {
         selected_construction_field_type(program, constructor, literal, field).ok()
     }
 
-    /// Records each constructor whose field types typing did not select on
-    /// the declaration that holds it. The constructor keeps the fields it was
-    /// written with; its declaration is refused where it is demanded. One
-    /// that no declaration owns has no reader to raise it and refuses here.
-    fn defer_unselected_constructors(
+    /// Records each value this pass could not land on the declaration that
+    /// holds it, under the request that names why. This pass sees the
+    /// program with every bundled library, so a value in a declaration the
+    /// program never reaches must not stop the program; the value keeps the
+    /// form it was written with, and its declaration is refused where it is
+    /// demanded. One that no declaration owns has no reader to raise it and
+    /// refuses here.
+    fn defer_to_holders(
         program: &mut TypedTrees,
-        unselected: Vec<ExpressionHandle>,
+        deferred: Vec<(ExpressionHandle, DeferredRequest)>,
     ) -> Result<(), Diagnostic> {
-        use typed_trees::deferred_refusals::DeferredRequest;
-        if unselected.is_empty() {
+        if deferred.is_empty() {
             return Ok(());
         }
         let owners = typed_trees::references::collect_program_operand_owners(program);
         let mut rows = Vec::new();
-        for constructor in unselected {
-            let source_span = program.expression_table.source_span(constructor);
+        for (value, request) in deferred {
+            let source_span = program.expression_table.source_span(value);
             let before = rows.len();
             rows.extend(
                 owners
-                    .expression_owners(constructor)
+                    .expression_owners(value)
                     .filter(|owner| owner.is_valid())
-                    .map(|owner| (owner, source_span)),
+                    .map(|owner| (owner, request, source_span)),
             );
             if rows.len() == before {
-                return Err(crate::unavailable_judgment(
-                    "selected constructor field type outside every declaration",
-                )
+                return Err(Diagnostic::error(format!(
+                    "no product route yet: a value outside every declaration, {}",
+                    request.construct()
+                ))
                 .with_source_span(source_span));
             }
         }
-        for (owner, source_span) in rows {
-            program.record_deferred_refusal(
-                owner,
-                DeferredRequest::ConstructorFieldSelection,
-                source_span,
-            );
+        for (owner, request, source_span) in rows {
+            program.record_deferred_refusal(owner, request, source_span);
         }
         Ok(())
     }
@@ -2673,6 +2693,162 @@ pub(crate) mod construction_destinations {
         }
 
         #[test]
+        fn a_call_typing_cannot_build_an_argument_for_refuses_its_own_machine() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::expression::TableCallExpression;
+            use typed_trees::machine::{Machine, MachineBodyStatus};
+            use typed_trees::mathematical::MathematicalDefinition;
+            use typed_trees::state::State;
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Machine, SymbolNameRef::Static("caller")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("callee")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
+                    (
+                        SymbolKind::MathematicalDefinition,
+                        SymbolNameRef::Static("measure"),
+                    ),
+                ],
+            );
+            let [caller, callee, bystander, measure] =
+                [0, 1, 2, 3].map(|position| declarations.handle_at(position));
+            let [run, entry, idle] =
+                [(caller, "run"), (callee, "entry"), (bystander, "idle")].map(|(machine, name)| {
+                    symbols
+                        .insert_children(
+                            machine,
+                            [(SymbolKind::State, SymbolNameRef::Static(name))],
+                        )
+                        .handle_at(0)
+                });
+            let mut base = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            base.push_mathematical_definition(MathematicalDefinition {
+                symbol: measure,
+                ..Default::default()
+            });
+            let idle_states = base.machine_states.insert_many([State {
+                symbol: idle,
+                ..Default::default()
+            }]);
+            base.push_machine(Machine {
+                symbol: bystander,
+                states: idle_states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+
+            // `caller` evaluates `target(argument)`; `callee` has its entry
+            // state only when `callee_has_state`.
+            let build = |target: SymbolHandle, argument: ExpressionNode, callee_has_state| {
+                let mut program = base.clone();
+                let argument = program.expression_table.insert(argument);
+                let arguments = program
+                    .expression_table
+                    .insert_expression_handles([argument]);
+                let call =
+                    program
+                        .expression_table
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call: None,
+                            authored_call_selection: None,
+                            authored_call_binding: None,
+                            build_selection: Default::default(),
+                            authored_machine_application: Default::default(),
+                            exact_coercion_target: Default::default(),
+                            requirement_application: Default::default(),
+                            receiver: Default::default(),
+                            target_symbol: target,
+                            static_machine_parameter: Default::default(),
+                            target: Default::default(),
+                            static_requirement_dispatch: None,
+                            machine_arguments: Box::default(),
+                            quotient_operation: None,
+                            private_layout_operation: None,
+                            installed_interrupt_operation: None,
+                            layout_query: None,
+                            native_code_layout: None,
+                            arguments,
+                            evidence_arguments: Box::default(),
+                            operational_acknowledgement: Default::default(),
+                        }));
+                let statement_nodes = program
+                    .statement_table
+                    .insert_statements([StatementNode::Expression(call)]);
+                let states = program.machine_states.insert_many([State {
+                    symbol: run,
+                    statement_nodes,
+                    ..Default::default()
+                }]);
+                program.push_machine(Machine {
+                    symbol: caller,
+                    states,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    ..Default::default()
+                });
+                let callee_states = if callee_has_state {
+                    program.machine_states.insert_many([State {
+                        symbol: entry,
+                        ..Default::default()
+                    }])
+                } else {
+                    Default::default()
+                };
+                program.push_machine(Machine {
+                    symbol: callee,
+                    states: callee_states,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    ..Default::default()
+                });
+                prepare(&mut program, 0, 0, &[])
+                    .expect("an unlanded argument refuses its declaration, not the program");
+                program
+            };
+            let array = || ExpressionNode::ArrayLiteral(Default::default());
+
+            // The callee's entry state selects its parameters: nothing is
+            // deferred. The twin's callee has no state to select them from,
+            // so the machine holding the call carries the refusal and no
+            // other declaration does.
+            assert!(build(callee, array(), true).deferred_refusals.is_empty());
+            let unselected = build(callee, array(), false);
+            assert_eq!(
+                unselected
+                    .deferred_refusal(caller)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::CallParameterSelection)
+            );
+            assert_eq!(unselected.deferred_refusals.len(), 1);
+            assert!(unselected.deferred_refusal(bystander).is_none());
+
+            // A mathematical call with a scalar argument needs no receiving
+            // type; the twin passes an array literal, which no pass builds
+            // at a mathematical parameter.
+            assert!(
+                build(measure, ExpressionNode::Boolean(true), true)
+                    .deferred_refusals
+                    .is_empty()
+            );
+            let mathematical = build(measure, array(), true);
+            assert_eq!(
+                mathematical
+                    .deferred_refusal(caller)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::MathematicalCallDestination)
+            );
+            assert_eq!(mathematical.deferred_refusals.len(), 1);
+        }
+
+        #[test]
         fn deferred_destinations_do_not_complete_or_hide_expression_identity() {
             use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
             use typed_trees::{data::DataDefinition, expression::TableStructLiteral};
@@ -2977,15 +3153,27 @@ pub(crate) mod product_queries {
 
     pub(crate) fn operation(
         source: &SymbolResolvedTrees,
-        namespace: SymbolHandle,
         target: SymbolHandle,
-        name: &str,
+        qualifier: Option<SymbolHandle>,
     ) -> Option<ProductQueryOperation> {
-        if !source.symbols.is_build_prelude_symbol(namespace)
-            || (target.is_valid() && !source.symbols.is_build_prelude_symbol(target))
+        // Static normalization removes a module qualifier, not the selected
+        // declaration or authored occurrence. Use that declaration's real
+        // owner so a query is rewritten at its caller, never executed in the
+        // toolchain wrapper's package. A value receiver grants no such route.
+        let declaration = match source.symbols.get(target).kind {
+            symbols::SymbolKind::State => source.symbols.get(target).parent,
+            symbols::SymbolKind::Machine => target,
+            _ => return None,
+        };
+        let namespace = source.symbols.symbol_module(declaration);
+        if qualifier.is_some_and(|qualifier| qualifier != namespace || !qualifier.is_valid())
+            || !source.symbols.is_build_prelude_symbol(namespace)
+            || source.symbols.get(namespace).kind != symbols::SymbolKind::Module
+            || !source.symbols.is_build_prelude_symbol(declaration)
         {
             return None;
         }
+        let name = source.symbols.name(declaration);
         let name = match (source.symbols.name(namespace), name) {
             ("BuildProduct", "entry" | "schema" | "provider") => name,
             ("ProductTypeSchema", "path") => "schema_path",
@@ -3089,7 +3277,7 @@ pub(crate) mod product_selections {
         a designated Build registration (wiki/spec/build/testing.md). It shares
         the one designated-operand carrier with `Build::<operation><…>(builder)`:
         the `tests` facet becomes the one explicit argument and the Build
-        prelude data the namespace, so typing, checking, execution and admission
+        prelude module the namespace, so typing, checking, execution and admission
         never see a second receiver-shaped route. A resolved user method keeps
         ordinary resolution; only the unresolved toolchain spelling with no
         ordinary arguments takes this route. Its preparation (`prepare_tests`)
@@ -3129,12 +3317,13 @@ pub(crate) mod product_selections {
             return None;
         }
         source
-            .data_definitions
-            .iter()
-            .find(|data| {
-                data.name.as_str() == "Build" && source.symbols.is_build_prelude_symbol(data.symbol)
-            })
-            .map(|data| data.symbol)
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source_matching(
+                "Build",
+                &[symbols::SymbolKind::Module],
+                expressions.source_span(receiver),
+                |namespace| source.symbols.is_build_prelude_symbol(namespace),
+            )
     }
 
     pub(crate) fn request(
@@ -3150,6 +3339,28 @@ pub(crate) mod product_selections {
         evidence_count: usize,
         span: source::SourceSpan,
     ) -> Result<Option<Request>, Diagnostic> {
+        // The Build prelude's operations live in its module `Build`, and
+        // static normalization folds a module qualifier into the written
+        // name. A designated operation has no declaration for that name to
+        // resolve to, so its call arrives as `Build::bind` with no namespace
+        // symbol at all. Read the qualifier back as the prelude module it
+        // names, the same lookup the testing facet uses; any other qualifier
+        // names no Build operation and stays an ordinary unresolved call.
+        let (namespace, name) = match name.rsplit_once("::") {
+            Some((qualifier, operation)) if !namespace.is_valid() && !target.is_valid() => (
+                source
+                    .symbols
+                    .find_top_level_by_name_and_kinds_from_source_matching(
+                        qualifier,
+                        &[symbols::SymbolKind::Module],
+                        span,
+                        |namespace| source.symbols.is_build_prelude_symbol(namespace),
+                    )
+                    .unwrap_or_else(symbols::SymbolHandle::invalid),
+                operation,
+            ),
+            _ => (namespace, name),
+        };
         if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
             use language_semantics::declaration_selection::{
                 EnumExclusionRequest, ExclusionVocabulary,
@@ -3183,10 +3394,8 @@ pub(crate) mod product_selections {
         if target.is_valid()
             || !namespace.is_valid()
             || !source.symbols.is_build_prelude_symbol(namespace)
-            || !source
-                .data_definitions
-                .iter()
-                .any(|data| data.symbol == namespace && data.name.as_str() == "Build")
+            || source.symbols.get(namespace).kind != symbols::SymbolKind::Module
+            || source.symbols.name(namespace) != "Build"
         {
             return Ok(None);
         }

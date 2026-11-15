@@ -1,13 +1,13 @@
-use psi_work::{
-    WorkBudgetExhausted, WorkChargeSite, WorkMeter, WorkMeterError, WorkSchedule,
-    WorkScheduleIdentity,
-};
 use semantic_vocabulary::{
     BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, PlaceId, ScalarType, ServiceId, ValueId,
 };
 use terminal_psi::{
     CrashCause, Operation, OperationKind, TerminalAffineCleanupAction, Terminator, ValueDeclaration,
+};
+use terminal_work::{
+    WorkBudgetExhausted, WorkChargeSite, WorkMeter, WorkMeterError, WorkSchedule,
+    WorkScheduleIdentity,
 };
 
 #[test]

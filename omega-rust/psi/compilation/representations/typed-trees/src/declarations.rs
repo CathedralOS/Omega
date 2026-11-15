@@ -1141,16 +1141,13 @@ pub mod domain {
     ) -> Result<String, Diagnostic> {
         use crate::types::{FixedArrayLength, TypeReferenceNode};
         match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { name, .. }
-                if program
-                    .type_reference_table
-                    .primitive_type(type_reference)
-                    .is_some() =>
-            {
-                Ok(name.as_str().to_owned())
-            }
-            TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::FixedArray {
+            TypeReferenceNode::Named { .. } => Ok(program
+                .primitive_type_reference(type_reference)
+                .map_or_else(
+                    || program.normalized_type_identity_text(type_reference),
+                    |primitive| primitive.name(),
+                )),
+            TypeReferenceNode::FixedArray {
                 length: FixedArrayLength::Literal(_),
                 ..
             } => Ok(program.normalized_type_identity_text(type_reference)),

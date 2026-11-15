@@ -2402,34 +2402,6 @@ pub(crate) mod scalar_case_field {
         pub range_obligation: Option<ObligationId>,
     }
 }
-pub(crate) mod target_families {
-
-    pub use semantic_vocabulary::TargetMachineCallable;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum TargetMachineSupply {
-        CheckedBody,
-        Requirement,
-        TopLevelRequirement,
-        Boundary,
-        AdmissionClaim,
-        ExternalRealization,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct TargetMachineFamilyMember {
-        pub target: String,
-        pub callable: TargetMachineCallable,
-        pub supply: TargetMachineSupply,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct TargetMachineFamily {
-        pub canonical: TargetMachineCallable,
-        pub head_contract: [u8; 32],
-        pub members: Vec<TargetMachineFamilyMember>,
-    }
-}
 pub(crate) mod termination {
     use crate::{
         CrashPredicateTerm, StructuralArgument, StructuralResultClaimBinding,
@@ -2913,8 +2885,6 @@ pub use ranking::{
 pub use record_field::{RecordFieldInitializer, RecordFieldValue};
 pub use register_access::RegisterAccessEvent;
 pub use scalar_case_field::ScalarCaseField;
-pub use target_families::{
-    TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
-};
+pub use semantic_vocabulary::TargetMachineCallable;
 pub use termination::{CrashCause, StructuralCaseSuccessorEdge, SuccessorEdge, Terminator};
 pub use trapping_integer::{TrappingIntegerOperation, TrappingIntegerPrimitive};

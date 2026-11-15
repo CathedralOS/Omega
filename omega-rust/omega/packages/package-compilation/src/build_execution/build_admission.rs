@@ -52,7 +52,7 @@ pub fn select_build_machine(
 }
 
 pub fn admit_build_machine(
-    prepared: &psi_compiler::AcceptedTerminalSource,
+    prepared: &source_compiler::AcceptedTerminalSource,
     machine_symbol: SymbolHandle,
     filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {

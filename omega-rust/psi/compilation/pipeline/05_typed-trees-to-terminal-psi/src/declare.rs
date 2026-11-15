@@ -17,15 +17,12 @@ copied into the module's identity table in the text form that table holds,
 exactly as a record type's is (`RecordType::identity`). Nothing here or in
 the checker compares those texts, and none is formed from a name.
 
-The contract commitment is this route's own. The deleted checker committed to
-the contract as it published it, which this crate may not
-read. Here the commitment is a digest of the contract the lowered form
+The contract commitment is a digest of the contract the lowered form
 publishes for the machine: its callable identity, each formal's type and
 binding mode, its result type, the `requires` and `ensures` propositions and
 crash routes of its `MachineContract`, and what its header says about
-termination. Two machines with one commitment publish one contract. A
-commitment from this route and one from the deleted checker are never equal,
-so a consumer that compares the two refuses instead of pairing them.
+termination. Consumers compare this commitment only under its domain and
+encoding; a digest from another contract representation is not interchangeable.
 
 A machine this cannot state is left without a declaration and listed in
 `Elaboration::undeclared` with the reason. That changes no verdict: the
@@ -34,6 +31,7 @@ that lists one, because it would publish a source-produced body with no
 declaration identity.
 */
 
+#[path = "declare_selected.rs"]
 mod selected;
 
 use std::hash::{Hash, Hasher};
@@ -53,8 +51,7 @@ const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v2\0";
 /// Domain of the commitment a generated machine makes to its application.
 const APPLICATION_DOMAIN: &[u8] = b"omega.lowered-machine-static-application.v1\0";
 
-/// Feeds what `Hash` writes into the commitment digest, as the current
-/// checker's `ContractHasher` does for its own commitment.
+/// Feeds the contract's structured fields into its domain-separated digest.
 struct Commitment(DomainDigestEncoder);
 
 impl Hasher for Commitment {
@@ -112,6 +109,13 @@ pub(crate) fn declare(
             .collect::<Result<Vec<_>, _>>()
     };
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
+    // Anonymous invocation source has exact local declaration identities, not
+    // portable toolchain ownership. Keep those declarations available to the
+    // lowered authority judgment without exporting a fabricated source hash.
+    let sources = match sources {
+        Err(_) if identities.is_invocation_scoped() => Ok(Vec::new()),
+        sources => sources,
+    };
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -560,7 +564,7 @@ fn application(
             "a generated machine's application binds other than one argument per parameter",
         );
     }
-    for (binding, argument) in bindings.iter().zip(arguments) {
+    for binding in bindings {
         match &binding.value {
             StaticMachineBindingValue::Type(type_reference) => typed
                 .type_identity_text(typed.package_qualified_type_identity(*type_reference))
@@ -592,19 +596,45 @@ fn application(
             }
             // generics.md, "Closed applications and canonical identity":
             // a value argument is part of the application's identity. It is
-            // stated by the parameter's type and the literal's canonical
-            // spelling, with its kind, so `7` given to a `u8` and to a `u64`
-            // parameter, or a value and a type, never commit alike.
-            StaticMachineBindingValue::Const(type_reference) => {
-                let literal = argument
-                    .const_literal
-                    .as_ref()
-                    .ok_or("an application's value argument is not a literal")?;
+            // stated by the exact binder's type and the prepared value's
+            // canonical spelling, so `7` given to a `u8` and to a `u64`
+            // parameter, or a value and a type, never commit alike. A
+            // Boolean is stated the same way, by `true` or `false`: its
+            // parameter's type is `bool`, which no integer literal lands in.
+            StaticMachineBindingValue::Const(value_reference) => {
+                let parameter = typed
+                    .data_type_parameter_by_symbol(binding.parameter)
+                    .ok_or("an application's value binder has no declaration")?;
+                let carrier_reference = match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        type_reference
+                    }
+                    _ => {
+                        return Err(
+                            "an application's value binding belongs to another binder kind",
+                        );
+                    }
+                };
                 let carrier = typed
-                    .type_identity_text(typed.package_qualified_type_identity(*type_reference))
+                    .type_identity_text(typed.package_qualified_type_identity(carrier_reference))
                     .filter(|text| !text.is_empty())
                     .ok_or("an application's value parameter type has no identity")?;
-                ("value", carrier, literal.canonical_spelling().as_str()).hash(&mut commitment);
+                let primitive = typed
+                    .primitive_type_reference(carrier_reference)
+                    .ok_or("an application's value binder needs its admitted scalar carrier")?;
+                let value = typed.static_operand_from_type_reference(*value_reference)?;
+                match typed.prepare_callable_scalar_argument(primitive, &value)? {
+                    typed_trees::expression::ExpressionNode::Integer(literal) => {
+                        ("value", carrier, literal.canonical_spelling().as_str())
+                            .hash(&mut commitment);
+                    }
+                    typed_trees::expression::ExpressionNode::Boolean(value) => {
+                        ("value", carrier, if value { "true" } else { "false" })
+                            .hash(&mut commitment);
+                    }
+                    _ => return Err("an application's value binding has no admitted scalar value"),
+                }
             }
             StaticMachineBindingValue::RuntimeValue { .. }
             | StaticMachineBindingValue::Machine(_) => {
@@ -644,7 +674,11 @@ pub(crate) fn trait_requirement(
         .trait_machine_signature(requirement.symbol)
         .filter(|(_, declared)| declared.symbol == requirement.symbol)
         .ok_or("requirement declaration has no exact owning trait and requirement")?;
-    if !requirement.type_parameters.is_empty() || !requirement.lifetime_parameters.is_empty() {
+    // Invocation lifetimes remain binders of this public callable, not
+    // static arguments an application must close. Its callable and type
+    // identities retain their relations; type/value arguments still need
+    // the existing complete application before declaration publication.
+    if !requirement.type_parameters.is_empty() {
         return Err("requirement declaration needs its complete applied arguments");
     }
     let owner_identity = nominal(typed, sources, owner.symbol, identities)?;
@@ -885,7 +919,16 @@ fn declaration_contract_commitment<'a>(
         proposition.hash(&mut commitment);
     }
     crash_routes.hash(&mut commitment);
-    signature.termination.hash(&mut commitment);
+    // A caller relies on the promise, never on how it is discharged:
+    // termination.md, "Ranking subjects, view, rank range, cyclic-component
+    // mapping, and proof certificate remain private. Changing a valid
+    // witness revalidates the provider and its proof cache, not
+    // caller/requirement identity". So a witness commits as its promise.
+    match signature.termination {
+        crate::Termination::Witnessed(_) => crate::Termination::Promised,
+        published => published,
+    }
+    .hash(&mut commitment);
     // Open requirements and explicit empty promises must not share identity.
     (
         matches!(signature.reaches, crate::Ceiling::Authored(_)),

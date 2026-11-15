@@ -144,7 +144,6 @@ pub fn emit_component_exports<'input>(
         let (input, execution) = work.lower(scalars.as_ref().map(|scalars| {
             terminal_psi_to_abstract_operations::NativeScalarApplications {
                 completed: scalars.completed,
-                provider_declarations: scalars.provider_declarations,
             }
         }))?;
         let selections = proposal.post_terminal_optimizations().selections();

@@ -330,6 +330,7 @@ pub mod build_requests {
         ArtifactOnly,
         PathDependency,
         GitDependency,
+        PrepareDependency,
         LogLine,
     }
 

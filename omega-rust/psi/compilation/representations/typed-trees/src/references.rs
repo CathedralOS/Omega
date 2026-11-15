@@ -342,6 +342,47 @@ pub(crate) mod source_occurrences {
                 owner: SymbolHandle,
             ) -> Result<(), &'static str> {
                 for expression in arguments {
+                    if let Ok(mut selected) = self.declaration_operand_from_expression(*expression)
+                        && self.symbols.symbols().nodes().is_valid(selected.symbol)
+                        && matches!(
+                            self.symbols.get(selected.symbol).kind,
+                            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                        )
+                        && self.trait_machine_signature(selected.symbol).is_none()
+                    {
+                        if selected.path.is_empty() {
+                            selected.path = Box::from([crate::name::Identifier::generated(
+                                self.symbols.name(selected.symbol),
+                            )]);
+                        }
+                        selected.type_reference = self
+                            .prepare_callable_operand_application(&selected, owner)
+                            .map(|(reference, _)| reference)
+                            .unwrap_or_else(|_| crate::types::TypeReferenceHandle::invalid());
+                        if selected.type_reference.is_valid()
+                            && matches!(
+                                self.expression_table.expression(*expression),
+                                ExpressionNode::TypeExpression(_)
+                            )
+                        {
+                            *self.expression_table.expression_mut(*expression) =
+                                ExpressionNode::TypeExpression(selected.type_reference);
+                        } else {
+                            let symbol = selected.symbol;
+                            let selection = self.expression_table.insert_static_member(selected);
+                            let mut path = self
+                                .expression_table
+                                .name_path_node(*expression)
+                                .copied()
+                                .unwrap_or_default();
+                            path.symbol = symbol;
+                            path.head_symbol = symbol;
+                            path.static_application = selection;
+                            *self.expression_table.expression_mut(*expression) =
+                                ExpressionNode::Name(path);
+                        }
+                        continue;
+                    }
                     let Some(path) = self.expression_table.name_path_node(*expression) else {
                         continue;
                     };
@@ -501,6 +542,36 @@ pub(crate) mod source_occurrences {
                 self.expression_table
                     .static_machine_application_arguments_mut(application)
                     .clone_from_slice(&arguments);
+                let declaration = self
+                    .static_machine_application(application)
+                    .binding_declaration;
+                if !arguments.is_empty() && self.machine_by_symbol(declaration).is_some() {
+                    let selected = StaticMachineArgument {
+                        symbol: declaration,
+                        path: Box::from([self
+                            .static_machine_application(application)
+                            .target
+                            .clone()]),
+                        application: Some(Box::new(crate::expression::StaticSymbolApplication {
+                            member: arena::Handle::invalid(),
+                            lifetime_arguments: self
+                                .static_machine_application_lifetimes(application)
+                                .iter()
+                                .map(|binding| binding.argument.clone())
+                                .collect(),
+                            arguments: arguments.clone().into_boxed_slice(),
+                        })),
+                        ..StaticMachineArgument::default()
+                    };
+                    // Formation is shared with declaration operands. Unsupported
+                    // applications remain requests of their ordinary consumer.
+                    if let Ok((_, bindings)) =
+                        self.prepare_callable_operand_application(&selected, owner)
+                    {
+                        self.expression_table
+                            .set_static_machine_application_bindings(application, &bindings);
+                    }
+                }
                 let original = self.static_machine_application_bindings(application);
                 let mut bindings = original.to_vec();
                 for binding in &mut bindings {
@@ -1554,7 +1625,6 @@ pub fn collect_program_conformance_occurrences(
 }
 
 pub(crate) struct ProgramApplicationOccurrences {
-    pub types: Vec<TypeOccurrence>,
     pub requirement_applications: Vec<TypeOccurrence>,
     pub conformance_applications: Vec<StaticMachineApplicationHandle>,
     /// Every static application written in its own lexical owner, including
@@ -1570,7 +1640,6 @@ pub(crate) fn collect_program_application_occurrences(
     let conformance_applications = occurrences.conformance_applications(program);
     let invocation_applications = occurrences.invocation_applications(program);
     ProgramApplicationOccurrences {
-        types: occurrences.types,
         requirement_applications: occurrences.requirement_applications,
         conformance_applications,
         invocation_applications,
@@ -1766,6 +1835,45 @@ impl DeclarationSelection {
 
     pub fn from_program(program: &TypedTrees) -> Self {
         Self::from_symbols(collect_program_declarations(program))
+    }
+
+    /// A requested computation also needs the declarations its source uses.
+    /// Derived reports retain custody but do not request another evaluation.
+    pub fn from_computation_roots(
+        program: &TypedTrees,
+        roots: impl IntoIterator<Item = SymbolHandle>,
+    ) -> Result<Self, &'static str> {
+        let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut rows = collect_computation_symbol_dependencies(program);
+        rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
+        let mut visited = vec![false; rows.len()];
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
+        let mut declarations = Vec::new();
+        while let Some(symbol) = pending.pop() {
+            if !program.symbols.symbols().nodes().is_valid(symbol) {
+                return Err("computation demand contains a stale source declaration");
+            }
+            let symbol = program.refusal_declaration(symbol);
+            if !program.symbols.symbols().nodes().is_valid(symbol) {
+                return Err("computation demand lost its owning declaration");
+            }
+            if let Ok(index) = rows.binary_search_by_key(&key(symbol), |(symbol, _)| key(*symbol)) {
+                if std::mem::replace(&mut visited[index], true) {
+                    continue;
+                }
+                declarations.push(symbol);
+                pending.extend(
+                    rows[index]
+                        .1
+                        .iter()
+                        .copied()
+                        .filter(|symbol| symbol.is_valid()),
+                );
+            } else {
+                declarations.push(symbol);
+            }
+        }
+        Ok(Self::from_symbols(declarations))
     }
 
     pub fn from_symbols(symbols: impl IntoIterator<Item = SymbolHandle>) -> Self {
@@ -3008,7 +3116,6 @@ fn visit_data(
         {
             visit_type_reference(program, retained, plan.application);
             visit_type_reference(program, retained, plan.semantic_type);
-            visit_closed_conformance(program, retained, &plan.policy_application);
             visit_symbol(retained, plan.schema_symbol);
             visit_symbol(retained, plan.policy_symbol);
             visit_symbol(retained, plan.policy_plan_machine_symbol);
@@ -3299,14 +3406,6 @@ pub fn visit_type_reference(
                 visit_expression(program, retained, *expression);
             }
         }
-        TypeReferenceNode::DynamicTrait {
-            symbol, arguments, ..
-        } => {
-            visit_symbol(retained, *symbol);
-            for argument in program.type_reference_handles(*arguments) {
-                visit_type_reference(program, retained, *argument);
-            }
-        }
         // A checked integer argument is a value, not a declaration. Its
         // constant origins were visited above; every present coordinate and
         // unresolved ordinary name must still reach the receiving visitor.
@@ -3329,6 +3428,22 @@ pub fn visit_expression(
 ) {
     if !expression.is_valid() || !retained.expression(expression) {
         return;
+    }
+    if retained.derived_declaration_references() {
+        visit_type_reference(
+            program,
+            retained,
+            program
+                .expression_table
+                .constructed_value_type_reference(expression),
+        );
+        visit_type_reference(
+            program,
+            retained,
+            program
+                .expression_table
+                .construction_required_type_reference(expression),
+        );
     }
     let authored = program.expression_table.materialization_source(expression);
     if authored.is_valid() && retained.type_expression(authored) {
@@ -3937,20 +4052,6 @@ fn visit_machine_with_sidecars(
             visit_symbol(retained, specialization.template);
             visit_type_parameters(program, retained, specialization.template_parameters);
             visit_static_machine_bindings(program, retained, specialization.binding_application);
-            for realization in &specialization.operator_realizations {
-                for argument in &realization.arguments {
-                    use crate::operator::ClosedOperatorApplicationArgument;
-                    let reference = match argument {
-                        ClosedOperatorApplicationArgument::Type { type_reference, .. } => {
-                            *type_reference
-                        }
-                        ClosedOperatorApplicationArgument::Const {
-                            declared_carrier, ..
-                        } => *declared_carrier,
-                    };
-                    visit_type_reference(program, retained, reference);
-                }
-            }
             for application in &specialization.conformance_applications {
                 visit_closed_conformance(program, retained, application);
             }

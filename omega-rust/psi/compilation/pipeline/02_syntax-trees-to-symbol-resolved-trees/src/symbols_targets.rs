@@ -35,7 +35,7 @@ mod calls {
         SymbolKind::MathematicalDefinition,
     ];
 
-    use crate::symbols::scope::MachineScope;
+    use crate::symbols::scope::{BinderRole, MachineScope};
     use crate::symbols::type_references::call_target_for_type_reference;
     use symbol_resolved_trees::data::TypeParameterKind;
     use symbol_resolved_trees::expression::StaticMachineArgument;
@@ -335,28 +335,49 @@ mod calls {
         machine_symbol: SymbolHandle,
         target: &str,
     ) -> SymbolHandle {
-        let named = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target);
-        if named.is_valid() {
-            return named;
-        }
-
-        child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], "entry")
+        crate::symbols::select_machine_entry(target, |name| {
+            let state = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], name);
+            state.is_valid().then_some(state)
+        })
+        .unwrap_or_else(SymbolHandle::invalid)
     }
 
     /*
-        Resolve a compile-time machine-symbol argument to its concrete entry state.
-        A free machine is spelled `work`; an attached machine is spelled
-        `Card::power`. The argument denotes no runtime value.
+        Resolve a compile-time static argument in the role of the binder it fills
+        (`wiki/spec/language/modules.md#builtin-type-names`). A type binder reads
+        a builtin or data type and a value binder reads a constant; lexical
+        binders and runtime subjects are the caller's, which knows their kinds.
+        Otherwise the argument selects a declaration: a machine stands for its
+        entry state (a free machine is spelled `work`, an attached one
+        `Card::power`) and denotes no runtime value. Lookup never tries both
+        roles to choose one: a spelling that is both a constant and a type
+        selects nothing when the binder's role is unknown.
     */
     pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         symbols: &SymbolTable,
         machine_symbol: SymbolHandle,
         path: &[symbol_resolved_trees::name::DiagnosticName],
+        role: BinderRole,
     ) -> SymbolHandle {
         let Some((target, owner)) = path.split_last() else {
             return SymbolHandle::invalid();
         };
         let reference = diagnostic_path_source_span(path);
+        let rendered = if owner.is_empty() {
+            target.as_str().to_owned()
+        } else {
+            format!("{}::{}", owner.joined_path(), target.as_str())
+        };
+        let top_level = |kinds: &[SymbolKind]| {
+            symbols
+                .find_top_level_by_name_and_kinds_from_source(&rendered, kinds, reference)
+                .unwrap_or_else(SymbolHandle::invalid)
+        };
+        match role {
+            BinderRole::Type => return top_level(&[SymbolKind::BuiltinType, SymbolKind::Data]),
+            BinderRole::Value => return top_level(&[SymbolKind::Const]),
+            BinderRole::Declaration => {}
+        }
         if owner.is_empty() {
             for kind in [
                 SymbolKind::TypeParameter,
@@ -369,36 +390,23 @@ mod calls {
                     return binding;
                 }
             }
-            let conformance = symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    target.as_str(),
-                    &[SymbolKind::Conformance],
-                    reference,
-                )
-                .unwrap_or_else(SymbolHandle::invalid);
-            if conformance.is_valid() {
-                return conformance;
+        }
+        let conformance = top_level(&[SymbolKind::Conformance]);
+        if conformance.is_valid() {
+            return conformance;
+        }
+        match (
+            top_level(&[SymbolKind::Const]),
+            top_level(&[SymbolKind::BuiltinType, SymbolKind::Data]),
+        ) {
+            (constant, concrete_type) if constant.is_valid() && concrete_type.is_valid() => {
+                return SymbolHandle::invalid();
             }
-            let constant = symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    target.as_str(),
-                    &[SymbolKind::Const],
-                    reference,
-                )
-                .unwrap_or_else(SymbolHandle::invalid);
-            if constant.is_valid() {
-                return constant;
-            }
-            let concrete_type = symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    target.as_str(),
-                    &[SymbolKind::BuiltinType, SymbolKind::Data],
-                    reference,
-                )
-                .unwrap_or_else(SymbolHandle::invalid);
-            if concrete_type.is_valid() {
-                return concrete_type;
-            }
+            (constant, _) if constant.is_valid() => return constant,
+            (_, concrete_type) if concrete_type.is_valid() => return concrete_type,
+            _ => {}
+        }
+        if owner.is_empty() {
             return match crate::symbols::lookup::lexical_declaration_lookup(
                 symbols,
                 machine_symbol,
@@ -412,30 +420,12 @@ mod calls {
                 SymbolLookup::NotFound => resolve_free_machine_entry_state_symbol(symbols, target),
             };
         }
-
-        let owner = owner.joined_path();
-        let rendered = format!("{owner}::{}", target.as_str());
-        for kinds in [
-            &[SymbolKind::Const][..],
-            &[SymbolKind::Conformance][..],
-            &[SymbolKind::BuiltinType, SymbolKind::Data][..],
-        ] {
-            let declaration = symbols
-                .find_top_level_by_name_and_kinds_from_source(&rendered, kinds, reference)
-                .unwrap_or_else(SymbolHandle::invalid);
-            if declaration.is_valid() {
-                return declaration;
-            }
+        let machine = top_level(&[SymbolKind::Machine]);
+        if machine.is_valid() {
+            machine_entry_symbol(symbols, machine, target.as_str())
+        } else {
+            machine
         }
-        symbols
-            .find_top_level_by_name_and_kinds_from_source(
-                &rendered,
-                &[SymbolKind::Machine],
-                reference,
-            )
-            .map_or_else(SymbolHandle::invalid, |declaration| {
-                machine_entry_symbol(symbols, declaration, target.as_str())
-            })
     }
 
     /*
@@ -496,8 +486,119 @@ mod calls {
             argument.symbol = if proof_static {
                 resolve_proposition_binder_argument_symbol(symbols, scope_symbol, &argument.path)
             } else {
-                resolve_static_machine_argument_symbol(symbols, scope_symbol, &argument.path)
+                resolve_static_machine_argument_symbol(
+                    symbols,
+                    scope_symbol,
+                    &argument.path,
+                    BinderRole::Declaration,
+                )
             };
+        }
+    }
+
+    /*
+        Read one static argument of a call in the role of the binder it fills.
+        A type binder reads a type binder in scope, then a builtin or data type.
+        A value binder reads a value binder in scope, then a parameter or local
+        of `subjects` (the enclosing state, or invalid where no runtime value is
+        in scope), then a constant. A binding of the other role is never
+        consulted: `const u16` cannot stand for the type `u16`, and the type
+        never stands in for a missing value.
+    */
+    fn assign_role_argument_symbol(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        subjects: SymbolHandle,
+        argument: &mut StaticMachineArgument,
+        role: BinderRole,
+    ) {
+        if argument.type_reference.is_valid()
+            || argument.evidence_projection.is_some()
+            || argument.const_literal.is_some()
+        {
+            argument.symbol = SymbolHandle::invalid();
+        } else {
+            let name = match argument.path.as_ref() {
+                [name] => Some(name),
+                _ => None,
+            };
+            let binder = name.and_then(|name| {
+                machine.type_parameters.iter().find(|parameter| {
+                    parameter.name == *name && BinderRole::of(&parameter.kind) == role
+                })
+            });
+            let subject = match (role, name) {
+                (BinderRole::Value, Some(name))
+                    if subjects.is_valid() && argument.application.is_none() =>
+                {
+                    child_symbol_by_kinds(
+                        symbols,
+                        subjects,
+                        &[SymbolKind::Parameter, SymbolKind::Local],
+                        name.as_str(),
+                    )
+                }
+                _ => SymbolHandle::invalid(),
+            };
+            argument.symbol = match binder {
+                Some(binder) => binder.symbol,
+                None if subject.is_valid() => subject,
+                None => resolve_static_machine_argument_symbol(
+                    symbols,
+                    machine.symbol,
+                    &argument.path,
+                    role,
+                ),
+            };
+        }
+        if let Some(application) = &mut argument.application {
+            for nested in &mut application.arguments {
+                assign_static_argument_symbols(
+                    symbols,
+                    machine.symbol,
+                    machine.type_parameters,
+                    nested,
+                    true,
+                );
+            }
+        }
+    }
+
+    /*
+        Stamp one static argument of a call whose target is already selected:
+        an argument filling a type or value binder reads in that role, and any
+        other (a machine, implementation or proposition binder, a target whose
+        telescope is unknown here, or a proof-position target) selects a
+        declaration. `subjects` is the state whose runtime values a value
+        argument may name, including the owning contract's explicit parameters.
+    */
+    pub(in crate::symbols) fn assign_call_static_argument_symbol(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        subjects: SymbolHandle,
+        target_symbol: SymbolHandle,
+        position: usize,
+        argument: &mut StaticMachineArgument,
+    ) {
+        let proof_static = proof_static_call_target(symbols, target_symbol);
+        let role = if proof_static {
+            BinderRole::Declaration
+        } else {
+            machine.binder_roles.role(symbols, target_symbol, position)
+        };
+        if role != BinderRole::Declaration {
+            assign_role_argument_symbol(symbols, machine, subjects, argument, role);
+            return;
+        }
+        assign_static_argument_symbols(
+            symbols,
+            machine.symbol,
+            machine.type_parameters,
+            argument,
+            proof_static,
+        );
+        if !proof_static {
+            assign_runtime_subject_argument_symbol(symbols, subjects, argument);
         }
     }
 
@@ -555,10 +656,9 @@ mod calls {
     /*
         Route every machine argument of one call through the operand route its
         already-selected target implies: build-operation operands take their own
-        exact declaration resolvers, ordinary operands of a proof-position target
-        take the proof-static resolver, and the rest take the static-machine
-        resolver with the state-scope subject fallback. Body expression calls and
-        statement calls share this one owner.
+        exact declaration resolvers, and the rest read by the role of the binder
+        they fill (`assign_call_static_argument_symbol`). Body expression calls
+        and statement calls share this one owner.
     */
     pub(in crate::symbols) fn assign_call_machine_argument_symbols(
         symbols: &SymbolTable,
@@ -569,7 +669,6 @@ mod calls {
         machine_arguments: &mut [StaticMachineArgument],
     ) {
         let operand_route = build_operand_route(target.as_str(), target_symbol);
-        let proof_static = proof_static_call_target(symbols, target_symbol);
         for (index, argument) in machine_arguments.iter_mut().enumerate() {
             match operand_route {
                 Some(BuildOperation::ProviderReadiness) if index == 0 => {
@@ -610,18 +709,14 @@ mod calls {
                             | BuildOperation::BoundaryAcceptance
                     ) && index == 0,
                 ),
-                None => {
-                    assign_static_argument_symbols(
-                        symbols,
-                        machine.symbol,
-                        machine.type_parameters,
-                        argument,
-                        proof_static,
-                    );
-                    if !proof_static {
-                        assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
-                    }
-                }
+                None => assign_call_static_argument_symbol(
+                    symbols,
+                    machine,
+                    state_symbol,
+                    target_symbol,
+                    index,
+                    argument,
+                ),
             }
         }
     }
@@ -825,7 +920,12 @@ mod calls {
         path: &[symbol_resolved_trees::name::DiagnosticName],
     ) -> SymbolHandle {
         let [target] = path else {
-            return resolve_static_machine_argument_symbol(symbols, scope_symbol, path);
+            return resolve_static_machine_argument_symbol(
+                symbols,
+                scope_symbol,
+                path,
+                BinderRole::Declaration,
+            );
         };
         let mut lexical_scope = scope_symbol;
         while lexical_scope.is_valid() {
@@ -854,7 +954,7 @@ mod calls {
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        resolve_static_machine_argument_symbol(symbols, scope_symbol, path)
+        resolve_static_machine_argument_symbol(symbols, scope_symbol, path, BinderRole::Declaration)
     }
 }
 mod static_namespaces {
@@ -909,6 +1009,18 @@ mod static_namespaces {
         if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
             && !symbols.is_source_package_qualifier(reference, receiver_name)
         {
+            // A source-free qualified operation has a declaration too. Only an
+            // unbound namespace may reach that default; visible authored owners
+            // retain their ordinary selection and never acquire builtin custody.
+            if !lexical_head.is_valid()
+                && symbols::BuiltinFunction::from_name(name)
+                    .is_some_and(symbols::BuiltinFunction::is_source_special_form)
+            {
+                return Some(super::calls::resolve_free_call_target_symbol(
+                    symbols,
+                    &DiagnosticName::from_str(name, reference),
+                ));
+            }
             return None;
         }
         Some(
@@ -1223,8 +1335,8 @@ mod transitions {
 }
 
 pub(super) use calls::{
-    SOURCE_CALL_KINDS, assign_call_machine_argument_symbols, assign_static_argument_symbol,
-    assign_static_argument_symbols, proof_static_call_target, resolve_call_target_symbol,
+    SOURCE_CALL_KINDS, assign_call_machine_argument_symbols, assign_call_static_argument_symbol,
+    assign_static_argument_symbol, assign_static_argument_symbols, resolve_call_target_symbol,
     resolve_free_call_target_symbol, resolve_free_machine_entry_state_symbol,
 };
 pub(super) use transitions::assign_transition_target_symbols;
@@ -1243,6 +1355,42 @@ mod tests {
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees::expression::ExpressionNode;
     use symbols::SymbolKind;
+
+    #[test]
+    fn compiler_queries_resolve_to_declarations_without_stealing_authored_calls() {
+        let text = "machine chosen() -> u32 { 1 }\n\
+                    machine expose(value: &u32) -> addr { address_of(value) }\n\
+                    machine describe() { let layout: CodeLayout = code_layout<chosen>(); }";
+        for query in ["address_of", "code_layout"] {
+            let call = resolved_call(text, query);
+            assert!(call.target_symbol.is_valid(), "{query} has no declaration");
+            assert_eq!(call.symbols_kind, SymbolKind::BuiltinFunction);
+        }
+        for query in ["address_of", "code_layout"] {
+            let text = format!(
+                "machine {query}() -> u32 {{ 7 }}\n\
+                 machine caller() -> u32 {{ {query}() }}"
+            );
+            let authored = resolved_call(&text, query);
+            assert_eq!(authored.symbols_kind, SymbolKind::State);
+            assert_eq!(authored.machine_name, query);
+        }
+        for operation in ["Quotient::lift", "Quotient::define"] {
+            // Resolution answers the declaration even when its owning operation
+            // must later reject the deliberately missing theorem arguments.
+            let query = resolved_call(&format!("machine caller() {{ {operation}(); }}"), operation);
+            assert_eq!(query.symbols_kind, SymbolKind::BuiltinFunction);
+            let authored = resolved_call(
+                &format!(
+                    "module Quotient; machine {operation}() -> u32 {{ 7 }} \
+                     machine caller() -> u32 {{ {operation}() }}"
+                ),
+                operation,
+            );
+            assert_eq!(authored.symbols_kind, SymbolKind::State);
+            assert_eq!(authored.machine_name, operation);
+        }
+    }
 
     #[test]
     fn static_module_call_keeps_the_state_named_the_call_target() {
@@ -1500,6 +1648,99 @@ mod tests {
         );
     }
 
+    /*
+        A static argument reads in the role of the binder it fills. With
+        `const u16: u64` in scope, the type binder of `identity` reads the
+        builtin type `u16` and the `const` binder of `count` reads the
+        constant; before, both read the constant. A parameter `u16` hides the
+        constant for the value binder, the type never fills a missing value,
+        and a const binder spelled `u16` never hides the type.
+    */
+    #[test]
+    fn a_static_argument_is_read_by_its_binder_role() {
+        let roles = "const u16: u64 = 3;\n\
+                     machine identity<T>(value: T) -> T { value }\n\
+                     machine count<const N: u64>() -> u64 { N }\n\
+                     machine main() {\n\
+                         let number: u16 = identity<u16>(7u16);\n\
+                         let n: u64 = count<u16>();\n\
+                     }";
+        assert_eq!(
+            static_argument_kinds(roles),
+            [
+                ("identity", Some(SymbolKind::BuiltinType)),
+                ("count", Some(SymbolKind::Const)),
+            ]
+        );
+        let hidden = "const u16: u64 = 3;\n\
+                      machine count<const N: u64>() -> u64 { N }\n\
+                      machine helper(u16: u64) -> u64\n\
+                          requires count<u16>() == 3\n\
+                      { count<u16>() }";
+        assert_eq!(
+            static_argument_kinds(hidden),
+            [
+                ("count", Some(SymbolKind::Parameter)),
+                ("count", Some(SymbolKind::Parameter)),
+            ]
+        );
+        let missing = "machine count<const N: u64>() -> u64 { N }\n\
+                       machine main() { let n: u64 = count<u16>(); }";
+        assert_eq!(static_argument_kinds(missing), [("count", None)]);
+        let binder = "machine identity<T>(value: T) -> T { value }\n\
+                      machine wrap<const u16: u64>(value: u16) -> u16 { identity<u16>(value) }";
+        assert_eq!(
+            static_argument_kinds(binder),
+            [("identity", Some(SymbolKind::BuiltinType))]
+        );
+    }
+
+    /* Each call's target and the kind its first static argument selected. */
+    fn static_argument_kinds(text: &str) -> Vec<(&'static str, Option<SymbolKind>)> {
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("kit/main.omg".into(), text.to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .expect("resolve");
+        let mut kinds = program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .filter_map(|(_, expression)| match expression {
+                ExpressionNode::Call(call) => {
+                    let argument = call.machine_arguments.first()?;
+                    let target = ["identity", "count"]
+                        .into_iter()
+                        .find(|name| call.target.as_str() == *name)?;
+                    Some((
+                        call.target.source_span(),
+                        target,
+                        argument
+                            .symbol
+                            .is_valid()
+                            .then(|| program.symbols.get(argument.symbol).kind),
+                    ))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        kinds.sort_by_key(|(span, _, _)| span.span.start);
+        kinds
+            .into_iter()
+            .map(|(_, target, kind)| (target, kind))
+            .collect()
+    }
+
     struct ResolvedCall {
         symbols_kind: SymbolKind,
         state_name: String,
@@ -1522,17 +1763,38 @@ mod tests {
             retained_base: None,
         })
         .expect("resolve");
-        let call = program
+        let target_symbol = program
             .tables
             .bodies
             .expressions
             .iter_expressions()
             .find_map(|(_, expression)| match expression {
-                ExpressionNode::Call(call) if call.target.as_str() == target => Some(call.clone()),
+                ExpressionNode::Call(call) if call.target.as_str() == target => {
+                    Some(call.target_symbol)
+                }
                 _ => None,
             })
-            .expect("the call");
-        let target_symbol = call.target_symbol;
+            .or_else(|| {
+                program.machines.iter().find_map(|machine| {
+                    program
+                        .machine_state_handles(machine.states)
+                        .iter()
+                        .find_map(|state| {
+                            program
+                                .state_statements(program.machine_state(*state).statements)
+                                .iter()
+                                .find_map(|statement| match statement {
+                                    symbol_resolved_trees::statement::Statement::Call(call)
+                                        if call.target.as_str() == target =>
+                                    {
+                                        Some(call.target_symbol)
+                                    }
+                                    _ => None,
+                                })
+                        })
+                })
+            })
+            .unwrap_or_else(|| panic!("the call `{target}`"));
         ResolvedCall {
             symbols_kind: program.symbols.get(target_symbol).kind,
             state_name: program.symbols.name(target_symbol).to_owned(),

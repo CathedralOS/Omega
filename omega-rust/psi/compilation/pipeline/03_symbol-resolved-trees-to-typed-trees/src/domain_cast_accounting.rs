@@ -25,6 +25,7 @@ use crate::tables::expression_table;
 use crate::type_reference::domain_constraints::{
     normalize_domain_constraints_for_type, select_domain_candidates, select_domain_candidates_where,
 };
+use crate::typing_queries::declared_expression_type as declared_type;
 use diagnostics::Diagnostic;
 use language_core::cast_form::{CastEntry, CastEntryKind};
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
@@ -316,79 +317,6 @@ fn authored_span(program: &TypedTrees, handle: ExpressionHandle) -> Option<sourc
         .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
         .find(|selection| selection.kind() == AuthoredDeclarationSelectionKind::DomainMembership)
         .map(|selection| selection.source_span())
-}
-
-/*
-    The declared type of an operand, for the forms whose type is written in a
-    declaration or follows from one: a place (a parameter, an annotated local,
-    a field or element of one), a cast, and builtin arithmetic over plain
-    operands. `None` is "typing does not read this form", never "no domains":
-    the caller defers the run. The callable-value query also retains the
-    compiler's `old` projection. Ordinary calls, matches and unannotated locals
-    are not read here; the checker of the lowered form types every expression and
-    re-checks each entry against the operand it finds.
-*/
-fn declared_type(
-    program: &TypedTrees,
-    owner: SymbolHandle,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let table = &program.expression_table;
-    if !table.expression_is_valid(expression) {
-        return None;
-    }
-    match table.expression(expression) {
-        ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::Member(_)
-        | ExpressionNode::Indexed(_)
-        | ExpressionNode::Call(_) => {
-            crate::typing_queries::declared_callable_value_type(program, owner, expression).ok()
-        }
-        // An accounted entry and a settled cast carry their result. A plain
-        // carrier cast results in the carrier it names.
-        ExpressionNode::Cast(cast) if cast.result_type.is_valid() => Some(cast.result_type),
-        ExpressionNode::Cast(cast)
-            if cast.form == language_core::CastForm::Value
-                && cast.domain == ArithmeticDomain::Exact
-                && cast.semantic_domain.is_empty()
-                && cast.target_type.is_valid() =>
-        {
-            Some(cast.target_type)
-        }
-        // domains.md, "Operands": builtin operators take unqualified operands
-        // only, so over builtin carriers with no domain the result is that
-        // plain carrier. An operand that carries a domain, or a data type,
-        // selects a declared operator, whose result typing does not read.
-        ExpressionNode::Binary(binary)
-            if binary.operator.is_arithmetic() && binary.policy == ArithmeticDomain::Exact =>
-        {
-            let mut result = None;
-            for operand in [binary.left, binary.right] {
-                if is_anonymous_literal(program, operand) {
-                    continue;
-                }
-                let reference = declared_type(program, owner, operand)?;
-                let TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(reference)
-                else {
-                    return None;
-                };
-                if program.symbols.get(*symbol).kind != symbols::SymbolKind::BuiltinType
-                    || result.is_some_and(|earlier| earlier != *symbol)
-                {
-                    return None;
-                }
-                result = Some(*symbol);
-            }
-            let operand = [binary.left, binary.right]
-                .into_iter()
-                .find(|operand| !is_anonymous_literal(program, *operand))?;
-            result.and_then(|_| declared_type(program, owner, operand))
-        }
-        _ => None,
-    }
 }
 
 /*

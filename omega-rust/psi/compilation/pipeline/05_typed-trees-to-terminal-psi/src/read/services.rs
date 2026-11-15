@@ -8,7 +8,7 @@ use language_semantics::{
 };
 use semantic_vocabulary::{ContractId, IdTable, MachineId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use terminal_psi::TerminalCallableTermination;
+use terminal_psi::{TerminalCallableTermination, TerminalModule};
 use typed_trees::TypedTrees;
 use typed_trees::signature::{AuthoredInvocation, AuthoredInvocationTarget, StateSignature};
 
@@ -848,6 +848,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             });
         }
         E::Field { base, .. }
+        | E::ArrayView { base, .. }
         | E::CollectionMeasure { base, .. }
         | E::Establish { operand: base, .. }
         | E::Payload { base, .. }
@@ -1288,5 +1289,60 @@ impl<'t> Program<'t> {
         services.sort_unstable();
         services.dedup();
         services
+    }
+    /// Notes that a Build selection awaits a provider for `service`.
+    pub(super) fn awaits(&mut self, service: ServiceId) {
+        if !self.readiness.contains(&service) {
+            self.readiness.push(service);
+        }
+    }
+
+    /// The trait that declares each awaited requirement, by its exact
+    /// owner's identity, interned in `module`. The provider the Build host
+    /// later installs is matched on this identity and on the application
+    /// identity of the service row, so both are the ones a provider's own
+    /// module states for the same declarations.
+    pub(crate) fn publish_readiness(
+        &self,
+        caller: MachineId,
+        module: &mut TerminalModule,
+    ) -> Checked<Vec<(ServiceId, terminal_psi::NominalDeclarationIdentity)>> {
+        if self.readiness.is_empty() {
+            return Ok(Vec::new());
+        }
+        let unavailable =
+            |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
+        let sources =
+            source::source_identity::toolchain_source_identities(self.typed.symbols.source_files())
+                .map_err(|_| {
+                    unavailable(
+                        "an awaited requirement has a toolchain source with no exact identity",
+                    )
+                })?;
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let rows = self
+            .readiness
+            .iter()
+            .map(|service| {
+                let (scope, _) = self
+                    .services
+                    .get(*service)
+                    .ok_or("an awaited requirement lost its service row")?;
+                crate::declare::nominal(
+                    self.typed,
+                    &sources,
+                    scope.declaration.symbol,
+                    &mut identities,
+                )
+                .map(|identity| {
+                    (
+                        *service,
+                        terminal_psi::NominalDeclarationIdentity::new(identity),
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>();
+        module.identities = identities.build();
+        rows.map_err(unavailable)
     }
 }

@@ -1,11 +1,11 @@
 [package]
-name = "psi-work"
+name = "terminal-work"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "psi_work"
+name = "terminal_work"
 path = "src/lib.rs"
 
 [dependencies]

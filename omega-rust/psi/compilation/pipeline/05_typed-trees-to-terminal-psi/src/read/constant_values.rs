@@ -6,7 +6,7 @@
 //! an ordinary subject machine whose body the lowered checker also judges.
 
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use semantic_vocabulary::{IntegerSign, IntegerValue, MachineId, ScalarType};
+use semantic_vocabulary::{IntegerValue, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::constant::ConstDeclaration;
 
@@ -124,7 +124,10 @@ impl Program<'_> {
         }
         Ok(match (value, &materialized.kind) {
             (
-                DecodedCanonicalConstValue::Integer { type_name, value },
+                DecodedCanonicalConstValue::Integer {
+                    integer_type,
+                    value,
+                },
                 ExpressionKind::Integer(current),
             ) => {
                 let Some(ValueType::Scalar(ScalarType::Integer(integer), _)) = materialized.result
@@ -134,20 +137,16 @@ impl Program<'_> {
                 let Some(bits) = integer.bits() else {
                     return Ok(false);
                 };
-                let expected = format!(
-                    "{}{}",
-                    match integer.sign() {
-                        IntegerSign::Signed => 'i',
-                        IntegerSign::Unsigned => 'u',
-                    },
-                    bits
-                );
+                let expected =
+                    numerics::integer_carrier::FixedInteger::new(integer.sign(), u64::from(bits));
                 !integer.is_address()
-                    && *type_name == expected
+                    && matches!(integer_type, numerics::literals::LandedIntegerType::Fixed(carrier) if Some(*carrier) == expected)
                     && match current {
-                        IntegerValue::Signed(current) => *value == *current,
+                        IntegerValue::Signed(current) => {
+                            *value == numerics::bignum::BigInt::from(*current)
+                        }
                         IntegerValue::Unsigned(current) => {
-                            i128::try_from(*current).ok() == Some(*value)
+                            *value == numerics::bignum::BigInt::from(*current)
                         }
                     }
             }

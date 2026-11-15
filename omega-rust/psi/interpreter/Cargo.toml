@@ -1,0 +1,27 @@
+[package]
+name = "terminal-interpreter"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_interpreter"
+path = "src/lib.rs"
+
+[dependencies]
+language-core = { path = "../foundation/language-core" }
+compiler-storage = { path = "../foundation/compiler-storage" }
+access-plans = { path = "../foundation/access-plans" }
+arena = { path = "../foundation/arena" }
+extents = { path = "../foundation/extents" }
+evaluation-accounting = { path = "../foundation/evaluation-accounting" }
+layout-plans = { path = "../foundation/layout-plans" }
+semantic-vocabulary = { path = "../foundation/semantic-vocabulary" }
+numerics = { path = "../foundation/numerics" }
+terminal-psi = { path = "../compilation/representations/terminal-psi" }
+terminal-codec = { path = "../compilation/representations/terminal-psi/codec" }
+terminal-work = { path = "../compilation/representations/terminal-psi/work" }
+terminal-semantics = { path = "../compilation/representations/terminal-psi/semantics" }
+proof-admission = { path = "../compilation/proof-admission" }
+
+terminal-installation = { path = "../compilation/terminal-installation" }

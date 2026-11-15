@@ -18,7 +18,10 @@ use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
-        self.sources.operations.push(source.into())
+        let id = self.sources.operations.push(source.into());
+        let location = self.operation_locations.push(None);
+        debug_assert_eq!(id, location);
+        id
     }
 
     /// The obligation guarding `operation`, created at the point before it.
@@ -59,6 +62,19 @@ impl Lowering<'_> {
         result: OperationResult,
         kind: OperationKind,
     ) -> Checked<()> {
+        let block = self.current()?;
+        let ordinal = self.draft()?.operations.len();
+        let location = self.operation_locations.get_mut(operation).ok_or_else(|| {
+            terminal_check_tables::Refusal {
+                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                machine: self.id,
+                concerns: Construct::Operation(operation),
+                detail: "an operation has no allocated source coordinate".to_owned(),
+            }
+        })?;
+        if location.replace((block, ordinal)).is_some() {
+            return Err(self.internal("an operation was emitted twice"));
+        }
         self.draft()?
             .operations
             .push(Operation::unsuspended(operation, result, kind));
@@ -112,6 +128,16 @@ impl Lowering<'_> {
     }
 
     pub(super) fn expression(&mut self, expression: &Expression) -> Evaluation<Value> {
+        let evaluated = self.expression_inner(expression)?;
+        if let Reached::Value(Value::Scalar(value)) = evaluated
+            && let Some(ValueType::Scalar(_, qualification)) = expression.result
+        {
+            self.qualify(value, qualification)?;
+        }
+        Ok(evaluated)
+    }
+
+    fn expression_inner(&mut self, expression: &Expression) -> Evaluation<Value> {
         let source = expression.source;
         // A record-typed expression names storage; its value is a root that
         // holds it. Everything below is scalar or Unit.
@@ -217,7 +243,7 @@ impl Lowering<'_> {
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)
             }
-            ExpressionKind::ByteSubslice { .. } => {
+            ExpressionKind::ByteSubslice { .. } | ExpressionKind::ArrayView { .. } => {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
             ExpressionKind::Payload { base, case, field } => {
@@ -290,9 +316,12 @@ impl Lowering<'_> {
                 self.emit(operation, result, kind).map(Reached::Value)
             }
             // The operand's value under another policy: nothing is computed.
-            ExpressionKind::Requalify(operand) => self
-                .scalar(operand)
-                .map(|reached| reached.map(Value::Scalar)),
+            ExpressionKind::Requalify(operand) => {
+                let scalar_type = self.result_type(operand)?;
+                let operand = continuing!(self.scalar(operand));
+                self.prove_membership(operand, scalar_type, &[], "", source)
+                    .map(|value| Reached::Value(Value::Scalar(value)))
+            }
             ExpressionKind::Establish {
                 operand,
                 clauses,
@@ -305,18 +334,21 @@ impl Lowering<'_> {
             }
             ExpressionKind::Strict {
                 operation,
+                policy,
                 left: left_expression,
                 right,
             } => {
+                // The one strict operator over storage: `==` of two byte
+                // views, which the reader forms for no other operand type.
+                if matches!(left_expression.result, Some(ValueType::Record(..))) {
+                    return self.byte_equal(left_expression, right, source);
+                }
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
                 let operand_type = self.result_type(left_expression)?;
-                // An arithmetic or shift result that carries a policy is
-                // that policy's operation; a comparison's result is `bool`
-                // and carries none.
-                if let Some(policy) = expression.result.and_then(ValueType::policy) {
+                if let Some(policy) = policy {
                     return self
-                        .policy_operation(*operation, policy, left, right, result, source)
+                        .policy_operation(*operation, *policy, left, right, result, source)
                         .map(Reached::Value);
                 }
                 self.strict(*operation, operand_type, left, right, result, source)
@@ -344,8 +376,7 @@ impl Lowering<'_> {
         }
     }
 
-    /// One arithmetic or shift operation under the policy its result type
-    /// carries.
+    /// One arithmetic or shift operation under its selected policy.
     ///
     /// numeric_values.md, "Overflow policies": "Wrapping reduces
     /// representable-range overflow modulo the selected carrier; Saturating
@@ -367,10 +398,26 @@ impl Lowering<'_> {
         result: Option<ScalarType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
+        // Wrapping reduces modulo `2^N` and saturating clamps to the
+        // carrier's range (`numeric_values.md`, "Width-indexed integers");
+        // at a parameter width no term states either yet.
+        if result
+            .and_then(|scalar| scalar.as_integer())
+            .is_some_and(|integer| integer.bits().is_none())
+        {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Expression("policy arithmetic at a parameter width"),
+            ));
+        }
         let operation = self.operation_identity(source);
         // The total operations are the ones a clause's term names too.
         if let Some(kind) = crate::policy::total(strict, policy, left, right) {
             return self.emit(operation, result, kind);
+        }
+        if policy == Policy::Trapping {
+            return self.trapping(operation, strict, left, right, result, source);
         }
         let kind = match (strict, policy) {
             (Strict::Divide, Policy::Wrapping) => OperationKind::WrappingIntegerDivide {
@@ -401,8 +448,10 @@ impl Lowering<'_> {
                 ));
             }
             // The reader gives no other operation a policy-qualified result,
-            // and `policy::total` named every total one above.
-            (
+            // `policy::total` named every total one above, and a Trapping
+            // operation is `trapping`'s.
+            (_, Policy::Trapping)
+            | (
                 Strict::Add
                 | Strict::Subtract
                 | Strict::Multiply
@@ -421,6 +470,71 @@ impl Lowering<'_> {
             ) => return Err(self.internal("a policy on an operation that has none")),
         };
         self.emit(operation, result, kind)
+    }
+
+    /// One Trapping operation: its own `Trap` site.
+    ///
+    /// numeric_values.md, "Overflow policies": "Terminal carries it as one
+    /// `TrappingInteger` operation per primitive ... that is its own `Trap`
+    /// site", whose predicate is the exact primitive's ("result outside the
+    /// carrier, a zero divisor or signed `MIN / -1` ..., and a shift count
+    /// outside `0..width`"). The site owes coverage by the machine's
+    /// published `Trap` route like a `crash Trap;` (effects.md, "Guarded
+    /// crashes"); path facts that disprove the predicate discharge it with
+    /// no route. What the predicate is and what the result equals on normal
+    /// return are Terminal semantics' to say.
+    fn trapping(
+        &mut self,
+        operation: OperationId,
+        strict: Strict,
+        left: ValueId,
+        right: ValueId,
+        result: Option<ScalarType>,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        use terminal_psi::TrappingIntegerOperation as Trapping;
+        let primitive = match strict {
+            Strict::Add => Trapping::Add { left, right },
+            Strict::Subtract => Trapping::Subtract { left, right },
+            Strict::Multiply => Trapping::Multiply { left, right },
+            Strict::Divide => Trapping::Divide { left, right },
+            Strict::Remainder => Trapping::Remainder { left, right },
+            Strict::ShiftLeft => Trapping::ShiftLeft {
+                value: left,
+                count: right,
+            },
+            Strict::ShiftRight => Trapping::ShiftRight {
+                value: left,
+                count: right,
+            },
+            Strict::BitwiseAnd
+            | Strict::BitwiseOr
+            | Strict::BitwiseXor
+            | Strict::Equal
+            | Strict::NotEqual
+            | Strict::Less
+            | Strict::LessOrEqual
+            | Strict::Greater
+            | Strict::GreaterOrEqual => {
+                return Err(self.internal("a Trapping policy on an operation that has none"));
+            }
+        };
+        let before = self.here()?;
+        self.obligation(
+            ObligationKind::CrashCoverage {
+                site: terminal_check_tables::obligations::CrashSite::Operation(operation),
+                cause: semantic_vocabulary::CrashCause::Trap,
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            result,
+            OperationKind::TrappingInteger {
+                operation: primitive,
+            },
+        )
     }
 
     pub(super) fn strict(

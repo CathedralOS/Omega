@@ -53,6 +53,10 @@ mod native_providers {
         ),
         Vec<Diagnostic>,
     > {
+        execution
+            .authorization()
+            .require_artifact(artifact)
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
         let checked_scope = proposal.callable_execution_scope(artifact, entry, Some(execution))?;
         let selection = crate::NativeExecutionSelection {
             scope: Some(&checked_scope),
@@ -63,7 +67,7 @@ mod native_providers {
             entry_call: checked_scope.entry_call(),
         };
         let scope = crate::artifact_admission::NativeScopePreparation::prepare(
-            artifact,
+            execution.authorization(),
             proposal.target_profile(),
             entry,
             &selection,
@@ -91,7 +95,7 @@ mod native_providers {
     }
 
     pub struct PreparedNativeWork<'input> {
-        artifact: &'input terminal_codec::CanonicalTerminalArtifact,
+        artifact: &'input terminal_installation::AuthorizedTerminalArtifact,
         proposal: &'input TerminalNativeRealizationProposal,
         scope: crate::artifact_admission::NativeScopePreparation,
         execution: PreparedNativeExecution,
@@ -106,7 +110,7 @@ mod native_providers {
         ) -> Result<Self, Vec<Diagnostic>> {
             self.execution = self
                 .execution
-                .with_operation_evidence(self.artifact, evidence)?;
+                .with_operation_evidence(self.artifact.artifact(), evidence)?;
             Ok(self)
         }
 
@@ -132,7 +136,7 @@ mod native_providers {
             let input = self
                 .scope
                 .lower_with_private_entry_ram(
-                    self.artifact,
+                    self.artifact.artifact(),
                     &self.private_entry_ram,
                     &crate::NativeExecutionSelection {
                         scope: Some(self.execution.scope()),
@@ -146,7 +150,10 @@ mod native_providers {
                 )
                 .map_err(crate::native_admission::artifact_lowering_error)?;
             let input = input
-                .bind_selected_provider_coordinates(self.artifact, self.execution.selection())
+                .bind_selected_provider_coordinates(
+                    self.artifact.artifact(),
+                    self.execution.selection(),
+                )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             Ok((input, self.execution))
         }
@@ -217,26 +224,26 @@ mod native_providers {
 
     pub fn prepare_native_execution_with_components<'input>(
         proposal: &'input TerminalNativeRealizationProposal,
-        artifact: &'input terminal_codec::CanonicalTerminalArtifact,
+        artifact: &'input terminal_installation::AuthorizedTerminalArtifact,
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
         components: &[&super::AdmittedNativeComponentCall<'_>],
     ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
-        let checked_scope = proposal.execution_scope(artifact, components)?;
+        let checked_scope = proposal.execution_scope(artifact.artifact(), components)?;
         prepare_work(proposal, artifact, checked_scope, private_entry_ram)
     }
 
     pub fn prepare_native_callable_execution<'input>(
         proposal: &'input TerminalNativeRealizationProposal,
-        artifact: &'input terminal_codec::CanonicalTerminalArtifact,
+        artifact: &'input terminal_installation::AuthorizedTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
     ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
-        let checked_scope = proposal.callable_execution_scope(artifact, entry, None)?;
+        let checked_scope = proposal.callable_execution_scope(artifact.artifact(), entry, None)?;
         prepare_work(proposal, artifact, checked_scope, &[])
     }
 
     fn prepare_work<'input>(
         proposal: &'input TerminalNativeRealizationProposal,
-        artifact: &'input terminal_codec::CanonicalTerminalArtifact,
+        artifact: &'input terminal_installation::AuthorizedTerminalArtifact,
         checked_scope: crate::NativeExecutionScope,
         private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
     ) -> Result<PreparedNativeWork<'input>, Vec<Diagnostic>> {
@@ -322,7 +329,7 @@ mod native_providers {
     }
 }
 
-pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
+pub use backend_plan::TerminalTargetProviderProposal;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
     PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,

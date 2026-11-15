@@ -7,7 +7,7 @@ use super::{
 };
 use crate::hex_digest;
 use crate::lock::{PackageAcceptanceRow, PackageLockError as Error, PackagePolicyAcceptance};
-use package_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
+use review_evidence::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
 use semantic_vocabulary::PackageKeyIdentity;
 
 use target::TargetProfile;

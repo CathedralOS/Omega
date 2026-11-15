@@ -52,6 +52,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
 mod arrivals;
+mod branch_warnings;
 mod call_contracts;
 mod callable_arrivals;
 mod ceilings;
@@ -62,10 +63,12 @@ mod external_providers;
 mod graph;
 mod joins;
 mod known;
+mod machine_inputs;
 mod minted;
 mod operational;
 mod places;
 mod prove;
+mod ranking;
 mod refinement;
 mod result_summaries;
 mod reuse;
@@ -242,7 +245,7 @@ pub struct MachineDischarge {
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
     pub conflicts: Vec<places::ConflictingLoan>,
-    /// The authored arms no arrival can take (`impossible_arms`), for the
+    /// The authored arms no arrival can take (`branch_warnings`), for the
     /// advisory warning about them. Nothing is decided by them.
     pub impossible: Vec<ImpossibleArm>,
 }
@@ -253,9 +256,9 @@ pub struct MachineDischarge {
 /// checked contradiction between valid premises can establish that a
 /// particular arrival is impossible", and "issue an unreachable-branch
 /// warning when an authored branch contradicts its machine's entry contract
-/// or established source facts". `premises` is a minimal set of the facts
-/// before the branch that the condition contradicts, the condition itself
-/// left out.
+/// or established source facts". `premises` names the facts cited by the
+/// accepted refutation, in authored order with the incoming condition itself
+/// left out. It need not be a minimal explanation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImpossibleArm {
     pub block: BlockId,
@@ -346,31 +349,13 @@ impl Discharge {
 /// `knowledge` table. A refusal here concerns the module itself (an identity
 /// that does not resolve, knowledge already present); a refusal of one
 /// obligation is its verdict.
+/// Branch conditions, dispatch bindings and value relations are ordinary
+/// premises. Proof replay uses the same preparation as source acceptance.
 pub fn discharge(
     elaboration: &mut Elaboration,
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_with(elaboration, Knowledge::All, activity)
-}
-
-/// Which reasoning `discharge_with` uses. The checker uses `All`; the other
-/// two exist only so a measurement can count what branch facts and relations
-/// between values each turn from `Unproved` to discharged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Knowledge {
-    All,
-    WithoutBranchConditions,
-    /// No branch facts and no relations between values: literal intervals.
-    LiteralIntervals,
-}
-
-/// `discharge`, with the knowledge set chosen.
-pub fn discharge_with(
-    elaboration: &mut Elaboration,
-    knowledge: Knowledge,
-    activity: &mut ProofSearchActivity,
-) -> Checked<Discharge> {
-    discharge_inner(elaboration, knowledge, &[], activity)
+    discharge_inner(elaboration, &[], activity)
 }
 
 /// `discharge`, where each machine of `carried` is one stage 04 generated
@@ -388,15 +373,27 @@ pub fn discharge_carrying(
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
-    discharge_inner(elaboration, Knowledge::All, carried, activity)
+    discharge_inner(elaboration, carried, activity)
 }
 
 fn discharge_inner(
     elaboration: &mut Elaboration,
-    knowledge: Knowledge,
     carried: &[Carried<'_>],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Discharge> {
+    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            elaboration
+                .module
+                .machines
+                .first()
+                .map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            &format!("invalid declared scalar qualifications: {error:?}"),
+        )
+    })?;
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -425,13 +422,25 @@ fn discharge_inner(
     // summarized under no input, and what it returns because of the input
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
+    let diagnostic = elaboration
+        .module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+    let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, knowledge, &mut unreached, activity)?;
-    entry_inputs::infer(elaboration, knowledge, &mut unreached, activity)?;
-    result_summaries::infer(elaboration, knowledge, &mut unreached, activity)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation, activity)?;
+    entry_inputs::infer(elaboration, &mut unreached, &inhabitation, activity)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation, activity)?;
     finalize_callable_refinements(&mut elaboration.module, activity)?;
-    let branches: Vec<(MachineId, terminal_check_tables::program::Branch)> =
-        elaboration.authored_branches().collect();
+    let inputs = machine_inputs::PreparedMachineInputs::new(
+        &elaboration.module,
+        &elaboration.sources,
+        &elaboration.tables.machines,
+        &elaboration.requirements,
+        carried,
+    );
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -447,7 +456,8 @@ fn discharge_inner(
         // A requirement has a contract and no body, so nothing about it is
         // decided here. Its guarantees are each selected implementation's to
         // prove; leaving them without a verdict would read as vacuously held.
-        if elaboration.requirements.contains(&id) {
+        let inputs = inputs.for_machine(id)?;
+        if inputs.requirement {
             machines.push(MachineDischarge {
                 verdicts: tables.obligations.map(|obligation, _| {
                     Err(refusal(
@@ -468,17 +478,13 @@ fn discharge_inner(
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             module,
+            &inhabitation,
             &elaboration.domains,
             id,
             tables,
-            knowledge,
             &beyond,
-            carried.iter().find(|carried| carried.specialization == id),
-            &branches
-                .iter()
-                .filter(|(machine, _)| *machine == id)
-                .map(|(_, branch)| *branch)
-                .collect::<Vec<_>>(),
+            inputs.carried.map(|position| &carried[position]),
+            inputs.branches,
             activity,
         )?);
     }
@@ -576,10 +582,10 @@ fn terminal_machine(
 
 fn machine(
     module: &TerminalModule,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
-    knowledge: Knowledge,
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
@@ -601,7 +607,7 @@ fn machine(
         graph,
         context,
         reference_graph,
-    } = prepare(module, domains, id, tables, knowledge)?;
+    } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
     let mut references =
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -642,15 +648,7 @@ fn machine(
     // downstream obligations."). A declared one holds because every arrival
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
-    let declared = joins::prepare(
-        lowered,
-        id,
-        tables,
-        &graph,
-        &context,
-        invariants,
-        knowledge == Knowledge::All,
-    )?;
+    let declared = joins::prepare(lowered, id, tables, &graph, &context, invariants)?;
     let weakened_joins = joins::check(
         &joins::Machine {
             module,
@@ -660,7 +658,6 @@ fn machine(
             types: &types,
             graph: &graph,
             context: &context,
-            relations: knowledge != Knowledge::LiteralIntervals,
             declared: &declared,
             unreached,
         },
@@ -711,7 +708,6 @@ fn machine(
                 obligation,
                 row.created_at,
                 goal,
-                knowledge != Knowledge::LiteralIntervals,
                 unreached,
                 activity,
             )
@@ -719,20 +715,16 @@ fn machine(
         });
         decided[index] = Some(verdict);
     }
-    let mut verdicts: IdTable<ObligationId, Checked<Discharged>> = IdTable::default();
-    for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
-        verdicts.push(match (verdict, row.kind) {
-            (Some(verdict), _) => verdict.clone(),
-            (None, ObligationKind::PublishedGuarantee { clause }) => {
-                published(tables, id, obligation, clause, &decided)
-            }
-            (None, _) => Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Obligation(obligation),
-                "obligation left undecided",
-            )),
-        });
+    // Published guarantees read normal-return verdicts, so finish that last
+    // dependency pass before moving any certificate out of this table. Once
+    // it is complete, settlement owns each result; no duplicate proof tree
+    // or intermediate verdict table is needed.
+    for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
+        if decided[index].is_none()
+            && let ObligationKind::PublishedGuarantee { clause } = row.kind
+        {
+            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+        }
     }
     // A store or a zero establishment that was not shown to keep a clause
     // does not fail: it opens an invariant window, and the clause is owed
@@ -742,9 +734,17 @@ fn machine(
     let mut windows: Vec<places::Window> = Vec::new();
     let mut restoring: Vec<(places::Owner, OperationId)> = Vec::new();
     let mut settled = IdTable::default();
-    for ((obligation, row), (_, verdict)) in tables.obligations.iter().zip(verdicts.iter()) {
+    for ((obligation, row), verdict) in tables.obligations.iter().zip(decided) {
+        let verdict = verdict.unwrap_or_else(|| {
+            Err(refusal(
+                RefusalReason::Unsupported,
+                id,
+                Construct::Obligation(obligation),
+                "obligation left undecided",
+            ))
+        });
         let ObligationKind::DataDomain { operation, clause } = row.kind else {
-            settled.push(verdict.clone());
+            settled.push(verdict);
             continue;
         };
         let concerns = Construct::Obligation(obligation);
@@ -753,9 +753,9 @@ fn machine(
         settled.push(match verdict {
             // data_and_literals.md: "Construction and every restoring write
             // prove the owning default-domain clauses."
-            Ok(Discharged::Certificate(_)) if stores => {
+            Ok(Discharged::Certificate(evidence)) if stores => {
                 restoring.push((storage.owner(operation, clause, concerns)?, operation));
-                verdict.clone()
+                Ok(Discharged::Certificate(evidence))
             }
             Err(unproved)
                 if matches!(unproved.reason, RefusalReason::Unproved(_)) && (stores || zeroes) =>
@@ -771,10 +771,10 @@ fn machine(
                         initial: zeroes,
                         restored: Vec::new(),
                     });
-                    Ok(Discharged::Window(Box::new(unproved.clone())))
+                    Ok(Discharged::Window(Box::new(unproved)))
                 }
             }
-            verdict => verdict.clone(),
+            verdict => verdict,
         });
     }
     for window in &mut windows {
@@ -838,7 +838,6 @@ fn machine(
                 window.obligation,
                 consumption.point,
                 goal,
-                knowledge != Knowledge::LiteralIntervals,
                 unreached,
                 activity,
             )
@@ -884,16 +883,8 @@ fn machine(
             verdict,
         });
     }
-    let impossible = impossible_arms(
-        &context,
-        &graph,
-        tables,
-        lowered,
-        id,
-        branches,
-        knowledge != Knowledge::LiteralIntervals,
-        activity,
-    );
+    let impossible = branch_warnings::Analysis::new(&context, &graph, tables, lowered, id)
+        .run(branches, activity);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
@@ -904,151 +895,6 @@ fn machine(
     })
 }
 
-/// The authored arms of `branches` that no arrival can take. An arm is
-/// impossible when the facts at its entry, those before its branch with its
-/// condition added, prove `Falsehood` and the facts before the branch do
-/// not: a contradiction already in force before the branch is the earlier
-/// branch's to report. Each refutation is a certificate the kernel accepts
-/// under those facts ("A checked contradiction between valid premises"), and
-/// failure to find one is no evidence either way ("Failure to prove an
-/// obligation is not evidence that its arrival is impossible"), so an arm
-/// that cannot be judged here is simply not reported. The answer is
-/// advisory: no obligation's verdict reads it ("Proof soundness does not
-/// depend on pruning or on warning emission").
-fn impossible_arms(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    lowered: &TerminalMachine,
-    id: MachineId,
-    branches: &[terminal_check_tables::program::Branch],
-    relations: bool,
-    activity: &mut ProofSearchActivity,
-) -> Vec<ImpossibleArm> {
-    let mut impossible = Vec::new();
-    for branch in branches {
-        let Some(decided) = lowered
-            .blocks
-            .iter()
-            .find(|block| block.id == branch.decided_in)
-        else {
-            continue;
-        };
-        let before = decided
-            .operations
-            .last()
-            .map_or(ProgramPoint::BlockEntry(decided.id), |operation| {
-                ProgramPoint::AfterOperation(operation.id)
-            });
-        if refuted(context, graph, tables, id, before, relations, activity).is_some() {
-            continue;
-        }
-        let Some(rows) = refuted(
-            context,
-            graph,
-            tables,
-            id,
-            ProgramPoint::BlockEntry(branch.block),
-            relations,
-            activity,
-        ) else {
-            continue;
-        };
-        let entering = |edge: semantic_vocabulary::EdgeId| {
-            tables
-                .edges
-                .get(edge)
-                .is_some_and(|row| row.destination == Destination::Block(branch.block))
-        };
-        let premises = rows
-            .into_iter()
-            .filter_map(|row| tables.knowledge.get(row))
-            .map(|row| row.justification)
-            .filter(|justification| match justification {
-                Justification::BranchCondition { edge, .. } => !entering(*edge),
-                _ => true,
-            })
-            .collect();
-        impossible.push(ImpossibleArm {
-            block: branch.block,
-            premises,
-        });
-    }
-    impossible
-}
-
-/// The knowledge rows of a minimal set of the assumptions known at `point`
-/// that the kernel accepts a refutation from, or `None` when the prover
-/// finds none. The operation equations stay: they define values, and a
-/// premise is what the program knows of them.
-fn refuted(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    id: MachineId,
-    point: ProgramPoint,
-    relations: bool,
-    activity: &mut ProofSearchActivity,
-) -> Option<Vec<KnowledgeId>> {
-    let probe = ObligationId::new(1)?;
-    let known = hypotheses(graph, tables, id, probe, point).ok()?;
-    let mut refutes = |assumptions: &[Proposition]| {
-        let mut prover = prove::Prover::new(
-            context,
-            assumptions,
-            &known.axioms,
-            &tables.values,
-            relations,
-            activity,
-        );
-        let Ok(proof) = prover.prove(&Proposition::Falsehood) else {
-            return false;
-        };
-        let Some(identity) = EvidenceIdentity::new(probe.get()) else {
-            return false;
-        };
-        verify_obligation(
-            context,
-            &Obligation {
-                id: probe,
-                proposition: Proposition::Falsehood,
-                class: ObligationClass::Derivable,
-            },
-            assumptions,
-            &known.axioms,
-            EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity,
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof,
-            }),
-        )
-        .is_ok()
-    };
-    if !refutes(&known.assumptions) {
-        return None;
-    }
-    let mut kept: Vec<usize> = (0..known.assumptions.len()).collect();
-    let mut position = 0;
-    while position < kept.len() {
-        let without: Vec<Proposition> = kept
-            .iter()
-            .enumerate()
-            .filter(|(at, _)| *at != position)
-            .map(|(_, index)| known.assumptions[*index].clone())
-            .collect();
-        if refutes(&without) {
-            kept.remove(position);
-        } else {
-            position += 1;
-        }
-    }
-    Some(
-        kept.into_iter()
-            .map(|index| known.assumption_rows[index])
-            .collect(),
-    )
-}
-
 /// Fills one machine's knowledge table from its lowered form: entry
 /// `requires`, result equations and field-read equations, branch
 /// conditions, dispatch bindings and callee guarantees.
@@ -1057,7 +903,6 @@ fn fill_knowledge<'a>(
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
-    knowledge: Knowledge,
     types: &IdTable<ValueId, ScalarType>,
     (storage, references): (
         &places::Storage<'a>,
@@ -1124,7 +969,6 @@ fn fill_knowledge<'a>(
             when_true,
             when_false,
         } = &block.terminator
-            && knowledge == Knowledge::All
         {
             for (edge, holds) in [(when_true.edge, true), (when_false.edge, false)] {
                 push_knowledge(
@@ -1143,22 +987,20 @@ fn fill_knowledge<'a>(
     // equal to what the payload leaf holds, and each under the clauses the
     // type of that storage states of it, as a payload read would be. The
     // rows hold because that edge was taken and are available on it.
-    if knowledge == Knowledge::All {
-        for block in &lowered.blocks {
-            let equations = storage.payload_equations(references, tables, block)?;
-            let premises = storage.payload_premises(references, tables, block)?;
-            for (edge, proposition) in equations.into_iter().chain(
-                premises
-                    .into_iter()
-                    .map(|(edge, _, premise)| (edge, premise)),
-            ) {
-                push_knowledge(
-                    tables,
-                    proposition,
-                    ProgramPoint::Edge(edge),
-                    Justification::DispatchBinding { edge },
-                );
-            }
+    for block in &lowered.blocks {
+        let equations = storage.payload_equations(references, tables, block)?;
+        let premises = storage.payload_premises(references, tables, block)?;
+        for (edge, proposition) in equations.into_iter().chain(
+            premises
+                .into_iter()
+                .map(|(edge, _, premise)| (edge, premise)),
+        ) {
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::Edge(edge),
+                Justification::DispatchBinding { edge },
+            );
         }
     }
     for invocation in tables.invocations.keys().collect::<Vec<_>>() {
@@ -1250,7 +1092,34 @@ pub(crate) fn prepare(
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
-    knowledge: Knowledge,
+) -> Checked<Prepared> {
+    let inhabitation = prepare_inhabitation(module, id)?;
+    prepare_with_inhabitation(module, domains, id, tables, &inhabitation)
+}
+
+fn prepare_inhabitation(
+    module: &TerminalModule,
+    id: MachineId,
+) -> Checked<terminal_semantics::inhabitation::Inhabitation> {
+    terminal_semantics::inhabitation::Inhabitation::prepare(
+        &terminal_semantics::inhabitation::TerminalContracts::new(&module.structural_types),
+    )
+    .map_err(|_| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            "structural type contracts do not form one inhabitation family",
+        )
+    })
+}
+
+pub(crate) fn prepare_with_inhabitation(
+    module: &TerminalModule,
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<Prepared> {
     let machines = &module.machines;
     let structural_types = &module.structural_types;
@@ -1261,9 +1130,12 @@ pub(crate) fn prepare(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    // A ranking is admitted whole before any of its comparisons is decided,
+    // and a terminating machine may leave no cycle unranked (`ranking`).
+    ranking::admit(id, lowered, tables, &graph)?;
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
         let mut references =
@@ -1287,7 +1159,6 @@ pub(crate) fn prepare(
             id,
             lowered,
             tables,
-            knowledge,
             &types,
             (&storage, &mut references),
         )?;
@@ -1424,6 +1295,13 @@ fn result_equation(
     if let Some(semantics) =
         terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
             .map_err(&refuse)?
+    {
+        return Ok(Some(semantics.result_equation().clone()));
+    }
+    // A Trapping operation's normal successor is reached only where it did
+    // not trap, and there it computed the Exact primitive's result.
+    if let Some(semantics) =
+        terminal_semantics::trapping_integer_semantics(operation, types).map_err(&refuse)?
     {
         return Ok(Some(semantics.result_equation().clone()));
     }
@@ -1839,15 +1717,19 @@ fn stated_goal<'a>(
             joins::arrival_goal(lowered, id, obligation, edge, tables)
         }
         ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(module, lowered, tables, id, obligation, site, cause)
+            crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
+        }
+        ObligationKind::WellFoundedness { component } => {
+            ranking::floor_goal(lowered, id, obligation, component)
+        }
+        ObligationKind::RankComparison { component, edge } => {
+            ranking::comparison_goal(lowered, id, obligation, component, edge)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
-        | ObligationKind::EstablishmentDebt { .. }
-        | ObligationKind::WellFoundedness { .. }
-        | ObligationKind::RankComparison { .. } => Err(refusal(
+        | ObligationKind::EstablishmentDebt { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,
             concerns,
@@ -1867,7 +1749,6 @@ fn decide(
     obligation: ObligationId,
     point: ProgramPoint,
     goal: Proposition,
-    relations: bool,
     unreached: &[ValueId],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
@@ -1877,7 +1758,6 @@ fn decide(
         &hypotheses.assumptions,
         &hypotheses.axioms,
         &tables.values,
-        relations,
         activity,
     );
     let proof = prover.prove(&goal).map_err(|reason| {
@@ -2121,7 +2001,7 @@ pub fn derive_contract_obligation(
             .collect::<Result<Vec<_>, &'static str>>()?,
     )
     .map_err(|_| "contract formal identities are not a complete dense namespace")?;
-    let proof = prove::Prover::new(context, &[], &[], &values, true, activity).prove(goal)?;
+    let proof = prove::Prover::new(context, &[], &[], &values, activity).prove(goal)?;
     let certificate = CertificateEnvelope {
         identity: EvidenceIdentity::new(obligation.get())
             .ok_or("contract obligation identity is absent")?,

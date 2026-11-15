@@ -1,27 +1,14 @@
 /*
-    Pre-resolution synthesis of closed generic data inside the name-resolution owner.
+    Structural arguments retain the declarations and values chosen by resolution.
 
-    These routines consume syntax and return syntax. Discovered templates,
-    substitutions and pending instances are private working state. Durable
-    instance declarations remain in SyntaxTrees, not a second program schema.
-    Exact declaration lookup comes from the shared
-    `preparation::declaration_selection` owner.
-
-    Closed declaration specialization is demanded by authored applications
-    and inline storage. Reference identity alone does not demand a recursively
-    growing catalog, even for const-bearing or constrained declarations. Closed
-    argument preparation remains independent of declaration copying. Data facts
-    define default domains; impossible domains are legal to name, not to inhabit
-    without establishing their predicates. Typed preparation elaborates field
-    views without reopening the frozen program during checking.
+    Shared type/constant utilities serve declaration validation and structural
+    machine equations. The private specializer consumes only the closed type roots
+    introduced by equation completion, after provisional resolution has selected
+    their value names. Its templates, substitutions and pending instances are
+    private working state; synthesized declarations remain in SyntaxTrees.
 */
 
 use crate::preparation::declaration_selection;
-#[cfg(test)]
-#[path = "preparation_const_operands_tests.rs"]
-mod const_operands_tests;
-use crate::preparation::generic_data::uses::concrete_machine_expression_handles;
-use crate::tables::syntax_expressions;
 use crate::tables::syntax_type_references;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -31,9 +18,8 @@ use std::collections::{HashMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{
-    ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameter, TypeParameterKind,
+    ConstDefinition, DataDefinition, DataMember, Item, ProofFact, TypeParameterKind,
 };
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::{
@@ -1343,7 +1329,6 @@ pub(crate) mod domain_heads {
                         }
                     }
                     TypeReferenceNode::Named(_)
-                    | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::ConstExpression(_)
                     | TypeReferenceNode::Unit => {}
                 }
@@ -1599,7 +1584,6 @@ mod eligibility {
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::Callable { .. }
                 | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => {}
             }
         }
@@ -1811,191 +1795,8 @@ pub(crate) mod source_modules {
         })
     }
 }
-mod static_argument_positions {
-    /*
-        Static calls and nested implementation applications supply the same const
-        destinations as data applications. Reachability comes from the existing
-        concrete-owner walk; declaration lookup supplies only the binder carrier.
-        The shared evaluator still resolves original lexical operands and admits
-        every invocation before publishing a canonical value.
-    */
-
-    use super::{
-        HashSet, Identifier, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
-        declaration_selection::ConstantSelection,
-    };
-    use crate::tables::syntax_expressions;
-    use crate::tables::syntax_items;
-    use crate::tables::syntax_type_references;
-    use symbols::SymbolKind;
-    use syntax_trees::expression::{ExpressionNode, StaticMachineArgument};
-    use syntax_trees::statement::StatementNode;
-
-    pub(super) fn collect(
-        syntax: &mut SyntaxTrees,
-        selection: &ConstantSelection<'_>,
-        declaration_syntax: Option<&SyntaxTrees>,
-        positions: &[TypeReferenceHandle],
-        public_positions: &HashSet<TypeReferenceHandle>,
-        pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-    ) {
-        let mut applications = Vec::new();
-        let mut visit = |name: Identifier, arguments: &[StaticMachineArgument]| {
-            applications.push((name, arguments.to_vec()));
-        };
-        for (_, expression) in syntax.expressions.iter_expressions() {
-            if let ExpressionNode::Call(call) = expression {
-                if !has_const_expression_argument(syntax, &call.machine_arguments) {
-                    continue;
-                }
-                let mut name = call.target.as_str(syntax).to_owned();
-                if call.receiver.is_valid() {
-                    let ExpressionNode::Name {
-                        members: path,
-                        application: path_application,
-                    } = syntax.expressions.expression(call.receiver)
-                    else {
-                        continue;
-                    };
-                    if path_application.is_some() {
-                        continue;
-                    }
-                    let prefix = syntax_expressions(syntax)
-                        .identifier_path_members(path.to_owned())
-                        .iter()
-                        .map(|part| part.as_str(syntax))
-                        .collect::<Vec<_>>()
-                        .join("::");
-                    name = format!("{prefix}::{name}");
-                }
-                visit(
-                    Identifier::new(name, call.target.source_span()),
-                    &call.machine_arguments,
-                );
-            }
-        }
-        for state in super::uses::selected_machine_state_handles(syntax, syntax.root_item_handles())
-        {
-            for statement in syntax_items(syntax).statements(syntax.items.state(state).statements) {
-                if let StatementNode::Call(call) = syntax.statements.statement(*statement) {
-                    if !has_const_expression_argument(syntax, &call.machine_arguments) {
-                        continue;
-                    }
-                    let mut path = syntax
-                        .statements
-                        .identifier_path_members(call.receiver)
-                        .iter()
-                        .map(|part| part.as_str(syntax))
-                        .collect::<Vec<_>>();
-                    path.push(call.target.as_str(syntax));
-                    visit(
-                        Identifier::new(path.join("::"), call.target.source_span()),
-                        &call.machine_arguments,
-                    );
-                }
-            }
-        }
-        let positions = positions.iter().copied().collect::<HashSet<_>>();
-        for (name, arguments) in applications {
-            collect_application(
-                syntax,
-                selection,
-                declaration_syntax,
-                &name,
-                &arguments,
-                &positions,
-                public_positions,
-                pending,
-            );
-        }
-    }
-
-    fn has_const_expression_argument(
-        syntax: &SyntaxTrees,
-        arguments: &[StaticMachineArgument],
-    ) -> bool {
-        arguments.iter().any(|argument| {
-            (argument.type_reference.is_valid()
-                && matches!(
-                    syntax_type_references(syntax).type_reference(argument.type_reference),
-                    TypeReferenceNode::ConstExpression(_)
-                ))
-                || argument.application.as_ref().is_some_and(|application| {
-                    has_const_expression_argument(syntax, &application.arguments)
-                })
-        })
-    }
-
-    fn collect_application(
-        syntax: &mut SyntaxTrees,
-        selection: &ConstantSelection<'_>,
-        declaration_syntax: Option<&SyntaxTrees>,
-        name: &Identifier,
-        arguments: &[StaticMachineArgument],
-        positions: &HashSet<TypeReferenceHandle>,
-        public_positions: &HashSet<TypeReferenceHandle>,
-        pending: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-    ) {
-        if arguments.iter().any(|argument| {
-            argument.type_reference.is_valid()
-                && matches!(
-                    syntax_type_references(syntax).type_reference(argument.type_reference),
-                    TypeReferenceNode::ConstExpression(_)
-                )
-        }) && let Some(parameters) = selection.const_parameter_carriers(
-            syntax,
-            declaration_syntax,
-            name,
-            &[SymbolKind::Machine, SymbolKind::Conformance],
-        ) && parameters.len() == arguments.len()
-        {
-            for (parameter, argument) in parameters.iter().zip(arguments) {
-                if let Some(destination) = *parameter
-                    && positions.contains(&argument.type_reference)
-                    && matches!(
-                        syntax_type_references(syntax).type_reference(argument.type_reference),
-                        TypeReferenceNode::ConstExpression(_)
-                    )
-                    && !pending
-                        .iter()
-                        .any(|(existing, _, _)| *existing == argument.type_reference)
-                {
-                    pending.push((
-                        argument.type_reference,
-                        destination,
-                        public_positions.contains(&argument.type_reference),
-                    ));
-                }
-            }
-        }
-        for argument in arguments {
-            if let Some(application) = &argument.application
-                && let Some(first) = argument.path.first()
-            {
-                let name = Identifier::new(
-                    argument
-                        .path
-                        .iter()
-                        .map(|part| part.as_str(syntax))
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                    first.source_span(),
-                );
-                collect_application(
-                    syntax,
-                    selection,
-                    declaration_syntax,
-                    &name,
-                    &application.arguments,
-                    positions,
-                    public_positions,
-                    pending,
-                );
-            }
-        }
-    }
-}
 mod substitution {
+    use numerics::bignum::BigInt;
     /* Member and type-reference substitution. */
     use crate::preparation::declaration_selection;
     use crate::preparation::generic_data::ClosedArgumentIdentity;
@@ -2528,14 +2329,14 @@ mod substitution {
                 let argument_handles: Vec<TypeReferenceHandle> = syntax_type_references(syntax)
                     .type_reference_handles(arguments)
                     .to_vec();
-                let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
-                let const_bindings: HashMap<String, i128> = substitution
+                let integer_types = generic_const_integer_types(syntax, &base_name, selection);
+                let const_bindings: HashMap<String, BigInt> = substitution
                     .iter()
                     .filter_map(|(name, argument)| {
                         let value = syntax_type_references(syntax)
                             .type_reference(*argument)
                             .as_named()?;
-                        Some((name.clone(), value.as_str(syntax).parse::<i128>().ok()?))
+                        Some((name.clone(), value.as_str(syntax).parse::<BigInt>().ok()?))
                     })
                     .collect();
                 let mut substituted_arguments = Vec::with_capacity(argument_handles.len());
@@ -2942,6 +2743,7 @@ mod substitution {
     }
 }
 mod synthesis {
+    use numerics::bignum::BigInt;
     /* Closed-instance discovery, fixed-point synthesis and the ordered rewrite. */
     use crate::preparation::generic_data::ClosedArgumentIdentity;
     use crate::preparation::generic_data::ConstFactValue;
@@ -2996,44 +2798,13 @@ mod synthesis {
     use syntax_trees::types::TypeReferenceHandle;
     use syntax_trees::types::TypeReferenceNode;
 
-    pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
-        syntax: &mut SyntaxTrees,
-        warnings: &mut Vec<Diagnostic>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let selection = ConstantSelection::new(syntax, None, Vec::new())?;
-        super::domain_heads::normalize(syntax, Some(&selection))?;
-        desugar_generic_data_instances_with_selection(syntax, warnings, Some(&selection), &[])
-    }
-
-    pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
-        syntax: &mut SyntaxTrees,
-        warnings: &mut Vec<Diagnostic>,
-        selection: Option<&ConstantSelection>,
-        closed_roots: &[TypeReferenceHandle],
-    ) -> Result<(), Vec<Diagnostic>> {
-        desugar_generic_data_instances_in(
-            syntax,
-            warnings,
-            selection,
-            GenericDataWorkDomain::All {
-                additional_type_roots: closed_roots,
-            },
-        )
-    }
-
     pub(crate) fn desugar_generic_data_instances_in(
         syntax: &mut SyntaxTrees,
         warnings: &mut Vec<Diagnostic>,
         selection: Option<&ConstantSelection>,
         domain: GenericDataWorkDomain<'_>,
     ) -> Result<(), Vec<Diagnostic>> {
-        if let GenericDataWorkDomain::Selected {
-            type_roots,
-            declarations,
-        } = domain
-            && type_roots.is_empty()
-            && declarations.is_empty()
-        {
+        if domain.type_roots.is_empty() && domain.declarations.is_empty() {
             return Ok(());
         }
         let work = SynthesisWork::new(syntax, domain);
@@ -3148,37 +2919,8 @@ mod synthesis {
                 },
             );
         }
-        let mut domain_head_positions =
+        let domain_head_positions =
             work.type_positions(syntax, TypePositionPurpose::Identity, true);
-        for item in syntax.root_items().filter(|_| work.is_all()) {
-            let Some(definition) = item.as_data() else {
-                continue;
-            };
-            if definition.type_parameters.is_empty() {
-                continue;
-            }
-            for member in syntax.items.data_members(definition.members) {
-                match member {
-                    DataMember::Field(field) => super::collect_type_positions(
-                        syntax,
-                        field.type_reference,
-                        &mut domain_head_positions,
-                        true,
-                    ),
-                    DataMember::Variant(variant) => {
-                        for field in syntax.items.data_payload_fields(variant.payload) {
-                            super::collect_type_positions(
-                                syntax,
-                                field.type_reference,
-                                &mut domain_head_positions,
-                                true,
-                            );
-                        }
-                    }
-                    DataMember::Retired(_) => {}
-                }
-            }
-        }
         normalize_domain_head_positions(syntax, selection, &domain_head_positions);
 
         canonicalize_closed_domain_indices(syntax, selection, warnings, &work)
@@ -3224,7 +2966,7 @@ mod synthesis {
             });
         }
         loop {
-            if !work.is_all() {
+            {
                 let domain_positions =
                     work.type_positions(syntax, TypePositionPurpose::Identity, true);
                 normalize_domain_head_positions(syntax, selection, &domain_positions);
@@ -3409,7 +3151,7 @@ mod synthesis {
             .cloned()
             .zip(instance.argument_handles.iter().copied())
             .collect();
-        let const_parameter_values: HashMap<String, i128> = base_info
+        let const_parameter_values: HashMap<String, BigInt> = base_info
             .parameter_names
             .iter()
             .zip(&base_info.const_parameter_types)
@@ -3422,35 +3164,32 @@ mod synthesis {
                 Some((name.clone(), value.as_str(syntax).parse().ok()?))
             })
             .collect();
-        let const_parameter_type_names: HashMap<String, String> = base_info
+        let const_parameter_types = base_info
             .parameter_names
             .iter()
             .zip(&base_info.const_parameter_types)
             .filter_map(|(name, parameter_type)| {
-                let parameter_type = parameter_type.as_ref()?;
-                let type_name = syntax_type_references(syntax)
-                    .type_reference(*parameter_type)
-                    .as_named()?;
-                Some((name.clone(), type_name.as_str(syntax).to_string()))
+                let carrier = crate::preparation::generic_data::const_integer_type(
+                    syntax,
+                    (*parameter_type)?,
+                    selection,
+                )?;
+                Some((name.clone(), carrier))
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
         let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
             .iter()
             .map(|(name, value)| {
-                use numerics::literals::{IntegerLanding, LandedIntegerType};
-                let Some(landed_type) = const_parameter_type_names
-                    .get(name)
-                    .map(String::as_str)
-                    .and_then(LandedIntegerType::from_name)
-                else {
+                use numerics::literals::IntegerLanding;
+                let Some(landed_type) = const_parameter_types.get(name).copied() else {
                     return Err(vec![Diagnostic::error(format!(
                         "const parameter `{name}` has no supported integer carrier for substitution"
                     ))]);
                 };
                 let literal = IntegerLiteral::from_parts(
-                    *value < 0,
+                    value.is_negative(),
                     IntegerRadix::Decimal,
-                    value.unsigned_abs().to_string().as_str(),
+                    value.abs().to_string().as_str(),
                 )
                 .expect("a concrete const argument is a valid decimal integer literal")
                 .with_landing(IntegerLanding {
@@ -3462,8 +3201,21 @@ mod synthesis {
             .collect::<Result<_, Vec<Diagnostic>>>()?;
         let mut const_parameter_scalars = const_parameter_values
             .iter()
-            .map(|(name, value)| (name.clone(), ConstScalarValue::Integer(*value)))
-            .collect::<HashMap<_, _>>();
+            .map(|(name, value)| {
+                let integer_type = const_parameter_types.get(name).copied().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "const binding lost its selected integer carrier",
+                    )]
+                })?;
+                Ok((
+                    name.clone(),
+                    ConstScalarValue::DeclaredInteger {
+                        value: value.clone(),
+                        integer_type,
+                    },
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, Vec<Diagnostic>>>()?;
         for (name, parameter_type) in base_info
             .parameter_names
             .iter()
@@ -3542,7 +3294,7 @@ mod synthesis {
                     snapshot,
                     membership,
                     &const_parameter_values,
-                    &const_parameter_type_names,
+                    &const_parameter_types,
                     selection,
                     warnings,
                 ),
@@ -3769,6 +3521,7 @@ mod synthesis {
 }
 #[path = "preparation_generic_uses.rs"]
 mod uses;
+
 mod work_domain {
     /*
         Synthesis reads the full declaration context but mutates only owned work.
@@ -3792,14 +3545,9 @@ mod work_domain {
     use syntax_trees::{SyntaxTrees, item::ItemHandle, types::TypeReferenceHandle};
 
     #[derive(Clone, Copy)]
-    pub(crate) enum GenericDataWorkDomain<'input> {
-        All {
-            additional_type_roots: &'input [TypeReferenceHandle],
-        },
-        Selected {
-            type_roots: &'input [TypeReferenceHandle],
-            declarations: &'input [ItemHandle],
-        },
+    pub(crate) struct GenericDataWorkDomain<'input> {
+        pub(crate) type_roots: &'input [TypeReferenceHandle],
+        pub(crate) declarations: &'input [ItemHandle],
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -3823,10 +3571,6 @@ mod work_domain {
             }
         }
 
-        pub(super) fn is_all(&self) -> bool {
-            matches!(self.domain, GenericDataWorkDomain::All { .. })
-        }
-
         /*
             Synthesis also copies data facts and other declaration-side expressions,
             not just machine bodies. Their new arena suffix belongs to this work
@@ -3837,18 +3581,13 @@ mod work_domain {
         }
 
         pub(super) fn declarations(&self, syntax: &SyntaxTrees) -> Vec<ItemHandle> {
-            match self.domain {
-                GenericDataWorkDomain::All { .. } => syntax.root_item_handles().to_vec(),
-                GenericDataWorkDomain::Selected { declarations, .. } => {
-                    let mut selected = declarations.to_vec();
-                    for &declaration in &syntax.root_item_handles()[self.declaration_frontier..] {
-                        if !selected.contains(&declaration) {
-                            selected.push(declaration);
-                        }
-                    }
-                    selected
+            let mut selected = self.domain.declarations.to_vec();
+            for &declaration in &syntax.root_item_handles()[self.declaration_frontier..] {
+                if !selected.contains(&declaration) {
+                    selected.push(declaration);
                 }
             }
+            selected
         }
 
         pub(super) fn type_positions(
@@ -3860,12 +3599,7 @@ mod work_domain {
             let declarations = if purpose == TypePositionPurpose::Identity {
                 self.declarations(syntax)
             } else {
-                match self.domain {
-                    GenericDataWorkDomain::All { .. } => {
-                        syntax.root_item_handles()[..self.declaration_frontier].to_vec()
-                    }
-                    GenericDataWorkDomain::Selected { declarations, .. } => declarations.to_vec(),
-                }
+                self.domain.declarations.to_vec()
             };
             let mut positions = collect_selected_type_reference_positions(syntax, &declarations);
             if purpose == TypePositionPurpose::Materialization {
@@ -3874,13 +3608,7 @@ mod work_domain {
                     &syntax.root_item_handles()[self.declaration_frontier..],
                 ));
             }
-            let roots = match self.domain {
-                GenericDataWorkDomain::All {
-                    additional_type_roots,
-                } => additional_type_roots,
-                GenericDataWorkDomain::Selected { type_roots, .. } => type_roots,
-            };
-            for &root in roots {
+            for &root in self.domain.type_roots {
                 super::collect_type_positions(
                     syntax,
                     root,
@@ -3892,14 +3620,12 @@ mod work_domain {
         }
     }
 }
-
 pub(super) use uses::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,
     visit_static_argument_type_inputs,
 };
 pub(crate) use uses::{statement_call_inputs, statement_type_inputs};
 
-use crate::preparation::module_normalization::validate_with_const_resolution_mode;
 pub(crate) use arguments::{
     DomainCarrier, DomainHead, closed_argument_identity, closed_parameter_argument_identity,
     domain_application_head, domain_index_telescope, monomorphizable_argument_slugs,
@@ -3917,14 +3643,13 @@ pub(in crate::preparation::generic_data) use const_evaluation::{
     ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,
     canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
-    capture_machine_runtime_template_names, checked_fact_integer,
-    collect_callable_type_reference_positions, collect_data_type_reference_positions,
-    collect_selected_type_reference_positions, const_integer_in_envelope, const_integer_type,
-    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
-    integer_literal_value, normalize_generic_template_const_expressions,
-    prepare_closed_application, prove_const_leaf_domain_constraints, qualified_const_name,
-    replace_const_expression_names_from, replace_machine_const_expression_names_from,
-    syntax_type_identity, validate_const_index_type, validate_syntax_integer_range,
+    capture_machine_runtime_template_names, collect_data_type_reference_positions,
+    const_integer_type, const_integer_within_budget, domain_index_parameters,
+    evaluate_const_argument_expression, generic_const_integer_types, integer_literal_value,
+    normalize_generic_template_const_expressions, prepare_closed_application,
+    prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
+    replace_machine_const_expression_names_from, syntax_type_identity,
+    validate_syntax_integer_range,
 };
 pub(in crate::preparation) use const_evaluation::{
     canonicalize_selected_const_definition, collect_type_positions,
@@ -3937,520 +3662,9 @@ pub(in crate::preparation::generic_data) use discovery::{
 pub(crate) use substitution::{
     closed_name_identity, substitute_member, type_reference_mentions_parameter,
 };
-use synthesis::desugar_generic_data_instances;
+
 pub(crate) use synthesis::desugar_generic_data_instances_in;
 pub(crate) use work_domain::GenericDataWorkDomain;
-
-/* Combined closed constant arguments across data declarations, array extents, and machines. */
-pub struct ClosedConstArguments {
-    pub data_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-    pub extent_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-    pub machine_arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-}
-
-pub fn closed_const_arguments(
-    syntax: &mut SyntaxTrees,
-    sources: Option<std::sync::Arc<source::SourceMap>>,
-    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-    declaration_syntax: Option<&SyntaxTrees>,
-) -> Result<ClosedConstArguments, Vec<Diagnostic>> {
-    let data_positions = collect_data_type_reference_positions(syntax, false);
-    let data_public_positions: HashSet<TypeReferenceHandle> =
-        collect_data_type_reference_positions(syntax, true)
-            .into_iter()
-            .collect();
-    let (machine_positions, machine_public_positions_vec) =
-        collect_callable_type_reference_positions(syntax);
-    let machine_public_positions: HashSet<TypeReferenceHandle> =
-        machine_public_positions_vec.into_iter().collect();
-    let (data_arguments, machine_arguments) = {
-        let selection = ConstantSelection::with_retained_base(
-            syntax,
-            sources,
-            top_level_bindings,
-            retained_base,
-        )?;
-        let data_arguments = collect_closed_const_arguments(
-            syntax,
-            &selection,
-            declaration_syntax,
-            &data_positions,
-            &data_public_positions,
-            false,
-        );
-        let mut machine_arguments = collect_closed_const_arguments(
-            syntax,
-            &selection,
-            declaration_syntax,
-            &machine_positions,
-            &machine_public_positions,
-            true,
-        );
-        static_argument_positions::collect(
-            syntax,
-            &selection,
-            declaration_syntax,
-            &machine_positions,
-            &machine_public_positions,
-            &mut machine_arguments,
-        );
-        (data_arguments, machine_arguments)
-    };
-    let destination = syntax
-        .type_references
-        .insert_named(Identifier::generated("u64"));
-    let mut extent_arguments = Vec::new();
-    for owner in data_positions.iter().chain(machine_positions.iter()) {
-        let TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::Expression(value),
-            ..
-        } = syntax.type_references.type_reference(*owner)
-        else {
-            continue;
-        };
-        if matches!(
-            syntax.type_references.type_reference(*value),
-            TypeReferenceNode::ConstExpression(_)
-        ) && !extent_arguments
-            .iter()
-            .any(|(existing, _, _)| existing == value)
-        {
-            let is_public =
-                data_public_positions.contains(owner) || machine_public_positions.contains(owner);
-            extent_arguments.push((*value, destination, is_public));
-        }
-    }
-    Ok(ClosedConstArguments {
-        data_arguments,
-        extent_arguments,
-        machine_arguments,
-    })
-}
-
-/*
-    Authored constant arguments in concrete data fields and constant declarations.
-    Open templates and machine lexical scopes cannot borrow a standalone probe.
-    These handles borrow the input syntax; no provisional program escapes. That
-    borrow is why discovery names the forest directly instead of taking the
-    resolution request, which consumes the forest it prepares.
-    Each tuple retains the argument, parameter type, and real owner's public exposure.
-*/
-pub fn closed_data_const_argument_expressions(
-    syntax: &mut SyntaxTrees,
-    sources: Option<std::sync::Arc<source::SourceMap>>,
-    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-    declaration_syntax: Option<&SyntaxTrees>,
-) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let positions = collect_data_type_reference_positions(syntax, false);
-    if !positions_may_have_closed_const_arguments(syntax, &positions) {
-        return Ok(Vec::new());
-    }
-    let selection =
-        ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
-    let public_positions: HashSet<TypeReferenceHandle> =
-        collect_data_type_reference_positions(syntax, true)
-            .into_iter()
-            .collect();
-    Ok(collect_closed_const_arguments(
-        syntax,
-        &selection,
-        declaration_syntax,
-        &positions,
-        &public_positions,
-        false,
-    ))
-}
-
-/*
-    Whether this authored argument can still denote a closed const value: a
-    literal const expression, or a bare name that is neither a scalar spelling
-    nor a normalized const argument.
-*/
-fn may_supply_closed_const_argument(syntax: &SyntaxTrees, argument: TypeReferenceHandle) -> bool {
-    match syntax.type_references.type_reference(argument) {
-        TypeReferenceNode::ConstExpression(_) => true,
-        TypeReferenceNode::Named(name) => {
-            syntax_type_references(syntax)
-                .const_argument_normalization(argument)
-                .is_none()
-                && ConstScalarSpelling::from_bare_name(name.as_str(syntax)).is_none()
-        }
-        _ => false,
-    }
-}
-
-fn positions_may_have_closed_const_arguments(
-    syntax: &SyntaxTrees,
-    positions: &[TypeReferenceHandle],
-) -> bool {
-    positions.iter().any(
-        |position| match syntax.type_references.type_reference(*position) {
-            TypeReferenceNode::Generic { arguments, .. } => syntax_type_references(syntax)
-                .type_reference_handles(*arguments)
-                .iter()
-                .any(|argument| may_supply_closed_const_argument(syntax, *argument)),
-            TypeReferenceNode::Constrained { constraints, .. } => syntax_type_references(syntax)
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| match constraint {
-                    TypeConstraintNode::Domain(domain) => syntax_type_references(syntax)
-                        .type_reference_handles(domain.arguments)
-                        .iter()
-                        .any(|argument| may_supply_closed_const_argument(syntax, *argument)),
-                    _ => false,
-                }),
-            _ => false,
-        },
-    )
-}
-
-/*
-    Reachable concrete array-extent uses share ordinary constant-expression
-    admission. The use is an owned child, not a source span or a fabricated
-    generic application; open data/machine telescopes are excluded by discovery.
-*/
-pub fn closed_array_extent_expressions(
-    syntax: &mut SyntaxTrees,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
-    let mut positions = collect_data_type_reference_positions(syntax, false);
-    let mut public = collect_data_type_reference_positions(syntax, true);
-    let (machine, public_machine) = collect_callable_type_reference_positions(syntax);
-    positions.extend(machine);
-    public.extend(public_machine);
-    let public = public.into_iter().collect();
-    closed_array_extents_at(syntax, &positions, &public)
-}
-
-/*
-    Constant positions demanded by one declaration cohort. Array extents have
-    their own checked length-job continuation, rather than a scalar leaf job.
-*/
-pub struct ClosedDeclarationConstantUses {
-    pub arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-    pub array_extents: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
-}
-
-fn closed_array_extents_at(
-    syntax: &mut SyntaxTrees,
-    positions: &[TypeReferenceHandle],
-    public: &HashSet<TypeReferenceHandle>,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
-    let destination = syntax
-        .type_references
-        .insert_named(Identifier::generated("u64"));
-    let mut uses = Vec::new();
-    for &owner in positions {
-        let TypeReferenceNode::FixedArray {
-            length: FixedArrayLength::Expression(value),
-            ..
-        } = syntax.type_references.type_reference(owner)
-        else {
-            continue;
-        };
-        if matches!(
-            syntax.type_references.type_reference(*value),
-            TypeReferenceNode::ConstExpression(_)
-        ) && !uses.iter().any(|(existing, _, _)| existing == value)
-        {
-            uses.push((*value, destination, public.contains(&owner)));
-        }
-    }
-    uses
-}
-
-/*
-    Publish a validated deferred job as an ordinary closed private entry.
-    Only reachable concrete owners of this exact use change representation.
-*/
-pub fn retain_deferred_array_extent(
-    syntax: &mut SyntaxTrees,
-    argument: TypeReferenceHandle,
-    entry: Identifier,
-) {
-    let mut owners = collect_data_type_reference_positions(syntax, false);
-    owners.extend(collect_callable_type_reference_positions(syntax).0);
-    for owner in owners {
-        let node = syntax.type_references.type_reference(owner).clone();
-        if let TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Expression(value),
-        } = node
-            && value == argument
-        {
-            syntax.type_references.replace_type_reference(
-                owner,
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: FixedArrayLength::ConstCall(entry.clone()),
-                },
-            );
-        }
-    }
-}
-
-/*
-    Authored constant arguments in nongeneric callable type owners. Discovery
-    supplies destinations, not value-selection authority: callers must resolve
-    each expression in its original declaration scope before evaluation.
-*/
-pub fn closed_machine_const_arguments(
-    syntax: &mut SyntaxTrees,
-    sources: Option<std::sync::Arc<source::SourceMap>>,
-    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-    declaration_syntax: Option<&SyntaxTrees>,
-) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let selection =
-        ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
-    let (positions, public_positions_vec) = collect_callable_type_reference_positions(syntax);
-    let public_positions: HashSet<TypeReferenceHandle> = public_positions_vec.into_iter().collect();
-    let mut arguments = collect_closed_const_arguments(
-        syntax,
-        &selection,
-        declaration_syntax,
-        &positions,
-        &public_positions,
-        true,
-    );
-    static_argument_positions::collect(
-        syntax,
-        &selection,
-        declaration_syntax,
-        &positions,
-        &public_positions,
-        &mut arguments,
-    );
-    Ok(arguments)
-}
-
-/*
-    Constant type prerequisites of exact ready declarations. Initializer
-    scheduling owns readiness; this inventory only supplies receiving carriers.
-    It neither evaluates unrelated declarations nor replaces lexical selection.
-*/
-pub fn closed_declaration_constant_uses(
-    syntax: &mut SyntaxTrees,
-    sources: Option<std::sync::Arc<source::SourceMap>>,
-    top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
-    declaration_syntax: Option<&SyntaxTrees>,
-    declarations: &[syntax_trees::item::ItemHandle],
-) -> Result<ClosedDeclarationConstantUses, Vec<Diagnostic>> {
-    let selection =
-        ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
-    let mut positions = collect_selected_type_reference_positions(syntax, declarations);
-    for declaration in declarations {
-        if let Item::Const(definition) = syntax.root_item(*declaration) {
-            let mut expressions = HashSet::new();
-            collect_expression_handles(syntax, definition.value, &mut expressions);
-            for expression in expressions {
-                visit_expression_type_inputs(syntax, expression, &mut |reference| {
-                    collect_type_positions(syntax, reference, &mut positions, true);
-                });
-            }
-        }
-    }
-    let public_positions = HashSet::new();
-    let mut arguments = collect_closed_const_arguments(
-        syntax,
-        &selection,
-        declaration_syntax,
-        &positions,
-        &public_positions,
-        true,
-    );
-    static_argument_positions::collect(
-        syntax,
-        &selection,
-        declaration_syntax,
-        &positions,
-        &public_positions,
-        &mut arguments,
-    );
-    let array_extents = closed_array_extents_at(syntax, &positions, &public_positions);
-    Ok(ClosedDeclarationConstantUses {
-        arguments,
-        array_extents,
-    })
-}
-
-fn collect_closed_const_arguments(
-    syntax: &mut SyntaxTrees,
-    selection: &ConstantSelection<'_>,
-    declaration_syntax: Option<&SyntaxTrees>,
-    positions: &[TypeReferenceHandle],
-    public_positions: &HashSet<TypeReferenceHandle>,
-    include_callable_inputs: bool,
-) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
-    let mut pending = Vec::new();
-    let mut seen_pending = HashSet::new();
-    let mut retain_arguments = |syntax: &SyntaxTrees,
-                                parameters: &[Option<TypeReferenceHandle>],
-                                arguments: &[TypeReferenceHandle]| {
-        if parameters.len() != arguments.len() {
-            return;
-        }
-        for (parameter, argument) in parameters.iter().zip(arguments) {
-            if let Some(type_reference) = *parameter
-                && may_supply_closed_const_argument(syntax, *argument)
-                && seen_pending.insert(*argument)
-            {
-                pending.push((
-                    *argument,
-                    type_reference,
-                    public_positions.contains(argument),
-                ));
-            }
-        }
-    };
-    for position in positions {
-        match syntax.type_references.type_reference(*position).clone() {
-            TypeReferenceNode::Generic {
-                base_name,
-                arguments,
-                ..
-            } => {
-                let arguments = syntax_type_references(syntax)
-                    .type_reference_handles(arguments)
-                    .to_vec();
-                if let Some(parameters) = selection.const_parameter_carriers(
-                    syntax,
-                    declaration_syntax,
-                    &base_name,
-                    &[symbols::SymbolKind::Data],
-                ) {
-                    retain_arguments(syntax, &parameters, &arguments);
-                }
-            }
-            TypeReferenceNode::Constrained { constraints, .. } => {
-                for constraint in syntax.type_references.constraints(constraints) {
-                    let TypeConstraintNode::Domain(domain) = constraint else {
-                        continue;
-                    };
-                    let Some(parameters) = unique_domain_index_parameters(
-                        syntax,
-                        selection,
-                        domain.name.as_str(syntax),
-                        domain.name.source_span(),
-                    ) else {
-                        continue;
-                    };
-                    let carriers = parameters
-                        .iter()
-                        .map(|parameter| match parameter.kind {
-                            TypeParameterKind::Const { type_reference } => Some(type_reference),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>();
-                    retain_arguments(
-                        syntax,
-                        &carriers,
-                        syntax_type_references(syntax).type_reference_handles(domain.arguments),
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
-    if include_callable_inputs {
-        let selected_positions = positions.iter().copied().collect::<HashSet<_>>();
-        let applications = uses::concrete_machine_declarations(syntax, syntax.root_item_handles())
-            .into_iter()
-            .flat_map(|machine| syntax.items.satisfies_clauses(machine.satisfies))
-            .filter_map(|clause| {
-                let arguments =
-                    syntax_type_references(syntax).type_reference_handles(clause.arguments);
-                arguments
-                    .iter()
-                    .any(|argument| selected_positions.contains(argument))
-                    .then(|| (clause.trait_name.clone(), arguments.to_vec()))
-            })
-            .collect::<Vec<_>>();
-        for (name, arguments) in applications {
-            if let Some(parameters) = selection.const_parameter_carriers(
-                syntax,
-                declaration_syntax,
-                &name,
-                &[symbols::SymbolKind::Trait],
-            ) {
-                let selected = parameters
-                    .into_iter()
-                    .zip(&arguments)
-                    .map(|(carrier, argument)| {
-                        selected_positions
-                            .contains(argument)
-                            .then_some(carrier)
-                            .flatten()
-                    })
-                    .collect::<Vec<_>>();
-                retain_arguments(syntax, &selected, &arguments);
-            }
-        }
-        let mut concrete = None;
-        for (handle, expression) in syntax.expressions.iter_expressions() {
-            let ExpressionNode::Cast(cast) = expression else {
-                continue;
-            };
-            if cast.semantic_domain_arguments.is_empty() {
-                continue;
-            }
-            let members = syntax_expressions(syntax).identifier_path_members(cast.semantic_domain);
-            let Some(first) = members.first() else {
-                continue;
-            };
-            let concrete =
-                concrete.get_or_insert_with(|| concrete_machine_expression_handles(syntax));
-            if !concrete.contains(handle) {
-                continue;
-            }
-            if members.iter().any(|member| {
-                let span = member.source_span();
-                span.source_id != first.source_span().source_id || span.span.start > span.span.end
-            }) || members
-                .windows(2)
-                .any(|pair| pair[0].source_span().span.end > pair[1].source_span().span.start)
-            {
-                continue;
-            }
-            let mut reference = first.source_span();
-            for member in members.iter().skip(1) {
-                reference.span.end = member.source_span().span.end;
-            }
-            let name = members.joined_path_in(syntax);
-            let Some(parameters) =
-                unique_domain_index_parameters(syntax, selection, &name, reference)
-            else {
-                continue;
-            };
-            let carriers = parameters
-                .iter()
-                .map(|parameter| match parameter.kind {
-                    TypeParameterKind::Const { type_reference } => Some(type_reference),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            retain_arguments(
-                syntax,
-                &carriers,
-                syntax_type_references(syntax)
-                    .type_reference_handles(cast.semantic_domain_arguments),
-            );
-        }
-    }
-    pending
-}
-
-fn unique_domain_index_parameters<'syntax>(
-    syntax: &'syntax SyntaxTrees,
-    selection: &ConstantSelection<'_>,
-    name: &str,
-    reference: source::SourceSpan,
-) -> Option<&'syntax [TypeParameter]> {
-    let (_, definition) = selection.domain_family(syntax, name, reference, None)?;
-    domain_index_parameters(syntax, definition)
-}
 
 /*
     Whether this exact selected destination carries declaration predicates.
@@ -4535,13 +3749,6 @@ pub(crate) fn canonicalize_pending_initializer_payload(
     The judgment retains the exact destination and completed initializer;
     encoding alone cannot publish an unproved qualification.
 */
-pub fn canonicalize_declared_const_definition(
-    syntax: &SyntaxTrees,
-    definition: &ConstDefinition,
-) -> Result<CanonicalConstValue, String> {
-    canonicalize_selected_declared_const_definition(syntax, definition, None)
-}
-
 pub(crate) fn canonicalize_selected_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
@@ -4579,159 +3786,6 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
         )
     } else {
         canonicalize_selected_declaration_value(syntax, &payload, selection)
-    }
-}
-
-/*
-    Find `Base<Args..>` spellings in FIELD type position where `Base` is a
-    generic data definition, synthesize one concrete instance record per
-    distinct spelling (the parameter substituted for the argument), and rewrite
-    the field spellings to the instances' plain names.
-    One forest and the custody its generic data applications close under.
-*/
-pub struct GenericDataRequest<'a> {
-    pub syntax: SyntaxTrees,
-    /*
-        The loader's exact source/import custody. A source-free forest has
-        none; its declarations still use the syntax forest's header selection.
-    */
-    pub sources: Option<std::sync::Arc<source::SourceMap>>,
-    pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
-    /*
-        A generated unit's immutable predecessor, whose retained nominal
-        arguments the unit may name without owning their syntax. Templates
-        still come only from this unit. Requires `sources`.
-    */
-    pub retained_base: Option<&'a symbol_resolved_trees::SymbolResolvedTrees>,
-    pub declaration_syntax: Option<&'a SyntaxTrees>,
-    pub retained_declaration_syntax: Option<&'a SyntaxTrees>,
-}
-
-impl GenericDataRequest<'_> {
-    /* A source-free forest with no scoped top-level bindings. */
-    pub fn new(syntax: SyntaxTrees) -> Self {
-        Self {
-            syntax,
-            sources: None,
-            top_level_bindings: Vec::new(),
-            retained_base: None,
-            declaration_syntax: None,
-            retained_declaration_syntax: None,
-        }
-    }
-}
-
-/*
-    Run Psi's target-neutral pre-resolution generic-data normalization and
-    return the only syntax tree downstream stages may consume.
-
-    Taking ownership prevents orchestration code from retaining an unnormalized
-    sibling or reaching into the elaborator as an in-place syntax mutator. With
-    source custody, temporary header symbols stay private and each erased
-    constant argument retains its selected declaration coordinates for the
-    complete resolver's checked join.
-*/
-pub fn normalize_generic_data(
-    request: GenericDataRequest<'_>,
-) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    normalize_generic_data_in_mode(
-        request,
-        crate::resolution::lowerer::ConstResolutionMode::Complete,
-        GenericDataWorkDomain::All {
-            additional_type_roots: &[],
-        },
-    )
-}
-
-/*
-    Private evaluation preparation retains unfinished values while closing data
-    applications. Complete resolution still owns their mandatory value admission.
-*/
-pub fn normalize_initializer_probe_data(
-    request: GenericDataRequest<'_>,
-    declarations: &[syntax_trees::item::ItemHandle],
-) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    normalize_generic_data_in_mode(
-        request,
-        crate::resolution::lowerer::ConstResolutionMode::InitializerSelection,
-        GenericDataWorkDomain::Selected {
-            type_roots: &[],
-            declarations,
-        },
-    )
-}
-
-fn normalize_generic_data_in_mode(
-    request: GenericDataRequest<'_>,
-    mode: crate::resolution::lowerer::ConstResolutionMode,
-    domain: GenericDataWorkDomain<'_>,
-) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let GenericDataRequest {
-        mut syntax,
-        sources,
-        top_level_bindings,
-        retained_base,
-        declaration_syntax,
-        retained_declaration_syntax,
-    } = request;
-    let Some(sources) = sources else {
-        if retained_base.is_some() || !top_level_bindings.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "generic data normalization against a retained base or scoped bindings requires source custody",
-            )]);
-        }
-        let selection = declaration_selection::ConstantSelection::new(&syntax, None, Vec::new())?;
-        let declarations = declaration_syntax
-            .into_iter()
-            .chain(retained_declaration_syntax)
-            .collect::<Vec<_>>();
-        super::declared_types::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
-        let (syntax, warnings) = normalize_generic_data_with_warnings(syntax, mode, domain)?;
-        report_preparation_diagnostics(warnings)?;
-        return Ok(syntax);
-    };
-    let selection = ConstantSelection::with_retained_base(
-        &syntax,
-        Some(sources),
-        top_level_bindings,
-        retained_base,
-    )?;
-    let declarations = declaration_syntax
-        .into_iter()
-        .chain(retained_declaration_syntax)
-        .collect::<Vec<_>>();
-    super::declared_types::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
-    domain_heads::normalize(&mut syntax, Some(&selection))?;
-    /*
-        Generic operands read the same completed declaration values as resolution,
-        including aliases. Probe modes keep the authored initializers for evaluation.
-    */
-    if mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
-        fold_closed_scalar_initializers(&mut syntax, &selection)?;
-    }
-    validate_with_const_resolution_mode(&syntax, &selection, mode)?;
-    let mut warnings = Vec::new();
-    desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?;
-    deduplicate_generic_warnings(&mut warnings);
-    report_preparation_diagnostics(warnings)?;
-    Ok(syntax)
-}
-
-/* Preparation collects const-argument landing diagnostics beside folded
-values. Warnings are printed; an error (implicit integer landing after a
-fractional intermediate) rejects instead of being printed and folded. */
-pub(super) fn report_preparation_diagnostics(
-    diagnostics: Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    let (errors, warnings): (Vec<_>, Vec<_>) =
-        diagnostics.into_iter().partition(Diagnostic::is_error);
-    for warning in warnings {
-        eprintln!("{warning}");
-    }
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
     }
 }
 
@@ -4805,48 +3859,4 @@ pub(crate) fn validate_direct_const_arguments(
         }
     }
     Ok(())
-}
-
-fn normalize_generic_data_with_warnings(
-    mut syntax: SyntaxTrees,
-    mode: crate::resolution::lowerer::ConstResolutionMode,
-    domain: GenericDataWorkDomain<'_>,
-) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
-    domain_heads::normalize(&mut syntax, None)?;
-    let selection = ConstantSelection::new(&syntax, None, Vec::new())?;
-    if mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
-        fold_closed_scalar_initializers(&mut syntax, &selection)?;
-    }
-    validate_with_const_resolution_mode(&syntax, &selection, mode)?;
-    let mut warnings = Vec::new();
-    match domain {
-        GenericDataWorkDomain::All { .. } => {
-            desugar_generic_data_instances(&mut syntax, &mut warnings)?
-        }
-        GenericDataWorkDomain::Selected { .. } => {
-            desugar_generic_data_instances_in(&mut syntax, &mut warnings, Some(&selection), domain)?
-        }
-    }
-    deduplicate_generic_warnings(&mut warnings);
-    Ok((syntax, warnings))
-}
-
-fn deduplicate_generic_warnings(warnings: &mut Vec<Diagnostic>) {
-    let mut origins = Vec::new();
-    warnings.retain(|warning| {
-        let Some(origin) = warning.source_span else {
-            return true;
-        };
-        if warning.is_error()
-            || origin.source_id.0 == usize::MAX
-            || origin.span.start >= origin.span.end
-        {
-            return true;
-        }
-        if origins.contains(&origin) {
-            return false;
-        }
-        origins.push(origin);
-        true
-    });
 }

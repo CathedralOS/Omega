@@ -97,7 +97,7 @@ borrows the other's assumptions.
 
 Embedders put bootstrap and installed-delivery records in
 `InstallationEnvironmentAssumption`. Use `encode_installation_assumptions` and
-`decode_installation_assumptions` from `compilation_products`, then supply the
+`decode_installation_assumptions` from `products`, then supply the
 rows through `NativeProductRequest::installation_assumptions` or
 `CompileRequest::with_installation_assumptions`.
 Saved native inputs retain those same rows. Recovery returns them separately

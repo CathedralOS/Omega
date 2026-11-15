@@ -26,7 +26,7 @@ machine second(builder: &mut Build) {
 }
 "#;
 
-fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
+fn produce(build: &str) -> source_compiler::ProducedTerminalProgram {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
@@ -74,9 +74,9 @@ fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
         .unwrap()
         .symbol;
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    let accepted = psi_compiler::AcceptedTerminalSource::judge(
+    let accepted = source_compiler::AcceptedTerminalSource::judge(
         Arc::new(frozen),
-        psi_compiler::TerminalSourceCompilation {
+        source_compiler::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
@@ -91,12 +91,15 @@ fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
     )
     .unwrap();
     accepted
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
         .unwrap()
 }
 
 fn effect(
-    program: &psi_compiler::ProducedTerminalProgram,
+    program: &source_compiler::ProducedTerminalProgram,
     call: &TerminalBuildBindingCall,
     arguments: Vec<TerminalScalarValue>,
     structural_arguments: Vec<TerminalStructuralValue>,
@@ -202,7 +205,7 @@ fn source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket() {
     );
     drop(adapter);
 
-    let mut previous: Option<psi_compiler::BuildCallSite> = None;
+    let mut previous: Option<source_compiler::BuildCallSite> = None;
     let (pairs, remainder) = calls.as_chunks::<2>();
     assert!(remainder.is_empty());
     for [prepare, commit] in pairs {

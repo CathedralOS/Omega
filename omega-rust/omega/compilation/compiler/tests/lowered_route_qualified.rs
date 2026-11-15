@@ -1,20 +1,12 @@
-//! The checker on the lowered form judges a machine declared under a data
-//! type's name, `machine Counter::clear(counter: &mut Counter)`, and the calls
-//! that name it, instead of refusing every program that has one.
-//!
-//! `wiki/spec/language/machines.md`, "Static declarations and explicit
-//! state": "All machines are static declarations independent of data", and
-//! "Every argument, including context and capabilities, is ordinary and
-//! explicit." So such a machine is read as any other, and `Counter::clear(x)`
-//! is a direct call that passes exactly `x`. The data type in the name
-//! supplies nothing, and a type that declares only that name (`data Main {}`)
-//! has nothing to judge.
-//!
-//! Each program below was refused as `Unsupported: machine attached data`
-//! before. The call forms differ: a call in an expression, a call statement
-//! and a transition target each record the qualifier their own way.
+//! Data declarations are not machine namespaces. The reader must reject a
+//! carrier-qualified declaration even when it has an explicit parameter and
+//! its body could otherwise be checked (machines.md, "Static declarations
+//! and explicit state"). Ordinary trait qualification keeps its own path.
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
+
+#[path = "support/qualified_operator_homes.rs"]
+mod qualified_operator_homes;
 
 use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
 use typed_trees_to_terminal_psi::{Compilation, elaborate};
@@ -47,72 +39,50 @@ fn route_verdict(fixture: &str, entry: &str) -> RouteVerdict {
     .unwrap_or_else(|defect| panic!("{fixture}: the route must reach a verdict: {defect:?}"))
 }
 
-/// Programs the route accepts with the entry each one's Build binds, by the
-/// call form that names the qualified machine.
-const ACCEPTED: &[(&str, &str)] = &[
-    // An expression call and a transition target, `Main::countdown(..)`,
-    // the second from inside the machine itself.
-    (
-        "tests/fixtures/pass/calls/machine_self_call_recursion_compile",
-        "Main::main",
-    ),
-    // Call statements and expression calls of five machines under one name,
-    // two of them lending a scalar local.
-    (
-        "tests/fixtures/run/calls/qualified_atomic_operation_names",
-        "main",
-    ),
-    // The qualified machine owes an `ensures` it meets through its callee's.
-    (
-        "tests/fixtures/pass/calls/attached_terminal_machine_call_exit",
-        "start",
-    ),
-    // The qualified machine declares a nested machine and calls a free one
-    // of the same name.
-    (
-        "tests/fixtures/pass/calls/state_and_machine_names_exit",
-        "main",
-    ),
-    // The qualified machine is the bound entry and ends in a call of a
-    // private helper that returns nothing, whose input conditions are
-    // inferred from this one arrival.
-    (
-        "tests/fixtures/pass/calls/attached_context_terminal_machine_call_exit",
-        "Main::main",
-    ),
-];
-
+/// Both bodies reached the checker before this retirement was enforced: the
+/// first meets its callee's contract and the second breaks it. Neither body
+/// gives a data declaration permission to own a machine.
 #[test]
-fn a_program_with_data_qualified_machines_is_judged_and_accepted() {
+fn data_qualified_declarations_are_rejected_independently_of_their_bodies() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let mut wrong = Vec::new();
-    for (fixture, entry) in ACCEPTED {
-        let verdict = route_verdict(fixture, entry);
-        if !matches!(verdict, RouteVerdict::Accepted(_)) {
-            wrong.push(format!("{fixture}: {verdict:?}"));
-        }
+    for fixture in [
+        "tests/fixtures/pass/calls/attached_terminal_machine_call_exit",
+        "tests/fixtures/fail/calls/free_machine_named_transition_rejected",
+    ] {
+        let verdict = route_verdict(fixture, "start");
+        let RouteVerdict::Rejected { violations, .. } = verdict else {
+            panic!("{fixture}: expected a source-rule rejection, not another verdict");
+        };
+        assert!(
+            violations
+                .iter()
+                .any(|violation| violation.message().contains(
+                    "a data declaration cannot own a machine; declare an ordinary static machine"
+                )),
+            "{fixture}: {violations:?}"
+        );
     }
-    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-/// The twin of `attached_terminal_machine_call_exit`: `Main::main` passes 40
-/// to a callee that requires 41. The route rejects it at that call, so the qualified machine's body is really judged.
 #[test]
-fn a_data_qualified_machine_that_breaks_its_callees_requires_is_rejected() {
+fn module_qualification_does_not_attach_a_machine_to_data() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let fixture = "tests/fixtures/fail/calls/free_machine_named_transition_rejected";
-    let verdict = route_verdict(fixture, "start");
-    let RouteVerdict::Rejected { unproved, .. } = &verdict else {
-        panic!("{fixture}: {verdict:?}");
-    };
-    let messages: Vec<String> = unproved.iter().map(|entry| entry.message()).collect();
-    assert!(
-        messages.iter().any(|message| message
-            .contains("cannot prove requires contract for call scan from Main::main: 40 == 41")),
-        "{messages:#?}"
+    let frontier = unbuilt_frontier::staged_frontier(
+        "module-qualified-static-call",
+        "module utility;\n\
+         machine step() {}\n\
+         machine main() { utility::step(); }\n",
     );
+    let entry = unbuilt_frontier::program_machine(&frontier.typed, "main")
+        .expect("the module's exact main declaration");
+    let verdict = judge(typed_trees_to_terminal_psi::elaborate_closure(
+        &frontier.typed,
+        entry,
+    ))
+    .expect("module qualification reaches a verdict");
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }

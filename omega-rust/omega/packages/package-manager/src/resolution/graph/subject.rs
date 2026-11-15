@@ -32,7 +32,7 @@ pub(crate) use usage::CanonicalSourceClosureSubjectRecoveryUsage;
 
 use std::fmt;
 
-use package_source::{ExternalSourceContext, SourceLineage, SourceRelativePath};
+use source_acquisition::{ExternalSourceContext, SourceLineage, SourceRelativePath};
 use target::TargetProfile;
 
 use super::ResolvedSourceIdentity;
@@ -349,9 +349,9 @@ impl CanonicalSourceClosureSubjectLimits {
     }
 }
 
-fn hex_length(algorithm: package_source::GitObjectIdAlgorithm) -> usize {
+fn hex_length(algorithm: source_acquisition::GitObjectIdAlgorithm) -> usize {
     match algorithm {
-        package_source::GitObjectIdAlgorithm::Sha1 => 40,
-        package_source::GitObjectIdAlgorithm::Sha256 => 64,
+        source_acquisition::GitObjectIdAlgorithm::Sha1 => 40,
+        source_acquisition::GitObjectIdAlgorithm::Sha256 => 64,
     }
 }

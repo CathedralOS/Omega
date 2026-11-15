@@ -1,7 +1,7 @@
 use omega::language::core::ProgramImage;
 
 boundary trait Unprovided {
-    machine value() -> addr reaches;
+    machine value() -> addr reaches none crashes none;
 }
 
 public Selected satisfies ProgramImage {

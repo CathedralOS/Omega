@@ -74,14 +74,10 @@ mod type_structure {
     */
 
     use super::{Binding, Solver, collect_expression_binder_mentions};
-    use crate::preparation::generic_data::{
-        canonicalize_selected_declared_const_definition, closed_argument_identity,
-        closed_fixed_array_length,
-    };
+    use crate::preparation::generic_data::{closed_argument_identity, closed_fixed_array_length};
     use crate::tables::syntax_items;
     use crate::tables::syntax_type_references;
     use diagnostics::Diagnostic;
-    use language_semantics::const_value::DecodedCanonicalConstValue;
     use numerics::bignum::BigInt;
     use source::SourceSpan;
     use syntax_trees::SyntaxTrees;
@@ -653,9 +649,7 @@ mod type_structure {
                     .selected_constructor_constant(name, parameter_type)?
                     .decode_encoding()
                 {
-                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                        Ok(Some(BigInt::from_i128(value)))
-                    }
+                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => Ok(Some(value)),
                     _ => {
                         Err(self
                             .type_structure_error("requires an integer constructor constant", span))
@@ -1163,17 +1157,6 @@ mod type_structure {
             }
             TypeReferenceNode::ConstExpression(expression) => {
                 collect_expression_binder_mentions(syntax, *expression, parameters, mentions);
-            }
-            TypeReferenceNode::DynamicTrait {
-                trait_name,
-                trait_arguments,
-            } => {
-                name_mention(trait_name.as_str(syntax));
-                for argument in
-                    syntax_type_references(syntax).type_reference_handles(*trait_arguments)
-                {
-                    collect_binder_mentions(syntax, *argument, parameters, mentions);
-                }
             }
             TypeReferenceNode::StaticSelection(selection) => {
                 super::collect_static_argument_binder_mentions(
@@ -1688,27 +1671,12 @@ mod type_structure {
                             }
                         }
                     } else if let Some(selection) = self.selection {
-                        let definition = selection.select(self.syntax, name)?.ok_or_else(|| {
-                            self.type_structure_error(
-                                "requires an unambiguous selected array length constant",
-                                name.source_span(),
-                            )
-                        })?;
-                        let value = canonicalize_selected_declared_const_definition(
-                            self.syntax,
-                            &definition,
-                            Some(selection),
-                        )
-                        .map_err(|reason| self.type_structure_error(&reason, name.source_span()))?;
-                        let Some(DecodedCanonicalConstValue::Integer { value, .. }) =
-                            value.decode_encoding()
-                        else {
-                            return Err(self.type_structure_error(
-                                "requires an integer array length constant",
-                                name.source_span(),
-                            ));
-                        };
-                        BigInt::from_i128(value)
+                        return selection
+                            .selected_array_length(name.source_span())
+                            .map(Some)
+                            .map_err(|reason| {
+                                self.type_structure_error(&reason, name.source_span())
+                            });
                     } else {
                         return Err(
                             self.type_structure_error("requires a closed array length", span)

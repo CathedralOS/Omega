@@ -42,7 +42,7 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 267 combines normalized service contracts, selected provider
+Marker 255 introduced term tables. Current marker 271 combines normalized service contracts, selected provider
 coordinates, entry source commitments and sealed native execution meanings with
 typed dynamic-family tuple members and exact numeric intrinsic sign and width.
 It also retains the independent operational ceilings and exact call formations
@@ -95,8 +95,8 @@ its logical result and obligations; an encoded proof cannot select them.
 
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
-qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 267 even when every table
+qualification catalog follows the entry identity as eight counted tables, in the
+order below. The current format retains these tables even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -105,6 +105,8 @@ rather than selecting an optional dialect:
 | domain definitions | domain id + semantic domain id + `u32` canonical identity-table index + scalar carrier type + optional predicate + counted establishment routes |
 | return qualifications | machine id + edge id + source value id + result value id + return site + domain id + counted return origins |
 | normalized sets | `u64` set identity + counted domain identities |
+| scalar field qualifications | field id + scalar carrier type + `u64` qualification-set identity |
+| primitive scalar storage qualifications | structural type id + scalar carrier type + `u64` qualification-set identity |
 | qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
@@ -171,6 +173,7 @@ in the order shown, with established origins ordered by route index:
 | 0 | Forwarded | none |
 | 1 | Established | `u32` zero-based index into this domain's establishment routes |
 | 2 | Vacuous | none |
+| 3 | Proved | none |
 
 A normal-exit row names an actual `Return` edge and its source, and the machine's
 scalar result declaration. A completion row names an actual `Jump` edge and the
@@ -190,6 +193,15 @@ with a predicate, the result-substituted predicate must occur in its ordinary
 result `ensures` clauses, retaining every conjunct; representation validation
 checks containment rather than re-proving that predicate. Missing or detached
 subjects, edges, results, issuers and predicates reject.
+
+A proved origin belongs only to an unrestricted predicate domain at an exact
+completion. The destination's scalar block invariant must retain the domain's
+predicate with its formal subject replaced by that destination value. Every
+actual arrival owes that invariant through the ordinary lowered proof kernel;
+the origin row is not a certificate or an additional premise. A routed domain
+still requires an established origin independently of its predicate proof.
+Primitive scalar storage rows retain the same complete scalar type for homes,
+references and array elements; field rows do so at the exact declared field.
 
 Each scalar domain establishment route is a `u8` tag:
 
@@ -308,8 +320,8 @@ Product eligibility is independent of retained descriptions. Declaring a proof
 owner does not root an executable body; actual evaluation entries and observed
 entry results still retain their bodies. Receiving validation rejects dangling
 coordinates, ambiguous state ownership, repeated static parameters, malformed
-family correspondence, and missing spans. The legacy family rows remain
-migration metadata, not authorization to retain target-prefixed source syntax.
+family correspondence, and missing spans. These declaration-graph relationships
+do not authorize executable target-body selection or target-prefixed source syntax.
 
 Target-scoped membership selects fixed ranges and predicates by their exact
 recorded owner. Address-model ranges and completion requirements additionally include the selected declaration
@@ -951,7 +963,7 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 
 ## Machine rows
 
-Marker 267 combines these public-call and observation records with normalized
+Marker 271 combines these public-call and observation records with normalized
 service schemas, provider selections, entry commitments and the complete
 callable catalogs. Marker 266's float-conversion integer carriers remain intact.
 Every earlier format rejects before its payload is interpreted.
@@ -1012,7 +1024,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 267 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 271 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1102,7 +1114,7 @@ Older markers are rejected before their payload is read.
 | 2 | indexed theorem roots | counted cited theorem root rows, above |
 | 3 | mathematical carriers | counted closed carrier keys, above |
 | 4 | Id formations | counted rows and one shared mathematical certificate, above |
-| 5 | scalar qualification catalog | the six counted catalog tables above |
+| 5 | scalar qualification catalog | the eight counted catalog tables above |
 | 6 | quotient catalog | the canonical quotient catalog |
 | 7 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
 | 8 | scalar applications | counted source-owned scalar application rows |
@@ -1141,14 +1153,13 @@ Older markers are rejected before their payload is read.
 | 41 | scalar block invariants | the counted invariant rows above |
 | 42 | operation crash contracts | counted operation crash contract rows |
 | 43 | machines | counted machine rows |
-| 44 | legacy target-machine families | counted family rows; removal pending |
-| 45 | target layout applications | counted complete checked policy alternatives |
-| 46 | native layout catalog | counted nominal records and complete native reports, below |
-| 47 | boundary application demands | counted exact requirement/application rows |
-| 48 | callback applications | counted checked registrar occurrences |
-| 49 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
-| 50 | boundary application candidates | counted checked bodies for closed applications |
-| 51 | task activation demands | counted task activation demand rows |
+| 44 | target layout applications | counted complete checked policy alternatives |
+| 45 | native layout catalog | counted nominal records and complete native reports, below |
+| 46 | boundary application demands | counted exact requirement/application rows |
+| 47 | callback applications | counted checked registrar occurrences |
+| 48 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
+| 49 | boundary application candidates | counted checked bodies for closed applications |
+| 50 | task activation demands | counted task activation demand rows |
 
 Marker 258 stores each normalized service schema as its module identity-table
 indices for the source declaration and full applied owner, followed by the
@@ -1467,33 +1478,16 @@ Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
 
-The reference wire still contains the legacy family section below. It documents
-existing bytes, not accepted target-prefixed source syntax or a second provider
-selection model. `BUILD-OWNED-TARGET-SELECTION` in
-[the task board](../../../TASKS.md#pipeline-route) removes family rows and
-portable heads, including layout-policy references to family callables. The
-replacement retains ordinary implementation identities and exact requirement
-edges; target selection belongs to the Build companion. A codec migration must
-change the format identity rather than reinterpret these old fields.
+Semantic format marker 270 removes the legacy target-family catalog. A module's
+optional entry names one retained executable machine; a bodyless boundary cannot
+be a portable default root. There is no member roster, target-tag selection or
+family supply tag to interpret. Ordinary callable tags remain `1` for a machine
+and `2` for a boundary wherever the semantic vocabulary admits either kind.
+Provider choice belongs to the Build companion and preserves exact requirement,
+implementation and application identities. Older formats reject at the header;
+the removed rows are not decoded or migrated into provider evidence.
 
-A legacy family row carries its canonical callable, a nonzero 32-byte checked head
-contract commitment, and counted members ordered by the exact authored
-deployment tag. A callable is a `u8` tag (`1` machine,
-`2` boundary) followed by its nonzero id. Each member carries a counted UTF-8
-deployment tag, callable, and a `u8` supply tag: `1` checked body, `2`
-requirement, `3` top-level requirement, `4` boundary, `5` admission claim,
-`6` external realization. Families are ordered by canonical callable; each
-member callable belongs to exactly one member. An independent portable head
-names a requirement boundary outside the member roster; a retained executable
-canonical head instead names one of its members. Both forms retain the exact
-checked head commitment, never a selected member's private contract substituted
-for the portable head. Checked and opaque references must name their corresponding
-module rosters. Deployment tags are source identities, not native ISA names.
-Membership alone grants no call redirection or physical installation authority.
-Provider-default declaration programs produce Build-owned selections rather
-than executable members of this runtime roster.
-
-Marker 138 adds the head commitment and completion-receipt path. A receipt's
+A completion receipt's
 path records current argument-relative custody, including conditional case
 payload guards. Historical claim provenance remains separate: a claim moved
 into a containing record need not still occupy its original entry path.
@@ -1501,28 +1495,34 @@ The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
 
-Marker 140 adds target layout applications after the legacy family section. A
+Target layout applications follow the machine roster. A
 record whose geometry remains target dependent uses structural shape tag `13`,
 a nonzero layout-application `u32`, and its counted structural fields. It has
 no packed or host-selected geometry in the portable artifact.
 
-A packed record or a sum whose data declaration states `requires` clauses
-uses structural shape tag `17` or `18` in place of `1` or `3`, followed after
-the shape by the counted clauses as canonical propositions, in authored
-order: the declaration-owned requirement of
-[structural access](structural_access.md#complete-record-construction). A
-clause names its own declaration's fields and cases, with `self` as place 1.
-Tags `17` and `18` with zero clauses, and clauses on any other shape, are
-rejected, so a declaration without clauses keeps its earlier bytes and has
-one encoding.
+A record's invariant must survive its chosen physical layout. From marker 267,
+structural shape tag `17` wraps the record's ordinary storage shape tag and payload
+(`1` packed, `10` authored, `13` target layout, `14` access view or `15` accessor),
+followed by its nonempty counted `requires` clauses as canonical propositions
+in authored order. The sum wrapper remains tag `18`, with its ordinary sum
+payload followed by the same counted clauses. Each clause names its own
+fields and cases, with `self` as place 1, under the
+[structural access contract](structural_access.md#complete-record-construction).
+A wrapper with zero clauses or a record wrapper around another constructor
+is rejected. Declarations without clauses retain their ordinary encoding.
+This records the invariant; the receiving checker still proves construction,
+replacement and consumption obligations independently of geometry.
+Marker 266 and older artifacts cannot be reinterpreted as this nested record
+encoding; marker 266's float conversion carrier and marker 265's field observation
+identities remain part of the current schema.
 
 A layout application encodes its `u32` id, record and schema type ids, policy
-identity string, family callable, and `u16` Schema ABI version. Its counted
+identity string, ordinary checked policy callable, and `u16` Schema ABI version. Its counted
 Schema fields each carry record-field and schema-field ids, `u64` key, optional
 `u64` identity, `u64` byte size and alignment, and a kind byte (`0` scalar,
-`1` nested). Counted alternatives follow: deployment string, member machine id,
+`1` nested). Counted alternatives follow: deployment string, implementation machine id,
 `u64` record size and alignment, then counted field ids with non-absent authored
-field storage. The codec requires a complete exact family roster and validates
+field storage. The codec requires the complete declared alternative roster and validates
 every alternative against the retained invariant Schema argument. This is
 representation validation; semantic checking remains the producer's obligation.
 Deployment selection consumes one retained alternative without changing the
@@ -1780,7 +1780,7 @@ producer state and rederives every ordering rule.
 
 | Row | Fields |
 | --- | --- |
-| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape, then the declaration's counted `requires` clauses when the shape tag is `17` or `18` |
+| structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape, then the declaration's counted `requires` clauses for wrappers `17` (ordinary record shape tag + payload) or `18` (sum payload) |
 | structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
@@ -2008,8 +2008,8 @@ Rows are strictly ordered and unique. Referenced declarations and signatures
 must exist; checked commitments, target membership and field names must be
 nonempty. Numeric meaning agrees with any corresponding callable boundary.
 These are checked satisfaction edges, not provider choices or external execution
-grants. Authored target membership retains the existing family migration
-vocabulary; it is never inferred from a normalized overload's spelling.
+grants. Retained target applicability is exact declaration data, not a
+same-path family lookup or a normalized overload's spelling.
 
 Marker 204 adds counted structural arguments to each structural-case successor,
 after its payload field ids and before its affine cleanup actions. These are
@@ -2423,6 +2423,34 @@ subject field as the new representation.
 | realization callable | source callable identity string + machine id + callable result |
 | conformance row | declaring trait identity string + public requirement identity string + counted family tuple strings + requirement identity string + realization identity string + optional realization callable identity string |
 
+From marker 268, each static method application also retains an optional list
+of declared result lifetime groups. Each group contains counted input lifetime
+dependencies (the existing referent/stored dependency encoding), followed by
+counted structural result paths. One group shares its complete input set among
+its result paths; the encoding does not expand an input-by-result matrix.
+An absent list means that the instantiated frontier remains unavailable. A
+present empty list declares no borrowed result. An empty input set within a
+group denotes a caller-chosen result lifetime and supplies no backing authority.
+
+The original requirement definition uses domain `omega.requirement-schema.v4`.
+After its existing signature and telescope it retains a type-presence byte.
+When present, a counted outer lifetime roster, counted complete parameter type
+identities and one complete result type identity follow. The type identities
+bind declared lifetimes to canonical `schema` ordinals; an absent type section
+cannot authorize a selected borrowed result. The receiver derives the input
+union from this original type relation and requires the application groups to
+agree, including after their application commitment is recomputed. Constraint
+and array-length type arguments do not become stored reference occurrences.
+Unresolved nominal or method-argument frontiers remain unavailable.
+
+These groups come from the original public signature and its complete method
+tuple before lifetime erasure. They are included in the conformance application
+commitment, which describes contents and cannot replace that independent
+declaration check. The implementing body's actual return origins remain separate:
+receiving checks must not replace the public input set with those narrower
+origins. Backing formation, access, source correspondence and loan completion
+remain independent obligations; retaining a group does not establish them.
+
 <!-- conformance-parameter-kind-tags -->
 
 | tag | Conformance parameter kind |
@@ -2749,7 +2777,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 256 | yes |
+| semantic module | `PSITERM\0` | 271 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

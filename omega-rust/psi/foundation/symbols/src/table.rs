@@ -970,10 +970,9 @@ mod modules {
             `reference` under module name law. A fully qualified spelling always
             selects its exact declaration. A relative spelling reaches a
             module-owned domain inside its own module or through an exposing
-            import: a narrow import of the exact declaration exposes its leaf and
-            its declared carrier-qualified spelling, while importing the declaring
-            module exposes its directly declared domains to the carrier-qualified
-            spelling. The carrier-qualified form additionally requires the
+            import. Both an exact declaration import and its declaring module
+            expose the domain's leaf and declared carrier-qualified spelling.
+            The carrier-qualified form additionally requires the
             authored carrier to resolve to the exact carrier the declaring context
             attached the domain to -- importing the carrier type, an ordinary
             sibling declaration, or merely loading another source exposes nothing.
@@ -1044,12 +1043,7 @@ mod modules {
             }
             if !authored.contains("::") {
                 return same_semantic_name(domain_name, authored)
-                    && self
-                        .source_module_import_paths(reference.source_id)
-                        .any(|path| {
-                            self.source_module_import_target(reference.source_id, path)
-                                == Some(domain)
-                        });
+                    && self.source_domain_is_exposed(reference, domain);
             }
             self.carrier_qualified_domain_reaches(domain, authored, reference)
         }
@@ -1943,11 +1937,31 @@ mod source_queries {
         }
 
         pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
-            self.symbol_source_span(symbol)
+            self.symbol_provenance_source_span(symbol)
                 .and_then(|span| self.source_file(span))
                 .is_some_and(|file| {
+                    // The producer emits root data/protocol declarations and
+                    // ordinary code modules as one virtual-source bundle.
+                    let mut components = file.path.components();
+                    let unit = match components.next() {
+                        Some(std::path::Component::Normal(unit)) if components.next().is_none() => {
+                            unit.to_str()
+                        }
+                        _ => None,
+                    };
                     file.origin == source::SourceOrigin::Toolchain
-                        && file.path == std::path::Path::new("<build-prelude>")
+                        && unit.is_some_and(|unit| {
+                            unit == "<build-prelude>"
+                                || unit
+                                    .strip_prefix("<build-prelude:")
+                                    .and_then(|module| module.strip_suffix('>'))
+                                    .is_some_and(|module| {
+                                        !module.is_empty()
+                                            && module.bytes().all(|byte| {
+                                                byte.is_ascii_alphanumeric() || byte == b'_'
+                                            })
+                                    })
+                        })
                 })
         }
 
@@ -3866,6 +3880,12 @@ impl SymbolTable {
         self.child_handles(self.root)?
             .nth(builtin_type.ordinal())
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType)
+    }
+
+    /// Scalar meaning is derived from the selected builtin, never its display name.
+    pub fn primitive_type(&self, symbol: SymbolHandle) -> Option<crate::PrimitiveType> {
+        self.builtin_type_atom(symbol)
+            .and_then(crate::PrimitiveType::from_builtin_atom)
     }
 
     /*

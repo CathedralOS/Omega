@@ -31,7 +31,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/psi/foundation",
     "omega-rust/psi/compilation/representations/terminal-psi",
     "omega-rust/psi/compilation/terminal-installation",
-    "omega-rust/psi/compilation/proof/admission",
+    "omega-rust/psi/compilation/proof-admission",
 ];
 
 const PSI: &str = "omega-rust/psi";
@@ -43,26 +43,12 @@ const PRODUCT_COORDINATOR: &str = "omega-rust/omega/compilation/compiler";
 const PRODUCTS: &str = "omega-rust/omega/compilation/products";
 const BUILD_EVALUATION: &str = "omega-rust/omega/build-system/build-settings";
 const BUILD_COORDINATOR: &str = "omega-rust/omega/build-system/orchestration";
-const CLI_APPLICATION: &str = "omega-rust/omega/application/cli";
+const CLI_APPLICATION: &str = "omega-rust/omega/application";
 const TRUST_MODEL: &str = "omega-rust/omega/compilation/realization/trust-model";
 const REVIEW_EVIDENCE: &str = "omega-rust/omega/packages/review-evidence";
-const PSI_FACADE: &str = "omega-rust/psi/compilation/psi-compiler";
-const TERMINAL_PRODUCTION: &str = "omega-rust/psi/compilation/psi-compiler/terminal-production";
+const PSI_FACADE: &str = "omega-rust/psi/compilation/source-compiler";
+const TERMINAL_PRODUCTION: &str = "omega-rust/psi/compilation/terminal-production";
 const PROVIDER_PLANNING: &str = "omega-rust/omega/compilation/realization/provider-planning";
-const REPRESENTATION_PLANNING: &str =
-    "omega-rust/psi/compilation/validation/representation-planning";
-
-const SOURCE_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
-];
-
-const PARSER_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
-    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
-];
 
 const PSI_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
@@ -74,10 +60,11 @@ const PSI_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
 ];
 
-const TERMINAL_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi",
-    "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
-];
+// The final stage checks Terminal Psi; every earlier stage processes source.
+// Derive the source and parser subsets from the stage catalog so a separate
+// source roster cannot accidentally omit the lexer or parser from facade rules.
+const SOURCE_STAGES: &[&str] = PSI_STAGES.split_at(PSI_STAGES.len() - 1).0;
+const PARSER_STAGES: &[&str] = SOURCE_STAGES.split_at(2).0;
 
 const OMEGA_COMPILATION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline",
@@ -93,7 +80,6 @@ const SOURCE_SIDE_PSI: &[&str] = &[
     PSI_PIPELINE,
     PSI_FACADE,
     "omega-rust/psi/compilation/build-time-evaluation",
-    REPRESENTATION_PLANNING,
     "omega-rust/psi/interpreter",
 ];
 
@@ -198,7 +184,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 OMEGA_PIPELINE,
                 "omega-rust/psi/compilation/representations/syntax-trees",
                 "omega-rust/psi/compilation/representations/typed-trees",
-                "omega-rust/psi/compilation/representations/lowered-psi",
                 PROVIDER_PLANNING,
             ],
             reason: "Build reaches the language through product facades, not stages or representations",
@@ -261,13 +246,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 "omega-rust/psi/foundation/semantic-vocabulary",
             ],
             reason: "trust admission does not reconstruct grants from source or target owners",
-            except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![PSI_FACADE],
-            forbidden: TERMINAL_STAGES.to_vec(),
-            reason: "retired Lowered Psi stages do not return through the Psi facade",
             except_owners: vec![],
             allowed: vec![],
         },
@@ -472,36 +450,6 @@ pub fn psi_omega_dependency_violations(metadata: &Metadata) -> Result<Vec<String
     Ok(violations)
 }
 
-pub fn realization_checker_entry_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
-    let root = Path::new(&metadata.workspace_root);
-    let mut violations = Vec::new();
-    for package in &metadata.packages {
-        let Some(parent) = Path::new(&package.manifest_path).parent() else {
-            continue;
-        };
-        let source = normalize_relative(root, parent)?;
-        if !under(&source, &["omega-rust/omega/compilation/realization"]) {
-            continue;
-        }
-        for dependency in &package.dependencies {
-            if dependency.kind.as_deref() == Some("dev") {
-                continue;
-            }
-            let Some(dep_path) = &dependency.path else {
-                continue;
-            };
-            let destination = normalize_relative(root, Path::new(dep_path))?;
-            if destination == "omega-rust/psi/compilation/validation" {
-                violations.push(format!(
-                    "{} -> {}: realization enters source checking",
-                    package.name, dependency.name
-                ));
-            }
-        }
-    }
-    Ok(violations)
-}
-
 fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -608,7 +556,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = representation_spelling_violations(&root);
         violations.extend(psi_omega_dependency_violations(&metadata)?);
-        violations.extend(realization_checker_entry_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
             NATIVE_ROOT,
@@ -626,7 +573,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let mut runtime_owners = vec![
             RUNTIME_ROOT,
             NATIVE_PROVIDER_RUNTIME_ROOT,
-            "omega-rust/psi/interpreter/terminal-interpreter",
+            "omega-rust/psi/interpreter",
         ];
         runtime_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
         violations.extend(dependency_violations(
@@ -684,6 +631,38 @@ mod tests {
                     path: Some(format!("/repo/{dep_rel}")),
                 })
                 .collect(),
+        }
+    }
+
+    #[test]
+    fn facade_boundaries_follow_dependency_paths_not_source_or_alias_spelling() {
+        for (owner, stage, facade) in [
+            (CLI_APPLICATION, PSI_STAGES[0], BUILD_COORDINATOR),
+            (BUILD_COORDINATOR, OMEGA_STAGES[0], PRODUCT_COORDINATOR),
+            (PRODUCT_COORDINATOR, PSI_STAGES[0], PSI_FACADE),
+        ] {
+            for (dependency, kind, permitted) in [
+                (stage, None, false),
+                (stage, Some("build"), false),
+                (stage, Some("dev"), true),
+                (facade, None, true),
+            ] {
+                let metadata = Metadata {
+                    workspace_root: "/repo".to_owned(),
+                    packages: vec![pkg(
+                        "arbitrary_consumer_name",
+                        owner,
+                        &[("innocent_alias", dependency, kind)],
+                    )],
+                };
+                let violations =
+                    forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
+                assert_eq!(
+                    violations.is_empty(),
+                    permitted,
+                    "{owner} -> {dependency}: {violations:?}"
+                );
+            }
         }
     }
 

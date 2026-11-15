@@ -2,11 +2,11 @@
 //! native compilation from the saved program. No physical truth is certified.
 #[path = "installation_assumption_review/saved_project.rs"]
 mod saved_project;
-use compilation_products::{
+use orchestration::{BuildRequest, BuildTargets, ProjectProduct};
+use products::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
-use orchestration::{BuildRequest, BuildTargets, ProjectProduct};
 use sha2::{Digest, Sha256};
 use std::{error::Error, fs, io::Read, path::Path};
 
@@ -21,17 +21,22 @@ fn main() -> Result<()> {
         }
         [mode, root, target, output] if mode == "inspect" => inspect(root, target, output),
         [mode, root, target, output] if mode == "prepare" => saved_project::prepare(root, target, output),
-        [mode, prepared, output, records @ ..] if mode == "finish" => saved_project::finish(prepared, output, records),
+        [mode, trust, prepared, output, records @ ..] if mode == "finish" && trust == "--trust-producer" => {
+            // This example's operator makes a separate producer-trust decision;
+            // saved hashes and environment assumptions cannot make it for them.
+            let producer = terminal_installation::HostProducerTrust::accept("operator-accepted saved-project producer");
+            saved_project::finish(prepared, output, records, &producer)
+        }
         [mode, artifact, target, entry, installation, environment, caller, output] if mode == "accept-bootstrap" || mode == "accept-interrupt-delivery" => {
             accept(mode, artifact, target, entry, installation, environment, caller, output)
         }
         [mode, record] if mode == "show" => {
-            for row in compilation_products::decode_installation_assumptions(&read_bounded(record, 1024 * 1024)?)? {
+            for row in products::decode_installation_assumptions(&read_bounded(record, 1024 * 1024)?)? {
                 println!("Assumption (not observed or proved): {}\n{row:#?}", row.description());
             }
             Ok(())
         }
-        _ => Err("usage: installation_assumption_review inspect|prepare ROOT TARGET NEW_DIRECTORY | accept-bootstrap|accept-interrupt-delivery TERMINAL TARGET ENTRY_ID INSTALLATION_ID ENVIRONMENT_DESCRIPTION CALLER NEW_RECORD | finish PREPARED_DIRECTORY NEW_DIRECTORY [REVIEW_RECORD...] | show RECORD".into()),
+        _ => Err("usage: installation_assumption_review inspect|prepare ROOT TARGET NEW_DIRECTORY | accept-bootstrap|accept-interrupt-delivery TERMINAL TARGET ENTRY_ID INSTALLATION_ID ENVIRONMENT_DESCRIPTION CALLER NEW_RECORD | finish --trust-producer PREPARED_DIRECTORY NEW_DIRECTORY [REVIEW_RECORD...] | show RECORD".into()),
     }
 }
 
@@ -78,7 +83,7 @@ fn inspect(root: &str, target: &str, output: &str) -> Result<()> {
 }
 
 fn write_inspection(
-    retained: &compilation_products::RetainedTerminalArtifact,
+    retained: &products::RetainedTerminalArtifact,
     target: &str,
     output: &Path,
 ) -> Result<()> {
@@ -178,7 +183,7 @@ fn accept(
             caller_provenance: row.caller_provenance,
         })
     };
-    let record = compilation_products::encode_installation_assumptions(std::slice::from_ref(&row))?;
+    let record = products::encode_installation_assumptions(std::slice::from_ref(&row))?;
     use std::io::Write;
     let mut file = fs::OpenOptions::new()
         .write(true)

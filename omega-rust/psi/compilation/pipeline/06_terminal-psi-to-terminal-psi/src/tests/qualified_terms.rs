@@ -3,6 +3,139 @@
 
 use super::*;
 
+#[test]
+fn the_lowered_scalar_type_retains_its_declared_domain() {
+    // This is the ordinary static unit-domain transport used by the kept
+    // qualified_operator_home program, without depending on operator selection.
+    let elaboration = invocation(UNIT_DOMAIN).unwrap();
+    assert_eq!(
+        elaboration.module.scalar_qualifications.domains.len(),
+        1,
+        "the checker must receive the nominal domain, not only its erased carrier"
+    );
+    assert!(
+        elaboration.module.machines.iter().any(|machine| {
+            machine.parameters.iter().any(|parameter| {
+                parameter.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO
+            })
+        }),
+        "a qualified formal must retain its complete declared type"
+    );
+    let verdict = judge(Ok(elaboration)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+const UNIT_DOMAIN: &str = r#"
+domain u32::Span;
+machine relay(distance: u32 in Span) -> u32 in Span { distance }
+machine entry() -> u32 { relay(7u32 as +Span) as -Span }
+"#;
+
+#[test]
+fn the_checker_rejects_a_missing_nominal_argument_even_with_the_same_carrier() {
+    let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
+    let caller = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.operations().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::IntegerConstant { .. }
+                )
+            })
+        })
+        .unwrap();
+    let bare = caller
+        .operations()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant { .. }
+            )
+        })
+        .unwrap()
+        .result
+        .scalar_ref()
+        .unwrap()
+        .id;
+    let call = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.declared_invocation().is_some())
+        .unwrap();
+    let terminal_psi::OperationKind::Call { arguments, .. } = &mut call.kind else {
+        panic!("the relay has an ordinary scalar call")
+    };
+    arguments[0] = bare;
+    let refusal = judge(Ok(elaboration)).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert!(
+        refusal
+            .detail
+            .contains("scalar call argument does not preserve its complete declared type"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_qualified_result_annotation_does_not_replace_its_cast_edge() {
+    let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
+    elaboration.module.scalar_qualifications.coercions.clear();
+    let refusal = judge(Ok(elaboration)).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert!(
+        refusal.detail.contains(
+            "scalar successor changes membership without its explicit cast or checked completion"
+        ),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn a_forged_completion_cannot_issue_a_domain_whose_issuer_set_is_empty() {
+    use terminal_psi::{
+        ScalarDomainPredicate, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
+    };
+    let mut elaboration = invocation(UNIT_DOMAIN).unwrap();
+    let catalog = &mut elaboration.module.scalar_qualifications;
+    catalog.domains[0].establishment_routes = Some(Vec::new());
+    catalog.domains[0].predicate = Some(ScalarDomainPredicate {
+        subject: semantic_vocabulary::ValueId::new(1).unwrap(),
+        proposition: Proposition::Truth,
+    });
+    let introduced = catalog
+        .coercions
+        .iter()
+        .find(|edge| {
+            elaboration
+                .module
+                .machines
+                .iter()
+                .find(|machine| machine.id == edge.machine)
+                .unwrap()
+                .block_parameters()
+                .any(|value| value.id == edge.destination && !value.qualifications.is_empty())
+        })
+        .unwrap();
+    catalog.returns.push(ScalarReturnQualification {
+        site: ScalarReturnSite::Completion {
+            argument_ordinal: introduced.argument_ordinal,
+        },
+        machine: introduced.machine,
+        edge: introduced.edge,
+        source: introduced.source,
+        result: introduced.destination,
+        domain: catalog.domains[0].id,
+        origins: vec![ScalarReturnOrigin::Vacuous],
+    });
+    let refusal = judge(Ok(elaboration)).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert!(refusal.detail.contains("authorized issuer"), "{refusal:?}");
+}
+
 const DOMAIN: &str = r#"
 domain i64::Classified
 requires self != -1
@@ -248,6 +381,21 @@ machine entry() -> i64 {{
         matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
             if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{refused:?}"
+    );
+
+    // A retained field label cannot stand in for the default-domain clause
+    // which protects its contents through construction and mutation.
+    let mut erased = invocation(&source(13)).unwrap();
+    for owner in &mut erased.module.structural_types {
+        owner.requires.clear();
+    }
+    let refusal = judge(Ok(erased)).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert!(
+        refusal
+            .detail
+            .contains("scalar field's default domain lost its declared predicate"),
+        "{refusal:?}"
     );
 }
 

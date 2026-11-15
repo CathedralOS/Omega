@@ -13,8 +13,8 @@ arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 image = { path = "../image" }
 calling-conventions = { path = "../../calling-conventions" }
-object-file = { path = "../../object/object-file" }
+object-file = { path = "../../object-file" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 target = { path = "../../target" }
-isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }
+isa-x86_64 = { path = "../../isa/isa-x86_64" }
 sha2 = "0.10"

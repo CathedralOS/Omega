@@ -3,7 +3,8 @@ We define compile-time constant values (`ConstValue`), structural aggregate and
 slice constants, and their canonical binary encoding (`encoding`).
 */
 
-use numerics::literals::FloatFormat;
+use numerics::bignum::BigInt;
+use numerics::literals::{FloatFormat, LandedIntegerType};
 
 mod encoding {
     use super::{
@@ -29,8 +30,14 @@ mod encoding {
         }
         *nodes += 1;
         let encoding = match value {
-            DecodedCanonicalConstValue::Integer { type_name, value } => {
-                framed("integer", [type_name.as_str(), value.to_string().as_str()])
+            DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value,
+            } => {
+                if !integer_type.value_carrier().admits(value) {
+                    return None;
+                }
+                framed("integer", [integer_type.name(), value.to_string()])
             }
             DecodedCanonicalConstValue::Boolean(value) => framed("boolean", [value.to_string()]),
             DecodedCanonicalConstValue::Float { format, bits } if declaration => match format {
@@ -93,8 +100,8 @@ const MAX_DECODE_DEPTH: usize = 64;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodedCanonicalConstValue {
     Integer {
-        type_name: String,
-        value: i128,
+        integer_type: LandedIntegerType,
+        value: BigInt,
     },
     Boolean(bool),
     Float {
@@ -128,7 +135,7 @@ pub enum FiniteScalarValue {
 impl FiniteScalarValue {
     pub fn from_decoded(value: &DecodedCanonicalConstValue) -> Option<Self> {
         match value {
-            DecodedCanonicalConstValue::Integer { value, .. } => Some(Self::Integer(*value)),
+            DecodedCanonicalConstValue::Integer { value, .. } => value.to_i128().map(Self::Integer),
             DecodedCanonicalConstValue::Boolean(value) => Some(Self::Boolean(*value)),
             _ => None,
         }
@@ -184,8 +191,9 @@ pub struct CanonicalConstIdentity {
 }
 
 impl CanonicalConstIdentity {
-    pub fn integer(type_name: impl Into<String>, value: i128) -> Self {
-        let type_name = type_name.into();
+    pub fn integer(integer_type: LandedIntegerType, value: impl Into<BigInt>) -> Self {
+        let type_name = integer_type.name();
+        let value = value.into();
         let spelling = value.to_string();
         Self {
             encoding: framed("integer", [type_name.as_str(), spelling.as_str()]),
@@ -214,12 +222,16 @@ impl CanonicalConstIdentity {
 impl CanonicalConstValue {
     pub const MAXIMUM_DEPTH: usize = MAX_DECODE_DEPTH;
     pub const MAXIMUM_NODES: usize = MAX_DECODED_NODES;
+    pub const MAXIMUM_ENCODING_BYTES: usize = MAX_ENCODING_BYTES;
 
     /// Preserves the established application key without a display-text
     /// round trip. Integer carriers are supplied by the receiving binder;
     /// other canonical atoms retain the existing typed encoding in the key.
     pub fn application_identity(&self) -> Option<String> {
         let decoded = self.decode_encoding()?;
+        if let DecodedCanonicalConstValue::Integer { value, .. } = decoded {
+            return Some(format!("named(integer-const({value}))"));
+        }
         Some(FiniteScalarValue::from_decoded(&decoded).map_or_else(
             || canonical_application_identity(self),
             FiniteScalarValue::canonical_identity,
@@ -231,8 +243,8 @@ impl CanonicalConstValue {
         display: impl Into<String>,
     ) -> Option<Self> {
         let type_name = match value {
-            DecodedCanonicalConstValue::Integer { type_name, .. }
-            | DecodedCanonicalConstValue::Array { type_name, .. }
+            DecodedCanonicalConstValue::Integer { integer_type, .. } => integer_type.name(),
+            DecodedCanonicalConstValue::Array { type_name, .. }
             | DecodedCanonicalConstValue::Record { type_name, .. }
             | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name.clone(),
             DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
@@ -356,12 +368,21 @@ fn decode_node(
         if type_name.is_empty() || !rest.is_empty() {
             return None;
         }
-        let value = spelling.parse::<i128>().ok()?;
+        // Numeric meaning is decoded once at this wire boundary. Consumers keep
+        // the carrier metadata instead of reinterpreting an authored type name.
+        let integer_type = LandedIntegerType::from_name(type_name)?;
+        if integer_type.name() != type_name {
+            return None;
+        }
+        let value = BigInt::from_decimal_str(spelling)?;
         if value.to_string() != spelling {
             return None;
         }
+        if !integer_type.value_carrier().admits(&value) {
+            return None;
+        }
         return Some(DecodedCanonicalConstValue::Integer {
-            type_name: type_name.to_owned(),
+            integer_type,
             value,
         });
     }
@@ -554,12 +575,15 @@ mod tests {
         let first = CanonicalConstValue::new("u64", framed("integer", ["u64", "4"]), "2 + 2");
         let second = CanonicalConstValue::new("u64", framed("integer", ["u64", "4"]), "4");
         assert_eq!(first.identity(), second.identity());
-        assert_eq!(first.identity(), CanonicalConstIdentity::integer("u64", 4));
+        assert_eq!(
+            first.identity(),
+            CanonicalConstIdentity::integer(super::LandedIntegerType::U64, 4)
+        );
         assert_eq!(
             first.identity().decode_encoding(),
             Some(DecodedCanonicalConstValue::Integer {
-                type_name: "u64".to_owned(),
-                value: 4,
+                integer_type: super::LandedIntegerType::U64,
+                value: 4.into(),
             })
         );
     }
@@ -578,8 +602,10 @@ mod tests {
         assert_eq!(
             decode(framed("integer", ["i64", "-42"])),
             Some(DecodedCanonicalConstValue::Integer {
-                type_name: "i64".to_owned(),
-                value: -42,
+                integer_type: super::LandedIntegerType::Fixed(
+                    numerics::integer_carrier::FixedInteger::signed(64)
+                ),
+                value: (-42).into(),
             })
         );
         assert_eq!(
@@ -614,8 +640,8 @@ mod tests {
                                 (
                                     "left".to_owned(),
                                     DecodedCanonicalConstValue::Integer {
-                                        type_name: "u8".to_owned(),
-                                        value: 1,
+                                        integer_type: super::LandedIntegerType::U8,
+                                        value: 1.into(),
                                     },
                                 ),
                                 (

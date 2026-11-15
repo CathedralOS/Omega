@@ -84,7 +84,7 @@ impl Program<'_> {
             )?;
             for fact in facts {
                 let expression = self.fact(id, fact)?;
-                if !self.states_nothing(id, expression)? {
+                if !self.states_nothing(id, expression, false)? {
                     predicates.push(Predicate {
                         owner: definition.symbol,
                         subject: definition.subject_symbol,
@@ -290,7 +290,7 @@ impl Program<'_> {
     /// which lowering replaces by the parameter of the block the cast
     /// continues in (`canonical::substitute`). Beside them, the domain and
     /// the predicates as written.
-    pub(super) fn cast_predicates(
+    pub(crate) fn cast_predicates(
         &mut self,
         id: MachineId,
         added: Qualification,
@@ -340,6 +340,37 @@ impl Program<'_> {
             .map(|(clause, _)| clause)
             .collect();
         Ok((clauses, stated))
+    }
+
+    /// Read scalar domain clauses while the source reader can still retain
+    /// their type and declaration dependencies. Publication consumes these
+    /// clauses after discovery closes; it does not reopen source checking.
+    pub(crate) fn prepare_scalar_domain_predicates(&mut self, id: MachineId) -> Checked<()> {
+        let mut next = 0;
+        while let Some(&(symbol, value_type)) = self.declared_domains.get(next) {
+            next += 1;
+            let ValueType::Scalar(carrier, _) = value_type else {
+                continue;
+            };
+            let domains = crate::body::DomainSet::EMPTY.with(symbol).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Declaration("scalar domain subject"),
+                )
+            })?;
+            let (clauses, _) = self.cast_predicates(
+                id,
+                Qualification {
+                    policy: None,
+                    domains,
+                },
+                carrier,
+            )?;
+            self.scalar_domain_predicates
+                .push((symbol, carrier, clauses));
+        }
+        Ok(())
     }
 
     /// Reads the predicates of a subject's domain declaration as a cast

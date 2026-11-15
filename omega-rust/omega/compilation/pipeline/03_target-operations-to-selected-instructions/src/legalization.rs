@@ -454,7 +454,7 @@ pub(crate) fn legalize_target_operations_with_types(
         installed_interrupts,
         abstract_plan,
     )?;
-    validate_boundary_origins(target, unit, origins)?;
+    validate_boundary_origins(target, origins)?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
@@ -567,7 +567,7 @@ fn verify_target_operation_plan_input(
         installed_interrupts,
         abstract_plan,
     )?;
-    validate_boundary_origins(target, unit, origins)?;
+    validate_boundary_origins(target, origins)?;
     audit_target_operation_plan(target, abstract_plan, unit, closed_types)
 }
 

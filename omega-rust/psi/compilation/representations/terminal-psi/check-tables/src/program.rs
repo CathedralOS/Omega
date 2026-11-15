@@ -287,11 +287,13 @@ pub struct Selected {
 /// preconditions, guarantees", and "A matching signature is insufficient."
 /// So each row a subject declares is an obligation of its own, whether or
 /// not the program selects the implementation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConformanceWitness {
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,
     pub implementation: SymbolHandle,
+    /// Exact applied values; empty for a universally checked declaration.
+    pub value_arguments: Vec<semantic_vocabulary::ScalarTerm>,
 }
 
 /// Symbolic root of a data invariant, substituted before observing storage.
@@ -300,6 +302,72 @@ pub fn self_place() -> Option<semantic_vocabulary::PlaceId> {
 }
 
 impl Elaboration {
+    /// Every machine control can pass to from `roots` through the module's
+    /// calls, the roots included, sorted. `None` when that set cannot be
+    /// read from the calls, so the caller must take every machine.
+    ///
+    /// The calls followed are the ones the reach judgment charges a caller
+    /// for (`ceilings`): each invocation row that names a machine, and each
+    /// tail call of a call formation. A machine may also be arrived at with
+    /// no call naming it: through a selector value or a dispatch table, as a
+    /// callback, an installed interrupt
+    /// or a task activation. A module that holds any of those gives no
+    /// answer, and neither does a root or callee with no rows here.
+    pub fn call_closure(
+        &self,
+        roots: impl IntoIterator<Item = MachineId>,
+    ) -> Option<Vec<MachineId>> {
+        use crate::edges::Callee;
+        use semantic_vocabulary::TargetMachineCallable;
+        let module = &self.module;
+        if !module.callback_applications.is_empty()
+            || !module.installed_interrupt_registrations.is_empty()
+            || module.dynamic_dispatch != Default::default()
+            || module.task_activation_demands != Default::default()
+        {
+            return None;
+        }
+        let mut reached: Vec<MachineId> = roots.into_iter().collect();
+        reached.sort_unstable();
+        reached.dedup();
+        let mut pending = reached.clone();
+        while let Some(caller) = pending.pop() {
+            let machine = module.machine(caller)?;
+            if machine.operations().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::CallDynamic { .. }
+                        | terminal_psi::OperationKind::SelectImplementation { .. }
+                )
+            }) {
+                return None;
+            }
+            let mut callees = Vec::new();
+            for call in self.tables.machines.get(caller)?.invocations.values() {
+                match call.callee {
+                    Callee::Declared(TargetMachineCallable::Machine(callee)) => {
+                        callees.push(callee);
+                    }
+                    Callee::Declared(TargetMachineCallable::Boundary(_)) => {}
+                    Callee::Selected { .. } => return None,
+                }
+            }
+            callees.extend(
+                machine
+                    .call_formations
+                    .iter()
+                    .filter_map(|formation| formation.tail_callee),
+            );
+            for callee in callees {
+                if let Err(position) = reached.binary_search(&callee) {
+                    reached.insert(position, callee);
+                    pending.push(callee);
+                }
+            }
+        }
+        Some(reached)
+    }
+
     /// The unreachable statements this program's authored machines hold,
     /// each with its machine, in machine order.
     ///
@@ -312,7 +380,7 @@ impl Elaboration {
     /// as written says so in its own check form, where its parameters are
     /// rigid and a requirement is called through its interface contract.
     pub fn unreachable_statements(&self) -> impl Iterator<Item = (MachineId, Unreachable)> + '_ {
-        self.authored_sources().flat_map(|(machine, sources)| {
+        authored_machine_sources(&self.module, &self.sources).flat_map(|(machine, sources)| {
             sources.unreachable.iter().map(move |row| (machine, *row))
         })
     }
@@ -326,21 +394,32 @@ impl Elaboration {
     /// "Unreachable branches"), and the generic machine's own check form is
     /// where it is judged as written.
     pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, Branch)> + '_ {
-        self.authored_sources()
+        authored_machine_sources(&self.module, &self.sources)
             .flat_map(|(machine, sources)| sources.branches.iter().map(move |row| (machine, *row)))
     }
+}
 
-    /// The source rows of every machine that is not generated to close a
-    /// static application.
-    fn authored_sources(&self) -> impl Iterator<Item = (MachineId, &MachineSources)> + '_ {
-        self.sources.iter().filter(|(machine, _)| {
-            !self.module.machines.iter().any(|declared| {
-                declared.id == *machine
-                    && declared
-                        .declaration
-                        .as_ref()
-                        .is_some_and(|declaration| declaration.specialization.is_some())
-            })
-        })
+/// Borrows authored source groups without searching every declaration for every
+/// source row. A specialization is excluded only when a declaration says it is
+/// generated; source rows without such a declaration retain their diagnostics.
+/// Separate field borrows let a checker mutate its tables while retaining these
+/// immutable source slices.
+pub fn authored_machine_sources<'sources>(
+    module: &TerminalModule,
+    sources: &'sources IdTable<MachineId, MachineSources>,
+) -> impl Iterator<Item = (MachineId, &'sources MachineSources)> + 'sources {
+    let mut generated = sources.map(|_, _| false);
+    for declared in &module.machines {
+        if declared
+            .declaration
+            .as_ref()
+            .is_some_and(|declaration| declaration.specialization.is_some())
+            && let Some(generated) = generated.get_mut(declared.id)
+        {
+            *generated = true;
+        }
     }
+    sources
+        .iter()
+        .filter(move |(machine, _)| generated.get(*machine) == Some(&false))
 }

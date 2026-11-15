@@ -24,7 +24,7 @@
 //! program that demands that machine is refused. Served today: type
 //! parameters given plain named types, implementation parameters given
 //! plain named implementations and value parameters given one integer
-//! literal, on single-state checked bodies with their lexical children
+//! literal or `true`/`false`, on single-state checked bodies with their lexical children
 //! ([`template`]). Each child has no independent static telescope; it retains
 //! the original enclosing application without capturing runtime values.
 //!
@@ -32,8 +32,11 @@
 //! and is replaced by its literal, landed in the parameter's type, wherever
 //! the copied declaration names it. generics.md, "Value binders and const
 //! requirements": the value "must be statically known within the compiled
-//! specialization". Only a closed scalar the author wrote as a literal is
-//! read here; an argument that would have to be computed is unserved.
+//! specialization". Only a closed scalar is read here: an integer literal,
+//! `true` or `false`. Typing has already replaced a calculation over
+//! literals, `(8u64 + 9u64)`, by the literal of its value
+//! (`typed_trees::const_integer::closed_literal`); an argument that a machine
+//! would have to compute is unserved.
 //! Where the parameter is the width of an integer, `u<N>`, the copied type
 //! becomes the builtin integer of that width ([`substitute_widths`]).
 //!
@@ -75,7 +78,7 @@ use typed_trees::{
 mod named_conformances;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let mut generated = Vec::new();
+    let mut generated = GeneratedMachines::default();
     let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
     let mut instances = symbols::SymbolMap::default();
     let mut indexed = 0;
@@ -98,13 +101,34 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     .or_insert(Some(index));
             }
             indexed = program.machine_specializations.len();
-            let served =
-                named_conformances::serve(program, site, &mut captures).and_then(|handled| {
+            let served = named_conformances::serve(program, site, &mut captures)
+                .and_then(|handled| {
                     if handled {
                         Ok(())
                     } else {
                         serve(program, site, &mut generated, &instances)
                     }
+                })
+                .and_then(|()| {
+                    let Some(call) = site.call(program) else {
+                        return Ok(());
+                    };
+                    let dispatch = match call {
+                        StaticArgumentCall::Expression(_, call) => {
+                            call.static_requirement_dispatch.clone()
+                        }
+                        StaticArgumentCall::Statement(call) => {
+                            call.static_requirement_dispatch.clone()
+                        }
+                    };
+                    let Some(dispatch) = dispatch else {
+                        return Ok(());
+                    };
+                    let application = call.application();
+                    let original = call.registration_operation(program);
+                    program
+                        .prepare_selected_requirement_application(application, &dispatch, original)
+                        .map_err(|reason| Stop::Unserved(Some(reason)))
                 });
             match served {
                 Ok(()) => {}
@@ -149,6 +173,52 @@ struct Generated {
     arguments: Vec<Identity>,
     machine: SymbolHandle,
     state: SymbolHandle,
+}
+
+/// Every machine this pass generated, in the order the applications were
+/// first met, and an index answering "has this application already been
+/// generated?" without reading rows of other applications.
+///
+/// One application makes one machine, so a closed application is looked up
+/// before it is generated. Scanning `rows` for that made the pass quadratic
+/// in the number of distinct closed applications, across unrelated
+/// templates too. `by_application` holds row numbers ordered by template,
+/// then by the complete argument key; a lookup is a binary search comparing
+/// whole keys, never a digest. Rows stay in encounter order: nothing reads a
+/// row's position as anything but a stable name.
+#[derive(Default)]
+struct GeneratedMachines {
+    rows: Vec<Generated>,
+    by_application: Vec<u32>,
+}
+
+impl GeneratedMachines {
+    /// The row generated for `template` at `arguments`, or the place in
+    /// `by_application` where that application belongs.
+    fn search(&self, template: SymbolHandle, arguments: &[Identity]) -> Result<usize, usize> {
+        let wanted = (symbol_order(template), arguments);
+        self.by_application
+            .binary_search_by(|&row| {
+                let row = &self.rows[row as usize];
+                (symbol_order(row.template), row.arguments.as_slice()).cmp(&wanted)
+            })
+            .map(|slot| self.by_application[slot] as usize)
+    }
+
+    /// Append `made` and index it at `slot`, the place [`Self::search`]
+    /// reported for its application.
+    fn insert(&mut self, slot: usize, made: Generated) -> &Generated {
+        let row = u32::try_from(self.rows.len()).expect("generated machines fit a u32 row");
+        self.rows.push(made);
+        self.by_application.insert(slot, row);
+        &self.rows[row as usize]
+    }
+}
+
+/// A total order on symbols for sorted lookups: by arena slot, then by
+/// generation, exactly the parts symbol equality compares.
+fn symbol_order(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
 }
 
 /// A call as the trees hold one: an expression, or a statement that
@@ -287,7 +357,7 @@ fn entered_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(Symbol
 fn serve(
     program: &mut TypedTrees,
     site: Site,
-    generated: &mut Vec<Generated>,
+    generated: &mut GeneratedMachines,
     instances: &symbols::SymbolMap<Option<usize>>,
 ) -> Served<()> {
     let Some(applied) = site.applied(program) else {
@@ -324,10 +394,9 @@ fn serve(
         return Ok(());
     };
     if program
-        .symbols
-        .get(applied.target)
-        .generated_from
-        .is_valid()
+        .executable_application_template(callee)
+        .map_err(Stop::Defect)?
+        .is_some()
     {
         return enter_generated(program, site, &applied, callee, &arguments, instances);
     }
@@ -366,6 +435,10 @@ fn serve(
     for ((parameter, kind), argument) in parameters.iter().zip(&arguments) {
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
+    program
+        .expression_table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = callee;
     bind(program, applied.application, &operands);
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
@@ -377,15 +450,16 @@ fn serve(
         .iter()
         .map(|operand| operand.identity.clone())
         .collect::<Vec<_>>();
-    let entry = match generated
-        .iter()
-        .find(|existing| existing.template == callee && existing.arguments == key)
-    {
-        Some(existing) => existing,
-        None => {
+    let entry = match generated.search(callee, &key) {
+        Ok(row) => &generated.rows[row],
+        Err(slot) => {
             let made = generate(program, callee, applied.application, &operands)?;
-            generated.push(made);
-            generated.last().expect("the machine just generated")
+            if made.template != callee || made.arguments != key {
+                return Err(Stop::Defect(
+                    "a generated machine changed the application it was generated for",
+                ));
+            }
+            generated.insert(slot, made)
         }
     };
     let target = if names_state {
@@ -516,6 +590,7 @@ fn bind_requirement(
     let Ok(Some(requirement)) = program.evidence_requirement_declaration(applied.target) else {
         return Ok(());
     };
+    let declaration = requirement.symbol;
     let parameters = program
         .data_type_parameters
         .span_or_empty(requirement.type_parameters)
@@ -535,6 +610,10 @@ fn bind_requirement(
     for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
+    program
+        .expression_table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = declaration;
     bind(program, applied.application, &operands);
     Ok(())
 }
@@ -624,6 +703,37 @@ enum Identity {
     Scalar(String),
 }
 
+/// Applications are indexed in sorted order ([`GeneratedMachines`]). The
+/// order only has to agree with equality: same variant and same payload.
+impl Ord for Identity {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::Type(left), Self::Type(right)) => left.cmp(right),
+            (Self::Declaration(left), Self::Declaration(right)) => {
+                symbol_order(*left).cmp(&symbol_order(*right))
+            }
+            (Self::Scalar(left), Self::Scalar(right)) => left.cmp(right),
+            _ => self.rank().cmp(&other.rank()),
+        }
+    }
+}
+
+impl PartialOrd for Identity {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Identity {
+    fn rank(&self) -> u8 {
+        match self {
+            Self::Type(_) => 0,
+            Self::Declaration(_) => 1,
+            Self::Scalar(_) => 2,
+        }
+    }
+}
+
 /// One static argument read for the parameter it is given to. Every kind of
 /// parameter is bound through this one shape; a kind with no reading yet is
 /// unserved.
@@ -636,9 +746,10 @@ struct Operand {
     /// where a copied body passes it on as a static argument.
     argument: StaticMachineArgument,
     value: StaticMachineBindingValue,
-    /// A value parameter's literal, landed in the parameter's type: what
-    /// replaces the parameter where a copied expression names it.
-    scalar: Option<numerics::literals::IntegerLiteral>,
+    /// A value parameter's closed value, an integer landed in the
+    /// parameter's type or a Boolean: what replaces the parameter where a
+    /// copied expression names it.
+    scalar: Option<Value>,
 }
 
 impl Operand {
@@ -668,14 +779,24 @@ impl Operand {
             ),
             TypeParameterKind::Const { type_reference } => {
                 let identity = match closed_scalar(program, *type_reference, argument)? {
-                    Scalar::Literal(literal) => {
-                        let identity = Identity::Scalar(literal.canonical_spelling().to_string());
-                        scalar = Some(literal);
+                    Scalar::Closed(value) => {
+                        let identity = Identity::Scalar(value.spelled());
+                        scalar = Some(value);
                         identity
                     }
                     Scalar::Parameter(symbol) => Identity::Declaration(symbol),
                 };
-                (identity, StaticMachineBindingValue::Const(*type_reference))
+                let reference = if let Some(value) = &scalar {
+                    let expression = program.expression_table.insert(value.expression());
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::ConstExpression(expression))
+                } else {
+                    program
+                        .static_operand_type_reference(argument)
+                        .map_err(|_| Stop::Unserved(None))?
+                };
+                (identity, StaticMachineBindingValue::Const(reference))
             }
             // A runtime value, a machine and a proposition each need their
             // own reading of the argument; none is built yet.
@@ -721,46 +842,59 @@ impl Operand {
     }
 }
 
+/// A closed value of a builtin scalar type: what a value parameter is given.
+#[derive(Clone)]
+enum Value {
+    /// An integer literal, landed in the parameter's type.
+    Integer(numerics::literals::IntegerLiteral),
+    Boolean(bool),
+}
+
+impl Value {
+    /// The canonical spelling an application is keyed by. The parameter's
+    /// type tells `1` from `true`.
+    fn spelled(&self) -> String {
+        match self {
+            Self::Integer(literal) => literal.canonical_spelling().to_string(),
+            Self::Boolean(value) => value.to_string(),
+        }
+    }
+
+    fn expression(&self) -> ExpressionNode {
+        match self {
+            Self::Integer(literal) => ExpressionNode::Integer(literal.clone()),
+            Self::Boolean(value) => ExpressionNode::Boolean(*value),
+        }
+    }
+}
+
 /// A value argument as this pass reads one.
 enum Scalar {
-    /// One integer literal, landed in the parameter's type.
-    Literal(numerics::literals::IntegerLiteral),
+    /// A closed value of the parameter's type.
+    Closed(Value),
     /// A value parameter of the enclosing generic machine, passed on.
     Parameter(SymbolHandle),
 }
 
 /// The value a static argument gives a value parameter of type
 /// `parameter_type`, when the argument is closed: one integer literal and
-/// nothing else, for a parameter of a fixed-width builtin integer type, or
+/// nothing else, for a parameter of a fixed-width builtin integer type;
+/// `true` or `false` and nothing else, for a parameter of type `bool`; or
 /// only the name of a parameter in scope. A literal that states another type
 /// than the parameter's is not the parameter's value. An argument that
-/// names a constant or would have to be evaluated is unserved: no machine
-/// runs here.
+/// names a completed constant uses its canonical value; no machine runs here.
 fn closed_scalar(
     program: &TypedTrees,
     parameter_type: TypeReferenceHandle,
     argument: &StaticMachineArgument,
 ) -> Served<Scalar> {
-    if let Some(literal) = &argument.const_literal {
-        let only_a_literal = StaticMachineArgument {
-            const_literal: Some(literal.clone()),
-            ..StaticMachineArgument::default()
-        };
-        let landed_type = program
-            .type_reference_table
-            .primitive_type(parameter_type)
-            .and_then(typed_trees::types::PrimitiveType::landed_landing_fixed);
-        let (true, Some(landed_type)) = (*argument == only_a_literal, landed_type) else {
-            return Err(Stop::Unserved(None));
-        };
-        let landing = numerics::literals::IntegerLanding {
-            landed_type,
-            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-        };
-        return match literal.landing() {
-            None => Ok(Scalar::Literal(literal.with_landing(landing))),
-            Some(stated) if stated == landing => Ok(Scalar::Literal(literal.clone())),
-            Some(_) => Err(Stop::Unserved(None)),
+    if let Some(primitive) = program.primitive_type_reference(parameter_type)
+        && let Ok(value) = program.prepare_callable_scalar_argument(primitive, argument)
+    {
+        return match value {
+            ExpressionNode::Integer(literal) => Ok(Scalar::Closed(Value::Integer(literal))),
+            ExpressionNode::Boolean(value) => Ok(Scalar::Closed(Value::Boolean(value))),
+            _ => Err(Stop::Defect("prepared callable scalar is not a scalar")),
         };
     }
     let symbol = argument.symbol;
@@ -1020,7 +1154,7 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
         {
             return Err(Stop::Unserved(None));
         }
-        if holds_expression(program, &types) {
+        if has_unserved_type_expression(program, &types) {
             return Err(Stop::Unserved(None));
         }
         for owner in [machine.symbol, state.symbol] {
@@ -1046,12 +1180,13 @@ fn copied_parts(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Served<(Machine, State, Vec<TypeReferenceHandle>)> {
-    let unserved = Err(Stop::Unserved(None));
     let Some(machine) = program.machine_by_symbol(symbol) else {
-        return unserved;
+        return Err(Stop::Unserved(Some("a copied declaration has no machine")));
     };
     let [state] = program.machine_states(machine) else {
-        return unserved;
+        return Err(Stop::Unserved(Some(
+            "a copied declaration needs exactly one entry",
+        )));
     };
     let plan = &machine.termination_plan;
     let plain = machine.body_is_present
@@ -1069,13 +1204,7 @@ fn copied_parts(
         && machine.spelling.is_none()
         && !machine.structural_type_equations_pending
         && !machine.service_reach_is_installation_bound
-        && matches!(
-            plan.interface,
-            language_semantics::TerminationInterface::InternalDerived
-        )
         && plan.checked_summary == language_semantics::TerminationGuarantee::NoGuarantee
-        && plan.implementation_witness.is_none()
-        && program.ranking_expression_custody_for(symbol).is_none()
         && program.authored_service_reach_rows_for(symbol).all(|row| {
             !row.installation_bound
                 && row
@@ -1092,7 +1221,9 @@ fn copied_parts(
             .iter()
             .any(|forwarding| forwarding.machine_symbol == symbol);
     if !plain {
-        return unserved;
+        return Err(Stop::Unserved(Some(
+            "the declaration copier does not yet retain this machine's complete interface",
+        )));
     }
     let facts = program
         .machine_contracts(machine)
@@ -1100,9 +1231,31 @@ fn copied_parts(
         .chain(program.state_contracts(state))
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
     let mut roots = Vec::new();
+    match (
+        &plan.implementation_witness,
+        program.ranking_expression_custody_for(symbol),
+    ) {
+        (None, None) => {}
+        (Some(witness), Some(custody))
+            if witness.subjects.len() == custody.subjects.len()
+                && witness.view_arguments.len() == custody.view_arguments.len()
+                && witness.rank_range.is_some() == custody.rank_range.is_some() =>
+        {
+            roots.extend(custody.subjects.iter().copied());
+            roots.extend(custody.view_arguments.iter().copied());
+            roots.extend(custody.rank_range);
+        }
+        _ => {
+            return Err(Stop::Unserved(Some(
+                "a copied termination witness needs its original expression custody",
+            )));
+        }
+    }
     for fact in facts {
         let ProofFact::Expression(expression) = fact else {
-            return unserved;
+            return Err(Stop::Unserved(Some(
+                "a copied contract needs an expression fact",
+            )));
         };
         roots.push(*expression);
     }
@@ -1124,7 +1277,9 @@ fn copied_parts(
             | StatementNode::Transition(_) => true,
         };
         if !copied {
-            return unserved;
+            return Err(Stop::Unserved(Some(
+                "a copied statement has unserved retained metadata",
+            )));
         }
         roots.extend(
             program
@@ -1142,8 +1297,10 @@ fn copied_parts(
         .chain([state.return_type])
         .collect::<Vec<_>>();
     for root in roots.into_iter().filter(|root| root.is_valid()) {
+        types.extend(
+            typed_trees::references::collect_expression_references(program, root).type_references,
+        );
         program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
-            types.extend(held_types(node));
             copied &= match node {
                 ExpressionNode::Call(call) => {
                     call.layout_query.is_none()
@@ -1151,11 +1308,14 @@ fn copied_parts(
                         && call.quotient_operation.is_none()
                         && call.private_layout_operation.is_none()
                         && call.installed_interrupt_operation.is_none()
-                        && !call.build_selection.is_valid()
-                        && call
-                            .machine_arguments
-                            .iter()
-                            .all(|argument| only_a_name(program, argument))
+                        // A Build selection is copied as written
+                        // (`substitute_arguments`), whatever its operands
+                        // apply.
+                        && (call.build_selection.is_valid()
+                            || call
+                                .machine_arguments
+                                .iter()
+                                .all(|argument| only_a_name(program, argument)))
                 }
                 ExpressionNode::Cast(cast) => cast.semantic_domain_arguments.is_empty(),
                 _ => true,
@@ -1163,7 +1323,9 @@ fn copied_parts(
         });
     }
     if !copied {
-        return unserved;
+        return Err(Stop::Unserved(Some(
+            "a copied expression has unserved retained metadata",
+        )));
     }
     Ok((machine.clone(), state.clone(), types))
 }
@@ -1184,31 +1346,6 @@ fn copy_expression(
     let copied = program.expression_table.copy_from(&staging, staged);
     program.expression_table.remap_symbols_in(copied, symbols);
     copied
-}
-
-/// Copies a type into fresh rows and renames the declarations it mentions.
-/// `template` admitted no type that holds an expression of its own.
-fn copy_type(
-    program: &mut TypedTrees,
-    reference: TypeReferenceHandle,
-    symbols: SymbolRebinding<'_>,
-) -> Served<TypeReferenceHandle> {
-    if !reference.is_valid() {
-        return Ok(reference);
-    }
-    let mut staging = TypedTreeTables::default();
-    let mut embedded = Vec::new();
-    let staged =
-        staging.copy_type_reference_with_expressions(&program.tables, reference, &mut embedded);
-    if !embedded.is_empty() {
-        return Err(Stop::Defect(
-            "a type copied for a generated machine holds an expression",
-        ));
-    }
-    let tables = &mut program.tables;
-    let copied = tables.copy_type_reference_with_expressions(&staging, staged, &mut embedded);
-    tables.remap_type_reference_symbols_in(copied, symbols);
-    Ok(copied)
 }
 
 fn copy_contract(
@@ -1235,15 +1372,19 @@ fn copy_contract(
     copied
 }
 
-/// Whether any type among `references` holds an expression, which
-/// `copy_type` does not carry.
-fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
+/// Canonical value operands are carried by the shared type copier, not
+/// evaluated again here. Other embedded expressions still need an evaluator.
+fn has_unserved_type_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
     for reference in references.iter().filter(|reference| reference.is_valid()) {
         staging.copy_type_reference_with_expressions(&program.tables, *reference, &mut embedded);
     }
-    !embedded.is_empty()
+    embedded.iter().any(|copied| {
+        program
+            .static_operand_from_type_reference(copied.source)
+            .is_err()
+    })
 }
 
 /// Structural result of the one declaration copier. This mapping names
@@ -1253,6 +1394,46 @@ struct CopiedDeclarations {
     state: SymbolHandle,
     symbols: PreparedSymbolRebinding,
     originals: Vec<(Machine, State)>,
+}
+
+/// A copied body must prove the same progress promise using its own formals.
+/// Copy the original witness expressions with the body; rendered witness names
+/// cannot identify the fresh parameters, and no checked summary is inherited.
+fn copy_progress(
+    program: &mut TypedTrees,
+    source: &Machine,
+    machine: &mut Machine,
+    symbols: SymbolRebinding<'_>,
+) -> Served<()> {
+    if let language_semantics::TerminationInterface::Published(
+        language_semantics::TerminationGuarantee::Terminates { premises },
+    ) = &mut machine.termination_plan.interface
+    {
+        for premise in premises {
+            premise.subject.root = symbols.lookup(premise.subject.root).ok_or(Stop::Defect(
+                "a copied progress premise lost its original parameter",
+            ))?;
+            for field in &mut premise.subject.projections {
+                *field = symbols.lookup(*field).unwrap_or(*field);
+            }
+        }
+    }
+    if let Some(mut custody) = program
+        .ranking_expression_custody_for(source.symbol)
+        .cloned()
+    {
+        custody.machine = machine.symbol;
+        for expression in custody
+            .subjects
+            .iter_mut()
+            .chain(&mut custody.view_arguments)
+            .chain(custody.rank_range.iter_mut())
+        {
+            *expression = copy_expression(program, *expression, symbols);
+        }
+        program.ranking_expression_custody.push(custody);
+    }
+    Ok(())
 }
 
 /// Copies one validated declaration tree at the supplied static bindings.
@@ -1275,7 +1456,11 @@ fn copy_declarations(
             &mut embedded,
         ));
     }
-    if !embedded.is_empty() {
+    if embedded.iter().any(|copied| {
+        program
+            .static_operand_from_type_reference(copied.source)
+            .is_err()
+    }) {
         return Err(Stop::Unserved(None));
     }
     let type_start = program.type_reference_table.type_reference_count() + 1;
@@ -1408,6 +1593,7 @@ fn copy_declarations(
             machine.name = Identifier::generated(root_name.clone());
         }
         machine.is_public = false;
+        copy_progress(program, source, &mut machine, symbols)?;
         // A written empty ceiling differs from an omitted one. Retain each
         // authored row on its actual copied owner; never turn it into inference.
         let reach_rows = program
@@ -1434,7 +1620,6 @@ fn copy_declarations(
         state.symbol = copied_symbol(&renamed, source_state.symbol)?;
         state.parameters = HandleSpan::empty();
         state.contracts = HandleSpan::empty();
-        state.return_type = copy_type(program, source_state.return_type, symbols)?;
         state.statement_nodes = program.tables.copy_statement_nodes_with_type_expressions(
             &staging,
             staged,
@@ -1445,7 +1630,6 @@ fn copy_declarations(
             .remap_statement_symbols(state.statement_nodes, symbols);
         for mut parameter in program.state_parameters(source_state).to_vec() {
             parameter.symbol = copied_symbol(&renamed, parameter.symbol)?;
-            parameter.type_reference = copy_type(program, parameter.type_reference, symbols)?;
             program.push_state_parameter(&mut state, parameter);
         }
         for contract in program.state_contracts(source_state).to_vec() {
@@ -1455,8 +1639,20 @@ fn copy_declarations(
         let expression_count = program.expression_table.expression_count() + 1 - first_expression;
         copied.push((machine, state, first_expression, expression_count));
     }
-    copy_expression_types(program, expression_start, symbols)?;
-    substitute_types(program, type_start, operands)?;
+    let substitutions = operands
+        .iter()
+        .filter_map(|operand| match operand.value {
+            StaticMachineBindingValue::Type(actual) => Some((operand.parameter, actual)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let entries = copied
+        .iter_mut()
+        .zip(&parts)
+        .map(|((_, state, first, count), (source, _))| (source.symbol, state, *first, *count));
+    program
+        .apply_copied_callable_types(entries, symbols, &substitutions)
+        .map_err(Stop::Defect)?;
     substitute_widths(program, type_start, operands)?;
     substitute_values(program, expression_start, operands);
     for (mut machine, state, first_expression, expression_count) in copied {
@@ -1498,30 +1694,24 @@ fn generate(
     let copied = copy_declarations(program, template_symbol, operands)?;
     // Each nested declaration is specialized by the actual enclosing
     // application's bindings, not by an invented call or runtime capture.
-    for (source, _) in &copied.originals {
+    for (source, state) in &copied.originals {
         let of_kind = |implementation: bool| {
             operands.iter().filter(move |operand| {
                 matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
             })
         };
-        let spellings = of_kind(false)
-            .map(|operand| match &operand.identity {
-                Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
-                Identity::Scalar(value) => value.clone(),
-                Identity::Type(identity) => {
-                    program.type_identity_text(*identity).unwrap_or_default()
-                }
-            })
-            .collect::<Vec<_>>();
         program.machine_specializations.push(MachineSpecialization {
             template: source.symbol,
             instance: copied_symbol(&copied.symbols, source.symbol)?,
             template_parameters: copied.originals[0].0.type_parameters,
             binding_application: application,
-            type_arguments: spellings.clone(),
-            type_argument_identities: spellings,
+            states: program.captured_machine_states.insert_many([
+                typed_trees::CapturedMachineState {
+                    template: state.symbol,
+                    instance: copied_symbol(&copied.symbols, state.symbol)?,
+                },
+            ]),
             conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
-            normalized_template_identity: program.symbols.display_path(source.symbol, "::"),
             ..MachineSpecialization::default()
         });
     }
@@ -1558,95 +1748,6 @@ fn copied_symbol(symbols: &PreparedSymbolRebinding, source: SymbolHandle) -> Ser
         .ok_or(Stop::Defect("a copied declaration lost its fresh symbol"))
 }
 
-/// The types an expression node holds beside its operands.
-fn held_types(node: &ExpressionNode) -> [TypeReferenceHandle; 2] {
-    let none = TypeReferenceHandle::invalid();
-    match node {
-        ExpressionNode::Call(call) => [call.requirement_application, call.exact_coercion_target],
-        ExpressionNode::Cast(cast) => [cast.target_type, cast.result_type],
-        ExpressionNode::StructLiteral(literal) => [literal.application_type, none],
-        ExpressionNode::ZeroValue(reference) | ExpressionNode::TypeExpression(reference) => {
-            [*reference, none]
-        }
-        _ => [none, none],
-    }
-}
-
-/// An expression copy shares the types its nodes hold with the expression
-/// it was copied from. Each copied node receives types of its own, so that
-/// replacing a parameter in the generated machine leaves the generic
-/// machine's types as they were.
-fn copy_expression_types(
-    program: &mut TypedTrees,
-    expression_start: usize,
-    symbols: SymbolRebinding<'_>,
-) -> Served<()> {
-    let copied = program
-        .expression_table
-        .iter_expressions_from(expression_start)
-        .filter_map(|(handle, node)| {
-            let types = held_types(node);
-            types
-                .iter()
-                .any(|reference| reference.is_valid())
-                .then_some((handle, types))
-        })
-        .collect::<Vec<_>>();
-    for (handle, [first, second]) in copied {
-        let first = copy_type(program, first, symbols)?;
-        let second = copy_type(program, second, symbols)?;
-        match program.expression_table.expression_mut(handle) {
-            ExpressionNode::Call(call) => {
-                call.requirement_application = first;
-                call.exact_coercion_target = second;
-            }
-            ExpressionNode::Cast(cast) => {
-                cast.target_type = first;
-                cast.result_type = second;
-            }
-            ExpressionNode::StructLiteral(literal) => literal.application_type = first,
-            ExpressionNode::ZeroValue(reference) | ExpressionNode::TypeExpression(reference) => {
-                *reference = first;
-            }
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
-/// Replaces each type parameter by its operand in every type written since
-/// `type_start`: the generated machine's own types.
-fn substitute_types(
-    program: &mut TypedTrees,
-    type_start: usize,
-    operands: &[Operand],
-) -> Served<()> {
-    for operand in operands {
-        let StaticMachineBindingValue::Type(actual) = &operand.value else {
-            continue;
-        };
-        let occurrences = program
-            .type_reference_table
-            .named_references_from(type_start)
-            .filter(|(_, symbol, _)| *symbol == operand.parameter)
-            .map(|(handle, _, _)| handle)
-            .collect::<Vec<_>>();
-        let replacement = copy_type(program, *actual, SymbolRebinding::new(&[], &[]))?;
-        for occurrence in occurrences {
-            program
-                .type_reference_table
-                .substitute_from(occurrence, replacement)
-                .map_err(Stop::Defect)?;
-        }
-        program.type_reference_table.substitute_shared_children(
-            type_start,
-            operand.parameter,
-            replacement,
-        );
-    }
-    Ok(())
-}
-
 /// Closes each integer whose width is a value parameter, `u<N>` or `i<N>`,
 /// in every type written since `type_start`. numeric_values.md,
 /// "Width-indexed integers": `u13` and `u<13>` "are exactly the same type",
@@ -1663,7 +1764,7 @@ fn substitute_widths(
     operands: &[Operand],
 ) -> Served<()> {
     for operand in operands {
-        let Some(literal) = &operand.scalar else {
+        let Some(Value::Integer(literal)) = &operand.scalar else {
             continue;
         };
         let table = &program.type_reference_table;
@@ -1727,13 +1828,14 @@ fn substitute_widths(
     Ok(())
 }
 
-/// Replaces each value parameter by its operand's literal in every
+/// Replaces each value parameter by its operand's closed value in every
 /// expression written since `expression_start`: the generated machine's own
 /// contract and body. A name that is the parameter and nothing more becomes
-/// the literal, which carries the parameter's type as its landing, so it is
-/// typed as the parameter was.
+/// the value. An integer literal carries the parameter's type as its landing
+/// and a Boolean has only the one type, so either is typed as the parameter
+/// was.
 fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands: &[Operand]) {
-    let literal_of = |symbol: SymbolHandle| {
+    let value_of = |symbol: SymbolHandle| {
         operands
             .iter()
             .find(|operand| operand.parameter == symbol)
@@ -1748,13 +1850,13 @@ fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands
                     && !path.static_application.is_valid()
                     && path.members.count() == 1 =>
             {
-                literal_of(path.symbol).map(|literal| (handle, literal))
+                value_of(path.symbol).map(|value| (handle, value))
             }
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, literal) in named {
-        *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
+    for (handle, value) in named {
+        *program.expression_table.expression_mut(handle) = value.expression();
     }
 }
 
@@ -1813,6 +1915,17 @@ fn select_requirements(
 /// copied application is then unbound again, with this machine as its
 /// holder, so it is bound and served from its new arguments like an
 /// authored one.
+///
+/// A Build selection, `Build::select_provider<Reading<Tag>, Provider<Tag>>(..)`
+/// in a helper generic in `Tag`, is left exactly as written. Its operands
+/// are not static arguments of a machine to generate: they are the request
+/// the call was authored with, which names the helper's parameters by their
+/// declarations. provider_selection.md, "Declaration and choice": "Helpers
+/// forward that argument", and a selection keeps the declaration that wrote
+/// it as its author. So the generated machine holds the authored request,
+/// and whoever reads the selection takes the value of each parameter from
+/// this machine's application (`MachineSpecialization::binding_application`,
+/// read by `typed_trees::product_operand::capture_static_environment`).
 fn substitute_arguments(
     program: &mut TypedTrees,
     expression_start: usize,
@@ -1840,7 +1953,9 @@ fn substitute_arguments(
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     for handle in calls {
-        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) {
+        if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
+            && !call.build_selection.is_valid()
+        {
             replace(&mut call.machine_arguments);
             applications.push(call.authored_machine_application);
         }

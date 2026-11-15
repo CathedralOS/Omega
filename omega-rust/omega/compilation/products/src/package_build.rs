@@ -5,7 +5,6 @@
 // source/output custody without re-executing the Build.
 
 use crate::{ComputedBuildConfig, PreparedBuild};
-mod retention_identity;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::{

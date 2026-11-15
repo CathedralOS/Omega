@@ -69,9 +69,9 @@ def prepare(directory, frozen=None):
                             'evaluator_entry.delta', 'epsilon_model.py')}
     sys.path.insert(0, str(directory))
     import epsilon_model as model
-    datasets = {'small': [REPOSITORY / 'source/psi/parse/input.omg'],
-                'large': [REPOSITORY / 'source/psi/resolve/resolver.omg'],
-                'subtree': sorted((REPOSITORY / 'source/psi/parse').glob('*.omg'))}
+    datasets = {'small': [REPOSITORY / 'source/psi/pipeline/01_tokens-to-syntax-trees/input.omg'],
+                'large': [REPOSITORY / 'source/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg'],
+                'subtree': sorted((REPOSITORY / 'source/psi/pipeline/01_tokens-to-syntax-trees').glob('*.omg'))}
     for label, paths in datasets.items():
         content, members = b'', []
         if prior:

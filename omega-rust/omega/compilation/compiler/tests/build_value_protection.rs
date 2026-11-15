@@ -188,10 +188,12 @@ fn issuing_a_seal_is_refused_by_name() {
 /// the `Build` that owns it.
 #[test]
 fn taking_the_seal_out_of_the_lent_build_is_not_accepted() {
-    refused_with(
+    // Through `&mut` the move opens a window the script cannot close: the
+    // only value that fits the vacant place is another issued seal.
+    rejected_with(
         "moved_out",
         "machine wrong(builder: &mut Build) -> BuildSeal in Issued {\n    builder.seal\n}\n",
-        "owned extraction from borrowed storage",
+        "the place does not hold a value again where the machine returns the borrow",
     );
     refused_with(
         "copied_out",
@@ -246,5 +248,181 @@ machine wrong(builder: &mut Build) {
         "returned",
         "machine wrong<'storage>(builder: &mut Build<'storage>) -> Build<'storage> {\n    builder\n}\n",
         "owned extraction from borrowed storage",
+    );
+}
+
+/// What a borrowed Build may be kept in: a record holding the lent
+/// `&mut Build`, with every lifetime the field names stated
+/// (`wiki/spec/language/lifetimes.md`: a named data application must "match
+/// the declaration's lifetime arity"). A borrow is not a copy, so the seal
+/// stays where the toolchain issued it, and the Build can be driven through
+/// the record as through the parameter.
+const CONFIGURATION: &str = "\
+data Configuration<'activation, 'storage> { builder: &'activation mut Build<'storage>; }
+machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
+    Configuration { builder: builder }
+}
+";
+
+#[test]
+fn a_record_holding_the_lent_build_drives_it() {
+    let machines = format!(
+        "{CONFIGURATION}machine configure(builder: &mut Build) {{
+    let mut configuration: Configuration = wrap(builder);
+    bind_through(&mut configuration);
+}}
+machine bind_through(configuration: &mut Configuration) {{
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+}}
+"
+    );
+    assert_eq!(refusals("held", &machines), Vec::<String>::new());
+}
+
+/// A borrow is not a copy and cannot widen what it was lent: a record that
+/// keeps only shared access to the Build cannot hand it to an operation that
+/// writes the Build. Taking the Build or its seal out of a loan is refused
+/// by the tests above.
+#[test]
+fn a_record_holding_shared_access_to_the_build_cannot_write_it() {
+    rejected_with(
+        "held_shared",
+        "data Viewed<'activation, 'storage> { builder: &'activation Build<'storage>; }
+machine wrong(viewed: &mut Viewed) {
+    Build::application(viewed.builder, \"renamed\");
+}
+",
+        "the reference it is reached through grants shared access only",
+    );
+}
+
+/// A field that leaves out the Build's own lifetime does not say which of
+/// its owner's lifetimes the Build's views live for, and is refused by name.
+#[test]
+fn a_record_eliding_the_builds_lifetime_is_refused_by_name() {
+    refused_with(
+        "held_elided",
+        "data Configuration<'activation> { builder: &'activation mut Build; }
+machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'activation> {
+    Configuration { builder: builder }
+}
+",
+        "data field that elides a lifetime argument",
+    );
+}
+
+/// A helper that only holds the `Build` shared cannot bind an entry through
+/// it. entry_roots.md, "Source selection is not invocation": "The first
+/// argument explicitly supplies the current activation's mutable Build
+/// value; ordinary helpers may forward that value." The twin forwards it
+/// `&mut` and is accepted.
+#[test]
+fn binding_an_entry_needs_the_mutable_build_value() {
+    let helper = |access: &str, argument: &str| {
+        format!(
+            "machine helper(builder: &{access}Build) {{
+    Build::bind({argument}, linux_arm64::ProgramEntry, main);
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals("bind-mutable", &helper("mut ", "builder")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals("bind-explicit-mutable", &helper("mut ", "&mut builder")),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-shared",
+        &helper("", "builder"),
+        "as mutable through a shared reference, which grants no mutation",
+    );
+    rejected_with(
+        "bind-mutable-through-shared",
+        &helper("", "&mut builder"),
+        "as mutable through a shared reference, which grants no mutation",
+    );
+    rejected_with(
+        "bind-explicit-shared",
+        &helper("mut ", "&builder"),
+        "the caller lends only immutable access to this argument",
+    );
+    rejected_with(
+        "bind-explicit-write-only",
+        &helper("mut ", "&write builder"),
+        "the caller lends write-only access to this argument",
+    );
+}
+
+/// The same rule through a record that keeps the Build it was lent
+/// (`samples/cli/facts/build_activation_borrow`): binding through a stored
+/// `&mut Build` is the activation's mutable value forwarded, and through a
+/// stored `&Build` it is not, whether the record was built from the formal
+/// or from a local that held the exclusive reference first.
+#[test]
+fn binding_through_a_stored_build_reference_needs_it_stored_mutable() {
+    let holder = |access: &str, construction: &str| {
+        format!(
+            "data Configuration<'activation, 'storage> {{ builder: &'activation {access}Build<'storage>; }}
+machine bind_configuration(configuration: &mut Configuration) {{
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+}}
+machine helper(builder: &mut Build) {{
+    {construction}
+    bind_configuration(&mut configuration);
+}}
+"
+        )
+    };
+    let direct = "let mut configuration: Configuration = Configuration { builder: builder };";
+    let through_local = "let view: &mut Build = builder;
+    let mut configuration: Configuration = Configuration { builder: view };";
+    assert_eq!(
+        refusals("stored-mutable", &holder("mut ", direct)),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals("stored-mutable-local", &holder("mut ", through_local)),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "stored-shared",
+        &holder("", direct),
+        "the reference it is reached through grants shared access only",
+    );
+    rejected_with(
+        "stored-shared-local",
+        &holder("", through_local),
+        "the reference it is reached through grants shared access only",
+    );
+}
+
+#[test]
+fn binding_requires_the_shared_cohort_to_end_before_exclusive_access() {
+    let helper = |operations: &str| {
+        format!(
+            "machine observe(builder: &Build) -> bool {{ builder.freestanding }}
+machine helper(builder: &mut Build) -> bool {{
+    let view: &Build = builder;
+    {operations}
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals(
+            "bind-after-observation",
+            &helper(
+                "let observed: bool = observe(view); Build::bind(builder, linux_arm64::ProgramEntry, main); observed"
+            ),
+        ),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-during-observation",
+        &helper("Build::bind(builder, linux_arm64::ProgramEntry, main); observe(view)"),
+        "conflicting loans",
     );
 }

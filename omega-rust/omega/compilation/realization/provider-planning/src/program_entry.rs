@@ -279,7 +279,7 @@ impl SelectedCompilerProgramEntry {
     pub fn bind_physical_adapter(
         &mut self,
         module: &terminal_psi::TerminalModule,
-        declarations: &[backend_plan::TerminalTargetProviderPlan],
+        declarations: &[effects::provider_plan::ProviderPlan],
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(plans) = &self.calling_plans else {
             return Ok(());
@@ -299,7 +299,7 @@ impl SelectedCompilerProgramEntry {
             })?;
         let mut selected = None;
         for declaration in declarations {
-            let plan = &declaration.plan;
+            let plan = declaration;
             for row in &plan.rows {
                 if plan.identity_text(row.requirement_identity) != requirement {
                     continue;
@@ -338,7 +338,7 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                let rows = backend_plan::selected_provider_candidate_rows(plan, owner, module)
+                let rows = backend_plan::selected_provider_candidate_rows(plan, module)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let candidates = rows
                     .iter()

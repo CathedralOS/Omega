@@ -129,11 +129,12 @@ impl StaticContracts {
         callables: &crate::callables::CallableNamespace,
         boundaries: &crate::boundaries::BoundaryNamespace,
         services: &ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
         typed_source: Option<&typed_trees::TypedTrees>,
         native: &[crate::ExternalProviderCandidate],
     ) -> Checked<(Vec<StaticSchemaQuestion>, Vec<StaticConformanceQuestion>)> {
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         let schemas = self
             .schemas
             .iter()
@@ -165,6 +166,7 @@ impl StaticContracts {
                 records,
                 callables,
                 boundaries,
+                qualifications,
             )?;
             let implementation = match source.implementation {
                 SourceImplementation::Machine(machine) => {
@@ -223,7 +225,7 @@ impl StaticContracts {
                             typed,
                             &sources,
                             provider.declaration,
-                            &mut identities,
+                            &mut qualifications.identities,
                         )
                         .map_err(|reason| crate::read::services::unavailable(context, reason))?;
                         Ok(StaticProviderCandidate {
@@ -238,7 +240,7 @@ impl StaticContracts {
                     .transpose()?,
             });
         }
-        module.identities = identities.build();
+        module.identities = std::mem::take(&mut qualifications.identities).build();
         Ok((schemas, conformances))
     }
 }

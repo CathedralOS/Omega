@@ -174,7 +174,7 @@ mod tests {
             "const VALUE:u64=answer(); machine answer()->u64 { 4u64 } machine request()->u64 { VALUE }",
         );
         let request = typed.realized_machine_named("request").unwrap().symbol;
-        let compilation = psi_terminal_production::TerminalSourceCompilation {
+        let compilation = terminal_production::TerminalSourceCompilation {
             calling: None,
             providers: None,
 

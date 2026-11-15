@@ -1,14 +1,13 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 99), binding the source selected-instruction, live-range,
-and legality roots, the segment-home or legacy source evidence, the inserted
+(`OMGFCV\0\0`, version 101), binding the source selected-instruction, live-range,
+and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload.
 
-Version 98 retains installed-entry forms and both input observation and result
-lifetimes alongside provider application roles, typed descriptor-table
-instructions, occupied-owner versus granted-backing separation, private callback
-address placements, and formal-relative provider requirement paths. Decoding
+The evidence always names the fixed intervals, split requirements and segment
+homes used by recovery. Older artifacts with optional legacy evidence reject
+at the version header instead of selecting a compatibility dialect. Decoding
 verifies both the transformed payload's content digest and canonical re-encoding
 before returning the unchecked plan.
 */
@@ -52,15 +51,16 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-// Version 99 retains opaque callable carriers and exact descriptor references.
-pub(super) const VERSION: u32 = 99;
+// Version 101 combines required segment-home evidence with opaque callable
+// carriers and exact descriptor references. Earlier layouts are refused.
+pub(super) const VERSION: u32 = 101;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v59\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v61\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {
         let mut content = Vec::new();
-        encode_v7(&mut content, self)?;
+        encode_content(&mut content, self)?;
         Ok(ENVELOPE.frame(envelope_identity(self, &content), &content))
     }
 
@@ -71,7 +71,7 @@ impl FixedViewCopyPlan {
             FixedViewCopyDecodeError::UnsupportedVersion,
         )?;
         let content_offset = cursor.offset;
-        let decoded = decode_v7(&mut cursor)?;
+        let decoded = decode_content(&mut cursor)?;
         if cursor.remaining() != 0 {
             return Err(FixedViewCopyDecodeError::TrailingBytes);
         }
@@ -128,7 +128,7 @@ fn encode_prefix(
     bytes.extend_from_slice(&transformed.bytes());
 }
 
-pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) -> Result<(), CodecError> {
+fn encode_content(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) -> Result<(), CodecError> {
     encode_prefix(
         bytes,
         plan,
@@ -184,9 +184,7 @@ fn decode_prefix(cursor: &mut Cursor<'_>) -> Result<DecodedPrefix, FixedViewCopy
     })
 }
 
-pub(super) fn decode_v7(
-    cursor: &mut Cursor<'_>,
-) -> Result<DecodedContent, FixedViewCopyDecodeError> {
+fn decode_content(cursor: &mut Cursor<'_>) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     let prefix = decode_prefix(cursor)?;
     let source_evidence = decode_source_evidence(cursor)?;
     let decoded = decode_selected_plan(cursor)?;
@@ -210,35 +208,21 @@ pub(super) fn decode_v7(
 }
 
 pub(crate) fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {
-    match evidence {
-        FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1 => bytes.push(0),
-        FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
-            fixed_intervals,
-            split_requirements,
-            segment_homes,
-        } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&fixed_intervals.bytes());
-            bytes.extend_from_slice(&split_requirements.bytes());
-            bytes.extend_from_slice(&segment_homes.bytes());
-        }
-    }
+    bytes.extend_from_slice(&evidence.fixed_intervals.bytes());
+    bytes.extend_from_slice(&evidence.split_requirements.bytes());
+    bytes.extend_from_slice(&evidence.segment_homes.bytes());
 }
 
 pub(super) fn decode_source_evidence(
     cursor: &mut Cursor<'_>,
 ) -> Result<FixedViewCopySourceEvidence, FixedViewCopyDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1),
-        1 => Ok(FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
-            fixed_intervals: FixedPrecoloredIntervalPlanIdentity::from_bytes(cursor.array()?),
-            split_requirements: FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
-                cursor.array()?,
-            ),
-            segment_homes: FixedPrecoloredSegmentHomePlanIdentity::from_bytes(cursor.array()?),
-        }),
-        tag => Err(FixedViewCopyDecodeError::UnknownSourceEvidence(tag)),
-    }
+    Ok(FixedViewCopySourceEvidence {
+        fixed_intervals: FixedPrecoloredIntervalPlanIdentity::from_bytes(cursor.array()?),
+        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
+            cursor.array()?,
+        ),
+        segment_homes: FixedPrecoloredSegmentHomePlanIdentity::from_bytes(cursor.array()?),
+    })
 }
 
 pub(super) fn encode_copy(bytes: &mut Vec<u8>, copy: &FixedViewCopy) {

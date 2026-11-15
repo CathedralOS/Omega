@@ -4,9 +4,9 @@
 // product path copies it only when a caller supplies an optional capture slot.
 // A captured frontier is source data, not a second judgment or an acceptance.
 
-use compilation_products::{CheckedCompilation, CompileFailure};
+use products::{CheckedCompilation, CompileFailure};
 
-pub use compilation_products::{
+pub use products::{
     SourceCallingInputs as CallingInputs, SourceProgramEntryInput as ProgramEntryInput,
 };
 
@@ -43,12 +43,12 @@ pub struct TypedFrontier {
     pub selected: Vec<symbols::SymbolHandle>,
     /// The distinct visible-continuation obligations of the executed bindings.
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
-    pub supplies: Vec<psi_compiler::TerminalSourceSupply>,
-    pub normalization: std::sync::Arc<compilation_products::SourceNormalizationInputs>,
+    pub supplies: Vec<source_compiler::TerminalSourceSupply>,
+    pub normalization: std::sync::Arc<products::SourceNormalizationInputs>,
 }
 
 impl TypedFrontier {
-    pub fn provider_selections(&self) -> Option<psi_compiler::TerminalProviderSelections<'_>> {
+    pub fn provider_selections(&self) -> Option<source_compiler::TerminalProviderSelections<'_>> {
         self.normalization.providers(&self.typed)
     }
 }

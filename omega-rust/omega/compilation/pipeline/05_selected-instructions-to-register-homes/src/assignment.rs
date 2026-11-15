@@ -8,7 +8,7 @@ published by every route (`post_allocation_manifest`).
 
 macro_rules! assignment_context_accessors {
     () => {
-        pub const fn homes(&self) -> &crate::ValidatedRegisterHomes {
+        pub const fn homes(&self) -> &crate::AssignedRegisterHomes {
             &self.homes
         }
         pub const fn post_allocation_manifest(
@@ -63,7 +63,7 @@ pub struct PostHomeCustodyReceipt<Source> {
 impl<Source> PostHomeCustodyReceipt<Source> {
     pub(crate) fn new(
         source: Source,
-        homes: crate::RegisterHomeValidationReceipt,
+        homes: crate::RegisterHomeReceipt,
         post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
     ) -> Self {
         Self {
@@ -103,7 +103,7 @@ pub(crate) mod baseline {
 
         pub(crate) fn stage_register_homes_with_assignment(
             legality: StagedOptimizedAllocationLegality,
-            homes: crate::ValidatedRegisterHomes,
+            homes: crate::AssignedRegisterHomes,
         ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
             let upstream = legality.custody();
             let manifest = project_post_allocation_optimization_manifest(
@@ -127,14 +127,14 @@ pub(crate) mod baseline {
 
         pub(crate) fn assign_optimized_register_homes_after_fixed_view_copies(
             reanalysis: &StagedOptimizedSelectedReanalysis,
-        ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+        ) -> Result<crate::AssignedRegisterHomes, crate::RegisterHomeError> {
             let environment = reanalysis.register_environment();
             assign_register_homes(reanalysis.legality(), reanalysis.ranges(), environment)
         }
 
         pub(crate) fn stage_register_homes_after_fixed_view_copies_with_assignment(
             reanalysis: StagedOptimizedSelectedReanalysis,
-            homes: crate::ValidatedRegisterHomes,
+            homes: crate::AssignedRegisterHomes,
         ) -> Result<
             StagedOptimizedRegisterHomesAfterFixedViewCopies,
             OptimizedPostCopyRegisterHomeCustodyError,
@@ -167,7 +167,7 @@ pub(crate) mod baseline {
         }
     }
     pub(crate) mod custody {
-        use crate::RegisterHomeValidationReceipt;
+        use crate::RegisterHomeReceipt;
         use optimization_core::PostAllocationOptimizationManifestIdentity;
 
         use selected_instruction_analyses::StagedOptimizedAllocationLegalityCustodyReceipt;
@@ -176,7 +176,7 @@ pub(crate) mod baseline {
 
         pub(crate) fn custody_receipt(
             upstream: StagedOptimizedAllocationLegalityCustodyReceipt,
-            homes: RegisterHomeValidationReceipt,
+            homes: RegisterHomeReceipt,
             manifest: PostAllocationOptimizationManifestIdentity,
         ) -> StagedOptimizedRegisterHomeCustodyReceipt {
             StagedOptimizedRegisterHomeCustodyReceipt {
@@ -196,12 +196,12 @@ pub(crate) mod baseline {
 
     use crate::StagedOptimizedSelectedReanalysisCustodyReceipt;
     use crate::{
-        OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
-        ValidatedFixedViewCopies,
+        AssignedRegisterHomes, RegisterHomeError, RegisterHomeIdentity,
+        ValidatedPostAllocationOptimizationManifest,
     };
     use crate::{
-        RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
-        ValidatedRegisterHomes,
+        MaterializedFixedViewCopies, OptimizedSelectedReanalysisError,
+        StagedOptimizedSelectedReanalysis,
     };
     use optimization_core::{
         OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
@@ -234,7 +234,7 @@ pub(crate) mod baseline {
     #[derive(Debug)]
     pub(crate) struct StagedOptimizedRegisterHomes {
         legality: StagedOptimizedAllocationLegality,
-        homes: ValidatedRegisterHomes,
+        homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
         custody: StagedOptimizedRegisterHomeCustodyReceipt,
     }
@@ -305,13 +305,13 @@ pub(crate) mod baseline {
     #[derive(Debug)]
     pub(crate) struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
         reanalysis: StagedOptimizedSelectedReanalysis,
-        homes: ValidatedRegisterHomes,
+        homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
         custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     }
 
     impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
-        pub const fn selected(&self) -> &ValidatedFixedViewCopies {
+        pub const fn selected(&self) -> &MaterializedFixedViewCopies {
             self.reanalysis.transformation_stage().copies()
         }
         admitted_stage_accessors!(const pub, reanalysis);
@@ -358,7 +358,7 @@ pub(crate) mod post_allocation_manifest {
             SelectedLoweringOptimizationCompletionIdentity,
         };
 
-        use crate::ValidatedRegisterHomes;
+        use crate::AssignedRegisterHomes;
         use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
         use super::{
@@ -374,7 +374,7 @@ pub(crate) mod post_allocation_manifest {
             selected_transformations: &[PostAllocationSelectedTransformation],
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
-            homes: &ValidatedRegisterHomes,
+            homes: &AssignedRegisterHomes,
         ) -> Result<PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError>
         {
             let mut unique_transformations = BTreeSet::new();
@@ -528,7 +528,7 @@ pub(crate) mod post_allocation_manifest {
         SelectedLoweringOptimizationCompletionIdentity,
     };
 
-    use crate::ValidatedRegisterHomes;
+    use crate::AssignedRegisterHomes;
     use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
     pub use register_homes::post_allocation_manifest::{
@@ -545,7 +545,7 @@ pub(crate) mod post_allocation_manifest {
         selected_transformations: &[PostAllocationSelectedTransformation],
         ranges: &ValidatedLiveRanges,
         legality: &ValidatedAllocationLegality,
-        homes: &ValidatedRegisterHomes,
+        homes: &AssignedRegisterHomes,
     ) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError>
     {
         let record = reconstruction::expected_record(
@@ -776,7 +776,7 @@ pub(crate) mod runtime_spill {
         pub(crate) fn assign_source_reusing(
             source: &StagedOptimizedAllocationLegality,
             reuse: &mut FunctionHomeReuse,
-        ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+        ) -> Result<crate::AssignedRegisterHomes, crate::RegisterHomeError> {
             assign_reusing(
                 source.register_environment(),
                 source.ranges(),
@@ -790,7 +790,7 @@ pub(crate) mod runtime_spill {
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
             reuse: Option<&mut FunctionHomeReuse>,
-        ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+        ) -> Result<crate::AssignedRegisterHomes, crate::RegisterHomeError> {
             crate::assignment::home_assignment::assign_register_homes_reusing(
                 legality,
                 ranges,
@@ -1620,7 +1620,7 @@ pub(crate) mod runtime_spill {
             recorded: &[PostAllocationSelectedTransformation],
             ranges: &ValidatedLiveRanges,
             legality: &ValidatedAllocationLegality,
-            homes: &crate::ValidatedRegisterHomes,
+            homes: &crate::AssignedRegisterHomes,
         ) -> Result<crate::ValidatedPostAllocationOptimizationManifest, RuntimeSpillAllocationError>
         {
             crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
@@ -2351,6 +2351,7 @@ pub(crate) mod runtime_spill {
         }
     }
 
+    use crate::{AssignedRegisterHomes, ValidatedPostAllocationOptimizationManifest};
     use crate::{
         FixedOccurrencesError, RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError,
         StagedOptimizedSelectedReanalysis,
@@ -2360,7 +2361,6 @@ pub(crate) mod runtime_spill {
         ValidatedRuntimeSpill, ValidatedRuntimeSplit,
     };
     use crate::{PreAllocationResult, SelectedLoweringResult};
-    use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
     use optimization_core::{
         PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
         SelectedLoweringOptimizationCompletionIdentity,
@@ -2386,7 +2386,7 @@ pub(crate) mod runtime_spill {
         pub(crate) source: RuntimeSpillSource,
         pub(crate) last: RuntimeSpillStep,
         pub(crate) facts: RuntimeSpillFacts,
-        pub(crate) homes: ValidatedRegisterHomes,
+        pub(crate) homes: AssignedRegisterHomes,
         pub(crate) manifest: ValidatedPostAllocationOptimizationManifest,
     }
 
@@ -2761,7 +2761,7 @@ pub(crate) mod same_home {
 pub(crate) mod transformed {
     pub(crate) mod construction {
         use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-        use crate::{RegisterHomeError, ValidatedRegisterHomes};
+        use crate::{AssignedRegisterHomes, RegisterHomeError};
 
         use crate::{
             PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger,
@@ -2782,7 +2782,7 @@ pub(crate) mod transformed {
         pub(crate) fn assign_register_homes_after_pre_allocation(
             run: &PreAllocationResult,
             reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
-        ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+        ) -> Result<AssignedRegisterHomes, RegisterHomeError> {
             let (ranges, legality) = pre_allocation_final_analysis(run);
             let environment = run.source_legality_stage().register_environment();
             crate::assignment::home_assignment::assign_register_homes_reusing(
@@ -2795,7 +2795,7 @@ pub(crate) mod transformed {
 
         pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
             run: PreAllocationResult,
-            homes: ValidatedRegisterHomes,
+            homes: AssignedRegisterHomes,
         ) -> Result<
             StagedOptimizedRegisterHomesAfterPreAllocation,
             OptimizedPostPreAllocationHomeCustodyError,
@@ -2807,7 +2807,7 @@ pub(crate) mod transformed {
         fn finish_register_homes_after_pre_allocation(
             run: PreAllocationResult,
             source: PreAllocationLedger,
-            homes: ValidatedRegisterHomes,
+            homes: AssignedRegisterHomes,
         ) -> Result<
             StagedOptimizedRegisterHomesAfterPreAllocation,
             OptimizedPostPreAllocationHomeCustodyError,
@@ -2840,7 +2840,7 @@ pub(crate) mod transformed {
         pub(crate) fn assign_register_homes_after_selected_lowering(
             run: &SelectedLoweringResult,
             reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
-        ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+        ) -> Result<AssignedRegisterHomes, RegisterHomeError> {
             let (ranges, legality) = selected_lowering_final_analysis(run);
             let environment = run.source_legality_stage().register_environment();
             crate::assignment::home_assignment::assign_register_homes_reusing(
@@ -2853,7 +2853,7 @@ pub(crate) mod transformed {
 
         pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
             run: SelectedLoweringResult,
-            homes: ValidatedRegisterHomes,
+            homes: AssignedRegisterHomes,
         ) -> Result<
             StagedOptimizedRegisterHomesAfterSelectedLowering,
             OptimizedPostSelectedLoweringHomeCustodyError,
@@ -2865,7 +2865,7 @@ pub(crate) mod transformed {
         fn finish_register_homes_after_selected_lowering(
             run: SelectedLoweringResult,
             source: SelectedLoweringLedger,
-            homes: ValidatedRegisterHomes,
+            homes: AssignedRegisterHomes,
         ) -> Result<
             StagedOptimizedRegisterHomesAfterSelectedLowering,
             OptimizedPostSelectedLoweringHomeCustodyError,
@@ -2930,10 +2930,10 @@ pub(crate) mod transformed {
     }
 
     use crate::{
-        PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger, SelectedLoweringResult,
+        AssignedRegisterHomes, RegisterHomeError, ValidatedPostAllocationOptimizationManifest,
     };
     use crate::{
-        RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+        PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger, SelectedLoweringResult,
     };
     use register_homes::PostAllocationOptimizationManifestError;
     use selected_instruction_analyses::{
@@ -2969,7 +2969,7 @@ pub(crate) mod transformed {
     #[derive(Debug)]
     pub(crate) struct StagedOptimizedRegisterHomesAfterSelectedLowering {
         run: SelectedLoweringResult,
-        homes: ValidatedRegisterHomes,
+        homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
         custody: StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     }
@@ -3011,7 +3011,7 @@ pub(crate) mod transformed {
     #[derive(Debug)]
     pub(crate) struct StagedOptimizedRegisterHomesAfterPreAllocation {
         run: PreAllocationResult,
-        homes: ValidatedRegisterHomes,
+        homes: AssignedRegisterHomes,
         manifest: ValidatedPostAllocationOptimizationManifest,
         custody: StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     }

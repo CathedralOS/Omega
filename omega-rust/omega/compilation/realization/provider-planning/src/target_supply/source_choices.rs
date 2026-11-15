@@ -153,7 +153,7 @@ impl PreparedTargetSupply {
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
         loop {
-            let graph = terminal_installation::SynchronousCallGraph::new(module, None, None)
+            let graph = terminal_installation::SynchronousCallGraph::new(module, None)
                 .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
                 .map_err(defect)?;
             let mut reached = Vec::new();
@@ -209,7 +209,7 @@ impl PreparedTargetSupply {
                         selection: selection.clone(),
                     })
                     .collect::<Vec<_>>();
-                let realization = chosen(&supplies).ok().and_then(|supply| {
+                let realization = choose_supply(&supplies).ok().and_then(|supply| {
                     let provider = supply.selection.provider_type.symbol;
                     judged
                         .iter()
@@ -258,15 +258,16 @@ impl PreparedTargetSupply {
 }
 
 /// Why a demanded requirement has no chosen supply.
-enum Unchosen<'a> {
+#[derive(Debug)]
+pub enum UnchosenSupply<'a> {
     Unsupplied,
     Competing(Vec<&'a ProviderSupply>),
 }
 
 /// The one supply at the highest authority that declared any.
-fn chosen(supplies: &[ProviderSupply]) -> Result<&ProviderSupply, Unchosen<'_>> {
+pub fn choose_supply(supplies: &[ProviderSupply]) -> Result<&ProviderSupply, UnchosenSupply<'_>> {
     let Some(authority) = supplies.iter().map(|supply| supply.authority).max() else {
-        return Err(Unchosen::Unsupplied);
+        return Err(UnchosenSupply::Unsupplied);
     };
     let ranked = supplies
         .iter()
@@ -274,14 +275,14 @@ fn chosen(supplies: &[ProviderSupply]) -> Result<&ProviderSupply, Unchosen<'_>> 
         .collect::<Vec<_>>();
     match ranked.as_slice() {
         [supply] => Ok(supply),
-        _ => Err(Unchosen::Competing(ranked)),
+        _ => Err(UnchosenSupply::Competing(ranked)),
     }
 }
 
 impl DemandedRequirement {
     /// The supply settlement would choose, when it would choose one.
     pub fn chosen(&self) -> Option<&ProviderSupply> {
-        chosen(&self.supplies).ok()
+        choose_supply(&self.supplies).ok()
     }
 }
 
@@ -323,17 +324,17 @@ impl PreparedTargetSupply {
                     "provider settlement lost its deployment target",
                 )]
             })?;
-            match chosen(&supplies) {
+            match choose_supply(&supplies) {
                 Ok(supply) => settled.push(SettledRequirement {
                     reached,
                     supply: supply.clone(),
                     realization,
                 }),
-                Err(Unchosen::Unsupplied) => rejections.push(Diagnostic::error(format!(
+                Err(UnchosenSupply::Unsupplied) => rejections.push(Diagnostic::error(format!(
                     "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
                     reached.name
                 ))),
-                Err(Unchosen::Competing(ranked)) => {
+                Err(UnchosenSupply::Competing(ranked)) => {
                     let mut paths = ranked.iter().map(|supply| {
                         format!("`{}`", supply.selection.provider_type.authored_path)
                     });
@@ -507,9 +508,9 @@ impl SettledTargetSupply {
     pub fn plans(
         &self,
         planning: SupplyPlanning<'_>,
-    ) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, Vec<Diagnostic>> {
+    ) -> Result<Vec<effects::provider_plan::ProviderPlan>, Vec<Diagnostic>> {
         self.realize(planning)
-            .map(|realized| realized.provider_declarations())
+            .map(|realized| realized.provider_declarations().to_vec())
     }
 }
 
@@ -613,10 +614,6 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
         (
             !module.task_activation_demands.demands.is_empty(),
             "a task activation",
-        ),
-        (
-            !module.target_machine_families.is_empty(),
-            "a Build-selected target implementation",
         ),
     ]
     .into_iter()

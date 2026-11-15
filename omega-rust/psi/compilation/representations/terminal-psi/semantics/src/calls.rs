@@ -770,39 +770,6 @@ pub mod closed_conformances {
         ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
     };
 
-    pub fn is_checked_body_family_contract(
-        module: &TerminalModule,
-        boundary: &terminal_psi::BoundaryMachineDeclaration,
-    ) -> bool {
-        let head = TargetMachineCallable::Boundary(boundary.id);
-        let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == head)
-        else {
-            return false;
-        };
-        boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
-            && boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
-            && family.head_contract != [0; 32]
-            && boundary
-                .declaration
-                .as_ref()
-                .is_some_and(|declaration| declaration.source.contract == family.head_contract)
-            && validate_boundary_callable(module, boundary).is_ok()
-            && !family.members.is_empty()
-            && family.members.iter().all(|member| match member.callable {
-                TargetMachineCallable::Machine(machine) => {
-                    matches!(
-                        member.supply,
-                        terminal_psi::TargetMachineSupply::CheckedBody
-                            | terminal_psi::TargetMachineSupply::Boundary
-                    ) && module.machine(machine).is_some()
-                }
-                TargetMachineCallable::Boundary(_) => false,
-            })
-    }
-
     pub fn validate_boundary_callable(
         module: &TerminalModule,
         boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -871,27 +838,6 @@ pub mod closed_conformances {
                 }
             };
             identity(module, coordinate)?;
-        }
-        if let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == TargetMachineCallable::Boundary(boundary.id))
-        {
-            if family.head_contract != declaration.contract {
-                return Err(
-                    "checked boundary declaration differs from its published family contract",
-                );
-            }
-            if !family
-                .members
-                .iter()
-                .any(|member| member.callable == family.canonical)
-                && identity(module, declaration.callable)? != identity(module, boundary.identity)?
-            {
-                return Err(
-                    "checked boundary declaration differs from its published family overload",
-                );
-            }
         }
         Ok(())
     }
@@ -1001,9 +947,24 @@ pub mod closed_conformances {
             .map_err(|_| "schema length exceeds host positions")
     }
 
+    fn definition_type<'a>(bytes: &mut &'a [u8]) -> Result<&'a str, &'static str> {
+        let count = length(bytes)?;
+        if count == 0 {
+            return Err("original signature has an empty declared type");
+        }
+        std::str::from_utf8(take(bytes, count)?)
+            .map_err(|_| "original signature type is not canonical text")
+    }
+
     fn validate_definition(schema: &ClosedConformanceSchema) -> Result<(), &'static str> {
+        definition_types(schema).map(|_| ())
+    }
+
+    pub(crate) fn definition_types(
+        schema: &ClosedConformanceSchema,
+    ) -> Result<Option<(u32, Vec<&str>, &str)>, &'static str> {
         let mut bytes = schema.definition.as_slice();
-        let domain = b"omega.requirement-schema.v3\0";
+        let domain = b"omega.requirement-schema.v4\0";
         if take(&mut bytes, domain.len())? != domain {
             return Err("conformance schema has an unknown definition domain");
         }
@@ -1035,13 +996,37 @@ pub mod closed_conformances {
             let contract = length(&mut bytes)?;
             take(&mut bytes, contract)?;
         }
+        let types = match take(&mut bytes, 1)?[0] {
+            0 => None,
+            1 => {
+                let outer = u32::try_from(length(&mut bytes)?)
+                    .map_err(|_| "original signature lifetime roster exceeds u32")?;
+                let lifetimes = outer
+                    .checked_add(schema.lifetime_parameter_count)
+                    .ok_or("original signature lifetime roster overflows")?;
+                let count = length(&mut bytes)?;
+                if count > bytes.len() / 8 {
+                    return Err("original signature parameter types are truncated");
+                }
+                let mut parameters = Vec::new();
+                parameters
+                    .try_reserve_exact(count)
+                    .map_err(|_| "original signature parameter allocation failed")?;
+                for _ in 0..count {
+                    parameters.push(definition_type(&mut bytes)?);
+                }
+                let result = definition_type(&mut bytes)?;
+                Some((lifetimes, parameters, result))
+            }
+            _ => return Err("original signature has an invalid type-presence flag"),
+        };
         if !bytes.is_empty() {
             return Err("conformance schema definition has trailing bytes");
         }
         let generic = schema.lifetime_parameter_count != 0 || !schema.parameter_kinds.is_empty();
         match (schema.kind, generic, &schema.finite_tuples) {
             (ClosedConformanceSchemaKind::Nongeneric, false, None)
-            | (ClosedConformanceSchemaKind::Open, true, None) => Ok(()),
+            | (ClosedConformanceSchemaKind::Open, true, None) => Ok(types),
             (ClosedConformanceSchemaKind::Finite, true, Some(tuples))
                 if schema.lifetime_parameter_count == 0
                     && schema
@@ -1052,7 +1037,7 @@ pub mod closed_conformances {
                         .iter()
                         .all(|tuple| tuple.len() == schema.parameter_kinds.len()) =>
             {
-                Ok(())
+                Ok(types)
             }
             _ => Err(
                 "conformance schema classification contradicts its retained telescope or roster",
@@ -1363,6 +1348,9 @@ pub mod closed_conformances {
                 return Err("conformance static applications are repeated or not canonical");
             }
             for applied in &application.static_applications {
+                if let Some(groups) = &applied.result_lifetimes {
+                    crate::references::validate_result_lifetime_groups(groups)?;
+                }
                 identity(module, applied.public_requirement_identity)?;
                 identity(module, applied.realization_identity)?;
                 identity(module, applied.source_callable_identity)?;
@@ -1655,6 +1643,27 @@ pub mod closed_conformances {
                             );
                         }
                     }
+                }
+                if contract.result.structural().is_some_and(|result| {
+                    terminal_psi::structural_type_contains_reference_by(
+                        |id| module.structural_type(id),
+                        result.structural_type,
+                    )
+                }) {
+                    let public = crate::selected_reference_result(
+                        module,
+                        machine.id,
+                        invocation.inputs.callee,
+                        required,
+                    )?;
+                    let actual = body
+                        .result
+                        .structural()
+                        .ok_or("selected reference body has no structural result")?;
+                    public.validate_actual_sources(
+                        &body.structural_parameters,
+                        &actual.reference_sources,
+                    )?;
                 }
             }
         }

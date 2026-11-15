@@ -10,6 +10,7 @@ permits complete case replacement, including initially inactive payloads,
 without publishing unread padding or manufactured data.
 */
 
+#[path = "borrowed_storage_geometry.rs"]
 pub(super) mod geometry;
 
 pub(super) use super::scalar_codec::scalar_extent;

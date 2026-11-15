@@ -89,7 +89,7 @@ fn validate() -> Result<(), String> {
                 "{name}: Terminal exit/streams differ from frozen expectations"
             ));
         }
-        let report = compilation_products::publication::publish_compilation(report, &build)
+        let report = products::publication::publish_compilation(report, &build)
             .map_err(|error| format!("{name}: {error}"))?;
         let executable = report
             .checked_native_executable_path()

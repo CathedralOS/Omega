@@ -31,8 +31,8 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 );
 
 pub(crate) struct TerminalProductionView<'a> {
-    source_identity: compilation_products::ProductSourceIdentity,
-    publication: &'a compilation_products::ProductTerminalPublication,
+    source_identity: products::ProductSourceIdentity,
+    publication: &'a products::ProductTerminalPublication,
     sources: &'a package_compilation::CheckedSourceCustody,
     execution: &'a selected_dispatch::SelectedExecution,
     timings: &'a mut CompileTimings,
@@ -51,7 +51,7 @@ impl<'a> TerminalProductionView<'a> {
 
     pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
         Self {
-            source_identity: compilation_products::ProductSourceIdentity::new(
+            source_identity: products::ProductSourceIdentity::new(
                 selection.source_inspection.program(),
             ),
             publication: &selection.terminal_publication,
@@ -121,7 +121,7 @@ impl<'a> TerminalProductRequest<'a> {
 }
 
 pub(crate) struct ProducedTerminalProduct {
-    pub(crate) program: Arc<psi_compiler::PortableTerminalProgram>,
+    pub(crate) program: Arc<source_compiler::PortableTerminalProgram>,
     pub(crate) proposal: Option<backend_plan::TerminalTargetProviderProposal>,
 }
 
@@ -214,7 +214,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
 fn produce_shared_terminal(
     first: &PreparedTerminalProduct<'_>,
     timings: &mut CompileTimings,
-) -> Result<Arc<psi_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
+) -> Result<Arc<source_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
     let mut observer = PsiStageTimings::new(timings);
     match first.request.use_kind {
         TerminalProductUse::Inspection { name, source } => {

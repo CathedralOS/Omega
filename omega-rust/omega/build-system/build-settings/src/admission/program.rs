@@ -17,7 +17,8 @@ use terminal_installation::selection_questions::SelectionAuthorities;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
-    pub(crate) produced: std::sync::Arc<psi_compiler::ProducedTerminalProgram>,
+    pub(crate) prepared: std::sync::Arc<source_compiler::AcceptedTerminalSource>,
+    pub(crate) produced: std::sync::Arc<source_compiler::ProducedTerminalProgram>,
     pub(crate) providers: super::provider_execution::BuildProviderPlans,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
@@ -40,7 +41,7 @@ impl AdmittedBuildProgram {
 }
 
 pub(crate) fn admit_build_program(
-    prepared: std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
+    prepared: std::sync::Arc<source_compiler::AcceptedTerminalSource>,
     providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
@@ -67,12 +68,12 @@ pub(crate) fn admit_build_program(
     // host retain the same execution identity; preparing again would issue a
     // different invocation rather than replay this admission.
     let produced = prepared.produce(
-        psi_compiler::TerminalProductionCustody {
+        source_compiler::TerminalProductionCustody {
             invocation_sources: anonymous_source
                 .map(|capture| capture as &dyn source::InvocationSourceConsent),
             ..Default::default()
         },
-        &mut psi_compiler::UnmeasuredProduction,
+        &mut source_compiler::UnmeasuredProduction,
     )?;
     let build_authority = package_inputs
         .map(|inputs| inputs.declaration_selection_authority(DependencyPurpose::Build));
@@ -101,6 +102,7 @@ pub(crate) fn admit_build_program(
             ))]
         })?;
     Ok(AdmittedBuildProgram {
+        prepared,
         produced: std::sync::Arc::new(produced),
         providers,
         machine,

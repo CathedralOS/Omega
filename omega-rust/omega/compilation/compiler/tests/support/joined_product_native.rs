@@ -12,7 +12,7 @@ pub fn execute_joined_product(
     build: compiler::PackageBuild,
     output: &std::path::Path,
 ) -> Result<(), compiler::CompilationProductError> {
-    let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+    let product = compiler::CompilationProduct::Native(products::NativeProductRequest {
         installation_assumptions: Vec::new(),
         retain_native_inputs: false,
         image: Default::default(),

@@ -1,8 +1,9 @@
 # Reusing proof search
 
 Status: exploratory draft, not an accepted design or implementation task.
-No measured proof-search bottleneck, persistent cache format, key, storage
-location, or granularity is selected. These notes explore retaining derivations
+[Compiler storage](../../spec/build/compiler_storage.md) rules out persistent
+storage, so any reuse explored here stays in memory within one build
+invocation. No measured proof-search bottleneck, key or granularity is selected. These notes explore retaining derivations
 to avoid repeating search. Replace them with a concrete proposal when a measured
 workload justifies one, or delete them when no longer useful.
 
@@ -29,20 +30,20 @@ usage under the [evaluation contract](../../spec/language/evaluation.md).
 
 ## Alternatives and unresolved choices
 
-- Reprove required claims without a persistent search cache: fewer persistent
-  mechanisms, potentially repeated search for unchanged obligations.
-- Store untrusted derivations in the existing content-addressed store with
-  a local semantic lookup index; choose per-obligation or coarser granularity
-  only after measuring realistic edit/recheck costs.
+- Reprove required claims in each build invocation: the ratified default, with
+  potentially repeated search for unchanged obligations across builds.
+- Reuse derivations within one invocation through an in-memory semantic lookup
+  index; choose per-obligation or coarser granularity only after measuring
+  realistic recheck costs.
 - A signed server verdict or cryptographic argument is a different admitted
   trust basis, not a faster implementation of unconditional local checking.
 
-Large cached derivations can remain sound while exceeding local storage or
+Large retained derivations can remain sound while exceeding memory or
 checking budgets. Size does not make them attestations, and a finite
 search does not by itself supply a compact proof. Prefer compact checked
 derivations where available without imposing an unproved universal size bound.
-Measure hit rate, invalidation, total checking cost, and storage before selecting
-a persistence scheme. No compiler-authored source rewriting or new lockfile is
+Measure hit rate, invalidation, total checking cost, and memory before selecting
+a reuse scheme. No compiler-authored source rewriting or new lockfile is
 required by this approach.
 
 The measurement prerequisite exists: every `check_proof_plan` run tallies a

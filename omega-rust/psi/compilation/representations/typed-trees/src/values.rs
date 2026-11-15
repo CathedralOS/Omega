@@ -184,6 +184,179 @@ pub mod const_integer {
             _ => None,
         }
     }
+
+    /*
+    A static argument may be written as a calculation, `configure<(8u64 +
+    9u64)>(..)`. generics.md, "Closed applications and canonical identity":
+    "Equivalent literals and named canonical values have the same application
+    identity. Anonymous numeric expressions land under the expected carrier's
+    exact rules, not their decimal spelling." So a calculation whose operands
+    are all literals is the literal of its value, and every reader of a
+    static argument reads that one literal.
+
+    Only what needs no machine and no declaration is folded: integer literals
+    under the bare `+`, `-` and `*`. numeric_values.md, "Literal landing and
+    destinations": a suffixed literal "retains its chosen carrier", and "an
+    already typed operand selects its operation's declared admission rules:
+    computational arithmetic lands an anonymous peer in its carrier". Typed
+    operands must therefore agree on one carrier, an anonymous operand must
+    fit it, and every typed result must fit it at its own node; a wholly
+    anonymous calculation stays exact and keeps no carrier. Division is left
+    out: between anonymous literals it is rational division, which this
+    reader has no value for.
+
+    Anything else (a name, a call, another operator, two carriers, a value
+    out of its carrier's range) is not this fold's to decide and yields
+    nothing, so the argument stays as written for the pass that would
+    evaluate or reject it.
+    */
+    pub fn closed_literal(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> Option<numerics::literals::IntegerLiteral> {
+        use numerics::literals::{IntegerLiteral, IntegerRadix};
+        if !matches!(
+            expressions.expression(expression),
+            ExpressionNode::Binary(_)
+        ) {
+            return None;
+        }
+        let (value, landing) = closed_value(expressions, expression)?;
+        let literal = match i64::try_from(value) {
+            Ok(narrow) => IntegerLiteral::from_value(narrow),
+            Err(_) => IntegerLiteral::from_parts(
+                value < 0,
+                IntegerRadix::Decimal,
+                &value.unsigned_abs().to_string(),
+            )
+            .ok()?,
+        };
+        Some(match landing {
+            Some(landing) => literal.with_landing(landing),
+            None => literal,
+        })
+    }
+
+    fn closed_value(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> Option<(i128, Option<numerics::literals::IntegerLanding>)> {
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => {
+                let value = literal
+                    .value_i64()
+                    .map(i128::from)
+                    .or_else(|| literal.value_u64().map(i128::from))?;
+                let landing = literal.landing();
+                landing
+                    .is_none_or(|landing| landing.landed_type.admits_i128(value))
+                    .then_some((value, landing))
+            }
+            ExpressionNode::Binary(binary)
+                if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    ) =>
+            {
+                let (left, left_landing) = closed_value(expressions, binary.left)?;
+                let (right, right_landing) = closed_value(expressions, binary.right)?;
+                let landing = match (left_landing, right_landing) {
+                    (Some(left), Some(right)) if left != right => return None,
+                    (left, right) => left.or(right),
+                };
+                let value = apply(binary.operator, left, right)?;
+                // An anonymous peer lands in the typed operand's carrier, and
+                // the typed result is a value of that carrier.
+                landing
+                    .is_none_or(|landing| {
+                        [left, right, value]
+                            .into_iter()
+                            .all(|value| landing.landed_type.admits_i128(value))
+                    })
+                    .then_some((value, landing))
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::expression::TableBinaryExpression;
+        use super::*;
+        use numerics::arithmetic::ArithmeticDomain;
+        use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+
+        fn landed(value: i64, name: &str) -> IntegerLiteral {
+            IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::from_name(name).expect("an integer type"),
+                domain: ArithmeticDomain::Exact,
+            })
+        }
+
+        fn calculation(
+            left: IntegerLiteral,
+            operator: BinaryOperator,
+            right: IntegerLiteral,
+        ) -> Option<(String, Option<String>)> {
+            let mut expressions = ExpressionTable::default();
+            let left = expressions.insert(ExpressionNode::Integer(left));
+            let right = expressions.insert(ExpressionNode::Integer(right));
+            let root = expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator,
+                right,
+                policy: ArithmeticDomain::Exact,
+            }));
+            closed_literal(&expressions, root).map(|literal| {
+                (
+                    literal.canonical_spelling().to_string(),
+                    literal.landing().map(|landing| landing.landed_type.name()),
+                )
+            })
+        }
+
+        /// A calculation over literals is the literal of its value, in the
+        /// carrier its typed operands state; an anonymous operand lands in
+        /// that carrier and a wholly anonymous calculation keeps none.
+        #[test]
+        fn a_calculation_over_literals_is_the_literal_of_its_value() {
+            let anonymous = IntegerLiteral::from_value;
+            assert_eq!(
+                calculation(landed(8, "u64"), BinaryOperator::Add, landed(9, "u64")),
+                Some(("17".to_owned(), Some("u64".to_owned())))
+            );
+            assert_eq!(
+                calculation(landed(8, "u64"), BinaryOperator::Multiply, anonymous(2)),
+                Some(("16".to_owned(), Some("u64".to_owned())))
+            );
+            assert_eq!(
+                calculation(anonymous(20), BinaryOperator::Subtract, anonymous(3)),
+                Some(("17".to_owned(), None))
+            );
+        }
+
+        /// The twins: nothing is folded where the operands state two
+        /// carriers, where a typed result or an anonymous peer is outside
+        /// the carrier, or under an operator this fold has no value for.
+        #[test]
+        fn a_calculation_with_no_single_value_in_its_carrier_is_left_as_written() {
+            let anonymous = IntegerLiteral::from_value;
+            for (left, operator, right) in [
+                (landed(8, "u64"), BinaryOperator::Add, landed(9, "u32")),
+                (landed(255, "u8"), BinaryOperator::Add, landed(1, "u8")),
+                (landed(3, "u8"), BinaryOperator::Subtract, landed(4, "u8")),
+                (landed(1, "u8"), BinaryOperator::Add, anonymous(-1)),
+                (anonymous(7), BinaryOperator::Divide, anonymous(2)),
+            ] {
+                assert_eq!(calculation(left, operator, right), None);
+            }
+            // One literal is not a calculation: its reader takes it as is.
+            let mut expressions = ExpressionTable::default();
+            let literal = expressions.insert(ExpressionNode::Integer(anonymous(3)));
+            assert!(closed_literal(&expressions, literal).is_none());
+        }
+    }
 }
 pub mod expression {
 
@@ -1813,10 +1986,8 @@ pub mod expression {
                     .expect("copied expression retains its component row");
                 let materialization_source = origin.materialization_source(expression);
                 let domain_tests = origin.executable_domain_tests(expression).to_vec();
-                let query_carrier =
-                    matches!(origin.expression(expression), ExpressionNode::Call(call)
-            if call.native_code_layout.is_some() || call.layout_query.is_some())
-                    .then(|| origin.constructed_value_type_reference(expression));
+                let carrier = origin.constructed_value_type_reference(expression);
+                let required = origin.construction_required_type_reference(expression);
                 let occurrences = origin
                     .authored_selection_occurrences(expression)
                     .collect::<Vec<_>>();
@@ -2137,8 +2308,11 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
-                if let Some(carrier) = query_carrier {
+                if carrier.is_valid() {
                     self.set_constructed_value_type_reference(copied, carrier);
+                }
+                if required.is_valid() {
+                    self.set_construction_required_type_reference(copied, required);
                 }
                 self.attach_authored_selection_occurrences(copied, occurrences);
                 if let Some(mut inputs) = build_inputs {
@@ -5081,6 +5255,29 @@ pub mod expression {
     }
 
     impl StaticMachineArgument {
+        /// The Boolean this argument is, when it is `true` or `false` and
+        /// nothing else. Both are keywords, so no declaration answers them
+        /// and typing keeps the argument as that one written word with no
+        /// symbol; a name that resolved to a declaration is not one.
+        pub fn closed_boolean(&self) -> Option<bool> {
+            let [word] = self.path.as_ref() else {
+                return None;
+            };
+            if self.symbol.is_valid()
+                || self.type_reference.is_valid()
+                || self.application.is_some()
+                || self.const_literal.is_some()
+                || self.evidence_projection.is_some()
+            {
+                return None;
+            }
+            match word.as_str() {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            }
+        }
+
         pub fn names_implementation(&self, symbols: &symbols::SymbolTable) -> bool {
             self.symbol.is_valid()
                 && matches!(

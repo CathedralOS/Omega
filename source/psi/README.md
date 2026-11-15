@@ -40,7 +40,7 @@ other clauses or interleave with them. Each requirement owns exactly one
 terminating `;`, and its nested requirements have independent signatures,
 clause ranges, and direct-child ranges. The declaration's own generic and
 parameter ranges freeze before its children append rows. The header owner in
-[`parse/callable_header.omg`](parse/callable_header.omg) stages direct rows
+[`pipeline/01_tokens-to-syntax-trees/callable_header.omg`](pipeline/01_tokens-to-syntax-trees/callable_header.omg) stages direct rows
 and publishes descendants before their parent; it never infers ownership by
 looking past a semicolon.
 The clauses are `reaches`, `invokes`, `suspends`, `blocks`, `crashes`,
@@ -66,7 +66,7 @@ waiving a binder) over a subject, each with a call target
 `-> target(arguments)`, possibly acknowledged (`-> suspend block f(x)`), any
 other expression as a terminal value (`-> (gap)`, `-> View { items: items }`),
 or the Unit completion `-> {}`. Expressions
-([`parse/expression.omg`](parse/expression.omg)) cover integer, float, string
+([`pipeline/01_tokens-to-syntax-trees/expression.omg`](pipeline/01_tokens-to-syntax-trees/expression.omg)) cover integer, float, string
 and Boolean literals, names and
 `::` paths (every keyword but `self` is a name; a name keeps its identifier in
 its own row, and only a path's members fill the shared member table),
@@ -88,7 +88,7 @@ and fixed-array literals `[element, ...]`, a trailing comma allowed, or `[]`,
 all on explicit stacks rather than
 recursion. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
-grammar in [`parse/types.omg`](parse/types.omg): references `&['tag] [mut] T`,
+grammar in [`pipeline/01_tokens-to-syntax-trees/types.omg`](pipeline/01_tokens-to-syntax-trees/types.omg): references `&['tag] [mut] T`,
 arrays `[T; N]`, slices `[T]` and named types, possibly `::` paths, with
 lifetime and static arguments `Name<'tag, T, 4>` (the lifetimes a run of
 their own, before the type arguments), nested on an explicit frame stack, each form that
@@ -111,18 +111,18 @@ own `;`; a
 named conformance `[public] Name [<generic parameters>] satisfies Trait<arguments>
 { ... }` holds checked machines only: the reference row `Trait::requirement = Path;`
 is retired and rejects at its first token
-([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
+([`pipeline/01_tokens-to-syntax-trees/traits.omg`](pipeline/01_tokens-to-syntax-trees/traits.omg), [`pipeline/01_tokens-to-syntax-trees/conformance.omg`](pipeline/01_tokens-to-syntax-trees/conformance.omg));
 `[public] domain [<generic parameters>] Carrier::Name [<indices>]`
 uses the fixed predicate subject `self`; authored subject binders reject. It
 is a transparent alias `= A & B;` or takes `requires` facts and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
-([`parse/domain.omg`](parse/domain.omg)); `[public] const [Owner::]NAME: Type =
-value;` names a compile-time value ([`parse/constant.omg`](parse/constant.omg));
+([`pipeline/01_tokens-to-syntax-trees/domain.omg`](pipeline/01_tokens-to-syntax-trees/domain.omg)); `[public] const [Owner::]NAME: Type =
+value;` names a compile-time value ([`pipeline/01_tokens-to-syntax-trees/constant.omg`](pipeline/01_tokens-to-syntax-trees/constant.omg));
 `[public] proposition Name [<generic parameters>] [(parameters)]` ends with
-`;`, `evidence Type;` or `= fact;` ([`parse/proposition.omg`](parse/proposition.omg));
+`;`, `evidence Type;` or `= fact;` ([`pipeline/01_tokens-to-syntax-trees/proposition.omg`](pipeline/01_tokens-to-syntax-trees/proposition.omg));
 and a named mathematical definition `[public] let Name [<generic parameters>]
 [(parameters)]: Type = term;`, or an admitted assumption `boundary let ...:
-Type;` without a term ([`parse/definition.omg`](parse/definition.omg)).
+Type;` without a term ([`pipeline/01_tokens-to-syntax-trees/definition.omg`](pipeline/01_tokens-to-syntax-trees/definition.omg)).
 Generic parameter lists also take `proposition Name` binders, whose
 signatures come from `requires proposition` contracts, and conformance evidence
 binders `Name satisfies Trait<arguments>`. The current parser's legacy name-led
@@ -138,7 +138,7 @@ syntax; `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../TASKS.md#pipeli
 tracks removing that parser path and using ordinary implementations selected by
 target-keyed Build rows. `::` name paths (domain routes and
 constituents) share one table
-([`parse/path.omg`](parse/path.omg)). The retired `boundary requirement` and
+([`pipeline/01_tokens-to-syntax-trees/path.omg`](pipeline/01_tokens-to-syntax-trees/path.omg)). The retired `boundary requirement` and
 `operator` introducers reject at their word: a boundary operation is a
 requirement of a boundary trait, and a token binds to an ordinary
 `machine + Name(...)` declaration. Unsupported roots, retired inline
@@ -160,7 +160,7 @@ captures runtime values. The version17 observation uses that one parent field;
 the retired authored state spelling and its separate syntax table are removed.
 
 Name resolution follows parsing over the compilation's source set
-([`source/source.omg`](source/source.omg)): up to 64 packages, 256
+([`foundation/source.omg`](foundation/source.omg)): up to 64 packages, 256
 requester-local dependency edges and 512 units, each unit belonging to a
 package and to the module its path names there (`a::b`), parsed into the
 shared syntax tables, with its position as its source id. Those tables are
@@ -171,7 +171,7 @@ statements and 8,192 transition arms, 65,536 type references and
 call arguments, and 131,072 expressions; resolution's and
 typing's rows indexed by machine, type-reference and expression handles share
 those bounds. A `use` path's first member selects a package
-([`resolve/imports.omg`](resolve/imports.omg)): the toolchain mount
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/imports.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/imports.omg)): the toolchain mount
 `omega::language::core` the toolchain's core package, one of the
 requester's product dependency aliases that dependency, and the
 requester's own name its own package; any other path is a module path of
@@ -187,7 +187,7 @@ ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
-([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `requires machine ... satisfies` contract, a structural one with generic parameters or
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/forms.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/forms.omg)), at that form: a nominal `requires machine ... satisfies` contract, a structural one with generic parameters or
 clauses other than `requires`, `crashes`, `suspends` and `blocks`, a proposition
 contract, a proposition binder, an evidence binder on a machine,
 data declaration, conformance, domain or proposition, or an
@@ -201,7 +201,7 @@ and not a second list. Its trait application binds as a trait in that
 telescope's scope, so an earlier binder is visible to it. A
 structural `requires machine` contract binds its machine's `machine` binder of
 its name, one contract per binder
-([`resolve/contracts.omg`](resolve/contracts.omg)), its parameter and result
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/contracts.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/contracts.omg)), its parameter and result
 types in the machine's scope and its `requires` facts over its own
 parameters; a static argument names a machine for a machine binder or
 forwards one of the caller's. A lifetime tag names a lifetime binder of
@@ -211,7 +211,7 @@ arguments bind regions afresh and are not kept. An
 ordinary owned machine's token binds at its semantic home, the data
 declaration its owner names, which must belong to the machine's own
 package; one token with the same parameters twice at one home rejects
-([`resolve/operators.omg`](resolve/operators.omg)). A `satisfies` clause binds
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/operators.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/operators.omg)). A `satisfies` clause binds
 its trait (a trait position), the trait's static arguments in the machine's
 generic scope and the trait's member it names, recorded per clause in
 `NameResolution::requirements`, and its legacy `via` payload in the machine's
@@ -221,7 +221,7 @@ body's parameter scope, and its view names the compiler's ranking vocabulary
 by spelling, not a declaration (`Nat::Descending`, `Nat::BoundedDistance`,
 `Slice::Length`, and `Nat::IncreasingTo(limit)`, whose limit binds as a
 subject does), recorded per clause
-([`resolve/clauses.omg`](resolve/clauses.omg)). Each declaration resolves its own
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/clauses.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/clauses.omg)). Each declaration resolves its own
 witness against its own parameters and lexical static context; no positional
 parent-rank carrier is synthesized. Declared measures retain their exact machine
 identity. Another unsupported view rejects.
@@ -234,7 +234,7 @@ compiler-known domain, rejects. It then rejects duplicate generic parameter
 names of any kind within a declaration, duplicate proposition parameters, and
 duplicate members: fields and cases share one namespace; each case's payload
 fields share another with the common fields. Stable identities
-([`resolve/identities.omg`](resolve/identities.omg)) number all or none of a
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/identities.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/identities.omg)) number all or none of a
 declaration's direct fields, of its cases, and of each case's payload fields,
 with distinct `u64` values compared by value.
 Retirement declarations (`retired #N;`, or `retired #N` within a payload)
@@ -245,10 +245,10 @@ field-and-case data still rejects because it names no unique member scope.
 Neither retirement history nor canonical identity order changes authored
 case order, the first zero case, or runtime discriminators. Trait requirements and defaults
 and conformance members are machines named through their container
-(`Trait::requirement`, `Conformance::member`; [`resolve/containers.omg`](resolve/containers.omg)),
+(`Trait::requirement`, `Conformance::member`; [`pipeline/02_syntax-trees-to-symbol-resolved-trees/containers.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/containers.omg)),
 a `MachineOwner` per machine, and the container's generic parameters cover
 the member's signature and body, the member's own shadowing them. Domains
-([`resolve/domains.omg`](resolve/domains.omg)) bind their carriers and index
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/domains.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/domains.omg)) bind their carriers and index
 arguments in their own scope first, and a module declares one domain name over
 one carrier type once. Every type reference then binds, each in its
 declaration's scope: data declarations', then trait parents and satisfied
@@ -282,7 +282,7 @@ are indexed by the syntax table's type-reference handles. Name paths bind
 next: a domain's establishment routes to a requirement or machine, and an
 alias's constituents to domains, bare ones over the alias's own carrier. Then
 every name and path in a machine body or a constant's value binds
-([`resolve/names.omg`](resolve/names.omg)) in the
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/names.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/names.omg)) in the
 language's resolution order: an earlier `let` of the same body, the enclosing
 arm's pattern binders, the body's own parameters, then its lexical static
 binders (never another invocation's parameters or locals), then the machine's
@@ -313,7 +313,7 @@ indexed by expression handle. Every machine's `requires` and `ensures` facts
 bind in its own parameter scope, `result` in
 an `ensures` fact naming the returned value unless a parameter spells it, and
 a data declaration's `requires` facts bind its fields bare
-([`resolve/facts.omg`](resolve/facts.omg)); a case states no facts of its
+([`pipeline/02_syntax-trees-to-symbol-resolved-trees/facts.omg`](pipeline/02_syntax-trees-to-symbol-resolved-trees/facts.omg)); a case states no facts of its
 own, so no fact names a payload field bare. A proposition applies only as a
 whole fact (`requires P(x)`): inside a larger fact it rejects as unsupported,
 and in a body, a transition target or a constant's value, where a value is
@@ -325,30 +325,30 @@ names here; which
 requirement a member or row fills, row completeness and a domain's
 establishment obligations are checking's.
 
-Typing follows resolution ([`typing/typer.omg`](typing/typer.omg)) and
-records its results in [`types/types.omg`](types/types.omg): an interned
+Typing follows resolution ([`pipeline/03_symbol-resolved-trees-to-typed-trees/typer.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/typer.omg)) and
+records its results in [`representations/typed_trees.omg`](representations/typed_trees.omg): an interned
 type table, where equal types share one handle and a type's children precede
 it, and annotations indexed by syntax handles (a type per type-reference row,
 expression and pattern binder; each call's selected machine
 and each `.field`'s declaration; each expression's adaptation and anonymous
 value). Every written type interns first, row by row
-([`typing/references.omg`](typing/references.omg)): a builtin with its `in`
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/references.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/references.omg)): a builtin with its `in`
 qualifier (an arithmetic policy on a fixed integer, `Finite` on a float), a
 data declaration applied to as many arguments as its non-lifetime generic
 parameters, a reference, an array whose extent is a static integer or a
 `const` binder (carried through substitution and unification as one more
 child), a slice, or a generic parameter. Then each body's statements type in authored order
-([`typing/statements.omg`](typing/statements.omg)), each expression tree in
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/statements.omg)), each expression tree in
 table order, children before parents
-([`typing/expressions.omg`](typing/expressions.omg)). A name takes its
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/expressions.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/expressions.omg)). A name takes its
 binding's declared type. `.field` projects a data type's common field
 through any number of references, its generic arguments substituted;
 `[index]` selects an array's or slice's element, and a range slice
 `[a..b]` is the slice place `[T]` of its elements under the collection's
 qualifier, a view once borrowed or lent; its endpoints are indexes. An unsuffixed integer
-literal is anonymous ([`typing/literals.omg`](typing/literals.omg)): wholly
+literal is anonymous ([`pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/literals.omg)): wholly
 anonymous `+`, `-`, `*` and `/` fold over exact rationals (`7 / 2 * 2` is 7;
-[`integers/integers.omg`](integers/integers.omg)), an anonymous `%` or a
+[`foundation/integers.omg`](foundation/integers.omg)), an anonymous `%` or a
 division by zero rejects, and the tree lands once at a destination it fits,
 its value integral there. Fractional origin survives cancellation and negation:
 a computational integer landing after a fractional intermediate requires `as`
@@ -361,8 +361,8 @@ mix; integer comparisons relate exact values of any carriers; `==` also
 compares Booleans, addresses and sums whose every case is payload-free. A call
 selects the one machine of its resolved overload family, visible from the
 call's unit, whose parameters admit its arguments
-([`typing/calls.omg`](typing/calls.omg)); none or several reject. Admission
-([`typing/admission.omg`](typing/admission.omg)) is equal types, a landing, a
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg)); none or several reject. Admission
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/admission.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/admission.omg)) is equal types, a landing, a
 value of type `Never`, a shared-reference parameter implicitly lending its
 referent or accepting an exclusive loan, a range slice lent as a view at any
 shared-reference destination (a mutable subrange is written
@@ -377,7 +377,7 @@ binders by the payload, and a value pattern (a literal, or a path or name
 denoting no case, such as a constant) lands at the subject's type, which
 must compare intrinsically, and selects by equality; a transition's or
 match's arms cover its subject
-([`typing/coverage.omg`](typing/coverage.omg)): one is `_` or the guard
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg)): one is `_` or the guard
 `true`, they name both Booleans of a Boolean subject or every case of its
 data, or two guards compare one expression with `true` and with `false`, or
 one pair of structurally equal sides with `==` and with `!=`; any other
@@ -392,28 +392,28 @@ once, by one rounding, at an `f32` or `f64` destination, where an anonymous
 integer may land too. Float arithmetic, negation and IEEE comparisons take
 one format, so formats never mix, and `as` never converts between floats and
 integers (named conversion machines do). A call to a generic machine binds
-its generic parameters ([`typing/generics.omg`](typing/generics.omg)) from
+its generic parameters ([`pipeline/03_symbol-resolved-trees-to-typed-trees/generics.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/generics.omg)) from
 explicit static arguments `path<arguments>(...)`, one per non-lifetime
 parameter, and by unifying each parameter's type with its argument's type;
 every parameter must be bound, each argument is admitted at its substituted
 parameter type, and the result is substituted the same way. A construction
 of generic data infers its arguments from its fields' values. A
-value-position match ([`typing/matches.omg`](typing/matches.omg)) admits its
+value-position match ([`pipeline/03_symbol-resolved-trees-to-typed-trees/matches.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/matches.omg)) admits its
 patterns at its subject as a transition arm's head, gives its arms' values
 one type (the first arm value of a fixed type; the others are of that type,
 anonymous numbers landing there, or `Never`) and must cover its subject; a
 match whose
 arms are anonymous numbers is an anonymous choice, which lands arm by arm
 at its destination and is no subject or operand. A fixed-array literal
-([`typing/arrays.omg`](typing/arrays.omg)) joins its elements as a match
-joins its arm values ([`typing/joins.omg`](typing/joins.omg)), its extent
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/arrays.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/arrays.omg)) joins its elements as a match
+joins its arm values ([`pipeline/03_symbol-resolved-trees-to-typed-trees/joins.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/joins.omg)), its extent
 its element count; unlanded elements make an anonymous array, `[]` one of
 no elements, and any
 unlanded match or array lands at a destination of its shape, every
 anonymous number at the innermost element type
-([`typing/landing.omg`](typing/landing.omg)). A membership is a Boolean:
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/landing.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/landing.omg)). A membership is a Boolean:
 a case of the value's data or a declared domain of its carrier
-([`typing/memberships.omg`](typing/memberships.omg)). Equality needing a
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/memberships.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/memberships.omg)). Equality needing a
 declared conformance rejects as unsupported rather than typing partially. Carrier facts beyond the qualifier
 (unbounded `UInt`/`Int` storage, ranges) belong to checking. A constant is a
 value of its declared type, and each constant's value types against that type
@@ -435,8 +435,8 @@ literal lands there, a predicate-only qualification disappears where the
 bare carrier is wanted and a routed one does not, and `as` moves between
 qualifications of one carrier. A domain's predicates type over its carrier,
 and a byte predicate applies to one `u8` view
-([`typing/admission.omg`](typing/admission.omg)).
-Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/admission.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/admission.omg)).
+Facts type too ([`pipeline/03_symbol-resolved-trees-to-typed-trees/facts.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/facts.omg)): each machine's
 `requires` and `ensures` fact over its own parameters (`result` has the
 machine's result type), each `requires machine`
 contract's `requires` fact over its own parameters, and each data
@@ -445,7 +445,7 @@ application is a Boolean statement that selects nothing: its arguments meet
 the proposition's parameters by ordinary admission, a generic proposition's
 bound as a generic machine call's are. Each construction field and pattern
 field records the member it denotes, a common or a payload field, found by
-one search ([`typing/calls.omg`](typing/calls.omg)); an assignment writes a
+one search ([`pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/calls.omg)); an assignment writes a
 `let mut` local, a `mut` parameter, or a place behind an exclusive or
 write-only reference (an assignment to a name holding such a loan writes its
 referent), and any other target rejects as an immutable place; `&write place`
@@ -457,59 +457,59 @@ requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its legacy `via` payload, a
 `terminates by` witness's subjects and `Nat::IncreasingTo`'s limit type like
 expressions
-([`typing/clauses.omg`](typing/clauses.omg)); a requirement with generic
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/clauses.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/clauses.omg)); a requirement with generic
 parameters of its own rejects as unsupported. A machine binder's call is
 typed through its contract, and a generic call's static machine arguments
 match its machine binders in order, each argument's signature refining its
 binder's contract under the call's bindings and binding the callee's other
 generic parameters the contract names
-([`typing/binders.omg`](typing/binders.omg)). An arithmetic or order
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/binders.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/binders.omg)). An arithmetic or order
 operator with a data operand selects, by its operands, the one visible
 non-generic machine binding its token at an operand's data, admitting both
 operands as a call admits arguments, and records the selection
-([`typing/operators.omg`](typing/operators.omg)). A statement drops a non-Unit
+([`pipeline/03_symbol-resolved-trees-to-typed-trees/operators.omg`](pipeline/03_symbol-resolved-trees-to-typed-trees/operators.omg)). A statement drops a non-Unit
 result only through `_ = call();` (wiki/spec/language/effects.md): an
 expression statement's value must be Unit or `Never`, and `_ =` must precede
 a call.
 
-Checking follows typing ([`checking/checker.omg`](checking/checker.omg)) and
-records its results in [`checks/checks.omg`](checks/checks.omg): each
+Checking follows typing ([`pipeline/04_typed-trees-to-checked-trees/checker.omg`](pipeline/04_typed-trees-to-checked-trees/checker.omg)) and
+records its results in [`representations/checks.omg`](representations/checks.omg): each
 rejected machine's first rejection, in the order found and up to 64, and
 each machine's crash routes; a machine's checking stops at its first
 rejection and the next machine's begins. It owns the definedness and
 contract obligations of wiki/spec/language/numeric_values.md and
 wiki/spec/language/state_contracts.md with one relational engine: a closed
 difference-bound zone over a body's integer and Boolean subjects
-([`checking/zone.omg`](checking/zone.omg)), the parameters, locals, case
+([`pipeline/04_typed-trees-to-checked-trees/zone.omg`](pipeline/04_typed-trees-to-checked-trees/zone.omg)), the parameters, locals, case
 binders, and fields and slice lengths of those places
-([`checking/places.omg`](checking/places.omg)), each entered with its
+([`pipeline/04_typed-trees-to-checked-trees/places.omg`](pipeline/04_typed-trees-to-checked-trees/places.omg)), each entered with its
 carrier's range; a Boolean is 1 when true and 0 when false, so a stored
 `true` proves a later fact naming the place. An expression's value is its place, a linear term (a
 subject plus an exact offset) when it is one, and an interval
-([`checking/evaluation.omg`](checking/evaluation.omg)); exact integers are
-shared with typing ([`integers/integers.omg`](integers/integers.omg)). A guard
+([`pipeline/04_typed-trees-to-checked-trees/evaluation.omg`](pipeline/04_typed-trees-to-checked-trees/evaluation.omg)); exact integers are
+shared with typing ([`foundation/integers.omg`](foundation/integers.omg)). A guard
 holding or failing, the left operand of `&&` (or failing `||`) for its right
 operand, a value pattern's arm (the subject equals it), a `let` and an
 assignment add facts, a Boolean place bound from a condition stands for it
 at a later dispatch or guard until a place that existed when it was bound
 is written. A condition that writes while being evaluated, or reads the
 destination overwritten by its assignment, cannot be replayed as an alias
-([`checking/aliases.omg`](checking/aliases.omg)). A record bound
+([`pipeline/04_typed-trees-to-checked-trees/aliases.omg`](pipeline/04_typed-trees-to-checked-trees/aliases.omg)). A record bound
 from another place takes the integer fields known directly below it, and a
 constant whose initializer is an anonymous
 integer tree is that value
-([`checking/facts.omg`](checking/facts.omg),
-[`checking/flow.omg`](checking/flow.omg)); a write forgets the place and
+([`pipeline/04_typed-trees-to-checked-trees/facts.omg`](pipeline/04_typed-trees-to-checked-trees/facts.omg),
+[`pipeline/04_typed-trees-to-checked-trees/flow.omg`](pipeline/04_typed-trees-to-checked-trees/flow.omg)); a write forgets the place and
 everything inside it, and a machine call, below each exclusive argument,
 what its callee's write frame may change: everything when the callee may
 replace the whole referent or its writes are unknown, else the field places
 whose fields it or its callees store
-([`checking/frames.omg`](checking/frames.omg), derived before any body is
+([`pipeline/04_typed-trees-to-checked-trees/frames.omg`](pipeline/04_typed-trees-to-checked-trees/frames.omg), derived before any body is
 checked). An operand evaluated before such a call keeps what it read: before
 the call forgets a place, each earlier operand and its evaluated children
 reading it move to a snapshot, a scalar to a fresh subject equal to the one it read and a
 record to a place holding the fields known of it
-([`checking/snapshots.omg`](checking/snapshots.omg)). The captured scalar retains
+([`pipeline/04_typed-trees-to-checked-trees/snapshots.omg`](pipeline/04_typed-trees-to-checked-trees/snapshots.omg)). The captured scalar retains
 its admitted read type even when its storage path is a synthetic length. An
 overlapping assignment captures its completed RHS before forgetting destination
 storage, preserving old-subject equality without changing write authority.
@@ -529,7 +529,7 @@ syntax over the changed storage; its case binders still start from their
 declared types.
 
 Local references capture their initializer's canonical storage origin
-([`checking/references.omg`](checking/references.omg)). A reborrow uses the
+([`pipeline/04_typed-trees-to-checked-trees/references.omg`](pipeline/04_typed-trees-to-checked-trees/references.omg)). A reborrow uses the
 same origin, and replacing a mutable shared-reference binding does not
 redirect an earlier alias. Shared-reference copies retain their captured
 loans; assignment captures the replacement's loans before retiring the old
@@ -554,22 +554,22 @@ written, a write drops the pending fields below the place written, and a
 write to what a pending field read enters that field first. A call with a
 narrow write frame settles and invalidates only the written fields; pending
 siblings retain their construction values
-([`checking/constructions.omg`](checking/constructions.omg)). An element
+([`pipeline/04_typed-trees-to-checked-trees/constructions.omg`](pipeline/04_typed-trees-to-checked-trees/constructions.omg)). An element
 store preserves the containing collection's own length while invalidating
 changed contents, including nested lengths; whole-value replacement still
 forgets the entire place. A value-position match's arms each run on the facts after its
 subject, their own pattern selected and earlier ones passed over as a
 transition's arms are; the facts after it are its arms' join and its value
 their hull, and an arm value landed at a qualified match type proves the
-qualification ([`checking/matches.omg`](checking/matches.omg)). A body assumes its `requires`
+qualification ([`pipeline/04_typed-trees-to-checked-trees/matches.omg`](pipeline/04_typed-trees-to-checked-trees/matches.omg)). A body assumes its `requires`
 facts, and an established value's `requires` facts hold of its fields
-([`checking/domains.omg`](checking/domains.omg)), installed field by field as
+([`pipeline/04_typed-trees-to-checked-trees/domains.omg`](pipeline/04_typed-trees-to-checked-trees/domains.omg)), installed field by field as
 the fields become places, in every zone a join or restore may later meet. A
 private declaration's incoming facts are the join of every reached invocation's
 exact actuals projected onto its parameters and up to 40 demanded field paths
-([`checking/arrivals.omg`](checking/arrivals.omg)). Its reads and downstream
+([`pipeline/04_typed-trees-to-checked-trees/arrivals.omg`](pipeline/04_typed-trees-to-checked-trees/arrivals.omg)). Its reads and downstream
 requirements determine those paths
-([`checking/demand.omg`](checking/demand.omg)); joins settle to a fixed point,
+([`pipeline/04_typed-trees-to-checked-trees/demand.omg`](pipeline/04_typed-trees-to-checked-trees/demand.omg)); joins settle to a fixed point,
 widening where needed. Unreached declarations start with their admitted parameter
 types and own requirements. Lexical ancestry supplies no runtime facts.
 Every body is then walked once more: an
@@ -579,17 +579,17 @@ negative), an Exact (unqualified) operation's result fits its
 carrier, an `as` conversion's value fits its target whatever the target's
 policy (`as` never changes the denoted value), a recast `reference as &T` views
 scalars whose representations the target's admit, a shared view one way
-and a mutable view both ([`checking/recasts.omg`](checking/recasts.omg)),
+and a mutable view both ([`pipeline/04_typed-trees-to-checked-trees/recasts.omg`](pipeline/04_typed-trees-to-checked-trees/recasts.omg)),
 a divisor is nonzero and a
 shift count
-below the width ([`checking/arithmetic.omg`](checking/arithmetic.omg)); a
+below the width ([`pipeline/04_typed-trees-to-checked-trees/arithmetic.omg`](pipeline/04_typed-trees-to-checked-trees/arithmetic.omg)); a
 Trapping operation that may leave its carrier, and a crash statement, is a
 crash site instead. Constants fold exactly: a remainder truncates toward
 zero with the dividend's sign, a Wrapping result reduces modulo its carrier
 and a Saturating one clamps to it. A call's or jump's target `requires` facts must follow
 with its parameters standing for the arguments (an operator typing selected
 a machine for is a call of it, its operands the arguments)
-([`checking/contracts.omg`](checking/contracts.omg)), every normal return (a
+([`pipeline/04_typed-trees-to-checked-trees/contracts.omg`](pipeline/04_typed-trees-to-checked-trees/contracts.omg)), every normal return (a
 body's end, a terminal value or call, `{}`) must prove its machine's
 `ensures` facts with `result` standing for the returned value, a call to a
 machine that `ensures` facts gives its result a place they hold of, and a
@@ -601,19 +601,19 @@ requirement declares, and a requirement with `requires` or `ensures` facts,
 or a satisfier with `requires` facts, rejects as unsupported rather than
 passing unrefined; each static machine argument must publish only crash
 causes its binder's contract declares, and one with `requires` facts of its
-own rejects as unsupported ([`checking/supply.omg`](checking/supply.omg)).
-Invocation topology ([`checking/invocations.omg`](checking/invocations.omg))
+own rejects as unsupported ([`pipeline/04_typed-trees-to-checked-trees/supply.omg`](pipeline/04_typed-trees-to-checked-trees/supply.omg)).
+Invocation topology ([`pipeline/04_typed-trees-to-checked-trees/invocations.omg`](pipeline/04_typed-trees-to-checked-trees/invocations.omg))
 records every selected call by exact declaration owner, expression and concrete
 machine or opaque binder. Sparse forward/reverse edges form one sealed global
 SCC graph; missing observations fail closed. Completion inference
-([`checking/completions.omg`](checking/completions.omg)) walks independent own
+([`pipeline/04_typed-trees-to-checked-trees/completions.omg`](pipeline/04_typed-trees-to-checked-trees/completions.omg)) walks independent own
 entries in callee-before-caller order and joins all feasible normal returns.
 Intra-component calls use declared cuts, never an uncompleted recursive summary.
 Completed scalar intervals carry no callee storage identity; authored
 postconditions are checked separately.
 
-Termination ([`checking/ranking.omg`](checking/ranking.omg), with the shared
-witness operations in [`checking/termination.omg`](checking/termination.omg))
+Termination ([`pipeline/04_typed-trees-to-checked-trees/ranking.omg`](pipeline/04_typed-trees-to-checked-trees/ranking.omg), with the shared
+witness operations in [`pipeline/04_typed-trees-to-checked-trees/termination.omg`](pipeline/04_typed-trees-to-checked-trees/termination.omg))
 compares a source invocation's immutable entry rank with the selected callee's
 rank under the already evaluated exact actuals. Natural, slice-length,
 increasing and distance views, declared scalar measures and full lexicographic
@@ -631,7 +631,7 @@ predicates of the value, proved unless the value carries the
 qualification; a case membership that must hold rejects as unsupported,
 and a membership inside a larger fact is an unknown Boolean. A domain's
 predicates decide as trees, so deciding a membership never recurs.
-Declared domains ([`checking/qualification.omg`](checking/qualification.omg)):
+Declared domains ([`pipeline/04_typed-trees-to-checked-trees/qualification.omg`](pipeline/04_typed-trees-to-checked-trees/qualification.omg)):
 a parameter's qualification holds from its body's entry, decided as the
 domain's predicates with its subject binder standing for the value; a
 call or jump argument, a returned value, a qualified local's initializer, a
@@ -641,7 +641,7 @@ predicates there. A routed domain is never minted from predicates: a value
 carries it, or a machine the domain names as its route returns it, its
 result still meeting the predicates. Byte predicates evaluate to no known
 value yet, so they are established only by carrying them. Facts evaluate without effects or
-obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
+obligations ([`pipeline/04_typed-trees-to-checked-trees/fact_values.omg`](pipeline/04_typed-trees-to-checked-trees/fact_values.omg)). Crash
 routes settle over the call graph: a private machine without crash clauses
 publishes what it derives, and any other machine must declare every cause it
 derives (wiki/spec/language/effects.md). A construction of data carrying
@@ -653,8 +653,8 @@ proved. A proposition application states what no zone fact expresses:
 assumed, it establishes nothing, and where it must hold it rejects as an
 unsupported fact.
 
-Ownership ([`checking/ownership.omg`](checking/ownership.omg), over the
-owned places of [`checking/owned_places.omg`](checking/owned_places.omg))
+Ownership ([`pipeline/04_typed-trees-to-checked-trees/ownership.omg`](pipeline/04_typed-trees-to-checked-trees/ownership.omg), over the
+owned places of [`pipeline/04_typed-trees-to-checked-trees/owned_places.omg`](pipeline/04_typed-trees-to-checked-trees/owned_places.omg))
 walks every body once more, apart from the facts. A body owns its by-value
 parameters, its locals and its pattern binders with their field paths; a
 `[copy]` type copies, an affine one moves at most once and a linear one
@@ -671,12 +671,12 @@ lends until it returns, exclusively only when the argument and its
 parameter both are, and a later argument's access overlapping a held place
 rejects when either side is exclusive; a place lent to a nested call
 whose result holds references stays held by the argument
-([`checking/holds.omg`](checking/holds.omg)). A local whose type holds
+([`pipeline/04_typed-trees-to-checked-trees/holds.omg`](pipeline/04_typed-trees-to-checked-trees/holds.omg)). A local whose type holds
 references holds a loan of each place its initializer lends until its last
 use; an access overlapping a live loan, other than through its holder,
 rejects when the loan or the access is exclusive, and an exit may not
 return a loan of the body's own storage
-([`checking/loans.omg`](checking/loans.omg)).
+([`pipeline/04_typed-trees-to-checked-trees/loans.omg`](pipeline/04_typed-trees-to-checked-trees/loans.omg)).
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -706,7 +706,7 @@ selected target profile. Acceptance evidence prints the CLI and Omega artifact
 SHA-256 identities beside that target. The gate has no cached-artifact or ambient
 `target/debug` lookup; focused iteration may invoke the Python decoder directly
 with the explicit Omega executable path. The gate is its own package beside this
-root: under it, the gate's lock and build output would be `psi` source. Delete
+root: under it, the gate's build output would be `psi` source. Delete
 the gate only when an equal or stronger product-source gate subsumes every
 retained failure class, and the harness only when an equal or stronger
 semantic-free gate preserves all of its cases.
@@ -761,34 +761,34 @@ strings. Both maintained lexers reject all retired XID, `\u{...}`, raw-string,
 Unicode-whitespace, and raw quoted-newline spellings through the same profile
 diagnostic; no compiler source may depend on them.
 
-The parser entrance is [`parse/parser.omg`](parse/parser.omg): it owns `Parser`,
-initialization, and whole-file root dispatch. [`parse/input.omg`](parse/input.omg)
+The parser entrance is [`pipeline/01_tokens-to-syntax-trees/parser.omg`](pipeline/01_tokens-to-syntax-trees/parser.omg): it owns `Parser`,
+initialization, and whole-file root dispatch. [`pipeline/01_tokens-to-syntax-trees/input.omg`](pipeline/01_tokens-to-syntax-trees/input.omg)
 owns bounded token selection and trivia traversal;
-[`parse/data.omg`](parse/data.omg) owns data-declaration grammar.
+[`pipeline/01_tokens-to-syntax-trees/data.omg`](pipeline/01_tokens-to-syntax-trees/data.omg) owns data-declaration grammar.
 
 ## Retention inventory
 
 | Retained child | Product role | Deletion or absorption condition |
 | --- | --- | --- |
 | `build.omg` | Declares the target-neutral `psi` package consumed by Omega's product build. | Delete only if ordinary package ownership replaces this root atomically. |
-| `source/` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
-| `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
-| `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
-| `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `requires proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
-| `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
-| `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
-| `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
-| `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
-| `integers/` | Owns exact integer values and arithmetic shared by literal folding and bounds reasoning. | Absorb only into a successor exact-arithmetic owner both consumers share. |
-| `checks/` | Owns checking's result: each rejected machine's first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
-| `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine, and publishes public slot returned-borrow origins and qualification preconditions (`slots.omg`). | Absorb only into the canonical checker that proves the same obligations. |
+| `foundation/source.omg` | Owns bounded source bytes and coordinates shared by the lexer and parser. | Absorb when a replacement representation preserves every live source/coordinate discriminator. |
+| `representations/tokens.omg` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
+| `representations/syntax_trees.omg` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
+| `pipeline/00_source_files_to_tokens.omg` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
+| `pipeline/01_tokens-to-syntax-trees/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `requires proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
+| `representations/symbol_resolved_trees.omg` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
+| `pipeline/02_syntax-trees-to-symbol-resolved-trees/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
+| `representations/typed_trees.omg` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
+| `pipeline/03_symbol-resolved-trees-to-typed-trees/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
+| `foundation/integers.omg` | Owns exact integer values and arithmetic shared by literal folding and bounds reasoning. | Absorb only into a successor exact-arithmetic owner both consumers share. |
+| `representations/checks.omg` | Owns checking's result: each rejected machine's first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
+| `pipeline/04_typed-trees-to-checked-trees/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine, and publishes public slot returned-borrow origins and qualification preconditions (`slots.omg`). | Absorb only into the canonical checker that proves the same obligations. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be
 deleted rather than moved into a generic `generated/` owner.
 
-The initial source-owned [`lowering/scalar.omg`](lowering/scalar.omg) lowers a
+The initial source-owned [`pipeline/05_checked-trees-to-scalar-operations/scalar.omg`](pipeline/05_checked-trees-to-scalar-operations/scalar.omg) lowers a
 bounded checked scalar subset into stable value and callable operations for
 Omega's Alpha realization. It follows the existing portable operation meanings;
 it is not a second serialized product. Unsupported forms and recursive call

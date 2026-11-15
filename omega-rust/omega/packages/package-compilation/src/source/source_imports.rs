@@ -53,10 +53,13 @@ pub use entry_contract_seed::selected_program_entry_boundary;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
-pub(crate) use generated::{DependencyGeneratedSource, admit_dependency_build_handoffs};
+pub(crate) use generated::{
+    DependencyGeneratedSource, admit_dependency_build_handoffs,
+    dependency_generated_source_logical_path,
+};
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub(crate) use import_queue::ImportQueue;
-pub(crate) use logical::LogicalSourceDiscovery;
+pub(crate) use logical::{LogicalSourceDiscovery, retained_unit};
 
 pub(crate) use package_selection::{
     ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
@@ -118,8 +121,24 @@ pub(crate) fn discover_imports(
                 .iter()
                 .map(|name| name.as_str(syntax_trees).to_owned())
                 .collect::<Vec<_>>();
-            let selected = discovery.select(root, &logical, filesystem)?;
+            // modules.md, "Names and imports": in Build source "a logical
+            // `use dependency;` may remain deferred until explicit dependency
+            // registration and preparation make its exact declaration scope
+            // available". A Build import of its own package therefore
+            // selects only what declares the imported name, and one that
+            // names nothing here selects no source and is left for the stage
+            // that prepares the dependency it names.
+            let own_build_import =
+                unit.scope == DependencyScope::Build && prefix == 0 && root == default_root;
+            let selected = if own_build_import {
+                discovery.select_declaring(root, &logical, filesystem, Vec::new())?
+            } else {
+                discovery.select(root, &logical, filesystem)?
+            };
             if selected.is_empty() {
+                if own_build_import {
+                    continue;
+                }
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` selects no logical source namespace",
                     identifier_path_text(syntax_trees, members)

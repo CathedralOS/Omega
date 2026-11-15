@@ -1,11 +1,11 @@
 [package]
-name = "physical-instructions"
+name = "post-allocation-machine"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "physical_instructions"
+name = "post_allocation_machine"
 path = "src/lib.rs"
 
 [dependencies]

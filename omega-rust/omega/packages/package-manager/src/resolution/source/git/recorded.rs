@@ -9,10 +9,10 @@ use crate::resolution::source::{
     PackageSourceCustody, PackageSourceMaterialization, PackageSourceNavigation,
     PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };
-use package_source::git::resolution::{
+use source_acquisition::git::resolution::{
     GitExactRevisionAcquisition, GitWorkspaceSession, resolve_git_source_at_revision_in_lane,
 };
-use package_source::{
+use source_acquisition::{
     GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceResolver,
 };
 use std::sync::Arc;

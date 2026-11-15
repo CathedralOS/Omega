@@ -25,6 +25,7 @@ use crate::{
 };
 use std::convert::Infallible;
 
+#[path = "tree_session_inventory.rs"]
 mod inventory;
 
 #[derive(Debug)]

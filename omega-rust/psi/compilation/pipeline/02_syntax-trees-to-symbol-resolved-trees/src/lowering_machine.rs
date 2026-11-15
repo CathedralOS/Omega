@@ -58,11 +58,9 @@ mod token_bindings {
         A binding attached to a domain (`machine + Quantity::Additive::add`) is a
         domain-family meaning ([domains: semantic roles and operators](../../../../../../../wiki/spec/language/domains.md#semantic-roles-and-operators)):
         it participates only where an operand binding selects that domain, so its
-        semantic home is the domain's carrier (the data or builtin type the domain
-        classifies), not the domain symbol itself. The domain is its owner for the
-        duplicate check, and declaring such a binding gives the domain its
-        denotation role exactly as a domain-homed `operator` declaration did, so
-        implicit weakening and result-dispatch keep treating it as semantic.
+        semantic home is the exact domain. At least one operand must carry that
+        qualification. Association changes neither the domain's independent
+        membership/access rules nor the machine's lexical body context.
     */
 
     use crate::tables::body_expressions;
@@ -403,17 +401,17 @@ mod token_bindings {
                         self.operand_display
                     )
                 }
-                BindingOwner::Domain { domain, carrier } => {
-                    if operand_types.iter().any(|type_reference| {
-                        (carrier.is_valid() && names_symbol(program, type_reference, carrier))
-                            || qualified_by_domain(program, type_reference, domain)
-                    }) {
+                BindingOwner::Domain { domain, .. } => {
+                    if operand_types
+                        .iter()
+                        .any(|type_reference| qualified_by_domain(program, type_reference, domain))
+                    {
                         return None;
                     }
                     format!(
-                        "`{}` binds the fixed operator token `{}` but no operand names the carrier of \
+                        "`{}` binds the fixed operator token `{}` but no operand carries \
                      its home domain `{}` ({}); a domain-family binding participates only through \
-                     operands the domain classifies",
+                     operands qualified by that domain",
                         self.name,
                         self.spelling.symbol(),
                         self.owner_spelling,
@@ -537,7 +535,6 @@ mod token_bindings {
                 domain.name.as_str().to_owned(),
                 BindingOwner::Domain {
                     domain: domain.symbol,
-                    carrier: carrier_symbol(program, &domain.target_type),
                 },
             ),
             None => {
@@ -615,11 +612,6 @@ mod token_bindings {
         /* A `Named` type or a generic application's base (`Vec2` in `Vec2<T>`). */
         Declaration { symbol: SymbolHandle },
         /*
-            A dynamic-trait slot (`dyn Trait<..>`): a requirement the operand
-            satisfies, kept distinct from a declaration the operand itself names.
-        */
-        Trait { symbol: SymbolHandle },
-        /*
             A domain constraint's spelling (`i32 in Degrees`). A constraint is
             still a name here; [`domain_named`] is the one place that joins a
             spelling to the declarations it selects.
@@ -633,23 +625,13 @@ mod token_bindings {
     */
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum ReadingScope {
-        /* Every argument, including an instantiated `dyn` requirement's. */
+        /* The complete generic argument telescope. */
         EveryArgument,
-        /*
-            Generic application arguments; a `dyn` slot's arguments stay with the
-            rule that reads that requirement.
-        */
-        GenericArguments,
         /*
             The reference, constrained-base, array and slice chain, with no
             application arguments.
         */
         Chain,
-        /*
-            References and constrained bases only, without elements: a carrier is a
-            named declaration, not an array or slice element.
-        */
-        HeadChain,
     }
 
     /*
@@ -657,8 +639,8 @@ mod token_bindings {
         order.
 
         Every operand-telescope rule in this module reads the same closed
-        inventory: a `Named` slot, a generic application's base and arguments, a
-        dynamic-trait slot and arguments, a domain constraint's spelling, and the
+        inventory: a `Named` slot, a generic application's base and arguments,
+        a domain constraint's spelling, and the
         reference, constrained-base, array and slice chains. This is the one owner
         of that inventory; a new position is one edit here rather than five
         recursions kept in step by comment. Two facts are structural, not scope: a
@@ -694,30 +676,14 @@ mod token_bindings {
                 positions.push(TypePosition::Declaration {
                     symbol: generic.base_symbol,
                 });
-                if matches!(
-                    scope,
-                    ReadingScope::EveryArgument | ReadingScope::GenericArguments
-                ) {
+                if scope == ReadingScope::EveryArgument {
                     for argument in program.child_type_references(generic.arguments) {
                         extend_name_positions(program, argument, scope, positions);
                     }
                 }
             }
-            TypeReference::DynamicTrait {
-                symbol, arguments, ..
-            } => {
-                positions.push(TypePosition::Trait { symbol: *symbol });
-                if scope == ReadingScope::EveryArgument {
-                    for argument in program.child_type_references(*arguments) {
-                        extend_name_positions(program, argument, scope, positions);
-                    }
-                }
-            }
             TypeReference::Callable { contract, .. } => {
-                if matches!(
-                    scope,
-                    ReadingScope::EveryArgument | ReadingScope::GenericArguments
-                ) {
+                if scope == ReadingScope::EveryArgument {
                     let signature = &program
                         .tables
                         .declarations
@@ -756,7 +722,7 @@ mod token_bindings {
                     positions,
                 );
             }
-            TypeReference::FixedArray(fixed_array) if scope != ReadingScope::HeadChain => {
+            TypeReference::FixedArray(fixed_array) => {
                 extend_name_positions(
                     program,
                     program.child_type_reference(fixed_array.element_type),
@@ -764,18 +730,13 @@ mod token_bindings {
                     positions,
                 );
             }
-            TypeReference::Slice(slice) if scope != ReadingScope::HeadChain => {
-                extend_name_positions(
-                    program,
-                    program.child_type_reference(slice.element_type),
-                    scope,
-                    positions,
-                )
-            }
-            TypeReference::FixedArray(_)
-            | TypeReference::Slice(_)
-            | TypeReference::ConstExpression(_)
-            | TypeReference::Unit => {}
+            TypeReference::Slice(slice) => extend_name_positions(
+                program,
+                program.child_type_reference(slice.element_type),
+                scope,
+                positions,
+            ),
+            TypeReference::ConstExpression(_) | TypeReference::Unit => {}
         }
     }
 
@@ -805,9 +766,7 @@ mod token_bindings {
         name_positions(program, type_reference, ReadingScope::EveryArgument)
             .into_iter()
             .any(|position| match position {
-                TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
-                    symbol == home
-                }
+                TypePosition::Declaration { symbol } => symbol == home,
                 TypePosition::Domain { .. } => false,
             })
     }
@@ -827,7 +786,7 @@ mod token_bindings {
             .into_iter()
             .any(|position| match position {
                 TypePosition::Domain { name } => domain_named(program, name) == Some(domain),
-                TypePosition::Declaration { .. } | TypePosition::Trait { .. } => false,
+                TypePosition::Declaration { .. } => false,
             })
     }
 
@@ -836,16 +795,13 @@ mod token_bindings {
         domain constraint. Builtin primitives resolve to `BuiltinType` symbols and
         generic binders to `TypeParameter` symbols; neither is a declaration that
         can own a family, so a telescope of only those has no home. Generic
-        application arguments are read; a `dyn` slot's arguments are left to the
-        rule that reads that requirement.
+        application arguments are read.
     */
     fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> bool {
-        name_positions(program, type_reference, ReadingScope::GenericArguments)
+        name_positions(program, type_reference, ReadingScope::EveryArgument)
             .into_iter()
             .any(|position| match position {
-                TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
-                    is_declaration(program, symbol)
-                }
+                TypePosition::Declaration { symbol } => is_declaration(program, symbol),
                 TypePosition::Domain { name } => domain_named(program, name).is_some(),
             })
     }
@@ -863,9 +819,9 @@ mod token_bindings {
         type_reference: &TypeReference,
     ) -> Vec<SymbolHandle> {
         let mut symbols = Vec::new();
-        for position in name_positions(program, type_reference, ReadingScope::GenericArguments) {
+        for position in name_positions(program, type_reference, ReadingScope::EveryArgument) {
             match position {
-                TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
+                TypePosition::Declaration { symbol } => {
                     if is_declaration(program, symbol) {
                         symbols.push(symbol);
                     }
@@ -1032,14 +988,8 @@ mod token_bindings {
     enum BindingOwner {
         /* `machine + Vec2::add(...)`: the exact attached data declaration. */
         AttachedData(SymbolHandle),
-        /*
-            `machine + Quantity::Additive::add(...)`: the attached domain, whose
-            carrier type is the binding's semantic home.
-        */
-        Domain {
-            domain: SymbolHandle,
-            carrier: SymbolHandle,
-        },
+        /* `machine + Quantity::Additive::add(...)`: the exact domain owner. */
+        Domain { domain: SymbolHandle },
         /* A free machine: its declaring module (invalid for root scope). */
         Module(SymbolHandle),
     }
@@ -1051,72 +1001,52 @@ mod token_bindings {
         if let Some(domain) = attached_domain(program, machine) {
             return BindingOwner::Domain {
                 domain: domain.symbol,
-                carrier: carrier_symbol(program, &domain.target_type),
             };
         }
         BindingOwner::AttachedData(machine.attached_data_symbol)
     }
 
     /*
-        The domain a machine's attached path names, if any. Attachment symbols are
-        assigned against data declarations only, so a domain-attached machine
-        carries an invalid attachment symbol. Resolve its authored path at that
-        declaration's source occurrence, including checked-owner and scope custody.
+        The domain resolved in the machine's authored source context. A semantic
+        association is separate from data attachment and from lexical scope.
     */
     fn attached_domain<'program>(
         program: &'program SymbolResolvedTrees,
         machine: &Machine,
     ) -> Option<&'program symbol_resolved_trees::domain::DomainDefinition> {
-        if machine.attached_data_symbol.is_valid() {
+        if !machine.operator_home_domain.is_valid() {
             return None;
         }
-        let domain = domain_named(program, machine.attached_data.as_ref()?)?;
-        program.domain_definition_by_symbol(domain)
+        program.domain_definition_by_symbol(machine.operator_home_domain)
     }
 
     /*
-        The declaration a domain classifies: the named base of its target type,
-        behind references and constrained bases. An array or slice target has no
-        carrier declaration -- the domain's own spelling qualifies an operand
-        instead ([`qualified_by_domain`]).
+        Resolve semantic association once in the declaration's own source scope.
+        A token binding remains a lexical machine; its domain association grants
+        no imports, denotation role, membership or access authority.
     */
-    fn carrier_symbol(
-        program: &SymbolResolvedTrees,
-        type_reference: &TypeReference,
-    ) -> SymbolHandle {
-        name_positions(program, type_reference, ReadingScope::HeadChain)
-            .into_iter()
-            .find_map(|position| match position {
-                TypePosition::Declaration { symbol } => Some(symbol),
-                TypePosition::Trait { .. } | TypePosition::Domain { .. } => None,
-            })
-            .unwrap_or(SymbolHandle::invalid())
-    }
-
-    /*
-        Give every domain that owns a token-bearing machine its denotation role,
-        as `normalize_domain_operator_homes` does for domain-homed `operator`
-        declarations. Runs once attached symbols are assigned and before the
-        selections that classify predicate-only domains read the roles.
-    */
-    pub(crate) fn mark_token_bound_domain_homes(program: &mut SymbolResolvedTrees) {
+    pub(crate) fn resolve_token_bound_domain_homes(program: &mut SymbolResolvedTrees) {
         let homes = program
             .machines
             .iter()
-            .filter(|machine| {
+            .enumerate()
+            .filter(|(_, machine)| {
                 machine.spelling.is_some()
                     && program.symbols.symbol_source_is_selected(machine.symbol)
             })
-            .filter_map(|machine| attached_domain(program, machine).map(|domain| domain.symbol))
+            .map(|(position, machine)| {
+                let home = machine
+                    .attached_data
+                    .as_ref()
+                    .filter(|_| !machine.attached_data_symbol.is_valid())
+                    .and_then(|name| domain_named(program, name))
+                    .unwrap_or_else(SymbolHandle::invalid);
+                (position, home)
+            })
             .collect::<Vec<_>>();
-        if homes.is_empty() {
-            return;
+        for (position, home) in homes {
+            program.machines[position].operator_home_domain = home;
         }
-        program.domain_definitions.for_each_mut(|domain| {
-            if homes.contains(&domain.symbol) {
-                domain.semantic_roles.denotation_dimension = Some(domain.semantic_id);
-            }
-        });
     }
 
     /*
@@ -1393,21 +1323,6 @@ mod token_bindings {
                         body_expressions(self.program).display_name(expression.expression)
                     )
                 }
-                TypeReference::DynamicTrait {
-                    symbol,
-                    name,
-                    arguments,
-                    ..
-                } => format!(
-                    "dyn {}<{}>",
-                    self.binder_or_symbol(*symbol, name.as_str()),
-                    self.program
-                        .child_type_references(*arguments)
-                        .iter()
-                        .map(|argument| self.type_shape(argument))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
                 TypeReference::Named { symbol, name, .. } => {
                     self.binder_or_symbol(*symbol, name.as_str())
                 }
@@ -1556,7 +1471,7 @@ mod type_equations {
 }
 
 pub(crate) use token_bindings::{
-    mark_token_bound_domain_homes, reject_duplicate_direct_token_bindings,
+    reject_duplicate_direct_token_bindings, resolve_token_bound_domain_homes,
 };
 
 use crate::lowering::data::lower_type_parameters;
@@ -1885,6 +1800,7 @@ fn lower_lexical_machine_parts(
         },
         attached_data,
         attached_data_symbol: SymbolHandle::invalid(),
+        operator_home_domain: SymbolHandle::invalid(),
         attached_data_application: None,
         spelling: machine.spelling,
         is_public: machine.is_public,

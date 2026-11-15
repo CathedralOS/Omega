@@ -18,7 +18,7 @@ OMEGA_CLI=/absolute/path/to/fresh/omega OMEGA_TARGET=linux_x86_64 \
 
 When using a comparator built in another checkout, set `OMEGA_LIBRARY_ROOT`
 to this checkout's absolute `source/library` path. Pin the executable too; a
-long review/build run must not switch compiler or library inputs midway.
+long build run must not switch compiler or library inputs midway.
 
 The executable is the actual production construction application. Its
 [closed-source-set input](../../../source/omega/README.md#closed-source-set-input)
@@ -85,7 +85,7 @@ frontend checks do not broaden the scalar backend's arithmetic support.
 Mathematical `Int`/`Nat` and decimal landing remain
 outside this bounded numeric frontier.
 
-[`source/psi/lowering/scalar.omg`](../../../source/psi/lowering/scalar.omg) is the
+[`source/psi/pipeline/05_checked-trees-to-scalar-operations/scalar.omg`](../../../source/psi/pipeline/05_checked-trees-to-scalar-operations/scalar.omg) is the
 source-owned lowering orchestration. Its adjacent `layout.omg`, `storage.omg`,
 `expressions.omg` and `statements.omg` retain type layouts, owned places and
 transfers, expression evaluation and control. Stable machine/value/field identities
@@ -98,7 +98,7 @@ and contract identities; the current checker retains verdicts and counts, which
 cannot be turned into those identities by inventing proof records. No serialized
 Psi publication or independently replayable proof claim is made here.
 
-[`source/omega/compilation/alpha/emitter.omg`](../../../source/omega/compilation/alpha/emitter.omg) consumes
+[`source/omega/compilation/00_scalar_operations_to_alpha.omg`](../../../source/omega/compilation/00_scalar_operations_to_alpha.omg) consumes
 only that lowered program. Each activation owns value slots, packed local and
 parameter storage, and call-argument scratch in `[32,64)` MiB of Alpha memory. Frame allocation is checked before stores; the region is disjoint from
 the at-most-2 MiB tape and Alpha's downward return stack. Copy and zero loops check zero size before accessing memory and use no hidden

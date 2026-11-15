@@ -1,7 +1,7 @@
 // We pair one validated `GitSourceRequest` with its `PackageSelection`.
 
 use crate::declarations::dependencies::read::PackageSelection;
-use package_source::{GitSourceRequest, GitTransportProfile};
+use source_acquisition::{GitSourceRequest, GitTransportProfile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GitPackageSourceRequest {

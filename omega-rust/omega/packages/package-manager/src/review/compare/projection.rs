@@ -10,7 +10,7 @@ use crate::lock::{PackageAcceptanceRow, PackageOccurrenceRoster};
 use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use package_evidence::record::PackagePolicyBaseline;
+use review_evidence::record::PackagePolicyBaseline;
 
 pub(super) fn candidate<'a>(
     candidate: &'a CompilerIssuedPackageReviewSet,

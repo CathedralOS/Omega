@@ -82,10 +82,6 @@ pub mod snapshot {
             ConstExpression {
                 expression: ExpressionSnapshot,
             },
-            DynamicTrait {
-                trait_name: IdentifierSnapshot,
-                trait_arguments: Vec<TypeReferenceSnapshot>,
-            },
             Named {
                 name: IdentifierSnapshot,
             },
@@ -352,13 +348,6 @@ pub mod snapshot {
                         expression: snapshot_expression_handle(syntax_trees, *expression),
                     }
                 }
-                TypeReferenceNode::DynamicTrait {
-                    trait_name,
-                    trait_arguments,
-                } => TypeReferenceSnapshot::DynamicTrait {
-                    trait_name: snapshot_identifier(syntax_trees, trait_name),
-                    trait_arguments: snapshot_type_references(syntax_trees, *trait_arguments),
-                },
                 TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
                     name: snapshot_identifier(syntax_trees, name),
                 },

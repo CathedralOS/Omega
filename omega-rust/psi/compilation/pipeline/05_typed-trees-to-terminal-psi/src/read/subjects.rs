@@ -14,9 +14,10 @@ follow as they do from an entry, whichever package declares them. A data
 declaration is resolved as a record. A plain trait has each requirement's
 contract read, and a plain implementation has each row set aside as the
 statement that its machine refines the requirement
-(`Elaboration::conformance_witnesses`). Every other kind of declaration is
-refused as `Unsupported`, because this route judges none of them yet and a
-declaration left out would be accepted without a row or a refusal.
+(`Elaboration::conformance_witnesses`). A transparent mathematical predicate
+is formed under its own inputs, independently of any application. Every other
+kind of declaration is refused as `Unsupported`, because leaving an unjudged
+declaration out would accept it without a row or a refusal.
 
 Whether a declaration belongs to the subject is decided from the source file
 its symbol was declared in, never from a path or a name:
@@ -248,6 +249,7 @@ impl Program<'_> {
                     declaring_trait: owner.symbol,
                     requirement,
                     implementation: machine.symbol,
+                    value_arguments: Vec::new(),
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
@@ -312,12 +314,19 @@ impl Program<'_> {
             }
         }
         for data in typed.data_definitions() {
-            if self.owner(entry, data.symbol, subjects, purpose)? == Owner::Subject {
-                if !names_only(data) {
-                    self.record(entry, data.symbol)?;
-                }
-                self.admitted_declarations.include(data.symbol);
+            if self.owner(entry, data.symbol, subjects, purpose)? != Owner::Subject
+                || names_only(data)
+            {
+                continue;
             }
+            // A declaration with type or const parameters has no record to
+            // resolve until a type applies it; it is read as written.
+            if data.type_parameters.is_empty() {
+                self.record(entry, data.symbol)?;
+            } else {
+                self.subject_data_template(entry, data)?;
+            }
+            self.admitted_declarations.include(data.symbol);
         }
         for domain in typed.domain_definitions() {
             if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
@@ -357,6 +366,11 @@ impl Program<'_> {
                 self.subject_constant(entry, constant)?;
             }
         }
+        for definition in typed.mathematical_definitions() {
+            if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
+                self.mathematical_predicate_definition(entry, definition, None, &[])?;
+            }
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
@@ -374,10 +388,6 @@ impl Program<'_> {
             (
                 symbols_of(typed.propositions(), |row| row.symbol),
                 "proposition",
-            ),
-            (
-                symbols_of(typed.mathematical_definitions(), |row| row.symbol),
-                "mathematical definition",
             ),
             (
                 symbols_of(typed.wire_schemas(), |row| row.symbol),
@@ -400,6 +410,209 @@ impl Program<'_> {
 }
 
 impl Program<'_> {
+    /// Reads a subject data declaration that takes type or const parameters,
+    /// `data Buffer<T, const Capacity: u64> { .. }`, as it is written.
+    ///
+    /// Its fields have no types to resolve until the parameters are given:
+    /// generics.md, "Applications and specialization": "Every application validates the
+    /// complete argument tuple, including kinds, ranges, and constraints of
+    /// unused parameters". So each application is resolved and judged where
+    /// a type applies it (`record_at`), unused fields included, and that is
+    /// where a field of the applied type is read, moved or constructed.
+    ///
+    /// What the declaration says by itself is its header and its member
+    /// roster, and a declaration nothing applies must still be one this
+    /// route reads. So the reading holds both to what the reading of an
+    /// application serves (`source_records::source_application`):
+    ///
+    /// - the header binds types, and integer constants of a builtin integer
+    ///   type, with no bound, lifetime, `requires`, cleanup, carry policy or
+    ///   quotient, each of which a declaration would owe a judgment for here;
+    /// - each member is an ordinary runtime field or payload field, and its
+    ///   type is built from builtin scalars, the header's own type
+    ///   parameters, fixed arrays whose length is a number or one of the
+    ///   header's constants, data with no parameters, and applications of
+    ///   data. A closed application or a data type with no parameters is
+    ///   resolved here like any other subject type.
+    ///
+    /// Anything else refuses the declaration.
+    fn subject_data_template(
+        &mut self,
+        entry: MachineId,
+        data: &typed_trees::data::DataDefinition,
+    ) -> Checked<()> {
+        use typed_trees::data::{DataMember, TypeParameterKind};
+        let typed = self.typed;
+        let unserved = |what| refuse(entry, Construct::Machine, Unserved::Type(what));
+        if data.generic_instance.is_some()
+            || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+            || !data.lifetime_parameters.is_empty()
+            || !data.conformance_bounds.is_empty()
+            || !data.requires_facts.is_empty()
+            || data.properties.carry.is_some()
+            || data.cleanup_selection.is_some()
+            || data.quotient.is_some()
+            || !data.retired_identities.is_empty()
+        {
+            return Err(unserved(
+                "generic data with lifetimes, bounds, requirements, cleanup, a quotient or \
+                 retired members",
+            ));
+        }
+        let parameters = typed.data_type_parameters(data);
+        for parameter in parameters {
+            let served = parameter.bounds == typed_trees::data::DataProperties::default()
+                && match parameter.kind {
+                    TypeParameterKind::Type => true,
+                    TypeParameterKind::Const { type_reference } => matches!(
+                        typed.type_reference_table.type_reference(type_reference),
+                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                            if matches!(
+                                typed.symbols.builtin_type_atom(*symbol),
+                                Some(symbols::BuiltinTypeAtom::Integer(_))
+                            )
+                    ),
+                    _ => false,
+                };
+            if !served {
+                return Err(unserved(
+                    "generic data with a bounded parameter or one that is neither a type nor an \
+                     integer constant",
+                ));
+            }
+        }
+        for member in typed.data_members(data) {
+            let fields = match member {
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => typed.data_payload_fields(variant),
+            };
+            for field in fields {
+                if field.relevance != language_core::BindingRelevance::Relevant {
+                    return Err(unserved("generic data with an erased member"));
+                }
+                self.template_member_type(entry, parameters, field.type_reference, 0)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// One member type of a generic data declaration, or an argument inside
+    /// one, as `subject_data_template` reads it.
+    fn template_member_type(
+        &mut self,
+        entry: MachineId,
+        parameters: &[typed_trees::data::TypeParameter],
+        reference: typed_trees::types::TypeReferenceHandle,
+        depth: usize,
+    ) -> Checked<()> {
+        use typed_trees::data::TypeParameterKind;
+        use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+        let typed = self.typed;
+        let unserved = || {
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Type("generic data with a member type that is not read as written"),
+            )
+        };
+        // A source type nests far less deeply than this; a graph that does
+        // not end is not a member type.
+        if depth > 64
+            || !typed
+                .type_reference_table
+                .contains_type_reference(reference)
+        {
+            return Err(unserved());
+        }
+        let own = |symbol: SymbolHandle, constant: bool| {
+            parameters.iter().any(|parameter| {
+                parameter.symbol == symbol
+                    && constant == matches!(parameter.kind, TypeParameterKind::Const { .. })
+            })
+        };
+        match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+                use symbols::BuiltinTypeAtom as Atom;
+                match typed.symbols.builtin_type_atom(*symbol) {
+                    Some(Atom::Bool | Atom::Integer(_) | Atom::F32 | Atom::F64) => Ok(()),
+                    Some(_) => Err(unserved()),
+                    None if own(*symbol, false) => Ok(()),
+                    None if self.data_declaration(*symbol).is_some() => {
+                        self.record_at(entry, reference).map(|_| ())
+                    }
+                    None => Err(unserved()),
+                }
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                match length {
+                    FixedArrayLength::Literal(_) => {}
+                    FixedArrayLength::ConstParameter { symbol, .. } if own(*symbol, true) => {}
+                    _ => return Err(unserved()),
+                }
+                self.template_member_type(entry, parameters, *element_type, depth + 1)
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                lifetime_arguments,
+                ..
+            } => {
+                if !lifetime_arguments.is_empty() {
+                    return Err(unserved());
+                }
+                // Applied at closed arguments it is a type like any other.
+                if typed.closed_data_definition(reference).is_some() {
+                    return self.record_at(entry, reference).map(|_| ());
+                }
+                // Applied at this header's parameters it is judged, like
+                // this declaration, where the whole type is applied.
+                let applied = typed
+                    .unique_data_definition_by_symbol(*base_symbol)
+                    .ok_or_else(unserved)?;
+                let formals = typed.data_type_parameters(applied);
+                let arguments = typed
+                    .type_reference_table
+                    .type_reference_handles(*arguments);
+                if formals.len() != arguments.len() {
+                    return Err(unserved());
+                }
+                for (formal, argument) in formals.iter().zip(arguments) {
+                    match formal.kind {
+                        TypeParameterKind::Type => {
+                            self.template_member_type(entry, parameters, *argument, depth + 1)?;
+                        }
+                        TypeParameterKind::Const { .. } => {
+                            let named_constant = matches!(
+                                typed.type_reference_table.type_reference(*argument),
+                                TypeReferenceNode::Named { symbol, .. }
+                                    if symbol.is_valid() && own(*symbol, true)
+                            );
+                            if !named_constant
+                                && typed
+                                    .static_const_literal_from_type_reference(*argument)
+                                    .is_none()
+                            {
+                                return Err(unserved());
+                            }
+                        }
+                        _ => return Err(unserved()),
+                    }
+                }
+                Ok(())
+            }
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Constrained { .. }
+            | TypeReferenceNode::Callable { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Unit => Err(unserved()),
+        }
+    }
+
     /// A generic schema is checked in its own source binder namespace. The
     /// same declaration owner forms its complete requirement contracts.
     pub(crate) fn generic_trait(
@@ -427,9 +640,7 @@ impl Program<'_> {
 /// Whether a data declaration declares a name and nothing else: no field or
 /// case, no parameter, no `requires`, no cleanup and no carry policy. Its
 /// multiplicity is not read: with no value of the type there is no custody.
-/// `data Counter {}` beside `machine Counter::clear()` is one: it completes
-/// machine names (`machine_shape`) and no value of it holds anything. Such a
-/// declaration has nothing to prove, so as a subject it is passed over. A
+/// Such a declaration has nothing to prove, so as a subject it is passed over. A
 /// binding, formal or field of the type resolves it where its type is read
 /// (`record`), as a record whose roster is empty.
 fn names_only(data: &typed_trees::data::DataDefinition) -> bool {

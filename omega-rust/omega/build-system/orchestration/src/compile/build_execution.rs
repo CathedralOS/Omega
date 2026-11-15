@@ -165,6 +165,14 @@ pub fn execute_build(
                 )
                 .into());
             }
+            // This driver acquires nothing, so a Build parked at
+            // `Build::prepare_dependency` would never be answered here.
+            if step.awaiting_preparation.is_some() {
+                return Err(refuse(
+                    "Build dependency preparation requires dependency scheduling".into(),
+                )
+                .into());
+            }
             if step.returned {
                 break;
             }

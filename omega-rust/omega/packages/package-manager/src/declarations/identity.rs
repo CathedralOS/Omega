@@ -1,8 +1,8 @@
 // Package names, snake_case dependency aliases, and domain-separated `PackageKey` nominal identities.
 
-use package_source::SourceLineage;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
+use source_acquisition::SourceLineage;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageName(String);

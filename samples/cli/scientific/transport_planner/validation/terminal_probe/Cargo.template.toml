@@ -14,7 +14,7 @@ compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 package-manager = { path = "../../../../../../omega-rust/omega/packages/package-manager" }
 target = { path = "../../../../../../omega-rust/omega/compilation/backend/target" }
-terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter/terminal-interpreter" }
+terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter" }
 serde_json = "1"
 
 [profile.release]

@@ -696,6 +696,210 @@ fn a_query_name_without_query_identity_still_specializes() {
 }
 
 #[test]
+fn copied_pattern_types_are_owned_by_each_application_not_the_template() {
+    use typed_trees::expression::{
+        MatchPattern, TableDestructurePattern, TableMatchArm, TableMatchExpression,
+    };
+    let Source {
+        mut program,
+        byte,
+        boolean,
+        relay,
+        main,
+        ..
+    } = source();
+    let reference = named(&mut program, relay.parameter, "T");
+    let subject = name(&mut program, relay.item, "item");
+    let arms = program.expression_table.insert_match_arms([TableMatchArm {
+        pattern: MatchPattern::Destructure(TableDestructurePattern {
+            application_type: reference,
+            ..Default::default()
+        }),
+        value: subject,
+        ..Default::default()
+    }]);
+    let dispatch = program
+        .expression_table
+        .insert(ExpressionNode::Match(TableMatchExpression {
+            subject,
+            arms,
+            ..Default::default()
+        }));
+    program
+        .expression_table
+        .set_constructed_value_type_reference(dispatch, reference);
+    program
+        .expression_table
+        .set_construction_required_type_reference(dispatch, reference);
+    let statement = returns(&mut program, dispatch);
+    let statements = program.statement_table.insert_statements([statement]);
+    let state = program
+        .machine_by_symbol(relay.machine)
+        .unwrap()
+        .states
+        .start();
+    program.machine_states.get_mut(state).statement_nodes = statements;
+
+    prepare(&mut program).expect("the pattern application is copied");
+    for (call, expected) in calls(&program, main).iter().zip([byte, byte, boolean]) {
+        let machine = program.symbols.get(call.target_symbol).parent;
+        let state = only_state(&program, machine);
+        let mut found = false;
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            for (_, root) in program.tables.expression_roots(statement) {
+                program.subtree_for_each(root, Default::default(), |handle, node| {
+                    if let ExpressionNode::Match(dispatch) = node {
+                        let MatchPattern::Destructure(pattern) =
+                            program.expression_table.match_arms(dispatch.arms)[0].pattern
+                        else {
+                            panic!("destructure");
+                        };
+                        assert_ne!(pattern.application_type, reference);
+                        assert_eq!(named_symbol(&program, pattern.application_type), expected);
+                        assert_eq!(
+                            named_symbol(
+                                &program,
+                                program
+                                    .expression_table
+                                    .constructed_value_type_reference(handle)
+                            ),
+                            expected
+                        );
+                        assert_eq!(
+                            named_symbol(
+                                &program,
+                                program
+                                    .expression_table
+                                    .construction_required_type_reference(handle)
+                            ),
+                            expected
+                        );
+                        found = true;
+                    }
+                });
+            }
+        }
+        assert!(found);
+    }
+    assert_eq!(
+        named_symbol(&program, reference),
+        relay.parameter,
+        "the generic declaration is unchanged"
+    );
+}
+
+#[test]
+fn generated_entry_ownership_refuses_missing_foreign_and_ambiguous_correspondence() {
+    let Source {
+        mut program,
+        relay,
+        forward,
+        main,
+        ..
+    } = source();
+    prepare(&mut program).unwrap();
+    let entry = calls(&program, main)[0].target_symbol;
+    let machine = program.symbols.get(entry).parent;
+    let position = program
+        .machine_specializations
+        .iter()
+        .position(|row| row.instance == machine)
+        .unwrap();
+    let row = program.machine_specializations[position].clone();
+    assert_eq!(
+        program.executable_callable_template(entry).unwrap(),
+        Some(relay.state)
+    );
+
+    program.machine_specializations[position].states = HandleSpan::empty();
+    assert!(
+        program.executable_callable_template(entry).is_err(),
+        "symbol provenance must not repair missing application ownership"
+    );
+    program.machine_specializations[position].states = row.states;
+    program
+        .captured_machine_states
+        .get_mut(row.states.start())
+        .template = forward.state;
+    assert!(
+        program.executable_callable_template(entry).is_err(),
+        "another template's state cannot be substituted"
+    );
+    program
+        .captured_machine_states
+        .get_mut(row.states.start())
+        .template = relay.state;
+    program.machine_specializations.push(row);
+    assert!(program.machine_specialization(machine).is_none());
+    assert!(program.executable_application_template(machine).is_err());
+    assert!(program.executable_callable_template(entry).is_err());
+}
+
+#[test]
+fn a_source_application_key_uses_bound_arguments_not_generated_names() {
+    let mut first = source();
+    let mut later = source();
+    later.program.symbols.insert_generated_root_from(
+        later.relay.machine,
+        SymbolKind::Machine,
+        "unrelated",
+    );
+    prepare(&mut first.program).unwrap();
+    prepare(&mut later.program).unwrap();
+    let selected = |source: &Source, ordinal: usize| {
+        let entry = calls(&source.program, source.main)[ordinal].target_symbol;
+        source
+            .program
+            .machine_specialization(source.program.symbols.get(entry).parent)
+            .unwrap()
+            .clone()
+    };
+    let at_byte = selected(&first, 0);
+    let later_byte = selected(&later, 0);
+    assert_ne!(
+        first.program.symbols.name(at_byte.instance),
+        later.program.symbols.name(later_byte.instance)
+    );
+    let key = first
+        .program
+        .specialization_source_identity(&at_byte)
+        .unwrap();
+    assert_eq!(
+        key,
+        later
+            .program
+            .specialization_source_identity(&later_byte)
+            .unwrap()
+    );
+    assert_ne!(
+        key,
+        first
+            .program
+            .specialization_source_identity(&selected(&first, 2))
+            .unwrap()
+    );
+    let mut wrong = at_byte.clone();
+    wrong.binding_application = selected(&first, 2).binding_application;
+    assert_ne!(
+        key,
+        first
+            .program
+            .specialization_source_identity(&wrong)
+            .unwrap()
+    );
+    first
+        .program
+        .expression_table
+        .set_static_machine_application_bindings(at_byte.binding_application, &[]);
+    assert!(
+        first
+            .program
+            .specialization_source_identity(&at_byte)
+            .is_err()
+    );
+}
+
+#[test]
 fn an_application_inside_a_generated_body_is_served_in_turn() {
     let Source {
         mut program,
@@ -804,6 +1008,19 @@ fn a_literal_value_application_enters_a_machine_with_the_value_in_place() {
 
     let generated = program.symbols.get(call.target_symbol).parent;
     let sized = program.symbols.get(sized_state).parent;
+    let source_operand = program
+        .specialization_source_operand(program.machine_specialization(generated).unwrap())
+        .unwrap();
+    assert_eq!(
+        source_operand.application.unwrap().arguments[0]
+            .const_literal
+            .as_ref()
+            .unwrap()
+            .canonical_spelling()
+            .as_str(),
+        "3",
+        "Build captures the same literal, not the parameter's receiving type"
+    );
     let promised = |machine: SymbolHandle| {
         let machine = program.machine_by_symbol(machine).expect("a machine");
         let [contract] = program.machine_contracts(machine) else {
@@ -836,7 +1053,7 @@ fn a_literal_value_application_enters_a_machine_with_the_value_in_place() {
 /// value, not by where the call stands.
 #[test]
 fn a_generated_machine_is_named_for_its_value() {
-    let generated_name = |value| {
+    let generated_application = |value| {
         let Source {
             mut program,
             counted,
@@ -849,11 +1066,19 @@ fn a_generated_machine_is_named_for_its_value() {
             panic!("one call");
         };
         let machine = program.symbols.get(call.target_symbol).parent;
-        program.symbols.name(machine).to_owned()
+        (
+            program.symbols.name(machine).to_owned(),
+            program
+                .specialization_source_identity(program.machine_specialization(machine).unwrap())
+                .unwrap(),
+        )
     };
-    assert_eq!(generated_name(3), generated_name(3));
-    assert_ne!(generated_name(3), generated_name(4));
-    assert!(generated_name(4).starts_with("sized$specialized$4$"));
+    assert_eq!(generated_application(3), generated_application(3));
+    let three = generated_application(3);
+    let four = generated_application(4);
+    assert_ne!(three.0, four.0);
+    assert_ne!(three.1, four.1, "the source key retains the static value");
+    assert!(four.0.starts_with("sized$specialized$4$"));
 }
 
 #[test]
@@ -1195,4 +1420,184 @@ fn an_installation_bound_reach_row_remains_unserved_before_copying() {
     prepare(&mut program).unwrap();
     assert_eq!(program.machines().len(), count);
     assert!(program.deferred_refusal(main).is_some());
+}
+
+#[test]
+fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
+    use language_semantics::{
+        ProgressPremise, ProgressSubject, RankingViewId, RankingWitness, SemanticDomainId,
+        TerminationGuarantee, TerminationInterface,
+    };
+
+    for missing_custody in [false, true] {
+        let Source {
+            mut program,
+            relay,
+            main,
+            ..
+        } = source();
+        let subject = name(&mut program, relay.item, "item");
+        let witness = RankingWitness {
+            subjects: vec!["item".into()],
+            ranking_view: RankingViewId::NAT_DESCENDING,
+            view_path: "Nat::Descending".into(),
+            ..RankingWitness::default()
+        };
+        let original = program
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.symbol == relay.machine)
+            .unwrap();
+        original.termination_plan.interface =
+            TerminationInterface::Published(TerminationGuarantee::Terminates {
+                premises: vec![ProgressPremise {
+                    profile: SemanticDomainId::default(),
+                    subject: ProgressSubject {
+                        root: relay.item,
+                        projections: Vec::new(),
+                    },
+                }],
+            });
+        original.termination_plan.implementation_witness = Some(witness.clone());
+        let original_plan = original.termination_plan.clone();
+        if !missing_custody {
+            program.ranking_expression_custody.push(
+                typed_trees::ranking::RankingExpressionCustody {
+                    machine: relay.machine,
+                    subjects: vec![subject],
+                    ..Default::default()
+                },
+            );
+        }
+        prepare(&mut program).unwrap();
+        if missing_custody {
+            assert!(
+                program
+                    .deferred_refusal(main)
+                    .unwrap()
+                    .detail
+                    .contains("original expression custody")
+            );
+            assert_eq!(calls(&program, main)[0].target_symbol, relay.state);
+            continue;
+        }
+        let mut copied_subjects = Vec::new();
+        for call in [calls(&program, main)[0], calls(&program, main)[2]] {
+            let owner = program.symbols.get(call.target_symbol).parent;
+            let machine = program.machine_by_symbol(owner).unwrap();
+            let [formal] = program.state_parameters(only_state(&program, owner)) else {
+                panic!("one copied formal");
+            };
+            assert_ne!(formal.symbol, relay.item);
+            let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
+                &machine.termination_plan.interface
+            else {
+                panic!("the original public promise survives");
+            };
+            assert_eq!(premises.len(), 1);
+            assert_eq!(premises[0].subject.root, formal.symbol);
+            assert_eq!(
+                machine.termination_plan.checked_summary,
+                TerminationGuarantee::NoGuarantee
+            );
+            assert_eq!(
+                machine.termination_plan.implementation_witness,
+                Some(witness.clone())
+            );
+            let custody = program.ranking_expression_custody_for(owner).unwrap();
+            let [copied] = custody.subjects.as_slice() else {
+                panic!("one copied ranking subject");
+            };
+            assert_ne!(*copied, subject);
+            assert_eq!(
+                program
+                    .expression_table
+                    .name_path_node(*copied)
+                    .unwrap()
+                    .symbol,
+                formal.symbol
+            );
+            copied_subjects.push(*copied);
+        }
+        assert_ne!(copied_subjects[0], copied_subjects[1]);
+        assert_eq!(
+            program
+                .machine_by_symbol(relay.machine)
+                .unwrap()
+                .termination_plan,
+            original_plan
+        );
+        assert_eq!(
+            program
+                .expression_table
+                .name_path_node(subject)
+                .unwrap()
+                .symbol,
+            relay.item
+        );
+    }
+}
+
+#[test]
+fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
+    // Applications of three unrelated templates arrive interleaved and out of
+    // key order. Each distinct (template, arguments) key gets one row, rows
+    // keep encounter order, and an equal key from another template or with
+    // another argument kind is a different application.
+    use super::{Generated, GeneratedMachines, Identity};
+    let templates = [3, 1, 2].map(|slot| SymbolHandle::from_parts(slot, 1));
+    let arguments = |n: u32| -> Vec<Identity> {
+        match n % 3 {
+            0 => vec![Identity::Declaration(SymbolHandle::from_parts(100 + n, 1))],
+            1 => vec![
+                Identity::Scalar(format!("{n}")),
+                Identity::Declaration(SymbolHandle::from_parts(n, 2)),
+            ],
+            _ => vec![
+                Identity::Type(Default::default()),
+                Identity::Scalar(format!("{n}")),
+            ],
+        }
+    };
+    let requests = (0..300u32)
+        .rev()
+        .flat_map(|n| templates.iter().map(move |&template| (template, n)))
+        .collect::<Vec<_>>();
+    let mut generated = GeneratedMachines::default();
+    for (order, &(template, n)) in requests.iter().enumerate() {
+        let key = arguments(n);
+        let slot = generated
+            .search(template, &key)
+            .expect_err("a first request is not yet generated");
+        let made = generated.insert(
+            slot,
+            Generated {
+                template,
+                arguments: key.clone(),
+                machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
+                state: SymbolHandle::from_parts(20_000 + order as u32, 1),
+            },
+        );
+        assert!(made.arguments == key);
+    }
+    for (order, &(template, n)) in requests.iter().enumerate() {
+        let row = generated
+            .search(template, &arguments(n))
+            .expect("a repeated request finds its machine");
+        assert_eq!(row, order, "rows keep the order applications were met");
+        assert_eq!(generated.rows[row].template, template);
+    }
+    // Same payload, different template, generation or argument kind: unseen.
+    let unseen = [
+        (SymbolHandle::from_parts(4, 1), arguments(0)),
+        (
+            templates[0],
+            vec![Identity::Declaration(SymbolHandle::from_parts(100, 2))],
+        ),
+        (templates[0], vec![Identity::Scalar("0".into())]),
+        (templates[0], Vec::new()),
+    ];
+    for (template, key) in unseen {
+        assert!(generated.search(template, &key).is_err());
+    }
 }

@@ -1191,12 +1191,6 @@ pub mod expression {
                     TypeReference::Callable { contract, .. } => {
                         *contract = self.callable_contract(*contract);
                     }
-                    TypeReference::DynamicTrait {
-                        symbol, arguments, ..
-                    } => {
-                        *symbol = self.symbol(*symbol);
-                        *arguments = self.type_span(*arguments);
-                    }
                     TypeReference::Named { symbol, .. } => *symbol = self.symbol(*symbol),
                     TypeReference::AliasUse {
                         expansion,

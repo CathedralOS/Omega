@@ -10,6 +10,8 @@
 //! from every declaration of every subject, including unused ones". So each
 //! program must be rejected or reported as unsupported by the route, and
 //! none may be accepted.
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
@@ -1249,16 +1251,16 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
         publication.artifact.semantic_module(),
         &closure.elaboration.module
     );
-    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-        publication.artifact.semantic_module(),
-        publication.seals.clone(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
     )
     .expect("Omega 00 retains the original-input guarantees")
     .into_optimization_artifact()
     .into_optimization_input();
     abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
-        psi_work::WorkSchedule::CURRENT.identity(),
+        terminal_work::WorkSchedule::CURRENT.identity(),
     )
     .expect("Omega 01 independently checks the published operations");
     let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
@@ -1268,7 +1270,7 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
             .expect("the published module loads");
     let status = execution
         .resume(
-            &mut psi_work::WorkMeter::with_budget(10_000_000),
+            &mut terminal_work::WorkMeter::with_budget(10_000_000),
             &mut NoEffects,
         )
         .expect("direct, lent, terminal and affine counter calls execute");
@@ -1342,15 +1344,29 @@ fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() 
         ),
         Verdict::Rejected
     );
+    // Unlike a by-value name, the supplied reference observes its referent
+    // at completion. Explicit old keeps the entry observation instead.
+    let borrowed = "machine spare(position: &mut u32) -> u32 ensures result == position { \
+                    position = 0; position }";
     assert_eq!(
-        verdict_on_unused(
-            "borrowed_completion_not_input_snapshot",
-            "machine spare(position: &mut u32) -> u32 ensures result == position { \
-             position = 0; position }"
-        ),
-        Verdict::FallsBack(
-            "contract clause that names a borrowed formal outside requires".to_owned()
-        )
+        verdict_on_unused("borrowed_completion_not_input_snapshot", borrowed),
+        Verdict::Accepted(2)
+    );
+    // Entry three makes the incorrect old-input promise differ from zero.
+    let old = borrowed
+        .replace("ensures", "requires position == 3u32 ensures")
+        .replace("result == position", "result == old(position)");
+    let frontier = staged_unused("borrowed_old_not_completion", &old);
+    let verdict = route_verdict(&frontier).1;
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        panic!("the cleared result must not equal the entry observation: {verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|failure| matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+        )),
+        "the old-input guarantee must fail: {unproved:?}"
     );
 }
 

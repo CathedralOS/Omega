@@ -42,6 +42,7 @@ use diagnostics::Diagnostic;
 use language_core::constant_value::EvaluatedConstant;
 use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
 use numerics::arithmetic::ArithmeticDomain;
+use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use source::{SourceSpan, Span};
 use symbols::BuiltinTypeAtom;
@@ -69,9 +70,9 @@ impl Carrier {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum Scalar {
-    Integer(i128),
+    Integer(BigInt),
     Boolean(bool),
 }
 
@@ -467,10 +468,10 @@ fn scalar(evaluated: &EvaluatedConstant) -> Option<(Carrier, Scalar)> {
         encoding: evaluated.encoding()?.to_owned(),
     };
     match identity.decode_declaration_encoding()? {
-        DecodedCanonicalConstValue::Integer { type_name, value } => Some((
-            Carrier::Integer(LandedIntegerType::from_name(&type_name)?),
-            Scalar::Integer(value),
-        )),
+        DecodedCanonicalConstValue::Integer {
+            integer_type,
+            value,
+        } => Some((Carrier::Integer(integer_type), Scalar::Integer(value))),
         DecodedCanonicalConstValue::Boolean(value) => {
             Some((Carrier::Boolean, Scalar::Boolean(value)))
         }
@@ -530,12 +531,12 @@ fn evaluate(
         Enter(ExpressionHandle),
         Apply(ExpressionHandle),
     }
-    #[derive(Clone, Copy)]
+    #[derive(Clone)]
     enum Operand {
         Anonymous(ExpressionHandle),
-        Landed(i128),
+        Landed(BigInt),
     }
-    let mut land = |operand: Operand| -> Result<i128, String> {
+    let mut land = |operand: Operand| -> Result<BigInt, String> {
         let value = match operand {
             Operand::Landed(value) => return Ok(value),
             Operand::Anonymous(expression) => {
@@ -543,7 +544,7 @@ fn evaluate(
                     .ok_or("an anonymous operand lost its exact value")?
             }
         };
-        validate_declared_integer(integer, value)?;
+        validate_declared_integer(integer, &value)?;
         Ok(value)
     };
     let mut pending = vec![Step::Enter(definition.value)];
@@ -565,8 +566,8 @@ fn evaluate(
                             ));
                         }
                         let value = integer_literal_value(literal)
-                            .ok_or("an integer literal exceeds the const-value envelope")?;
-                        validate_declared_integer(integer, value)?;
+                            .ok_or("an integer literal has no exact const value")?;
+                        validate_declared_integer(integer, &value)?;
                         operands.push(Operand::Landed(value));
                     }
                 },
@@ -600,9 +601,9 @@ fn evaluate(
                     continue;
                 }
                 let (left, right) = (land(left)?, land(right)?);
-                admit_integer_operator(binary.operator, Some(right))?;
-                let value = apply_integer_operator(binary.operator, left, right, Some(integer))?;
-                validate_declared_integer(integer, value)?;
+                admit_integer_operator(binary.operator, Some(&right))?;
+                let value = apply_integer_operator(binary.operator, &left, &right, Some(integer))?;
+                validate_declared_integer(integer, &value)?;
                 operands.push(Operand::Landed(value));
             }
         }
@@ -668,9 +669,9 @@ fn materialize(
     let literal = match value {
         Scalar::Boolean(value) => ExpressionNode::Boolean(value),
         Scalar::Integer(value) => {
-            let digits = value.unsigned_abs().to_string();
+            let digits = value.abs().to_string();
             ExpressionNode::Integer(
-                IntegerLiteral::from_parts(value < 0, IntegerRadix::Decimal, &digits)
+                IntegerLiteral::from_parts(value.is_negative(), IntegerRadix::Decimal, &digits)
                     .map_err(|reason| invalid(syntax, &folded, reason))?,
             )
         }
@@ -776,7 +777,13 @@ mod tests {
     }
 
     fn integer(type_name: &str, value: i128) -> EvaluatedConstant {
-        EvaluatedConstant::Encoded(CanonicalConstIdentity::integer(type_name, value).encoding)
+        EvaluatedConstant::Encoded(
+            CanonicalConstIdentity::integer(
+                numerics::literals::LandedIntegerType::from_name(type_name).unwrap(),
+                value,
+            )
+            .encoding,
+        )
     }
 
     /* The single refusal, which must point at the constant named `name`. */
@@ -822,6 +829,23 @@ mod tests {
             message.contains("`NARROW` is a `u32` constant and this constant declares `u64`"),
             "{message}"
         );
+    }
+
+    #[test]
+    fn wide_integer_constant_chains_preserve_values_and_shift_obligations() {
+        let program = resolve_one(
+            "const BASE: u257 = 340282366920938463463374607431768211456;\n\
+             public const SHIFTED: u257 = BASE << 65;\n\
+             public const RESTORED: u257 = SHIFTED >> 65;",
+        )
+        .unwrap();
+        assert_eq!(value(&program, "RESTORED"), value(&program, "BASE"));
+        let message = refusal(
+            "const BASE: u257 = 340282366920938463463374607431768211456;\n\
+             public const SHIFTED: u257 = BASE << 257;",
+            "SHIFTED",
+        );
+        assert!(message.contains("shift count"), "{message}");
     }
 
     #[test]
@@ -960,5 +984,37 @@ mod tests {
                 .expression(declaration.initializer),
             symbol_resolved_trees::expression::ExpressionNode::Call(_)
         ));
+    }
+
+    /*
+        A generic domain's carrier bound is judged against the declaration
+        that owns the const's value. Another package's same-named `data` that
+        comes first in the forest must not answer for it, in either direction.
+    */
+    #[test]
+    fn a_carrier_bound_reads_the_selected_data_not_a_same_named_one() {
+        let bounded = "domain<T [copy]> T::Plain;\n";
+        let foreign_plain = "public data Token { v: u8 }\n";
+        let foreign_copy = "public data Token [copy] { v: u8 }\n";
+        let holder = "data Holder { t: Token in Plain }\n\
+            public const ONE: Holder = Holder { t: Token { v: 1 } };";
+        let own_copy = format!("{bounded}data Token [copy] {{ v: u8 }}\n{holder}");
+        let own_plain = format!("{bounded}data Token {{ v: u8 }}\n{holder}");
+        resolve_files(
+            &[("other/a.omg", foreign_plain), ("app/main.omg", &own_copy)],
+            None,
+        )
+        .expect("the selected `copy` carrier satisfies the bound");
+        let diagnostics = resolve_files(
+            &[("other/a.omg", foreign_copy), ("app/main.omg", &own_plain)],
+            None,
+        )
+        .expect_err("the selected carrier is not `copy`");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("declaration-site proof checking")),
+            "{diagnostics:?}"
+        );
     }
 }

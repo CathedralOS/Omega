@@ -186,7 +186,7 @@ Under MATCH-SELECTIVE-LOWERING, open after this row: write-only joins
 (**WRITE-ONLY-BORROW**), runtime-sized element-view selections, ranges,
 computed roots, and join-place reads/projections; borrowing joins that end at
 last use rather than pinning origins through the whole dominated region
-(`optimization-unit/semantics/src/current_ownership/address_joins.rs`); and
+(`optimization-unit-semantics/src/current_ownership/address_joins.rs`); and
 combined Psi rewrite provenance for `branch_edges`. The acceptance's other
 fixture classes — owned call-product arms, interleaved and projected sources,
 linear child carriers, effect/skipped-arm/overlap coverage and the float match

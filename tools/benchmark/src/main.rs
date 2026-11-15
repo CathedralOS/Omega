@@ -16,12 +16,14 @@
    settles package decisions while it measures.
 */
 
+mod dominance_summary;
 mod experiment;
 mod history;
 mod plan;
 mod process;
 mod profiling;
 mod progress;
+mod proof_preparation;
 mod records;
 mod scaling;
 mod statistics;
@@ -54,11 +56,44 @@ fn main() {
             "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
 omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record> <new-result-directory>
 omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]
-omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]"
+omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]
+omega-bench dominance-summary <graph-run-directory>
+omega-bench proof-plan <source|prepare|prove> <baseline> <candidate> <main.omg> <new-plan.json> [options]
+omega-bench proof-square <new-directory> [--identity-build]"
         );
         return;
     }
     let command = arguments.first().and_then(|argument| argument.to_str());
+    if let Some(name @ ("proof-plan" | "proof-square")) = command {
+        let options: Option<Vec<String>> = arguments[1..]
+            .iter()
+            .map(|argument| argument.to_str().map(str::to_owned))
+            .collect();
+        match options
+            .ok_or_else(|| format!("{name} arguments must be UTF-8"))
+            .and_then(|options| proof_preparation::run(name, &options))
+        {
+            Ok(()) => return,
+            Err(error) => {
+                eprintln!("omega-bench: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
+    if arguments.len() == 2 && command == Some("dominance-summary") {
+        match dominance_summary::run(Path::new(&arguments[1])).and_then(|report| {
+            serde_json::to_string_pretty(&report).map_err(|error| error.to_string())
+        }) {
+            Ok(report) => {
+                println!("{report}");
+                return;
+            }
+            Err(error) => {
+                eprintln!("omega-bench: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
     if let Some(name @ ("progress" | "scaling")) = command {
         let options: Option<Vec<String>> = arguments[1..]
             .iter()

@@ -1122,7 +1122,7 @@ mod owned_value_tests {
 #[cfg(test)]
 mod unknown_tag_tests {
 
-    use super::super::target_family_tests::unit_machine;
+    use super::super::entry_tests::unit_machine;
     use super::{Writer, encode_operation, operation_tags};
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{

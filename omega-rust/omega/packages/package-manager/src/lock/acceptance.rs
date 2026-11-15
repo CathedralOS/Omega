@@ -5,8 +5,8 @@
 
 use super::PackageLockError;
 use crate::declarations::DependencyPurpose;
-use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
-use package_evidence::record::{
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use review_evidence::record::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyBaseline, PackagePolicyRow, PackagePolicyRowKind,
     PackagePolicyRowLimits, PackagePolicyRowUsage,
 };
@@ -83,7 +83,7 @@ impl PackagePolicyAcceptance {
     pub(crate) fn project(
         policy: &PackagePolicyBaseline,
         limits: PackagePolicyRowLimits,
-    ) -> Result<(Self, PackagePolicyRowUsage), package_evidence::encoding::PackageReviewEncodingError>
+    ) -> Result<(Self, PackagePolicyRowUsage), review_evidence::encoding::PackageReviewEncodingError>
     {
         let (rows, usage) = policy.acceptance_rows_with_limits(limits)?;
         let mut rows: Vec<_> = rows

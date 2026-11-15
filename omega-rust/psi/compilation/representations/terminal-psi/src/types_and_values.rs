@@ -503,6 +503,9 @@ pub mod types {
         #[derive(Debug, Clone, Default, PartialEq, Eq)]
         pub struct ScalarQualificationCatalog {
             pub fields: Vec<ScalarFieldQualification>,
+            /// Complete scalar types of addressable primitive storage. A
+            /// reference or scalar home cannot erase its referent's domains.
+            pub primitives: Vec<ScalarPrimitiveQualification>,
             pub returns: Vec<ScalarReturnQualification>,
             pub domains: Vec<ScalarDomainDeclaration>,
             pub sets: Vec<ScalarQualificationSet>,
@@ -514,6 +517,12 @@ pub mod types {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct ScalarFieldQualification {
             pub field: semantic_vocabulary::StructuralFieldId,
+            pub value_type: semantic_vocabulary::QualifiedScalarType,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct ScalarPrimitiveQualification {
+            pub structural_type: semantic_vocabulary::StructuralTypeId,
             pub value_type: semantic_vocabulary::QualifiedScalarType,
         }
 
@@ -538,8 +547,13 @@ pub mod types {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub enum ScalarReturnOrigin {
             Forwarded,
-            Established { route: u32 },
+            Established {
+                route: u32,
+            },
             Vacuous,
+            /// An unrestricted predicate domain introduced at the exact
+            /// completion whose arrival proves the retained domain predicate.
+            Proved,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1562,9 +1576,9 @@ pub mod types {
     };
     pub use scalar_qualifications::{
         ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
-        ScalarFieldQualification, ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog,
-        ScalarQualificationCoercion, ScalarQualificationSet, ScalarReturnOrigin,
-        ScalarReturnQualification, ScalarReturnSite,
+        ScalarFieldQualification, ScalarFloatRange, ScalarIntegerRange,
+        ScalarPrimitiveQualification, ScalarQualificationCatalog, ScalarQualificationCoercion,
+        ScalarQualificationSet, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
     };
     pub use structural::{
         ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,
@@ -1585,9 +1599,48 @@ pub mod values {
         use crate::terminal_module::TerminalIdentityIndex;
         use crate::{OperationKind, StructuralAccess};
         use semantic_vocabulary::{
-            ObligationId, PlaceId, ScalarType, StructuralCaseId, StructuralPlaceKind,
-            StructuralTypeId, ValueId,
+            ObligationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
+            StructuralPlaceKind, StructuralTypeId, ValueId,
         };
+
+        /// A captured storage path keeps resolved field identities, selector
+        /// values and changes of presentation together across analyses.
+        /// Unlike a portable proof path, it can name machine-local selectors.
+        /// Different paths may still address the same cell; equality alone
+        /// does not establish disjoint storage.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub enum ResolvedStructuralPathSegment {
+            /// ownership.md: "Record segments use the exact field identity".
+            Field(StructuralFieldId),
+            /// ownership.md: "A Case segment guards its payload namespace; it adds
+            /// neither physical storage nor an independent claim."
+            Case(StructuralCaseId),
+            /// ownership.md: "Fixed-array segments use canonical zero-based literal
+            /// indexes".
+            FixedIndex(u64),
+            /// An element selected at run time, named by the selector value captured
+            /// when the place was formed. `wiki/spec/terminal-psi/loans.md`: "Loan
+            /// formation captures a place, not a live selector expression." Because a
+            /// value never changes, a later write to the selector's source names a
+            /// different value and therefore a different place.
+            RuntimeIndex { selector: ValueId },
+            /// The descriptor's current extent, a scalar observation of its
+            /// contents. This is metadata, not a physical field or another owner.
+            /// byte_views.md: "a validated length observation of a machine or block
+            /// parameter equals that exact parameter's `ViewExtent`".
+            /// Replacing any ancestor descriptor replaces this observation's
+            /// reaching content, just as a store replaces a scalar field's.
+            Extent,
+            /// Present the same storage through a checked shape. This step retains
+            /// its physical scalar codec; it neither moves bytes nor adds access.
+            RepresentationView {
+                structural_type: StructuralTypeId,
+                stored_scalar: Option<ScalarType>,
+            },
+            /// Cross a live permission descriptor into its separately owned backing.
+            /// It is never an inline field, a claim transfer or a disjointness fact.
+            Referent,
+        }
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
         pub enum StructuralPathSegment {
@@ -2806,9 +2859,9 @@ pub mod values {
     pub use reference_origins::{ReferenceOriginProjection, ReferenceOriginSource};
 
     pub use places::{
-        OperationProjection, StructuralPathSegment, StructuralPlaceDeclaration,
-        StructuralStorageUse, is_static_structural_path, is_static_structural_scalar_store_path,
-        is_structural_scalar_store_path,
+        OperationProjection, ResolvedStructuralPathSegment, StructuralPathSegment,
+        StructuralPlaceDeclaration, StructuralStorageUse, is_static_structural_path,
+        is_static_structural_scalar_store_path, is_structural_scalar_store_path,
     };
     pub use signatures::{
         ErasedProofFormal, StructuralArgument, StructuralParameterDeclaration,

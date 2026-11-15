@@ -41,6 +41,155 @@ impl TypedTrees {
     ) -> Result<bool, String> {
         ApplicationPreparation::new(self).reference(reference)
     }
+
+    /// Gives `argument`, a const argument written as an expression to
+    /// evaluate (`Buffer<capacity()>`), the value an evaluator computed for
+    /// it, as the canonical spelling a literal of that value has.
+    ///
+    /// generics.md, "Transparent type aliases": "A computed const value
+    /// retains its declared carrier and canonical value". So the argument
+    /// becomes the same node typing writes for a literal argument
+    /// (`Buffer<4>`), and every reader of either application reads one form.
+    ///
+    /// Typing applied the data type before the value existed: an array
+    /// length taken from the argument is still that argument
+    /// (`FixedArrayLength::Expression`), and the views of the applications
+    /// that mention it are open. Both are settled here, in place, so a
+    /// handle typing already handed out keeps naming the same type. A value
+    /// that is no array length (`-1`) is the error it is for a literal.
+    pub fn settle_const_argument(
+        &mut self,
+        argument: TypeReferenceHandle,
+        spelling: &str,
+    ) -> Result<(), String> {
+        if !matches!(
+            self.type_reference_table.type_reference(argument),
+            TypeReferenceNode::ConstExpression(_)
+        ) {
+            return Err("a settled const argument is not an expression to evaluate".into());
+        }
+        let mut extents = Vec::new();
+        let mut applications = Vec::new();
+        for (reference, node) in self.type_reference_table.type_reference_rows() {
+            match node {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Expression(extent),
+                } if *extent == argument => extents.push((reference, *element_type)),
+                TypeReferenceNode::Generic { arguments, .. }
+                    if self.data_application_definition(reference).is_some()
+                        && !self.data_application_is_closed(reference) =>
+                {
+                    for child in self.type_reference_table.type_reference_handles(*arguments) {
+                        if self.mentions(*child, argument, 0)? {
+                            applications.push(reference);
+                            break;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.type_reference_table.substitute_node(
+            argument,
+            TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: crate::name::Identifier::generated(spelling),
+            },
+        );
+        if !extents.is_empty() {
+            let length = self
+                .type_reference_table
+                .anonymous_numeric_literal_value(argument)
+                .ok_or("an applied array length is not a closed nonnegative integer")?;
+            for (reference, element_type) in extents {
+                self.type_reference_table.substitute_node(
+                    reference,
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: FixedArrayLength::Literal(length),
+                    },
+                );
+            }
+        }
+        // Forget every stale view before forming any: a view formed while a
+        // nested one is still stale would read that one's old verdict.
+        for reference in &applications {
+            self.forget_data_application_definition(*reference);
+        }
+        for reference in applications {
+            self.prepare_data_application_view(reference)?;
+        }
+        Ok(())
+    }
+
+    /// Whether the type `reference` is or contains the reference `argument`.
+    /// A malformed or excessively deep dependency cannot establish that an
+    /// application view is independent of the argument being settled.
+    fn mentions(
+        &self,
+        reference: TypeReferenceHandle,
+        argument: TypeReferenceHandle,
+        depth: usize,
+    ) -> Result<bool, String> {
+        if reference == argument {
+            return Ok(true);
+        }
+        if reference == TypeReferenceHandle::invalid() {
+            return Ok(false);
+        }
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return Err("data application has a stale type dependency".into());
+        }
+        if depth > 64 {
+            return Err("data application has an excessively deep type dependency".into());
+        }
+        let mentions = |child: &TypeReferenceHandle| self.mentions(*child, argument, depth + 1);
+        match self.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => mentions(referee),
+            TypeReferenceNode::Slice { element_type } => mentions(element_type),
+            TypeReferenceNode::Constrained { base_type, .. } => mentions(base_type),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                if let FixedArrayLength::Expression(extent) = length
+                    && mentions(extent)?
+                {
+                    return Ok(true);
+                }
+                mentions(element_type)
+            }
+            TypeReferenceNode::Generic { arguments, .. } => self
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .try_fold(
+                    false,
+                    |found, child| {
+                        if found { Ok(true) } else { mentions(child) }
+                    },
+                ),
+            TypeReferenceNode::Callable { contract } => {
+                let signature = &self
+                    .declared_callable_contract(*contract)
+                    .map_err(str::to_owned)?
+                    .signature;
+                crate::references::signature_type_inputs(self, signature)
+                    .types
+                    .iter()
+                    .try_fold(
+                        false,
+                        |found, child| {
+                            if found { Ok(true) } else { mentions(child) }
+                        },
+                    )
+            }
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Unit => Ok(false),
+        }
+    }
 }
 
 struct ApplicationPreparation<'source> {
@@ -134,9 +283,7 @@ impl<'source> ApplicationPreparation<'source> {
                 Ok(true)
             }
             TypeReferenceNode::Unit => Ok(true),
-            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {
-                Ok(false)
-            }
+            TypeReferenceNode::ConstExpression(_) => Ok(false),
         }
     }
 

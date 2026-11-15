@@ -4,8 +4,8 @@
 
     We have one entrance, `resolve`, in `resolution`; its `drive` is the
     route, one call per phase. `begin` first runs `preparation`, which rewrites
-    syntax to syntax before any symbol exists: target families, type aliases
-    and generic data normalize, closed scalar constant initializers fold to
+    syntax to syntax before any symbol exists: target families and type aliases
+    normalize, closed scalar constant initializers fold to
     their values, trait defaults are synthesized, and machine equation
     declarations are validated. `drive` then runs the phases in the
     one order their preconditions allow: `lowering` translates items and
@@ -43,12 +43,12 @@
     We consume the `SyntaxTrees` produced by stage 01
     (`tokens-to-syntax-trees`) and publish `SymbolResolvedTrees` together
     with the `SymbolTable` from the `symbols` foundation crate. Stage 03
-    (`symbol-resolved-trees-to-typed-trees`) and `psi-compiler` consume that
+    (`symbol-resolved-trees-to-typed-trees`) and `source-compiler` consume that
     result. `resolve_extension` re-enters for source a build generates after
-    the base was resolved, and `pre_resolution` is the one seam that
-    build-time evaluation drives before this stage can run: it must resolve
-    names to evaluate constants and evaluate constants to close generic data.
-    No later stage may use it.
+    the base was resolved. `pre_resolution` exposes restricted lexical selection
+    and initializer custody to evaluation; it grants no typing or execution
+    authority. Generic equation completion consumes the actual provisional
+    resolver's selected values, not a public syntax-normalization route.
 */
 
 #![forbid(unsafe_code)]
@@ -82,10 +82,9 @@ pub use resolution::{
 /*
     What build-time evaluation drives before this stage can run.
 
-    Constants must be evaluated to close generic data, and names must be
-    resolved to evaluate constants, so that service runs restricted resolutions
-    and the syntax-to-syntax rewrites here between its evaluations, then hands
-    the forest to [`resolve`]. Nothing downstream of resolution may use this.
+    Restricted selections retain the real declaration and lexical scope without
+    granting typing or execution authority. There is no separate public generic
+    normalization path that closes value names before ordinary resolution.
 */
 pub mod pre_resolution {
     pub use crate::constant::initializer_dependencies::{
@@ -93,14 +92,6 @@ pub mod pre_resolution {
     };
     pub use crate::constant::initializer_normalization::InitializerCustodyPurpose;
     pub use crate::constant::requires_const_initializer_evaluation;
-    pub use crate::preparation::declared_types::normalize_declared_types;
-    pub use crate::preparation::generic_data::{
-        ClosedConstArguments, ClosedDeclarationConstantUses, GenericDataRequest,
-        canonicalize_declared_const_definition, closed_array_extent_expressions,
-        closed_const_arguments, closed_data_const_argument_expressions,
-        closed_declaration_constant_uses, closed_machine_const_arguments, normalize_generic_data,
-        normalize_initializer_probe_data, retain_deferred_array_extent,
-    };
     pub use crate::preparation::trait_defaults::synthesize_trait_defaults;
     pub use crate::resolution::{
         ConstArgumentSelection, ConstDestinationObligation, ConstInitializerPayload,

@@ -1,9 +1,8 @@
 // Shared pure helpers for hosted entry calling policies. Target plans retain
 // their ABI choices, arrival contracts, rejecting diagnostics and state plans.
 
-data HostedEntryShapes {}
 
-machine HostedEntryShapes::integer_shape(shape: &ValueShape, bytes: u64) -> bool {
+machine hosted_entry_integer_shape(shape: &ValueShape, bytes: u64) -> bool {
     transition shape.class {
         ValueClass::Integer -> integer(shape, bytes)
         _ -> no()
@@ -14,7 +13,7 @@ machine HostedEntryShapes::integer_shape(shape: &ValueShape, bytes: u64) -> bool
     machine no() -> bool { false }
 }
 
-machine HostedEntryShapes::extent_shape(shape: ValueShape, signature: &BoundarySignature) -> bool {
+machine hosted_entry_extent_shape(shape: ValueShape, signature: &BoundarySignature) -> bool {
     transition shape.class {
         ValueClass::Record { first_field, field_count } -> record(shape, first_field, field_count, signature)
         _ -> no()
@@ -52,12 +51,12 @@ machine HostedEntryShapes::extent_shape(shape: ValueShape, signature: &BoundaryS
         }
     }
     machine words(base: &ValueShape, length: &ValueShape) -> bool {
-        HostedEntryShapes::integer_shape(base, 8) && HostedEntryShapes::integer_shape(length, 8)
+        hosted_entry_integer_shape(base, 8) && hosted_entry_integer_shape(length, 8)
     }
     machine no() -> bool { false }
 }
 
-machine HostedEntryShapes::named_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
+machine hosted_entry_named_word(bytes: u64, register: MachineRegister) -> ValuePlacement {
     let mut value: ValuePlacement;
     value.shape.class = AbiValueClass::Integer;
     value.shape.byte_size = bytes;
@@ -70,7 +69,7 @@ machine HostedEntryShapes::named_word(bytes: u64, register: MachineRegister) -> 
     value
 }
 
-machine HostedEntryShapes::arm_extent_value(first: u64, second: u64) -> ValuePlacement {
+machine hosted_entry_arm_extent_value(first: u64, second: u64) -> ValuePlacement {
     // Integer fragments describe ABI placement only. The source application
     // retains the core Extent record, qualifications, and requirement identity.
     let mut value: ValuePlacement;
@@ -89,7 +88,7 @@ machine HostedEntryShapes::arm_extent_value(first: u64, second: u64) -> ValuePla
     value
 }
 
-machine HostedEntryShapes::register_extent_value(first: MachineRegister, second: MachineRegister) -> ValuePlacement {
+machine hosted_entry_register_extent_value(first: MachineRegister, second: MachineRegister) -> ValuePlacement {
     // Integer fragments describe ABI placement only. The source application
     // retains the core Extent record, qualifications, and requirement identity.
     let mut value: ValuePlacement;

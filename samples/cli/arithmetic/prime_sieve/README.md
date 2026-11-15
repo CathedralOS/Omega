@@ -20,4 +20,4 @@ in a 48-byte row. The full native stdout, including banner, PASS line and closin
 prompt, is 175 bytes with LF endings.
 
 For a fresh checkout, prepare and review the
-project with the ordinary [package commands](../../../../omega-rust/omega/application/cli/README.md#command-surface).
+project with the ordinary [package commands](../../../../omega-rust/omega/application/README.md#command-surface).

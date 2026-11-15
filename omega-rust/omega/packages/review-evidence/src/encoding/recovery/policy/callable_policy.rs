@@ -6,6 +6,7 @@ use crate::record::{
     PackageReviewCheckedServiceReach, PackageReviewInstallationReach,
     PackageReviewOperatorRealization,
 };
+#[path = "callable_policy_behavior.rs"]
 pub(in crate::encoding::recovery) mod behavior;
 pub(in crate::encoding::recovery) use behavior::{crash_route, termination};
 

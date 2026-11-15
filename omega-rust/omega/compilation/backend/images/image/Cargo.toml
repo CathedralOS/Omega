@@ -15,7 +15,7 @@ calling-conventions = { path = "../../calling-conventions" }
 function-identity = { path = "../../../../foundation/function-identity" }
 arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-object-file = { path = "../../object/object-file" }
+object-file = { path = "../../object-file" }
 target = { path = "../../target" }
 
 [dev-dependencies]

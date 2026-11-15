@@ -72,10 +72,22 @@ impl MissingDependencyEdge {
 }
 
 impl ReconciledPackageImportRequest {
+    /// Whether this import names the importing package's own sources and
+    /// was written in a Build source. Such an import selects only what
+    /// declares its name, and may select nothing: a Build import of a
+    /// dependency stays deferred until a stage prepares that dependency
+    /// (`wiki/spec/language/modules.md`, "Names and imports").
+    pub(super) fn defers_in(&self, importer: DependencyScope) -> bool {
+        importer == DependencyScope::Build
+            && !self.dependency_build_forbidden
+            && self.missing_edge.is_none()
+    }
+
     pub(crate) fn logical_sources(
         &self,
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
+        importer: DependencyScope,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let logical_path = self
             .relative_path
@@ -87,12 +99,23 @@ impl ReconciledPackageImportRequest {
             .filter(|(owner, root)| *owner != self.package && root.starts_with(&self.expected_root))
             .map(|(_, root)| root.to_path_buf())
             .collect();
-        let paths = discovery.select_owned(
-            &self.expected_root,
-            &logical_path,
-            packages.source_filesystem(),
-            excluded,
-        )?;
+        let own_build_import =
+            importer == DependencyScope::Build && !self.dependency_build_forbidden;
+        let paths = if own_build_import {
+            discovery.select_declaring(
+                &self.expected_root,
+                &logical_path,
+                packages.source_filesystem(),
+                excluded,
+            )?
+        } else {
+            discovery.select_owned(
+                &self.expected_root,
+                &logical_path,
+                packages.source_filesystem(),
+                excluded,
+            )?
+        };
         if paths.is_empty()
             && let Some(edge) = &self.missing_edge
         {
@@ -351,8 +374,8 @@ fn declared_package_name(build_source: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::{BuildDeclarationKind, PackageSourceBinding};
-    use psi_compiler::{SourceInput, UnmeasuredProduction};
     use source::{CapturedSourceNode, CapturedSourceTree, LoadedSource, SourceId};
+    use source_compiler::{SourceInput, UnmeasuredProduction};
     use std::sync::Arc;
     use syntax_trees::{SyntaxTrees, item::Item};
 

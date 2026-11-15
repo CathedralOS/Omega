@@ -167,26 +167,27 @@ impl ValueShape {
         Some(Self::integer(u32::from(bytes), bytes))
     }
 
-    /// A standalone integer scalar of any width, rounded up to a power-of-two
-    /// byte size for alignment, with alignment capped at 8.
+    /// Enough whole bytes for the integer, aligned to the smallest power of
+    /// two covering that size, with alignment capped at 8.
     ///
     /// The spec leaves integer alignment to the target's layout selection, so
-    /// the caps (8 here, 16 for [`Self::field_integer`]) are placeholders that
-    /// every structural walk must share; they live only in this pair.
+    /// schema reflection and native placement share the selected defaults
+    /// through `layout_plans`.
     pub fn standalone_integer(integer: ClosedIntegerType) -> Self {
-        Self::rounded_integer(integer, 8)
+        Self::integer_geometry(layout_plans::standalone_integer_geometry(integer))
     }
 
     /// The same integer as a structural record field: alignment capped at 16.
     pub fn field_integer(integer: ClosedIntegerType) -> Self {
-        Self::rounded_integer(integer, 16)
+        Self::integer_geometry(layout_plans::field_integer_geometry(integer))
     }
 
-    fn rounded_integer(integer: ClosedIntegerType, alignment_cap: u16) -> Self {
-        let bytes = integer.bits().div_ceil(8);
+    fn integer_geometry(geometry: layout_plans::StorageGeometry) -> Self {
+        // IntegerType admits at most 128 bits, so both native coordinates fit.
         Self::integer(
-            u32::from(bytes),
-            bytes.next_power_of_two().min(alignment_cap),
+            u32::try_from(geometry.byte_size).expect("admitted integer size fits a native shape"),
+            u16::try_from(geometry.byte_alignment)
+                .expect("admitted integer alignment fits a native shape"),
         )
     }
 

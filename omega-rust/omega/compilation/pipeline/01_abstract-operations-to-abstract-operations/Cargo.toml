@@ -12,18 +12,19 @@ path = "src/lib.rs"
 provider-admission = { path = "../../realization/provider-admission" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
-optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-verified-optimization-input = { path = "../../representations/abstract-operations/verified-input" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 optimization = { path = "../../../../psi/foundation/optimization" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
-psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
-proof-admission = { path = "../../../../psi/compilation/proof/admission" }
+terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+proof-admission = { path = "../../../../psi/compilation/proof-admission" }
 
 [dev-dependencies]
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
 # Tests admit real Terminal artifacts through Omega 00
 # to build this stage's input; production code reads only the representation.
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }

@@ -62,6 +62,7 @@ pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
 mod external_providers;
+mod inhabitation;
 mod lower;
 
 mod operational;
@@ -69,11 +70,13 @@ mod outcome;
 mod policy;
 mod proof_scope;
 pub mod provider_selections;
+mod qualifications;
 mod reach;
 mod read;
 mod reference_results;
 pub mod selection_questions;
 mod static_contracts;
+mod suspension;
 
 // One compilation's forms read the same frozen owner and its immutable
 // capture index. Sharing this scratch never transfers source or proof authority.
@@ -84,8 +87,8 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 
 pub use body::{
     Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
-    StorageShape, Strict, Target, Termination, ValueType, self_place,
+    ExpressionKind, Policy, Qualification, Ranking, RecordField, RecordType, Selector, Signature,
+    Statement, StorageShape, Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
@@ -461,20 +464,10 @@ pub(crate) fn is_generic_template(
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
-    let states = typed
-        .machine_states
-        .span(typed.machine_by_symbol(machine)?.states)?;
-    let [state] = states else {
-        return None;
-    };
-    let declared = typed.symbols.get(state.symbol).generated_from;
-    if !declared.is_valid() {
-        return None;
-    }
-    Some(match typed.symbols.get(declared).kind {
-        symbols::SymbolKind::State => typed.symbols.get(declared).parent,
-        _ => declared,
-    })
+    typed
+        .executable_application_template(machine)
+        .ok()
+        .flatten()
 }
 
 /// Elaborates the conformance witness of `implementation` for `requirement`:
@@ -593,27 +586,28 @@ fn witness_call(
                 .iter()
                 .enumerate()
                 .map(|(slot, value_type)| {
-                    let value = Expression {
+                    let place = Expression {
                         call_context: None,
                         kind: ExpressionKind::Slot(slot),
                         result: Some(*value_type),
                         source,
                     };
-                    if let Some(formal) = required.borrowed(slot) {
-                        // A borrowed formal lends its existing place onward.
-                        // It cannot supply an owned extraction of that storage.
-                        Expression {
+                    // The witness forwards each formal's original passing
+                    // mode. A borrowed formal denotes incoming storage;
+                    // forwarding its value alone would read a scalar or move
+                    // its carrier instead of reborrowing that storage.
+                    match required.borrowed(slot) {
+                        Some(borrowed) => Expression {
                             call_context: None,
                             kind: ExpressionKind::Borrow {
-                                access: formal.access,
-                                place: Box::new(value),
-                                home: None,
+                                access: borrowed.access,
+                                place: Box::new(place),
+                                home: borrowed.home.clone(),
                             },
                             result: Some(*value_type),
                             source,
-                        }
-                    } else {
-                        value
+                        },
+                        None => place,
                     }
                 })
                 .collect(),
@@ -624,7 +618,17 @@ fn witness_call(
         source,
     };
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
-    bodies.push(Body {
+    bodies.push(callable_refinement_body(&required, call));
+    Ok(bodies)
+}
+
+/// A callable refines its requirement by making this call under the
+/// requirement's inputs and proving its normal completion afterward. Both
+/// ordinary and projected witnesses use the canonical call/return operations;
+/// the callee's guarantees become available only after that call completes.
+pub(crate) fn callable_refinement_body(required: &body::Signature, call: Expression) -> Body {
+    let source = call.source;
+    Body {
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
@@ -634,8 +638,7 @@ fn witness_call(
             },
             None => Statement::Evaluate(call),
         }],
-    });
-    Ok(bodies)
+    }
 }
 
 /// A logical witness has abstract dependencies and no executable closure. Read
@@ -663,6 +666,7 @@ fn finish_logical_witness<'source>(
             program.requirements.push(id);
         }
     }
+    program.prepare_scalar_domain_predicates(entry)?;
     let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
     let mut witness = lower_program(
@@ -790,6 +794,7 @@ fn finish_reading<'source>(
         .as_ref()
         .map(|policies| program.prepare_calling_storage(diagnostic, policies))
         .transpose()?;
+    program.prepare_scalar_domain_predicates(diagnostic)?;
     let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
@@ -820,6 +825,7 @@ fn finish_reading<'source>(
     source.selection_questions = Some(source_selection_questions);
     crate::reach::publish(diagnostic, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
+    program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
     let declaration_error = |reason| {
         refuse(
             diagnostic,
@@ -861,7 +867,9 @@ fn finish_reading<'source>(
             }
         }
     }
+    suspension::publish_crossings(&mut elaboration.module).map_err(declaration_error)?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
         if let Some(required) = selected.required_contract {
             selected.required_contract =
@@ -1044,30 +1052,16 @@ fn lower_program<'source>(
         operational::positions(machine, body)?;
     }
     let components = components::components(bodies, signatures.machines)?;
-    // Result facts and non-return are both checked body summaries. Their
-    // source visibility is decided once by the same verification-unit owner;
-    // a requirement or independent caller cannot borrow a selected body.
-    let local_results = declarations
-        .map(|source| source.local_result_bodies(entry))
+    // One source owner fixes the local inference boundary. Result clauses
+    // retain their private publication restriction; local non-return does not
+    // become a public clause and can use every eligible body in that unit.
+    let local_summaries = declarations
+        .map(|source| source.local_summary_bodies(entry))
         .transpose()?;
-    let outcomes = outcome::outcomes(
-        bodies,
-        signatures,
-        requirements,
-        callables,
-        local_results.as_deref(),
-    )?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
         None => TerminalModule::declarations(),
     };
-    // Declaration checking publishes no executable arrival or root reach.
-    if let Some(entry) = entry {
-        module.root_service_reach.concrete =
-            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
-                .service_reach
-                .clone();
-    }
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -1110,11 +1104,87 @@ fn lower_program<'source>(
         typed_source,
         identities,
     )?;
+    let outcomes = outcome::outcomes(
+        bodies,
+        signatures,
+        requirements,
+        callables,
+        local_summaries
+            .as_ref()
+            .map(|local| local.outcomes.as_slice()),
+        &declared.records.inhabitation,
+        &components,
+    )?;
+    // Declaration checking publishes no executable arrival or root reach.
+    if let Some(entry) = entry {
+        module.root_service_reach.concrete =
+            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+                .service_reach
+                .clone();
+    }
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.structural_domains = declared.structural_domains;
     module.native_layouts = declared.native_layouts;
     let mut tables = CheckTables::default();
+    let mut qualifications = qualifications::Qualifications::declare(
+        diagnostic,
+        declarations,
+        std::mem::take(&mut module.identities),
+        module
+            .structural_domains
+            .iter()
+            .map(|domain| domain.semantic_domain.get())
+            .max()
+            .unwrap_or(0),
+    )?;
+    for (_, record) in records.iter() {
+        for field in record
+            .fields()
+            .iter()
+            .chain(record.cases().iter().flat_map(|case| &case.fields))
+        {
+            if let ValueType::Scalar(scalar_type, qualifier) = field.value_type {
+                let set = qualifications.scalar(diagnostic, scalar_type, qualifier)?;
+                if !set.is_empty() {
+                    qualifications
+                        .catalog
+                        .fields
+                        .push(terminal_psi::ScalarFieldQualification {
+                            field: field.id,
+                            value_type: semantic_vocabulary::QualifiedScalarType {
+                                scalar_type,
+                                qualifications: set,
+                            },
+                        });
+                }
+            }
+        }
+    }
+    qualifications
+        .catalog
+        .fields
+        .sort_unstable_by_key(|field| field.field);
+    for (value_type, structural_type) in declared.records.primitive_types() {
+        if let ValueType::Scalar(scalar_type, qualifier) = value_type {
+            let set = qualifications.scalar(diagnostic, scalar_type, qualifier)?;
+            if !set.is_empty() {
+                qualifications.catalog.primitives.push(
+                    terminal_psi::ScalarPrimitiveQualification {
+                        structural_type,
+                        value_type: semantic_vocabulary::QualifiedScalarType {
+                            scalar_type,
+                            qualifications: set,
+                        },
+                    },
+                );
+            }
+        }
+    }
+    qualifications
+        .catalog
+        .primitives
+        .sort_unstable_by_key(|row| row.structural_type);
     let mut sources = IdTable::default();
     let mut declaration_envelopes = Vec::new();
     if let Some(source) = declarations {
@@ -1156,6 +1226,7 @@ fn lower_program<'source>(
                     &outcomes,
                     &declared.records,
                     callables,
+                    &mut qualifications,
                 )?);
         }
     }
@@ -1168,7 +1239,7 @@ fn lower_program<'source>(
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
+        let component = components.members(id)?;
         let contract = u64::try_from(module.declaration_contracts.len())
             .ok()
             .and_then(|count| count.checked_add(id.get()))
@@ -1191,6 +1262,7 @@ fn lower_program<'source>(
             callables,
             boundaries,
             requirements.contains(&id),
+            &mut qualifications,
         )?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
@@ -1203,9 +1275,12 @@ fn lower_program<'source>(
         source.constructions.extend(lowered.source_constructions);
         source.folded_calls.extend(lowered.source_folded_calls);
     }
-    for machine in &mut module.machines {
-        let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
-            .map_err(|error| {
+    module.identities = std::mem::take(&mut qualifications.identities).build();
+    module.scalar_qualifications = qualifications.catalog.clone();
+    for ordinal in 0..module.machines.len() {
+        let machine = &module.machines[ordinal];
+        let plan =
+            terminal_semantics::plain_affine::plan_in(&module, machine.id).map_err(|error| {
                 let (concerns, operation, origin) = match error.site() {
                     Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
                         Construct::Operation(at),
@@ -1259,6 +1334,7 @@ fn lower_program<'source>(
                     },
                 }
             })?;
+        let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership
         // frontier; source syntax alone cannot distinguish them. The checker
@@ -1327,6 +1403,7 @@ fn lower_program<'source>(
         &declared.records,
         callables,
         services,
+        &mut qualifications,
         &mut module,
     )?;
     callables.publish(
@@ -1337,6 +1414,7 @@ fn lower_program<'source>(
         boundaries,
         &tables,
         services,
+        &mut qualifications,
         &mut module,
     )?;
     module.callables.declaration_envelopes = declaration_envelopes;
@@ -1348,6 +1426,7 @@ fn lower_program<'source>(
         callables,
         boundaries,
         services,
+        &mut qualifications,
         &mut module,
         typed_source,
     )?;
@@ -1368,10 +1447,12 @@ fn lower_program<'source>(
         callables,
         boundaries,
         services,
+        &mut qualifications,
         &mut module,
         typed_source,
         &external_provider_candidates,
     )?;
+    module.scalar_qualifications = qualifications.catalog;
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
     }
@@ -1441,7 +1522,7 @@ fn lower_program<'source>(
             names: IdTable::default(),
             machines: IdTable::default(),
             private_inputs: Vec::new(),
-            local_results: local_results.unwrap_or_default(),
+            local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
             domains,
             requirements: requirements.to_vec(),
             requirement_ceilings,

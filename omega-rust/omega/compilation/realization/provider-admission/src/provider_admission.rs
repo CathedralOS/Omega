@@ -19,16 +19,27 @@ retained builtin proposals carry plan-index custody as proposals, never
 replacing independent native admission.
 */
 
+#[path = "access_lifecycles.rs"]
 mod access_lifecycles;
+#[path = "adapters.rs"]
 mod adapters;
+#[path = "callback_entries.rs"]
 mod callback_entries;
+#[path = "compiler_builtins.rs"]
 mod compiler_builtins;
+#[path = "model.rs"]
 mod model;
+#[path = "settlements.rs"]
 mod settlements;
+#[path = "source_evaluated_bindings.rs"]
 mod source_evaluated_bindings;
+#[path = "static_interrupts.rs"]
 mod static_interrupts;
+#[path = "terminal_authority_permission_policy.rs"]
 mod terminal_authority_permission_policy;
+#[path = "terminal_authority_policy.rs"]
 mod terminal_authority_policy;
+#[path = "terminal_authority_review.rs"]
 mod terminal_authority_review;
 
 pub use crate::AdmittedInstalledInterruptCohort;

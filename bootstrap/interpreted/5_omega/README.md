@@ -251,7 +251,7 @@ any executable bytes are published.
 
 The `--omega-storage` customer takes exact SourceId, SourceUnit, ModulePath,
 `source_unit_clear`, `source_unit_append`, `source_unit_byte_or_nul` and
-`module_path_append` declarations from `source/psi/source/source.omg`, adds
+`module_path_append` declarations from `source/psi/foundation/source.omg`, adds
 `storage_controls.omg`, and executes the emitted result. The real private
 helpers now state their existing guarded bounds explicitly and remove the
 array-shell policy through checked shared/mutable views. The customer checks
@@ -268,7 +268,7 @@ python3 bootstrap/compiled_vm/source_test.py --omega-storage
 
 The `--omega-control` source-built customer extracts the exact canonical
 `is_identifier_start` and `is_identifier_continue` declarations from
-`source/psi/lex/lexer.omg`, adds the checked-in boundary-calling wrapper, compiles
+`source/psi/pipeline/00_source_files_to_tokens.omg`, adds the checked-in boundary-calling wrapper, compiles
 them with this bootstrap compiler, and executes the emitted tape. Its companion
 source-owned controls exercise parallel transfers, skipped looping operands,
 nested comparisons, type/arity/range/grammar refusals and reset behavior:

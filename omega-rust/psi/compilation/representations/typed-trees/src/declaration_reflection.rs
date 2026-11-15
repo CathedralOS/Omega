@@ -161,11 +161,6 @@ pub mod reflection {
             let supplier = typed
                 .static_operand_region_supplier(selected, lexical_owner)
                 .map_err(str::to_owned)?;
-            let mut normalized = std::borrow::Cow::Borrowed(selected);
-            if selected.type_reference.is_valid() {
-                normalized.to_mut().type_reference = TypeReferenceHandle::invalid();
-            }
-            let selected = normalized.as_ref();
             let (requirement, declaration, callable) = if let Some((owner, signature)) =
                 typed.trait_machine_signature(selected.symbol)
             {
@@ -205,68 +200,25 @@ pub mod reflection {
                 if selected.symbol != machine.symbol && selected.symbol != entry.symbol {
                     return Err("a callable description cannot select a continuation state".into());
                 }
-                let parameters = typed.machine_type_parameters(machine);
-                match &selected.application {
-                    Some(application)
-                        if application.member.is_valid()
-                            || application.arguments.len() != parameters.len()
-                            || application.lifetime_arguments.len()
-                                != machine.lifetime_parameters.len() =>
-                    {
-                        return Err("a callable description requires all machine arguments".into());
-                    }
-                    None if !parameters.is_empty() || !machine.lifetime_parameters.is_empty() => {
-                        return Err("a callable description omits its machine application".into());
-                    }
-                    _ => {}
+                if !selected.type_reference.is_valid()
+                    || !typed
+                        .type_reference_table
+                        .contains_type_reference(selected.type_reference)
+                {
+                    return Err(
+                        "a callable description requires its prepared declaration application"
+                            .into(),
+                    );
                 }
-                if let Some(application) = &selected.application {
-                    for (parameter, argument) in parameters.iter().zip(&application.arguments) {
-                        match &parameter.kind {
-                            TypeParameterKind::Type => {
-                                let is_type = if argument.type_reference.is_valid() {
-                                    typed.type_reference_table.contains_type_reference(argument.type_reference)
-                                        && !matches!(typed.type_reference_table.type_reference(argument.type_reference),
-                                            TypeReferenceNode::ConstExpression(_))
-                                } else {
-                                    argument.symbol.is_valid() && matches!(typed.symbols.get(argument.symbol).kind,
-                                        SymbolKind::BuiltinType | SymbolKind::Data)
-                                };
-                                if !is_type || argument.const_literal.is_some() || argument.evidence_projection.is_some() {
-                                    return Err("a callable description's type argument is not a resolved type".into());
-                                }
-                            }
-                            TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference } => {
-                                let TypeReferenceNode::Named { symbol, .. } = typed.type_reference_table.type_reference(*type_reference) else {
-                                    return Err("a callable description requires an admitted constant carrier".into());
-                                };
-                                let bounds = typed.symbols.builtin_type_atom(*symbol)
-                                    .and_then(crate::types::PrimitiveType::from_builtin_atom)
-                                    .and_then(crate::types::PrimitiveType::integer_bounds)
-                                    .ok_or("a callable description has an unsupported constant carrier")?;
-                                let value = crate::static_const_argument_spelling(typed, argument)
-                                    .and_then(|value| value.parse::<i128>().ok())
-                                    .ok_or("a callable description requires its canonical closed constant value")?;
-                                if value < bounds.0 || value > bounds.1 {
-                                    return Err("a callable description's constant is outside its declared carrier".into());
-                                }
-                            }
-                            _ => return Err("a callable description requires its admitted callable or conformance argument".into()),
-                        }
-                        if parameter.bounds != crate::data::DataProperties::default() {
-                            return Err(
-                                "a callable description requires its admitted argument properties"
-                                    .into(),
-                            );
-                        }
-                    }
-                    if !machine.conformance_bounds.is_empty()
-                        || !machine.declared_type_equations.is_empty()
-                    {
-                        return Err(
-                            "a callable description requires its admitted generic premises".into(),
-                        );
-                    }
+                let declaration = match typed.type_reference_node(selected.type_reference) {
+                    TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                    _ => return Err("a callable description lost its selected declaration".into()),
+                };
+                if declaration != machine.symbol {
+                    return Err(
+                        "a callable description has another declaration's application".into(),
+                    );
                 }
                 let identity = crate::type_identity::portable_applied_index_identity(
                     typed,
@@ -542,9 +494,6 @@ pub mod reflection {
                             found,
                         )?;
                     }
-                }
-                TypeReferenceNode::DynamicTrait { symbol, name, .. } => {
-                    intern(*symbol, name.as_str(), type_reference, false)?;
                 }
                 TypeReferenceNode::Constrained { base_type, .. } => {
                     collect_nominal_expectations(

@@ -11,7 +11,7 @@ use super::{Error, Limits};
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::resolution::source::PackageSourceNavigation;
-use package_source::ExternalSourceContext;
+use source_acquisition::ExternalSourceContext;
 
 pub(super) fn write_root(
     writer: &mut Writer,

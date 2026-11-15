@@ -16,8 +16,8 @@ use crate::resolution::graph::PackageRootSourceRequest;
 use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
 use compiler::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
-use package_source::git::resolution::{GitWorkspaceCatalog, GitWorkspaceSession};
-use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits};
+use source_acquisition::git::resolution::{GitWorkspaceCatalog, GitWorkspaceSession};
+use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -82,7 +82,7 @@ pub struct AcquiredWorkspaceMembers {
 pub(super) struct ExecutedWorkspace {
     source: Arc<GitWorkspaceCatalog>,
     resolution: ImmutableSourceResolution,
-    acquisition: package_source::GitSourceRequest,
+    acquisition: source_acquisition::GitSourceRequest,
     root: SourceBuildDeclaration,
     members: Vec<(
         WorkspaceMemberPath,
@@ -107,7 +107,7 @@ impl AcquiredWorkspaceBuild {
 
     fn members(
         self,
-        storage: &package_source::SourceResolver,
+        storage: &source_acquisition::SourceResolver,
         root: SourceBuildDeclaration,
     ) -> Result<AcquiredWorkspaceMembers, String> {
         if !root.is_settled() || root.source_capture() != self.root.source_capture() {

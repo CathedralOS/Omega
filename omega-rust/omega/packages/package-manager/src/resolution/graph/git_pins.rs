@@ -6,8 +6,8 @@ use crate::resolution::graph::{
     ResolvedSourceIdentity,
 };
 use crate::resolution::source::ResolvePackageSourceError;
-use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{GitSourceRequest, ImmutableSourceResolution};
+use source_acquisition::git::resolution::GitExactRevisionAcquisition;
+use source_acquisition::{GitSourceRequest, ImmutableSourceResolution};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, Default)]

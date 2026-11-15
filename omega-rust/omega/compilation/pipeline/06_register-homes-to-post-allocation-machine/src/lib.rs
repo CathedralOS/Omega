@@ -62,7 +62,7 @@ Provenance and custody boundaries:
 We consume `AllocatedProgramFacts` from `register-homes` (produced by Stage 05)
 and `ValidatedTargetRegisterEnvironment` from `register-environment`. We
 produce `StagedOptimizedPostAllocationMachinePlan`, which pairs the sealed
-`ValidatedPostAllocationMachinePlan` (`physical-instructions`) with the shared
+`ValidatedPostAllocationMachinePlan` (`post-allocation-machine`) with the shared
 `PreAllocationMachineEffectPlan`, the `PostAllocationMachineOptimizationRun`
 evidence, and a `StagedOptimizedPostAllocationMachineCustodyReceipt`
 (`:PostAllocationCustody`). Stage 07 (`post-allocation-machine-to-selected-form-encoding`)
@@ -114,7 +114,7 @@ use std::sync::Arc;
 use optimization_core::{
     OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
 };
-use physical_instructions::PostAllocationMachineIdentity;
+use post_allocation_machine::PostAllocationMachineIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::AllocatedProgramFacts;
 use selected_instructions::PreAllocationMachineEffectPlan;

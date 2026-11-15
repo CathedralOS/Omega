@@ -34,8 +34,8 @@ and admission, `source/source_assembly.rs` for Psi 00/01 source loading,
 
 #![forbid(unsafe_code)]
 
-pub use package_source::local::resolution_observations::CapturedLocalSource;
 pub use source::anonymous_owner::AnonymousSourceCapture;
+pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 mod codec_bytes;
 mod cursor;
@@ -56,10 +56,10 @@ mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use package_compilation::{
-    CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
-    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
-    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
-    PackageDependencyClosure, PackageSourceBinding,
+    IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
+    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
+    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
+    PackageSourceBinding,
 };
 #[doc(hidden)]
 pub use package_compilation::{native_output_codec, provider_selection_codec};
@@ -104,9 +104,9 @@ pub fn capture_selected_anonymous_compilation_source(
             .filter(|path| !path.as_os_str().is_empty())
             .unwrap_or_else(|| std::path::Path::new("."))
     };
-    let captured = package_source::local::operations::capture_selected_local_source_input(
+    let captured = source_acquisition::local::operations::capture_selected_local_source_input(
         root,
-        package_source::LocalSourceLimits::default(),
+        source_acquisition::LocalSourceLimits::default(),
         selected,
     )
     .map_err(|reason| {

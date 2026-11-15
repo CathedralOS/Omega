@@ -2,15 +2,12 @@
 //! record namespace. This pass parses no body and grants no value, lifetime,
 //! access, initialization, disposal or claim authority.
 
-use arena::Handle;
-use language_semantics::boundary_values::{BoundaryValueRecipe, BoundaryValueRecipes};
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_check_tables::Checked;
 use terminal_psi::{
     CallingAbiParameter, CallingAbiStorage, CallingRuntimeFormal, CallingSignatureTelescope,
     StructuralAccess,
 };
-use typed_trees::boundary_values::{BoundaryTypeBinding, BoundaryValuePreparation};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Program, services};
@@ -112,40 +109,33 @@ impl Program<'_> {
                                     "calling storage has a stale source application binding",
                                 ));
                             }
-                            Ok(BoundaryTypeBinding {
-                                parameter_symbol: *parameter,
-                                actual: *actual,
-                            })
+                            Ok((*parameter, *actual))
                         })
                         .collect::<Checked<Vec<_>>>()?;
                     // Non-type operands remain in the complete ABI key and
                     // original binding list. Reading one as a type is never a
                     // fabricated scalar value or an erased actual.
                     let mut supplied_types = Vec::new();
-                    for binding in &bindings {
+                    for &(parameter, actual) in &bindings {
                         if self
                             .typed
-                            .data_type_parameter_by_symbol(binding.parameter_symbol)
+                            .data_type_parameter_by_symbol(parameter)
                             .is_some_and(|parameter| {
                                 parameter.kind == typed_trees::data::TypeParameterKind::Type
                             })
                         {
-                            let value = self.value_type(context, binding.actual)?;
-                            supplied_types.push((binding.parameter_symbol, value));
+                            let value = self.value_type(context, actual)?;
+                            supplied_types.push((parameter, value));
                         }
                     }
                     // Actuals are interpreted in their supplier namespace,
                     // before the simultaneous required frame is installed.
                     self.scope = supplied_types;
                     let typed = self.typed;
-                    let mut recipes = BoundaryValuePreparation::new(typed, &bindings, &[]);
                     let mut parameters = Vec::with_capacity(projection.parameters.len());
                     for &reference in &projection.parameters {
-                        let recipe = recipes.value_type(reference);
-                        validate_recipe(recipes.recipes(), recipe)
-                            .map_err(|reason| services::unavailable(context, reason))?;
                         let reference =
-                            typed_trees::boundary_values::substitute_boundary_type_reference(
+                            typed_trees::type_system::source_projections::substituted_type_reference(
                                 typed, reference, &bindings,
                             );
                         let (storage_type, access) = self.metadata_parameter(context, reference)?;
@@ -157,18 +147,36 @@ impl Program<'_> {
                             access,
                         });
                     }
-                    let result = if !projection.result.is_valid()
+                    let omitted_unit = !projection.result.is_valid()
+                        && !signature.source_templates.is_empty()
+                        && signature.source_templates.iter().all(|symbol| {
+                            if let Some((_, declared)) = typed.trait_machine_signature(*symbol) {
+                                !declared.return_type.is_valid()
+                            } else if let Some(machine) = typed.machine_by_symbol(*symbol) {
+                                matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
+                            } else {
+                                false
+                            }
+                        });
+                    if !omitted_unit
+                        && !typed
+                            .type_reference_table
+                            .contains_type_reference(projection.result)
+                    {
+                        return Err(services::unavailable(
+                            context,
+                            "calling storage lost its explicit result type",
+                        ));
+                    }
+                    let result = if omitted_unit
                         || matches!(
                             typed.type_reference_table.type_reference(projection.result),
                             TypeReferenceNode::Unit
                         ) {
                         None
                     } else {
-                        let recipe = recipes.value_type(projection.result);
-                        validate_recipe(recipes.recipes(), recipe)
-                            .map_err(|reason| services::unavailable(context, reason))?;
                         let reference =
-                            typed_trees::boundary_values::substitute_boundary_type_reference(
+                            typed_trees::type_system::source_projections::substituted_type_reference(
                                 typed,
                                 projection.result,
                                 &bindings,
@@ -339,54 +347,4 @@ impl Program<'_> {
                 .map(|record| (record, StructuralAccess::Owned)),
         }
     }
-}
-
-fn validate_recipe(
-    recipes: &BoundaryValueRecipes,
-    root: Handle<BoundaryValueRecipe>,
-) -> Result<(), String> {
-    let mut pending = vec![root];
-    let mut seen = std::collections::HashSet::<Handle<BoundaryValueRecipe>>::new();
-    while let Some(root) = pending.pop() {
-        if !seen.insert(root) {
-            continue;
-        }
-        if !recipes.values.is_valid(root) {
-            return Err("boundary storage recipe has a stale coordinate".into());
-        }
-        match recipes.values.get(root) {
-            BoundaryValueRecipe::Absent => return Err("boundary storage recipe is absent".into()),
-            BoundaryValueRecipe::Rejected(reason) => return Err(reason.clone()),
-            BoundaryValueRecipe::Integer { .. }
-            | BoundaryValueRecipe::Float { .. }
-            | BoundaryValueRecipe::Reference { .. } => {}
-            BoundaryValueRecipe::FixedArray { element, .. } => pending.push(*element),
-            BoundaryValueRecipe::Record {
-                fields, storage, ..
-            } => {
-                if storage.is_some() {
-                    return Err(
-                        "canonical source metadata needs its exact authored layout publication"
-                            .into(),
-                    );
-                }
-                let fields = recipes
-                    .fields
-                    .span(*fields)
-                    .ok_or("boundary storage recipe has stale field coordinates")?;
-                pending.extend(fields.iter().map(|field| field.value));
-            }
-            BoundaryValueRecipe::TargetLayouts { .. } => return Err(
-                "canonical source metadata needs its exact target layout application publication"
-                    .into(),
-            ),
-            BoundaryValueRecipe::Opaque { .. } => {
-                return Err(
-                    "canonical source metadata needs its exact selected opaque carrier publication"
-                        .into(),
-                );
-            }
-        }
-    }
-    Ok(())
 }

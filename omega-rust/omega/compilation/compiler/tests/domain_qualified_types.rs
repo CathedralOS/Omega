@@ -214,6 +214,40 @@ fn a_plain_value_for_a_qualified_result_is_rejected() {
     );
 }
 
+/// A record literal is its bare carrier, so storing one into a field
+/// declared in a domain breaks the same rule as a plain argument: the field
+/// initializer, the annotated local and the assigned place read it from the
+/// one owner, in the same words, with their own destination named.
+#[test]
+fn a_bare_literal_for_a_qualified_field_is_rejected() {
+    violates(
+        "plain_field",
+        "machine wrong() -> Sample {\n    Sample { reading: Reading { value: 1 }, count: 0 }\n}\n",
+        "this value's type carries no domain and the field it initializes declares \
+         `Reading::Checked`",
+    );
+}
+
+#[test]
+fn a_plain_value_for_a_qualified_local_is_rejected() {
+    violates(
+        "plain_local",
+        "machine wrong(distance: i32) -> i32 in Km {\n    let kept: i32 in Km = distance;\n    \
+         kept\n}\n",
+        "this value's type carries no domain and the local it initializes declares `i32::Km`",
+    );
+}
+
+#[test]
+fn a_bare_literal_assigned_to_a_qualified_field_is_rejected() {
+    violates(
+        "plain_assigned",
+        "machine wrong(sample: &mut Sample) {\n    sample.reading = Reading { value: 1 };\n}\n",
+        "this value's type carries no domain and the place it is assigned to declares \
+         `Reading::Checked`",
+    );
+}
+
 #[test]
 fn a_qualified_value_for_a_plain_result_is_rejected() {
     violates(
@@ -645,12 +679,30 @@ fn reading_inside_a_governed_value_is_refused_by_name() {
     );
 }
 
+/// A store's destination is a place it writes, not a value it reads: each
+/// value its path goes through is asked for write authority only.
 #[test]
 fn writing_inside_a_governed_value_is_refused_by_name() {
     refused_with(
         "governed_write",
         "machine wrong(seal: Seal in Issued) -> Seal in Issued {\n    let mut held: Seal in Issued = seal;\n    held.mark = 2;\n    held\n}\n",
-        "inside a value governed by an access policy",
+        "write inside a value governed by an access policy",
+    );
+}
+
+/// The governed value is a field of a plain record: the path to the store
+/// goes through it, so the store is a write inside it as well.
+#[test]
+fn writing_inside_a_governed_field_is_refused_by_name() {
+    refused_with(
+        "governed_field_write",
+        "machine wrong(seal: Seal in Issued) -> Sealed {
+    let mut sealed: Sealed = Sealed { seal: seal, count: 1 };
+    sealed.seal.mark = 2;
+    sealed
+}
+",
+        "write inside a value governed by an access policy",
     );
 }
 
@@ -736,7 +788,7 @@ fn writing_through_a_reference_to_a_governed_value_is_refused_by_name() {
     seal.mark = 2;
 }
 ",
-        "inside a value governed by an access policy",
+        "write inside a value governed by an access policy",
     );
 }
 
@@ -762,10 +814,16 @@ fn replacing_a_governed_field_is_refused_by_name() {
 /// that: the lender still owns the field.
 #[test]
 fn moving_a_governed_field_out_of_an_exclusive_loan_is_not_accepted() {
-    refused_with(
-        "governed_moved_out",
-        "machine wrong(sealed: &mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
-        "owned extraction from borrowed storage",
+    // Through `&mut` the move opens a window that is still open where the
+    // machine returns: the one unestablished use is that return. The
+    // machines are the first judged part; the trait refinement is judged on
+    // its own and is not what the twin changes.
+    assert_eq!(
+        verdicts(
+            "governed_moved_out",
+            "machine wrong(sealed: &mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
+        ),
+        ["rejected: 1 unestablished; ", "accepted"]
     );
 }
 

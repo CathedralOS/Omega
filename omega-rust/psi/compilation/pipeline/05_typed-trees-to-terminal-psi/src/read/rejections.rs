@@ -147,7 +147,7 @@ impl Program<'_> {
         let returned = self.region_tuple(found.regions());
         declared.len() == returned.len()
             && declared.iter().zip(returned).any(|(declared, returned)| {
-                match (self.resolved(*declared), self.resolved(*returned)) {
+                match (self.resolved(*declared), self.named_ceiling(*returned)) {
                     (Region::Parameter(declared), Region::Parameter(returned)) => {
                         declared.declaration == returned.declaration
                             && declared.ordinal != returned.ordinal
@@ -164,6 +164,7 @@ impl Program<'_> {
         match qualification.policy {
             Some(Policy::Wrapping) => names.push("`Wrapping`".to_owned()),
             Some(Policy::Saturating) => names.push("`Saturating`".to_owned()),
+            Some(Policy::Trapping) => names.push("`Trapping`".to_owned()),
             None => {}
         }
         names.extend(
@@ -189,7 +190,7 @@ impl Program<'_> {
 }
 
 /// The resolved scalar carrier, without domains or physical storage choices.
-fn scalar_named(scalar: ScalarType) -> String {
+pub(super) fn scalar_named(scalar: ScalarType) -> String {
     match scalar {
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
@@ -216,9 +217,29 @@ fn scalar_named(scalar: ScalarType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IntegerType, StructuralTypeId};
+    use semantic_vocabulary::{IntegerType, StructuralTypeId, ValueId, WidthParameter};
     use terminal_check_tables::{RefusalReason, values::RigidType};
     use typed_trees::TypedTrees;
+
+    #[test]
+    fn scalar_names_distinguish_closed_and_parameter_widths() {
+        assert_eq!(
+            scalar_named(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 1).unwrap()
+            )),
+            "u1",
+        );
+        assert_eq!(
+            scalar_named(ScalarType::Integer(IntegerType::parameterized(
+                IntegerSign::Signed,
+                WidthParameter {
+                    owner: MachineId::new(1).unwrap(),
+                    value: ValueId::new(1).unwrap(),
+                },
+            ))),
+            "i<width parameter>",
+        );
+    }
 
     #[test]
     fn distinct_scalar_carriers_reject_for_every_receiving_destination() {
@@ -269,6 +290,26 @@ mod tests {
                 }
             }
         }
+        // A definite family mismatch still names an open integer carrier
+        // without inventing its width or changing its parameter identity.
+        let open_integer = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            semantic_vocabulary::WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: semantic_vocabulary::ValueId::new(1).unwrap(),
+            },
+        ));
+        let refusal = program.mistyped(
+            MachineId::new(1).unwrap(),
+            SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+            Destination::Result,
+            Some(ValueType::plain(ScalarType::Boolean)),
+            Some(ValueType::plain(open_integer)),
+            "test mismatch",
+        );
+        assert_eq!(refusal.reason, RefusalReason::Violation(None));
+        assert!(refusal.detail.contains("`u<width parameter>`"));
+        assert!(refusal.detail.contains("`bool`"));
     }
 
     #[test]

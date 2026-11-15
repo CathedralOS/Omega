@@ -301,6 +301,73 @@ mod argument_types {
         }
     }
 
+    /*
+        Structural matching reads the resolver's selected value, not a second
+        top-level lookup of the extent's spelling. Only completed integer constants
+        supply geometry; a parameter, local, open binder or unfinished value does not.
+        Source links join the authored occurrence to this exact provisional owner.
+    */
+    pub(super) fn array_lengths(
+        trees: &SymbolResolvedTrees,
+        sources: &SourceLinks,
+    ) -> Vec<(source::SourceSpan, Option<usize>)> {
+        fn observe(
+            trees: &SymbolResolvedTrees,
+            reference: &TypeReference,
+            lengths: &mut Vec<(source::SourceSpan, Option<usize>)>,
+        ) {
+            match reference {
+                TypeReference::AliasUse {
+                    application,
+                    expansion,
+                    ..
+                } => {
+                    observe(trees, application, lengths);
+                    observe(trees, expansion, lengths);
+                }
+                TypeReference::FixedArray(array) => {
+                    let types::FixedArrayLength::ConstParameter { symbol, name } = &array.length
+                    else {
+                        return;
+                    };
+                    let length = symbol.is_valid()
+                        .then(|| trees.symbols.get(*symbol).kind == SymbolKind::Const)
+                        .filter(|is_constant| *is_constant)
+                        .and_then(|_| trees.roots.const_declaration(*symbol))
+                        .and_then(|declaration| declaration.evaluated_value.as_ref())
+                        .and_then(|value| value.encoding())
+                        .and_then(|encoding| {
+                            language_semantics::const_value::CanonicalConstValue::new("", encoding, "")
+                                .decode_encoding()
+                        })
+                        .and_then(|value| match value {
+                            language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } => usize::try_from(value).ok(),
+                            _ => None,
+                        });
+                    lengths.push((name.source_span(), length));
+                }
+                _ => {}
+            }
+        }
+        let mut lengths = Vec::new();
+        for (_, reference) in trees.tables.declarations.child_type_references.iter() {
+            observe(trees, reference, &mut lengths);
+        }
+        for (origin, _) in &sources.declared_types {
+            if let Some((_, reference)) = origin.declaration(trees) {
+                observe(trees, reference, &mut lengths);
+            }
+        }
+        for (_, statement) in &sources.statements {
+            if let statement::Statement::LocalData(local) =
+                trees.tables.declarations.state_statements.get(*statement)
+            {
+                observe(trees, &local.type_reference, &mut lengths);
+            }
+        }
+        lengths
+    }
+
     pub(super) fn closed_type(trees: &SymbolResolvedTrees, root: &TypeReference) -> bool {
         let binder = |symbol: SymbolHandle| {
             symbol.is_valid()
@@ -316,8 +383,7 @@ mod argument_types {
         while let Some(reference) = pending.pop() {
             match reference {
                 TypeReference::AliasUse { expansion, .. } => pending.push(expansion),
-                TypeReference::Named { symbol, .. }
-                | TypeReference::DynamicTrait { symbol, .. } => {
+                TypeReference::Named { symbol, .. } => {
                     if binder(*symbol) {
                         return false;
                     }
@@ -1107,6 +1173,8 @@ pub(crate) fn complete(
     sources: &SourceLinks,
     selection: &ConstantSelection<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let selection = selection.with_array_lengths(argument_types::array_lengths(trees, sources));
+    let selection = &selection;
     let mut completed_type_roots = Vec::new();
     for conformance in &trees.conformances {
         for row in &conformance.rows {
@@ -1232,7 +1300,7 @@ pub(crate) fn complete(
         syntax,
         &mut warnings,
         Some(selection),
-        super::generic_data::GenericDataWorkDomain::Selected {
+        super::generic_data::GenericDataWorkDomain {
             type_roots: &completed_type_roots,
             declarations: &[],
         },
@@ -1557,15 +1625,6 @@ fn classify_scoped_type_reference(
     match reference {
         TypeReference::AliasUse { expansion, .. } => classify_child(expansion),
         TypeReference::Named { symbol, .. } => classify_symbol(*symbol),
-        TypeReference::DynamicTrait {
-            symbol, arguments, ..
-        } => {
-            let mut closure = classify_symbol(*symbol);
-            for argument in trees.child_type_references(*arguments) {
-                closure = closure.join(classify_child(argument));
-            }
-            closure
-        }
         TypeReference::Callable { contract, .. } => {
             classify_callable_contract(binders, trees, *contract, bound, depth + 1)
         }

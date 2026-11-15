@@ -257,7 +257,7 @@ before variants are added. Route one is:
   certificates travel in memory beside `TerminalModule` within one compile so
   Omega 00 can fill `AcceptedObligationFact::proof_bundle_fingerprint` without
   changing what the back half trusts, removes or guards; an artifact re-read
-  from bytes (including a compiler-storage cache read) has no in-memory
+  from bytes has no in-memory
   evidence, which is explicit and neither an error nor filled from an earlier
   build (see [What each stage may trust](stage_trust.md)). An obligation the
   prover cannot discharge is a compile error for the program, never a slower

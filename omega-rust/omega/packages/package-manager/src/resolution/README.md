@@ -31,5 +31,5 @@ Locked recovery selects recorded target policy before touching acquisition, then
 reconstructs the exact graph. Resume uses proposed pins, not current branch tips.
 Historical-source diagnostics obey the same offline option; missing old bytes
 leave normalized policy comparison available. The
-[command owner](../package_manager/README.md) documents CLI support
+[command owner](../../README.md#install-and-update) documents CLI support
 and target selection; the API's policy does not imply every command has a flag.

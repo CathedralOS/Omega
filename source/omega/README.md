@@ -1,7 +1,7 @@
 # Omega compiler construction
 
 The production [compilation library](compilation/build.omg) owns the shared
-source-to-artifact pipeline and [Alpha emitter](compilation/alpha/emitter.omg).
+source-to-artifact pipeline and [Alpha emitter](compilation/00_scalar_operations_to_alpha.omg).
 It uses the sibling [Psi package](../psi) for parsing, resolution, typing,
 checking and target-neutral lowering. Applications own input and publication;
 tests do not supply a second compiler pipeline.

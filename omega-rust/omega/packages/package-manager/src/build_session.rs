@@ -52,7 +52,7 @@ pub struct PackageBuildSession {
     evaluation_sponsor: BuildEvaluationSponsor,
     next_occurrence: u64,
     active: bool,
-    source_completion_accounting: compilation_products::SourceCompletionAccounting,
+    source_completion_accounting: products::SourceCompletionAccounting,
 }
 
 impl std::fmt::Debug for PackageBuildSession {
@@ -114,7 +114,7 @@ impl PackageBuildSession {
                     let evaluation_sponsor = BuildEvaluationSponsor::new_with_measurement(
                         evaluation_limits,
                         EvaluationMeasurementIdentity::TerminalPsi {
-                            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                            work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                         },
                     )
@@ -161,7 +161,7 @@ impl PackageBuildSession {
     pub(crate) fn create_occurrence_directory(
         &mut self,
         key: &crate::declarations::PackageKey,
-        resolution: &package_source::ImmutableSourceResolution,
+        resolution: &source_acquisition::ImmutableSourceResolution,
         purpose: crate::declarations::DependencyPurpose,
     ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
         let base = package_build_root(&self.root, key, resolution, purpose);
@@ -268,16 +268,11 @@ impl PackageBuildSession {
 
     /// Retain actual occurrences before a coordinator drops its source/result.
     /// Shared histories join once; independent invocations remain separate costs.
-    pub fn record_source_completion(
-        &mut self,
-        accounting: compilation_products::SourceCompletionAccounting,
-    ) {
+    pub fn record_source_completion(&mut self, accounting: products::SourceCompletionAccounting) {
         self.source_completion_accounting.append(accounting);
     }
 
-    pub fn source_completion_accounting(
-        &self,
-    ) -> &compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 

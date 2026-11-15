@@ -1,5 +1,5 @@
 [package]
-name = "compilation-products"
+name = "products"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -19,7 +19,7 @@ selected-dispatch = { path = "../realization/selected-dispatch" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
-psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
+source-compiler = { path = "../../../psi/compilation/source-compiler" }
 task-plans = { path = "../backend/runtime/task-plans" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 artifacts = { path = "../../foundation/artifacts" }
@@ -43,4 +43,4 @@ trust-model = { path = "../realization/trust-model" }
 [dev-dependencies]
 image = { path = "../backend/images/image" }
 image-macho = { path = "../backend/images/image-macho" }
-object-file = { path = "../backend/object/object-file" }
+object-file = { path = "../backend/object-file" }

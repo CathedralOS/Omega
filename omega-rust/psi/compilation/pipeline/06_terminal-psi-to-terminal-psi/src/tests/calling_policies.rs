@@ -9,22 +9,26 @@ use super::*;
 
 const VOCABULARY: &str = include_str!("../../../../../../../source/library/std/calling.omg");
 const SHAPES: &str = include_str!("../../../../../../../source/library/std/entry_shapes.omg");
-/// Each hosted target's entry source and the data its policy hangs on.
-const TARGETS: [(&str, &str); 4] = [
+/// Each hosted target's named policy and its private static plan helper.
+const TARGETS: [(&str, &str, &str); 4] = [
     (
         "WindowsX86_64",
+        "windows_x86_64_entry_plan",
         include_str!("../../../../../../../source/library/std/targets/windows_x86_64/entry.omg"),
     ),
     (
         "LinuxX86_64",
+        "linux_x86_64_entry_plan",
         include_str!("../../../../../../../source/library/std/targets/linux_x86_64/entry.omg"),
     ),
     (
         "LinuxArm64",
+        "linux_arm64_entry_plan",
         include_str!("../../../../../../../source/library/std/targets/linux_arm64/entry.omg"),
     ),
     (
         "MacosArm64",
+        "macos_arm64_entry_plan",
         include_str!("../../../../../../../source/library/std/targets/macos_arm64/entry.omg"),
     ),
 ];
@@ -95,16 +99,18 @@ fn verdict(text: &str, roots: &[&str]) -> String {
 }
 
 /// Each hosted target's policy as the library declares it, less the lines
-/// that tie it to the core package's entry trait: from the policy's data to
+/// that tie it to the core package's entry trait: from the named policy to
 /// its `...Application` boundary trait. The entry closure is accepted and
 /// published as an invocation, which is how the compiler will run it; the
-/// second part is the witness that `<Target>::plan` gives
+/// second part is the witness that the static plan helper gives
 /// `CallingPolicy::plan`, which is judged and is no invocation.
 #[test]
 fn each_hosted_calling_policy_is_judged() {
     let mut verdicts = Vec::new();
-    for (policy, source) in TARGETS {
-        let start = source.find(&format!("data {policy} {{}}")).unwrap();
+    for (policy, plan, source) in TARGETS {
+        let start = source
+            .find(&format!("{policy}CallingPolicy satisfies CallingPolicy"))
+            .unwrap();
         let end = source[start..]
             .find(
                 "
@@ -118,7 +124,7 @@ boundary trait ",
 {}",
             &source[start..end]
         );
-        verdicts.push((policy, verdict(&text, &[&format!("{policy}::plan")])));
+        verdicts.push((policy, verdict(&text, &[plan])));
     }
     for (policy, verdict) in &verdicts {
         let (closure, witness) = verdict.split_once("; ").unwrap_or((verdict, ""));
@@ -470,7 +476,7 @@ ensures result == 9
         terminal_semantics::descriptor_results::terminal_reference_graph_from(
             &incomplete, [unserved_id]
         ),
-        Err(terminal_semantics::descriptor_results::DescriptorGraphError::IncompleteMachine(id))
+        Err(terminal_semantics::descriptor_results::DescriptorGraphError::IncompleteMachine { machine: id, .. })
             if id == unserved_id
     ));
     let mut dependent = incomplete.clone();

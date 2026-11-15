@@ -27,6 +27,7 @@ Terminal identity. Keeping each `TrappingForm` as one instruction that branches 
 architectural trap (`brk #0` / `ud2`) preserves a 1-to-1 control-flow correspondence.
 */
 
+#[path = "control_flow_scalar_graph.rs"]
 mod scalar_graph;
 pub use scalar_graph::{
     LegalizedCasePointerSlot, LegalizedDescriptorOrigin, LegalizedNormalizedForeignCall,

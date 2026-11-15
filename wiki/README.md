@@ -137,6 +137,7 @@ The [command-line contract](spec/build/command_line.md) owns public spellings.
   [opaque representations](spec/build/opaque_representations.md),
   [execution and generated source](spec/build/execution.md),
   [observations and reproducibility](spec/build/observations.md),
+  [compiler storage](spec/build/compiler_storage.md),
   [standalone compiler request](spec/build/compiler_request.md),
   [native products and component publication](spec/build/component_publication.md),
   [macOS applications](spec/build/macos_application.md),

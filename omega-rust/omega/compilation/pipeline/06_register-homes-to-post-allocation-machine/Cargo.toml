@@ -9,7 +9,7 @@ name = "register_homes_to_post_allocation_machine"
 path = "src/lib.rs"
 
 [dependencies]
-physical-instructions = { path = "../../representations/post-allocation-machine" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 register-homes = { path = "../../representations/register-homes" }
 register-environment = { path = "../../backend/register-environment" }
 optimization-core = { path = "../../../foundation/optimization-core" }
@@ -19,4 +19,4 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 
 [dev-dependencies]
-isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
+isa-x86_64 = { path = "../../backend/isa/isa-x86_64" }

@@ -1,5 +1,5 @@
 [package]
-name = "package-source"
+name = "source-acquisition"
 edition.workspace = true
 license.workspace = true
 version.workspace = true

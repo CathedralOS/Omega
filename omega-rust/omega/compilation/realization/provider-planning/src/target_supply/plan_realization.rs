@@ -6,7 +6,6 @@
 
 use std::sync::Arc;
 
-use backend_plan::TerminalTargetProviderPlan;
 use effects::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceSchema,
 };
@@ -347,6 +346,8 @@ fn checked_plan(
             provider,
         ),
         provider_type: provider.to_owned(),
+        provider_declaration: Some(owner.to_owned()),
+        row_numeric_realizations: vec![None; count],
         provider_application,
         provider_type_package_identity: choice.provider_package,
         target: choice.target.clone(),
@@ -357,7 +358,7 @@ fn checked_plan(
         origin_package: owner.to_owned(),
         ..ProviderPlan::default()
     };
-    let canonical = backend_plan::selected_provider_candidate_rows(&plan, owner, module)?;
+    let canonical = backend_plan::selected_provider_candidate_rows(&plan, module)?;
     if canonical.len() != count
         || canonical
             .iter()
@@ -369,11 +370,7 @@ fn checked_plan(
         composition_mode: choice.composition_mode,
         schema_declaration: choice.schema_declaration,
         schema_application: choice.schema_application,
-        declaration: TerminalTargetProviderPlan {
-            plan,
-            provider_declaration: Some(owner.to_owned()),
-            row_numeric_realizations: vec![None; count],
-        },
+        declaration: plan,
         row_executions: vec![None; count],
     })
 }
@@ -671,141 +668,4 @@ pub(super) fn realize_target_supply_detailed(
         },
     )
     .map_err(TargetSupplyRealizationError::ExistingDiagnostics)
-}
-
-pub(super) fn family_realizations(
-    module: &TerminalModule,
-    target: &str,
-    reached: &[BoundaryMachineId],
-    plans: &effects::SelectedProviderPlanFacts,
-) -> Result<Vec<backend_plan::SelectedFamilyRealizationSource>, String> {
-    use terminal_psi::TargetMachineCallable;
-    let mut associations = module
-        .provider_candidates
-        .iter()
-        .map(|candidate| {
-            Ok((
-                text(module, candidate.requirement_identity)?,
-                text(module, candidate.source_requirement_identity)?,
-                text(module, candidate.provider_identity)?,
-                text(module, candidate.source_candidate_identity)?,
-            ))
-        })
-        .collect::<Result<Vec<_>, String>>()?;
-    associations.sort_unstable();
-    associations.dedup();
-    let mut planned = plans
-        .plans()
-        .iter()
-        .flat_map(|plan| {
-            plan.rows
-                .iter()
-                .map(move |row| (plan.identities.text(row.requirement_identity), plan))
-        })
-        .collect::<Vec<_>>();
-    planned.sort_by_key(|(required, _)| *required);
-    let mut adapters = plans
-        .plans()
-        .iter()
-        .flat_map(|plan| {
-            plan.rows.iter().filter_map(move |row| match &row.binding {
-                ProviderBinding::CheckedAdapter {
-                    machine_identity, ..
-                } => Some((
-                    (
-                        plan.identities.text(row.requirement_identity),
-                        plan.provider_type.as_str(),
-                        plan.identities.text(*machine_identity),
-                    ),
-                    plan,
-                )),
-                _ => None,
-            })
-        })
-        .collect::<Vec<_>>();
-    adapters.sort_by_key(|(key, _)| *key);
-    let mut result = Vec::new();
-    for family in &module.target_machine_families {
-        let TargetMachineCallable::Boundary(head_id) = family.canonical else {
-            continue;
-        };
-        let mut selected = family
-            .members
-            .iter()
-            .filter(|member| member.target == target);
-        let member = selected.next();
-        if selected.next().is_some() {
-            return Err("target family has competing exact target members".into());
-        }
-        let demanded = reached.contains(&head_id)
-            || member.is_some_and(|member| matches!(member.callable, TargetMachineCallable::Boundary(id) if reached.contains(&id)));
-        if !demanded {
-            continue;
-        }
-        let member = member.ok_or("reached target family has no member for the selected target")?;
-        let member_id = match member.callable {
-            TargetMachineCallable::Boundary(id) => id,
-            TargetMachineCallable::Machine(machine) => {
-                // Ordinary machine members need no provider-row alias. Target
-                // installation already retains their exact concrete call edge.
-                module
-                    .machine(machine)
-                    .ok_or("reached family member has no checked machine")?;
-                continue;
-            }
-        };
-        let head = module
-            .boundary_machine(head_id)
-            .and_then(|boundary| boundary.declaration.as_ref())
-            .ok_or("reached target family has no checked head contract")?;
-        let member = module
-            .boundary_machine(member_id)
-            .and_then(|boundary| boundary.declaration.as_ref())
-            .ok_or("reached target family has no checked member contract")?;
-        let mut external = module.external_providers.iter().filter(|source| {
-            source.realization == member.source
-                && source
-                    .target
-                    .as_deref()
-                    .is_none_or(|source| source == target)
-        });
-        let (Some(external), None) = (external.next(), external.next()) else {
-            return Err("reached boundary family has no unique admitted external member".into());
-        };
-        external.validate(&module.identities)?;
-        let actual = text(module, external.requirement_identity)?;
-        let begin = planned.partition_point(|(required, _)| *required < actual);
-        let end = begin + planned[begin..].partition_point(|(required, _)| *required == actual);
-        let mut matching = planned[begin..end]
-            .iter()
-            .map(|(required, plan)| (*plan, *required))
-            .collect::<Vec<_>>();
-        let begin = associations.partition_point(|(required, _, _, _)| *required < actual);
-        let end = begin
-            + associations[begin..].partition_point(|(required, _, _, _)| *required == actual);
-        for (_, required, provider, callable) in &associations[begin..end] {
-            let key = (*required, *provider, *callable);
-            let begin = adapters.partition_point(|(planned, _)| *planned < key);
-            let end = begin + adapters[begin..].partition_point(|(planned, _)| *planned == key);
-            for (_, plan) in &adapters[begin..end] {
-                if !matching.iter().any(|(previous, previous_required)| {
-                    std::ptr::eq(*previous, *plan) && previous_required == required
-                }) {
-                    matching.push((*plan, *required));
-                }
-            }
-        }
-        let [(plan, required)] = matching.as_slice() else {
-            return Err("reached boundary family has no unique exact selected provider row".into());
-        };
-        result.push(backend_plan::SelectedFamilyRealizationSource {
-            head_declaration_identity: text(module, head.source.semantic_declaration)?.to_owned(),
-            head_callable_identity: text(module, head.source.callable)?.to_owned(),
-            target: target.to_owned(),
-            selected_requirement_identity: (*required).to_owned(),
-            provider_plan_report_identity: plan.report_fingerprint(),
-            provider_plan_digest: plan.identity_digest(),
-        });
-    }
-    Ok(result)
 }

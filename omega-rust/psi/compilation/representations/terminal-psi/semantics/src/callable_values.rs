@@ -928,7 +928,17 @@ impl CallableValueProgram<'_> {
                     || flow.payload_invalidations.get(producer).into_iter().flatten().any(|query| {
                         query.as_ref().and_then(|query| analysis.payload_targets(machine, *producer, query))
                             .is_none_or(|targets| targets.iter().any(|target| match target {
-                                crate::descriptor_results::DescriptorPayloadTarget::Storage(location) => overlaps(location),
+                                crate::descriptor_results::DescriptorPayloadTarget::Storage {
+                                    location,
+                                    completed: None,
+                                } => overlaps(location),
+                                // A completed constructor is an immutable
+                                // captured value, not current writable storage.
+                                // An unresolved write to it supplies no fact
+                                // that the stored code survived unchanged.
+                                crate::descriptor_results::DescriptorPayloadTarget::Storage {
+                                    completed: Some(_), ..
+                                } => true,
                                 crate::descriptor_results::DescriptorPayloadTarget::Incoming(_) => true,
                             }))
                     });

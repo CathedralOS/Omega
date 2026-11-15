@@ -1230,7 +1230,7 @@ pub(crate) mod installed_stack {
                         ))?;
                     let mut calls: Vec<_> = function.calls.iter().collect();
                     calls.sort_unstable_by_key(|call| call.owner);
-                    for operation in &body.operations {
+                    for operation in body.operations() {
                         let fail = |reason| Error::InstalledMemorySource {
                             machine: body.machine,
                             operation: operation.psi_operation(),
@@ -2171,8 +2171,7 @@ mod normalized_foreign_calls {
                 };
                 let mut ordinals =
                     abstracted
-                        .operations
-                        .iter()
+                        .operations()
                         .enumerate()
                         .filter_map(|(index, operation)| match operation {
                             abstract_operations::AbstractOperation::BoundaryCall {

@@ -4886,15 +4886,6 @@ pub(crate) mod type_reference {
                     supplied_operand_owner: Default::default(),
                 })
             }
-            TypeReferenceNode::DynamicTrait {
-                trait_name,
-                trait_arguments,
-            } => Ok(TypeReference::DynamicTrait {
-                supplied_operand_owner: Default::default(),
-                symbol: SymbolHandle::invalid(),
-                name: lower_name(syntax_trees, trait_name),
-                arguments: lower_child_type_references(lowerer, syntax_trees, *trait_arguments)?,
-            }),
             TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
                 supplied_operand_owner: Default::default(),
                 symbol: SymbolHandle::invalid(),

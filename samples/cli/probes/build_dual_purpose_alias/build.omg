@@ -3,9 +3,11 @@
 // build scope calls the dep's product machine through the build edge while
 // the product scope calls it through the product edge.
 
-use kit::main;
+use kit;
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+suspends
+{
     Build::application(builder, "build_dual_purpose_alias");
     let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
     dependency::with_alias(&mut kit_dependency, "kit");
@@ -14,7 +16,8 @@ machine build(builder: &mut Build) {
     dependency::with_alias(&mut kit_dependency_2, "kit");
     let kit_registration_2: DependencyRegistration = Build::dependency(builder, kit_dependency_2);
     builder.freestanding = true;
-    let observed: i32 = value();
+    suspend Build::prepare_dependency(builder, kit_registration);
+    let observed: i32 = kit::value();
     transition observed == 7 {
         true -> done()
         _ -> wrong()

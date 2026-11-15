@@ -94,7 +94,7 @@ def main():
                     'package-manager': 'omega-rust/omega/packages/package-manager',
     'orchestration': 'omega-rust/omega/build-system/orchestration',
                     'target': 'omega-rust/omega/compilation/backend/target',
-                    'terminal-interpreter': 'omega-rust/psi/interpreter/terminal-interpreter'}
+                    'terminal-interpreter': 'omega-rust/psi/interpreter'}
     manifest = '[package]\nname="new084-terminal-host"\nversion="0.1.0"\nedition="2024"\n[workspace]\nresolver="3"\n[dependencies]\n'
     manifest += ''.join(name+'={path='+json.dumps(str(repository/path))+'}\n'
                         for name, path in dependencies.items())

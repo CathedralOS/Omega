@@ -25,5 +25,5 @@ threads-required = "num-test-threads"
 # Leave thread counts at the host default: Windows trials did not establish
 # a repeatable advantage from a universal eight-thread cap.
 [[profile.default.overrides]]
-filter = 'package(=package-source) | package(=package-manager)'
+filter = 'package(=source-acquisition) | package(=package-manager)'
 priority = 50

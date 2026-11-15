@@ -5,6 +5,7 @@ places, and callable boundaries.
 
 use std::collections::BTreeMap;
 
+#[path = "substitution_clauses.rs"]
 pub mod clauses;
 
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};

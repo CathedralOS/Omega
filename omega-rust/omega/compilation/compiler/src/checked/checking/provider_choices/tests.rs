@@ -6,7 +6,7 @@ use super::{PreparedProviderChoices, prepare_with_source_defaults};
 use build_time_evaluation::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
-use psi_compiler::{AcceptedTerminalSource, TerminalSourceCompilation};
+use source_compiler::{AcceptedTerminalSource, TerminalSourceCompilation};
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -175,7 +175,10 @@ fn execution(
 
 fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
     let program = accepted
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
         .expect("accepted source publishes")
         .into_shared_portable()
         .expect("portable publication");
@@ -300,15 +303,11 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
         Some(plan.provider_type.as_str())
     );
     let declarations = execution.realization().provider_declarations();
-    let [declaration] = declarations.as_slice() else {
+    let [declaration] = declarations else {
         panic!("one exact native declaration")
     };
-    let candidates = backend_plan::selected_provider_candidate_rows(
-        plan,
-        declaration.provider_declaration.as_deref().unwrap(),
-        accepted.module(),
-    )
-    .unwrap();
+    let candidates =
+        backend_plan::selected_provider_candidate_rows(declaration, accepted.module()).unwrap();
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].candidate_positions.len(), 1);
     let artifact = produced(&accepted);

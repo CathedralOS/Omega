@@ -24,7 +24,9 @@ Two subtle completion invariants:
    descendants be signalled.
 */
 
+#[path = "budget.rs"]
 mod budget;
+#[path = "capture_contract.rs"]
 mod capture_contract;
 
 use crate::{BoundedProcessChild, BoundedProcessPrepared};
@@ -415,4 +417,5 @@ fn terminate_before(
 }
 
 #[cfg(test)]
+#[path = "bounded_process_tests.rs"]
 mod tests;

@@ -1,4 +1,5 @@
-//! Source jobs do not execute through retired tree/checked-program engines.
+//! Evaluate source computations through the same checker used by programs.
+//! Each invocation retains its actual caller, inputs and execution admission.
 use crate::BuildTimeSelectionAuthority;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -6,10 +7,13 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 mod build_activation;
+mod const_argument_jobs;
 mod constant_jobs;
+mod fixed_layouts;
 mod invocation;
 mod source_selection;
 
+pub use const_argument_jobs::evaluate as evaluate_const_arguments;
 pub use constant_jobs::{
     evaluate as evaluate_constant_initializers,
     evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent,
@@ -23,17 +27,17 @@ pub struct FixedLayoutTargetScope {
     pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
     pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
-/// Nothing evaluates a layout policy yet, so a type applied through one
-/// has no layout. Such a type is a request of the declaration that uses it:
-/// it is recorded there (`typed_trees::deferred_refusals`) and that
-/// declaration is refused where a program demands it. A program that never
-/// reaches one is not stopped for a library type it does not use.
+/// Evaluate the layout policies needed by the requested entry declarations.
+/// Unused open library applications remain deferred at their declarations.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
-    _scopes: &[FixedLayoutTargetScope],
-    _authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    scopes: &[FixedLayoutTargetScope],
+    authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
+    purpose: source::DependencyScope,
+    accounting: &mut crate::SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
-    crate::source_frontier::defer_declared_jobs(typed)
+    fixed_layouts::evaluate(typed, scopes, authority, consent, purpose, accounting)
 }
 pub fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,
@@ -86,7 +90,7 @@ pub struct PreparedBuildMachineEntry {
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     purpose: source::DependencyScope,
     source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
-    accepted: Arc<psi_terminal_production::AcceptedTerminalSource>,
+    accepted: Arc<terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
     context_inputs: Vec<crate::BuildTimeValue>,
 }
@@ -121,7 +125,7 @@ impl PreparedBuildMachineEntry {
         &self.arguments
     }
 
-    pub(crate) fn accepted(&self) -> &psi_terminal_production::AcceptedTerminalSource {
+    pub(crate) fn accepted(&self) -> &terminal_production::AcceptedTerminalSource {
         &self.accepted
     }
 
@@ -134,7 +138,7 @@ impl PreparedBuildMachineEntry {
     pub fn invoke(
         &self,
         target: crate::InvocationTarget<'_>,
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         let produced = self.produce_invocation()?;
         let admitted = self.admit_invocation(&produced, target)?;
@@ -151,7 +155,7 @@ impl PreparedBuildMachineEntry {
         let produced = Arc::new(self.produce_invocation()?);
         let admitted = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation_accounting::pure_terminal_invocation_account()?;
-        let mut meter = psi_work::WorkMeter::with_invocation(account.clone(), None)
+        let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let result = self
             .execute_invocation(&produced, &admitted, &mut meter)
@@ -181,20 +185,18 @@ impl PreparedBuildMachineEntry {
         result
     }
 
-    fn produce_invocation(
-        &self,
-    ) -> Result<psi_terminal_production::ProducedTerminalProgram, String> {
+    fn produce_invocation(&self) -> Result<terminal_production::ProducedTerminalProgram, String> {
         self.accepted
             .produce(
                 Default::default(),
-                &mut psi_terminal_production::UnmeasuredProduction,
+                &mut terminal_production::UnmeasuredProduction,
             )
             .map_err(|errors| diagnostics::join_messages(&errors))
     }
 
     fn admit_invocation(
         &self,
-        produced: &psi_terminal_production::ProducedTerminalProgram,
+        produced: &terminal_production::ProducedTerminalProgram,
         target: crate::InvocationTarget<'_>,
     ) -> Result<terminal_installation::AdmittedCompilerEvaluation, String> {
         if target.name.is_none()
@@ -285,9 +287,9 @@ impl PreparedBuildMachineEntry {
 
     fn execute_invocation(
         &self,
-        produced: &psi_terminal_production::ProducedTerminalProgram,
+        produced: &terminal_production::ProducedTerminalProgram,
         admitted: &terminal_installation::AdmittedCompilerEvaluation,
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         use terminal_interpreter::{
             TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation,
@@ -416,7 +418,7 @@ impl PreparedBuildMachineProgram {
             &typed_trees::expression::StaticMachineArgument,
             SymbolHandle,
         )>,
-        supplies: &[psi_terminal_production::TerminalSourceSupply],
+        supplies: &[terminal_production::TerminalSourceSupply],
     ) -> Result<PreparedBuildMachineEntry, String> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
@@ -449,9 +451,9 @@ impl PreparedBuildMachineProgram {
         )
         .map_err(|errors| diagnostics::join_messages(&errors))?;
         let source = Arc::new(source);
-        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
             source,
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[caller],
                 // Evaluating this call requests its dependency closure, not a
@@ -815,7 +817,7 @@ impl PreparedBuildMachineProgram {
     pub fn entry_for_supply(
         &self,
         requester: SymbolHandle,
-        supply: psi_terminal_production::TerminalSourceSupply,
+        supply: terminal_production::TerminalSourceSupply,
         arguments: &[crate::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
         self.source
@@ -893,7 +895,7 @@ pub(crate) mod tests {
     fn run(
         program: &PreparedBuildMachineProgram,
         arguments: &[BuildTimeValue],
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
     ) -> Result<BuildTimeValue, String> {
         bind(program, arguments)?.invoke(target(), meter)
     }
@@ -946,7 +948,7 @@ pub(crate) mod tests {
         let entry = prepared
             .entry(selected, selected, std::slice::from_ref(&value))
             .unwrap();
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(entry.invoke(target, &mut meter).unwrap(), value);
         assert!(meter.usage().total_units() > 0);
         assert_eq!(entry.arguments(), std::slice::from_ref(&value));
@@ -963,7 +965,7 @@ pub(crate) mod tests {
             .entry(transport, transport, std::slice::from_ref(&wrapped))
             .unwrap();
         let returned = entry
-            .invoke(target, &mut psi_work::WorkMeter::unbounded())
+            .invoke(target, &mut terminal_work::WorkMeter::unbounded())
             .unwrap();
         let BuildTimeValue::Struct { fields, .. } = returned else {
             panic!("the real enclosing record must remain a record")
@@ -991,7 +993,7 @@ pub(crate) mod tests {
         let entry = prepared
             .entry(selected, selected, &[BuildTimeValue::LayoutTarget(other)])
             .unwrap();
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert!(
             entry
                 .invoke(target, &mut meter)
@@ -1011,6 +1013,387 @@ pub(crate) mod tests {
             refusal.contains("exact unqualified core declaration"),
             "{refusal}"
         );
+    }
+
+    #[test]
+    fn fixed_layout_policy_installs_the_retained_pairs_authored_geometry() {
+        // The kept program deliberately puts lo after hi. Evaluate that same
+        // policy and retain its geometry, rather than assigning default offsets.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let pair = source
+            .data_definitions()
+            .iter()
+            .filter(|data| data.name.as_str() == "Pair")
+            .map(|data| data.symbol)
+            .collect::<Vec<_>>();
+        let [pair] = pair.as_slice() else {
+            panic!("the retained program declares exactly one Pair")
+        };
+        let pair = *pair;
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        // Two applications may share a target profile, including a nested
+        // field's policy and its containing policy. Conflicting facts must
+        // refuse before either can run and contaminate the other's schema.
+        let scope = FixedLayoutTargetScope {
+            target: facts.profile.clone(),
+            facts: Some(facts.clone()),
+            entry_declarations: Some(vec![entry]),
+            provider_declarations: Vec::new(),
+        };
+        let mut conflicting = scope.clone();
+        conflicting.facts.as_mut().unwrap().pointer_size = 4;
+        conflicting.facts.as_mut().unwrap().pointer_alignment = 4;
+        let mut refused = source.clone();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let errors = evaluate_fixed_layout_applications(
+            &mut refused,
+            &[scope.clone(), conflicting],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .unwrap_err();
+        assert!(
+            diagnostics::join_messages(&errors)
+                .contains("disagree on one target's immutable facts")
+        );
+        assert!(accounting.receipts().is_empty());
+        assert!(refused.plan_laid_layouts.is_empty());
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[scope],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut crate::SourceCompletionAccounting::default(),
+        )
+        .unwrap();
+        let plan = source
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| plan.data_symbol == pair)
+            .expect("the demanded Pair policy must produce its actual layout");
+        let geometry = plan
+            .geometry_for_target(&source, Some("linux_x86_64"))
+            .expect("the plan must retain the requested target's geometry");
+        assert_eq!(geometry.validated_layout.size, Some(16));
+        assert_eq!(geometry.validated_layout.align, 8);
+        assert_eq!(geometry.validated_layout.offsets, Some(vec![8, 0]));
+
+        // The same program must keep those placements in its checked module.
+        // Evaluating the policy alone would miss a later return to defaults.
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let module = accepted.module();
+        let [application] = module.target_layout_applications.as_slice() else {
+            panic!("the program retains its one actual layout application");
+        };
+        assert_ne!(application.record, application.schema);
+        let [realization] = application.realizations.as_slice() else {
+            panic!("the program retains its one requested target");
+        };
+        assert_eq!(realization.target, "linux_x86_64");
+        assert_eq!(realization.storage.byte_size, 16);
+        assert_eq!(realization.storage.byte_alignment, 8);
+        assert_eq!(
+            realization
+                .fields
+                .iter()
+                .map(|field| field.storage.byte_offset())
+                .collect::<Vec<_>>(),
+            [Some(8), Some(0)]
+        );
+        let native = module.native_layouts.record(application.record).unwrap();
+        let [native] = module.native_layouts.realizations(native).unwrap() else {
+            panic!("native emission retains that same target realization");
+        };
+        assert_eq!(native.report.layout.offsets, Some(vec![8, 0]));
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+
+        // A byte view covers its captured region. Shifting that whole view
+        // cannot borrow another byte beyond the region's established extent.
+        let mut shifted = module.clone();
+        let (machine, offset) = shifted
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.operations().find_map(|operation| {
+                    let terminal_psi::OperationKind::EstablishReference {
+                        storage: Some(storage),
+                        ..
+                    } = operation.kind
+                    else {
+                        return None;
+                    };
+                    Some((machine.id, storage.byte_offset))
+                })
+            })
+            .expect("the retained byte oracle forms an actual storage view");
+        let producer = shifted
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == machine)
+            .unwrap()
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                operation
+                    .result
+                    .as_scalar()
+                    .is_some_and(|result| result.id == offset)
+            })
+            .unwrap();
+        producer.kind = terminal_psi::OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(1),
+        };
+        let refusal =
+            terminal_codec::decode_module(&terminal_codec::encode_module(&shifted).unwrap())
+                .unwrap_err();
+        assert!(
+            refusal.to_string().contains("captured zero offset"),
+            "{refusal}"
+        );
+
+        // Changing the issuer's target input cannot relabel the retained
+        // realization as a result for different representation facts.
+        let mut forged = module.clone();
+        forged.target_layout_applications[0].target_inputs[0].pointer_size = 4;
+        let refusal =
+            terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                .unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("independent issuer target input"),
+            "{refusal}"
+        );
+    }
+
+    #[test]
+    fn the_library_c_layout_policy_keeps_its_existing_scalar_record() {
+        // The bundled generic policy must compute the kept C-layout example's
+        // real field placements. Its alias, operations and byte oracle stay
+        // unchanged while the compiler supplies the actual type application.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/c_layout_scalar_record/local/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let records = source
+            .data_definitions()
+            .iter()
+            .filter(|data| data.name.as_str() == "Record")
+            .map(|data| data.symbol)
+            .collect::<Vec<_>>();
+        let [record] = records.as_slice() else {
+            panic!("the kept example declares one Record")
+        };
+        let record = *record;
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[FixedLayoutTargetScope {
+                target: facts.profile.clone(),
+                facts: Some(facts),
+                entry_declarations: Some(vec![entry]),
+                provider_declarations: Vec::new(),
+            }],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut crate::SourceCompletionAccounting::default(),
+        )
+        .unwrap();
+        let plans = source
+            .plan_laid_layouts
+            .iter()
+            .filter(|plan| plan.data_symbol == record)
+            .collect::<Vec<_>>();
+        let [plan] = plans.as_slice() else {
+            panic!("the one C policy retains one actual record layout")
+        };
+        let geometry = plan
+            .geometry_for_target(&source, Some("linux_x86_64"))
+            .unwrap();
+        assert_eq!(geometry.validated_layout.size, Some(24));
+        assert_eq!(geometry.validated_layout.align, 8);
+        assert_eq!(geometry.validated_layout.offsets, Some(vec![0, 8, 16]));
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let bytes = terminal_codec::encode_module(accepted.module()).unwrap();
+        assert_eq!(
+            terminal_codec::decode_module(&bytes).unwrap(),
+            *accepted.module()
+        );
+    }
+
+    #[test]
+    fn actual_float_bit_views_keep_their_declared_scalar_homes() {
+        // Exposing a float's integer bits must borrow its original float storage.
+        // Check the actual core helpers with their declared inputs; the
+        // application's overloaded from_bits calls are a separate unresolved path.
+        let source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/core_float_representation/local/main.omg"
+        )));
+        let requester = query_machine(&source, "main");
+        let span = source.symbols.symbol_source_span(requester).unwrap();
+        let candidates = source.symbols.top_level_candidates_from_source(
+            "float::to_bits",
+            &[symbols::SymbolKind::Machine],
+            span,
+        );
+        assert_eq!(candidates.len(), 2, "both actual public float declarations");
+        let declarations = candidates
+            .into_iter()
+            .map(|symbol| {
+                let machine = source.machine_by_symbol(symbol).unwrap();
+                let declaration_span = source.symbols.symbol_source_span(symbol).unwrap();
+                assert!(
+                    source
+                        .symbols
+                        .source_file(declaration_span)
+                        .unwrap()
+                        .path
+                        .ends_with("core/float.omg")
+                );
+                let [state] = source.machine_states(machine) else {
+                    panic!("one original helper entry")
+                };
+                let [formal] = source.state_parameters(state) else {
+                    panic!("one declared float input")
+                };
+                let typed_trees::types::TypeReferenceNode::Named { symbol: scalar, .. } = source
+                    .type_reference_table
+                    .type_reference(formal.type_reference)
+                else {
+                    panic!("the declared builtin float")
+                };
+                let format = match source.symbols.builtin_type_atom(*scalar) {
+                    Some(symbols::BuiltinTypeAtom::F32) => {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32
+                    }
+                    Some(symbols::BuiltinTypeAtom::F64) => {
+                        semantic_vocabulary::IeeeFloatFormat::Binary64
+                    }
+                    other => panic!("unexpected public input {other:?}"),
+                };
+                (
+                    symbols::RetainedDeclaration::capture(&source.symbols, symbol).unwrap(),
+                    format,
+                )
+            })
+            .collect::<Vec<_>>();
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            assert!(declarations.iter().any(|(_, actual)| *actual == format));
+        }
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let prepared = Arc::new(prepared);
+        for (declaration, format) in declarations {
+            let symbol = declaration
+                .rejoin(
+                    &prepared.symbols,
+                    prepared.machines().iter().map(|machine| machine.symbol),
+                )
+                .unwrap();
+            let accepted = terminal_production::AcceptedTerminalSource::judge(
+                Arc::clone(&prepared),
+                terminal_production::TerminalSourceCompilation {
+                    calling: None,
+                    providers: None,
+                    declaration_metadata: &[],
+                    entries: &[symbol],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .unwrap();
+            let module = accepted.module();
+            let scalar = semantic_vocabulary::ScalarType::IeeeFloat(format);
+            assert!(
+                module.structural_types.iter().any(|declaration| {
+                    declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
+                }),
+                "the helper retains its original IEEE storage identity"
+            );
+            assert!(module.machines.iter().flat_map(|machine| machine.operations()).any(|operation| {
+                matches!(operation.kind, terminal_psi::OperationKind::EstablishReference {
+                    storage: Some(terminal_psi::ReferenceStorageView { stored_scalar: Some(stored), .. }), ..
+                } if stored == scalar)
+            }), "the actual helper presents its IEEE storage as integer bits");
+            let bytes = terminal_codec::encode_module(module).unwrap();
+            assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        }
     }
 
     /// The machine `name` that a `with_reflection` query declares. The real
@@ -1196,18 +1579,17 @@ pub(crate) mod tests {
                 .unwrap();
             assert_eq!(trait_arguments.len(), 1);
             assert_eq!(
-                materialized
-                    .type_reference_table
-                    .primitive_type(trait_arguments[0]),
-                typed_trees::types::PrimitiveType::from_name(semantic_type),
+                materialized.primitive_type_reference(trait_arguments[0]),
+                Some(typed_trees::types::PrimitiveType::Integer(
+                    numerics::integer_carrier::FixedInteger::from_decimal_spelling(semantic_type)
+                        .unwrap()
+                )),
                 "the selected trait's semantic T is resolved through its own map environment"
             );
             if name != "wide" {
                 assert_ne!(
-                    materialized
-                        .type_reference_table
-                        .primitive_type(trait_arguments[0]),
-                    typed_trees::types::PrimitiveType::from_name("u64"),
+                    materialized.primitive_type_reference(trait_arguments[0]),
+                    Some(typed_trees::types::PrimitiveType::U64),
                     "a genuine closed selection does not establish a different semantic subject"
                 );
             }
@@ -1378,9 +1760,9 @@ pub(crate) mod tests {
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .unwrap();
-        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(portable_source),
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[requester],
                 subjects: &[],
@@ -1555,7 +1937,7 @@ pub(crate) mod tests {
                 .unwrap();
             source.trait_machine_signatures(owner)[0].symbol
         };
-        let binding = psi_terminal_production::TerminalSourceSupply {
+        let binding = terminal_production::TerminalSourceSupply {
             slot: requirement("A"),
             provider: implementation("P").symbol,
         };
@@ -1585,12 +1967,12 @@ pub(crate) mod tests {
                 .is_empty()
         );
         let value = entry
-            .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+            .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
             .unwrap();
         assert_eq!(value, BuildTimeValue::Int(7));
 
         assert!(
-            psi_terminal_production::TerminalSourceSupply {
+            terminal_production::TerminalSourceSupply {
                 provider: implementation("Q").symbol,
                 ..binding
             }
@@ -1599,7 +1981,7 @@ pub(crate) mod tests {
         );
         assert!(binding.realization(&source, requirement("B")).is_err());
         assert!(
-            psi_terminal_production::TerminalSourceSupply {
+            terminal_production::TerminalSourceSupply {
                 provider: SymbolHandle::invalid(),
                 ..binding
             }
@@ -1622,7 +2004,7 @@ pub(crate) mod tests {
         let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
         assert_eq!(
             entry
-                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .unwrap(),
             value
         );
@@ -1648,7 +2030,7 @@ pub(crate) mod tests {
         let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
         assert_eq!(
             entry
-                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .unwrap(),
             value
         );
@@ -1680,9 +2062,9 @@ pub(crate) mod tests {
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .expect("prepare the actual source declarations");
-        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(source),
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[Some(package)],
@@ -1921,6 +2303,125 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn callable_queries_use_the_same_landed_application_as_invocation() {
+        // The value exceeds i128, but its declared carrier admits it. Both
+        // selecting this declaration and invoking it must retain that value;
+        // another declaration's same-spelled N is not the same binder.
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            machine selected<const N: u128>() -> u32 { 7u32 }
+            machine other<const N: u128>() -> u32 { 9u32 }
+            machine answer() -> reflect::CallableInfo {
+                reflect::callable(selected<170141183460469231731687303715884105728>)
+            }
+            machine alternate() -> reflect::CallableInfo {
+                reflect::callable(other<170141183460469231731687303715884105728>)
+            }
+            machine used() -> u32 { selected<170141183460469231731687303715884105728>() }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let mut descriptions = Vec::new();
+        for name in ["answer", "alternate"] {
+            let symbol = query_machine(&source, name);
+            let value = program
+                .entry(symbol, symbol, &[])
+                .unwrap()
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+                .unwrap();
+            descriptions.push(value);
+        }
+        assert_ne!(descriptions[0], descriptions[1]);
+        let used = query_machine(&source, "used");
+        assert_eq!(
+            program
+                .entry(used, used, &[])
+                .unwrap()
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+                .unwrap(),
+            BuildTimeValue::Int(7)
+        );
+        let (owner, call) = returned_source_call(&source, "answer");
+        let call = source.expression_table.call_node(call).unwrap();
+        let [operand] = source.expression_table.expression_handles(call.arguments) else {
+            panic!("one declaration operand")
+        };
+        let selected = source
+            .declaration_operand_from_expression(*operand)
+            .unwrap();
+        let original = typed_trees::reflection::construction::callable_description_identity(
+            &source, &selected, owner,
+        )
+        .unwrap();
+        let mut crossed = selected.clone();
+        crossed.symbol = query_machine(&source, "other");
+        assert!(
+            typed_trees::reflection::construction::callable_description_identity(
+                &source, &crossed, owner
+            )
+            .is_err()
+        );
+        assert!(!original.0);
+        let selected_machine = source.machine_by_symbol(selected.symbol).unwrap();
+        let other_machine = source.machine_by_symbol(crossed.symbol).unwrap();
+        let selected_binder = source.machine_type_parameters(selected_machine)[0].symbol;
+        let other_binder = source.machine_type_parameters(other_machine)[0].symbol;
+        assert_eq!(
+            source.symbols.name(selected_binder),
+            source.symbols.name(other_binder)
+        );
+        assert_ne!(selected_binder, other_binder);
+        let (_, used_call) = returned_source_call(&source, "used");
+        let application = source
+            .expression_table
+            .call_node(used_call)
+            .unwrap()
+            .authored_machine_application;
+        let [binding] = source
+            .expression_table
+            .static_machine_application_bindings(application)
+        else {
+            panic!("ordinary formation retains its exact binder")
+        };
+        assert_eq!(binding.parameter, selected_binder);
+        let source_application = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                member: Default::default(),
+                lifetime_arguments: Box::default(),
+                arguments: source
+                    .expression_table
+                    .static_machine_application_arguments(application)
+                    .to_vec()
+                    .into_boxed_slice(),
+            })),
+            ..Default::default()
+        };
+        let invoked_identity = typed_trees::type_identity::portable_applied_index_identity(
+            &source,
+            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&source_application),
+            used,
+            &[],
+        )
+        .and_then(|identity| source.type_identity_text(identity))
+        .unwrap();
+        assert_eq!(original.1[1], invoked_identity.as_bytes());
+        let typed_trees::static_applications::StaticMachineBindingValue::Const(value) =
+            binding.value
+        else {
+            panic!("the binding retains its value, not its carrier")
+        };
+        assert_eq!(
+            source
+                .static_const_literal_from_type_reference(value)
+                .unwrap()
+                .value_bignum()
+                .unwrap()
+                .to_string(),
+            "170141183460469231731687303715884105728"
+        );
+    }
+
+    #[test]
     fn source_call_requests_keep_their_authored_operand_and_owner() {
         let source = with_reflection(
             "use omega::language::core::reflect;
@@ -1960,7 +2461,7 @@ pub(crate) mod tests {
         }
         assert_ne!(descriptions[0], descriptions[1]);
         let (requester, expression) = returned_source_call(source, "not_callable");
-        let meter = psi_work::WorkMeter::unbounded();
+        let meter = terminal_work::WorkMeter::unbounded();
         let error = program
             .entry_call(requester, expression, &[])
             .err()
@@ -2010,7 +2511,7 @@ pub(crate) mod tests {
             .unwrap()
             .entry(selected, selected, &[])
             .unwrap()
-            .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+            .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
             .expect("the store uses the selector captured before replacement");
         let BuildTimeValue::Struct { fields, .. } = result else {
             panic!("actual report")
@@ -2181,7 +2682,7 @@ pub(crate) mod tests {
         if !call.machine_arguments.is_empty() {
             call.machine_arguments[0].type_reference = stale;
         }
-        let meter = psi_work::WorkMeter::unbounded();
+        let meter = terminal_work::WorkMeter::unbounded();
         let error = PreparedBuildMachineProgram::prepare(&stale_source, None)
             .unwrap()
             .entry_call(requester, expression, &[])
@@ -2273,7 +2774,7 @@ pub(crate) mod tests {
             program
                 .entry(symbol, symbol, &[])
                 .expect("query entry")
-                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .expect("actual source query execution")
         };
         let first = query("answer");
@@ -2341,15 +2842,92 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn inferred_boolean_subjects_execute_without_relaxing_operand_checks() {
+        // The caller keeps both outcomes of each predicate. A Boolean result
+        // type neither assumes the predicate nor grants a case or domain fact.
+        let cases = program(
+            "data Choice { case A; case B; }
+             machine answer(value: Choice) -> u64 {
+                 transition value in Choice::A { true -> 41u64 _ -> 0u64 }
+             }",
+        );
+        for (case, expected) in [("A", 41), ("B", 0)] {
+            assert_eq!(
+                run(
+                    &cases,
+                    &[BuildTimeValue::Case {
+                        variant: case.into(),
+                        payload: Vec::new(),
+                    }],
+                    &mut terminal_work::WorkMeter::unbounded(),
+                )
+                .expect("the actual case test chooses its arm"),
+                BuildTimeValue::Int(expected),
+            );
+        }
+        let mut refused = terminal_work::WorkMeter::unbounded();
+        let error = run(
+            &cases,
+            &[BuildTimeValue::Case {
+                variant: "Other".into(),
+                payload: Vec::new(),
+            }],
+            &mut refused,
+        )
+        .expect_err("a Boolean case test cannot create another case");
+        assert!(error.contains("not declared by formal"), "{error}");
+        assert_eq!(refused.usage().total_units(), 0);
+
+        let membership = program(
+            "domain u64::Small requires self <= 8;
+             machine answer(value: u64) -> u64 {
+                 transition value in Small { true -> 41u64 _ -> 0u64 }
+             }",
+        );
+        for (value, expected) in [(0, 41), (8, 41), (9, 0)] {
+            assert_eq!(
+                run(
+                    &membership,
+                    &[BuildTimeValue::Int(value)],
+                    &mut terminal_work::WorkMeter::unbounded(),
+                )
+                .expect("the actual domain predicate chooses its arm"),
+                BuildTimeValue::Int(expected),
+            );
+        }
+        let negation_source = "machine answer(value: bool) -> u64 {
+            transition !value { true -> 41u64 _ -> 0u64 }
+        }";
+        let negated = program(negation_source);
+        for value in [false, true] {
+            assert_eq!(
+                run(
+                    &negated,
+                    &[BuildTimeValue::Bool(value)],
+                    &mut terminal_work::WorkMeter::unbounded(),
+                )
+                .expect("the captured negation chooses its actual arm"),
+                BuildTimeValue::Int(if value { 0 } else { 41 }),
+            );
+        }
+        let invalid = program(&negation_source.replacen("value: bool", "value: u64", 1));
+        let mut refused = terminal_work::WorkMeter::unbounded();
+        let error = run(&invalid, &[BuildTimeValue::Int(0)], &mut refused)
+            .expect_err("a Boolean result does not turn an integer operand into Bool");
+        assert!(error.contains("unary operand type"), "{error}");
+        assert_eq!(refused.usage().total_units(), 0);
+    }
+
+    #[test]
     fn source_jobs_prove_requires_at_the_actual_arguments_before_execution() {
         let entry = program("machine answer(value: u64) -> u64 requires value > 0 { value }");
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(
             run(&entry, &[BuildTimeValue::Int(1)], &mut meter).expect("proved actual call"),
             BuildTimeValue::Int(1)
         );
         assert!(meter.usage().total_units() > 0);
-        let mut refused = psi_work::WorkMeter::unbounded();
+        let mut refused = terminal_work::WorkMeter::unbounded();
         let error = run(&entry, &[BuildTimeValue::Int(0)], &mut refused)
             .expect_err("callee requires are not assumptions of its caller");
         assert!(error.contains("requires"), "{error}");
@@ -2480,7 +3058,7 @@ pub(crate) mod tests {
             run(
                 &entry,
                 &[argument(1)],
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("established record"),
             BuildTimeValue::Int(1)
@@ -2489,7 +3067,7 @@ pub(crate) mod tests {
             run(
                 &entry,
                 &[argument(0)],
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect_err("the zero field cannot establish Positive")
             .contains("requires")
@@ -2500,7 +3078,7 @@ pub(crate) mod tests {
         };
         fields.push(("extra".into(), BuildTimeValue::Int(2)));
         assert!(
-            run(&entry, &[extra], &mut psi_work::WorkMeter::unbounded())
+            run(&entry, &[extra], &mut terminal_work::WorkMeter::unbounded())
                 .expect_err("all supplied fields remain obligations")
                 .contains("field")
         );
@@ -2514,7 +3092,7 @@ pub(crate) mod tests {
             run(
                 &shared,
                 std::slice::from_ref(&bytes),
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("real shared backing"),
             bytes
@@ -2523,13 +3101,20 @@ pub(crate) mod tests {
             run(
                 &shared,
                 &[BuildTimeValue::Text(Vec::new())],
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("empty real backing"),
             BuildTimeValue::Text(Vec::new())
         );
         let mutable = program("machine answer(bytes: &mut [u8]) -> &mut [u8] { bytes }");
-        assert!(run(&mutable, &[bytes], &mut psi_work::WorkMeter::unbounded()).is_err());
+        assert!(
+            run(
+                &mutable,
+                &[bytes],
+                &mut terminal_work::WorkMeter::unbounded()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2545,7 +3130,7 @@ pub(crate) mod tests {
         let result = run(
             &entry,
             std::slice::from_ref(&value),
-            &mut psi_work::WorkMeter::unbounded(),
+            &mut terminal_work::WorkMeter::unbounded(),
         )
         .expect("byte field keeps its backing");
         let BuildTimeValue::Struct { type_name, fields } = &result else {
@@ -2579,7 +3164,7 @@ pub(crate) mod tests {
             run(
                 &entry,
                 std::slice::from_ref(&result),
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("readback retains its complete formal identity"),
             result
@@ -2598,7 +3183,7 @@ pub(crate) mod tests {
             variant: "Ready".into(),
             payload: vec![("bytes".into(), BuildTimeValue::Text(vec![0, 255, b'x']))],
         };
-        let returned = run(&entry, &[value], &mut psi_work::WorkMeter::unbounded())
+        let returned = run(&entry, &[value], &mut terminal_work::WorkMeter::unbounded())
             .expect("authored member selects its exact numbered case");
         assert_eq!(
             returned,
@@ -2611,12 +3196,12 @@ pub(crate) mod tests {
             run(
                 &entry,
                 std::slice::from_ref(&returned),
-                &mut psi_work::WorkMeter::unbounded()
+                &mut terminal_work::WorkMeter::unbounded()
             )
             .expect("returned identities rejoin the same formal"),
             returned
         );
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         let unknown = BuildTimeValue::Case {
             variant: "#99".into(),
             payload: vec![("#9".into(), BuildTimeValue::Text(vec![]))],
@@ -2713,7 +3298,7 @@ pub(crate) mod tests {
                     .contains("recursive machine-call cycle has no ordinary termination proof"),
             "{intended}"
         );
-        let mut meter = psi_work::WorkMeter::with_budget(100);
+        let mut meter = terminal_work::WorkMeter::with_budget(100);
         let error = entry
             .invoke(target(), &mut meter)
             .expect_err("a work ceiling cannot substitute for progress admission");
@@ -2731,7 +3316,8 @@ pub(crate) mod tests {
         ] {
             let mut sources = source::SourceMap::default();
             let policy = "machine answer() -> u64 { 17u64 } machine request() -> u64 { 0u64 }";
-            let unused = "data NotReady<T> { value: T; }";
+            // A declaration the full check of a subject does not read yet.
+            let unused = "data NotReady<'held, T> { value: &'held T; }";
             let policy_id = sources
                 .add_with_metadata(
                     "/policy-package/policy.omg".into(),
@@ -2773,7 +3359,7 @@ pub(crate) mod tests {
             if owner.is_some() {
                 assert_eq!(
                     entry
-                        .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                        .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                         .expect("one invocation does not claim the unused generic declaration"),
                     BuildTimeValue::Int(17)
                 );
@@ -2798,9 +3384,9 @@ pub(crate) mod tests {
             .expect("typed preparation refuses nothing in this source");
             let source = Arc::new(source);
             let full_subject = |subject| {
-                psi_terminal_production::AcceptedTerminalSource::judge(
+                terminal_production::AcceptedTerminalSource::judge(
                     Arc::clone(&source),
-                    psi_terminal_production::TerminalSourceCompilation {
+                    terminal_production::TerminalSourceCompilation {
                         declaration_metadata: &[],
                         entries: &[callee],
                         subjects: &[subject],
@@ -2959,7 +3545,7 @@ pub(crate) mod tests {
                 && error.contains(&format!("{:?}", packages[1])),
             "{error}"
         );
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(entry.invoke(target(), &mut meter).unwrap_err(), error);
         assert_eq!(meter.usage().total_units(), 0);
         let complete = PreparedBuildMachineProgram::prepare(
@@ -3058,7 +3644,7 @@ pub(crate) mod tests {
                     &[BuildTimeValue::Int(1)],
                 )
                 .unwrap();
-            let mut meter = psi_work::WorkMeter::unbounded();
+            let mut meter = terminal_work::WorkMeter::unbounded();
             let result = entry.invoke(target(), &mut meter);
             if has_body_edge {
                 assert_eq!(result.unwrap(), BuildTimeValue::Int(1));
@@ -3271,7 +3857,7 @@ pub(crate) mod tests {
             error.contains("no direct dependency selection authority"),
             "{error}"
         );
-        let mut meter = psi_work::WorkMeter::unbounded();
+        let mut meter = terminal_work::WorkMeter::unbounded();
         assert_eq!(entry.invoke(target(), &mut meter).unwrap_err(), error);
         assert_eq!(meter.usage().total_units(), 0);
 

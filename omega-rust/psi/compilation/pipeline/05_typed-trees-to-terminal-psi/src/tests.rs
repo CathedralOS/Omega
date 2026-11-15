@@ -76,6 +76,7 @@ fn strict(
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },
@@ -228,6 +229,7 @@ fn lower_records(
         &crate::callables::CallableNamespace::default(),
         &crate::boundaries::BoundaryNamespace::default(),
         false,
+        &mut crate::qualifications::Qualifications::default(),
     )
 }
 
@@ -878,6 +880,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     ];
     let callee = Signature {
         requires: vec![Proposition::Truth],
+        crashes: CrashCeiling::Authored(callee_routes.clone()),
         ..signature(vec![u32_type()], None)
     };
     let (machine, tables) = lower_with(
@@ -959,6 +962,40 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
     assert_eq!(tables.edges.len(), 1);
 }
 
+#[test]
+fn a_private_crash_outcome_does_not_replace_the_published_call_contract() {
+    // The helper's signature explicitly promises no crash. A separate body
+    // outcome cannot donate a wider public contract to this invocation.
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(call(2, Vec::new(), None))],
+    };
+    let (machine, tables) = lower_with(
+        body,
+        vec![signature(Vec::new(), None), signature(Vec::new(), None)],
+        vec![
+            returns_normally(),
+            Outcome {
+                crash_routes: routes(&[CrashCause::Trap]),
+                ..returns_normally()
+            },
+        ],
+    );
+    let OperationKind::CallUnit {
+        crash_continuations,
+        ..
+    } = &block(&machine, 1).operations[0].kind
+    else {
+        panic!("the returning call stays an operation");
+    };
+    assert!(crash_continuations.is_empty());
+    assert!(
+        !obligations(&tables)
+            .iter()
+            .any(|kind| matches!(kind, ObligationKind::CrashCoverage { .. }))
+    );
+}
+
 /// A call of a machine that may return and may crash stays an operation in
 /// the middle of its block. It carries the callee's routes with formals
 /// replaced by the actuals, and that operation, not the block, is the crash
@@ -999,12 +1036,13 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
             alternatives: vec![CrashRouteGuard::Truth],
         },
     ];
+    let callee = Signature {
+        crashes: CrashCeiling::Authored(callee_routes.clone()),
+        ..signature(vec![u32_type()], Some(u32_type()))
+    };
     let (machine, tables) = lower_with(
         body,
-        vec![
-            signature(vec![u32_type()], Some(u32_type())),
-            signature(vec![u32_type()], Some(u32_type())),
-        ],
+        vec![signature(vec![u32_type()], Some(u32_type())), callee],
         vec![
             Outcome {
                 operational: [false; 2],
@@ -1542,6 +1580,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
     *designated = Some(crate::body::DesignatedOperands {
         request: arena::Handle::invalid(),
         selecting: id(1),
+        readiness: None,
     });
     let twin = |statement| {
         try_lower(
@@ -1665,6 +1704,8 @@ fn outcomes_follow_the_ceiling_or_the_body() {
             &[],
             &crate::callables::CallableNamespace::default(),
             None,
+            &Default::default(),
+            &crate::components::discover(&bodies).unwrap(),
         )
         .unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
@@ -1725,6 +1766,8 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
             &[],
             &crate::callables::CallableNamespace::default(),
             None,
+            &Default::default(),
+            &crate::components::discover(&bodies).unwrap(),
         )
         .map(|table| table.get(id(1)).unwrap().clone())
     };
@@ -1797,6 +1840,8 @@ fn a_skipped_operand_cannot_end_the_machine() {
         &[],
         &crate::callables::CallableNamespace::default(),
         None,
+        &Default::default(),
+        &crate::components::discover(&bodies).unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -1808,6 +1853,322 @@ fn a_skipped_operand_cannot_end_the_machine() {
             synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
+    );
+}
+
+/// One statement of a generated unit body for the outcome settling tests.
+#[derive(Clone, Copy, Debug)]
+enum Step {
+    /// `f();` for machine `f`.
+    Call(u64),
+    /// A guarded terminal arm whose target calls machine `f`.
+    Tail(u64),
+    /// An unguarded terminal arm whose target calls machine `f`.
+    Return(u64),
+    /// A crash arm, guarded or not.
+    Crash(bool, CrashCause),
+    /// A call of a boundary with no signature, refused when reached.
+    Refuse,
+}
+
+/// The table `outcomes` settles callee-first and the one whole-program rounds
+/// reach, with the body walks each took.
+type Settled = (
+    terminal_check_tables::Checked<IdTable<MachineId, Outcome>>,
+    usize,
+    terminal_check_tables::Checked<IdTable<MachineId, Outcome>>,
+    usize,
+);
+
+fn settle_both(
+    program: &[Vec<Step>],
+    crashes: &[CrashCeiling],
+    requirements: &[MachineId],
+    local: Option<&[MachineId]>,
+) -> Settled {
+    let yes = || expression(ExpressionKind::Boolean(true), Some(ScalarType::Boolean));
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    for (steps, crashes) in program.iter().zip(crashes) {
+        let statements = steps
+            .iter()
+            .map(|step| match *step {
+                Step::Call(callee) => Statement::Evaluate(call(callee, Vec::new(), None)),
+                Step::Tail(callee) => Statement::Arm {
+                    guard: Some(yes()),
+                    target: Target::Value(call(callee, Vec::new(), None)),
+                    source: nowhere(),
+                },
+                Step::Return(callee) => returns(call(callee, Vec::new(), None)),
+                Step::Crash(guarded, cause) => crash_arm(guarded.then(yes), cause),
+                Step::Refuse => Statement::Evaluate(expression(
+                    ExpressionKind::Call {
+                        callee: crate::body::CallTarget::Boundary { boundary: id(1) },
+                        arguments: Vec::new(),
+                        designated: None,
+                        required_contract: None,
+                    },
+                    None,
+                )),
+            })
+            .collect();
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements,
+        });
+        signatures.push(Signature {
+            crashes: crashes.clone(),
+            ..signature(Vec::new(), None)
+        });
+    }
+    let signatures = crate::body::Signatures {
+        declarations: &IdTable::default(),
+        declaration_aliases: None,
+        machines: &signatures,
+        boundaries: &crate::boundaries::BoundaryNamespace::default(),
+    };
+    let run = |by_rounds| {
+        crate::outcome::counted_outcomes(
+            &bodies,
+            signatures,
+            requirements,
+            local,
+            &Default::default(),
+            by_rounds,
+        )
+    };
+    let split =
+        |result: terminal_check_tables::Checked<(IdTable<MachineId, Outcome>, usize)>| match result
+        {
+            Ok((table, visits)) => (Ok(table), visits),
+            Err(refusal) => (Err(refusal), 0),
+        };
+    let (settled, settled_visits) = split(run(false));
+    let (rounds, round_visits) = split(run(true));
+    (settled, settled_visits, rounds, round_visits)
+}
+
+/// Settling outcomes callee-first over the call components gives the table
+/// whole-program rounds give, on acyclic chains in either declaration order,
+/// self and mutual recursion, continuations a callee makes reachable only once
+/// it is found to complete, authored ceilings, requirements and source-unit
+/// limits on body-derived non-return. Every generated program of five machines
+/// is compared, then the named shapes are checked against what they mean.
+#[test]
+fn callee_first_outcomes_agree_with_whole_program_rounds() {
+    let inferred = |count| vec![CrashCeiling::Inferred; count];
+    let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = |bound: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % bound
+    };
+    let mut compared = 0;
+    for _ in 0..4000 {
+        let count = 1 + next(5);
+        let mut program = Vec::new();
+        let mut crashes = Vec::new();
+        let mut requirements = Vec::new();
+        let mut local = Vec::new();
+        for machine in 1..=count {
+            let requirement = next(8) == 0;
+            let steps = if requirement {
+                requirements.push(id(machine));
+                Vec::new()
+            } else {
+                (0..next(4))
+                    .map(|_| match next(12) {
+                        0..=3 => Step::Call(1 + next(count)),
+                        4 | 5 => Step::Tail(1 + next(count)),
+                        6 | 7 => Step::Return(1 + next(count)),
+                        8 => Step::Refuse,
+                        cause => Step::Crash(
+                            cause != 9,
+                            if cause % 2 == 0 {
+                                CrashCause::Trap
+                            } else {
+                                CrashCause::Abort
+                            },
+                        ),
+                    })
+                    .collect()
+            };
+            program.push(steps);
+            crashes.push(match next(6) {
+                0 => CrashCeiling::Authored(routes(&[CrashCause::Abort])),
+                1 => CrashCeiling::DeclaredNone,
+                _ => CrashCeiling::Inferred,
+            });
+            if next(3) != 0 {
+                local.push(id(machine));
+            }
+        }
+        let local = (next(4) != 0).then_some(local.as_slice());
+        let (settled, settled_visits, rounds, round_visits) =
+            settle_both(&program, &crashes, &requirements, local);
+        match (&settled, &rounds) {
+            (Ok(settled), Ok(rounds)) => {
+                assert_eq!(settled, rounds, "{program:?} {crashes:?} {local:?}");
+                assert!(settled_visits <= round_visits, "{program:?}");
+                compared += 1;
+            }
+            (Err(_), Err(_)) => {}
+            _ => panic!("{program:?}: {settled:?} against {rounds:?}"),
+        }
+    }
+    assert!(compared > 1000, "{compared} programs settled");
+
+    let rows = |result: &terminal_check_tables::Checked<IdTable<MachineId, Outcome>>| {
+        result
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|(_, outcome)| (outcome.completes_normally, outcome.crash_routes.clone()))
+            .collect::<Vec<_>>()
+    };
+    let trap = || routes(&[CrashCause::Trap]);
+    let abort = || routes(&[CrashCause::Abort]);
+
+    // An acyclic chain whose last link may trap: every machine completes and
+    // publishes the trap, walked once each in either declaration order.
+    let chain = |caller_first: bool| {
+        let mut program: Vec<_> = (1..=6)
+            .map(|machine| {
+                if machine == 6 {
+                    vec![Step::Crash(true, CrashCause::Trap)]
+                } else {
+                    vec![Step::Call(machine + 1)]
+                }
+            })
+            .collect();
+        if !caller_first {
+            program.reverse();
+            for steps in &mut program {
+                for step in steps {
+                    if let Step::Call(callee) = step {
+                        *callee = 7 - *callee;
+                    }
+                }
+            }
+        }
+        settle_both(&program, &inferred(6), &[], None)
+    };
+    for caller_first in [true, false] {
+        let (settled, visits, rounds, _) = chain(caller_first);
+        assert_eq!(rows(&settled), vec![(true, trap()); 6]);
+        assert_eq!(settled, rounds);
+        assert_eq!(visits, 6);
+    }
+
+    // Self recursion: a machine whose only path calls itself never completes;
+    // one with a way out completes with its own route.
+    let (settled, _, rounds, _) = settle_both(
+        &[
+            vec![Step::Return(1)],
+            vec![Step::Tail(2), Step::Crash(true, CrashCause::Abort)],
+        ],
+        &inferred(2),
+        &[],
+        None,
+    );
+    assert_eq!(rows(&settled), vec![(false, Vec::new()), (true, abort())]);
+    assert_eq!(settled, rounds);
+
+    // Mutual recursion with no way out: neither member completes, so the
+    // crash after a call of it is never reached.
+    let (settled, _, rounds, _) = settle_both(
+        &[
+            vec![Step::Return(2)],
+            vec![Step::Return(1)],
+            vec![Step::Call(1), Step::Crash(false, CrashCause::Trap)],
+        ],
+        &inferred(3),
+        &[],
+        None,
+    );
+    assert_eq!(rows(&settled), vec![(false, Vec::new()); 3]);
+    assert_eq!(settled, rounds);
+
+    // A continuation becomes reachable once its earlier callee is found to
+    // complete: machine 1 reaches machine 3's trap only through machine 2.
+    let (settled, _, rounds, _) = settle_both(
+        &[
+            vec![Step::Call(2), Step::Call(3)],
+            vec![Step::Tail(2)],
+            vec![Step::Crash(true, CrashCause::Trap)],
+        ],
+        &inferred(3),
+        &[],
+        None,
+    );
+    assert_eq!(
+        rows(&settled),
+        vec![(true, trap()), (true, Vec::new()), (true, trap())]
+    );
+    assert_eq!(settled, rounds);
+}
+
+/// Among bodies that refuse, the lowest machine is named, whatever order the
+/// rows settle in. Whole-program rounds named machine 3 here, because machine
+/// 1's refused call is reached only after its callee is found to complete.
+#[test]
+fn the_lowest_refusing_machine_is_named() {
+    let (settled, _, rounds, _) = settle_both(
+        &[
+            vec![Step::Call(2), Step::Refuse],
+            Vec::new(),
+            vec![Step::Refuse],
+        ],
+        &[
+            CrashCeiling::Inferred,
+            CrashCeiling::Inferred,
+            CrashCeiling::Inferred,
+        ],
+        &[],
+        None,
+    );
+    assert_eq!(settled.unwrap_err().machine, id(1));
+    assert_eq!(rounds.unwrap_err().machine, id(3));
+}
+
+/// A chain declared caller before callee settled one link per whole-program
+/// round, walking every body each round; callee-first walks each body once,
+/// and a cycle walks only its members again.
+#[test]
+fn outcome_settling_walks_each_acyclic_body_once() {
+    let count = 512;
+    let mut program: Vec<_> = (1..count)
+        .map(|machine| vec![Step::Call(machine + 1)])
+        .collect();
+    program.push(vec![Step::Crash(true, CrashCause::Trap)]);
+    let (settled, visits, rounds, round_visits) = settle_both(
+        &program,
+        &vec![CrashCeiling::Inferred; count as usize],
+        &[],
+        None,
+    );
+    assert_eq!(settled, rounds);
+    assert_eq!(visits, count as usize);
+    // One round per link, then one that finds nothing changed.
+    assert_eq!(round_visits, (count as usize + 1) * count as usize);
+    // A two-machine cycle at the bottom of the chain is the only part
+    // walked again.
+    program.push(vec![
+        Step::Tail(count),
+        Step::Crash(true, CrashCause::Abort),
+    ]);
+    program[count as usize - 1] = vec![Step::Tail(count + 1), Step::Crash(true, CrashCause::Trap)];
+    let (settled, visits, rounds, round_visits) = settle_both(
+        &program,
+        &vec![CrashCeiling::Inferred; count as usize + 1],
+        &[],
+        None,
+    );
+    assert_eq!(settled, rounds);
+    assert!(visits <= count as usize + 4, "{visits} body walks");
+    eprintln!(
+        "chain of {count}: callee-first {visits} body walks, whole-program rounds {round_visits}"
     );
 }
 
@@ -3805,3 +4166,6 @@ fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_or
     }
     assert!(matches!(join.terminator, Terminator::Return { value, .. } if value == result.id));
 }
+
+#[path = "tests/array_views.rs"]
+mod array_views;

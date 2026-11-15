@@ -9,8 +9,10 @@ Calling-policy execution and storage use the actual canonical artifact. Native
 locator normalization retains the completed Build evaluation and authored target
 without granting provider, signature, package or execution admission. Canonical
 callback geometry, ABI, placement, movement and receipt checks remain in their
-existing owners. Shared provider choice lives in `provider-selection`.
+existing owners. [Target supply](src/target_supply.rs) chooses and settles
+providers for the boundary requirements the accepted module reaches. The
+`provider-selection` crate admits boundary applications against chosen plans.
 
-Explicit source inspection is retained by `compilation-products`, with the same
+Explicit source inspection is retained by `products`, with the same
 frozen source allocation and inventory. It is not an alternate proof or native
 planning path.

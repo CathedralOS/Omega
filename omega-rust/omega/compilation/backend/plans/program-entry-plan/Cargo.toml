@@ -16,7 +16,3 @@ calling-conventions = { path = "../../calling-conventions" }
 effects = { path = "../effects" }
 target = { path = "../../target" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-
-[dev-dependencies]
-# The source guards delegate their scan to the shared audit crate.
-source-audit = { path = "../../../../../psi/foundation/source-audit" }

@@ -84,9 +84,6 @@ impl<'input> NativeScalarCompletion<'input> {
             .completed
             .as_ref()
             .ok_or_else(|| vec![Diagnostic::error("native scalar work has not completed")])?;
-        Ok(Some(NativeScalarApplications {
-            completed,
-            provider_declarations: &self.proposal.providers().declarations,
-        }))
+        Ok(Some(NativeScalarApplications { completed }))
     }
 }

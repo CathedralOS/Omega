@@ -8,7 +8,7 @@ foundation or disguised as translation.
 
 The classification is executable, not only prose:
 `AcceptedProofRule::foundation`
-(`omega-rust/psi/compilation/proof/admission/src/classicality.rs`) assigns each
+(`omega-rust/psi/compilation/proof-admission/src/classicality.rs`) assigns each
 rule a `ProofRuleFoundation` by exhaustive match, so a new certificate rule
 does not compile until it is classified. The module's tests pin the classification:
 no rule may map to `Classical`, and only `SemanticAxiom` is a `TrustedAdmission`.

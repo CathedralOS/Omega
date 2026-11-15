@@ -6,8 +6,9 @@
 
 use std::sync::Arc;
 
-use backend_plan::{DirectBoundaryLeaf, TerminalTargetProviderPlan};
+use backend_plan::DirectBoundaryLeaf;
 use effects::CompilerIntrinsicExecutionIdentity;
+use effects::provider_plan::ProviderPlan;
 use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +16,7 @@ pub struct ProviderPlanRealizationInput {
     pub composition_mode: language_semantics::declaration_selection::CompositionMode,
     pub schema_declaration: terminal_psi::TerminalIdentityIndex,
     pub schema_application: terminal_psi::TerminalIdentityIndex,
-    pub declaration: TerminalTargetProviderPlan,
+    pub declaration: ProviderPlan,
     pub row_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
@@ -36,8 +37,6 @@ pub struct TargetSupplyRealizationInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PlanRealization {
     composition_mode: language_semantics::declaration_selection::CompositionMode,
-    provider_declaration: Option<String>,
-    numeric: Vec<Option<String>>,
     executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
@@ -49,7 +48,6 @@ pub struct RealizedTargetSupply {
     plans: Arc<effects::SelectedProviderPlanFacts>,
     realizations: Vec<PlanRealization>,
     direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
-    family_realizations: Vec<backend_plan::SelectedFamilyRealizationSource>,
     calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     evaluated_native_bindings: Vec<effects::provider_plan::EvaluatedNativeBinding>,
@@ -87,7 +85,6 @@ impl RealizedTargetSupply {
             )?),
             realizations: Vec::new(),
             direct_boundary_leaves: Vec::new(),
-            family_realizations: Vec::new(),
             calling_applications: Vec::new(),
             external_bindings: Vec::new(),
             evaluated_native_bindings: Vec::new(),
@@ -106,7 +103,7 @@ impl RealizedTargetSupply {
         let native_target = profile.native_realization();
         for selected in &input.plans {
             let declaration = &selected.declaration;
-            let plan = &declaration.plan;
+            let plan = declaration;
             let schema =
                 module.service_schema(selected.schema_declaration, selected.schema_application)?;
             if schema.surface.as_ref() != plan.schema.declaration.as_ref() {
@@ -162,13 +159,12 @@ impl RealizedTargetSupply {
                     effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
                 )
             }) {
-                let owner = declaration
+                declaration
                     .provider_declaration
                     .as_deref()
                     .filter(|owner| !owner.is_empty())
                     .ok_or("selected checked provider has no exact choosing declaration")?;
-                let candidates =
-                    backend_plan::selected_provider_candidate_rows(plan, owner, module)?;
+                let candidates = backend_plan::selected_provider_candidate_rows(plan, module)?;
                 if candidates
                     .iter()
                     .any(|row| row.candidate_positions.is_empty())
@@ -303,35 +299,24 @@ impl RealizedTargetSupply {
                 .filter(|identity| !identity.is_empty())
                 .ok_or("terminal authority permission lost its requirement identity")?;
         }
-        input.plans.sort_by(|left, right| {
-            left.declaration
-                .plan
-                .selection_order(&right.declaration.plan)
-        });
+        input
+            .plans
+            .sort_by(|left, right| left.declaration.selection_order(&right.declaration));
         let mut plans = Vec::with_capacity(input.plans.len());
         let mut realizations = Vec::with_capacity(input.plans.len());
         for selected in input.plans {
-            plans.push(selected.declaration.plan);
+            plans.push(selected.declaration);
             realizations.push(PlanRealization {
                 composition_mode: selected.composition_mode,
-                provider_declaration: selected.declaration.provider_declaration,
-                numeric: selected.declaration.row_numeric_realizations,
                 executions: selected.row_executions,
             });
         }
         let plans = effects::SelectedProviderPlanFacts::from_selected_plans(plans)?;
-        let family_realizations = super::plan_realization::family_realizations(
-            module,
-            &input.target,
-            &input.reached,
-            &plans,
-        )?;
         Ok(Self {
             target: Some(input.target),
             plans: Arc::new(plans),
             realizations,
             direct_boundary_leaves: input.direct_boundary_leaves,
-            family_realizations,
             calling_applications: input.calling_applications,
             external_bindings: input.external_bindings,
             evaluated_native_bindings: input.evaluated_native_bindings,
@@ -351,17 +336,8 @@ impl RealizedTargetSupply {
     pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
         &self.plans
     }
-    pub fn provider_declarations(&self) -> Vec<TerminalTargetProviderPlan> {
-        self.plans
-            .plans()
-            .iter()
-            .zip(&self.realizations)
-            .map(|(plan, realization)| TerminalTargetProviderPlan {
-                plan: plan.clone(),
-                provider_declaration: realization.provider_declaration.clone(),
-                row_numeric_realizations: realization.numeric.clone(),
-            })
-            .collect()
+    pub fn provider_declarations(&self) -> &[ProviderPlan] {
+        self.plans.plans()
     }
     pub fn composition_modes(
         &self,
@@ -375,9 +351,6 @@ impl RealizedTargetSupply {
         self.realizations
             .iter()
             .map(|row| row.executions.as_slice())
-    }
-    pub fn family_realizations(&self) -> &[backend_plan::SelectedFamilyRealizationSource] {
-        &self.family_realizations
     }
     pub fn direct_boundary_leaves(&self) -> &[DirectBoundaryLeaf] {
         &self.direct_boundary_leaves

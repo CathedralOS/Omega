@@ -66,6 +66,7 @@ impl Program<'_> {
                     None => numerics::arithmetic::ArithmeticDomain::Exact,
                     Some(Policy::Wrapping) => numerics::arithmetic::ArithmeticDomain::Wrapping,
                     Some(Policy::Saturating) => numerics::arithmetic::ArithmeticDomain::Saturating,
+                    Some(Policy::Trapping) => numerics::arithmetic::ArithmeticDomain::Trapping,
                 },
             )
     }

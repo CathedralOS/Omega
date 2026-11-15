@@ -16,9 +16,9 @@ use package_compilation::review_record_encoding::purpose_tag;
 use package_compilation::{
     PackageCompilationInputs, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
-use package_source::{ImmutableSourceResolution, SourceLineage};
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
+use source_acquisition::{ImmutableSourceResolution, SourceLineage};
 use std::path::Path;
 
 const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V3\0";

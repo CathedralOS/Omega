@@ -570,7 +570,112 @@ impl Lowering<'_> {
         terminal_check_tables::row(self.outcomes, callee, self.id, Construct::Machine)
     }
 
-    /// A call with no normal completion, in terminal position: the
+    /// Whether the caller may retain a normal continuation. Checked body
+    /// outcomes stay within their source visibility; an abstract requirement
+    /// cannot inherit its implementation's private non-return fact.
+    fn completes_normally(
+        &self,
+        callable: &CallTarget,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+        arguments: &Arguments,
+    ) -> Checked<bool> {
+        let signature = self.target_signature(callable, required_contract)?;
+        if crate::inhabitation::excludes_result(&self.records.inhabitation, signature.result) {
+            return Ok(false);
+        }
+        if self.published_postcondition_is_false(&signature, arguments)? {
+            return Ok(false);
+        }
+        // Requirement routing does not publish the chosen body's outcome.
+        // Keep the continuation governed by that declared contract.
+        if required_contract.is_some() {
+            return Ok(true);
+        }
+        Ok(match callable {
+            CallTarget::Selected { .. } => true,
+            CallTarget::Machine(callee) => self.outcome(*callee)?.completes_normally,
+            CallTarget::Boundary { boundary } => {
+                self.signatures.completion(*boundary, self.id)?
+                    == semantic_vocabulary::BoundaryCompletion::NormalReturn
+            }
+        })
+    }
+
+    /// Only actual Boolean formals enter this substitution. In particular a
+    /// callee result ID cannot acquire a caller constant with the same number.
+    fn published_postcondition_is_false(
+        &self,
+        signature: &crate::body::Signature,
+        arguments: &Arguments,
+    ) -> Checked<bool> {
+        use semantic_vocabulary::ScalarType;
+        if signature.ensures.is_empty() {
+            return Ok(false);
+        }
+        let ids = signature.formal_values();
+        let mut relevant = arguments.actuals.iter();
+        let mut erased = arguments.erased.iter();
+        let mut bindings = Vec::new();
+        for (position, ty) in signature.parameters.iter().enumerate() {
+            let known = if signature.is_erased(position) {
+                let term = erased
+                    .next()
+                    .ok_or_else(|| self.internal("missing erased call actual"))?;
+                terminal_semantics::inhabitation::boolean_value_with(term, |id| {
+                    self.known_boolean(id)
+                })
+            } else {
+                let actual = relevant
+                    .next()
+                    .ok_or_else(|| self.internal("missing call actual"))?;
+                match actual {
+                    Actual::Value(value) => self.known_boolean(*value),
+                    Actual::Place(_) => None,
+                }
+            };
+            if matches!(ty, ValueType::Scalar(ScalarType::Boolean, _))
+                && signature.borrowed(position).is_none()
+                && let Some(id) = ids[position]
+            {
+                bindings.push((id, known));
+            }
+        }
+        if relevant.next().is_some() || erased.next().is_some() {
+            return Err(self.internal("extra call actuals in postcondition substitution"));
+        }
+        bindings.sort_unstable_by_key(|(id, _)| *id);
+        Ok(terminal_semantics::inhabitation::predicates_are_false_with(
+            &signature.ensures,
+            |formal| {
+                bindings
+                    .binary_search_by_key(&formal, |(id, _)| *id)
+                    .ok()
+                    .and_then(|index| bindings[index].1)
+            },
+        ))
+    }
+
+    fn known_boolean(&self, value: ValueId) -> Option<bool> {
+        let row = self.tables.values.get(value)?;
+        if row.scalar_type != semantic_vocabulary::ScalarType::Boolean || row.rigid.is_some() {
+            return None;
+        }
+        let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin else {
+            return None;
+        };
+        let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
+        let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
+        let (ty, literal) = terminal_semantics::scalar_operation_literal(operation, value)?;
+        match (ty, literal) {
+            (
+                semantic_vocabulary::ScalarType::Boolean,
+                semantic_vocabulary::IntegerValue::Unsigned(value @ 0..=1),
+            ) => Some(value != 0),
+            _ => None,
+        }
+    }
+
+    /// A call with no normal completion, wherever it is written: the
     /// arguments, then the invocation as the block's terminator, with the
     /// callee's routes substituted as its crash continuations and one
     /// `CrashCoverage` obligation per surviving cause at this site. One
@@ -596,9 +701,6 @@ impl Lowering<'_> {
         acknowledgement: terminal_psi::CallAcknowledgement,
         source: SourceOrigin,
     ) -> Checked<()> {
-        if required_contract.is_some() {
-            return Err(self.internal("public routed call lost its normal continuation"));
-        }
         if let EvaluatedCallTarget::Boundary { boundary } = target {
             return self.invoke_boundary_no_normal(boundary, arguments, acknowledgement, source);
         }
@@ -778,7 +880,7 @@ impl Lowering<'_> {
         // Both returning and terminal calls consume this same evaluated plan.
         let target = continuing!(self.evaluated_target(callee));
         let mut arguments = continuing!(self.arguments(&signature, arguments));
-        if !outcome.completes_normally {
+        if !self.completes_normally(callee, required_contract, &arguments)? {
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }

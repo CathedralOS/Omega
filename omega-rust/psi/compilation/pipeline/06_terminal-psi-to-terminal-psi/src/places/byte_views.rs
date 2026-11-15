@@ -29,49 +29,42 @@ fn is_shared_bytes(shape: &StructuralTypeShape) -> bool {
 }
 
 impl<'a> Storage<'a> {
-    fn readable_descriptor(
+    fn descriptor_access(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],
         concerns: Construct,
+        requested: StructuralAccess,
     ) -> Checked<bool> {
-        let (multiplicity, authority) =
-            if let Some(parameter) = self.lowered.structural_parameter(root) {
-                (parameter.multiplicity, parameter.access)
-            } else {
-                match self.root_kind(root, concerns)? {
-                    StructuralPlaceKind::OperationResult { producer, .. } => {
-                        let result = self
-                            .operation(producer, concerns)?
-                            .result
-                            .as_structural()
-                            .filter(|result| result.place == root)
-                            .ok_or_else(|| {
-                                self.foreign(concerns, "a descriptor source lost its exact result")
-                            })?;
-                        (result.multiplicity, StructuralAccess::Owned)
-                    }
-                    StructuralPlaceKind::ByteSequenceLiteral { .. } => (
-                        StructuralMultiplicity::Unrestricted,
-                        StructuralAccess::SharedBorrow,
-                    ),
-                    _ => {
-                        return Err(self
-                            .unsupported(concerns, "a descriptor source without storage access"));
-                    }
-                }
-            };
+        let (multiplicity, authority) = if matches!(
+            self.root_kind(root, concerns)?,
+            StructuralPlaceKind::ByteSequenceLiteral { .. }
+        ) {
+            (
+                StructuralMultiplicity::Unrestricted,
+                StructuralAccess::SharedBorrow,
+            )
+        } else {
+            let source = terminal_semantics::structural_argument_source(self.lowered, root, 0)
+                .ok_or_else(|| {
+                    self.foreign(
+                        concerns,
+                        "a descriptor source has no actual storage declaration",
+                    )
+                })?;
+            (source.multiplicity, source.access)
+        };
         Ok(terminal_semantics::reference_source_projection_accessible(
             self.types.iter(),
             self.root_type(root, concerns)?,
             multiplicity,
             authority,
             path,
-            StructuralAccess::SharedBorrow,
+            requested,
         ))
     }
 
-    fn byte_shape(
+    pub(super) fn byte_shape(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],
@@ -108,7 +101,7 @@ impl<'a> Storage<'a> {
             return Ok(false);
         };
         let (
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. },
+            terminal_psi::StructuralTypeShape::FixedArray { .. },
             terminal_psi::StructuralTypeShape::ByteSequence(_),
         ) = (
             &selected.shape,
@@ -117,15 +110,48 @@ impl<'a> Storage<'a> {
         else {
             return Ok(false);
         };
-        // The call lends this array's actual storage. A descriptor
-        // parameter receives its extent through the existing byte
-        // presentation rule; the source never acquires the formal's type.
-        let backing = terminal_semantics::structural_argument_source(
-            self.lowered,
-            argument.place,
-            parameter.position,
+        let Some(backing) = self.byte_array_backing(argument, parameter.position, concerns)? else {
+            return Ok(false);
+        };
+        if terminal_semantics::fixed_byte_array_loan(
+            self.types.iter(),
+            self.module.structural_domains.iter(),
+            &backing,
+            argument,
+            parameter,
         )
-        .ok_or_else(|| self.foreign(concerns, "an array loan lost its actual root contract"))?;
+        .is_none()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "an array loan without byte-view type, extent and qualification correspondence",
+            ));
+        }
+        Ok(true)
+    }
+
+    /// A call and a new view can borrow the same array. Check its original
+    /// input or result here before either route decides how to carry the view.
+    fn byte_array_backing(
+        &self,
+        argument: &StructuralArgument,
+        position: u32,
+        concerns: Construct,
+    ) -> Checked<Option<std::borrow::Cow<'_, terminal_psi::StructuralParameterDeclaration>>> {
+        let selected = terminal_semantics::runtime_structural_path_tip(
+            self.types.iter(),
+            self.root_type(argument.place, concerns)?,
+            &argument.path,
+        )
+        .ok_or_else(|| self.foreign(concerns, "array backing lost its typed storage path"))?;
+        let StructuralTypeShape::FixedArray { element, .. } = selected.shape else {
+            return Ok(None);
+        };
+        let backing =
+            terminal_semantics::structural_argument_source(self.lowered, argument.place, position)
+                .ok_or_else(|| {
+                    self.foreign(concerns, "an array loan lost its actual root contract")
+                })?;
         let unclaimed = !self
             .lowered
             .entry_claims
@@ -145,28 +171,193 @@ impl<'a> Storage<'a> {
                     })
                 });
         let plain_element = self.domains.get(selected.id).is_some_and(Vec::is_empty)
-            && self.domains.get(*element).is_some_and(Vec::is_empty)
+            && self.domains.get(element).is_some_and(Vec::is_empty)
             && self
-                .declaration(*element, concerns)?
+                .declaration(element, concerns)?
                 .scalar_restriction
                 .is_none();
-        if !unclaimed
-            || !plain_element
-            || terminal_semantics::fixed_byte_array_loan(
-                self.types.iter(),
-                self.module.structural_domains.iter(),
-                &backing,
-                argument,
-                parameter,
-            )
-            .is_none()
+        if !unclaimed || !plain_element {
+            return Err(self.unsupported(
+                concerns,
+                "an array view without plain element storage and unclaimed backing",
+            ));
+        }
+        Ok(Some(backing))
+    }
+
+    /// Forming a view retains the array's storage and creates a descriptor;
+    /// the separate loan judgment still checks authority and the view's lifetime.
+    pub(super) fn array_view_formation(&self, operation: &Operation) -> Checked<u64> {
+        use terminal_psi::{ByteSequenceCarrier, ElementViewRegion, StructuralPathQualification};
+        let concerns = Construct::Operation(operation.id);
+        let (destination, source, element, region, access, multiplicity) = match &operation.kind {
+            OperationKind::EstablishElementView {
+                destination,
+                source,
+                element,
+                region,
+            } => (
+                *destination,
+                source,
+                *element,
+                *region,
+                StructuralAccess::SharedBorrow,
+                StructuralMultiplicity::Unrestricted,
+            ),
+            OperationKind::EstablishMutableElementView {
+                destination,
+                source,
+                element,
+                region,
+            } => (
+                *destination,
+                source,
+                *element,
+                *region,
+                StructuralAccess::MutableBorrow,
+                StructuralMultiplicity::Affine,
+            ),
+            _ => return Err(self.foreign(concerns, "array view has no formation operation")),
+        };
+        let result = operation
+            .result
+            .as_structural()
+            .ok_or_else(|| self.foreign(concerns, "array view has no descriptor result"))?;
+        if destination != result.place
+            || source.access != access
+            || region != ElementViewRegion::WholeCollection
+            || result.multiplicity != multiplicity
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.additional_input_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !self
+                .domains
+                .get(result.structural_type)
+                .is_some_and(Vec::is_empty)
+            || self
+                .declaration(result.structural_type, concerns)?
+                .scalar_restriction
+                .is_some()
+            || self.root_kind(result.place, concerns)?
+                != (StructuralPlaceKind::OperationResult {
+                    producer: operation.id,
+                    structural_type: result.structural_type,
+                })
+            || self.declaration(result.structural_type, concerns)?.shape
+                != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(access),
+                })
+        {
+            return Err(self.foreign(
+                concerns,
+                "array view changes its descriptor type, access or ownership",
+            ));
+        }
+        let selected = terminal_semantics::runtime_structural_path_tip(
+            self.types.iter(),
+            self.root_type(source.place, concerns)?,
+            &source.path,
+        )
+        .ok_or_else(|| self.foreign(concerns, "array view lost its captured storage"))?;
+        if !matches!(selected.shape, StructuralTypeShape::FixedArray { element: actual, .. } if actual == element)
+        {
+            return Err(self.foreign(concerns, "array view changes its element type"));
+        }
+        let actual = self
+            .byte_array_backing(source, 0, concerns)?
+            .ok_or_else(|| self.foreign(concerns, "array view lost its source declaration"))?;
+        let window = terminal_semantics::fixed_byte_storage_window(
+            self.types.iter(),
+            actual.structural_type,
+            &source.path,
+        )
+        .ok_or_else(|| {
+            self.unsupported(concerns, "array view has no closed byte storage window")
+        })?;
+        let (whole, projected) = StructuralPathQualification::select(
+            &actual.qualifications,
+            &actual.projected_qualifications,
+            window.backing_path,
+        );
+        if window.backing_path != source.path
+            || window.offset != 0
+            || window.length != window.backing_length
+            || !whole.is_empty()
+            || !projected.is_empty()
+            || !actual.additional_input_qualifications.is_empty()
+            || !window.backing_path.is_empty() && !actual.qualifications.is_empty()
         {
             return Err(self.unsupported(
                 concerns,
-                "an array loan without byte-view type, extent and qualification correspondence",
+                "array view needs its whole plain backing without qualification loss",
             ));
         }
-        Ok(true)
+        Ok(window.length)
+    }
+
+    /// `left == right` over two byte views, a `ByteSequenceEqual`.
+    ///
+    /// structural_predicates.md: "Byte-sequence equality compares live
+    /// lengths and live byte prefixes." byte_views.md, of an evaluated
+    /// content predicate: "The operand retains its own dominating length
+    /// observation, readable access, and establishment." So each operand is
+    /// a whole view this machine may read, and the length it names is that
+    /// same view's measurement: the lowered form measures the left view,
+    /// then the right one, then compares, with nothing else between, so no
+    /// operation can have changed either extent. The result is a plain
+    /// `bool` and the comparison stores nothing.
+    pub(super) fn compared_byte_views(&self, operation: &Operation) -> Checked<()> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        let concerns = Construct::Operation(operation.id);
+        let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
+            return Err(self.foreign(
+                concerns,
+                "a byte comparison requested for another operation",
+            ));
+        };
+        if operation.result.scalar_ref().is_none_or(|result| {
+            result.scalar_type != ScalarType::Boolean || result.qualifications != Default::default()
+        }) {
+            return Err(self.foreign(concerns, "a byte comparison must produce a plain bool"));
+        }
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let operations = &self.block(block)?.operations;
+        // `after` counts the comparison itself: the right view's
+        // measurement is two back, the left view's three back.
+        for (operand, back) in [(left, 3), (right, 2)] {
+            let ByteSequenceOperand::Whole { source, length } = operand else {
+                return Err(self.unsupported(concerns, "a comparison of a view stored in a field"));
+            };
+            if !source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
+                return Err(self.unsupported(
+                    concerns,
+                    "a byte comparison of a view that is not read whole and shared",
+                ));
+            }
+            self.readable_byte_view(operation, source.place)?;
+            let measured = after
+                .checked_sub(back)
+                .and_then(|position| operations.get(position))
+                .is_some_and(|measurement| {
+                    matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
+                        if measured.place == source.place && measured.path.is_empty())
+                        && measurement
+                            .result
+                            .scalar_ref()
+                            .is_some_and(|result| result.id == *length)
+                });
+            if !measured {
+                return Err(self.unsupported(
+                    concerns,
+                    "a byte comparison whose length is not its view's measurement directly before it",
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
@@ -179,10 +370,44 @@ impl<'a> Storage<'a> {
                     | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             })
         );
-        if !readable || !self.readable_descriptor(root, &[], concerns)? {
+        if !readable
+            || !self.descriptor_access(root, &[], concerns, StructuralAccess::SharedBorrow)?
+        {
             return Err(self.unsupported(
                 concerns,
                 "a byte read without a readable descriptor occurrence",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn writable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
+        let concerns = Construct::Operation(operation.id);
+        let source = terminal_semantics::structural_argument_source(self.lowered, root, 0)
+            .ok_or_else(|| {
+                self.foreign(concerns, "a byte store lost its descriptor declaration")
+            })?;
+        let mutable = matches!(
+            self.byte_shape(root, &[], concerns)?,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None | Some(StructuralAccess::MutableBorrow),
+            })
+        );
+        if !mutable
+            || !self.descriptor_access(root, &[], concerns, StructuralAccess::MutableBorrow)?
+            || source.access == StructuralAccess::Owned
+                && source.multiplicity != StructuralMultiplicity::Affine
+            || !source.qualifications.is_empty()
+            || !source.projected_qualifications.is_empty()
+            || !source.additional_input_qualifications.is_empty()
+            || !self
+                .domains
+                .get(source.structural_type)
+                .is_some_and(Vec::is_empty)
+        {
+            return Err(self.unsupported(
+                concerns,
+                "a byte store without an unqualified exclusive descriptor",
             ));
         }
         Ok(())
@@ -224,7 +449,12 @@ impl<'a> Storage<'a> {
         if !is_shared_bytes(&selected)
             || !is_shared_bytes(destination)
             || source.access != StructuralAccess::SharedBorrow
-            || !self.readable_descriptor(source.place, &source.path, concerns)?
+            || !self.descriptor_access(
+                source.place,
+                &source.path,
+                concerns,
+                StructuralAccess::SharedBorrow,
+            )?
             || !terminal_semantics::descriptor_reborrow_shapes_match(
                 &selected,
                 source.access,
@@ -266,7 +496,12 @@ impl<'a> Storage<'a> {
                         self.root_kind(source, concerns)?,
                         StructuralPlaceKind::Parameter { .. }
                     ) && is_shared_bytes(&self.byte_shape(source, &projection.path, concerns)?)
-                        && self.readable_descriptor(source, &projection.path, concerns)?
+                        && self.descriptor_access(
+                            source,
+                            &projection.path,
+                            concerns,
+                            StructuralAccess::SharedBorrow,
+                        )?
                 }
                 DescriptorCallOrigin::Literal { machine, place } => self
                     .module
@@ -366,6 +601,27 @@ impl<'a> Storage<'a> {
         {
             return Ok(None);
         }
+        if matches!(
+            producer.kind,
+            OperationKind::EstablishElementView { .. }
+                | OperationKind::EstablishMutableElementView { .. }
+        ) {
+            let Some(result) = measurement.result.scalar_ref() else {
+                return Err(self.foreign(concerns, "a length measurement has no scalar result"));
+            };
+            let Some(extent) = self.extent_contents(
+                producer.id,
+                ProgramPoint::AfterOperation(measurement.id),
+                result.scalar_type,
+            )?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some(Proposition::Equal(
+                semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                extent,
+            )));
+        }
         let mut read = measurement.clone();
         let OperationKind::ByteSequenceLength { source } = &mut read.kind else {
             return Ok(None);
@@ -447,6 +703,13 @@ impl<'a> Storage<'a> {
             OperationKind::EstablishByteSequenceLiteral { bytes, .. } => {
                 ScalarTerm::integer(integer, IntegerValue::Unsigned(bytes.len() as u128))
             }
+            OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. } => ScalarTerm::integer(
+                integer,
+                IntegerValue::Unsigned(
+                    self.array_view_formation(self.operation(producer, concerns)?)? as u128,
+                ),
+            ),
             OperationKind::ByteSequenceSubslice { start, end, .. } => {
                 if self.repeated_extent(producer)? {
                     return Ok(None);

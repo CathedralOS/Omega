@@ -11,7 +11,11 @@ overrides (`--model`, `--effort`) rot whenever the user switches models mid-run.
 We therefore detect the active harness from its process environment first
 (`ANTIGRAVITY_CONVERSATION_ID` / `ANTIGRAVITY_AGENT`, `CLAUDECODE` /
 `CLAUDE_CODE_ENTRYPOINT`, `CODEX_THREAD_ID` / `CODEX_SANDBOX`) so concurrent
-sessions across different harnesses never collide, falling back to the newest
+sessions across different harnesses never collide. Codex's active thread also
+selects its exact transcript; a missing match refuses instead of auditing a
+different active thread. `--allow-unavailable` explicitly permits an audit with
+textual unavailable fields when that active thread has no readable transcript;
+it never selects another session or overrides a valid transcript. We fall back to the newest
 session transcript across `~/.gemini/antigravity/brain`, `~/.claude/projects`,
 and `~/.codex/sessions` when invoked from a standalone shell:
 - Antigravity (`transcript.jsonl`): `<USER_SETTINGS_CHANGE>` blocks on
@@ -32,6 +36,7 @@ and `~/.codex/sessions` when invoked from a standalone shell:
 */
 
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
@@ -177,7 +182,31 @@ fn find_latest_claude_transcript(home: &Path) -> Option<(PathBuf, SystemTime)> {
     newest
 }
 
-fn find_latest_codex_transcript(home: &Path) -> Option<(PathBuf, SystemTime)> {
+fn codex_transcript_matches_thread(path: &Path, thread_id: &str) -> bool {
+    if !path
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name.strip_suffix(thread_id)
+                .is_some_and(|prefix| prefix.ends_with('-'))
+        })
+    {
+        return false;
+    }
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let Some(Ok(header)) = BufReader::new(file).lines().next() else {
+        return false;
+    };
+    let Ok(header) = serde_json::from_str::<Value>(&header) else {
+        return false;
+    };
+    header["type"].as_str() == Some("session_meta")
+        && header["payload"]["id"].as_str() == Some(thread_id)
+}
+
+fn find_codex_transcript(home: &Path, thread_id: Option<&str>) -> Option<(PathBuf, SystemTime)> {
     let sessions = home.join(".codex/sessions");
     let mut newest: Option<(PathBuf, SystemTime)> = None;
     let mut stack = vec![sessions];
@@ -190,6 +219,8 @@ fn find_latest_codex_transcript(home: &Path) -> Option<(PathBuf, SystemTime)> {
             if path.is_dir() {
                 stack.push(path);
             } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl")
+                && thread_id
+                    .is_none_or(|thread_id| codex_transcript_matches_thread(&path, thread_id))
                 && let Ok(meta) = fs::metadata(&path)
                 && let Ok(modified) = meta.modified()
                 && newest.as_ref().is_none_or(|(_, t)| modified > *t)
@@ -480,6 +511,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut effort_override: Option<String> = None;
     let mut transcript_override: Option<PathBuf> = None;
     let mut full_session = false;
+    let mut allow_unavailable = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -500,12 +532,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 i += 1;
                 transcript_override = args.get(i).map(PathBuf::from);
             }
+            "--allow-unavailable" => {
+                allow_unavailable = true;
+            }
             "--full-session" => {
                 full_session = true;
             }
             "-h" | "--help" => {
                 println!(
-                    "usage: cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>] [--transcript <path>] [--full-session]"
+                    "usage: cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>] [--transcript <path>] [--full-session] [--allow-unavailable]"
                 );
                 return Ok(());
             }
@@ -526,10 +561,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let home = home_dir();
 
     let mut metrics = if let Some(path) = transcript_override {
-        parse_antigravity_transcript(&path, since_epoch)
+        let Some(metrics) = parse_antigravity_transcript(&path, since_epoch)
             .or_else(|| parse_claude_transcript(&path, home.as_deref(), since_epoch))
             .or_else(|| parse_codex_transcript(&path, since_epoch))
-            .unwrap_or_default()
+        else {
+            eprintln!(
+                "provenance: cannot read explicit transcript {}",
+                path.display()
+            );
+            return Err(2);
+        };
+        metrics
     } else if let Some(conv_id) = std::env::var_os("ANTIGRAVITY_CONVERSATION_ID") {
         let app_dir = std::env::var_os("ANTIGRAVITY_APP_DATA_DIR")
             .map(PathBuf::from)
@@ -554,12 +596,41 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             .and_then(find_latest_claude_transcript)
             .and_then(|(path, _)| parse_claude_transcript(&path, home.as_deref(), since_epoch))
             .unwrap_or_default()
-    } else if std::env::var_os("CODEX_THREAD_ID").is_some()
-        || std::env::var_os("CODEX_SANDBOX").is_some()
-        || std::env::var_os("CODEX_CI").is_some()
+    } else if let Some(thread_id) = std::env::var_os("CODEX_THREAD_ID") {
+        let Some(thread_id) = thread_id.to_str().filter(|thread_id| !thread_id.is_empty()) else {
+            eprintln!("provenance: CODEX_THREAD_ID must be a nonempty Unicode thread ID");
+            return Err(2);
+        };
+        let selected = home
+            .as_deref()
+            .and_then(|home| find_codex_transcript(home, Some(thread_id)))
+            .ok_or_else(|| format!(
+                "no transcript matches active Codex thread `{thread_id}`; use --transcript for an explicit audit"
+            ))
+            .and_then(|(path, _)| {
+                parse_codex_transcript(&path, since_epoch).ok_or_else(|| {
+                    format!("cannot read active Codex transcript {}", path.display())
+                })
+            });
+        match selected {
+            Ok(metrics) => metrics,
+            Err(_) if allow_unavailable => {
+                // The harness identifies Codex, but cannot supply measurements.
+                // Keep that absence distinct from measured zeroes or manual overrides.
+                println!(
+                    "Agent: Codex | Model: unavailable | Effort: unavailable | Tokens: unavailable in (unavailable cached), unavailable out | Steps: unavailable | Time: unavailable | Steers: unavailable"
+                );
+                return Ok(());
+            }
+            Err(error) => {
+                eprintln!("provenance: {error}");
+                return Err(2);
+            }
+        }
+    } else if std::env::var_os("CODEX_SANDBOX").is_some() || std::env::var_os("CODEX_CI").is_some()
     {
         home.as_deref()
-            .and_then(find_latest_codex_transcript)
+            .and_then(|home| find_codex_transcript(home, None))
             .and_then(|(path, _)| parse_codex_transcript(&path, since_epoch))
             .unwrap_or_default()
     } else if let Some(ref home_path) = home {
@@ -570,7 +641,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         if let Some((p, t)) = find_latest_claude_transcript(home_path) {
             candidates.push(("claude", p, t));
         }
-        if let Some((p, t)) = find_latest_codex_transcript(home_path) {
+        if let Some((p, t)) = find_codex_transcript(home_path, None) {
             candidates.push(("codex", p, t));
         }
         candidates.sort_by_key(|a| std::cmp::Reverse(a.2));

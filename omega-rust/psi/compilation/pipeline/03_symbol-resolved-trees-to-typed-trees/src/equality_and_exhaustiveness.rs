@@ -531,7 +531,7 @@ pub(crate) mod equatable {
             )));
         };
 
-        if PrimitiveType::from_name(&base_name).is_some() {
+        if scalar_field_type(program, &field.type_reference).is_some() {
             return Ok(FieldEquality::Direct);
         }
 
@@ -664,8 +664,8 @@ pub(crate) mod equatable {
         };
         matches!(
             program.child_type_reference(slice.storage.element_type),
-            resolved::types::TypeReference::Named { name, .. }
-                if PrimitiveType::from_name(name.as_str()) == Some(PrimitiveType::U8)
+            resolved::types::TypeReference::Named { symbol, .. }
+                if program.symbols.primitive_type(*symbol) == Some(PrimitiveType::U8)
         )
     }
 
@@ -696,9 +696,27 @@ pub(crate) mod equatable {
             resolved::types::FixedArrayLength::Literal(_)
         ) && matches!(
             program.child_type_reference(array.storage.element_type),
-            resolved::types::TypeReference::Named { name, .. }
-                if PrimitiveType::from_name(name.as_str()) == Some(PrimitiveType::U8)
+            resolved::types::TypeReference::Named { symbol, .. }
+                if program.symbols.primitive_type(*symbol) == Some(PrimitiveType::U8)
         )
+    }
+
+    fn scalar_field_type<'a>(
+        program: &'a SymbolResolvedTrees,
+        mut reference: &'a resolved::types::TypeReference,
+    ) -> Option<symbols::PrimitiveType> {
+        loop {
+            reference = match reference {
+                resolved::types::TypeReference::Reference(node) => {
+                    program.child_type_reference(node.storage.referee)
+                }
+                resolved::types::TypeReference::Constrained(node) => {
+                    program.child_type_reference(node.storage.base_type)
+                }
+                resolved::types::TypeReference::AliasUse { expansion, .. } => expansion,
+                _ => return reference.primitive_type(&program.symbols),
+            };
+        }
     }
 
     pub(crate) fn value_type_base_name(
@@ -2271,6 +2289,7 @@ pub(crate) mod proposition {
                     };
                     if let Some(literal) = &argument.const_literal {
                         validate_const_literal_argument(
+                            &lowerer.source_trees.symbols,
                             call.target.as_str(),
                             binder.name.as_str(),
                             type_reference,
@@ -2284,9 +2303,15 @@ pub(crate) mod proposition {
                             call.target.as_str(),
                             binder.name.as_str()
                         )));
-                    } else if !proposition_const_symbol_type(lowerer, symbol)
-                        .is_some_and(|actual| proposition_const_types_match(type_reference, actual))
-                    {
+                    } else if !proposition_const_symbol_type(lowerer, symbol).is_some_and(
+                        |actual| {
+                            proposition_const_types_match(
+                                &lowerer.source_trees.symbols,
+                                type_reference,
+                                actual,
+                            )
+                        },
+                    ) {
                         return Err(Diagnostic::error(format!(
                             "proposition `{}` const binder `{}` received a const argument with a different declared type",
                             call.target.as_str(),
@@ -2467,12 +2492,13 @@ pub(crate) mod proposition {
     }
 
     fn validate_const_literal_argument(
+        symbols: &symbols::SymbolTable,
         proposition: &str,
         binder: &str,
         type_reference: &TypeReference,
         literal: &numerics::literals::IntegerLiteral,
     ) -> Result<(), Diagnostic> {
-        let Some(primitive) = type_reference.primitive_type() else {
+        let Some(primitive) = type_reference.primitive_type(symbols) else {
             return Err(Diagnostic::error(format!(
                 "proposition `{proposition}` const binder `{binder}` has a non-primitive type and cannot receive integer literal `{}`",
                 literal
@@ -2537,8 +2563,15 @@ pub(crate) mod proposition {
             .find(|parameter| parameter.symbol == symbol)
     }
 
-    fn proposition_const_types_match(expected: &TypeReference, actual: &TypeReference) -> bool {
-        match (expected.primitive_type(), actual.primitive_type()) {
+    fn proposition_const_types_match(
+        symbols: &symbols::SymbolTable,
+        expected: &TypeReference,
+        actual: &TypeReference,
+    ) -> bool {
+        match (
+            expected.primitive_type(symbols),
+            actual.primitive_type(symbols),
+        ) {
             (Some(expected), Some(actual)) => expected == actual,
             _ => match (expected, actual) {
                 (
@@ -2561,7 +2594,10 @@ pub(crate) mod proposition {
         let carrier = match primitive {
             PrimitiveType::Integer(carrier) => carrier,
             PrimitiveType::Addr => numerics::integer_carrier::FixedInteger::U64,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return false,
+            PrimitiveType::Bool
+            | PrimitiveType::F32
+            | PrimitiveType::F64
+            | PrimitiveType::Selector => return false,
         };
         literal
             .value_bignum()

@@ -44,6 +44,23 @@ demands that machine. The pass generates what applications ask for and judges
 nothing: the lowered-form checker proves a generic machine once as written
 and re-decides those proofs in each generated machine.
 
+A value parameter (`const Tag: u64`, `const Flag: bool`) is given an integer
+literal, `true` or `false`. A number written as a calculation over literals,
+`configure<(8u64 + 9u64)>(..)`, reaches this pass already as the literal of
+its value: typing folds it where it reads the argument
+(`typed_trees::const_integer::closed_literal`), so `17u64`, `(8u64 + 9u64)`
+and `(20 - 3)` are one application. A calculation typing does not close (two
+integer types, a result outside its type, a name or a call) stays a request
+on the machine that holds the call.
+
+A Build selection inside a generic helper,
+`Build::select_provider<Reading<Tag>, FirstReading<Tag>>(builder, target)`, is
+copied as written. Its operands are the request the call was authored with,
+not static arguments of a machine to generate, so the generated helper holds
+the same request, and the reader of the selection takes each parameter's
+value from the generated machine's application
+(`typed_trees::product_operand::capture_static_environment`).
+
 A generic machine's lexically nested checked-body machines are copied with
 its closed application when they have no independent static telescope. The
 whole tree is validated first, then each machine, state, formal and local is
@@ -94,8 +111,13 @@ its own slots.
 
 Requested work beside the program (deferred layout applications, opaque
 representation selections, wire compatibility demands) has no pass and is
-refused by name. [Product operand preparation](src/product/mod.rs) keeps its
-request shapes and refuses every operand.
+refused by name. [Product operand preparation](src/product/mod.rs) forms the application
+of a provider choice whose slot or provider is applied to static arguments
+([applications](src/product/applications.rs)): the operand graph the request
+carries, closed with the static arguments of the generic helper that made the
+choice, becomes one argument tuple checked against the declaration's
+parameters. It refuses a requirement applied to static arguments (a native
+binding's operand).
 
 This stage sees the program together with the whole bundled library and has no
 notion of what an entry demands. A pass that refuses therefore refuses every

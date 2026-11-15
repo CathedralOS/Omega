@@ -152,6 +152,28 @@ pub(crate) struct Invocation<'a> {
     pub contract: PublicContract<'a>,
 }
 
+/// The actual evaluated operands of either a declared or selected call.
+pub(crate) fn operation_inputs(operation: &terminal_psi::Operation) -> Option<Inputs<'_>> {
+    if let Some(inputs) = operation.declared_invocation() {
+        return Some(Inputs::declared(inputs));
+    }
+    operation.kind.callable_invocation().map(|inputs| Inputs {
+        callee: Callee::Selected {
+            callable: inputs.callee,
+        },
+        contract: Some(inputs.contract),
+        required_contract: operation.required_contract,
+        arguments: inputs.arguments,
+        structural_arguments: inputs.structural_arguments,
+        erased_arguments: inputs.erased_arguments,
+        erased_proof_arguments: inputs.erased_proof_arguments,
+        requirements: inputs.requirement_obligations,
+        claim_transfers: inputs.claim_transfers,
+        completion_receipts: &[],
+        crash_continuations: Some(inputs.crash_continuations),
+    })
+}
+
 /// Find the actual lowered operation, including terminal boundary transfer.
 /// Duplicate views of one occurrence are malformed rather than a preference.
 pub(crate) fn inputs_at(
@@ -166,24 +188,7 @@ pub(crate) fn inputs_at(
                 if site != InvocationSite::Operation(operation.id) {
                     return None;
                 }
-                if let Some(inputs) = operation.declared_invocation() {
-                    return Some(Inputs::declared(inputs));
-                }
-                operation.kind.callable_invocation().map(|inputs| Inputs {
-                    callee: Callee::Selected {
-                        callable: inputs.callee,
-                    },
-                    contract: Some(inputs.contract),
-                    required_contract: operation.required_contract,
-                    arguments: inputs.arguments,
-                    structural_arguments: inputs.structural_arguments,
-                    erased_arguments: inputs.erased_arguments,
-                    erased_proof_arguments: inputs.erased_proof_arguments,
-                    requirements: inputs.requirement_obligations,
-                    claim_transfers: inputs.claim_transfers,
-                    completion_receipts: &[],
-                    crash_continuations: Some(inputs.crash_continuations),
-                })
+                operation_inputs(operation)
             })
             .chain(
                 block

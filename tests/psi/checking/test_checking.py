@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Tags are declaration ordinals, mirrored from source/psi/checks/checks.omg.
+# Tags are declaration ordinals, mirrored from source/psi/representations/checks.omg.
 DIAGNOSTICS = (
     "None", "CheckCapacityExceeded", "UnsupportedFact", "UnsupportedCheck",
     "IndexOutOfBounds", "ArithmeticOverflow", "DivisorMayBeZero",

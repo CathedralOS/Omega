@@ -35,7 +35,7 @@ use package_compilation::{
     IndependentComponentDescription, PackageBuildHandoff, PackageDependencyBinding,
     PackageDependencyClosure, PackageSourceConsumptionCommitment, accepted_service_schema_digest,
 };
-use package_evidence::record::SemanticBindingReviewCandidate;
+use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";

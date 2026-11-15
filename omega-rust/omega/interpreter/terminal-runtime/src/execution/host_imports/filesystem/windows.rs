@@ -12,6 +12,7 @@ use terminal_psi::BoundaryMachineDeclaration;
 
 use super::{FilesystemContext, Formal, TerminalRuntimeError, rejection};
 
+#[path = "windows_contracts.rs"]
 mod contracts;
 
 #[derive(Default)]

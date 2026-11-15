@@ -24,7 +24,7 @@ use crate::review::{
     PackagePolicyReplacementSite,
 };
 use package_compilation::build_execution::RestrictedBuildRequest;
-use package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};
+use source_acquisition::{GitTransport, ImmutableSourceResolution, SourceLineage};
 use std::fmt::{self, Write};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

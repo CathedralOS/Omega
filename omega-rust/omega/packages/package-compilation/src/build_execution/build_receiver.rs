@@ -1,8 +1,8 @@
 //! The host lends its Build only to the entry's checked mutable Build borrow.
 //! Keep that source/type association through publication before minting a value.
 
-use psi_compiler::AcceptedTerminalSource;
 use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
+use source_compiler::AcceptedTerminalSource;
 use terminal_psi::{
     InvocationCodeScope, StructuralAccess, StructuralParameterDeclaration, TerminalModule,
 };

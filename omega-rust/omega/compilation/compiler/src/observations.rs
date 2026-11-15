@@ -4,7 +4,7 @@
 // attempt, including an attempt that refuses.
 
 use artifacts::compile_timings::{CompileTimings, StageMeta};
-use psi_compiler::{PsiCompilationObserver, PsiCompilationStage};
+use source_compiler::{PsiCompilationObserver, PsiCompilationStage};
 
 pub(crate) struct PsiStageTimings<'a> {
     timings: &'a mut CompileTimings,

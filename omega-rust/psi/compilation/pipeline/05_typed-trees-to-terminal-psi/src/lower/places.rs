@@ -56,6 +56,7 @@ nothing else: lowering never asks what a place holds.
   `after: Some(call)` version. Later writes do not change either snapshot.
 */
 
+#[path = "places_contents.rs"]
 mod contents;
 
 use crate::body::Qualification;
@@ -94,6 +95,7 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
     types: &'a IdTable<StructuralTypeId, RecordType>,
+    pub(crate) inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// Scalar homes retain their exact type identity and qualification. An
     /// array element of the same scalar width need not be the same home type.
     primitives: Vec<(ValueType, String, StructuralTypeId)>,
@@ -536,9 +538,60 @@ pub(crate) fn declare<'a, 'b>(
         });
         domain_bindings.push((source.source, source.carrier, id));
     }
+    // Scalar fields name a primitive contract, not a nominal storage row.
+    // Nominate the canonical existing plain declaration for that contract
+    // once, so a reference captures declared field storage rather than
+    // manufacturing a carrier from its receiving type.
+    let mut primitive_carriers = std::collections::BTreeMap::new();
+    for declaration in &structural_types {
+        if let StructuralTypeShape::PrimitiveScalar(scalar) = declaration.shape
+            && declaration.scalar_restriction.is_none()
+            && declaration.requires.is_empty()
+            && declaration.copyable
+            && !declaration.owns_linear_claim
+            && declaration.no_code_affine_cleanup
+            && declaration.descriptor_cleanup
+        {
+            primitive_carriers
+                .entry(scalar)
+                .and_modify(|known: &mut StructuralTypeId| *known = (*known).min(declaration.id))
+                .or_insert(declaration.id);
+        }
+    }
+    for declaration in &mut structural_types {
+        let (fields, cases): (
+            &mut [StructuralFieldDeclaration],
+            &mut [StructuralCaseDeclaration],
+        ) = match &mut declaration.shape {
+            StructuralTypeShape::Record { fields, .. } => (fields, &mut []),
+            StructuralTypeShape::Sum { cases } => (&mut [], cases),
+            StructuralTypeShape::Mixed { fields, cases, .. } => (fields, cases),
+            _ => continue,
+        };
+        for field in fields
+            .iter_mut()
+            .chain(cases.iter_mut().flat_map(|case| &mut case.fields))
+        {
+            if field.inline_carrier.is_none()
+                && let StructuralFieldType::Scalar(scalar) = field.field_type
+            {
+                field.inline_carrier = primitive_carriers.get(&scalar).copied();
+            }
+        }
+    }
     Ok(Declared {
         records: Records {
             types,
+            inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
+                &crate::inhabitation::SourceContracts(types),
+            )
+            .map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("incomplete declared type contracts for emptiness"),
+                )
+            })?,
             primitives,
             field_identities,
             payload_identities,
@@ -732,6 +785,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::ArrayView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -802,6 +856,13 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    pub(crate) fn primitive_types(
+        &self,
+    ) -> impl Iterator<Item = (ValueType, StructuralTypeId)> + '_ {
+        self.primitives
+            .iter()
+            .map(|(value_type, _, id)| (*value_type, *id))
+    }
     pub(super) fn multiplicity(
         &self,
         record: StructuralTypeId,
@@ -1311,7 +1372,15 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
-        let multiplicity = self.records.multiplicity(record, self.id)?;
+        let type_multiplicity = self.records.multiplicity(record, self.id)?;
+        // The operation can create an owned permission independently of
+        // the type's copy permission. Keep that creation contract while
+        // ordinary value producers retain their type's multiplicity.
+        let multiplicity = terminal_semantics::StructuralEffectSemanticRow::for_tag(
+            terminal_semantics::OperationSemanticTag::for_operation(&kind),
+        )
+        .and_then(|row| row.schema().required_result_multiplicity())
+        .unwrap_or(type_multiplicity);
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
             OperationResult::Structural(owned_result(place, record, multiplicity, qualifications)),
@@ -1439,6 +1508,86 @@ impl<'a> Lowering<'a> {
                         qualifications: self.records.qualifications(self.id, value_type)?,
                     },
                 )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::ArrayView {
+                base,
+                access,
+                element,
+            } => {
+                let captured = continuing!(self.capture_place(base, None));
+                let lent = self.captured_loan(base, *access, captured, None)?;
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured: lent.place,
+                        access: *access,
+                        lender: lent.lender,
+                    },
+                    before,
+                    expression.source,
+                );
+                let source = StructuralArgument {
+                    place: lent.argument.0,
+                    path: self.storage_path(
+                        &lent.argument.1,
+                        ExecutionSite::Operation(operation),
+                        expression.source,
+                    )?,
+                    access: lent.argument.2,
+                };
+                let (root, place) = self.root(
+                    StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: record,
+                    },
+                    record,
+                )?;
+                let region = terminal_psi::ElementViewRegion::WholeCollection;
+                let kind = match access {
+                    language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
+                        destination: root,
+                        source,
+                        element: *element,
+                        region,
+                    },
+                    language_core::ReferenceAccess::Mutable => {
+                        OperationKind::EstablishMutableElementView {
+                            destination: root,
+                            source,
+                            element: *element,
+                            region,
+                        }
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        return Err(self.internal("write-only array view"));
+                    }
+                };
+                let multiplicity = self.records.multiplicity(record, self.id)?;
+                let qualifications = self.records.qualifications(self.id, value_type)?;
+                self.draft()?.operations.push(Operation::unsuspended(
+                    operation,
+                    OperationResult::Structural(owned_result(
+                        root,
+                        record,
+                        multiplicity,
+                        qualifications,
+                    )),
+                    kind,
+                ));
+                self.point = Some(ProgramPoint::AfterOperation(operation));
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),
@@ -1655,19 +1804,48 @@ impl<'a> Lowering<'a> {
                 else {
                     return Err(self.internal("a persistent loan has no reference descriptor type"));
                 };
-                if Some(declared) != borrowed_access(*access)
-                    || place.result.map(ValueType::erased)
-                        != Some(self.storage_value_type(referent)?.erased())
-                {
-                    return Err(
-                        self.internal("a reference formation changed its referent or access")
-                    );
+                if Some(declared) != borrowed_access(*access) {
+                    return Err(self.internal("a reference formation changed its source access"));
+                }
+                let reinterpret = place.result.map(ValueType::erased)
+                    != Some(self.storage_value_type(referent)?.erased());
+                if reinterpret && *access != language_core::ReferenceAccess::Shared {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression(
+                            "exclusive reference view without restoration evidence",
+                        ),
+                    ));
                 }
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
                 let captured = continuing!(self.capture_place(place, home.as_deref()));
                 let lent = self.captured_loan(place, *access, captured, None)?;
+                let storage = if reinterpret {
+                    let byte_offset = self.zero(
+                        ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                64,
+                            )
+                            .expect("u64 is valid"),
+                        ),
+                        expression.source,
+                    )?;
+                    Some(terminal_psi::ReferenceStorageView {
+                        byte_offset,
+                        stored_scalar: match self.record_type(referent)?.shape {
+                            StorageShape::PrimitiveScalar { .. } => {
+                                place.result.and_then(ValueType::scalar)
+                            }
+                            _ => None,
+                        },
+                    })
+                } else {
+                    None
+                };
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
                 self.obligation(
@@ -1691,10 +1869,7 @@ impl<'a> Lowering<'a> {
                 let (root, place) = self.produce(
                     operation,
                     value_type,
-                    OperationKind::EstablishReference {
-                        source,
-                        storage: None,
-                    },
+                    OperationKind::EstablishReference { source, storage },
                 )?;
                 self.write(
                     place,
@@ -1725,9 +1900,23 @@ impl<'a> Lowering<'a> {
     /// Evaluates a record-typed expression to a root that holds its value
     /// and that nothing else names. A literal or call is its own fresh root;
     /// a slot or member path is copied only with declared copy permission.
-    /// Otherwise `MoveStructuralValue` vacates exactly that region; its
-    /// continuation owns any remaining cleanup and home retirement.
+    /// Owned transport vacates that region with `MoveStructuralValue`; an
+    /// exclusive borrowed source uses `MoveStructuralField`, retaining its
+    /// storage and restoration debt instead of consuming the incoming loan.
     pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        let root = continuing!(self.owned_record(expression));
+        if self.empty_owned_value(root) {
+            // Keep the actual owned Empty expression as the completion. It
+            // cannot initialize a receiver, form a call argument or become a
+            // sibling value, so every consumer sees the same ended path.
+            self.return_record(root, expression.source)?;
+            Ok(Reached::Ended(expression.source))
+        } else {
+            Ok(Reached::Value(root))
+        }
+    }
+
+    fn owned_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
         let value_type = expression
             .result
             .ok_or_else(|| self.internal("a structural operand has no complete value type"))?;
@@ -1745,7 +1934,30 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Evaluation<PlaceId> {
         let moving = !self.record_type(at.record)?.copyable;
-        if moving && self.borrowed_roots.contains(&at.root) {
+        let borrowed = self.borrowed_roots.contains(&at.root);
+        let mut window = borrowed;
+        let mut exclusive_path = !borrowed || self.exclusive_roots.contains(&at.root);
+        for step in &at.path {
+            if let Step::Referent { owner } = step {
+                window = true;
+                exclusive_path &= matches!(
+                    self.record_type(*owner)?.shape,
+                    StorageShape::Reference {
+                        access: StructuralAccess::MutableBorrow,
+                        ..
+                    }
+                );
+            }
+        }
+        // ownership.md, "Borrowed-storage invariant windows": "An owned move
+        // out of a place reached through `&mut` may temporarily leave that
+        // place unestablished." The move below vacates exactly that place;
+        // whether it holds a value again where the borrow returns to its
+        // owner is the checker's judgment of the lowered machine, not a
+        // claim made here. A shared formal lends no such window. The empty
+        // path selects the whole referent's contents, retaining its loan and
+        // storage just as a projected window does.
+        if moving && window && !exclusive_path {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1758,7 +1970,13 @@ impl<'a> Lowering<'a> {
         let (root, exact) = self.produce(
             operation,
             value_type,
-            if moving {
+            if moving && window {
+                OperationKind::MoveStructuralField {
+                    source: at.root,
+                    path,
+                    field: None,
+                }
+            } else if moving {
                 OperationKind::MoveStructuralValue {
                     source: StructuralArgument {
                         place: at.root,
@@ -1786,7 +2004,7 @@ impl<'a> Lowering<'a> {
                 ProgramPoint::AfterOperation(operation),
                 Content::Vacated,
             )?;
-            if at.path.is_empty() {
+            if at.path.is_empty() && !borrowed {
                 self.retire_homes(&[], source)?;
             }
         }
@@ -1896,6 +2114,13 @@ impl<'a> Lowering<'a> {
                 value_type,
                 Some(root),
             )
+        } else if matches!(value_type, ValueType::Record(..)) {
+            // Structural values already have a canonical location. Borrow
+            // that location without copying affine permission; a fresh
+            // operation result is temporary for this call.
+            let at = continuing!(self.located(place));
+            let temporary = at.fresh.then_some(at.root);
+            (at.root, at.path, at.place, value_type, temporary)
         } else {
             let (root, steps, exact, actual) =
                 continuing!(self.capture_place(place, home_identity));
@@ -2405,6 +2630,7 @@ impl<'a> Lowering<'a> {
                             },
                         );
                         self.parameter(block, value, scalar_type)?;
+                        self.qualify(value, field.value_type.qualification())?;
                         payload_fields.push(field.id);
                         Some(value)
                     }
@@ -2636,6 +2862,75 @@ impl<'a> Lowering<'a> {
         .map(Reached::Value)
     }
 
+    /// `left == right` on two borrowed byte views. Each operand is located
+    /// in source order, then each is measured, then the two are compared:
+    /// the comparison names each measurement as the length of its operand
+    /// (byte_views.md, "The operand retains its own dominating length
+    /// observation, readable access, and establishment").
+    pub(super) fn byte_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let left = continuing!(self.located(left));
+        let right = continuing!(self.located(right));
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let mut operands = Vec::with_capacity(2);
+        for at in [left, right] {
+            if !matches!(
+                self.record_type(at.record)?.shape,
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                })
+            ) {
+                return Err(self.internal("a byte comparison has no byte descriptor"));
+            }
+            // The comparison names a whole view root, as a byte read does.
+            if !at.path.is_empty() {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("comparison of a view stored in a field"),
+                ));
+            }
+            self.name_contents(at.place, ValueType::record(at.record))?;
+            self.project(at.place, Segment::Extent)?;
+            let view = StructuralArgument {
+                place: at.root,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            };
+            let measurement = self.operation_identity(source);
+            let Value::Scalar(length) = self.emit(
+                measurement,
+                Some(count),
+                OperationKind::ByteSequenceLength {
+                    source: view.clone(),
+                },
+            )?
+            else {
+                return Err(self.internal("a length observation produced no scalar"));
+            };
+            operands.push(terminal_psi::control_flow::ByteSequenceOperand::Whole {
+                source: view,
+                length,
+            });
+        }
+        let right = operands.pop().expect("two operands");
+        let left = operands.pop().expect("two operands");
+        let operation = self.operation_identity(source);
+        self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::ByteSequenceEqual { left, right },
+        )
+        .map(Reached::Value)
+    }
+
     /// `view[index]` on a borrowed byte view. The view is measured and then
     /// read, in that order and with nothing between: the read names the
     /// measurement as its length and owes `index < length` against it
@@ -2859,10 +3154,16 @@ impl<'a> Lowering<'a> {
         value: &Expression,
         source: SourceOrigin,
     ) -> Evaluation<()> {
+        if let ExpressionKind::ByteElement { base, index } = &destination.kind {
+            return self.store_byte_element(base, index, value, source);
+        }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
         let (root, steps, place, expected) = continuing!(self.capture_place(destination, None));
-        if steps.is_empty() && matches!(expected, ValueType::Record(_, _, _)) {
+        if steps.is_empty()
+            && matches!(expected, ValueType::Record(_, _, _))
+            && !self.borrowed_roots.contains(&root)
+        {
             return Err(self.internal("a whole record assignment must rebind its local"));
         }
         let mut owed = 0;
@@ -2965,6 +3266,77 @@ impl<'a> Lowering<'a> {
                 .map(Reached::Value)
             }
         }
+    }
+
+    /// Capture the destination before evaluating its index and replacement.
+    /// The view lends backing storage; writing a byte never replaces its descriptor.
+    fn store_byte_element(
+        &mut self,
+        base: &Expression,
+        index: &Expression,
+        value: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<()> {
+        let (root, path, exact, actual) = continuing!(self.capture_place(base, None));
+        let ValueType::Record(record, _, _) = actual else {
+            return Err(self.internal("a byte store has no descriptor type"));
+        };
+        if !path.is_empty() {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Statement("byte store through a descriptor stored in a field"),
+            ));
+        }
+        if !matches!(
+            self.record_type(record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow)
+            })
+        ) {
+            return Err(self.internal("a byte store lost mutable descriptor access"));
+        }
+        self.name_contents(exact, actual)?;
+        let selector = continuing!(self.scalar(index));
+        let replacement = continuing!(self.scalar(value));
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let measurement = self.operation_identity(source);
+        let Value::Scalar(length) = self.emit(
+            measurement,
+            Some(count),
+            OperationKind::ByteSequenceLength {
+                source: StructuralArgument::whole(root, StructuralAccess::SharedBorrow),
+            },
+        )?
+        else {
+            return Err(self.internal("a byte extent produced no scalar"));
+        };
+        let operation = self.operation_identity(source);
+        let before = self.here()?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            None,
+            OperationKind::ByteSequenceWrite {
+                destination: root,
+                index: selector,
+                value: replacement,
+                length,
+                obligation,
+            },
+        )?;
+        // The payload changed; the descriptor and its extent did not. There
+        // is no structural descriptor-store row to publish for this operation.
+        Ok(Reached::Value(()))
     }
 
     /// A constant zero of a scalar type.

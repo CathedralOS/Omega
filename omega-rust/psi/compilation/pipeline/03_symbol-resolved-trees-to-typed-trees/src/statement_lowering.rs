@@ -76,9 +76,8 @@ pub(crate) mod statement {
             }
             if let Some(operation) = crate::expressions::product_queries::operation(
                 lowerer.source_trees,
-                call.receiver_symbol,
                 call.target_symbol,
-                call.target.as_str(),
+                (!call.receiver.is_empty()).then_some(call.receiver_symbol),
             ) {
                 if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
                     return Err(Diagnostic::error(
@@ -451,11 +450,19 @@ pub(crate) mod statement {
                 return declared_projection_type(lowerer, attached_data, state, initial_value);
             }
 
-            if let Some(binary) = expressions.binary_node(initial_value) {
-                if binary.operator.result_is_boolean() {
-                    return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::Bool, "bool");
+            // A captured Boolean result has the same type as an authored
+            // local. Membership and negation need no operand-type guess;
+            // lowering still checks the selected case/domain and operands.
+            let boolean_result = match expressions.expression(initial_value) {
+                ExpressionNode::Boolean(_) | ExpressionNode::Membership(_) => true,
+                ExpressionNode::Unary(unary) => {
+                    unary.operator == resolved::expression::UnaryOperator::LogicalNot
                 }
-                return Ok(None);
+                ExpressionNode::Binary(binary) => binary.operator.result_is_boolean(),
+                _ => false,
+            };
+            if boolean_result {
+                return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::Bool, "bool");
             }
 
             Ok(None)
@@ -1402,8 +1409,11 @@ pub(crate) mod statement {
                     Some(lowerer.source_trees),
                     &lowerer.source_trees.tables.bodies.expressions,
                     call.callee,
-                ) && call.target.as_str() == "code_layout"
-                    && !call.target_symbol.is_valid()
+                ) && lowerer
+                    .source_trees
+                    .symbols
+                    .builtin_function_for_symbol(call.target_symbol)
+                    == Some(symbols::BuiltinFunction::CodeLayout)
                     && call.receiver.is_empty() =>
             {
                 let mut request =
@@ -1427,7 +1437,7 @@ pub(crate) mod statement {
                             exact_coercion_target: Default::default(),
                             requirement_application: Default::default(),
                             receiver: Default::default(),
-                            target_symbol: Default::default(),
+                            target_symbol: call.target_symbol,
                             static_machine_parameter: Default::default(),
                             target: crate::lowerer::name::lower_name(&call.target),
                             static_requirement_dispatch: None,
@@ -1528,5 +1538,80 @@ pub(crate) mod statement {
                 ))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod boolean_result_tests {
+    #[test]
+    fn boolean_locals_and_inferred_dispatch_subjects_keep_their_real_type() {
+        let source = r#"
+            data Choice { case A; case B; }
+            domain u64::Small requires self <= 8;
+            machine case_subject(value: Choice) -> u64 {
+                transition value in Choice::A { true -> 41u64 _ -> 0u64 }
+            }
+            machine domain_subject(value: u64) -> u64 {
+                transition value in Small { true -> 41u64 _ -> 0u64 }
+            }
+            machine negated_subject(value: bool) -> u64 {
+                transition !value { true -> 41u64 _ -> 0u64 }
+            }
+            machine ordinary(value: Choice, bit: bool, count: u64) -> bool {
+                let membership: bool = value in Choice::A;
+                let domain_membership: bool = count in Small;
+                let literal: bool = true;
+                let negated: bool = !bit;
+                let comparison: bool = count <= 8u64;
+                comparison
+            }
+        "#;
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax),
+        )
+        .unwrap();
+        let typed = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut captured = 0;
+        let mut authored = 0;
+        for machine in typed.machines() {
+            for state in typed.machine_states(machine) {
+                for statement in typed.statement_table.statements(state.statement_nodes) {
+                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                        continue;
+                    };
+                    if local.role == language_core::LocalBindingRole::DispatchSubject {
+                        captured += 1;
+                    } else if [
+                        "membership",
+                        "domain_membership",
+                        "literal",
+                        "negated",
+                        "comparison",
+                    ]
+                    .contains(&local.name.as_str())
+                    {
+                        authored += 1;
+                    } else {
+                        continue;
+                    }
+                    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+                        .type_reference_table
+                        .type_reference(local.type_reference)
+                    else {
+                        panic!("{} retains its actual Bool type", local.name.as_str());
+                    };
+                    assert_eq!(
+                        typed.symbols.builtin_type_atom(*symbol),
+                        Some(symbols::BuiltinTypeAtom::Bool)
+                    );
+                }
+            }
+        }
+        assert_eq!(captured, 3);
+        assert_eq!(authored, 5);
     }
 }

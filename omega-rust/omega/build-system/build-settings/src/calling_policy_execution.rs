@@ -35,12 +35,12 @@ use provider_planning::calling_policy_plans::{
     complete_calling_scalar_inputs, decode_boundary_plan_result, encode_calling_policy_signature,
     validate_calling_policy_result,
 };
-use psi_work::{WorkMeter, WorkUsage};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
+use terminal_work::{WorkMeter, WorkUsage};
 
 pub const CALLING_POLICY_EVALUATOR: CallingPolicyEvaluator = CallingPolicyEvaluator {
     policy: evaluate_terminal_calling_policy,
@@ -61,10 +61,8 @@ pub fn evaluate_terminal_calling_policy(
     if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
     }
-    let selected = terminal_installation::admit_target_machine_selections(
-        artifact.view(),
-        target.target_name(),
-    );
+    let selected =
+        terminal_installation::terminal_target_context(artifact.view(), target.target_name());
     let facts = target
         .layout_target_facts()
         .ok_or("calling policy target has no layout facts")?;

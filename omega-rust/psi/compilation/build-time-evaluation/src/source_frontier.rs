@@ -73,6 +73,18 @@ pub(crate) fn defer_declared_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diag
     Ok(())
 }
 
+/// Layout evaluation may serve one occurrence while another in the same
+/// declaration remains open. Rebuild only this request kind from the complete
+/// current inventory; all other deferred obligations remain untouched.
+pub(crate) fn refresh_layout_policy_requests(
+    typed: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    typed
+        .deferred_refusals
+        .retain(|row| row.request != DeferredRequest::LayoutPolicyStorage);
+    defer_declared_jobs(typed)
+}
+
 /// The evaluation requests of the program's declarations, after refusing
 /// every request the program holds outside them.
 fn source_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
@@ -137,7 +149,7 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
 /// The evaluation requests written inside declarations, each with the
 /// declaration that holds it. One that no declaration owns refuses.
-fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references = typed_trees::references::collect_program_references(typed);
@@ -155,7 +167,9 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
     for reference in references.type_references {
         use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
         if typed.layout_storage_arguments(reference).is_some() {
-            types.push((reference, DeferredRequest::LayoutPolicyStorage));
+            if typed.plan_laid_layout_for_type(reference).is_none() {
+                types.push((reference, DeferredRequest::LayoutPolicyStorage));
+            }
             continue;
         }
         match typed.type_reference_table.type_reference(reference) {
@@ -169,7 +183,14 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
             // The shared walk already visits children, including machine
             // parameters, results, bounds and contracts. Only jobs are named
             // here; container types need no second inventory.
-            _ => {}
+            TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Constrained { .. }
+            | TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Callable { .. }
+            | TypeReferenceNode::Unit => {}
         }
     }
     let mut jobs = Vec::new();

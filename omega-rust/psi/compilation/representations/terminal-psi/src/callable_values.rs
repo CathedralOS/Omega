@@ -188,12 +188,24 @@ impl TerminalCallableCatalog {
 }
 
 impl crate::ReferenceResultShape for TerminalCallableContract {
-    fn result(&self) -> &BoundaryMachineResult {
-        &self.result
+    fn result(&self) -> std::borrow::Cow<'_, BoundaryMachineResult> {
+        std::borrow::Cow::Borrowed(&self.result)
     }
 
-    fn reference_regions(&self) -> &[TerminalDynamicReferenceRegion] {
-        &self.result_reference_regions
+    fn maximum_reference_leaves(&self) -> usize {
+        self.result_reference_regions.len()
+    }
+
+    fn reference_regions<'a>(
+        &'a self,
+        path: &'a [StructuralPathSegment],
+    ) -> impl Iterator<
+        Item = Result<std::borrow::Cow<'a, TerminalDynamicReferenceRegion>, &'static str>,
+    > + 'a {
+        self.result_reference_regions
+            .iter()
+            .filter(move |region| region.path == path)
+            .map(|region| Ok(std::borrow::Cow::Borrowed(region)))
     }
 
     fn structural_parameter_count(&self) -> usize {

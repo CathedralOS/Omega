@@ -467,7 +467,6 @@ pub(crate) mod patterns {
 
 pub(crate) mod type_syntax {
     pub(crate) mod parse_type {
-        use crate::grammar::contracts::conformance::parse_conformance::parse_conformance_trait_application;
         use crate::grammar::expressions::static_argument_values::parse_static_argument_expression;
         use crate::storage::tables::type_refs;
         use crate::tokens::token_cursor::{Input, ParseResult};
@@ -639,26 +638,12 @@ pub(crate) mod type_syntax {
                 ));
             }
 
+            // Runtime trait selectors have no source meaning. Reject before
+            // producing a tree instead of carrying an obsolete selector type
+            // into resolution and eventually failing during elaboration.
             if input.at_contextual("dyn") {
-                let input = input.take_contextual("dyn")?;
-                let ((trait_name, lifetime_arguments, trait_arguments), input) =
-                    parse_conformance_trait_application(syntax_trees, input)?;
-                if !lifetime_arguments.is_empty() {
-                    return Err(input.error_here(
-                        "a dynamic selector takes no lifetime arguments; it borrows nothing",
-                    ));
-                }
-                if input.at_punctuation(PunctuationKind::ColonColon) {
-                    return Err(input.error_here(
-                "`dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`",
-            ));
-                }
-                return Ok((
-                    type_refs(syntax_trees).insert(TypeReferenceNode::DynamicTrait {
-                        trait_name,
-                        trait_arguments,
-                    }),
-                    input,
+                return Err(input.error_here(
+                    "`dyn` types are retired; use machine values and `some` packages",
                 ));
             }
 

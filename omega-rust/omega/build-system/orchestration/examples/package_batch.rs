@@ -581,7 +581,7 @@ fn observe_native_products(
         );
         let output =
             std::path::PathBuf::from(format!("build/package-batch-native-{}", std::process::id()));
-        let published = compilation_products::publication::publish_compilation(report, &output)?;
+        let published = products::publication::publish_compilation(report, &output)?;
         let observed = std::process::Command::new(
             published
                 .checked_native_executable_path()

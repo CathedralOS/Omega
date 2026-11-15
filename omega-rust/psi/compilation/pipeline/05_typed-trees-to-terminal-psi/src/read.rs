@@ -3,9 +3,8 @@ The reader: one machine's frozen typed trees resolved into the closed body. This
 is fixed before elaboration"):
 
 - A type is scalar only through `SymbolTable::builtin_type_atom` on its
-  resolved symbol: the compiler-installed root slot, never the spelling. The
-  typed trees' own `PrimitiveType::from_name` classifies by spelling and is
-  not used. A `Named` type whose symbol is invalid is refused as a spelling.
+  resolved symbol, through the shared scalar classification in `symbols`,
+  never the spelling. A `Named` type whose symbol is invalid is refused as a spelling.
 - A type is a record only through its `SymbolKind::Data` symbol and that
   symbol's declaration; a field is its declaration position, found from the
   field symbol on the literal or member (`places`).
@@ -33,6 +32,7 @@ mod calling_abis;
 mod calls;
 #[cfg(test)]
 mod calls_visibility_tests;
+mod carriers;
 mod casts;
 mod constant_values;
 mod contracts;
@@ -72,6 +72,14 @@ use crate::{Unserved, refuse};
 struct WidthBinding {
     symbol: SymbolHandle,
     parameter: semantic_vocabulary::WidthParameter,
+}
+
+/// Source-unit permissions for local inference. Outcome inference changes
+/// executable continuations; result inference currently extends a callable's
+/// contract, so only private bodies may receive those additional clauses.
+pub(crate) struct LocalSummaryBodies {
+    pub outcomes: Vec<MachineId>,
+    pub result_contracts: Vec<MachineId>,
 }
 
 pub(crate) struct Program<'t> {
@@ -141,6 +149,9 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// The services a Build selection awaits a provider for, in first-read
+    /// order (`designate`, `publish_readiness`).
+    readiness: Vec<semantic_vocabulary::ServiceId>,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
@@ -183,6 +194,16 @@ pub(crate) struct Program<'t> {
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
+    /// What the premises of the generic check form being read say about
+    /// each rigid type parameter's integer carrier family
+    /// (`carriers::assume_premises`). Empty for every other reading.
+    rigid_carriers: Vec<(
+        terminal_check_tables::values::RigidType,
+        carriers::CarrierFacts,
+    )>,
+    /// Whether the signature being read is a generic check form's entry,
+    /// whose requirements are premises rather than obligations.
+    premise_reading: bool,
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
@@ -192,6 +213,18 @@ pub(crate) struct Program<'t> {
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
     pub byte_domains: Vec<crate::body::SourceByteDomain>,
+    /// Resolved domain declarations actually used by this verification unit.
+    /// Lowering publishes these meanings, not just the carrier of their values.
+    pub declared_domains: Vec<(SymbolHandle, ValueType)>,
+    /// Scalar predicates read before the source closure is frozen for publication.
+    pub scalar_domain_predicates: Vec<(
+        SymbolHandle,
+        semantic_vocabulary::ScalarType,
+        Vec<semantic_vocabulary::Proposition>,
+    )>,
+    /// Only completed source contracts enter this stage-local query cache.
+    /// It contains no value facts and is never published as evidence.
+    inhabitation: terminal_semantics::inhabitation::Inhabitation,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
@@ -207,8 +240,9 @@ pub(crate) struct Program<'t> {
     region_tuples: Vec<Vec<regions::Region>>,
     /// The text identities of `regions::Region::Fixed`, by position.
     fixed_regions: Vec<String>,
-    /// What each region variable was decided as, if it was (`regions`).
-    region_variables: Vec<Option<regions::Region>>,
+    /// Each region variable: what it was decided as, if it was, and the
+    /// region a loan it stands for is within (`regions::RegionVariable`).
+    region_variables: Vec<regions::RegionVariable>,
     /// What an elided lifetime stands for where a type is being read.
     elision: regions::Elision,
     /// How many fresh lifetime parameters each machine's signature was
@@ -333,6 +367,7 @@ impl<'t> Program<'t> {
             implementation_body: None,
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
@@ -347,11 +382,16 @@ impl<'t> Program<'t> {
             applied: Vec::new(),
             alternative: None,
             static_truths: Vec::new(),
+            rigid_carriers: Vec::new(),
+            premise_reading: false,
             value_parameters: IdTable::default(),
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             byte_domains: Vec::new(),
+            declared_domains: Vec::new(),
+            scalar_domain_predicates: Vec::new(),
+            inhabitation: Default::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
@@ -682,7 +722,8 @@ mod tests {
         );
         assert_eq!(
             refusal.detail,
-            "declaration holding a call selected by its receiver's type, which no pass serves yet"
+            "declaration holding a call selected by its receiver's type, which no pass serves yet \
+             while reading the signature of `holder`"
         );
         // The same declaration without the row is read like its twin.
         typed.deferred_refusals.clear();
@@ -844,31 +885,21 @@ mod tests {
         }
     }
 
-    /// `+!` is refused by name before its operands are read: no type carries
-    /// `Trapping` on this route. The `%` and `|` forms are read
-    /// (`compiler/tests/route_probe.rs`).
-    #[test]
-    fn a_trapping_operator_is_refused_before_its_operands_are_read() {
-        let typed = TypedTrees::default();
-        let node = ExpressionNode::Binary(TableBinaryExpression {
-            policy: numerics::arithmetic::ArithmeticDomain::Trapping,
-            left: ExpressionHandle::invalid(),
-            operator: BinaryOperator::Add,
-            right: ExpressionHandle::invalid(),
-        });
-        assert_eq!(refused(&typed, node), "expression Trapping policy operator");
-    }
-
     /// `result` in a contract is taken by the owner identity stage 02
     /// recorded, never by its spelling: a name spelled `result` with no
     /// identity is refused as a spelling, the result of another callable and
     /// a result in an entry clause are refused, and a body cannot name it.
     #[test]
     fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::name::Identifier;
-        let mut typed = TypedTrees::default();
-        let owner = SymbolHandle::from_arena_index(3);
-        let other = SymbolHandle::from_arena_index(4);
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
         let mut members = arena::HandleSpan::empty();
         typed
             .expression_table
@@ -1156,6 +1187,44 @@ mod tests {
         let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
         let scalar_type = ScalarType::Integer(integer);
         let value = ValueId::new(1).unwrap();
+        let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            name: Identifier::generated("u32"),
+            symbol: children.handle_at(7),
+        });
+        let parameter_type =
+            typed
+                .mathematical_types
+                .insert(typed_trees::mathematical::MathematicalType::Ordinary(
+                    reference,
+                ));
+        let logical_inputs = logical::MathematicalInputs::new(
+            &typed,
+            machine(),
+            &[typed_trees::mathematical::MathematicalParameter {
+                symbol: formal,
+                name: Identifier::generated("x"),
+                relevance: language_core::BindingRelevance::Relevant,
+                ty: parameter_type,
+            }],
+            None,
+        )
+        .unwrap();
+        let same_input =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: old,
+                    operator: BinaryOperator::Equal,
+                    right: named,
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                }));
+        let completion = typed_trees::signature::SignatureContract {
+            kind: typed_trees::signature::SignatureContractKind::Ensures,
+            facts: typed
+                .proof_facts
+                .insert_many([typed_trees::domain::ProofFact::Expression(same_input)]),
+            ..Default::default()
+        };
         let slot = || Slot {
             symbol: formal,
             value_type: ValueType::plain(scalar_type),
@@ -1245,6 +1314,17 @@ mod tests {
                 .unwrap_err()
                 .detail
         };
+        let invalid_policy_operand =
+            |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
+                let refusal = program
+                    .term(machine(), scope, expression, None)
+                    .unwrap_err();
+                assert!(matches!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Violation(_)
+                ));
+                assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
+            };
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
@@ -1424,10 +1504,7 @@ mod tests {
             Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
         );
         for expression in [using_old, computed] {
-            assert_eq!(
-                detail(&mut program, &domain_scope, expression),
-                "contract builtin operator on a value with a declared domain in a clause"
-            );
+            invalid_policy_operand(&mut program, &domain_scope, expression);
         }
         let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
@@ -1450,14 +1527,110 @@ mod tests {
             ..scope
         };
         assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
+        for expression in [using_old, computed] {
+            invalid_policy_operand(&mut program, &qualified_scope, expression);
+        }
+        // A projected invocation keeps the same source input at normal
+        // completion. Its guarantee is still an obligation of the ordinary
+        // call/return body, rather than an entry premise or executable snapshot.
+        let logical = logical_inputs.scope(machine(), None, &[]);
+        let completion_scope = ClauseScope {
+            logical: Some(logical.normal_return()),
+            slots: &[],
+            values: &[],
+            result: ResultTerm::Absent("result of a Unit logical callable"),
+            ..scope
+        };
+        for expression in [named, old] {
+            assert_eq!(
+                program.term(machine(), &completion_scope, expression, None),
+                Ok((
+                    ScalarTerm::value(value, scalar_type),
+                    ValueType::plain(scalar_type)
+                ))
+            );
+        }
+        let no_logical_foreign = detail(&mut program, &completion_scope, old_foreign);
         assert_eq!(
-            detail(&mut program, &qualified_scope, using_old),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
+            detail(
+                &mut program,
+                &ClauseScope {
+                    bound: &copied_input,
+                    ..completion_scope
+                },
+                old_foreign,
+            ),
+            no_logical_foreign,
+            "a static substitution does not become a projected invocation input"
+        );
+        let (signature, names) = logical
+            .signature(&mut program, owner, &[&completion])
+            .unwrap();
+        assert!(
+            signature.requires.is_empty(),
+            "the guarantee is not an entry fact"
         );
         assert_eq!(
-            detail(&mut program, &qualified_scope, computed),
-            format!("contract {}", crate::policy::QUALIFIED_OPERAND)
+            signature.ensures,
+            [semantic_vocabulary::Proposition::Equal(
+                ScalarTerm::value(value, scalar_type),
+                ScalarTerm::value(value, scalar_type),
+            )]
         );
+        assert_eq!(names.ensures.len(), 1);
+        let callee = MachineId::new(2).unwrap();
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::ConformanceWitness);
+        let call = crate::body::Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: callee.into(),
+                arguments: vec![crate::body::Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Slot(0),
+                    result: Some(ValueType::plain(scalar_type)),
+                    source,
+                }],
+                designated: None,
+                required_contract: None,
+            },
+            result: None,
+            source,
+        };
+        let mut signatures = IdTable::default();
+        signatures.push(signature.clone());
+        signatures.push(crate::body::Signature {
+            ensures: Vec::new(),
+            ..signature.clone()
+        });
+        let mut bodies = IdTable::default();
+        bodies.push(crate::callable_refinement_body(&signature, call));
+        bodies.push(crate::body::Body {
+            slots: signature.parameters.clone(),
+            statements: Vec::new(),
+        });
+        let lowered = crate::lower_generic(
+            machine(),
+            &bodies,
+            &signatures,
+            &IdTable::default(),
+            &[callee],
+        )
+        .unwrap();
+        let table = lowered.tables.machines.get(machine()).unwrap();
+        assert_eq!(table.invocations.len(), 1);
+        assert_eq!(
+            table
+                .obligations
+                .iter()
+                .filter(|(_, row)| matches!(
+                    row.kind,
+                    terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+                ))
+                .count(),
+            1,
+            "the required guarantee is owed after the abstract call returns"
+        );
+        assert_eq!(lowered.requirements, [callee]);
         assert!(
             program.expression(machine(), &slots, old, None).is_err(),
             "old has no executable implementation"
@@ -1546,7 +1719,7 @@ mod tests {
             terminal_check_tables::RefusalReason::Violation(_)
         ));
         assert!(uncovered.detail.contains("does not cover every value"));
-        let record = StructuralTypeId::new(1).unwrap();
+        let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());
         let pattern = |guard, head| TableDestructurePattern {
             guard,
             head,
@@ -2054,12 +2227,27 @@ mod tests {
         let named = |typed: &mut TypedTrees, symbol| {
             typed.type_reference_table.insert(TypeReferenceNode::Named {
                 symbol,
-                name: Default::default(),
+                name: typed_trees::name::Identifier::generated("u32"),
             })
         };
         let builtin = named(&mut typed, u32_slot);
         let nominal = named(&mut typed, impostor);
         let unresolved = named(&mut typed, SymbolHandle::invalid());
+        let atomic_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::AtomicU32)
+            .unwrap();
+        let atomic = named(&mut typed, atomic_symbol);
+        let f32_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::F32)
+            .unwrap();
+        let f64_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::F64)
+            .unwrap();
+        let f32_type = named(&mut typed, f32_symbol);
+        let f64_type = named(&mut typed, f64_symbol);
         let reference = typed
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
@@ -2067,7 +2255,38 @@ mod tests {
                 access: ReferenceAccess::Shared,
                 lifetime: None,
             });
+        assert_eq!(
+            typed.primitive_type_reference(builtin),
+            Some(symbols::PrimitiveType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(32)
+            ))
+        );
+        assert_eq!(typed.primitive_type_reference(nominal), None);
+        assert_eq!(typed.primitive_type_reference(unresolved), None);
+        assert_eq!(typed.primitive_type_reference(atomic), None);
+        assert_eq!(
+            typed.primitive_type_reference(f32_type),
+            Some(symbols::PrimitiveType::F32)
+        );
+        assert_eq!(
+            typed.primitive_type_reference(f64_type),
+            Some(symbols::PrimitiveType::F64)
+        );
+        assert_eq!(typed.type_reference_symbol(builtin), u32_slot);
+        assert_eq!(typed.type_reference_symbol(nominal), impostor);
         let mut program = Program::new(&typed, false);
+        assert_eq!(
+            program.scalar_type(machine(), f32_type),
+            Ok(ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary32
+            ))
+        );
+        assert_eq!(
+            program.scalar_type(machine(), f64_type),
+            Ok(ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary64
+            ))
+        );
         assert_eq!(
             program.scalar_type(machine(), builtin),
             Ok(ScalarType::Integer(
@@ -2077,6 +2296,7 @@ mod tests {
         let detail = |handle| program.scalar_type(machine(), handle).unwrap_err().detail;
         assert_eq!(detail(nominal), "type nominal type");
         assert_eq!(detail(unresolved), "spelling type without a symbol");
+        assert_eq!(detail(atomic), "type atomic");
         assert_eq!(detail(reference), "type reference");
         assert_eq!(
             program.result_type(machine(), TypeReferenceHandle::invalid()),

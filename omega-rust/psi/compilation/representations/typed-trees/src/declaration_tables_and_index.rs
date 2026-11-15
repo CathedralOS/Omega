@@ -456,6 +456,9 @@ pub mod declaration_index {
         use crate::{data::DataMember, signature::StateParameter, statement::StatementNode};
         use symbols::SymbolHandle;
 
+        /// The most direct offsets a relation may allocate per row it holds.
+        const DENSE_OFFSETS_PER_ROW: usize = 4;
+
         #[derive(Clone)]
         pub(crate) struct SymbolRows<Position> {
             symbols: Vec<SymbolHandle>,
@@ -484,11 +487,19 @@ pub mod declaration_index {
                 }
             }
 
+            /// Adds a direct offset table when the relation fills enough of its
+            /// symbol range to pay for one. The table spans every ordinal up to the
+            /// highest row's symbol, so a sparse relation over a few high-numbered
+            /// symbols keeps the sorted rows and answers by binary search instead.
             pub(crate) fn densify(&mut self) {
                 let Some(last) = self.symbols.last() else {
                     return;
                 };
-                let mut starts = vec![0u32; last.arena_index() as usize + 2];
+                let offsets = last.arena_index() as usize + 2;
+                if offsets > self.symbols.len().saturating_mul(DENSE_OFFSETS_PER_ROW) {
+                    return;
+                }
+                let mut starts = vec![0u32; offsets];
                 for symbol in &self.symbols {
                     starts[symbol.arena_index() as usize + 1] += 1;
                 }
@@ -525,6 +536,11 @@ pub mod declaration_index {
 
             pub(crate) fn first(&self, symbol: SymbolHandle) -> Option<&Position> {
                 self.get(symbol).first()
+            }
+
+            #[cfg(test)]
+            fn is_dense(&self) -> bool {
+                !self.starts.is_empty()
             }
         }
 
@@ -850,10 +866,40 @@ pub mod declaration_index {
                         assert_eq!(rows.first(symbol), expected.first());
                     }
                 }
+                assert!(dense.is_dense());
                 let mut empty = SymbolRows::<usize>::new(Vec::new());
                 empty.densify();
                 assert!(empty.get(SymbolHandle::invalid()).is_empty());
                 assert!(empty.first(SymbolHandle::invalid()).is_none());
+            }
+
+            #[test]
+            fn sparse_relations_over_high_symbols_stay_sorted_rows() {
+                // Three rows whose symbols climb towards the top of the ordinal
+                // range: the relation's size stays fixed while its high-water mark
+                // grows, so sealing must not allocate an offset per ordinal.
+                for top in [64u32, 4_096, 1 << 20] {
+                    let symbols = [top - 2, top - 1, top]
+                        .map(|position| SymbolHandle::from_parts(position, 1));
+                    let mut rows =
+                        SymbolRows::new(symbols.iter().copied().zip(0usize..).collect::<Vec<_>>());
+                    rows.densify();
+                    assert!(!rows.is_dense(), "three rows below {top} densified");
+                    for (position, symbol) in symbols.into_iter().enumerate() {
+                        assert_eq!(rows.get(symbol), [position]);
+                    }
+                    assert!(rows.get(SymbolHandle::from_parts(top, 0)).is_empty());
+                    assert!(rows.get(SymbolHandle::from_parts(top + 1, 1)).is_empty());
+                }
+                // A relation that fills its range keeps the direct offset table.
+                let mut filled = SymbolRows::new(
+                    (0..256u32)
+                        .map(|position| (SymbolHandle::from_parts(position, 0), position))
+                        .collect(),
+                );
+                filled.densify();
+                assert!(filled.is_dense());
+                assert_eq!(filled.get(SymbolHandle::from_parts(200, 0)), [200]);
             }
         }
     }
@@ -2419,22 +2465,29 @@ pub(crate) mod declaration_tables {
             &self,
             instance: symbols::SymbolHandle,
         ) -> Result<Option<symbols::SymbolHandle>, &'static str> {
-            let mut templates = self
-                .machine_specializations
-                .iter()
-                .filter(|row| row.instance == instance)
-                .map(|row| row.template)
-                .chain(
-                    self.captured_machine_applications
-                        .iter()
-                        .filter(|(_, row)| row.instance == instance)
-                        .map(|(_, row)| row.template),
-                );
-            let template = templates.next();
-            if templates.next().is_some() {
-                return Err("executable application has ambiguous template ownership");
+            Ok(self
+                .machine_instantiation(instance)?
+                .map(|application| application.template()))
+        }
+
+        /// Reads a generated callable's exact declaration from its retained
+        /// application, not from symbol provenance. Entry correspondence belongs
+        /// to the application just as the machine and its arguments do.
+        pub fn executable_callable_template(
+            &self,
+            callable: symbols::SymbolHandle,
+        ) -> Result<Option<symbols::SymbolHandle>, &'static str> {
+            if !callable.is_valid() || !self.symbols.symbols().nodes().is_valid(callable) {
+                return Err("executable callable has no retained symbol");
             }
-            Ok(template)
+            let symbol = self.symbols.get(callable);
+            if symbol.kind != symbols::SymbolKind::State {
+                return self.executable_application_template(callable);
+            }
+            let Some(application) = self.machine_instantiation(symbol.parent)? else {
+                return Ok(None);
+            };
+            application.entry_template(self, callable).map(Some)
         }
 
         pub fn machine_invokes_declaration(
@@ -2840,6 +2893,21 @@ pub(crate) mod declaration_tables {
                 definition,
                 is_closed,
             };
+        }
+
+        /// Drops the view retained for `application`, so the next
+        /// preparation forms it again from the application's arguments as
+        /// they now are. Only for an argument whose value arrived after the
+        /// view was formed (`settle_const_argument`).
+        pub(crate) fn forget_data_application_definition(
+            &mut self,
+            application: TypeReferenceHandle,
+        ) {
+            if self.data_application_definition(application).is_some() {
+                let row = Handle::from_parts(application.arena_index(), application.generation());
+                *self.tables.data_application_definitions.get_mut(row) =
+                    crate::DataApplicationView::default();
+            }
         }
 
         pub fn data_application_definition(
@@ -4270,8 +4338,7 @@ pub(crate) mod trait_and_machine_tables {
                         TypeReferenceNode::Constrained { .. }
                         | TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::ConstExpression(_)
-                        | TypeReferenceNode::Callable { .. }
-                        | TypeReferenceNode::DynamicTrait { .. } => self.closed = false,
+                        | TypeReferenceNode::Callable { .. } => self.closed = false,
                     }
                 }
             }
@@ -5770,7 +5837,6 @@ pub(crate) mod type_reference_queries {
                         TypeReferenceNode::Slice { .. } => return Some(2),
                         TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::Reference { .. }
-                        | TypeReferenceNode::DynamicTrait { .. }
                         | TypeReferenceNode::Callable { .. }
                         | TypeReferenceNode::Unit => return Some(1),
                         TypeReferenceNode::Named { symbol, .. }
@@ -6160,7 +6226,8 @@ pub(crate) mod type_reference_queries {
             &self,
             type_reference: types::TypeReferenceHandle,
         ) -> Option<types::PrimitiveType> {
-            self.type_reference_table.primitive_type(type_reference)
+            self.type_reference_table
+                .primitive_type(type_reference, &self.symbols)
         }
 
         pub fn static_const_argument_identity(
@@ -6425,7 +6492,7 @@ pub(crate) mod type_reference_queries {
 
         pub fn is_borrowed_byte_slice(&self, type_reference: types::TypeReferenceHandle) -> bool {
             self.type_reference_table
-                .is_borrowed_byte_slice(type_reference)
+                .is_borrowed_byte_slice(type_reference, &self.symbols)
         }
 
         pub fn arithmetic_domain_for_type_reference(
@@ -6469,7 +6536,7 @@ pub(crate) mod type_reference_queries {
                     if let Some(parameter) = parameter {
                         return parameter.bounds.multiplicity;
                     }
-                    if types::PrimitiveType::from_name(name.as_str()).is_some() {
+                    if self.symbols.primitive_type(*symbol).is_some() {
                         return Multiplicity::Unrestricted;
                     }
                     let data_definitions = self.data_definitions();
@@ -6503,9 +6570,7 @@ pub(crate) mod type_reference_queries {
                         .map(|definition| definition.properties.multiplicity)
                         .unwrap_or(Multiplicity::Affine)
                 }
-                TypeReferenceNode::Callable { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-                    Multiplicity::Unrestricted
-                }
+                TypeReferenceNode::Callable { .. } => Multiplicity::Unrestricted,
                 TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
             }
         }

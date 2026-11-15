@@ -867,52 +867,21 @@ pub(crate) mod bindings_and_conformances {
     }
 
     #[test]
-    fn parses_dynamic_selector_trait_application() {
-        let source = r#"
-        machine inspect(order: dyn Ranked<Card>) {}
-    "#;
-
-        let parsed = super::parse_source(source, "dynamic selector should parse");
-        let machine = super::root_machine(&parsed, "machine root item");
-        let state = super::entry_state(&parsed, machine);
-        let parameter = parsed.items.state_parameter(
-            parsed
-                .items
-                .state_parameters(state.parameters)
-                .first()
-                .copied()
-                .expect("value parameter"),
-        );
-        let TypeReferenceNode::DynamicTrait {
-            trait_name,
-            trait_arguments,
-        } = parsed
-            .type_references
-            .type_reference(parameter.type_reference)
-        else {
-            panic!("parameter should be a dynamic selector");
-        };
-        assert_eq!(trait_name.as_str(&parsed), "Ranked");
-        let arguments = parsed
-            .type_references
-            .type_reference_handles(*trait_arguments);
-        assert_eq!(arguments.len(), 1);
-        assert!(matches!(
-            parsed.type_references.type_reference(arguments[0]),
-            TypeReferenceNode::Named(name) if name.as_str(&parsed) == "Card"
-        ));
-    }
-
-    #[test]
-    fn rejects_data_carrier_dynamic_selector() {
-        let source = r#"
-        machine inspect(value: &dyn Card::PowerOrder) {}
-    "#;
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("a data-carrier selector is retired");
-        super::expect_error(&error, "`dyn Data::Implementation` is retired");
+    fn rejects_retired_dyn_type_forms() {
+        for source in [
+            "machine inspect(order: dyn Ranked<Card>) {}",
+            "machine inspect(order: dyn Ranked) {}",
+            "machine inspect(order: dyn Ranked<_>) {}",
+            "machine inspect(order: &dyn Ranked<Card>) {}",
+            "machine inspect(order: &mut dyn Ranked<Card>) {}",
+            "machine inspect(order: &dyn Card::PowerOrder) {}",
+            "data Choices { order: [dyn Ranked<Card>; 2]; }",
+            "machine choose() { let order: u64 = PowerOrder as dyn Ranked<Card>; }",
+        ] {
+            let error = super::parse_source_error(source, "tokenize", "dyn is retired");
+            super::expect_error(&error, "`dyn` types are retired");
+            super::expect_error(&error, "machine values and `some` packages");
+        }
     }
 
     #[test]
@@ -7812,7 +7781,6 @@ pub(crate) mod properties_and_requirements {
 }
 pub(crate) mod source_parsing {
     use crate::{parse, parse_source_units, parse_sources};
-    use rayon::ThreadPoolBuilder;
     use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
     use source_files_to_tokens::{Lexer, lex_sources};
     use std::sync::Arc;
@@ -7965,8 +7933,8 @@ pub(crate) mod source_parsing {
             .iter()
             .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
             .collect::<Vec<_>>();
-        let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
-        let parsed = pool.install(|| parse_source_units(lexed)).unwrap();
+        let budget = execution_admission::ExecutionBudget::with_workers(4).unwrap();
+        let parsed = budget.run(|| parse_source_units(lexed)).unwrap();
 
         assert_eq!(parsed.page_count(), 16);
         assert_eq!(parsed.sources().len(), 16);

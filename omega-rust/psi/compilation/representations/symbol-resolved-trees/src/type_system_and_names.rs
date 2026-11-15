@@ -41,13 +41,6 @@ pub mod type_system {
                         }
                         TypeReference::ConstExpression(_) => "const <expression>".to_owned(),
                         TypeReference::Callable { .. } => "machine(<contract>)".to_owned(),
-                        TypeReference::DynamicTrait {
-                            name, arguments, ..
-                        } => match arguments.count() {
-                            0 => format!("dyn {name}"),
-                            1 => format!("dyn {name}<1 argument>"),
-                            count => format!("dyn {name}<{count} arguments>"),
-                        },
                         TypeReference::Named { name, .. } => name.to_string(),
                         TypeReference::Unit => "()".to_owned(),
                         TypeReference::AliasUse { expansion, .. } => {
@@ -173,12 +166,6 @@ pub mod type_system {
             ConstExpression(ConstExpressionTypeReference),
             Callable {
                 contract: crate::callable_values::RuntimeCallableContractHandle,
-                supplied_operand_owner: OperandLifetimeOwnerHandle,
-            },
-            DynamicTrait {
-                symbol: SymbolHandle,
-                name: DiagnosticName,
-                arguments: HandleSpan<TypeReference>,
                 supplied_operand_owner: OperandLifetimeOwnerHandle,
             },
             Named {
@@ -637,25 +624,6 @@ pub mod type_system {
                             source_expressions.copy_into(expressions, expression.expression);
                         self.insert(TypeReferenceNode::ConstExpression(expression))
                     }
-                    TypeReference::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                        ..
-                    } => {
-                        let arguments = self.insert_type_reference_handle_span_from_trees(
-                            source_generic_arguments.span_or_empty(*arguments),
-                            expressions,
-                            source_generic_arguments,
-                            source_constraints,
-                            source_expressions,
-                        );
-                        self.insert(TypeReferenceNode::DynamicTrait {
-                            symbol: *symbol,
-                            name: name.clone(),
-                            arguments,
-                        })
-                    }
                     TypeReference::Callable { contract, .. } => {
                         self.insert(TypeReferenceNode::Callable {
                             contract: *contract,
@@ -722,10 +690,6 @@ pub mod type_system {
                         supplied_operand_owner,
                         ..
                     }
-                    | Self::DynamicTrait {
-                        supplied_operand_owner,
-                        ..
-                    }
                     | Self::Callable {
                         supplied_operand_owner,
                         ..
@@ -755,10 +719,6 @@ pub mod type_system {
                     Self::Slice(reference) => reference.supplied_operand_owner = owner,
                     Self::Generic(reference) => reference.supplied_operand_owner = owner,
                     Self::Named {
-                        supplied_operand_owner,
-                        ..
-                    }
-                    | Self::DynamicTrait {
                         supplied_operand_owner,
                         ..
                     }
@@ -809,11 +769,6 @@ pub mod type_system {
             ConstExpression(crate::expression::ExpressionHandle),
             Callable {
                 contract: crate::callable_values::RuntimeCallableContractHandle,
-            },
-            DynamicTrait {
-                symbol: SymbolHandle,
-                name: DiagnosticName,
-                arguments: HandleSpan<TypeReferenceHandle>,
             },
             Named {
                 symbol: SymbolHandle,
@@ -896,66 +851,72 @@ pub mod type_system {
             }
         }
 
-        /* A fixed-width integer is its carrier; built-in names only spell it. */
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum PrimitiveType {
-            Bool,
-            F32,
-            F64,
-            Integer(numerics::integer_carrier::FixedInteger),
-            Addr,
+        pub use symbols::PrimitiveType;
+
+        #[cfg(test)]
+        mod scalar_identity_tests {
+            use super::TypeReference;
+            use symbols::{
+                BuiltinTypeAtom, PrimitiveType, SymbolKind, SymbolNameRef, SymbolTableBuilder,
+                builtin_type_symbols,
+            };
+
+            #[test]
+            fn resolved_scalar_identity_ignores_diagnostic_spelling() {
+                let mut builder = SymbolTableBuilder::new();
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let nominal = builder
+                    .insert_children(
+                        root,
+                        builtin_type_symbols()
+                            .into_iter()
+                            .chain([(SymbolKind::Data, SymbolNameRef::Static("u32"))]),
+                    )
+                    .handles()
+                    .nth(symbols::BUILTIN_TYPE_COUNT)
+                    .unwrap();
+                let symbols = builder.finish();
+                let named = |symbol, name: &str| TypeReference::Named {
+                    symbol,
+                    name: name.into(),
+                    supplied_operand_owner: Default::default(),
+                };
+                assert_eq!(
+                    named(
+                        symbols.builtin_atom_symbol(BuiltinTypeAtom::Bool).unwrap(),
+                        "qualified::Alias"
+                    )
+                    .primitive_type(&symbols),
+                    Some(PrimitiveType::Bool)
+                );
+                assert_eq!(named(nominal, "u32").primitive_type(&symbols), None);
+                assert_eq!(
+                    named(
+                        symbols
+                            .builtin_atom_symbol(BuiltinTypeAtom::AtomicU32)
+                            .unwrap(),
+                        "u32"
+                    )
+                    .primitive_type(&symbols),
+                    None
+                );
+            }
         }
 
         impl TypeReference {
-            pub fn primitive_type(&self) -> Option<PrimitiveType> {
+            pub fn primitive_type(&self, symbols: &symbols::SymbolTable) -> Option<PrimitiveType> {
                 match self {
-                    TypeReference::Reference(_) => None,
-                    TypeReference::Constrained(_) => None,
-                    TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
-                    TypeReference::AliasUse { expansion, .. } => expansion.primitive_type(),
-                    TypeReference::FixedArray(_)
+                    TypeReference::Named { symbol, .. } => symbols.primitive_type(*symbol),
+                    TypeReference::AliasUse { expansion, .. } => expansion.primitive_type(symbols),
+                    TypeReference::Reference(_)
+                    | TypeReference::Constrained(_)
+                    | TypeReference::FixedArray(_)
                     | TypeReference::Slice(_)
                     | TypeReference::Generic(_)
                     | TypeReference::ConstExpression(_)
                     | TypeReference::Callable { .. }
-                    | TypeReference::DynamicTrait { .. }
                     | TypeReference::Unit => None,
                 }
-            }
-        }
-
-        impl PrimitiveType {
-            pub fn from_name(name: &str) -> Option<Self> {
-                match name {
-                    "bool" => Some(Self::Bool),
-                    "f32" => Some(Self::F32),
-                    "f64" => Some(Self::F64),
-                    "addr" => Some(Self::Addr),
-                    name => numerics::integer_carrier::FixedInteger::from_decimal_spelling(name)
-                        .map(Self::Integer),
-                }
-            }
-
-            pub fn name(self) -> String {
-                match self {
-                    Self::Bool => "bool".to_owned(),
-                    Self::F32 => "f32".to_owned(),
-                    Self::F64 => "f64".to_owned(),
-                    Self::Integer(carrier) => carrier.to_string(),
-                    Self::Addr => "addr".to_owned(),
-                }
-            }
-
-            pub fn accepts_integer_literal(self) -> bool {
-                self.accepts_range_constraint() && !self.accepts_finite_constraint()
-            }
-
-            pub fn accepts_range_constraint(self) -> bool {
-                matches!(self, Self::F32 | Self::F64 | Self::Integer(_) | Self::Addr)
-            }
-
-            pub fn accepts_finite_constraint(self) -> bool {
-                matches!(self, Self::F32 | Self::F64)
             }
         }
     }

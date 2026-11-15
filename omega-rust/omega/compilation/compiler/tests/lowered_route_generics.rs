@@ -48,6 +48,32 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
         .count()
 }
 
+fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
+    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    let frontier = unbuilt_frontier::fixture_frontier(fixture);
+    let subjects = [frontier.subject];
+    let calling = frontier.normalization.calling.borrow(&frontier.typed);
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &frontier.typed,
+        typed_trees_to_terminal_psi::Compilation {
+            calling: calling.selection(),
+            providers: frontier.provider_selections(),
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &subjects,
+            purpose: source::DependencyScope::Product,
+            selected: &frontier.selected,
+            bindings: &frontier.bindings,
+            supplies: &frontier.supplies,
+        },
+        terminal_codec::TerminalPublication::Portable,
+    );
+    terminal_psi_to_terminal_psi::judge_compilation(prepared.program)
+        .into_iter()
+        .map(|verdict| verdict.expect("source reaches judgment, not a formation defect"))
+        .collect()
+}
+
 /// An implementation parameter: `advance<Selected satisfies Step>` is
 /// proved once against `Step::apply`'s contract and carried into
 /// `advance<Hold>` and `advance<Shift>`.
@@ -162,7 +188,11 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         stopped => panic!("the actual source must reach full compilation preparation: {stopped:?}"),
     };
     assert_eq!(prepared.forms.len(), 1);
-    assert_eq!(prepared.witnesses.len(), 2);
+    assert_eq!(
+        prepared.witnesses.len(),
+        4,
+        "both declared conformances and both applied selections retain their witnesses"
+    );
     assert_eq!(prepared.selection_witnesses.len(), 2);
     let closure = prepared.closure.as_ref().unwrap();
     let first = semantic_vocabulary::MachineId::new(1).unwrap();
@@ -188,13 +218,24 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
             "the actual selected member, never another matching requirement witness"
         );
     }
+    for witness in &prepared.witnesses {
+        let witness = witness.as_ref().expect("every retained witness elaborates");
+        assert!(
+            closure.selections.iter().any(|selected| {
+                witness.machines.get(first) == Some(&selected.requirement)
+                    && witness.value_arguments.get(first) == Some(&selected.value_arguments)
+                    && witness.machines.get(second) == closure.machines.get(selected.implementation)
+            }),
+            "each declaration or applied witness checks an actual selected member"
+        );
+    }
 
     let verdicts =
         terminal_psi_to_terminal_psi::judge_compilation(TerminalCompilation::Prepared(prepared));
     assert_eq!(
         verdicts.len(),
-        4,
-        "closure, generic form and both actual witnesses"
+        6,
+        "closure, generic form, both declared and both applied witnesses"
     );
     assert!(
         matches!(verdicts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
@@ -246,11 +287,26 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
             other => panic!("the actual witness must be judged, not omitted: {other:?}"),
         }
     }
-    assert_eq!((accepted, rejected), (1, 1));
+    assert_eq!((accepted, rejected), (2, 2));
+    assert!(
+        matches!(verdicts[1], Ok(RouteVerdict::Accepted(_))),
+        "the public generic form remains valid: {:?}",
+        verdicts[1]
+    );
+    for witnesses in verdicts[2..].as_chunks::<2>().0 {
+        assert_eq!(
+            witnesses
+                .iter()
+                .filter(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_))))
+                .count(),
+            1,
+            "the declared and applied groups each retain one failed actual witness"
+        );
+    }
 
     // Publication must refuse the same source even if its first closure
     // passed: an actual selected member's failed witness remains decisive.
-    let refused = psi_compiler::AcceptedTerminalSource::judge(
+    let refused = source_compiler::AcceptedTerminalSource::judge(
         std::sync::Arc::clone(&typed),
         compilation(),
         terminal_codec::TerminalPublication::Portable,
@@ -283,12 +339,21 @@ fn a_value_parameter_body_is_checked_once_and_carried() {
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 3);
     assert_eq!(count(&rows, "carried", "refused"), 0);
+    let verdicts =
+        source_verdicts("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+        )),
+        "{verdicts:#?}"
+    );
 }
 
 /// Its twin's requirement states `requires true` where the member requires
 /// `input <= Units`. The member does not refine the requirement, so the
-/// refinement witness for the call's requirement is refused and nothing is
-/// carried for it; the guarantees are carried as before.
+/// refinement witness for the member's input is refused. The caller owes only
+/// the public `true`, not a private input bound; both guarantees still carry.
 #[test]
 fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
     let (outcome, rows) =
@@ -301,9 +366,48 @@ fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
             .collect::<Vec<_>>()
     };
     assert_eq!(refused("witness"), ["requirement"]);
-    assert_eq!(refused("carried"), ["requirement"]);
+    let witnesses = rows
+        .iter()
+        .filter(|row| row[0] == "witness")
+        .map(|row| (row[3].as_str(), row[4].as_str(), row[5].as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        witnesses,
+        [
+            (
+                "requirement",
+                "refused",
+                "Unproved(NoDerivation): the bounds do not decide the comparison"
+            ),
+            ("guarantee", "proved", "-"),
+        ]
+    );
+    let carried = rows
+        .iter()
+        .filter(|row| row[0] == "carried")
+        .map(|row| (row[3].as_str(), row[4].as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(carried, [("guarantee", "accepted"); 2]);
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 2);
+    let verdicts =
+        source_verdicts("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+                | terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:#?}"
+    );
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+        terminal_psi_to_terminal_psi::RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind,
+            terminal_check_tables::obligations::ObligationKind::CallRequirement { .. })
+            && row.cause == terminal_check_tables::UnprovedCause::NoDerivation))),
+        "{verdicts:#?}"
+    );
 }
 
 /// An opaque type parameter: `relay<T>` and `forward<T>` are each proved

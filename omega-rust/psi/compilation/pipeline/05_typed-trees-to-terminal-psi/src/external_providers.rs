@@ -53,6 +53,7 @@ impl ExternalProviderNamespace {
         callables: &CallableNamespace,
         boundaries: &BoundaryNamespace,
         services: &crate::reach::ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
         typed_source: Option<&typed_trees::TypedTrees>,
     ) -> Checked<Vec<ExternalProviderCandidate>> {
@@ -62,7 +63,7 @@ impl ExternalProviderNamespace {
                 "native candidates cannot overwrite checked provider publication",
             ));
         }
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         let mut candidates = Vec::with_capacity(self.rows.len());
         for source in &self.rows {
             let required = boundaries
@@ -74,9 +75,16 @@ impl ExternalProviderNamespace {
             let checked_requirement = boundary.declaration.as_ref().ok_or_else(|| {
                 refuse("native candidate requirement lost its source declaration")
             })?;
-            let header = |signature: &Signature| {
+            let mut header = |signature: &Signature| {
                 crate::lower::signature_header(
-                    context, signature, signatures, outcomes, records, callables, boundaries,
+                    context,
+                    signature,
+                    signatures,
+                    outcomes,
+                    records,
+                    callables,
+                    boundaries,
+                    qualifications,
                 )
             };
             let supplied = header(&source.signature)?;
@@ -89,7 +97,7 @@ impl ExternalProviderNamespace {
                 &supplied.proof,
                 &supplied_envelope,
                 services,
-                &mut identities,
+                &mut qualifications.identities,
             )
             .map_err(refuse)?;
             let provider = source
@@ -105,12 +113,16 @@ impl ExternalProviderNamespace {
                     .map_err(|_| {
                         refuse("native provider owner lost its exact toolchain source identities")
                     })?;
-                    let declaration =
-                        crate::declare::nominal(typed, &sources, owner.nominal, &mut identities)
-                            .map_err(refuse)?;
+                    let declaration = crate::declare::nominal(
+                        typed,
+                        &sources,
+                        owner.nominal,
+                        &mut qualifications.identities,
+                    )
+                    .map_err(refuse)?;
                     Ok(ExternalProviderOwner {
                         declaration: terminal_psi::NominalDeclarationIdentity::new(declaration),
-                        identity: identities.intern(&owner.identity),
+                        identity: qualifications.identities.intern(&owner.identity),
                         package: owner.package,
                     })
                 })
@@ -140,7 +152,7 @@ impl ExternalProviderNamespace {
                 },
             });
         }
-        module.identities = identities.build();
+        module.identities = std::mem::take(&mut qualifications.identities).build();
         Ok(candidates)
     }
 }

@@ -18,27 +18,27 @@ machine build(builder: &mut Build) {
     let template_path: BuildPath = BuildSource::resolve(&builder.source, "template.txt");
     let reader: i32 = BuildSource::open(&builder.source, template_path, 0);
     let mut template: [u8; 6];
-    let count: i64 = BuildSource::read(&builder.source, reader, &mut template, 6);
+    let count: i64 = BuildSource::read(&builder.source, reader, &mut template[..], 6);
     _ = BuildSource::close(&builder.source, reader);
-    transition count == 6 && generated_value() == 7 {
+    transition count == 6 && build_support::generated_value() == 7 {
         true -> generate(builder, companion, source, &template)
         _ -> failed(builder, companion, source)
     }
     machine generate(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput, template: &[u8; 6]) {
         // The local helper receives only these six captured bytes, not the
         // source capability or the caller's host paths.
-        let bytes: [u8; 6] = generate_companion(template);
+        let bytes: [u8; 6] = build_support::generate_companion(template);
         let companion_path: BuildPath = BuildOutput::resolve(&builder.output, "companion.txt");
         let companion_writer: i32 = BuildOutput::create(&mut builder.output, companion_path, 0);
-        _ = BuildOutput::write(&mut builder.output, companion_writer, &bytes);
+        _ = BuildOutput::write(&mut builder.output, companion_writer, &bytes[..]);
         _ = BuildOutput::close(&mut builder.output, companion_writer);
         let companion_completion: OutputCompletion = BuildOutput::complete(&mut builder.output, companion, companion_path);
         settle(builder, companion_completion);
 
         let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
         let source_writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
-        let declaration: [u8; 34] = generate_declaration();
-        _ = BuildOutput::write(&mut builder.output, source_writer, &declaration);
+        let declaration: [u8; 34] = build_support::generate_declaration();
+        _ = BuildOutput::write(&mut builder.output, source_writer, &declaration[..]);
         _ = BuildOutput::close(&mut builder.output, source_writer);
         BuildOutput::include_source(&mut builder.output, generated);
         let source_completion: OutputCompletion = BuildOutput::complete(&mut builder.output, source, generated);

@@ -50,7 +50,7 @@ use typed_trees::expression::{
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
 
-use super::authority::Access;
+use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
@@ -129,7 +129,13 @@ impl Program<'_> {
         reference: typed_trees::types::TypeReferenceHandle,
     ) -> Checked<ValueType> {
         let typed = self.typed;
-        let data = typed.closed_data_definition(reference).ok_or_else(|| {
+        let semantic = super::source_records::semantic_reference(typed, reference, id)?;
+        // The canonical layout links to a natural semantic schema. Discover
+        // that same record first, with its own identity and field namespace.
+        if semantic != reference {
+            self.record_at(id, semantic)?;
+        }
+        let data = typed.closed_data_definition(semantic).ok_or_else(|| {
             refuse(
                 id,
                 Construct::Machine,
@@ -137,7 +143,7 @@ impl Program<'_> {
             )
         })?;
         let application = super::source_records::source_application(typed, data, reference, id)?;
-        let regions = self.occurrence_regions(id, data, reference)?;
+        let regions = self.occurrence_regions(id, data, semantic)?;
         self.record_definition(id, data, Some(application))
             .map(|value_type| with_regions(value_type, regions))
     }
@@ -226,6 +232,11 @@ impl Program<'_> {
                         data.generic_instance.is_none()
                             && data.type_parameters.is_empty()
                             && application.substitutions.is_empty()
+                            // An argument-free declaration is its natural
+                            // occurrence, never another selected storage form.
+                            && typed.normalized_nominal_type_identity(symbol).is_some_and(|identity| {
+                                identity == typed.normalized_type_identity(application.reference)
+                            })
                     }
                 }
         };
@@ -335,12 +346,20 @@ impl Program<'_> {
                     // a const is not itself a runtime value type to read here.
                 }
             }
+            // The supplied types are admitted above; the members are read as
+            // fields of this declaration, which state their lifetimes.
+            self.elision = super::regions::Elision::Members;
             self.declared_members(id, members)
         })();
         self.lifetime_owner = enclosing;
         self.elision = elision;
         self.resolving.pop();
-        let (fields, field_symbols, cases, case_symbols) = read?;
+        let (fields, field_symbols, cases, case_symbols) = read.map_err(|mut refusal| {
+            refusal.detail.push_str(&format!(
+                " while reading the record application `{identity}`"
+            ));
+            refusal
+        })?;
         let mut mint = |fields: Vec<(String, ValueType)>| {
             let mut declared = Vec::with_capacity(fields.len());
             for (identity, value_type) in fields {
@@ -553,27 +572,9 @@ impl Program<'_> {
                 Unserved::Spelling("field without a symbol"),
             ));
         }
-        // A field that names lifetime-parameterised data bare leaves out
-        // which of its owner's lifetimes the nested views live for.
-        // lifetimes.md gives elision to a signature ("For an elided output,
-        // one unambiguous reference input supplies the relation") and says
-        // of a named data application that it must "match the declaration's
-        // lifetime arity", so a field states its arguments.
-        if field.type_reference.is_valid()
-            && let TypeReferenceNode::Named { symbol, .. } = self
-                .typed
-                .type_reference_table
-                .type_reference(field.type_reference)
-            && self
-                .data_declaration(*symbol)
-                .is_some_and(|data| !data.lifetime_parameters.is_empty())
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("data field that elides a lifetime argument"),
-            ));
-        }
+        // A field that names lifetime-parameterised data without its
+        // lifetime arguments, directly or behind a reference, is refused
+        // where its regions are asked for (`regions::Elision::Members`).
         let value_type = self.value_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The
@@ -626,10 +627,10 @@ impl Program<'_> {
     pub(super) fn member_of(
         &self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         symbol: SymbolHandle,
     ) -> Checked<Member> {
-        let source = self.source(id, record)?;
+        let source = self.source(id, record.record())?;
         if let Some(field) = source.fields.iter().position(|field| *field == symbol) {
             return Ok(Member::Field(field));
         }
@@ -652,10 +653,10 @@ impl Program<'_> {
     pub(super) fn case_position(
         &self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         symbol: SymbolHandle,
     ) -> Checked<usize> {
-        self.source(id, record)?
+        self.source(id, record.record())?
             .cases
             .iter()
             .position(|(case, _)| *case == symbol)
@@ -674,10 +675,11 @@ impl Program<'_> {
     fn field_type(
         &mut self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         regions: crate::body::Regions,
         field: usize,
     ) -> Checked<ValueType> {
+        let record = record.record();
         let declared = self.declared_field_type(id, record, field)?;
         let substitution = self.field_regions(id, record, regions)?;
         Ok(self.substitute(declared, &substitution))
@@ -705,11 +707,12 @@ impl Program<'_> {
     fn payload_type(
         &mut self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         regions: crate::body::Regions,
         case: usize,
         field: usize,
     ) -> Checked<ValueType> {
+        let record = record.record();
         let declared = self.declared_payload_type(id, record, case, field)?;
         let substitution = self.field_regions(id, record, regions)?;
         Ok(self.substitute(declared, &substitution))
@@ -772,8 +775,12 @@ impl Program<'_> {
                 "record pattern over a value that is not a record",
             )));
         };
-        let source =
-            terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?;
+        let source = terminal_check_tables::row(
+            &self.record_sources,
+            record.record(),
+            id,
+            Construct::Machine,
+        )?;
         if source.declaration != local.pattern_subject {
             return Err(refused(Unserved::Typing(
                 "record pattern resolved against another record",
@@ -806,6 +813,79 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// A member the typed trees hold only as a spelling. It is an error
+    /// where the receiver is a record whose declaration has no field of
+    /// that name: expressions.md, "Dot access remains data-field projection;
+    /// it does not select or invoke a machine", and state_contracts.md,
+    /// "Syntax, name resolution, types and declaration validity are checked
+    /// as usual". Every other such member (of a sum, of a value this route
+    /// does not read) stays a refusal.
+    fn unselected_member(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        member: &TableMemberExpression,
+        source: SourceOrigin,
+    ) -> terminal_check_tables::Refusal {
+        let refused = refuse(
+            id,
+            Construct::Machine,
+            Unserved::Spelling("member without a field symbol"),
+        );
+        let name = member.member.as_str();
+        if name.is_empty() || member.case_variant.is_some() {
+            return refused;
+        }
+        let Ok(base) = self.expression(id, slots, member.receiver, None) else {
+            return refused;
+        };
+        let held = match base.result {
+            Some(value) => match self.reference_referent(id, value) {
+                Ok(Some((referent, _))) => Some(referent),
+                Ok(None) => Some(value),
+                Err(_) => None,
+            },
+            None => None,
+        };
+        let Some(ValueType::Record(record, _, _)) = held else {
+            return refused;
+        };
+        let Some(data) = self
+            .record_sources
+            .get(record)
+            .and_then(|row| self.data_declaration(row.declaration))
+        else {
+            return refused;
+        };
+        let mut fields = 0;
+        for declared in self.typed.data_members(data) {
+            match declared {
+                DataMember::Field(field) if field.name.as_str() == name => return refused,
+                DataMember::Field(_) => fields += 1,
+                // A member of a sum may name a payload field of a case.
+                DataMember::Variant(_) => return refused,
+            }
+        }
+        if fields == 0 {
+            return refused;
+        }
+        // The typed trees give the member no span of its own in an
+        // assignment's target; the receiver is the nearest authored place.
+        let at = match source {
+            SourceOrigin::Unpositioned(_) => base.source,
+            authored => authored,
+        };
+        crate::reject(
+            id,
+            at,
+            format!(
+                "data `{}` has no field `{name}`: dot access is data-field projection, and \
+                 the name after the dot must be a field its declaration has",
+                data.name.as_str()
+            ),
+        )
+    }
+
     /// `receiver.member`: a field of the record, or a payload field of a
     /// case of the sum, that the receiver names. Which of the two is read
     /// from the member's field symbol; a member the typed trees hold only as
@@ -819,6 +899,7 @@ impl Program<'_> {
         slots: &[Slot],
         member: &TableMemberExpression,
         source: SourceOrigin,
+        access: Access,
     ) -> Checked<Expression> {
         if let typed_trees::expression::MemberSelection::CollectionMeasure(measure) =
             member.selection
@@ -826,14 +907,10 @@ impl Program<'_> {
             return self.collection_measure(id, slots, member.receiver, measure, source);
         }
         if !member.selection.field_symbol().is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Spelling("member without a field symbol"),
-            ));
+            return Err(self.unselected_member(id, slots, member, source));
         }
-        let base = self.expression(id, slots, member.receiver, None)?;
-        let Some(record) = self.opened(id, base.result, Access::Read)? else {
+        let base = self.place(id, slots, member.receiver, None, access)?;
+        let Some(record) = self.opened(id, base.result, access)? else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -963,8 +1040,11 @@ impl Program<'_> {
         {
             return Err(unserved("record literal of an applied type"));
         }
+        // The literal constructs this carrier, so it names its fields and
+        // cases without asking any domain (`authority::Opened::constructing`).
+        let constructed = Opened::constructing(record);
         let case = match case_symbol {
-            Some(symbol) => Some(self.case_position(id, record, symbol)?),
+            Some(symbol) => Some(self.case_position(id, constructed, symbol)?),
             None => None,
         };
         let substitution = self.field_regions(id, record, regions)?;
@@ -1001,7 +1081,7 @@ impl Program<'_> {
                     field.field_symbol,
                     Unserved::Typing("record literal names a field of another type"),
                 )?,
-                Some(case) => match self.member_of(id, record, field.field_symbol)? {
+                Some(case) => match self.member_of(id, constructed, field.field_symbol)? {
                     Member::Payload { case: owner, field } if owner == case => field,
                     Member::Payload { .. } | Member::Field(_) => {
                         return Err(typing("case literal names a field of another case"));
@@ -1132,9 +1212,9 @@ impl Program<'_> {
     /// that can fail rejects; a binding introduces no hidden branch, trap,
     /// fallback or runtime assertion." A binding has no node of its own:
     /// stage 01 replaces each use of it by the payload member it names. The
-    /// pattern must name every payload field unless it ends in `..`; the
-    /// deleted checker enforced that law in validation, after the typed
-    /// trees this route reads are frozen, so it is enforced here too.
+    /// pattern must name every payload field unless it ends in `..`;
+    /// frozen typed trees retain the roster, not a coverage verdict, so
+    /// this reader checks that rule before lowering the binding.
     ///
     /// A pattern that lists payload fields and names one twice, or misses
     /// one without `..`, is wrong in every program and rejected at `at`:
@@ -1144,7 +1224,7 @@ impl Program<'_> {
     pub(super) fn case_pattern(
         &self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         pattern: &TableDestructurePattern,
         at: SourceOrigin,
     ) -> Checked<usize> {
@@ -1162,7 +1242,7 @@ impl Program<'_> {
             return Err(unserved("pattern head that is not a case"));
         };
         let case = self.case_position(id, record, symbol)?;
-        let payload = self.source(id, record)?.cases[case].1.len();
+        let payload = self.source(id, record.record())?.cases[case].1.len();
         let mut seen = vec![false; payload];
         let listed = self.typed.expression_table.match_fields(pattern.fields);
         for field in listed {

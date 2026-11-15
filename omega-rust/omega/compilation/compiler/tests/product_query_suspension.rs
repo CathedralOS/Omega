@@ -5,7 +5,7 @@ use compiler::{CheckedCompileRequest, CompilationSession};
 #[test]
 fn schema_and_named_provider_queries_resume_the_original_build() {
     use build_settings::host::bindings::BuildProductDescription;
-    use psi_compiler::TerminalBuildQueryOperation;
+    use source_compiler::TerminalBuildQueryOperation;
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
@@ -151,9 +151,9 @@ fn captured_package(
     name: &str,
     root: &std::path::Path,
 ) -> package_compilation::PackageSourceBinding {
-    let capture = package_source::local::operations::capture_local_source_input(
+    let capture = source_acquisition::local::operations::capture_local_source_input(
         root,
-        package_source::LocalSourceLimits::default(),
+        source_acquisition::LocalSourceLimits::default(),
     )
     .unwrap();
     package_compilation::PackageSourceBinding::new(
@@ -195,7 +195,7 @@ fn authored_product_query_retains_lexical_occurrence_and_pauses() {
     );
     assert_eq!(
         request.operation,
-        psi_compiler::TerminalBuildQueryOperation::Entry
+        source_compiler::TerminalBuildQueryOperation::Entry
     );
     let source = std::fs::read_to_string(root.with_file_name("build.omg")).unwrap();
     let occurrence = request.occurrence.span;

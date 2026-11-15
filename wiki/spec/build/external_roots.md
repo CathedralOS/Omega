@@ -23,6 +23,14 @@ after exact unreachability and required quiescence. A process-lifetime static
 callback needs the same build-time plan and report, but no live replacement
 ledger when neither its code nor state can be reclaimed.
 
+Installation discharges the
+[default synchronization obligation](../language/concurrency.md#default-admission-obligation)
+against the actual entry, source, placement, priority and preemption/nesting
+relationships. Exclusion used to justify locking must be established before
+acquisition and cover that exact context. Removal, quiescence and replacement
+also check caller-held resources and capacity: waiting for an installed handler
+while holding a resource it needs is not a safe drain protocol.
+
 The validated selected provider plan survives in the root's normalized identity
 and provider execution. Execution cannot accept a second independently supplied
 plan. Drift in entry, reach, provider, resource realization, installed occurrence,

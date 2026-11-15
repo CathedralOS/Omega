@@ -174,14 +174,31 @@ impl DomainSet {
     }
 }
 
-/// An arithmetic policy a type can carry. `Exact` is no policy; `Trapping`
-/// is refused by the reader.
+/// An arithmetic policy a type can carry, or a suffixed operator selects for
+/// one operation. `Exact` is no policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Policy {
     /// Overflow reduces modulo the carrier.
     Wrapping,
     /// Overflow clamps to the carrier's bounds.
     Saturating,
+    /// The operation is its own `Trap` site under the primitive's exact
+    /// crash predicate, and on normal return computes the exact result
+    /// (numeric_values.md, "Overflow policies").
+    Trapping,
+}
+
+impl Policy {
+    /// The policy a written arithmetic domain names; `Exact` names none.
+    pub const fn of_domain(domain: numerics::arithmetic::ArithmeticDomain) -> Option<Self> {
+        use numerics::arithmetic::ArithmeticDomain;
+        match domain {
+            ArithmeticDomain::Exact => None,
+            ArithmeticDomain::Wrapping => Some(Self::Wrapping),
+            ArithmeticDomain::Saturating => Some(Self::Saturating),
+            ArithmeticDomain::Trapping => Some(Self::Trapping),
+        }
+    }
 }
 
 impl From<ScalarType> for ValueType {
@@ -580,7 +597,20 @@ pub enum Termination {
     /// The header promises termination and names no ranking.
     Promised,
     /// The header supplies a ranking witness, with or without the promise.
-    Witnessed,
+    Witnessed(Ranking),
+}
+
+/// The ranking a `terminates by` witness supplies, as the reader serves it:
+/// one scalar formal of an unsigned integer type under `Nat::Descending`.
+/// termination.md, "Ranking": "`terminates by subject -> View` selects a
+/// well-founded ranking theory. The view may be descending naturals".
+/// Every other view, a rank range, several subjects and a subject that is
+/// not a formal are refused by name where the witness is read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Ranking {
+    /// The subject's position among the machine's formals
+    /// (`Signature::parameters`).
+    pub subject: u32,
 }
 
 impl Signature {
@@ -915,6 +945,13 @@ pub enum ExpressionKind {
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
     },
+    /// An explicit borrow of a whole byte array. The descriptor borrows
+    /// the selected backing; its formation owns a separate loan occurrence.
+    ArrayView {
+        base: Box<Expression>,
+        access: language_core::ReferenceAccess,
+        element: StructuralTypeId,
+    },
     Array {
         elements: Vec<Expression>,
     },
@@ -987,9 +1024,11 @@ pub enum ExpressionKind {
         arms: Vec<(Selector, Expression)>,
         default: Option<Box<Expression>>,
     },
-    /// Both operands, left then right, then the operation.
+    /// Both operands, left then right, then the operation under its selected
+    /// policy. A suffix selects a policy even when the result is bare.
     Strict {
         operation: Strict,
+        policy: Option<Policy>,
         left: Box<Expression>,
         right: Box<Expression>,
     },

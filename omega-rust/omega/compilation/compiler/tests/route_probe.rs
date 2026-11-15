@@ -113,6 +113,49 @@ fn a_standalone_program_is_judged_without_its_build() {
     assert_eq!(verdicts("accepted", ACCEPTED), ["accepted"]);
 }
 
+/// An array extent reads the lexical value even inside a generic type argument.
+/// A runtime parameter cannot borrow a same-named constant's static value.
+#[test]
+fn generic_array_extents_keep_their_lexical_value_binding() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = |declaration: &str| {
+        format!(
+            "const count: u64 = 3;\n\
+             data Buffer<T> {{ item: T; }}\n\
+             machine shaped<Shape, const N: u64>(value: Buffer<Shape>)\n\
+                 requires Shape == [u8; N] {{ }}\n\
+             {declaration}\n\
+             machine main() {{ }}"
+        )
+    };
+    let stopped = match unbuilt_frontier::staged(
+        "generic_array_runtime_shadow",
+        &source("machine next(count: u64, value: Buffer<[u8; count]>) { }"),
+    ) {
+        Err(diagnostics) => diagnostics,
+        Ok(_) => panic!("a runtime parameter must not become the top-level constant's extent"),
+    };
+    assert!(
+        stopped.iter().any(|message| message.contains("runtime")),
+        "{stopped:?}"
+    );
+    for (name, declaration) in [
+        (
+            "generic_array_constant",
+            "machine next(value: Buffer<[u8; count]>) { shaped(value) }",
+        ),
+        (
+            "generic_array_const_binder",
+            "machine next<const count: u64>(value: Buffer<[u8; count]>) { }",
+        ),
+    ] {
+        unbuilt_frontier::staged(name, &source(declaration))
+            .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:?}"));
+    }
+}
+
 /// A suffixed operator names its policy at one operation
 /// (`wiki/spec/language/numeric_values.md`, "Policy operators"): `a +% b` on
 /// two `u32` values "is exactly what `+` means for two `u32 in Wrapping`
@@ -123,7 +166,7 @@ fn a_standalone_program_is_judged_without_its_build() {
 /// policy "does not license a zero divisor": `/%` with nothing known about
 /// the divisor is rejected. A suffix excuses no other operation: the bare
 /// `+` beside a `+%` is still Exact and still owes its range. `+!` is its own
-/// crash site, which no type on this route carries yet: refused by name.
+/// crash site, covered by the private body's inferred route.
 #[test]
 fn an_operator_suffix_chooses_the_policy_of_one_operation() {
     let spare = |body: &str| {
@@ -139,9 +182,106 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
             "let wrapped: u32 = left +% right; left + right",
             "rejected",
         ),
-        ("trapping_add", "left +! right", "not-supported"),
+        ("trapping_add", "left +! right", "accepted"),
     ] {
         assert_eq!(verdicts(name, &spare(body)), [expected], "{name}");
+    }
+}
+
+/// Each primitive owns its trap predicate. Publishing Trap covers that site;
+/// promising no crash requires proving the operation defined instead.
+#[test]
+fn trapping_primitives_retain_their_crash_predicate() {
+    for (name, expression, safe) in [
+        ("add", "left +! right", "left <= 10 && right <= 10"),
+        ("subtract", "left -! right", "left >= right"),
+        ("multiply", "left *! right", "left <= 10 && right <= 10"),
+        ("divide", "left /! right", "right > 0"),
+        ("remainder", "left %! right", "right > 0"),
+        ("shift_left", "left <<! right", "left <= 10 && right <= 2"),
+        ("shift_right", "left >>! right", "right < 32"),
+    ] {
+        for (case, contract, expected) in [
+            ("published", "crashes Trap".to_owned(), "accepted"),
+            ("uncovered", "crashes none".to_owned(), "rejected"),
+            (
+                "disproved",
+                format!("requires {safe} crashes none"),
+                "accepted",
+            ),
+        ] {
+            let source = format!(
+                "machine spare(left: u32, right: u32) -> u32 {contract} {{ {expression} }}\n\
+                 machine main() {{ }}"
+            );
+            assert_eq!(
+                verdicts(&format!("trapping_{name}_{case}"), &source),
+                [expected],
+                "{name}/{case}"
+            );
+        }
+    }
+}
+
+#[test]
+fn trapping_normal_results_are_retained_in_guarantees() {
+    // Observe the denotation using clause forms the current prover handles.
+    // The Exact twin must prove the same result; changing only the guarantee
+    // to a wrong result must reject under either operation.
+    for operator in ["+", "+!"] {
+        for (name, result, expected) in [
+            ("exact_result", 7, "accepted"),
+            ("wrong_result", 8, "rejected"),
+        ] {
+            let source = format!(
+                "machine spare(left: u32, right: u32) -> u32 requires left == 3 && right == 4 \
+                 ensures result == {result} crashes none {{ left {operator} right }}\n machine main() {{ }}"
+            );
+            assert_eq!(verdicts(name, &source), [expected], "{operator}/{name}");
+        }
+    }
+}
+
+/// Publication preserves the same operation and its crash site. The overflow
+/// twin changes only the first argument, leaving the observed operations intact.
+#[test]
+fn trapping_primitives_run_and_overflow_at_their_own_site() {
+    let kept = std::fs::read_to_string(unbuilt_frontier::repository(
+        "tests/fixtures/run/arithmetic/trapping_primitives/main.omg",
+    ))
+    .expect("the focused runtime witness is kept beside its test");
+    let overflowing = kept.replace("added(3, 4)", "added(4294967295, 4)");
+    assert_ne!(kept, overflowing);
+    for (name, source, completes) in [
+        ("trapping_runs", kept, true),
+        ("trapping_overflows", overflowing, false),
+    ] {
+        let found = judged(name, &source);
+        let [Ok(RouteVerdict::Accepted(closure))] = found.as_slice() else {
+            panic!("{name}: {found:?}");
+        };
+        let publication = closure.publish().expect("the accepted module publishes");
+        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let mut instance = program.instantiate(Default::default()).unwrap();
+        let status = instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap();
+        if completes {
+            assert!(
+                matches!(
+                    status,
+                    terminal_interpreter::TerminalExecutionStatus::Complete(_)
+                ),
+                "{name}: {status:?}"
+            );
+        } else {
+            assert!(
+                matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+                if crash.cause == semantic_vocabulary::CrashCause::Trap
+                    && matches!(crash.site, terminal_interpreter::TerminalCrashSite::Operation { .. })),
+                "{name}: {status:?}"
+            );
+        }
     }
 }
 
@@ -160,10 +300,9 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
 /// computes, so a goal over one that has no derivation is `incomplete`, as a
 /// goal over a value a body computes by one already is.
 ///
-/// Refused by name: `+!`, which "can transfer control" and "cannot form a
-/// proof term"; `/%`, which still owes its divisor before it is total; and
-/// an operand whose type carries a policy, since both operands of a suffixed
-/// operator are unqualified.
+/// Invalid trapping proof terms and qualified suffix operands are rejected.
+/// A valid `/%` contract still reports the missing divisor-formation support,
+/// rather than presenting that implementation gap as a source error.
 #[test]
 fn a_suffixed_operator_in_a_contract_is_the_operation_a_body_computes() {
     let pair = |contract: &str, body: &str| {
@@ -225,7 +364,8 @@ machine main() { }",
                 "requires right > 0 ensures result == left /% right",
                 "left /% right",
             ),
-            "contract policy operator in a clause term that owes a condition before it is total",
+            "contract policy operator in a clause term that owes a condition before it is total \
+             while reading the signature of `spare`",
         ),
         (
             "requires_policy_qualified_operand",
@@ -233,7 +373,7 @@ machine main() { }",
              machine main() { }
 "
             .to_string(),
-            "contract policy operator on an operand that is not an unqualified integer",
+            "rejected",
         ),
     ] {
         // A refusal is compared with the reason it names.
@@ -320,6 +460,59 @@ fn a_value_parameter_application_is_judged_at_its_value() {
     // The entry closure, then `clamp` checked once with `Limit` rigid.
     assert_eq!(verdicts("within", &program("5")), ["accepted", "accepted"]);
     assert_eq!(verdicts("beyond", &program("9")), ["rejected", "accepted"]);
+}
+
+/// A width-generic machine is judged once as written, with its width `N` a
+/// rigid input (`wiki/spec/language/numeric_values.md`, "Width-indexed
+/// integers"): the body must hold at every width its requirements admit.
+/// `next` owes `value + 1 <= 2^N - 1`; its `value < limit` gives `value + 1
+/// <= limit`, and `limit` is a value of `u<N>`. The literal `1` lands in
+/// `u<N>` because `N > 0` gives `2 <= 2^N`.
+///
+/// The twin drops only `value < limit`. Both applications in `main` are
+/// safe, and the generic body is still rejected as written: some value of
+/// `u<N>` overflows at every width. (The closed applications, judged at
+/// their own carriers with the same unconstrained input, are rejected too.)
+/// A body returning `1` from `i<N>` is rejected: from `N > 0` nothing puts
+/// one below `2^(N-1)`, and at `i1` it is not there. The same body returning
+/// `1` from `u<N>` is accepted.
+#[test]
+fn a_width_generic_body_is_judged_at_every_width() {
+    let next = |requirement: &str| {
+        format!(
+            "machine next<const N: u64>(value: u<N>, limit: u<N>) -> u<N>\n\
+             requires N > 0u64{requirement}\n\
+             crashes none\n\
+             {{ value + 1 }}\n\
+             machine main() {{\n    \
+             let small: u8 = next<8>(3u8, 9u8);\n    \
+             let large: u32 = next<32>(4u32, 10u32);\n}}\n"
+        )
+    };
+    // The entry closure, then `next` checked once with `N` rigid.
+    assert_eq!(
+        verdicts("width_next", &next(" && value < limit")),
+        ["accepted", "accepted"]
+    );
+    assert_eq!(
+        verdicts("width_next_unbounded", &next("")),
+        ["rejected", "rejected"]
+    );
+    let one = |carrier: &str| {
+        format!(
+            "machine one<const N: u64>() -> {carrier}<N>\n\
+             requires N > 0u64\n\
+             crashes none\n\
+             {{ 1 }}\n\
+             machine main() {{\n    \
+             let small: {carrier}8 = one<8>();\n}}\n"
+        )
+    };
+    assert_eq!(verdicts("width_one", &one("u")), ["accepted", "accepted"]);
+    assert_eq!(
+        verdicts("width_signed_one", &one("i")),
+        ["accepted", "rejected"]
+    );
 }
 
 #[test]
@@ -1111,13 +1304,14 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
     ] {
         assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
     }
-    /* The empty `main` is judged; the generic form of `next` is what is refused. */
+    /* The empty `main` is judged, then the generic form of `next`, which
+    nothing proves well formed: no requirement makes `N` positive. */
     assert_eq!(
         verdicts(
             "symbolic_width",
             &spare("machine next<const N: u64>(value: u<N>) -> u<N> { value }")
         ),
-        ["accepted", "not-supported"]
+        ["accepted", "rejected"]
     );
     for (name, declaration, reason) in [
         (
@@ -1164,7 +1358,9 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
 /// `main` passes each application the greatest value that keeps the add in
 /// range (8190 of 8191, 30 of 31); each twin differs in one argument, which
 /// is that width's greatest value. The second part is the generic form of
-/// `next`, which the checker cannot state with `N` unknown: refused by name.
+/// `next`, judged with `N` rigid: no requirement makes `N` positive, so its
+/// `u<N>` is not well formed and it is rejected
+/// (`a_width_generic_body_is_judged_at_every_width` states it with `N > 0`).
 ///
 /// A zero width rejects at the application that gives it.
 #[test]
@@ -1188,7 +1384,7 @@ fn a_symbolic_width_is_judged_at_each_applied_width() {
     ] {
         assert_eq!(
             verdicts(name, &program(wide, narrow)),
-            [closure, "not-supported"],
+            [closure, "rejected"],
             "{name}"
         );
     }
@@ -1377,4 +1573,327 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
         verdicts("owned_sum_moved_twice", &program("chosen")),
         ["rejected"]
     );
+}
+
+/// A generic argument takes its role from the binder it fills
+/// (`wiki/spec/language/modules.md`, "Builtin type names"): with
+/// `const u16: u64` in scope, `identity<u16>` hands the type binder the
+/// builtin type, where it used to hand it the constant. In the same program,
+/// `count<u16>` supplies that constant to a value binder. A
+/// type equality whose operand is a parameter spelled `i32` names both
+/// meanings, and an array extent inside a generic argument reads the
+/// parameter that hides a same-spelled constant, in a signature, a local's
+/// type and a call's static argument.
+#[test]
+fn a_static_argument_is_read_by_its_binder_role() {
+    let outcomes = judged(
+        "type_binder_reads_the_builtin_type",
+        "const u16: u64 = 3;\n\
+             const bool: bool = true;\n\
+             machine identity<T>(value: T) -> T { value }\n\
+             machine count<const N: u64>() -> u64 { N }\n\
+             machine choose<const Condition: bool>() -> bool { Condition }\n\
+             machine main() {\n\
+                 let number: u16 = identity<u16>(7u16);\n\
+                 let quantity: u64 = count<u16>();\n\
+                 let truth: bool = identity<bool>(true);\n\
+                 let decision: bool = choose<bool>();\n\
+             }\n",
+    );
+    assert_eq!(outcomes.len(), 4, "{outcomes:?}");
+    for outcome in outcomes {
+        assert!(
+            matches!(outcome, Ok(RouteVerdict::Accepted(_))),
+            "{outcome:?}"
+        );
+    }
+    let extent = "is a runtime value: `count` is a parameter or local here";
+    for (name, source, reason) in [
+        (
+            "type_equality_with_a_builtin_spelled_parameter",
+            "machine pick<T>(i32: u32, value: T) -> u32 requires T == i32 { i32 }\n\
+             machine main() { }\n",
+            "`i32` here is the parameter `i32`, a value, not the builtin type `i32`",
+        ),
+        (
+            "generic_argument_extent_in_a_signature",
+            "data Buffer<T> { item: T; }\n\
+             const count: u64 = 4;\n\
+             machine f(count: u64, buffer: Buffer<[u8; count]>) -> u64 { count }\n\
+             machine main() { }\n",
+            extent,
+        ),
+        (
+            "generic_argument_extent_in_a_local",
+            "data Buffer<T> { item: T; }\n\
+             const count: u64 = 2;\n\
+             machine f(count: u64) -> u64 {\n\
+                 let buffer: Buffer<[u8; count]> = Buffer { item: [1, 2] };\n\
+                 count\n\
+             }\n\
+             machine main() { let n: u64 = f(2); }\n",
+            extent,
+        ),
+        (
+            "generic_argument_extent_in_a_call",
+            "machine identity<T>(value: T) -> T { value }\n\
+             const count: u64 = 2;\n\
+             machine f(count: u64) -> u64 {\n\
+                 let bytes: [u8; 2] = identity<[u8; count]>([1, 2]);\n\
+                 count\n\
+             }\n\
+             machine main() { let n: u64 = f(2); }\n",
+            extent,
+        ),
+    ] {
+        let stopped = {
+            let _compilation = COMPILATIONS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            unbuilt_frontier::staged(name, source)
+        };
+        let messages = match stopped {
+            Ok(_) => panic!("{name}: must stop before the checker"),
+            Err(messages) => messages,
+        };
+        assert!(
+            messages.iter().any(|message| message.contains(reason)),
+            "{name}: {messages:?}"
+        );
+    }
+}
+
+/// A builtin type name such as `u32` or `i1` exists only in the type role
+/// (`wiki/spec/language/modules.md`, "Builtin type names"): a value may share
+/// its spelling, a declaration introducing a type or namespace may not, and
+/// every use is read by its role. Every staged program is typed beside the
+/// bundled libraries, so each accepted one also types `core::reflect`, whose
+/// `read` binds the locals `i1` through `i7`.
+#[test]
+fn a_builtin_type_name_is_read_by_its_role() {
+    for (name, source) in [
+        (
+            "builtin_spelled_values",
+            "machine scaled(i: u32, u8: u16) -> u32 requires i <= 1000 {\n\
+                 let i1: u32 = 1;\n\
+                 let wide: u32 = u8 as u32;\n\
+                 i + wide + i1\n\
+             }\n\
+             machine main() { }\n",
+        ),
+        (
+            "builtin_spelled_machine",
+            "machine i(value: u32) -> u32 { value }\n\
+             machine main() { let r: u32 = i(3); }\n",
+        ),
+        (
+            "ordinary_data_named_never",
+            "data Never { value: u32; }\n\
+             machine read(value: Never) -> u32 { value.value }\n\
+             machine main() { let result: u32 = read(Never { value: 7 }); }\n",
+        ),
+        (
+            "invalid_family_spelling_as_value",
+            "machine main() { let u0: u32 = 4; }\n",
+        ),
+    ] {
+        assert_eq!(verdicts(name, source), ["accepted"], "{name}");
+    }
+    for (name, source, reason) in [
+        (
+            "invalid_family_spelling_as_type",
+            "machine main() { let bad: u0 = 0; }\n",
+            "u0",
+        ),
+        (
+            "data_redefines_invalid_width",
+            "data u0 { }\nmachine main() { }\n",
+            "data declaration `u0` is spelled like the builtin type",
+        ),
+        (
+            "data_redefines_width",
+            "data u7 { value: u32; }\nmachine main() { }\n",
+            "data declaration `u7` is spelled like the builtin type",
+        ),
+        (
+            "trait_redefines_builtin",
+            "trait u32 { }\nmachine main() { }\n",
+            "trait `u32` is spelled like the builtin type",
+        ),
+        (
+            "alias_redefines_builtin",
+            "data u32 = u64;\nmachine main() { }\n",
+            "type alias `u32` is spelled like the builtin type",
+        ),
+        (
+            "type_binder_redefines_builtin",
+            "machine pick<u32>(value: u32) -> u32 { value }\nmachine main() { }\n",
+            "generic type binder `u32` is spelled like the builtin type",
+        ),
+        (
+            "module_redefines_builtin",
+            "module u32;\nmachine main() { }\n",
+            "module `u32` is spelled like the builtin type",
+        ),
+        // The runtime parameter hides the constant in both value positions.
+        (
+            "width_names_shadowing_parameter",
+            "const count: u64 = 13;\n\
+             machine f(count: u64, value: u<count>) -> u64 { count }\n\
+             machine main() { }\n",
+            "is a runtime value",
+        ),
+        (
+            "extent_names_shadowing_parameter",
+            "const count: u64 = 13;\n\
+             machine f(count: u64, items: [u8; count]) -> u64 { count }\n\
+             machine main() { }\n",
+            "is a runtime value",
+        ),
+    ] {
+        let stopped = {
+            let _compilation = COMPILATIONS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            unbuilt_frontier::staged(name, source)
+        };
+        let messages = match stopped {
+            Ok(_) => panic!("{name}: must stop before the checker"),
+            Err(messages) => messages,
+        };
+        assert!(
+            messages.iter().any(|message| message.contains(reason)),
+            "{name}: {messages:?}"
+        );
+    }
+}
+
+/// The rule each rejected part of `source` breaks, by part, and `None` for
+/// a part that is not rejected for one rule the reader found.
+fn violations(name: &str, source: &str) -> Vec<Option<String>> {
+    judged(name, source)
+        .iter()
+        .map(|part| match part {
+            Ok(RouteVerdict::Rejected { violations, .. }) => match &violations[..] {
+                [violation] => Some(violation.statement.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// The integer carrier families (`wiki/spec/language/numeric_values.md`,
+/// "Integer carrier families"): `core::integer`'s four total queries are
+/// ordinary checked machines, and a generic machine requiring one admits
+/// exactly that family (generics.md, "Integer carrier constraints").
+///
+/// Each program holds the entry closure and, after it, each generic machine
+/// checked once as written with its type parameter rigid. Applications at a
+/// signed, an unsigned and a 13-bit carrier are judged. The generic bodies
+/// are judged from their requirements alone: `is_signed_integer<T>()` says
+/// `T` is an integer, so `relay` may call `needs_integer` at it.
+#[test]
+fn an_integer_family_requirement_admits_its_carriers() {
+    let program = "use omega::language::core::integer;
+         machine needs_integer<T>(value: T) -> T requires integer::is_integer<T>() { value }
+         machine relay<T>(value: T) -> T requires integer::is_signed_integer<T>() {
+             needs_integer<T>(value)
+         }
+         machine main() {
+             let narrow: i8 = relay<i8>(3i8);
+             let wide: u16 = needs_integer<u16>(4u16);
+             let odd: i13 = relay<i13>(5i13);
+         }
+";
+    assert_eq!(
+        verdicts("integer_family_admitted", program),
+        ["accepted", "accepted", "accepted"]
+    );
+}
+
+/// An application outside a family is rejected for that requirement,
+/// whatever value it passes: a signed carrier for an unsigned-only machine,
+/// `bool`, and nominal data whose only field is an integer. The twin applies
+/// it at `u8`.
+#[test]
+fn an_application_outside_an_integer_family_is_rejected() {
+    let program = |carrier: &str, argument: &str| {
+        format!(
+            "use omega::language::core::integer;
+             data Meters [copy] {{ value: u32; }}
+             machine count<T>(value: T) -> T requires integer::is_unsigned_integer<T>() {{ value }}
+             machine main() {{ let kept: {carrier} = count<{carrier}>({argument}); }}
+"
+        )
+    };
+    assert_eq!(
+        verdicts("unsigned_family_admitted", &program("u8", "3u8")),
+        ["accepted", "accepted"]
+    );
+    for (name, carrier, argument) in [
+        ("signed_to_unsigned_family", "i8", "3i8"),
+        ("bool_to_unsigned_family", "bool", "true"),
+        (
+            "nominal_data_to_unsigned_family",
+            "Meters",
+            "Meters { value: 3 }",
+        ),
+    ] {
+        // The reader rejects the whole program at that requirement.
+        let found = violations(name, &program(carrier, argument));
+        let [Some(rule)] = &found[..] else {
+            panic!("{name}: one rejected part: {found:?}");
+        };
+        assert!(
+            rule.contains("do not meet its requirement") && rule.contains("is_unsigned_integer"),
+            "{name}: {found:?}"
+        );
+    }
+}
+
+/// A generic body may use only the family its own requirements state. With
+/// `is_integer<T>()` alone, calling a machine that requires
+/// `is_fixed_width_integer<T>()` is rejected as written, though every
+/// application in the program is fixed-width: the premise is missing. The
+/// twin states the fixed-width premise. A local `is_integer` whose contract
+/// says it returns `true` establishes no family either: a function
+/// returning true supplies no carrier fact.
+#[test]
+fn a_generic_body_relies_only_on_the_families_it_requires() {
+    let program = |premise: &str| {
+        format!(
+            "use omega::language::core::integer;
+             machine is_integer<T>() -> bool ensures result == true crashes none terminates {{ true }}
+             machine fixed<T>(value: T) -> T requires integer::is_fixed_width_integer<T>() {{
+                 value
+             }}
+             machine any<T>(value: T) -> T requires {premise} {{ fixed<T>(value) }}
+             machine main() {{ let kept: u8 = any<u8>(1u8); }}
+"
+        )
+    };
+    for premise in [
+        "integer::is_fixed_width_integer<T>()",
+        "integer::is_unsigned_integer<T>() && integer::is_fixed_width_integer<T>()",
+    ] {
+        assert_eq!(
+            verdicts("fixed_width_premise", &program(premise)),
+            ["accepted", "accepted", "accepted", "accepted"],
+            "{premise}"
+        );
+    }
+    for (name, premise) in [
+        ("missing_fixed_width_premise", "integer::is_integer<T>()"),
+        ("fake_classifier_premise", "is_integer<T>()"),
+    ] {
+        let found = violations(name, &program(premise));
+        assert_eq!(found.len(), 4, "{name}: {found:?}");
+        assert_eq!(found[..3], [None, None, None], "{name}: {found:?}");
+        let rule = found[3].as_deref().unwrap_or_default();
+        assert!(
+            rule.contains("does not establish") && rule.contains("is_fixed_width_integer"),
+            "{name}: {found:?}"
+        );
+    }
 }

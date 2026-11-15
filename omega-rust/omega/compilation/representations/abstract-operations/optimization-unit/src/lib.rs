@@ -5,12 +5,12 @@ We represent the target-neutral optimization unit (`PsiOptimizationUnit`) and th
 published abstract program (`OptimizedAbstractProgram`) that abstract optimization
 produces from verified Terminal Psi realization requirements.
 
-When Terminal Psi lowers into an `AbstractOperationPlan`, basic blocks, scalar SSA
-definitions and uses, control-flow edges, semantic work settlements, effect links,
-and ownership events live implicitly inside a flat operation stream. We project that
-plan once into `PsiOptimizationUnit` so every optimization rule and independent
-validator reads explicit `OptimizationBlock`, `OptimizationNode`, `OptimizationEdge`,
-and `ValueDefinition` records without re-parsing instructions.
+The abstract program already owns basic blocks and their executable operations.
+We derive scalar SSA definitions and uses, control-flow edges, semantic work
+settlements, effect links and ownership events once into `PsiOptimizationUnit`.
+Optimization rules and independent validators read those revision-specific facts
+beside the same operation vocabulary; publication preserves the resulting block
+ownership instead of rebuilding offsets into a second flat stream.
 
 Our unit carries two distinct kinds of data:
 1. Current-revision executable graph and derived dataflow (`functions`, `root_service_reach`,

@@ -1090,9 +1090,10 @@ pub(crate) mod expression {
                         self.target()
                             .set_constructed_value_type_reference(lowered, result);
                     }
+                    let source_program = self.program;
                     if matches!(self.target().expression(lowered), typed::expression::ExpressionNode::Call(call)
-            if !call.target_symbol.is_valid() && !call.receiver.is_valid()
-                && call.target.as_str() == "address_of"
+            if source_program.and_then(|program| program.symbols.builtin_function_for_symbol(call.target_symbol))
+                == Some(symbols::BuiltinFunction::AddressOf) && !call.receiver.is_valid()
                 && call.machine_arguments.is_empty() && call.arguments.len() == 1)
                     {
                         let result =
@@ -1423,9 +1424,8 @@ pub(crate) mod expression {
                                 if let Some(operation) =
                                     crate::expressions::product_queries::operation(
                                         program,
-                                        namespace,
                                         call.target_symbol,
-                                        call.target.as_str(),
+                                        call.receiver.is_valid().then_some(namespace),
                                     )
                                 {
                                     if !call.machine_arguments.is_empty()
@@ -1508,9 +1508,13 @@ pub(crate) mod expression {
                                     &call.machine_arguments,
                                 )?;
                             let layout_query = self.lower_data_layout_query(expression, call)?;
-                            let native_code_layout = if call.target.as_str() == "code_layout"
-                                && !call.target_symbol.is_valid()
-                                && !call.receiver.is_valid()
+                            let native_code_layout = if self.program.and_then(|program| {
+                                program
+                                    .symbols
+                                    .builtin_function_for_symbol(call.target_symbol)
+                            }) == Some(
+                                symbols::BuiltinFunction::CodeLayout,
+                            ) && !call.receiver.is_valid()
                             {
                                 Some(lower_request(
                                     self.program,
@@ -1897,45 +1901,35 @@ pub(crate) mod expression {
                     call: &resolved::expression::TableCallExpression,
                 ) -> Result<Option<typed::expression::QuotientOperationRequest>, Diagnostic>
                 {
-                    let kind = match call.target.as_str() {
-                        "lift" => typed::expression::QuotientOperationKind::Lift,
-                        "define" => typed::expression::QuotientOperationKind::Define,
-                        _ => return Ok(None),
-                    };
-                    if !call.receiver.is_valid() {
+                    let Some(program) = self.program else {
                         return Ok(None);
-                    }
-                    let resolved::expression::ExpressionNode::Name(receiver) =
-                        self.source.expression(call.receiver)
+                    };
+                    let Some(function) = program
+                        .symbols
+                        .builtin_function_for_symbol(call.target_symbol)
                     else {
                         return Ok(None);
                     };
-                    let [namespace] = self.source.name_path_members(receiver.members) else {
-                        return Ok(None);
+                    let kind = match function {
+                        symbols::BuiltinFunction::QuotientLift => {
+                            typed::expression::QuotientOperationKind::Lift
+                        }
+                        symbols::BuiltinFunction::QuotientDefine => {
+                            typed::expression::QuotientOperationKind::Define
+                        }
+                        _ => return Ok(None),
                     };
-                    if namespace.as_str() != "Quotient" {
-                        return Ok(None);
-                    }
-
-                    let Some(program) = self.program else {
+                    if call.receiver.is_valid() {
                         return Err(Diagnostic::error(
-                            "a sealed Quotient operation requires a complete resolved program",
-                        ));
-                    };
-                    if receiver.head_symbol.is_valid()
-                        || receiver.symbol.is_valid()
-                        || call.target_symbol.is_valid()
-                    {
-                        return Err(Diagnostic::error(
-                            "the sealed `Quotient` operation namespace cannot be shadowed by an authored declaration",
+                            "a quotient operation selects a static declaration, not a runtime receiver",
                         ));
                     }
+                    let operation_name = function.name();
                     let (representative_operation, selected_theorems) = call
             .machine_arguments
             .split_first()
             .ok_or_else(|| Diagnostic::error(format!(
-                "`Quotient::{}` requires a representative operation and its canonical theorem evidence",
-                call.target,
+                "`{operation_name}` requires a representative operation and its canonical theorem evidence",
             )))?;
                     let expected_theorem_count = match kind {
                         typed::expression::QuotientOperationKind::Define => 1,
@@ -1961,8 +1955,7 @@ pub(crate) mod expression {
                             != symbols::SymbolKind::State
                     {
                         return Err(Diagnostic::error(format!(
-                            "the first static argument to `Quotient::{}` must resolve exactly to a representative machine entry",
-                            call.target,
+                            "the first static argument to `{operation_name}` must resolve exactly to a representative machine entry",
                         )));
                     }
                     for (position, selected_theorem) in selected_theorems.iter().enumerate() {
@@ -1973,9 +1966,8 @@ pub(crate) mod expression {
                                 != symbols::SymbolKind::State
                         {
                             return Err(Diagnostic::error(format!(
-                                "static theorem argument {} to `Quotient::{}` must resolve exactly to one resultless theorem machine entry; conformance or structural proof discovery is not permitted",
+                                "static theorem argument {} to `{operation_name}` must resolve exactly to one resultless theorem machine entry; conformance or structural proof discovery is not permitted",
                                 position + 2,
-                                call.target,
                             )));
                         }
                     }
@@ -2018,25 +2010,20 @@ pub(crate) mod expression {
                     call: &resolved::expression::TableCallExpression,
                 ) -> Result<Option<typed::expression::PrivateLayoutOperationRequest>, Diagnostic>
                 {
-                    if call.target.as_str() != "place_private" || !call.receiver.is_valid() {
-                        return Ok(None);
-                    }
-                    let resolved::expression::ExpressionNode::Name(receiver) =
-                        self.source.expression(call.receiver)
-                    else {
-                        return Ok(None);
-                    };
-                    let [namespace] = self.source.name_path_members(receiver.members) else {
-                        return Ok(None);
-                    };
-                    if namespace.as_str() != "LayoutPlan" {
-                        return Ok(None);
-                    }
                     let Some(program) = self.program else {
-                        return Err(Diagnostic::error(
-                            "a private layout placement requires a complete resolved program",
-                        ));
+                        return Ok(None);
                     };
+                    if !call.target_symbol.is_valid()
+                        || program.symbols.get(call.target_symbol).kind
+                            != symbols::SymbolKind::State
+                    {
+                        return Ok(None);
+                    }
+                    let owner = program.symbols.get(call.target_symbol).parent;
+                    if program.symbols.sealed_intrinsic(owner)
+                        != Some(language_core::sealed_intrinsics::SealedIntrinsic::PrivateLayoutPlacement) {
+                        return Ok(None);
+                    }
                     let [selected_slot] = call.machine_arguments.as_ref() else {
                         return Err(Diagnostic::error(
                             "`LayoutPlan::place_private` requires exactly one static argument naming one exact conformance",
@@ -2052,42 +2039,6 @@ pub(crate) mod expression {
                             "the static argument to `LayoutPlan::place_private` must resolve exactly to one named conformance; slot discovery is not permitted",
                         ));
                     }
-                    if !call.target_symbol.is_valid()
-                        || program.symbols.get(call.target_symbol).kind
-                            != symbols::SymbolKind::State
-                    {
-                        return Err(Diagnostic::error(
-                            "`LayoutPlan::place_private` must resolve to its exact compiler-known LayoutPlan operation",
-                        ));
-                    }
-                    let exact_owner = program.machines.iter().find(|machine| {
-                        machine.attached_data_symbol.is_valid()
-                            && program.symbols.name(machine.attached_data_symbol) == "LayoutPlan"
-                            && program
-                                .machine_state_handles(machine.states)
-                                .iter()
-                                .any(|state| {
-                                    program.machine_state(*state).symbol == call.target_symbol
-                                })
-                    });
-                    let Some(exact_owner) = exact_owner else {
-                        return Err(Diagnostic::error(
-                            "`LayoutPlan::place_private` must be the LayoutPlan-owned compiler-known operation",
-                        ));
-                    };
-                    if receiver.symbol != exact_owner.attached_data_symbol
-                        || program.symbols.symbol_source_origin(call.target_symbol)
-                            != Some(source::SourceOrigin::Toolchain)
-                        || program
-                            .symbols
-                            .symbol_source_origin(exact_owner.attached_data_symbol)
-                            != Some(source::SourceOrigin::Toolchain)
-                    {
-                        return Err(Diagnostic::error(
-                            "the private-layout operation is sealed to core `LayoutPlan::place_private`; an authored lookalike cannot mint a placement receipt",
-                        ));
-                    }
-
                     Ok(Some(typed::expression::PrivateLayoutOperationRequest {
                         selected_slot: lower_static_machine_argument(
                             self.program,

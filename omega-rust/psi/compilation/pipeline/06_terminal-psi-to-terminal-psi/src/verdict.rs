@@ -129,9 +129,10 @@ impl AcceptedClosure {
     /// it (`wiki/spec/language/state_contracts.md`, "Unreachable branches":
     /// "This is an advisory diagnostic, not an inherent language error").
     ///
-    /// Each statement after a call that never returns is one warning at the
-    /// first such statement, followed by one note at the call
-    /// (state_contracts.md, "Statements after a call that never returns").
+    /// An expression without a normal result causes one warning at the first
+    /// following statement and one note at that expression. Calls and actual
+    /// uninhabited values use the same continuation rule (state_contracts.md,
+    /// "Published no-return").
     pub fn advisories(&self) -> Vec<Diagnostic> {
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
@@ -142,12 +143,12 @@ impl AcceptedClosure {
             let owner = describe::owner(self.elaboration.names.get(machine), unreachable.call);
             advisories.push(located(
                 Diagnostic::warning(format!(
-                    "unreachable statement in {owner}: the call before it never returns, so this statement and every statement after it never execute"
+                    "unreachable statement in {owner}: the preceding expression cannot complete normally, so this statement and every statement after it never execute"
                 )),
                 unreachable.statement,
             ));
             advisories.push(located(
-                Diagnostic::note("this call never returns"),
+                Diagnostic::note("this expression cannot complete normally"),
                 unreachable.call,
             ));
         }
@@ -433,8 +434,8 @@ pub struct UnprovedObligation {
     pub cause: UnprovedCause,
     /// The prover's or kernel's own account. Diagnostic text only.
     pub detail: String,
-    /// What was not proved, in the deleted checker's words for the same
-    /// obligation (`describe`): for example "cannot prove requires contract
+    /// What was not proved, using the source correspondence (`describe`):
+    /// for example "cannot prove requires contract
     /// for call halve from run: count > 1". Diagnostic text only.
     pub statement: String,
     /// For a data type's clause that was not proved again where an open
@@ -471,9 +472,8 @@ impl UnprovedObligation {
     /// is false.
     pub fn message(&self) -> String {
         match self.consumed {
-            // The statement is a sentence in the deleted checker's words and
-            // closes with its period, as that checker's message does, so a
-            // pinned fragment that ends the sentence matches either.
+            // Keep the unproved condition a complete sentence, with its
+            // search cause separate from the authored obligation.
             None => format!(
                 "{} ({}: {})",
                 closed_sentence(&self.statement),
@@ -723,8 +723,8 @@ pub struct ConflictingUse {
     pub conflict: crate::LoanConflict,
     /// Where the call that forms it arises in the source.
     pub site: SourceOrigin,
-    /// What the conflict is, in the deleted checker's words where it has
-    /// them. Diagnostic text only.
+    /// What the conflict is, naming the callee and binding when retained.
+    /// Diagnostic text only.
     pub statement: String,
 }
 
@@ -743,7 +743,7 @@ impl ConflictingUse {
     }
 }
 
-/// The statement of one conflict, in the deleted checker's words: "state
+/// The statement of one conflict: "state
 /// `two` receives `y` as mutable more than once", where `two` is the
 /// callee as declared. The callee's name and the lent binding come from the
 /// reader's names; without them the statement names no binding.
@@ -942,32 +942,32 @@ fn examine(
     }
     let mut affine_unestablished = Vec::new();
     for machine in &elaboration.module.machines {
-        let plan = match terminal_semantics::plain_affine::verify(
-            machine,
-            &elaboration.module.structural_types,
-        ) {
-            Ok(plan) => plan,
-            Err(error) => {
-                let concerns = match error.site() {
-                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
-                        Construct::Operation(at)
-                    }
-                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-                    None => Construct::Machine,
-                };
-                let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                        (RefusalReason::Unsupported, detail)
-                    }
-                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-                        (RefusalReason::ForeignIdentity, detail)
-                    }
-                };
-                return Err(fall_back_or_defect(refusal(
-                    reason, machine.id, concerns, detail,
-                )));
-            }
-        };
+        let plan =
+            match terminal_semantics::plain_affine::verify_in(&elaboration.module, machine.id) {
+                Ok(plan) => plan,
+                Err(error) => {
+                    let concerns = match error.site() {
+                        Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                            Construct::Operation(at)
+                        }
+                        Some(terminal_semantics::plain_affine::Site::Edge(at)) => {
+                            Construct::Edge(at)
+                        }
+                        None => Construct::Machine,
+                    };
+                    let (reason, detail) = match error {
+                        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                            (RefusalReason::Unsupported, detail)
+                        }
+                        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                            (RefusalReason::ForeignIdentity, detail)
+                        }
+                    };
+                    return Err(fall_back_or_defect(refusal(
+                        reason, machine.id, concerns, detail,
+                    )));
+                }
+            };
         let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
             Err(refusal(
                 RefusalReason::ForeignIdentity,
@@ -987,8 +987,14 @@ fn examine(
                 machine: machine.id,
                 at,
                 site: Some(source_of(sources, machine.id, at).map_err(Err)?),
-                detail: "owned storage is used after its value was transferred or consumed"
-                    .to_owned(),
+                detail: if unavailable.unrestored {
+                    "an owned value was moved out of borrowed storage, and the place does not \
+                     hold a value again where the machine returns the borrow: a replacement \
+                     must be stored into the vacant place on every path that leaves the machine"
+                } else {
+                    "owned storage is used after its value was transferred or consumed"
+                }
+                .to_owned(),
                 declared: None,
             });
         }
@@ -1219,9 +1225,16 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
     if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
         return fall_back_or_defect(refused);
     }
-    let seals = match discharged.operation_seals(&elaboration) {
-        Ok(seals) => seals,
-        Err(refused) => return fall_back_or_defect(refused),
+    // A generic check form is never published (`validate_publication`), so
+    // its evidence needs no seal, and a seal cannot encode a parameter
+    // width: its closed applications carry their own.
+    let seals = if elaboration.generic_binders.is_empty() {
+        match discharged.operation_seals(&elaboration) {
+            Ok(seals) => seals,
+            Err(refused) => return fall_back_or_defect(refused),
+        }
+    } else {
+        Vec::new()
     };
     Ok(RouteVerdict::Accepted(Box::new(AcceptedClosure {
         elaboration,

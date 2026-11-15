@@ -59,8 +59,8 @@ mbx nextest run --workspace --lib --no-fail-fast
 `RC-BUILD-AND-PACKAGES` is:
 
 ```text
-mbx nextest run -p build-declarations -p package-source -p resolver-execution --no-fail-fast
-mbx test --doc -p build-declarations -p package-source -p resolver-execution
+mbx nextest run -p build-declarations -p source-acquisition -p resolver-execution --no-fail-fast
+mbx test --doc -p build-declarations -p source-acquisition -p resolver-execution
 ```
 
 Commands work in PowerShell and a POSIX shell as written; follow

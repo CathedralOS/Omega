@@ -146,6 +146,108 @@ impl BigInt {
         }
     }
 
+    /// Converts without narrowing; callers use this only at host-sized boundaries.
+    pub fn to_u128(&self) -> Option<u128> {
+        if self.negative {
+            return None;
+        }
+        self.magnitude_u128()
+    }
+
+    fn magnitude_u128(&self) -> Option<u128> {
+        if self.magnitude.len() > 2 {
+            return None;
+        }
+        Some(
+            u128::from(self.magnitude.first().copied().unwrap_or(0))
+                | (u128::from(self.magnitude.get(1).copied().unwrap_or(0)) << 64),
+        )
+    }
+
+    pub fn to_i128(&self) -> Option<i128> {
+        let magnitude = self.magnitude_u128()?;
+        if self.negative && magnitude == 1u128 << 127 {
+            Some(i128::MIN)
+        } else {
+            i128::try_from(magnitude)
+                .ok()
+                .map(|value| if self.negative { -value } else { value })
+        }
+    }
+
+    /// Arithmetic right shift of the exact signed value, without constructing a
+    /// power-of-two divisor. A fixed carrier separately validates the count.
+    pub fn shr_bits(&self, bits: usize) -> Self {
+        let word_shift = bits / 64;
+        let bit_shift = bits % 64;
+        if word_shift >= self.magnitude.len() {
+            return Self::from_i64(if self.negative { -1 } else { 0 });
+        }
+        let discarded = self.magnitude[..word_shift].iter().any(|word| *word != 0)
+            || (bit_shift != 0 && self.magnitude[word_shift] & ((1u64 << bit_shift) - 1) != 0);
+        let mut magnitude = Vec::with_capacity(self.magnitude.len() - word_shift);
+        for position in word_shift..self.magnitude.len() {
+            let mut word = self.magnitude[position] >> bit_shift;
+            if bit_shift != 0 {
+                word |= self.magnitude.get(position + 1).copied().unwrap_or(0) << (64 - bit_shift);
+            }
+            magnitude.push(word);
+        }
+        let value = Self {
+            negative: self.negative,
+            magnitude,
+        }
+        .normalized();
+        if self.negative && discarded {
+            value.sub(&Self::from_u64(1))
+        } else {
+            value
+        }
+    }
+
+    /// Computes two's-complement word logic on exact integers. For operands in
+    /// one fixed carrier, the result equals that carrier's semantic-bit result;
+    /// no endpoint or padding-width allocation is required.
+    pub fn bitwise(&self, other: &Self, operation: IntegerBitwiseOperation) -> Self {
+        let word_count = self.magnitude.len().max(other.magnitude.len()) + 1;
+        let mut left_carry = self.negative;
+        let mut right_carry = other.negative;
+        let mut magnitude = Vec::with_capacity(word_count);
+        for position in 0..word_count {
+            let word = |value: &Self, carry: &mut bool| {
+                let word = value.magnitude.get(position).copied().unwrap_or(0);
+                if value.negative {
+                    let (word, overflow) = (!word).overflowing_add(u64::from(*carry));
+                    *carry = overflow;
+                    word
+                } else {
+                    word
+                }
+            };
+            let left = word(self, &mut left_carry);
+            let right = word(other, &mut right_carry);
+            magnitude.push(match operation {
+                IntegerBitwiseOperation::And => left & right,
+                IntegerBitwiseOperation::Or => left | right,
+                IntegerBitwiseOperation::Xor => left ^ right,
+            });
+        }
+        let negative = magnitude.last().is_some_and(|word| word >> 63 != 0);
+        if negative {
+            let mut carry = true;
+            for word in &mut magnitude {
+                let (value, overflow) = (!*word).overflowing_add(u64::from(carry));
+                *word = value;
+                carry = overflow;
+            }
+        }
+        Self {
+            negative,
+            magnitude,
+        }
+        .normalized()
+    }
+
     pub fn negate(&self) -> Self {
         Self {
             negative: !self.negative && !self.is_zero(),
@@ -354,6 +456,57 @@ impl BigInt {
         self
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerBitwiseOperation {
+    And,
+    Or,
+    Xor,
+}
+
+macro_rules! integer_conversions {
+    ($($signed:ty),*; $($unsigned:ty),*) => {
+        $(impl From<$signed> for BigInt {
+            fn from(value: $signed) -> Self { Self::from_i128(value as i128) }
+        })*
+        $(impl From<$unsigned> for BigInt {
+            fn from(value: $unsigned) -> Self { Self::from_u128(value as u128) }
+        })*
+    };
+}
+integer_conversions!(i8, i16, i32, i64, i128, isize; u8, u16, u32, u64, u128, usize);
+
+impl std::str::FromStr for BigInt {
+    type Err = &'static str;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::from_decimal_str(value).ok_or("invalid decimal integer")
+    }
+}
+
+macro_rules! exact_host_conversion {
+    ($host:ty, $conversion:ident) => {
+        impl TryFrom<&BigInt> for $host {
+            type Error = &'static str;
+            fn try_from(value: &BigInt) -> Result<Self, Self::Error> {
+                value
+                    .$conversion()
+                    .and_then(|value| <$host>::try_from(value).ok())
+                    .ok_or("integer does not fit the requested host representation")
+            }
+        }
+        impl TryFrom<BigInt> for $host {
+            type Error = &'static str;
+            fn try_from(value: BigInt) -> Result<Self, Self::Error> {
+                Self::try_from(&value)
+            }
+        }
+    };
+}
+exact_host_conversion!(i128, to_i128);
+exact_host_conversion!(u128, to_u128);
+exact_host_conversion!(u64, to_u64);
+exact_host_conversion!(u32, to_u64);
+exact_host_conversion!(usize, to_u64);
 
 impl PartialOrd for BigInt {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -1196,13 +1349,33 @@ mod tests {
                     assert_eq!(big(a).mul(&big(b)), big(product), "{a} * {b}");
                 }
                 assert_eq!(big(a).cmp(&big(b)), a.cmp(&b), "cmp {a} {b}");
+                for (operation, expected) in [
+                    (super::IntegerBitwiseOperation::And, a & b),
+                    (super::IntegerBitwiseOperation::Or, a | b),
+                    (super::IntegerBitwiseOperation::Xor, a ^ b),
+                ] {
+                    assert_eq!(big(a).bitwise(&big(b), operation), big(expected));
+                }
                 if b != 0 {
                     let (quotient, remainder) = big(a).div_rem(&big(b)).unwrap();
                     assert_eq!(quotient, big(a / b), "{a} / {b}");
                     assert_eq!(remainder, big(a % b), "{a} % {b}");
                 }
             }
+            for amount in [0, 1, 63, 64, 65, 100, 127] {
+                assert_eq!(big(a).shr_bits(amount), big(a >> amount));
+            }
         }
+        let wide = big(1).shl_bits(257).add(&big(17));
+        assert_eq!(wide.shr_bits(257), big(1));
+        assert_eq!(wide.negate().shr_bits(257), big(-2));
+        assert_eq!(
+            wide.bitwise(&big(-1), super::IntegerBitwiseOperation::And),
+            wide
+        );
+        assert_eq!(big(i128::MIN).to_i128(), Some(i128::MIN));
+        assert_eq!(big(i128::MAX).to_i128(), Some(i128::MAX));
+        assert_eq!(wide.to_i128(), None);
     }
 
     #[test]

@@ -8,9 +8,11 @@
 // kit edge, and `main.omg` calls the same machine through the product edge;
 // both routes must see the generated source the dependency staged.
 
-use kit::main;
+use kit;
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+suspends
+{
     Build::application(builder, "build_package_custody");
     let mut kit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
     dependency::with_alias(&mut kit_dependency, "kit");
@@ -19,7 +21,8 @@ machine build(builder: &mut Build) {
     dependency::with_alias(&mut product_kit_dependency, "product_kit");
     let product_kit_registration: DependencyRegistration = Build::dependency(builder, product_kit_dependency);
     builder.freestanding = true;
-    let observed: i32 = value();
+    suspend Build::prepare_dependency(builder, kit_registration);
+    let observed: i32 = kit::value();
     transition observed == 7 {
         true -> done()
         _ -> wrong()

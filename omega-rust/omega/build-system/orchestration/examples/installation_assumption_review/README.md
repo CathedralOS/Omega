@@ -42,14 +42,19 @@ installation_assumption_review show delivery.bin
 These records describe caller assumptions, not observed or proved physical
 truth. A changed program must be reviewed with its own actual identifiers.
 
-Finish in a separate invocation, supplying only the saved program and explicitly
-reviewed records. A program needing no installation assumptions can omit them:
+Finish in a separate invocation after explicitly accepting the saved program's
+actual producer. `--trust-producer` is that receiving-host decision; saved hashes
+and environment-assumption records do not authenticate the producer. Supply the
+saved program and reviewed records. A program needing no installation assumptions
+can omit the records:
 
 ```sh
-installation_assumption_review finish NEW_PREPARATION NEW_NATIVE_DIRECTORY bootstrap.bin delivery.bin
+installation_assumption_review finish --trust-producer NEW_PREPARATION NEW_NATIVE_DIRECTORY bootstrap.bin delivery.bin
 ```
 
-Finishing does not read project source or an accepted lock. It recovers the
+Producer trust is bound to the exact artifact loaded by this invocation and is
+not written into the saved input record. Finishing does not read project source
+or an accepted lock. It recovers the
 original native proposal and accepted package policy, checks the supplied
 conditions, evaluates the remaining layout and calling-convention values, and
 runs ordinary native admission, emission and final-image validation. It

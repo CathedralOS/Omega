@@ -162,7 +162,7 @@ pub struct WholeFunctionExitContract {
     pub identity: WholeFunctionExitContractIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
-    pub post_allocation_machine: physical_instructions::PostAllocationMachineIdentity,
+    pub post_allocation_machine: post_allocation_machine::PostAllocationMachineIdentity,
     pub register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub physical_register_model: register_model::PhysicalRegisterModelIdentity,
     pub pre_layout: SelectedFormEncodingIdentity,

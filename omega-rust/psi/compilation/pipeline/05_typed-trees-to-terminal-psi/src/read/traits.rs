@@ -199,6 +199,7 @@ impl Program<'_> {
                 signature,
                 parameters
                     .iter()
+                    .chain(typed.state_signature_type_parameters(signature))
                     .map(|parameter| parameter.symbol)
                     .collect(),
             )?;

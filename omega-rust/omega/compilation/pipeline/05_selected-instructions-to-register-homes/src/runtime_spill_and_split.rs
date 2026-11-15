@@ -527,7 +527,6 @@ pub(crate) mod runtime_rematerialization {
         ConstraintMismatch,
         WorkBudgetExceeded,
         IdentityOverflow,
-        ReplayMismatch,
     }
 
     failed_display!(
@@ -3221,7 +3220,6 @@ pub(crate) mod runtime_spill {
         ConstraintMismatch,
         WorkBudgetExceeded,
         IdentityOverflow,
-        ReplayMismatch,
     }
 
     failed_display!(RuntimeSpillError, "invalid runtime-value spill");
@@ -5457,7 +5455,6 @@ pub(crate) mod runtime_split {
         ConstraintMismatch,
         WorkBudgetExceeded,
         IdentityOverflow,
-        ReplayMismatch,
     }
 
     impl RuntimeSplitError {

@@ -7,12 +7,12 @@ data ComputedStorage { buffer: Buffer<outer()>; }
 
 machine leaf() -> u64 { 4 }
 machine outer() -> u64 {
-    let buffer: Buffer<leaf()> = Buffer {};
+    let buffer: Buffer<leaf()>;
     buffer.slots.len
 }
 machine build(builder: &mut Build) {
     Build::application(builder, "build_const_storage");
-    let result: ComputedStorage = ComputedStorage {};
+    let result: ComputedStorage;
     transition result.buffer.slots.len == 4 {
         true -> good(builder)
         _ -> bad(builder)

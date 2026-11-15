@@ -36,12 +36,16 @@ pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
+pub mod inhabitation;
+pub mod normal_completion;
 pub mod plain_affine;
 pub mod references;
+pub mod scalar_qualifications;
 pub mod scalars;
 pub mod storage;
 pub mod structural;
 pub mod substitution;
+pub mod suspension_frontier;
 
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
@@ -128,6 +132,7 @@ pub use references::reference_storage_geometry::{
     reference_storage_region, reference_storage_size, schema_field_layout_source,
     validate_storage_destination_intervals,
 };
+pub use references::{SelectedReferenceResult, selected_reference_result};
 pub use scalars::scalar_ordering;
 pub use structural::inline_carriers::{
     InlineCarrierError, inline_carrier_declaration, inline_field_presentation,
@@ -540,7 +545,8 @@ pub use bytes::byte_sequence_predicates::{
     byte_sequence_argument_predicates, byte_sequence_concatenation_predicates,
     byte_sequence_source_predicates, byte_transfer_qualifications_hold, byte_view_call_result,
     indexed_byte_store_goal, machine_scalar_constant_origin, pure_byte_qualifications,
-    scalar_array_qualifications_hold, scalar_constant_value, shared_byte_field_copy_predicates,
+    scalar_array_qualifications_hold, scalar_constant_value, scalar_operation_literal,
+    shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
@@ -567,12 +573,15 @@ pub use references::reference_views::{
     representation_view_declaration, scalar_reference_view_admits, scalar_reference_view_is_total,
     scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
 };
+pub use references::representation_geometry::{
+    reference_view_compatible, reference_view_offset_is_zero, validate_reference_view_source,
+};
 pub use scalars::proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafSchema,
-    ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,
+    ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow, TrappingIntegerSemantics,
     exact_proof_bearing_scalar_semantic_row_in, proof_bearing_integer_policy_binding,
     proof_bearing_scalar_leaf_semantics, proof_bearing_scalar_semantic_row,
-    validate_proof_bearing_scalar_semantic_rows,
+    trapping_integer_semantics, validate_proof_bearing_scalar_semantic_rows,
 };
 pub use scalars::scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,
@@ -659,6 +668,7 @@ pub use structural::zeroed_structural::{
     zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
     zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
+    zeroed_structural_types_and_fields_satisfy,
 };
 
 pub use descriptors::descriptor_lifetimes;
@@ -803,5 +813,137 @@ mod symbolic_integer_widths {
             semantic_vocabulary::Proposition::LessOrEqual(_, _)
         ));
         proposition.validate().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod trapping_integer_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        IdTable, IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId,
+    };
+    use terminal_psi::{
+        Operation, OperationKind, OperationResult, TrappingIntegerOperation as Trap,
+        ValueDeclaration,
+    };
+
+    #[test]
+    fn trapping_predicates_and_results_share_exact_primitive_semantics() {
+        let left = ValueId::new(1).unwrap();
+        let right = ValueId::new(2).unwrap();
+        let obligation = ObligationId::new(1).unwrap();
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            // Exercise the closed carriers the current Terminal representation
+            // admits, including a non-roster width and its widest carrier.
+            for width in [1, 13, 128] {
+                let scalar = ScalarType::Integer(IntegerType::new(sign, width).unwrap());
+                let mut types = IdTable::default();
+                assert_eq!(types.push(scalar), left);
+                assert_eq!(types.push(scalar), right);
+                for (trapping, exact) in [
+                    (
+                        Trap::Add { left, right },
+                        OperationKind::ExactIntegerAdd {
+                            left,
+                            right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::Subtract { left, right },
+                        OperationKind::ExactIntegerSubtract {
+                            left,
+                            right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::Multiply { left, right },
+                        OperationKind::ExactIntegerMultiply {
+                            left,
+                            right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::Divide { left, right },
+                        OperationKind::ExactIntegerDivide {
+                            left,
+                            right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::Remainder { left, right },
+                        OperationKind::ExactIntegerRemainder {
+                            left,
+                            right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::ShiftLeft {
+                            value: left,
+                            count: right,
+                        },
+                        OperationKind::ExactIntegerShiftLeft {
+                            value: left,
+                            count: right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::ShiftRight {
+                            value: left,
+                            count: right,
+                        },
+                        OperationKind::ExactIntegerShiftRight {
+                            value: left,
+                            count: right,
+                            obligation,
+                        },
+                    ),
+                    (
+                        Trap::Convert { operand: left },
+                        OperationKind::IntegerExactCast {
+                            operand: left,
+                            obligation,
+                        },
+                    ),
+                ] {
+                    let mut operation = Operation::unsuspended(
+                        OperationId::new(1).unwrap(),
+                        OperationResult::Scalar(ValueDeclaration {
+                            id: ValueId::new(3).unwrap(),
+                            scalar_type: scalar,
+                            qualifications: Default::default(),
+                        }),
+                        exact,
+                    );
+                    let exact = proof_bearing_scalar_leaf_semantics(&operation, &types)
+                        .unwrap()
+                        .unwrap();
+                    operation.kind = OperationKind::TrappingInteger {
+                        operation: trapping,
+                    };
+                    let trapped = trapping_integer_semantics(&operation, &types)
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(trapped.completes(), exact.canonical_goal());
+                    assert_eq!(trapped.result_equation(), exact.result_equation());
+                    // A foreign or unresolved input is never treated as a safe
+                    // operation, even when its result type is well formed.
+                    assert!(
+                        trapping_integer_semantics(
+                            &operation,
+                            &IdTable::<ValueId, ScalarType>::default()
+                        )
+                        .is_err()
+                    );
+                    operation.result = OperationResult::Unit;
+                    assert!(trapping_integer_semantics(&operation, &types).is_err());
+                }
+            }
+        }
     }
 }

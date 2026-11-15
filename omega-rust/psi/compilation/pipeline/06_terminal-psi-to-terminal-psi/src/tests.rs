@@ -22,10 +22,14 @@ use typed_trees_to_terminal_psi::{
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod address_bounds;
 mod applications;
 mod arithmetic_policies;
+mod array_lengths;
 mod arrays;
+mod borrowed_restoration;
 mod boundary_calls;
+mod branch_warnings;
 mod build_purpose;
 mod byte_domains;
 mod byte_view_elements;
@@ -38,12 +42,15 @@ mod compiler_primitive_headers;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
+mod floats;
 mod guard_contradiction;
 mod handoffs;
 mod indexed_contracts;
 mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;
+mod loan_regions;
+mod machine_inputs;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
@@ -60,12 +67,17 @@ mod reach;
 mod references;
 mod result_fields;
 mod result_summaries;
+mod returned_views;
 mod rule_violations;
 mod runtime_indexed_elements;
+mod scalar_joins;
 mod sequence_regions;
 mod source_operators;
+mod stored_references;
 mod stored_views;
+mod termination;
 mod type_parameters;
+mod uninhabited_results;
 mod value_parameters;
 mod width_parameters;
 
@@ -115,6 +127,7 @@ fn strict(operation: Strict, left: Expression, right: Expression) -> Expression 
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },
@@ -625,6 +638,7 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
                     guard: Some(expression(
                         ExpressionKind::Strict {
                             operation: Strict::Equal,
+                            policy: None,
                             left: Box::new(slot(0, u32_type())),
                             right: Box::new(unsigned(0)),
                         },
@@ -697,6 +711,7 @@ fn compare(operation: Strict, left: Expression, right: Expression) -> Expression
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },

@@ -15,7 +15,7 @@ target-dependent operations must still resolve a deployment.
 use backend_plan::TerminalTargetProviderProposal;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
-use terminal_installation::admit_target_machine_selections;
+use terminal_installation::terminal_target_context;
 
 pub fn complete<'scope>(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
@@ -87,7 +87,7 @@ pub fn complete<'scope>(
                         .layout_target_facts()
                         .ok_or("scalar evaluation target has no immutable layout catalogue")?,
                 ),
-                targets: Some(admit_target_machine_selections(artifact.view(), scope)),
+                targets: Some(terminal_target_context(artifact.view(), scope)),
                 providers,
                 import_realizations: Some(Box::new(realizations)),
                 address_model: Ok(address_model),
@@ -109,7 +109,6 @@ pub fn complete<'scope>(
 struct TargetRealizedIntrinsics {
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     selected: effects::SelectedProviderPlanFacts,
-    declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
 }
 
 impl TargetRealizedIntrinsics {
@@ -117,18 +116,12 @@ impl TargetRealizedIntrinsics {
         artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
         selection: &backend_plan::TerminalTargetProviderSelection,
     ) -> Result<Self, String> {
-        let selected = effects::SelectedProviderPlanFacts::from_selected_plans(
-            selection
-                .plans
-                .iter()
-                .map(|selected| selected.plan.clone())
-                .collect(),
-        )?
-        .with_assumed_bindings(selection.assumed_bindings.clone());
+        let selected =
+            effects::SelectedProviderPlanFacts::from_selected_plans(selection.plans.clone())?
+                .with_assumed_bindings(selection.assumed_bindings.clone());
         Ok(Self {
             artifact: Arc::clone(artifact),
             selected,
-            declarations: selection.plans.clone(),
         })
     }
 }
@@ -167,16 +160,15 @@ impl build_time_evaluation::TargetImportRealizations for TargetRealizedIntrinsic
         let intrinsics = admission::admit_terminal_intrinsics(
             self.artifact.view().into(),
             &self.selected,
-            &self.declarations,
-            self.declarations
+            self.selected
+                .plans()
                 .iter()
                 .zip(&unreviewed)
                 .map(
                     |(declaration, executions)| admission::CompilerIntrinsicPlanProvenance {
-                        plan: &declaration.plan,
-                        semantic_schema: &declaration.plan.schema,
+                        plan: declaration,
+                        semantic_schema: &declaration.schema,
                         row_executions: executions,
-                        row_numeric_realizations: &declaration.row_numeric_realizations,
                     },
                 ),
             &demanded,

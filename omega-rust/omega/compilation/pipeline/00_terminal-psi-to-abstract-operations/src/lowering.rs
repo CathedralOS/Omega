@@ -1696,7 +1696,7 @@ mod machine {
         }
     }
     use abstract_operations::{
-        AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractParameter,
+        AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractParameter,
     };
     use operation::lower_operation;
     use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
@@ -1723,8 +1723,7 @@ mod machine {
             .iter()
             .map(|block| (block.id, block))
             .collect::<BTreeMap<_, _>>();
-        let mut operations = Vec::new();
-        let mut block_entries = Vec::with_capacity(machine.blocks.len());
+        let mut lowered_blocks = Vec::with_capacity(machine.blocks.len());
         let value_types = machine
             .parameters
             .iter()
@@ -1764,19 +1763,7 @@ mod machine {
         let mut lowered_unit_affine_locals = Vec::new();
 
         for block in &machine.blocks {
-            block_entries.push(AbstractBlockEntry {
-                block: block.id,
-                structural_parameters: block.structural_parameters.clone(),
-                parameters: block
-                    .parameters
-                    .iter()
-                    .map(|parameter| AbstractParameter {
-                        value: parameter.id,
-                        scalar_type: parameter.scalar_type,
-                    })
-                    .collect(),
-                operation_offset: operations.len(),
-            });
+            let mut operations = Vec::with_capacity(block.operations.len() + 1);
             for operation in &block.operations {
                 lower_operation(
                     operation,
@@ -1794,6 +1781,19 @@ mod machine {
                 )?;
             }
             lower_terminator(module, block, machine, &blocks, result, &mut operations)?;
+            lowered_blocks.push(AbstractBlock {
+                block: block.id,
+                structural_parameters: block.structural_parameters.clone(),
+                parameters: block
+                    .parameters
+                    .iter()
+                    .map(|parameter| AbstractParameter {
+                        value: parameter.id,
+                        scalar_type: parameter.scalar_type,
+                    })
+                    .collect(),
+                operations,
+            });
         }
 
         Ok(AbstractFunction {
@@ -1822,8 +1822,7 @@ mod machine {
             entry_claims: machine.entry_claims.clone(),
             block_entry_claims: machine.block_entry_claims.clone(),
             published_service_ceiling: machine.published_service_ceiling.clone(),
-            block_entries,
-            operations,
+            blocks: lowered_blocks,
         })
     }
 }

@@ -27,20 +27,20 @@ use super::checking::{
 };
 use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::counters;
-use compilation_products::{
+use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
+use products::{
     CheckedCompileOutcome, CheckedCompileRequest, CompileFailure, IndependentComponentDiscovery,
     PreparedCheckedSource, PreparedPackageBuild,
 };
-use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
 use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Default)]
 pub struct CompilationSession {
-    preparation: compilation_products::SourcePreparation,
+    preparation: products::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_settings::PureBuildCompilation,
-    component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
+    component_products: Vec<Arc<products::IndependentComponentProduct>>,
 }
 
 struct PreparedSource {
@@ -53,7 +53,7 @@ struct PreparedSource {
 impl CompilationSession {
     pub(super) fn retain_component_product(
         &mut self,
-        product: compilation_products::IndependentComponentProduct,
+        product: products::IndependentComponentProduct,
     ) {
         if !self
             .component_products
@@ -78,7 +78,7 @@ impl CompilationSession {
                 .transpose()
                 .map_err(|diagnostic| vec![diagnostic])?;
             let inputs = request.package_inputs.as_ref();
-            let child = compilation_products::CheckedExecutionRequest {
+            let child = products::CheckedExecutionRequest {
                 selected_target_profile: target,
                 package_inputs: inputs,
                 build: request.build.resolve_compilation_defaults(inputs),
@@ -185,7 +185,7 @@ impl CompilationSession {
                 .transpose()
                 .map_err(|diagnostic| vec![diagnostic])?;
             let inputs = request.package_inputs.as_ref();
-            let child = compilation_products::CheckedExecutionRequest {
+            let child = products::CheckedExecutionRequest {
                 selected_target_profile: target,
                 package_inputs: inputs,
                 build: request.build.resolve_compilation_defaults(inputs),
@@ -236,7 +236,7 @@ impl CompilationSession {
         &mut self,
         invocation: super::checking::PreparedPackageInvocation,
         returned: Option<build_settings::ReturnedBuild>,
-    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+    ) -> Result<products::SettledPackageBuild, CompileFailure> {
         invocation.settle(returned)
     }
 
@@ -319,8 +319,8 @@ impl CompilationSession {
 
     pub(crate) fn prepare_shared_source(
         &mut self,
-        shared: &compilation_products::compile_request::SharedCompileInputs,
-        target: &compilation_products::compile_request::ValidatedTargetCompilation,
+        shared: &products::compile_request::SharedCompileInputs,
+        target: &products::compile_request::ValidatedTargetCompilation,
     ) -> Result<SourceCompilation, CompileFailure> {
         let parsed = self.prepare_source_with_inputs(
             &shared.root_path,
@@ -337,7 +337,7 @@ impl CompilationSession {
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
+    ) -> Result<products::CheckedProductSource, CompileFailure> {
         source.check(returned)
     }
 }

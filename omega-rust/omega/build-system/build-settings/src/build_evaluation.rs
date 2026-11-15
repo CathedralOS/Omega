@@ -32,13 +32,13 @@ the returned activation via `validate_return`, `source_result`,
 
 use crate::{PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
+use products::CompileFailure;
 use std::path::Path;
 use std::sync::Arc;
 use typed_trees::TypedTrees;
@@ -59,18 +59,106 @@ pub struct BuildEvaluationRequest<'request> {
     pub artifact_only: bool,
 }
 
-pub use compilation_products::EvaluatedBuild;
+/// The typed frontier of one later stage of a Build that is already running
+/// (`admission/build_stages.rs`), to be judged and admitted under the
+/// activation its first stage began.
+pub struct BuildStageRequest<'request> {
+    pub typed: &'request typed_trees::TypedTrees,
+    pub build_source: Option<package_compilation::BuildSourceSelection>,
+    pub package_inputs: Option<&'request PackageCompilationInputs>,
+    pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
+}
+
+pub use products::EvaluatedBuild;
 
 pub struct PreparedBuildEvaluation {
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    constants: compilation_products::BuildConstants,
+    constants: products::BuildConstants,
     source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    dependency_activation: bool,
 }
 
 impl PreparedBuildEvaluation {
+    /// Judges and admits the next stage of this Build and makes it the
+    /// execution that runs next. The stage is a complete Build entry to
+    /// every owner that sees it: the lowered-form checker judges it as it
+    /// judged the first, and the activation is prepared as the first was,
+    /// under the same filesystem scope and invocation account. What the
+    /// stage adds is kept with what the earlier stages left: its constant
+    /// reads, its charges, and any restricted request it is the first to
+    /// make, which needs the same consent a first stage would.
+    pub fn continue_stage(
+        &mut self,
+        request: BuildStageRequest<'_>,
+        timings: &mut CompileTimings,
+    ) -> Result<(), CompileFailure> {
+        let BuildStageRequest {
+            typed,
+            build_source,
+            package_inputs,
+            anonymous_source,
+        } = request;
+        let build_source = build_source.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build execution requires its source-owned selection",
+            )]
+        })?;
+        let selected_machine = select_build_machine(typed, Some(build_source.source_id()))?
+            .map(|machine| machine.symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected Build source requires exactly one free build entry",
+                )]
+            })?;
+        let (prepared, providers, constants, accounting) =
+            crate::admission::checking::prepare_admitted_build(
+                typed,
+                selected_machine,
+                package_inputs,
+                anonymous_source,
+                self.dependency_activation,
+                timings,
+            )
+            .map_err(|failure| {
+                failure.with_source_completion_accounting(self.source_completion_accounting.clone())
+            })?;
+        self.source_completion_accounting.append(accounting);
+        self.constants.read.extend(constants.read);
+        self.constants.folded_under_providers |= constants.folded_under_providers;
+        let spent = self.source_completion_accounting.clone();
+        let result = (|| {
+            let admitted = self.execution.admit_stage(
+                prepared,
+                providers,
+                selected_machine,
+                build_source,
+                package_inputs,
+                anonymous_source,
+            )?;
+            for request in admitted.restricted_build_requests() {
+                if self.restricted_build_requests.contains(&request) {
+                    continue;
+                }
+                match self.restricted_build_grants.as_mut() {
+                    Some(grants) => grants.admit(&request)?,
+                    None => {
+                        return Err(CompileFailure::BuildConsentRequired {
+                            requests: vec![request],
+                            accounting: spent.clone(),
+                        });
+                    }
+                }
+                self.restricted_build_requests.push(request);
+            }
+            self.execution = self.execution.continue_with(admitted)?;
+            Ok(())
+        })();
+        result.map_err(|failure: CompileFailure| failure.with_source_completion_accounting(spent))
+    }
+
     pub fn source_completion_accounting(
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
@@ -145,6 +233,7 @@ impl PreparedBuildEvaluation {
             constants,
             source_completion_accounting,
             restricted_build_grants,
+            dependency_activation: _,
         } = self;
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
@@ -284,6 +373,7 @@ pub fn prepare_build_evaluation(
             constants,
             source_completion_accounting: source_completion_accounting.clone(),
             restricted_build_grants,
+            dependency_activation,
         })
     })();
     result.map_err(|failure: CompileFailure| {

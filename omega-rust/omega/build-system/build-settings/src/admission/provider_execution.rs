@@ -10,7 +10,6 @@ use diagnostics::Diagnostic;
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct BuildProviderPlans {
     selected: effects::SelectedProviderPlanFacts,
-    declarations: Vec<backend_plan::TerminalTargetProviderPlan>,
     packages: Option<package_compilation::PackageCompilationInputs>,
 }
 
@@ -36,8 +35,7 @@ impl BuildProviderPlans {
         use provider_admission::provider_admission as admission;
         let module = artifact.module();
         let adapters =
-            admission::retain_selected_provider_adapters(&self.selected, &self.declarations)
-                .map_err(failure)?;
+            admission::retain_selected_provider_adapters(&self.selected).map_err(failure)?;
         let checked =
             provider_admission::provider_installation::admit_terminal_provider_installation(
                 artifact, &adapters,
@@ -118,16 +116,15 @@ impl BuildProviderPlans {
         let intrinsics = admission::admit_terminal_intrinsics(
             artifact,
             &self.selected,
-            &self.declarations,
-            self.declarations
+            self.selected
+                .plans()
                 .iter()
                 .zip(&unreviewed)
                 .map(
                     |(declaration, executions)| admission::CompilerIntrinsicPlanProvenance {
-                        plan: &declaration.plan,
-                        semantic_schema: &declaration.plan.schema,
+                        plan: declaration,
+                        semantic_schema: &declaration.schema,
                         row_executions: executions,
-                        row_numeric_realizations: &declaration.row_numeric_realizations,
                     },
                 ),
             &demanded,

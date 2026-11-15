@@ -14,7 +14,35 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
+use super::carriers::{Bound, Scope, Written};
 use crate::body::{Policy, ValueType};
+
+/// What a static type proposition says (`Program::type_truth`): decided,
+/// or left open by the premises of a rigid type parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum TypeTruth {
+    Known(bool),
+    Open,
+}
+
+/// The refusal of a value its rigid type parameter's premises leave open:
+/// the body would need to be read once per carrier family, which no reading
+/// does yet.
+pub(super) const OPEN_CARRIER_FAMILY: &str =
+    "integer carrier family that the generic body's requirements leave open";
+
+/// Where a static type proposition is read (`Program::type_truth`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Reading {
+    /// A condition the body evaluates. A call there runs, so its contract
+    /// never stands in for it.
+    Value,
+    /// A contract clause, which runs nothing: a call there is the value its
+    /// callee's contract states (`contract_value`).
+    Clause,
+    /// That stated value itself, where a Boolean literal is its answer.
+    Stated,
+}
 use crate::{Unserved, refuse};
 
 /// The checker's integer for a source carrier. The checker states integer
@@ -27,39 +55,80 @@ fn integer(carrier: FixedInteger, machine: MachineId) -> Checked<ScalarType> {
 
 /// The scalar type of a builtin atom, by its compiler-installed slot.
 pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
-    match atom {
-        BuiltinTypeAtom::Bool => Ok(ScalarType::Boolean),
-        BuiltinTypeAtom::Integer(carrier) => integer(carrier, machine),
-        BuiltinTypeAtom::Address => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("addr")))
-        }
-        BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64 => {
-            Err(refuse(machine, Construct::Machine, Unserved::Type("float")))
-        }
-        BuiltinTypeAtom::Slice => Err(refuse(machine, Construct::Machine, Unserved::Type("slice"))),
-        BuiltinTypeAtom::SyscallResult => Err(refuse(
+    let Some(primitive) = symbols::PrimitiveType::from_builtin_atom(atom) else {
+        let kind = match atom {
+            BuiltinTypeAtom::Slice => "slice",
+            BuiltinTypeAtom::SyscallResult => "syscall result",
+            BuiltinTypeAtom::Terminal => "terminal",
+            BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => "anonymous integer",
+            BuiltinTypeAtom::AtomicBool
+            | BuiltinTypeAtom::AtomicU32
+            | BuiltinTypeAtom::AtomicU64 => "atomic",
+            _ => "non-scalar builtin",
+        };
+        return Err(refuse(machine, Construct::Machine, Unserved::Type(kind)));
+    };
+    match primitive {
+        symbols::PrimitiveType::Bool => Ok(ScalarType::Boolean),
+        symbols::PrimitiveType::Integer(carrier) => integer(carrier, machine),
+        // Address data has a scalar representation, but grants no storage or
+        // access authority. Its operations retain their separate admission.
+        symbols::PrimitiveType::Addr => Ok(ScalarType::Integer(
+            IntegerType::supported_address_representation(),
+        )),
+        symbols::PrimitiveType::F32 => Ok(ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+        )),
+        symbols::PrimitiveType::F64 => Ok(ScalarType::IeeeFloat(
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        )),
+        symbols::PrimitiveType::Selector => Err(refuse(
             machine,
             Construct::Machine,
-            Unserved::Type("syscall result"),
+            Unserved::Type("selector"),
         )),
-        BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("terminal or never"),
-        )),
-        BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => Err(refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Type("anonymous integer"),
-        )),
-        BuiltinTypeAtom::AtomicBool | BuiltinTypeAtom::AtomicU32 | BuiltinTypeAtom::AtomicU64 => {
-            Err(refuse(
+    }
+}
+
+/// A scalar's storage keeps its own builtin identity when a loan presents
+/// different bits. Use the inverse of `atom_type`, including floats and
+/// addresses, rather than borrowing the destination's identity.
+pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<BuiltinTypeAtom> {
+    Ok(match scalar {
+        ScalarType::Callable(_) => {
+            return Err(refuse(
                 machine,
                 Construct::Machine,
-                Unserved::Type("atomic"),
-            ))
+                Unserved::Type("callable lender has no builtin scalar storage identity"),
+            ));
         }
-    }
+        ScalarType::Boolean => BuiltinTypeAtom::Bool,
+        ScalarType::Integer(integer) if integer.is_address() => BuiltinTypeAtom::Address,
+        ScalarType::Integer(integer) => {
+            let bits = integer.bits().ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("scalar lender has an unresolved integer width"),
+                )
+            })?;
+            BuiltinTypeAtom::Integer(
+                FixedInteger::new(integer.sign(), u64::from(bits)).ok_or_else(|| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("scalar lender has no fixed integer carrier"),
+                    )
+                })?,
+            )
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            BuiltinTypeAtom::F32
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            BuiltinTypeAtom::F64
+        }
+    })
 }
 
 /// The integer type a literal landed on, through the same width table.
@@ -145,9 +214,9 @@ impl Program<'_> {
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. } => return Ok(false),
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => return Err(unserved()),
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                    return Err(unserved());
+                }
             }
         }
         Err(unserved())
@@ -247,7 +316,6 @@ impl Program<'_> {
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
-            TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
             TypeReferenceNode::Callable { contract } => self
                 .callables
                 .source_contract(*contract)
@@ -280,6 +348,7 @@ impl Program<'_> {
     /// normalized type equality".
     fn closed_type_equation(
         &self,
+        scope: Scope<'_>,
         left: TypeReferenceHandle,
         right: TypeReferenceHandle,
     ) -> Option<bool> {
@@ -287,36 +356,34 @@ impl Program<'_> {
             Atom(BuiltinTypeAtom),
             Scalar(ScalarType),
         }
-        let closed = |handle: TypeReferenceHandle| {
-            if !handle.is_valid() {
+        // A qualified type is no closed builtin type: only a plain name is
+        // read, through the parameter it may stand for.
+        let closed = |handle: TypeReferenceHandle, scope: Scope<'_>| {
+            if !handle.is_valid()
+                || !matches!(
+                    self.typed.type_reference_table.type_reference(handle),
+                    TypeReferenceNode::Named { .. }
+                )
+            {
                 return None;
             }
-            match self.typed.type_reference_table.type_reference(handle) {
-                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-                    if let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
-                    {
-                        return match bound {
-                            ValueType::Scalar(scalar_type, Qualification::NONE) => {
-                                Some(Closed::Scalar(*scalar_type))
-                            }
-                            ValueType::Scalar(..)
-                            | ValueType::Rigid(_)
-                            | ValueType::Record(_, _, _) => None,
-                        };
-                    }
-                    self.typed
-                        .symbols
-                        .builtin_type_atom(*symbol)
-                        .map(Closed::Atom)
+            match self.resolve_written(scope, Written::Reference(handle)) {
+                Bound::Value(ValueType::Scalar(scalar_type, Qualification::NONE)) => {
+                    Some(Closed::Scalar(scalar_type))
                 }
-                _ => None,
+                Bound::Written(Written::Symbol(symbol)) if symbol.is_valid() => self
+                    .typed
+                    .symbols
+                    .builtin_type_atom(symbol)
+                    .map(Closed::Atom),
+                Bound::Value(_) | Bound::Written(_) => None,
             }
         };
         // The identity only names a refusal, which is discarded here.
         let scalar = |atom: BuiltinTypeAtom| {
             MachineId::new(1).and_then(|machine| atom_type(atom, machine).ok())
         };
-        Some(match (closed(left)?, closed(right)?) {
+        Some(match (closed(left, scope)?, closed(right, scope)?) {
             (Closed::Atom(left), Closed::Atom(right)) => left == right,
             (Closed::Scalar(left), Closed::Scalar(right)) => left == right,
             (Closed::Scalar(fixed), Closed::Atom(atom))
@@ -334,7 +401,7 @@ impl Program<'_> {
     /// and `result == 7u8`, which is not well-typed there, is never read.
     pub(super) fn guarded_false(&self, expression: ExpressionHandle) -> bool {
         use typed_trees::expression::BinaryOperator;
-        if self.static_truth(expression) == Some(false) {
+        if self.clause_truth(expression) == Some(TypeTruth::Known(false)) {
             return true;
         }
         if !expression.is_valid() {
@@ -348,23 +415,51 @@ impl Program<'_> {
         }
     }
 
-    /// The truth of an expression that closed type equations decide: an
-    /// equation between two closed builtin types, a local bound to such a
-    /// truth, and `==`, `&&`, `||` and `!` over those, where `==` may also
-    /// compare one with a Boolean literal. `None` for every other
-    /// expression, a lone Boolean literal included: only a type equation
-    /// makes a condition static. generics.md, "Static type equality": "a
-    /// branch with established `T == u32` may use that equality to check its
-    /// operations and values as u32", so in a machine generated for `u32`
-    /// the branch `u32 == u64` is one no value reaches and no rule types.
+    /// The truth of an expression static type propositions decide
+    /// (`type_truth`). `None` when it is no such proposition, and when the
+    /// premises of a rigid type parameter leave it open.
     pub(super) fn static_truth(&self, expression: ExpressionHandle) -> Option<bool> {
+        match self.type_truth(Scope::Own, expression, Reading::Value)? {
+            TypeTruth::Known(truth) => Some(truth),
+            TypeTruth::Open => None,
+        }
+    }
+
+    /// The truth of a contract clause of the machine being read, as static
+    /// type propositions decide it (`type_truth`, `Reading::Clause`).
+    pub(super) fn clause_truth(&self, expression: ExpressionHandle) -> Option<TypeTruth> {
+        self.type_truth(Scope::Own, expression, Reading::Clause)
+    }
+
+    /// The truth of a static type proposition: an equation between two
+    /// closed builtin types, a field of the integer carrier query
+    /// (`carriers`), a call whose contract states its result as such a
+    /// proposition (`contract_value`), a local bound to one, and `==`, `&&`,
+    /// `||` and `!` over those, where `==` may also compare one with a
+    /// Boolean literal. A call counts only in a clause (`Reading`).
+    /// `TypeTruth::Open` when the premises of a rigid type parameter do not
+    /// decide it. `None` for every other expression, a lone Boolean literal
+    /// included except in a callee's stated result: only a type proposition
+    /// makes a condition static. generics.md, "Static type equality": "a branch with
+    /// established `T == u32` may use that equality to check its operations
+    /// and values as u32", so in a machine generated for `u32` the branch
+    /// `u32 == u64` is one no value reaches and no rule types.
+    pub(super) fn type_truth(
+        &self,
+        scope: Scope<'_>,
+        expression: ExpressionHandle,
+        reading: Reading,
+    ) -> Option<TypeTruth> {
         use typed_trees::expression::{BinaryOperator, UnaryOperator};
         if !expression.is_valid() {
             return None;
         }
         let table = &self.typed.expression_table;
         match table.expression(expression) {
-            ExpressionNode::Name(path) => {
+            ExpressionNode::Boolean(value) if reading == Reading::Stated => {
+                Some(TypeTruth::Known(*value))
+            }
+            ExpressionNode::Name(path) if matches!(scope, Scope::Own) => {
                 let resolved = path.resolved_symbol()?;
                 if table.name_path_members(path.members).len() != 1 {
                     return None;
@@ -373,10 +468,24 @@ impl Program<'_> {
                     .iter()
                     .rev()
                     .find(|(symbol, _)| *symbol == resolved)
-                    .map(|(_, truth)| *truth)
+                    .map(|(_, truth)| TypeTruth::Known(*truth))
+            }
+            ExpressionNode::Member(_) => {
+                self.carrier_member(scope, expression)
+                    .map(|truth| match truth {
+                        Some(truth) => TypeTruth::Known(truth),
+                        None => TypeTruth::Open,
+                    })
+            }
+            ExpressionNode::Call(call) if reading != Reading::Value => {
+                let (bindings, value) = self.contract_value(scope, call)?;
+                self.type_truth(Scope::Callee(&bindings), value, Reading::Stated)
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                self.static_truth(unary.operand).map(|truth| !truth)
+                Some(match self.type_truth(scope, unary.operand, reading)? {
+                    TypeTruth::Known(truth) => TypeTruth::Known(!truth),
+                    TypeTruth::Open => TypeTruth::Open,
+                })
             }
             ExpressionNode::Binary(binary) => {
                 let literal = |handle: ExpressionHandle| match handle
@@ -385,6 +494,10 @@ impl Program<'_> {
                 {
                     Some(ExpressionNode::Boolean(value)) => Some(*value),
                     _ => None,
+                };
+                let compare = |truth: TypeTruth, value: bool| match truth {
+                    TypeTruth::Known(truth) => TypeTruth::Known(truth == value),
+                    TypeTruth::Open => TypeTruth::Open,
                 };
                 match binary.operator {
                     BinaryOperator::Equal => {
@@ -401,25 +514,55 @@ impl Program<'_> {
                                 .is_valid()
                                 .then(|| table.expression(binary.right)),
                         ) {
-                            return self.closed_type_equation(*left, *right);
+                            return self
+                                .closed_type_equation(scope, *left, *right)
+                                .map(TypeTruth::Known);
                         }
                         match (
-                            self.static_truth(binary.left),
-                            self.static_truth(binary.right),
+                            self.type_truth(scope, binary.left, reading),
+                            self.type_truth(scope, binary.right, reading),
                         ) {
-                            (Some(left), Some(right)) => Some(left == right),
-                            (Some(truth), None) => {
-                                literal(binary.right).map(|value| truth == value)
+                            (Some(TypeTruth::Known(left)), Some(right)) => {
+                                Some(compare(right, left))
                             }
-                            (None, Some(truth)) => literal(binary.left).map(|value| truth == value),
+                            (Some(left), Some(TypeTruth::Known(right))) => {
+                                Some(compare(left, right))
+                            }
+                            (Some(TypeTruth::Open), Some(TypeTruth::Open)) => Some(TypeTruth::Open),
+                            (Some(truth), None) => {
+                                literal(binary.right).map(|value| compare(truth, value))
+                            }
+                            (None, Some(truth)) => {
+                                literal(binary.left).map(|value| compare(truth, value))
+                            }
                             (None, None) => None,
                         }
                     }
                     BinaryOperator::And => {
-                        Some(self.static_truth(binary.left)? && self.static_truth(binary.right)?)
+                        let left = self.type_truth(scope, binary.left, reading)?;
+                        let right = self.type_truth(scope, binary.right, reading)?;
+                        Some(match (left, right) {
+                            (TypeTruth::Known(false), _) | (_, TypeTruth::Known(false)) => {
+                                TypeTruth::Known(false)
+                            }
+                            (TypeTruth::Known(true), TypeTruth::Known(true)) => {
+                                TypeTruth::Known(true)
+                            }
+                            _ => TypeTruth::Open,
+                        })
                     }
                     BinaryOperator::Or => {
-                        Some(self.static_truth(binary.left)? || self.static_truth(binary.right)?)
+                        let left = self.type_truth(scope, binary.left, reading)?;
+                        let right = self.type_truth(scope, binary.right, reading)?;
+                        Some(match (left, right) {
+                            (TypeTruth::Known(true), _) | (_, TypeTruth::Known(true)) => {
+                                TypeTruth::Known(true)
+                            }
+                            (TypeTruth::Known(false), TypeTruth::Known(false)) => {
+                                TypeTruth::Known(false)
+                            }
+                            _ => TypeTruth::Open,
+                        })
                     }
                     _ => None,
                 }
@@ -519,7 +662,8 @@ impl Program<'_> {
             } = self.typed.type_reference_table.type_reference(handle)
             && !arguments.is_empty()
             && lifetime_arguments.is_empty()
-            && self.typed.closed_data_definition(handle).is_some()
+            && (self.typed.closed_data_definition(handle).is_some()
+                || self.typed.layout_storage_arguments(handle).is_some())
         {
             return self.record_at(id, handle);
         }
@@ -830,6 +974,13 @@ impl Program<'_> {
         // A domain's predicates are judged where the place declared in it
         // has a contract to join (`predicates`); each place without one
         // refuses them there by name.
+        if !self
+            .declared_domains
+            .iter()
+            .any(|(symbol, _)| *symbol == domain)
+        {
+            self.declared_domains.push((domain, plain));
+        }
         Ok(())
     }
 
@@ -1009,6 +1160,32 @@ impl Program<'_> {
         match value {
             Some(value) if integer.admits(value) => Ok((value, integer)),
             Some(_) | None => unserved("integer literal outside its type"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn served_scalar_atoms_keep_their_storage_identity() {
+        let machine = MachineId::new(1).unwrap();
+        for atom in BuiltinTypeAtom::ALL {
+            if symbols::PrimitiveType::from_builtin_atom(atom).is_none() {
+                continue;
+            }
+            let scalar = atom_type(atom, machine).unwrap();
+            assert_eq!(scalar_atom(scalar, machine).unwrap(), atom);
+        }
+        // Dynamically installed widths must retain their sign and width too,
+        // rather than becoming one of the fixed root-slot integer atoms.
+        for bits in [1, 7, 31, 65, 127] {
+            for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                let atom = BuiltinTypeAtom::Integer(FixedInteger::new(sign, bits).unwrap());
+                let scalar = atom_type(atom, machine).unwrap();
+                assert_eq!(scalar_atom(scalar, machine).unwrap(), atom);
+            }
         }
     }
 }

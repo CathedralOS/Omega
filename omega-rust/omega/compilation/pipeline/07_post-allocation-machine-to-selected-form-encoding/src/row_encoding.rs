@@ -59,7 +59,7 @@ use machine_code::{
     SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
 };
-use physical_instructions::{PhysicalAddressOperation, PostAllocationMachineInstruction};
+use post_allocation_machine::{PhysicalAddressOperation, PostAllocationMachineInstruction};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, SelectedFunction, SelectedInstruction,
@@ -1093,7 +1093,7 @@ mod tests {
         ResolvedPhysicalAddress, SelectedFormEncodedRowStore, SelectedFormEncodingRow,
         SelectedFormEncodingState, SelectedFormMachineDisposition,
     };
-    use physical_instructions::{
+    use post_allocation_machine::{
         PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineFunction,
         PostAllocationMachineInstruction,
     };

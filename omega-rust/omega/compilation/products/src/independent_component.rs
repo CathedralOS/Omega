@@ -10,8 +10,9 @@ provider plan without reopening the dependency's source or Build.
 */
 
 /*
-`encode_retained` and `recover_retained` serialize and recover a coupled
-component through `component_description` and
+`encode_retained` and `recover_retained` explicitly publish and recover a coupled
+component; recovery requires a fresh receiving-host producer acceptance, not
+trust encoded in the product. They use `component_description` and
 `terminal_psi_to_abstract_operations::recover_native_derivation_inputs`,
 rejecting any record that exceeds `MAX_BYTES` (128 MiB) or attempts to carry
 application installation assumptions.
@@ -41,7 +42,6 @@ impl SelectedIndependentComponent {
         component: Arc<component_description::VerifiedComponent>,
         product: &IndependentComponentProduct,
         plan: effects::provider_plan::ProviderPlan,
-        selecting_declaration: &str,
         receiving_identities: Arc<terminal_psi::TerminalIdentityTable>,
         applications: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Self, String> {
@@ -49,7 +49,6 @@ impl SelectedIndependentComponent {
             component,
             Arc::clone(&product.retained),
             &plan,
-            selecting_declaration,
             applications,
         )?;
         Ok(Self {
@@ -160,7 +159,11 @@ impl IndependentComponentProduct {
         Ok(Some(bytes))
     }
 
-    pub fn recover_retained(package: PackageKeyIdentity, bytes: &[u8]) -> Result<Self, String> {
+    pub fn recover_retained(
+        package: PackageKeyIdentity,
+        bytes: &[u8],
+        producer: Option<&terminal_installation::HostProducerTrust>,
+    ) -> Result<Self, String> {
         if bytes.len() > MAX_BYTES {
             return Err("component retention record exceeds its byte bound".to_owned());
         }
@@ -183,7 +186,8 @@ impl IndependentComponentProduct {
         );
         let (retained, permissions, installation_assumptions) =
             terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
-                Arc::new(artifact),
+                terminal_installation::authorize_terminal_artifact(Arc::new(artifact), producer)
+                    .map_err(|error| error.to_string())?,
                 native_inputs,
             )
             .map_err(|diagnostics| {

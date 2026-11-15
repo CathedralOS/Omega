@@ -3,8 +3,8 @@
 
 use super::PackageLockError as Error;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use package_evidence::encoding::PackagePolicyMembershipLimits;
-use package_evidence::record::PackagePolicyBaseline;
+use review_evidence::encoding::PackagePolicyMembershipLimits;
+use review_evidence::record::PackagePolicyBaseline;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn policy_source_membership(

@@ -479,10 +479,7 @@ pub(crate) mod progress {
                         .collect();
                     return Some((data, bound));
                 }
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. }
-                    if symbol.is_valid() =>
-                {
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
                     if !substituted.contains(symbol)
                         && let Some(argument) = substitution
                             .iter()
@@ -1774,10 +1771,10 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_expressions,
         &cast_destinations,
     )?;
-    // Cast normalization can complete a destination's declared type. Reuse
-    // the receiving-type walk so its value retains the complete constructor
-    // application; assignment authority and value obligations stay with the
-    // lowered checker.
+    crate::operator_calls::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
+    // A projected assignment can acquire its receiving type only after a
+    // domain cast on its reference has settled. Keep the ordinary landing
+    // pass here as well; already prepared constructors retain their identity.
     crate::expressions::construction_destinations::prepare(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
@@ -2111,7 +2108,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         captured_machine_states: _,
         trait_implementation_applications: _,
         data_implementation_applications: _,
-        dynamic_slots: _,
         target_machine_families: _,
         deferred_refusals,
         boundary_completion_declarations: _,

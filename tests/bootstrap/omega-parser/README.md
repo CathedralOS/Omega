@@ -269,8 +269,8 @@ independent identities.
 
 ## Layer-0 source-cost diagnostic
 
-`measure.sh` freezes unchanged C files of increasing size: `parse/input.omg`,
-`resolve/resolver.omg`, then all `source/psi/parse/*.omg`, preserving unit
+`measure.sh` freezes unchanged C files of increasing size: `pipeline/01_tokens-to-syntax-trees/input.omg`,
+`pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.omg`, then all `source/psi/pipeline/01_tokens-to-syntax-trees/*.omg`, preserving unit
 boundaries. One whole-D customer reads sealed stdin into its actual array-backed
 source representation and calls `OmegaParser::parse_view`. A newline, the tiny
 `answer` machine, and a NUL reject control precede every dataset and reuse the

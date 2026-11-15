@@ -6,7 +6,9 @@ use build_time_evaluation::provider_declarations::{
     ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
 };
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::provider_choices::{self, Candidate, Declaration};
+use provider_planning::target_supply::{
+    ProviderSupply, SupplyAuthority, UnchosenSupply, choose_supply,
+};
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::provider_declarations::ProviderPlanningContext;
@@ -14,7 +16,7 @@ use typed_trees::service_declarations::projection;
 use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use typed_trees::{FrozenTypedTrees, TypedTrees};
 
-use psi_compiler::TerminalProviderSelectionInput as ProviderSelectionInput;
+use source_compiler::TerminalProviderSelectionInput as ProviderSelectionInput;
 
 type Slot = ((u32, u32), Option<String>);
 type Provider = ((u32, u32), Option<String>);
@@ -53,51 +55,6 @@ struct SourceCandidate {
     complete: bool,
     surface: Arc<language_semantics::service_surface::ServiceSurface>,
 }
-impl Candidate for SourceCandidate {
-    type Slot = Slot;
-    type Provider = Provider;
-    fn slot(&self) -> &Slot {
-        &self.slot
-    }
-    fn provider(&self) -> &Provider {
-        &self.provider_key
-    }
-    fn target(&self) -> &str {
-        &self.target
-    }
-    fn build_keyed(&self) -> bool {
-        false
-    }
-    fn has_requirements(&self) -> bool {
-        !self.surface.methods.is_empty()
-    }
-    fn covers_requirements(&self) -> bool {
-        self.complete
-    }
-    fn receiver_count(&self) -> usize {
-        self.surface.receiver_applications.len()
-    }
-    fn supplies_receiver(&self, other: &Self) -> Option<bool> {
-        if self.slot == other.slot {
-            return Some(self.surface == other.surface);
-        }
-        if !shares_source_receiver(&self.surface, &other.surface) {
-            return Some(false);
-        }
-        // A distinct whole schema may need owner-bound calling applications.
-        // No absent ABI evidence is promoted to physical agreement.
-        None
-    }
-    fn shares_receiver(&self, other: &Self) -> Option<bool> {
-        if !shares_source_receiver(&self.surface, &other.surface) {
-            return Some(false);
-        }
-        if self.slot == other.slot {
-            return Some(self.surface == other.surface);
-        }
-        None
-    }
-}
 fn shares_source_receiver(
     left: &language_semantics::service_surface::ServiceSurface,
     right: &language_semantics::service_surface::ServiceSurface,
@@ -117,10 +74,7 @@ struct SourceDeclaration<'a> {
     target: Option<String>,
     provider: Provider,
 }
-impl Declaration<Slot, Provider> for SourceDeclaration<'_> {
-    fn target(&self) -> Option<&str> {
-        self.target.as_deref()
-    }
+impl SourceDeclaration<'_> {
     fn slots(&self, available: &[Slot]) -> Vec<Slot> {
         match &self.application {
             Some(application) => vec![(self.slot, Some(application.clone()))],
@@ -137,9 +91,6 @@ impl Declaration<Slot, Provider> for SourceDeclaration<'_> {
                 }
             }
         }
-    }
-    fn provider(&self) -> &Provider {
-        &self.provider
     }
 }
 
@@ -359,6 +310,12 @@ pub fn prepare_with_source_defaults(
             });
         }
     }
+    let mut available = candidates
+        .iter()
+        .map(|row| row.slot.clone())
+        .collect::<Vec<_>>();
+    available.sort_unstable();
+    available.dedup();
     let mut selections = Vec::new();
     let mut roots = Vec::new();
     let mut applications = Vec::new();
@@ -367,58 +324,98 @@ pub fn prepare_with_source_defaults(
         if !seen_targets.insert(target.target_name()) {
             continue;
         }
-        let outcome =
-            provider_choices::choose(&candidates, target.target_name(), &defaults, &overrides);
-        if !outcome.errors.is_empty() {
-            return Err(outcome
-                .errors
-                .into_iter()
-                .map(|error| {
-                    Diagnostic::error(format!(
-                        "source provider selection for {}: {error:?}",
-                        target.target_name()
-                    ))
+        let applies = |row: &&SourceDeclaration<'_>| {
+            row.target
+                .as_deref()
+                .is_none_or(|selected| selected == target.target_name())
+        };
+        let mut slots = defaults
+            .iter()
+            .chain(&overrides)
+            .filter(applies)
+            .flat_map(|row| row.slots(&available))
+            .collect::<Vec<_>>();
+        slots.sort_unstable();
+        slots.dedup();
+        let mut selected_candidates = Vec::<usize>::new();
+        for slot in slots {
+            let declarations = defaults
+                .iter()
+                .map(|row| (SupplyAuthority::TargetDefault, row))
+                .chain(overrides.iter().map(|row| (SupplyAuthority::Build, row)))
+                .filter(|(_, row)| applies(row) && row.slots(&available).contains(&slot))
+                .collect::<Vec<_>>();
+            let supplies = declarations
+                .iter()
+                .map(|(authority, row)| ProviderSupply {
+                    authority: *authority,
+                    selection: row.source.clone(),
                 })
-                .collect());
-        }
-        for choice in outcome.choices {
-            let candidate = candidates.get(choice.candidate).ok_or_else(|| {
-                diagnostic("canonical provider choice has no exact source candidate")
-            })?;
-            let origin = match &choice.reason {
-                provider_choices::Reason::Override(indices) => {
-                    let [index] = indices.as_slice() else {
-                        return Err(diagnostic("provider override has no exact source choice"));
-                    };
-                    overrides
-                        .get(*index)
-                        .ok_or_else(|| diagnostic("provider override source index is stale"))?
-                }
-                provider_choices::Reason::Default(indices) => {
-                    let first = *indices
-                        .first()
-                        .ok_or_else(|| diagnostic("provider default has no source choice"))?;
-                    let first = defaults
-                        .get(first)
-                        .ok_or_else(|| diagnostic("provider default source index is stale"))?;
-                    if indices.iter().any(|index| {
-                        defaults.get(*index).is_none_or(|other| {
-                            other.source.composition_mode != first.source.composition_mode
-                        })
-                    }) {
-                        return Err(diagnostic(
-                            "equal provider defaults retain different composition modes",
-                        ));
+                .collect::<Vec<_>>();
+            let selected = choose_supply(&supplies).map_err(|reason| {
+                let detail = match reason {
+                    UnchosenSupply::Unsupplied => {
+                        "explicit source slot has no provider supply".to_owned()
                     }
-                    first
-                }
-                provider_choices::Reason::UniqueCoveringCandidate
-                | provider_choices::Reason::TargetRealization => {
+                    UnchosenSupply::Competing(rows) => {
+                        let category = match rows[0].authority {
+                            SupplyAuthority::Build => "ConflictingOverrides",
+                            SupplyAuthority::TargetDefault => "ConflictingDefaults",
+                        };
+                        let providers = rows
+                            .iter()
+                            .map(|row| row.selection.provider_type.authored_path.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("{category}: {providers}")
+                    }
+                };
+                diagnostic(format!(
+                    "source provider selection for {}: {detail}",
+                    target.target_name()
+                ))
+            })?;
+            let origin = declarations
+                .iter()
+                .zip(&supplies)
+                .find_map(|((_, row), supply)| std::ptr::eq(supply, selected).then_some(*row))
+                .ok_or_else(|| {
+                    diagnostic("canonical provider supply lost its source declaration")
+                })?;
+            if !available.contains(&slot) {
+                return Err(diagnostic(format!(
+                    "source provider selection for {}: UnknownSlot",
+                    target.target_name()
+                )));
+            }
+            let mut matching = candidates.iter().enumerate().filter(|(_, candidate)| {
+                candidate.slot == slot
+                    && candidate.provider_key == origin.provider
+                    && (candidate.target.is_empty() || candidate.target == target.target_name())
+            });
+            let (Some((index, candidate)), None) = (matching.next(), matching.next()) else {
+                return Err(diagnostic(format!(
+                    "source provider selection for {} has no unique exact candidate for `{}`",
+                    target.target_name(),
+                    origin.source.provider_type.authored_path
+                )));
+            };
+            if !candidate.complete {
+                return Err(diagnostic(
+                    "selected provider does not cover its complete source schema",
+                ));
+            }
+            for &previous in &selected_candidates {
+                let previous = &candidates[previous];
+                if previous.slot != candidate.slot
+                    && shares_source_receiver(&previous.surface, &candidate.surface)
+                {
                     return Err(diagnostic(
-                        "automatic provider source choice lacks its actual source policy declaration",
+                        "source provider choices with a shared receiver need their owner-bound calling application comparison",
                     ));
                 }
-            };
+            }
+            selected_candidates.push(index);
             selections.push(ProviderSelectionInput {
                 target: target.target_name().to_owned(),
                 schema: candidate.scope.clone(),

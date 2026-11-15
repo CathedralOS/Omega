@@ -1,12 +1,12 @@
 /*
-A review request borrows genuine typed source and compilation metadata; it has no
-checking-input implementation or old fact namespace. Construction remains
-unavailable until the route publishes review contract custody. Every projection
-preserves that refusal rather than manufacturing an empty policy.
+A review request borrows the source the product judgment actually accepted.
+Equal-looking declarations from a different source owner cannot describe that
+judgment. The input grants no policy acceptance; projections still owe complete
+findings from this same retained compilation.
 */
 
-use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
+use products::CheckedCompilation;
 use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy)]
@@ -17,10 +17,43 @@ pub struct PackageReviewInput<'a> {
 
 impl<'a> PackageReviewInput<'a> {
     pub fn supplied(
-        _candidate: &'a TypedTrees,
-        _custody: &'a CheckedCompilation,
+        candidate: &'a TypedTrees,
+        custody: &'a CheckedCompilation,
     ) -> Result<Self, Vec<Diagnostic>> {
-        Err(super::unavailable_projection("package review"))
+        let source = custody.source_inspection().program();
+        custody
+            .sources()
+            .require_owner(source)
+            .map_err(|error| vec![error])?;
+        custody
+            .terminal_publication()
+            .require_source_owner(source)
+            .map_err(|error| vec![error])?;
+        if !std::ptr::eq(candidate, source.as_ref().as_ref()) {
+            return Err(vec![Diagnostic::error(
+                "package review candidate differs from the accepted source owner",
+            )]);
+        }
+        let accepted = custody.terminal_publication().accepted()?;
+        if accepted.is_invocation() {
+            return Err(vec![Diagnostic::error(
+                "package review requires a portable package judgment",
+            )]);
+        }
+        let package = custody.sources().package_identity();
+        if package.is_none() || custody.terminal_publication().roster()?.subject != package {
+            return Err(vec![Diagnostic::error(
+                "package review requires the accepted package's complete declaration subject",
+            )]);
+        }
+        if custody.build().selected_build_machine_symbol.is_some()
+            != custody.build().accepted_build.is_some()
+        {
+            return Err(vec![Diagnostic::error(
+                "package review requires the selected Build's accepted judgment",
+            )]);
+        }
+        Ok(Self { candidate, custody })
     }
 
     pub fn candidate(&self) -> &'a TypedTrees {
@@ -29,6 +62,12 @@ impl<'a> PackageReviewInput<'a> {
 
     pub fn compilation(&self) -> &'a CheckedCompilation {
         self.custody
+    }
+
+    /// Read the exact module whose judgment admitted this source, before
+    /// projecting its contracts or effects into inert review rows.
+    pub fn module(&self) -> Result<&'a terminal_psi::TerminalModule, Vec<Diagnostic>> {
+        Ok(self.custody.terminal_publication().accepted()?.module())
     }
 }
 

@@ -3,7 +3,7 @@
 Five product siblings pooled on one `Build::application` request:
 
 - `a`, `c`, `e` converge: each build edge-pools on `../shared` and its
-  build calls `shared::main`'s `seed()` returning 3.
+  build calls `shared::seed()` returning 3.
 - `bad1` (position 2): build-eval divergence — its build retires a
   required-output obligation with `BuildOutput::fail`.
 - `bad2` (position 4): checked-compilation divergence — its build source

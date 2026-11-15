@@ -1,12 +1,11 @@
 /*
 Runtime permission snapshots retain source association and public Build metadata.
-The retired checker's contract plans cannot supply route-owned permission proof.
-Until the accepted route publishes that custody, a request for policy rows refuses
-rather than emitting an empty permission baseline or borrowing old checked facts.
+At consumption the same source must have an accepted Product judgment, and its
+complete supported policy inventory supplies the consent comparison rows.
 */
 
-use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
+use products::CheckedProductSource;
 use std::sync::Arc;
 use typed_trees::ProductSourceIdentity;
 
@@ -39,23 +38,30 @@ impl PreparedRuntimePolicy {
         package: semantic_vocabulary::PackageKeyIdentity,
     ) -> Result<Vec<crate::record::PackagePolicyRow>, Vec<Diagnostic>> {
         let owner = self.owner.as_ref().map_err(|error| vec![error.clone()])?;
-        if !owner.same_source(input.sources.source_identity())
-            || self.sources.as_ref() != input.sources
+        let checked = input.compilation;
+        if !owner.same_source(checked.sources().source_identity())
+            || self.sources.as_ref() != checked.sources()
         {
             return Err(vec![Diagnostic::error(
                 "saved permission declarations belong to another typed source owner",
             )]);
         }
-        if input.sources.package_identity() != Some(package)
-            || input.execution.target_profile() != Some(target)
-            || input.execution.native_target() != Some(target.native_target())
+        if checked.sources().package_identity() != Some(package)
+            || checked.execution().target_profile() != Some(target)
+            || checked.execution().native_target() != Some(target.native_target())
         {
             return Err(vec![Diagnostic::error(
                 "policy package or target differs from the exact root activation",
             )]);
         }
-        Err(vec![Diagnostic::error(
-            "no product route yet: runtime permission and assumed-binding policy require route-owned contract custody",
-        )])
+        let policy = super::project_checked_package_policy(checked, target, package)?;
+        let (rows, _) = policy
+            .acceptance_rows_with_limits(Default::default())
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot encode the accepted runtime permission policy: {error:?}"
+                ))]
+            })?;
+        Ok(rows)
     }
 }

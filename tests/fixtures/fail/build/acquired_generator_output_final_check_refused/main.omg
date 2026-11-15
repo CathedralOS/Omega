@@ -1,8 +1,8 @@
 // Expected rejection: the generated scalar initializer is outside u32.
-use runtime_generator::main;
+use runtime_generator;
 
 machine main() crashes Trap {
-    let observed: i32 = generated_value();
+    let observed: i32 = runtime_generator::generated_value();
     transition observed == 7 {
         true -> done()
         false -> wrong()

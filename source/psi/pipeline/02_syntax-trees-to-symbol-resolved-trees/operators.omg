@@ -1,0 +1,152 @@
+// Operator homes (wiki/spec/language/expressions.md#operator-families). A
+// qualified token-bound machine `machine <= Nat::less_or_equal(...)`
+// establishes its semantic home through its owner: the data declaration
+// `Nat`. Direct families are closed, so only the home's own package may
+// publish its token bindings: an owner naming a builtin carrier, a trait or
+// another package's data rejects at the owner. Two machines binding one
+// token at one home with the same parameters are duplicate participating
+// shapes and reject at the later one. Typing selects among a home's machines
+// by their operands (pipeline/03_symbol-resolved-trees-to-typed-trees/operators.omg).
+public machine bind_operator_homes(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next(resolver, sources, syntax, 0) }
+
+    machine next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.machine_count && resolver.output.accepted {
+            true -> machine(resolver, sources, syntax, index)
+            _ -> done()
+        }
+    }
+
+    machine machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: MachineItem = machine_item(syntax, index);
+        set_operator_home(resolver, index, TypeBinding::Unresolved);
+        transition item.operator == OperatorToken::None {
+            true -> next(resolver, sources, syntax, index + 1)
+            _ -> owner(resolver, sources, syntax, index, item)
+        }
+    }
+
+    machine owner(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem) {
+        let scope: TypeScope = resolver_machine_scope(&resolver.output, syntax, index);
+        let binding: TypeBinding = type_binding(sources, syntax, scope, entry.owner.source_span);
+        transition binding {
+            TypeBinding::Data { item } -> data_home(resolver, sources, syntax, index, entry, item)
+            _ -> foreign(resolver, entry)
+        }
+    }
+
+    machine data_home(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem, data: u64 in Trapping) {
+        let declared: DataItem = syntax_trees_data_item(syntax, data);
+        let machine_unit: u64 in Trapping = entry.name.source_span.source.value as u64 in Trapping;
+        let data_unit: u64 in Trapping = declared.name.source_span.source.value as u64 in Trapping;
+        let own: bool = resolver_same_package(sources, machine_unit, data_unit);
+        transition own {
+            true -> homed(resolver, sources, syntax, index, entry, data)
+            _ -> foreign(resolver, entry)
+        }
+    }
+
+    machine homed(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, entry: MachineItem, data: u64 in Trapping) {
+        set_operator_home(resolver, index, TypeBinding::Data { item: data });
+        let duplicate: bool = earlier_operator_shape(resolver, sources, syntax, index, entry.operator, data);
+        transition duplicate {
+            true -> repeated(resolver, entry)
+            _ -> next(resolver, sources, syntax, index + 1)
+        }
+    }
+
+    machine foreign(resolver: &mut Resolver, entry: MachineItem) {
+        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::ForeignOperatorHome, entry.owner.source_span);
+    }
+
+    machine repeated(resolver: &mut Resolver, entry: MachineItem) {
+        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::DuplicateMachine, entry.name.source_span);
+    }
+
+    machine done() {}
+}
+
+// Whether a machine before `handle` binds `token` at home `data` with the
+// same parameters.
+machine earlier_operator_shape(
+    resolver: &Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    handle: u64 in Trapping,
+    token: OperatorToken,
+    data: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    transition { _ -> next(resolver, sources, syntax, handle, token, data, 0) }
+
+    machine next(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
+        transition earlier < handle {
+            true -> candidate(resolver, sources, syntax, handle, token, data, earlier)
+            _ -> unique()
+        }
+    }
+
+    machine candidate(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
+        let item: MachineItem = machine_item(syntax, earlier);
+        let home: TypeBinding = operator_home(&resolver.output, earlier);
+        let same_home: bool = homed_at(home, data);
+        transition item.operator == token && same_home {
+            true -> shape(resolver, sources, syntax, handle, token, data, earlier)
+            _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)
+        }
+    }
+
+    machine shape(resolver: &Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
+        let same: bool = same_parameters(resolver, sources, syntax, earlier, handle);
+        transition same {
+            true -> repeated()
+            _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)
+        }
+    }
+
+    machine repeated() -> bool {
+        true
+    }
+
+    machine unique() -> bool {
+        false
+    }
+}
+
+// Whether an operator home is data declaration `data`.
+public machine homed_at(home: TypeBinding, data: u64 in Trapping) -> bool {
+    transition home {
+        TypeBinding::Data { item } -> data_item(item, data)
+        _ -> elsewhere()
+    }
+
+    machine data_item(item: u64 in Trapping, data: u64 in Trapping) -> bool {
+        item == data
+    }
+
+    machine elsewhere() -> bool {
+        false
+    }
+}
+
+machine set_operator_home(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
+crashes Trap
+{
+    transition handle < 10240 {
+        true -> store(resolver, handle, home)
+        _ -> invalid()
+    }
+
+    machine store(resolver: &mut Resolver, handle: u64 in Trapping, home: TypeBinding)
+    requires handle < 10240
+    {
+        resolver.output.operator_homes[handle] = home;
+    }
+
+    machine invalid() {
+        crash Trap;
+    }
+}

@@ -5,11 +5,24 @@
 
 use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, terminal_borrowed_storage_graph_from,
+    DescriptorAnalysis, DescriptorGraphError, terminal_borrowed_storage_graph_from,
 };
+
+fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Refusal {
+    let mut refusal = refuse(
+        error.machine(),
+        error
+            .operation(module)
+            .map(Construct::Operation)
+            .unwrap_or(Construct::Machine),
+        Unserved::Call("executable borrowed-storage closure cannot be reconstructed"),
+    );
+    refusal.detail = format!("{}: {}", refusal.detail, error.in_module(module));
+    refusal
+}
 
 pub(crate) fn publish(
     elaboration: &mut crate::Elaboration,
@@ -36,30 +49,37 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
                 .map(|_| machine.id)
         })
         .collect();
-    let Some(first) = selected.first().copied() else {
+    if selected.is_empty() {
         return Ok(());
-    };
+    }
     let unavailable =
         |machine: MachineId, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
     // A selected body can return a narrower permission than its public
-    // requirement promises. Until calls retain that public result contract,
-    // its body origins cannot authorize a reference escaping the call. Join
-    // the frontier already prepared above without rescanning the machines
-    // or their result types for each selected call.
+    // requirement promises. Calls retain the full declared lifetime union;
+    // the body's actual origins remain independently reconstructed below.
     let mut selected_calls: Vec<_> = selections.iter().collect();
     selected_calls.sort_unstable_by_key(|selection| selection.implementation);
     for machine in &selected {
-        if let Ok(position) =
-            selected_calls.binary_search_by_key(machine, |selection| selection.implementation)
-        {
-            return Err(unavailable(
-                selected_calls[position].caller,
-                "selected reference result requires its public requirement contract",
-            ));
+        let start = selected_calls.partition_point(|selection| selection.implementation < *machine);
+        let end = selected_calls.partition_point(|selection| selection.implementation <= *machine);
+        for selection in &selected_calls[start..end] {
+            let required = selection.required_contract.ok_or_else(|| {
+                unavailable(
+                    selection.caller,
+                    "selected reference result requires its public requirement contract",
+                )
+            })?;
+            terminal_semantics::selected_reference_result(
+                module,
+                selection.caller,
+                *machine,
+                required,
+            )
+            .map_err(|reason| unavailable(selection.caller, reason))?;
         }
     }
     let graph = terminal_borrowed_storage_graph_from(module, selected.iter().copied(), &[])
-        .map_err(|reason| unavailable(first, reason))?;
+        .map_err(|error| graph_unavailable(module, error))?;
     let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
     let mut published = Vec::with_capacity(selected.len());
     for id in selected {
@@ -83,6 +103,21 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
             &slots,
         )
         .map_err(|reason| unavailable(id, reason))?;
+        let start = selected_calls.partition_point(|selection| selection.implementation < id);
+        let end = selected_calls.partition_point(|selection| selection.implementation <= id);
+        for selection in &selected_calls[start..end] {
+            let required = selection.required_contract.ok_or_else(|| {
+                unavailable(
+                    selection.caller,
+                    "selected reference result lost its public requirement contract",
+                )
+            })?;
+            terminal_semantics::selected_reference_result(module, selection.caller, id, required)
+                .and_then(|public| {
+                    public.validate_actual_sources(&machine.structural_parameters, &mappings)
+                })
+                .map_err(|reason| unavailable(selection.caller, reason))?;
+        }
         published.push((id, mappings));
     }
     // Commit only after every actual reference result is complete.
@@ -139,12 +174,13 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
                     .iter()
                     .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
                 {
-                    let parent = descriptor_name(root, &segments[..crossing]).ok_or_else(|| {
-                        unavailable(
-                            machine.id,
-                            "reference parent has no exact static descriptor path",
-                        )
-                    })?;
+                    let parent = DescriptorLocation::captured(root, &segments[..crossing])
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "reference parent has no exact static descriptor path",
+                            )
+                        })?;
                     children.push((id, row.created_at, parent));
                 }
             }
@@ -153,7 +189,7 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
             continue;
         }
         let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[])
-            .map_err(|reason| unavailable(machine.id, reason))?;
+            .map_err(|error| graph_unavailable(module, error))?;
         let mut analysis =
             DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
         let flow = analysis.flow(machine.id).ok_or_else(|| {
@@ -209,7 +245,9 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
                         }
                         let (root, path) = captured_path(tables, captured)
                             .map_err(|reason| unavailable(machine.id, reason))?;
-                        if descriptor_name(root, &path).as_ref() == Some(&source_location) {
+                        if DescriptorLocation::captured(root, &path).as_ref()
+                            == Some(&source_location)
+                        {
                             matching.push(id);
                         }
                     }
@@ -282,7 +320,8 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
                             }
                             let (root, path) = captured_path(tables, captured)
                                 .map_err(|reason| unavailable(machine.id, reason))?;
-                            if descriptor_name(root, &path).as_ref() == Some(&location) {
+                            if DescriptorLocation::captured(root, &path).as_ref() == Some(&location)
+                            {
                                 found = Some(id);
                                 break;
                             }
@@ -402,29 +441,6 @@ fn captured_path(
         }
     }
     Err("reference capture does not reach its exact storage root")
-}
-
-fn descriptor_name(
-    root: semantic_vocabulary::PlaceId,
-    path: &[terminal_check_tables::bindings::Segment],
-) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
-    use terminal_check_tables::bindings::Segment;
-    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
-    Some(DescriptorLocation {
-        root,
-        path: path
-            .iter()
-            .map(|step| {
-                Some(match step {
-                    Segment::Field(field) => DescriptorPathSegment::Field(*field),
-                    Segment::Case(case) => DescriptorPathSegment::Case(*case),
-                    Segment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
-                    Segment::Referent => DescriptorPathSegment::Referent,
-                    Segment::RuntimeIndex { .. } | Segment::Extent => return None,
-                })
-            })
-            .collect::<Option<Vec<_>>>()?,
-    })
 }
 
 fn formation_position(

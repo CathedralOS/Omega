@@ -9,13 +9,13 @@ use super::{
 };
 use crate::Hex;
 use crate::resolution::source::PackageSourceCustody;
-use package_source::local::operations::{
+use source_acquisition::local::operations::{
     capture_verified_package_source_snapshot, verify_package_source_snapshot,
 };
-use package_source::local::resolution_observations::{
+use source_acquisition::local::resolution_observations::{
     VerifiedPackageSourceEntry, VerifiedPackageSourceEntryKind,
 };
-use package_source::{GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits};
+use source_acquisition::{GitObjectIdAlgorithm, ImmutableSourceResolution, LocalSourceLimits};
 use std::collections::BTreeMap;
 
 pub(super) fn render_resolution(
@@ -123,9 +123,9 @@ pub(super) fn capture_snapshot(
 fn captured_entries(
     tree: &source::CapturedSourceTree,
     limits: LocalSourceLimits,
-) -> Result<Vec<VerifiedPackageSourceEntry>, package_source::SourceResolveError> {
-    use package_source::SourceResolveError;
+) -> Result<Vec<VerifiedPackageSourceEntry>, source_acquisition::SourceResolveError> {
     use source::CapturedSourceNode;
+    use source_acquisition::SourceResolveError;
     let mut entries = Vec::new();
     let mut payload_bytes = 0u64;
     for (path, node) in tree.entries() {

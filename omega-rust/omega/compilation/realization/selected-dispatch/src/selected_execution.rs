@@ -72,7 +72,7 @@ impl SelectedExecution {
     ) -> Option<backend_plan::TerminalTargetProviderProposal> {
         let target = self.target_profile?.target_name();
         let selection = backend_plan::TerminalTargetProviderSelection::from_plans(
-            self.realization.provider_declarations(),
+            self.realization.provider_declarations().to_vec(),
             artifact,
         )
         .map(|mut selection| {

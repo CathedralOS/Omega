@@ -562,23 +562,6 @@ mod calls {
                         syntax_type_references(syntax).type_reference_handles(*right_arguments),
                     )
             }
-            (
-                TypeReferenceNode::DynamicTrait {
-                    trait_name: left_name,
-                    trait_arguments: left_arguments,
-                },
-                TypeReferenceNode::DynamicTrait {
-                    trait_name: right_name,
-                    trait_arguments: right_arguments,
-                },
-            ) => {
-                left_name.as_str(syntax) == right_name.as_str(syntax)
-                    && call_context_parameter_types_agree(
-                        syntax,
-                        syntax_type_references(syntax).type_reference_handles(*left_arguments),
-                        syntax_type_references(syntax).type_reference_handles(*right_arguments),
-                    )
-            }
             (TypeReferenceNode::Constrained { .. }, TypeReferenceNode::Constrained { .. })
             | (TypeReferenceNode::ConstExpression(_), TypeReferenceNode::ConstExpression(_)) => {
                 false
@@ -1121,12 +1104,6 @@ mod expressions {
         fn mark(&mut self, expression: ExpressionHandle) -> bool {
             self.0.insert(expression)
         }
-    }
-
-    pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
-        syntax: &SyntaxTrees,
-    ) -> ConcreteExpressions {
-        selected_machine_expression_handles(syntax, syntax.root_item_handles())
     }
 
     pub(in crate::preparation::generic_data) fn selected_machine_expression_handles(
@@ -1861,8 +1838,8 @@ pub(super) use constructors::{
     relabel_data_literal_for_expected_type, selected_constructor,
 };
 pub(super) use expressions::{
-    ConstructorFrontier, concrete_machine_declarations, concrete_machine_expression_handles,
-    selected_machine_expression_handles, selected_machine_state_handles,
+    ConstructorFrontier, concrete_machine_declarations, selected_machine_expression_handles,
+    selected_machine_state_handles,
 };
 pub(in crate::preparation) use expressions::{
     collect_expression_handles, collect_statement_expression_handles,

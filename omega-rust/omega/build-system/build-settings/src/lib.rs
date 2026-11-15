@@ -92,17 +92,17 @@ pub use activation::{
     BuildDependencySelection, BuildSourceResult, ReturnedBuild, TerminalBuildActivation,
     TerminalBuildHost, TerminalBuildStep,
 };
+pub use admission::build_stages::select_build_stage;
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use admission::target_helpers::select_build_helpers;
 pub use build_evaluation::{
-    BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
-    prepare_build_evaluation,
+    BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation,
+    RestrictedBuildGrants, prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
 pub use calling_policy_execution::{CALLING_POLICY_EVALUATOR, evaluate_terminal_calling_policy};
-pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use effects::AuthoredBehaviorExclusion;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
@@ -118,6 +118,8 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
+pub use products::BuildStage;
+pub use products::{BuildConfig, ComputedBuildConfig};
 pub use provider_planning::program_entry::{
     RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
     SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,

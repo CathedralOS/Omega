@@ -40,8 +40,8 @@ pub fn execute_report(report: compiler::CompileReport, output: &std::path::Path)
         "{:?}",
         observation.status
     );
-    let published = compilation_products::publication::publish_compilation(report, output)
-        .expect("publish native Product");
+    let published =
+        products::publication::publish_compilation(report, output).expect("publish native Product");
     let observed = std::process::Command::new(
         published
             .checked_native_executable_path()

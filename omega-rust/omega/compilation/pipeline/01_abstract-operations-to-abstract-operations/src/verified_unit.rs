@@ -449,6 +449,26 @@ impl VerifiedPsiOptimizationUnit {
 }
 
 #[cfg(test)]
+fn canonical_fixture(
+    module: &terminal_psi::TerminalModule,
+) -> terminal_codec::CanonicalTerminalArtifact {
+    let record = terminal_codec::build_identity_optimization_execution_record(module).unwrap();
+    terminal_codec::CanonicalTerminalArtifact::from_parts(module.clone(), record, None).unwrap()
+}
+
+#[cfg(test)]
+fn authorize_fixture(
+    artifact: terminal_codec::CanonicalTerminalArtifact,
+) -> terminal_installation::AuthorizedTerminalArtifact {
+    let producer = terminal_installation::HostProducerTrust::accept("controlled test producer");
+    terminal_installation::authorize_terminal_artifact(
+        std::sync::Arc::new(artifact),
+        Some(&producer),
+    )
+    .unwrap()
+}
+
+#[cfg(test)]
 mod evidence_seal_tests {
     // A scalar program from the lowered-form route, discharged with kernel
     // evidence, reaches this stage with its seals in memory: the accepted
@@ -465,9 +485,7 @@ mod evidence_seal_tests {
     };
 
     use super::{VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit};
-    use terminal_psi_to_abstract_operations::{
-        ArtifactSections, lower_artifact, lower_module_with_evidence,
-    };
+    use terminal_psi_to_abstract_operations::lower_artifact;
     use verified_optimization_input::{ObligationEvidence, VerifiedPsiOptimizationInput};
 
     fn u32_type() -> ScalarType {
@@ -503,6 +521,7 @@ mod evidence_seal_tests {
             call_context: None,
             kind: ExpressionKind::Strict {
                 operation: Strict::Add,
+                policy: None,
                 left: Box::new(slot(0)),
                 right: Box::new(slot(1)),
             },
@@ -548,13 +567,15 @@ mod evidence_seal_tests {
         (elaboration.module, seals)
     }
 
-    /// Lowers `module` in memory with `seals`, the only way to attach them.
+    /// The receiving test host trusts its controlled producer; seals remain a
+    /// separate optional input, not the authority to lower the artifact.
     fn build(
         module: &terminal_psi::TerminalModule,
         seals: Vec<ObligationEvidenceSeal>,
     ) -> Result<Vec<[u8; 32]>, VerifiedPsiOptimizationUnitBuildError> {
         let evidence = EvidenceSeals::for_module(module, seals).unwrap();
-        let input = lower_module_with_evidence(module, evidence)
+        let authorized = super::authorize_fixture(super::canonical_fixture(module));
+        let input = lower_artifact(&authorized, Some(evidence))
             .unwrap()
             .into_optimization_artifact()
             .into_optimization_input();
@@ -565,14 +586,14 @@ mod evidence_seal_tests {
     fn build_from_bytes(
         module: &terminal_psi::TerminalModule,
     ) -> Result<Vec<[u8; 32]>, VerifiedPsiOptimizationUnitBuildError> {
-        let bytes = terminal_codec::encode_module(module).unwrap();
-        let input = lower_artifact(ArtifactSections {
-            semantic_bytes: &bytes,
-        })
-        .unwrap()
-        .into_optimization_artifact()
-        .into_optimization_input();
-        assert_eq!(input.evidence(), &ObligationEvidence::ReadFromBytes);
+        let bytes = super::canonical_fixture(module).to_bytes();
+        let decoded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+        let authorized = super::authorize_fixture(decoded);
+        let input = lower_artifact(&authorized, None)
+            .unwrap()
+            .into_optimization_artifact()
+            .into_optimization_input();
+        assert_eq!(input.evidence(), &ObligationEvidence::NoSeals);
         fingerprints(input)
     }
 
@@ -581,7 +602,7 @@ mod evidence_seal_tests {
     ) -> Result<Vec<[u8; 32]>, VerifiedPsiOptimizationUnitBuildError> {
         let (_, unit) = build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )?
         .into_parts();
         Ok(unit
@@ -600,11 +621,30 @@ mod evidence_seal_tests {
     }
 
     #[test]
-    fn a_module_read_back_from_bytes_has_no_seals_and_zero_fingerprints() {
-        // The same module, after a byte round trip as a cache read does it: no
-        // error, no evidence, and no way to attach the seals made before.
+    fn a_trusted_artifact_read_back_from_bytes_has_no_seals_and_zero_fingerprints() {
+        // A fresh receiving-host decision authorizes the same artifact after
+        // its byte round trip. Optional seals are absent, not required for trust.
         let (module, _seals) = sealed_add();
         assert_eq!(build_from_bytes(&module).unwrap(), vec![[0; 32]]);
+    }
+
+    #[test]
+    fn identical_checked_bytes_cannot_supply_their_own_native_authorization() {
+        let (module, _seals) = sealed_add();
+        let original = super::canonical_fixture(&module);
+        let decoded =
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&original.to_bytes()).unwrap();
+        assert_eq!(
+            original.manifest().identity(),
+            decoded.manifest().identity()
+        );
+        let result =
+            terminal_installation::authorize_terminal_artifact(std::sync::Arc::new(decoded), None)
+                .map(|authorized| lower_artifact(&authorized, None));
+        assert!(matches!(
+            result,
+            Err(terminal_installation::ArtifactTrustError::ProducerTrustRequired)
+        ));
     }
 
     #[test]
@@ -616,7 +656,8 @@ mod evidence_seal_tests {
         let evidence = EvidenceSeals::for_module(&module, seals).unwrap();
         let mut changed = module.clone();
         changed.machines[0].contract.requires.pop();
-        let refused = lower_module_with_evidence(&changed, evidence)
+        let authorized = super::authorize_fixture(super::canonical_fixture(&changed));
+        let refused = lower_artifact(&authorized, Some(evidence))
             .expect_err("seals for another module are refused");
         assert_eq!(format!("{refused:?}"), "EvidenceForAnotherModule");
     }
@@ -680,19 +721,14 @@ mod qualified_cleanup_receiving_tests {
             .expect("foundation-valid mutation can be encoded");
         let artifact = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("mutant must reach semantic validation after canonical admission");
-        let semantic_bytes = terminal_codec::encode_module(artifact.semantic_module())
-            .expect("admitted module re-encodes");
-        let input = terminal_psi_to_abstract_operations::lower_artifact(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic_bytes,
-            },
-        )
-        .expect("artifact lowering converts data; it does not prove issuance")
-        .into_optimization_artifact()
-        .into_optimization_input();
+        let authorized = super::authorize_fixture(artifact);
+        let input = terminal_psi_to_abstract_operations::lower_artifact(&authorized, None)
+            .expect("artifact lowering converts data; it does not prove issuance")
+            .into_optimization_artifact()
+            .into_optimization_input();
         let verified = super::build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )
         .expect("construct exact unit before explicit semantic validation");
         let (_, unit) = verified.into_parts();

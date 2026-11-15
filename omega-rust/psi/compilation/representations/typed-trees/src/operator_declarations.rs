@@ -10,9 +10,7 @@ pub mod operator {
         use symbols::{SymbolHandle, SymbolKind};
 
         use crate::TypedTrees;
-        use crate::types::{
-            FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-        };
+        use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
         use super::{OperatorConstBinding, OperatorDefinition};
         use crate::declarations::operator::operand_signatures::normalized_operand_parameters;
@@ -416,7 +414,6 @@ pub mod operator {
                 } => lifetime.is_none() && closed_boundary_application_type(program, *referee),
                 TypeReferenceNode::Constrained { .. }
                 | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Callable { .. } => false,
                 TypeReferenceNode::FixedArray {
                     element_type,
@@ -455,8 +452,7 @@ pub mod operator {
             symbol: SymbolHandle,
             name: &str,
         ) -> bool {
-            if PrimitiveType::from_name(name).is_some()
-                || language_semantics::const_value::CanonicalConstValue::from_atom(name).is_some()
+            if language_semantics::const_value::CanonicalConstValue::from_atom(name).is_some()
                 || name.parse::<i128>().is_ok()
             {
                 return true;
@@ -1438,11 +1434,6 @@ pub mod operator {
                         base_symbol,
                         arguments,
                         ..
-                    }
-                    | TypeReferenceNode::DynamicTrait {
-                        symbol: base_symbol,
-                        arguments,
-                        ..
                     } => {
                         self.normalizer.canonical_index(*base_symbol);
                         for argument in program.type_reference_handles(*arguments) {
@@ -1782,10 +1773,7 @@ pub mod operator {
     }
     pub(crate) mod satisfied_operators {
         use crate::TypedTrees;
-        use crate::declarations::operator::applications::{
-            ClosedOperatorRealizationApplication, closed_operator_realization_application,
-        };
-        use crate::declarations::operator::{OperatorDefinition, declaration_by_symbol};
+        use crate::declarations::operator::OperatorDefinition;
         use crate::type_identity::TypeIdentityRequest;
         use symbols::SymbolHandle;
 
@@ -1842,41 +1830,6 @@ pub mod operator {
             candidates
                 .into_iter()
                 .find(|candidate| candidate.symbol == selected)
-        }
-
-        pub fn resolve_specialized_checked_operator_application<'program>(
-            program: &'program TypedTrees,
-            machine: &'program crate::machine::Machine,
-            namespace: &str,
-            requirement: &str,
-        ) -> Option<(
-            &'program OperatorDefinition,
-            &'program ClosedOperatorRealizationApplication,
-        )> {
-            let mut specializations = program
-                .machine_specializations
-                .iter()
-                .filter(|specialization| specialization.instance == machine.symbol);
-            let specialization = specializations.next()?;
-            if specializations.next().is_some() {
-                return None;
-            }
-            let mut rows = specialization
-                .operator_realizations
-                .iter()
-                .filter_map(|row| {
-                    let operator = declaration_by_symbol(program, row.requirement_symbol)?;
-                    operator_path_matches(operator, program, namespace, requirement)
-                        .then_some((operator, row))
-                });
-            let (operator, retained) = rows.next()?;
-            if rows.next().is_some()
-                || closed_operator_realization_application(program, machine, operator).as_ref()
-                    != Some(retained)
-            {
-                return None;
-            }
-            Some((operator, retained))
         }
 
         fn satisfied_operator_candidates<'program>(
@@ -2081,16 +2034,25 @@ pub mod operator {
                     })
                 })
                 .filter(move |candidate| {
-                    program
+                    let declaration = program
                         .symbols
-                        .source_reference_may_select_symbol(use_site, candidate.operator.symbol)
-                        || (program
+                        .symbol_provenance_source_span(candidate.operator.symbol);
+                    let visible = candidate.operator.is_public
+                        || declaration.is_none_or(|declaration| {
+                            program.symbols.same_source_package(use_site, declaration)
+                        });
+                    visible
+                        && (program.symbols.source_reference_may_select_symbol(
+                            use_site,
+                            candidate.operator.symbol,
+                        ) || (program
                             .symbols
                             .source_reference_can_see_symbol(use_site, candidate.operator.symbol)
-                            && super::primitive_float::is_default_primitive_operator(
-                                program,
-                                candidate.operator,
-                            ))
+                            && (candidate.domain.is_some()
+                                || super::primitive_float::is_default_primitive_operator(
+                                    program,
+                                    candidate.operator,
+                                ))))
                 })
                 .filter(move |candidate| match receiver_type {
                     Some(receiver_type) => {
@@ -2339,8 +2301,7 @@ pub mod operator {
                         OperandType::Unknown => return true,
                         OperandType::Primitive(primitive) => {
                             return program
-                                .type_reference_table
-                                .primitive_type(expected.type_reference)
+                                .primitive_type_reference(expected.type_reference)
                                 .is_none_or(|expected| expected == primitive);
                         }
                         OperandType::Reference(actual) => actual,
@@ -2443,20 +2404,15 @@ pub mod operator {
                 TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::ConstExpression(_) => {
                     false
                 }
-                TypeReferenceNode::Named { symbol, name } => {
+                TypeReferenceNode::Named { symbol, .. } => {
                     if program.data_type_parameter_by_symbol(*symbol).is_some() {
                         return false;
                     }
                     if !symbol.is_valid() {
-                        return crate::types::PrimitiveType::from_name(name.as_str()).is_some();
+                        return false;
                     }
                     if let Some(atom) = program.symbols.builtin_type_atom(*symbol) {
-                        return crate::types::PrimitiveType::from_name(&atom.symbol_name())
-                            .is_some()
-                            && atom.symbol_name() == name.as_str();
-                    }
-                    if crate::types::PrimitiveType::from_name(name.as_str()).is_some() {
-                        return false;
+                        return symbols::PrimitiveType::from_builtin_atom(atom).is_some();
                     }
                     let Some(definition) = program.unique_data_definition_by_symbol(*symbol) else {
                         return false;
@@ -2482,28 +2438,6 @@ pub mod operator {
                         && closed_multiplicity_arguments(
                             program,
                             program.data_type_parameters(definition),
-                            program.type_reference_handles(*arguments),
-                            depth + 1,
-                        )
-                }
-                TypeReferenceNode::DynamicTrait {
-                    symbol, arguments, ..
-                } => {
-                    if !symbol.is_valid() {
-                        return false;
-                    }
-                    let mut declarations = program
-                        .traits()
-                        .iter()
-                        .filter(|item| item.symbol == *symbol);
-                    let Some(declaration) = declarations.next() else {
-                        return false;
-                    };
-                    declarations.next().is_none()
-                        && declaration.lifetime_parameters.is_empty()
-                        && closed_multiplicity_arguments(
-                            program,
-                            program.trait_type_parameters(declaration),
                             program.type_reference_handles(*arguments),
                             depth + 1,
                         )
@@ -4038,14 +3972,19 @@ pub mod operator {
             let Ok(value) = i128::try_from(*value) else {
                 return false;
             };
-            let Some(primitive) = program.type_reference_table.primitive_type(type_reference)
-            else {
+            let Some(primitive) = program.primitive_type_reference(type_reference) else {
                 return false;
             };
             bind_operator_const(
                 const_bindings,
                 parameter.symbol,
-                CanonicalConstIdentity::integer(primitive.name(), value),
+                CanonicalConstIdentity::integer(
+                    match primitive.landed_landing() {
+                        Some(carrier) => carrier,
+                        None => return false,
+                    },
+                    value,
+                ),
             )
         }
 
@@ -4062,11 +4001,12 @@ pub mod operator {
             if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
                 return Some(value.identity());
             }
-            let value = name.as_str().parse::<i128>().ok()?;
-            let primitive = program
-                .type_reference_table
-                .primitive_type(declared_carrier)?;
-            Some(CanonicalConstIdentity::integer(primitive.name(), value))
+            let value = numerics::bignum::BigInt::from_decimal_str(name.as_str())?;
+            let primitive = program.primitive_type_reference(declared_carrier)?;
+            Some(CanonicalConstIdentity::integer(
+                primitive.landed_landing()?,
+                value,
+            ))
         }
 
         fn bind_operator_const(
@@ -4097,13 +4037,7 @@ pub mod operator {
                     && expected_symbol.is_valid()
                     && actual_symbol == expected_symbol;
             }
-            matches!(
-                (
-                    crate::types::PrimitiveType::from_name(actual_name),
-                    crate::types::PrimitiveType::from_name(expected_name),
-                ),
-                (Some(actual), Some(expected)) if actual == expected
-            )
+            false
         }
 
         fn expected_bindable_symbol(
@@ -4175,7 +4109,6 @@ pub mod operator {
         boundary_operator_requirement_identity,
         resolve_satisfied_boundary_operator_for_conformance,
         resolve_satisfied_checked_operator_for_conformance,
-        resolve_specialized_checked_operator_application,
     };
     pub use spellings::{
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,

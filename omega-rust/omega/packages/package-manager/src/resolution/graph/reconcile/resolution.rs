@@ -27,6 +27,7 @@ use crate::resolution::source::PackageSourceNavigation;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[cfg(test)]
+#[path = "resolution_tests.rs"]
 mod tests;
 
 #[derive(Debug, Clone)]
@@ -57,8 +58,10 @@ struct SourceClosureTraversal {
     root_role: BuildDeclarationKind,
     limits: PackageSourceClosureLimits,
     accepted: BTreeMap<PackageKey, PackageSourceCustody>,
-    acquired:
-        BTreeMap<(package_source::SourceLineage, PackageSourceNavigation), PackageSourceCustody>,
+    acquired: BTreeMap<
+        (source_acquisition::SourceLineage, PackageSourceNavigation),
+        PackageSourceCustody,
+    >,
     observed: BTreeMap<PackageKey, Vec<ObservedCustody>>,
     dependencies: BTreeMap<PackageKey, Vec<ResolvedDependency>>,
     depths: BTreeMap<PackageKey, usize>,
@@ -136,7 +139,7 @@ impl PendingSourceResolution {
 
     pub(crate) fn acquired_source(
         &self,
-        lineage: &package_source::SourceLineage,
+        lineage: &source_acquisition::SourceLineage,
         navigation: &PackageSourceNavigation,
     ) -> Option<&PackageSourceCustody> {
         self.owner

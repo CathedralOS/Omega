@@ -18,7 +18,17 @@ use terminal_psi::{
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
 
+#[path = "physical_publication_tests_callback.rs"]
 mod callback;
+
+fn authorize_fixture(
+    artifact: &CanonicalTerminalArtifact,
+) -> terminal_installation::AuthorizedTerminalArtifact {
+    let producer =
+        terminal_installation::HostProducerTrust::accept("controlled publication fixture");
+    terminal_installation::authorize_terminal_artifact(Arc::new(artifact.clone()), Some(&producer))
+        .unwrap()
+}
 
 fn emit_body<'execution>(
     mut admitted: terminal_psi_to_abstract_operations::AdmittedNativeRealization<'execution>,
@@ -156,22 +166,74 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
             });
+        let mut identities = module.identities.clone().into_builder();
+        let provider = identities.intern("PhysicalValueProvider");
+        let declaration = identities.intern("PhysicalValueMap");
+        let candidate = identities.intern("PhysicalValueProvider::value");
         module
-            .target_machine_families
-            .push(terminal_psi::TargetMachineFamily {
-                canonical: terminal_psi::TargetMachineCallable::Boundary(boundary),
-                head_contract: [1; 32],
-                members: vec![terminal_psi::TargetMachineFamilyMember {
-                    target: "windows_x86_64".into(),
-                    callable: terminal_psi::TargetMachineCallable::Machine(callee.id),
-                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                }],
+            .provider_candidates
+            .push(terminal_psi::ProviderCandidateConformance {
+                boundary,
+                requirement_identity: name,
+                source_requirement_identity: name,
+                declaration_application: terminal_psi::TerminalIdentityIndex::ABSENT,
+                receiving_application: terminal_psi::TerminalIdentityIndex::ABSENT,
+                receiving_region_arguments: Vec::new(),
+                provider_identity: provider,
+                provider_declaration: terminal_psi::NominalDeclarationIdentity::new(declaration),
+                candidate_identity: candidate,
+                source_candidate_identity: candidate,
+                source_candidate_package_identity: None,
+                candidate: callee.id,
+                signature: terminal_psi::ProviderSignature::empty(),
+                refinement: terminal_psi::ProviderRefinement::empty(),
             });
+        module.identities = identities.build();
         module.machines.push(callee);
     }
     let optimization = terminal_codec::build_identity_optimization_execution_record(&module)
         .expect("constant module optimization identity");
     Arc::new(CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap())
+}
+
+// A checked boundary body uses the same explicit provider plan as ordinary
+// native compilation. The fixture grants no alternate target-body selection.
+fn checked_value_plan() -> effects::provider_plan::ProviderPlan {
+    use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+    let mut plan = ProviderPlan {
+        name: "physical-value".into(),
+        provider_type: "PhysicalValueProvider".into(),
+        provider_declaration: Some("PhysicalValueMap".into()),
+        target: "windows_x86_64".into(),
+        ..ProviderPlan::default()
+    };
+    plan.provider_application = plan.identities.intern("PhysicalValueProvider");
+    let surface = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+    surface.trait_name = surface.identities.intern("PhysicalFixture");
+    surface.methods.push(ServiceMethod {
+        name: "value".into(),
+        requirement_owner: "PhysicalFixture".into(),
+        requirement_identity: surface.identities.intern("PhysicalFixture::value"),
+        has_result: true,
+        result_type_identity: surface.identities.intern("u64"),
+        terminates_guarantee: true,
+        ..ServiceMethod::default()
+    });
+    let requirement = plan.identities.intern("PhysicalFixture::value");
+    let machine = plan.identities.intern("PhysicalValueProvider::value");
+    plan.rows.push(ProviderPlanRow {
+        method: "value".into(),
+        requirement_identity: requirement,
+        declared_requirement_identity: requirement,
+        calling_signature: None,
+        requirement_lifetime_partition: Vec::new(),
+        admitted_same_stack_bytes: 1024,
+        binding: ProviderBinding::CheckedAdapter {
+            machine_identity: machine,
+            machine_package_identity: None,
+        },
+    });
+    plan
 }
 
 #[test]
@@ -194,7 +256,17 @@ fn check_publication(through_boundary: bool) {
             .unwrap();
     let realizations = TerminalBoundaryApplicationRealizations::new(&demands, Vec::new()).unwrap();
     let coverage = TerminalBoundaryApplicationCoverage::new(demands, realizations).unwrap();
-    let selected = effects::SelectedProviderPlanFacts::default();
+    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(if through_boundary {
+        vec![checked_value_plan()]
+    } else {
+        Vec::new()
+    })
+    .unwrap();
+    let adapters =
+        terminal_psi_to_abstract_operations::provider_admission::retain_selected_provider_adapters(
+            &selected,
+        )
+        .unwrap();
     let policy = current_terminal_authority_policy();
     let exclusions = effects::BehaviorExclusions::default();
     let profile = target::TargetProfile::WindowsX64;
@@ -207,7 +279,7 @@ fn check_publication(through_boundary: bool) {
             program_provider_context: None,
             installation_assumptions: &[],
             selected_provider_plans: &selected,
-            checked_adapters: &[],
+            checked_adapters: &adapters,
             external_binding_rows: &[],
             settlements: &[],
             compiler_builtins: &[],
@@ -222,9 +294,11 @@ fn check_publication(through_boundary: bool) {
         boundary_application_coverage: Some(&coverage),
         behavior_exclusions: &exclusions,
     };
-    let admitted =
-        terminal_psi_to_abstract_operations::admit_native_realization(&artifact, &admission)
-            .expect("canonical constant admits without provider authority");
+    let admitted = terminal_psi_to_abstract_operations::admit_native_realization(
+        &authorize_fixture(&artifact),
+        &admission,
+    )
+    .expect("canonical constant admits without provider authority");
     let (projection, providers) = emit_body(admitted);
     let unrelated = constant_artifact(!through_boundary);
     assert!(

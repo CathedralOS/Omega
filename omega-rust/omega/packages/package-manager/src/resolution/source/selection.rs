@@ -10,7 +10,7 @@ pub(crate) enum PackageSourceSelectionEvidence {
     Root,
     GitWorkspace(GitWorkspaceSelectionEvidence),
     HistoricalGit {
-        _source: std::sync::Arc<package_source::ResolvedGitSource>,
+        _source: std::sync::Arc<source_acquisition::ResolvedGitSource>,
     },
 }
 

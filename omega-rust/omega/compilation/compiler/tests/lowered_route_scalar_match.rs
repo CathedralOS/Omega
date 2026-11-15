@@ -352,7 +352,7 @@ machine main() crashes Trap {
         .expect("the interpreter loads the published module");
         let status = execution
             .resume(
-                &mut psi_work::WorkMeter::with_budget(10_000_000),
+                &mut terminal_work::WorkMeter::with_budget(10_000_000),
                 &mut NoEffects,
             )
             .expect("the published program runs");

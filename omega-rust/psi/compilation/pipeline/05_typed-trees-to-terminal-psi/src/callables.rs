@@ -110,6 +110,7 @@ impl CallableNamespace {
         boundaries: &crate::boundaries::BoundaryNamespace,
         tables: &CheckTables,
         services: &crate::reach::ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let refuse = |reason: &str| Refusal {
@@ -138,7 +139,7 @@ impl CallableNamespace {
                 .ok_or_else(|| refuse("callable obligation identity overflow"))?;
             Ok(id)
         };
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         let machine_count = u64::try_from(module.machines.len())
             .map_err(|_| refuse("callable contract namespace exceeds its identity width"))?;
         let mut catalog = TerminalCallableCatalog::default();
@@ -151,6 +152,7 @@ impl CallableNamespace {
                 records,
                 self,
                 boundaries,
+                qualifications,
             )?;
             let mut proof = header.proof;
             proof.id = machine_count
@@ -177,7 +179,7 @@ impl CallableNamespace {
             };
             catalog.contracts.push(TerminalCallableContract {
                 id,
-                identity: identities.intern(&contract.identity),
+                identity: qualifications.identities.intern(&contract.identity),
                 scalar_parameters: header.scalar_parameters,
                 parameter_order: header.parameter_order,
                 structural_parameters: header.structural_parameters,
@@ -228,21 +230,21 @@ impl CallableNamespace {
                 contract: selection.contract,
                 machine: selection.machine,
                 origin: TerminalMachineDescriptorOrigin {
-                    application: identities.intern(&selection.application),
+                    application: qualifications.identities.intern(&selection.application),
                     conformance: selection
                         .conformance
                         .as_ref()
-                        .map(|text| identities.intern(text)),
+                        .map(|text| qualifications.identities.intern(text)),
                     requirement: selection
                         .requirement
                         .as_ref()
-                        .map(|text| identities.intern(text)),
+                        .map(|text| qualifications.identities.intern(text)),
                 },
                 refinement_obligations: Vec::new(),
                 refinement_evidence: Vec::new(),
             });
         }
-        module.identities = identities.build();
+        module.identities = std::mem::take(&mut qualifications.identities).build();
         module.callables = catalog;
         for (id, _) in self.descriptors.iter() {
             let selected = module

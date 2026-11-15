@@ -11,6 +11,9 @@ use serde::Serialize;
 use crate::repo_root;
 
 const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
+const CLAIMS_MISSING_PUSH_URL_FIX: &str = "mbx xtask claims needs exactly one push URL";
+const CLAIMS_UNREACHABLE_FIX: &str =
+    "mbx xtask claims status/note/claim will fail until the coordination remote answers";
 /// The one mbx pin every installer reads; doctor accepts it or anything newer.
 const MBX_VERSION_FILE: &str = "tools/mbx-version";
 const NEXTEST_MINIMUM: (u32, u32, u32) = (0, 9, 140);
@@ -215,6 +218,14 @@ fn mbx_install_fix() -> &'static str {
     }
 }
 
+fn nextest_install_fix() -> &'static str {
+    if cfg!(windows) {
+        r#"install/update cargo-nextest via PowerShell: `Invoke-WebRequest "https://github.com/nextest-rs/nextest/releases/latest/download/cargo-nextest-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\nextest.zip"; Expand-Archive "$env:TEMP\nextest.zip" "$HOME\.cargo\bin" -Force` — needed for `mbx nextest run`"#
+    } else {
+        "run `bash tools/agent_setup.sh` — needed for `mbx nextest run`"
+    }
+}
+
 fn check_mbx(root: &Path) -> CheckEntry {
     let Some((0, version, _)) = run_cmd("mbx", &["--version"], root) else {
         return check("mbx", "fail", "mbx not on PATH", Some(mbx_install_fix()));
@@ -273,7 +284,7 @@ fn check_nextest(root: &Path) -> CheckEntry {
             "nextest",
             "fail",
             "mbx nextest unavailable",
-            Some("run `bash tools/agent_setup.sh` — needed for `mbx nextest run`"),
+            Some(nextest_install_fix()),
         );
     };
     let text = if out.is_empty() { &err } else { &out };
@@ -288,7 +299,7 @@ fn check_nextest(root: &Path) -> CheckEntry {
                 "nextest {}.{}.{} < {}.{}.{}",
                 found.0, found.1, found.2, NEXTEST_MINIMUM.0, NEXTEST_MINIMUM.1, NEXTEST_MINIMUM.2
             ),
-            Some("run `bash tools/agent_setup.sh` to update cargo-nextest"),
+            Some(nextest_install_fix()),
         );
     }
     check(
@@ -309,7 +320,7 @@ fn check_claims_remote(root: &Path) -> CheckEntry {
             "claims",
             "warn",
             "no push URL for origin",
-            Some("claims.py needs exactly one push URL"),
+            Some(CLAIMS_MISSING_PUSH_URL_FIX),
         );
     };
     let urls: Vec<&str> = url_out.lines().filter(|l| !l.trim().is_empty()).collect();
@@ -329,7 +340,7 @@ fn check_claims_remote(root: &Path) -> CheckEntry {
                 "claims",
                 "warn",
                 format!("claims ref unreachable: {short}"),
-                Some("claims.py status/note/claim will fail until the coordination remote answers"),
+                Some(CLAIMS_UNREACHABLE_FIX),
             )
         }
         None => check("claims", "warn", "claims ref unreachable: git failed", None),
@@ -449,5 +460,23 @@ mod tests {
     fn reads_pinned_toolchain_channel() {
         let channel = toolchain_channel(&repo_root().expect("test runs in the Omega workspace"));
         assert!(channel.is_some());
+    }
+
+    #[test]
+    fn fix_hints_point_to_supported_tools_without_python_scripts() {
+        for hint in [
+            mbx_install_fix(),
+            nextest_install_fix(),
+            CLAIMS_MISSING_PUSH_URL_FIX,
+            CLAIMS_UNREACHABLE_FIX,
+        ] {
+            assert!(
+                !hint.contains(".py"),
+                "unexpected Python script hint: {hint}"
+            );
+        }
+        assert!(nextest_install_fix().contains("nextest"));
+        assert!(CLAIMS_MISSING_PUSH_URL_FIX.contains("mbx xtask claims"));
+        assert!(CLAIMS_UNREACHABLE_FIX.contains("mbx xtask claims"));
     }
 }

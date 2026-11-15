@@ -233,6 +233,22 @@ impl Program<'_> {
         ))
     }
 
+    /// Whether a value of this type is a readable borrowed byte view with no
+    /// domain: domains.md, "Operands": "Builtin operators and comparisons
+    /// ... accept unqualified operands only."
+    pub(super) fn is_plain_readable_bytes(
+        &self,
+        machine: MachineId,
+        value: Option<ValueType>,
+    ) -> Checked<bool> {
+        match value {
+            Some(ValueType::Record(row, Qualification::NONE, _)) => {
+                self.is_readable_byte_view(machine, row)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// `view[index]`: one byte of a borrowed byte view. The index is a
     /// `u64` (byte_views.md, `ByteSequenceRead`: "`u64` index and length"),
     /// and whether it lies inside the view is the checker's judgment, not
@@ -268,35 +284,12 @@ impl Program<'_> {
         })
     }
 
-    pub(super) fn byte_subslice(
-        &mut self,
+    pub(super) fn byte_range_selection(
+        &self,
         machine: MachineId,
-        slots: &[super::Slot],
-        base: Expression,
-        range: &typed_trees::expression::TableRangeExpression,
         handle: typed_trees::expression::ExpressionHandle,
-        source: SourceOrigin,
-    ) -> Checked<Expression> {
-        let unavailable =
-            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
-        let Some(ValueType::Record(row, _, regions)) = base.result else {
-            return Err(unavailable("range without its byte descriptor"));
-        };
-        if base
-            .result
-            .is_some_and(|value| !value.qualification().domains.is_empty())
-        {
-            return Err(unavailable(
-                "range of qualified bytes without its selected operand type",
-            ));
-        }
-        if !matches!(self.data_type(machine, row)?.shape,
-            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
-        {
-            return Err(unavailable(
-                "range of mutable backing without its persistent shared loan",
-            ));
-        }
+        row: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<()> {
         let count = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
@@ -331,8 +324,49 @@ impl Program<'_> {
                 &operands,
             )
         {
-            return Err(unavailable("range with a selected user operator"));
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Expression("range with a selected user operator"),
+            ));
         }
+        Ok(())
+    }
+
+    pub(super) fn byte_subslice(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        base: Expression,
+        range: &typed_trees::expression::TableRangeExpression,
+        handle: typed_trees::expression::ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let Some(ValueType::Record(row, _, regions)) = base.result else {
+            return Err(unavailable("range without its byte descriptor"));
+        };
+        if base
+            .result
+            .is_some_and(|value| !value.qualification().domains.is_empty())
+        {
+            return Err(unavailable(
+                "range of qualified bytes without its selected operand type",
+            ));
+        }
+        if !matches!(self.data_type(machine, row)?.shape,
+            StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
+        {
+            return Err(unavailable(
+                "range of mutable backing without its persistent shared loan",
+            ));
+        }
+        let count = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.byte_range_selection(machine, handle, row)?;
         let mut endpoint = |handle: typed_trees::expression::ExpressionHandle| -> Checked<Option<Box<Expression>>> {
             if !handle.is_valid() { return Ok(None); }
             let value = self.expression(machine, slots, handle, Some(ValueType::plain(count)))?;
@@ -351,6 +385,7 @@ impl Program<'_> {
                 call_context: None,
                 kind: ExpressionKind::Strict {
                     operation: crate::body::Strict::Add,
+                    policy: None,
                     left: last,
                     right: Box::new(Expression {
                         call_context: None,
@@ -387,7 +422,9 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         use typed_trees::expression::CollectionMeasure;
         let base = self.expression(machine, slots, receiver, None)?;
-        let Some(record) = self.opened(machine, base.result, super::authority::Access::Read)?
+        let Some(record) = self
+            .opened(machine, base.result, super::authority::Access::Read)?
+            .map(super::authority::Opened::record)
         else {
             return Err(refuse(
                 machine,
@@ -395,6 +432,52 @@ impl Program<'_> {
                 Unserved::Typing("collection measurement of non-collection storage"),
             ));
         };
+        let integer =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        // `array.len` of a fixed array is the extent its type states, a
+        // number known here: generics.md, "Runtime index identity and
+        // storage", "arrays keep static extents", and domains.md, "`[u8; N]
+        // in D` is the same exact `N`-byte fixed-array carrier as `[u8; N]`;
+        // its `.len` is `N`". Nothing is measured, so no operation is
+        // lowered for it and the expression is that number, a `u64`
+        // (counts_and_addresses.md: "General lengths ... use `u64`").
+        //
+        // The array must be a place named by fields from a local or a
+        // formal: such a path evaluates nothing, so leaving it out loses
+        // nothing. A call result, an element chosen by an index or a case
+        // payload would have to be evaluated or established first, and is
+        // refused here.
+        if measure == CollectionMeasure::Length
+            && let StorageShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = self.data_type(machine, record)?.shape
+        {
+            let mut place = &base;
+            while let ExpressionKind::Field { base, .. } | ExpressionKind::Referent(base) =
+                &place.kind
+            {
+                place = base;
+            }
+            if !matches!(place.kind, ExpressionKind::Slot(_)) {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Expression("length of a fixed array that is not a field path"),
+                ));
+            }
+            return Ok(Expression {
+                call_context: None,
+                kind: ExpressionKind::Integer(semantic_vocabulary::IntegerValue::Unsigned(
+                    length.into(),
+                )),
+                result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                    integer,
+                ))),
+                source,
+            });
+        }
         if measure != CollectionMeasure::Length
             || !matches!(
                 self.data_type(machine, record)?.shape,
@@ -409,9 +492,6 @@ impl Program<'_> {
                 Unserved::Expression("collection measurement without its descriptor operation"),
             ));
         }
-        let integer =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid");
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::CollectionMeasure {
@@ -575,6 +655,23 @@ impl Program<'_> {
                 if self.data_type(machine, row)?.shape == StorageShape::ByteSequence(carrier) =>
             {
                 (row, regions)
+            }
+            // data_and_literals.md, "Quoted bytes": "A quoted literal
+            // contains bytes, has ordinary shared byte-view type `&[u8]`".
+            // A scalar is never that type, so the literal is wrong for a
+            // scalar place in every program. A record destination (another
+            // view, a view under a domain) stays a refusal.
+            Some(ValueType::Scalar(scalar, _)) => {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    format!(
+                        "this quoted literal is a shared view of bytes, `&[u8]`, and the place \
+                         it is supplied to holds a `{}`: a quoted literal has the byte-view \
+                         type and no other",
+                        super::rejections::scalar_named(scalar)
+                    ),
+                ));
             }
             Some(_) => {
                 return Err(refuse(

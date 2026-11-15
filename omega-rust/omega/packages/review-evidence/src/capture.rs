@@ -1,12 +1,14 @@
 /*
-Portable review records and their encodings survive the old checker's removal.
-The route does not yet publish the contract custody needed to project policies,
-so these entrances refuse explicitly. Source/package metadata and typed binding
-nominations remain independent of a policy verdict.
+Review borrows the exact source and module retained by Product judgment.
+Supported declaration inventories produce inert policy rows; an unsupported
+nonempty contract or authority inventory prevents a partial review capsule.
 */
 
+mod callables;
+mod declarations;
 mod input;
 mod package_review;
+mod policy;
 mod runtime_permissions;
 mod semantic_bindings;
 
@@ -17,26 +19,18 @@ pub use semantic_bindings::{SemanticBindingProjectionError, candidate_target_ent
 
 use diagnostics::Diagnostic;
 
-pub(super) fn unavailable_projection(purpose: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!(
-        "no product route yet: {purpose} requires route-owned contract custody"
-    ))]
-}
-
 pub fn project_checked_package_policy<'a>(
     input: impl IntoPackageReviewInput<'a>,
-    _target: target::TargetProfile,
-    _package: semantic_vocabulary::PackageKeyIdentity,
+    target: target::TargetProfile,
+    package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<crate::record::PackagePolicyBaseline, Vec<Diagnostic>> {
-    input.into_review_input()?;
-    Err(unavailable_projection("package policy projection"))
+    policy::project(input.into_review_input()?, target, package)
 }
 
 pub fn project_checked_terminal_permission_policy<'a>(
     input: impl IntoPackageReviewInput<'a>,
-    _target: target::TargetProfile,
-    _package: semantic_vocabulary::PackageKeyIdentity,
+    target: target::TargetProfile,
+    package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<crate::record::PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
-    input.into_review_input()?;
-    Err(unavailable_projection("terminal permission projection"))
+    Ok(policy::project(input.into_review_input()?, target, package)?.terminal_permissions)
 }

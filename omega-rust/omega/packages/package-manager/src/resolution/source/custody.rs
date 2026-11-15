@@ -13,8 +13,8 @@ use crate::declarations::dependencies::read::{
 use crate::resolution::source::{
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
 };
-use package_source::ImmutableSourceResolution;
-use package_source::LocalSourceLimits;
+use source_acquisition::ImmutableSourceResolution;
+use source_acquisition::LocalSourceLimits;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -44,7 +44,7 @@ pub(super) struct SourceCacheDirectories {
 }
 
 impl SourceCacheDirectories {
-    pub(super) fn retain(storage: &package_source::SourceResolver) -> Option<Self> {
+    pub(super) fn retain(storage: &source_acquisition::SourceResolver) -> Option<Self> {
         let retained = (|| {
             storage.verify_path_identity()?;
             let checked_source = storage
@@ -52,7 +52,7 @@ impl SourceCacheDirectories {
                 .retain_child(CHECKED_SOURCE_CACHE_LANE)?;
             let compiled_review = retain_compiled_review_storage(storage)?;
             storage.verify_path_identity()?;
-            Ok::<_, package_source::SourceResolveError>(Self {
+            Ok::<_, source_acquisition::SourceResolveError>(Self {
                 checked_source: checked_source.path().to_path_buf(),
                 compiled_review: compiled_review.path().to_path_buf(),
             })
@@ -194,8 +194,9 @@ impl PackageSourceCustody {
 }
 
 pub(super) fn retain_compiled_review_storage(
-    storage: &package_source::SourceResolver,
-) -> Result<package_source::storage::RetainedStorageLane, package_source::SourceResolveError> {
+    storage: &source_acquisition::SourceResolver,
+) -> Result<source_acquisition::storage::RetainedStorageLane, source_acquisition::SourceResolveError>
+{
     storage.verify_path_identity()?;
     let retained = storage
         .external_local_sources()

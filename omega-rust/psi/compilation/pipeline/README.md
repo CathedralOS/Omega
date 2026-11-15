@@ -18,7 +18,7 @@ authority.
 | 04 — typed preparation (one ordered pass list) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
 | 05 — structural lowering | [prepare_compilation](05_typed-trees-to-terminal-psi/src/compilation.rs) | [complete Terminal checking input](../representations/terminal-psi/check-tables/src/compilation.rs) |
 | 06 — lowered-form checking | [judge_compilation](06_terminal-psi-to-terminal-psi/src/verdict.rs) | accepted closure and evidence |
-| Publication | [accepted source factory](../psi-compiler/terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
+| Publication | [accepted source factory](../terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
 Every program crosses 04, which runs one ordered pass list over the typed trees
 and freezes the result; that is prepared source data, not acceptance. Requested

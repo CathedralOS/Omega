@@ -89,6 +89,58 @@ those checked records independently of whether the author annotated the body.
 Mandatory direct-call annotations and additive checked-body rows are
 superseded behavior, not an alternate language mode.
 
+### Boundary services with parameters
+
+Named decision: `applied-boundary-service-reach`, ratified 2026-11-14. Each
+application of a boundary trait with parameters is its own service identity,
+and a reach row names it by that application. Applications follow ordinary
+generic argument formation and scope rules, including parameters bound by
+enclosing declarations, as `Id` is bound by `Sensor` below. Published generic
+contracts retain those symbolic arguments; application substitutes them.
+
+```omega
+boundary trait Sensor<const Id: u64> {
+    machine read() -> u64 reaches Sensor<Id> crashes none;
+}
+
+machine read_sensor<const Id: u64>() -> u64 reaches Sensor<Id> crashes none {
+    Sensor<Id>::read()
+}
+
+machine read_17() -> u64 reaches Sensor<17u64> crashes none {
+    Sensor<29u64>::read()    // Rejected: contributes Sensor<29u64>.
+}
+```
+
+The spelling means that application wherever it appears: on a checked body, a
+trait or boundary requirement, or a callable contract. No position reads the
+bare name of a trait with parameters as every application; `reaches Sensor`
+rejects, and the diagnostic names the application form. A row may union
+applications, as in `reaches Sensor<17u64> + Sensor<29u64>`. The normalized
+authored ceiling is published even when the body's derived reach is narrower;
+the derived row is retained separately. Normalization still deduplicates
+applications and adds declared boundary parents.
+
+A boundary call contributes its requirement's declared reach after substitution
+and normalization. The owning service application is not additionally
+contributed merely because the requirement is invoked; `read` above contributes
+`Sensor<Id>` only because its row names it. A provider slot can therefore be
+distinct per application while reaching nothing: `Reading<17u64>::total()`
+against a requirement declared `reaches none` contributes no service, and its
+caller need not name `Reading` in its row. A wider ceiling that does name it is
+still well formed. When different slots perform the same kind of
+effect, their requirements name a memberless label instead, such as
+`boundary trait SensorRead {}` with `reaches SensorRead`, so callers bound the
+effect without listing slots.
+
+Boundary-parent closure follows the declared substitution: substitute the
+child's arguments into its declared boundary parents, then close transitively.
+For `boundary trait Child<const Id: u64>: Parent<0u64>`, reaching `Child<17u64>`
+also reaches `Parent<0u64>`, not `Parent<17u64>`; a declaration
+`Child<N>: Parent<N>` would give `Parent<17u64>`. Ordinary trait parents
+contribute no service identity. An `invokes` row resolves an applied entry the
+same way but keeps its own entry semantics and has no parent closure.
+
 ### Deferred requirement reach
 
 Named decision: `deferred-callback-reach`, ratified 2026-11-07. Omission on a
@@ -356,8 +408,9 @@ a projection keyed by that evidence binder, the exact requirement member and
 its substitutions. Different members of one conformance retain distinct rows.
 Evidence selects an implementation; it does not attach operations to a data type.
 
-Published summaries contain finite unions of concrete service identities and
-these static row projections. An omitted requirement clause leaves its projection
+Published summaries contain finite unions of service identities, concrete or
+[applied](#boundary-services-with-parameters) to generic parameters in scope,
+and these static row projections. An omitted requirement clause leaves its projection
 open; an authored clause bounds it, including the explicit empty bound. The
 selected machine or conformance already determines the row, so applications
 supply no additional row argument. No subtraction, lower bounds, Boolean formulas
@@ -846,6 +899,13 @@ result, change inferred effects, or enter normalized machine identity. Suspensio
 parks an activation and requires a continuation; blocking retains its stack and
 worker. Carry policy may reject a crossing with particular live values but
 cannot rewrite the callee's envelope.
+
+Calls and forwarding wrappers also retain their
+[synchronization contracts](concurrency.md#retained-protocol-contracts).
+Acknowledging blocking or suspension does not discharge the default deadlock
+obligation, and an empty service reach establishes no absence of waiting.
+An atomic retry protocol may await another participant without either marker;
+its synchronization behavior must still be established.
 
 A call written with `suspend`, including a redundant acknowledgement, may occur
 only as a complete statement, simple `let` right-hand side, transition subject,

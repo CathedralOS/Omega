@@ -68,6 +68,7 @@ impl BoundaryNamespace {
         records: &crate::lower::places::Records<'_>,
         callables: &crate::callables::CallableNamespace,
         services: &crate::reach::ServiceMap,
+        qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let refusal = |detail: &str| Refusal {
@@ -79,7 +80,7 @@ impl BoundaryNamespace {
         if !module.boundary_machines.is_empty() {
             return Err(refusal("boundary declarations were already published"));
         }
-        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        qualifications.identities = std::mem::take(&mut module.identities).into_builder();
         for (id, source) in self.rows.iter() {
             let envelope = services.envelope(context, &source.envelope)?;
             let header = crate::lower::signature_header(
@@ -90,6 +91,7 @@ impl BoundaryNamespace {
                 records,
                 callables,
                 self,
+                qualifications,
             )?;
             if !header.proof.outcome_specific_ensures.is_empty() {
                 return Err(refusal("boundary has an unsupported guarded guarantee"));
@@ -124,9 +126,19 @@ impl BoundaryNamespace {
                 &header.proof,
                 &envelope,
                 services,
-                &mut identities,
+                &mut qualifications.identities,
             )
             .map_err(refusal)?;
+            let mut scalar_domain_requirements = Vec::new();
+            for (index, parameter) in header.scalar_parameters.iter().enumerate() {
+                for domain in qualifications.members(context, parameter.qualifications)? {
+                    scalar_domain_requirements.push(terminal_psi::ScalarDomainRequirement {
+                        argument_index: u32::try_from(index)
+                            .map_err(|_| refusal("boundary scalar formal ordinal overflow"))?,
+                        domain: *domain,
+                    });
+                }
+            }
             let requires = header
                 .structural_parameters
                 .iter()
@@ -143,14 +155,14 @@ impl BoundaryNamespace {
                 .collect();
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
-                declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: source.declaration.method_arguments(&mut identities) }),
+                declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: source.declaration.method_arguments(&mut qualifications.identities) }),
                 numeric_intrinsic: None,
                 role: BoundaryDeclarationRole::Callable,
                 kind: source.kind,
                 completion: source.completion,
                 unconditional_termination: matches!(source.envelope.termination, TerminalCallableTermination::Terminates { ref premises } if premises.is_empty()),
-                identity: identities.intern(&source.declaration.callable),
-                owner: terminal_psi::NominalDeclarationIdentity::new(identities.intern(&source.declaration.owner)),
+                identity: qualifications.identities.intern(&source.declaration.callable),
+                owner: terminal_psi::NominalDeclarationIdentity::new(qualifications.identities.intern(&source.declaration.owner)),
                 attachment: None,
                 parameter_order: header.parameter_order,
                 scalar_parameters: header.scalar_parameters.iter().map(|parameter| parameter.scalar_type).collect(),
@@ -160,7 +172,7 @@ impl BoundaryNamespace {
                 result_reference_regions: Vec::new(),
                 requires,
                 normal_qualifications: Vec::new(),
-                scalar_domain_requirements: Vec::new(),
+                scalar_domain_requirements,
                 scalar_requires: header.proof.requires,
                 scalar_ensures: header.proof.ensures.into_iter().map(|clause| clause.proposition).collect(),
                 reference_outputs: Vec::new(),
@@ -172,7 +184,7 @@ impl BoundaryNamespace {
                 published_synchronous_entries: envelope.invocations.iter().filter_map(|entry| match entry { terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service), terminal_psi::TerminalCallableInvocation::Parameter(_) => None }).collect(),
             });
         }
-        module.identities = identities.build();
+        module.identities = std::mem::take(&mut qualifications.identities).build();
         Ok(())
     }
 }

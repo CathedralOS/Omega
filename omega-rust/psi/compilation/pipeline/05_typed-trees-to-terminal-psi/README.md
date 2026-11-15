@@ -55,6 +55,12 @@ involved.
 
 ## The subset
 
+Data declarations do not own machines or provide code namespaces.
+The reader rejects retained data-attachment metadata, even with explicit
+arguments, under [static declarations and explicit state](../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state).
+Module and trait qualification still identify ordinary static declarations;
+they do not supply implicit arguments.
+
 Machines with one state and a complete body whose formals, locals and result
 are builtin integers (`i8` to `u64`) or `bool`, using: scalar locals and
 assignment to them; integer and Boolean literals; wholly anonymous `+`, `-`,
@@ -196,17 +202,16 @@ The closure includes "the Build and preparation entries the compile
 executes":
 
 - **The Build program in `build.omg`.** It is read under the Build's
-  dependency scope, and the Build activation checks it with the current
-  checker before it runs and before these trees exist.
+  dependency scope, and Build activation checks it before execution with
+  the lowered-form checker.
 - **The bound target's entry-contract source**
   (`source/library/std/targets/<target>/entry.omg`), whose machines plan the
-  entry boundary. The deleted checker kept that whole source as a subject
-  (`check_product_source`); here it is a toolchain file, so its machines are
-  judged only if something reaches them.
+  entry boundary. It is a toolchain file here, so its machines are judged
+  only if something reaches them.
 
-Which check judges these two when the route governs a Product compilation is
-undecided. Making them roots today would refuse every program with a bound
-entry, since neither is inside the lowered subset.
+Build activation owns checking the first closure. The second remains a
+closure-coverage limit: this reader does not make every entry-contract helper
+a root, and acceptance does not cover those unreached bodies.
 
 ### Generic machines
 
@@ -380,9 +385,17 @@ destination declares").
   "`as` never calls user code, rounds, saturates, traps"). A literal operand
   lands in the carrier the cast names, so `5 as u32 in Wrapping` is the
   Wrapping constant.
-- **Suffixed operators.** Stage 04 rewrites `a +% b` to
-  `((a as T in Wrapping) + (b as T in Wrapping)) as T` and `a +| b`
-  likewise, so both are read as the casts and the operation above.
+- **Suffixed operators.** The reader selects `%`, `|` or `!` at that node,
+  using only unqualified integer operands and returning the bare carrier.
+  The temporary qualification in the reader chooses the operation; it does
+  not convert an operand or change the policy of an inner expression.
+  A `!` form lowers to one `TrappingInteger` operation, its own `Trap`
+  site. Its `CrashCoverage` obligation requires the Exact primitive's
+  definedness or the machine's published same-cause route. The checker
+  establishes the Exact result equation only on its normal successor.
+  `Trapping`-qualified types remain unsupported on this route; enabling
+  these compiler-owned suffixed primitives does not supply the ordinary
+  core policy-domain declarations tracked in `OPERATION-ARITHMETIC-POLICY`.
 - **Contracts.** A clause names a policy-qualified formal, field or result
   as its stored value.
 
@@ -508,13 +521,27 @@ and no operation of the lowered form would own it, so it is refused.
 A loop in Omega is a machine whose transition arm calls it again, directly
 or through other machines. The subset serves such a call cycle between
 scalar machines when every call between its members stands in terminal
-position (an arm's target, or the body's final value) and no member promises
-termination: `machine spin(n: u32) -> u32 { transition n > 0 { true ->
-spin(n - 1) false -> 0 } }`, and the same through two or more machines.
+position (an arm's target, or the body's final value): `machine spin(n: u32)
+-> u32 { transition n > 0 { true -> spin(n - 1) false -> 0 } }`, and the
+same through two or more machines.
 [termination](../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
 "A productive terminal-transfer cycle without a termination promise may run
 forever and owes no rank". [Call cycles as loops](#call-cycles-as-loops)
 gives the lowered form.
+
+A loop that promises to end says which value shows it: `machine
+count_down(remaining: u64) -> u64 terminates by remaining`. The subset
+serves that witness on a machine that calls itself, when the subject is one
+formal of an unsigned fixed-width integer type under `Nat::Descending`, the
+view stage 03 settles for the short form
+([termination](../../../../../wiki/spec/language/termination.md#ranking):
+"Short form without `-> View` requires a carrier-declared stable canonical
+default, immediately elaborated to an explicit view"). The reader takes the
+subject from the typed expression stage 03 keeps
+(`RankingExpressionCustody`), never from the plan's rendered text.
+[Rankings](#rankings) gives what lowering writes for it. A bare `terminates`
+on a machine that calls such a loop is then served too: the loop it depends
+on is ranked.
 
 The rest of the loops lane
 (`wiki/drafts/designs/loops_recursion_termination_lane.md`) is refused by
@@ -523,8 +550,14 @@ name until the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a call of a member whose result the caller goes on to use, `1 + f(n)` | `call recursion outside a terminal position` |
-| a `terminates by` witness, on any machine | `contract ranking witness` |
-| a bare `terminates` on a machine that lies on a cycle or calls into one | `contract termination promise over a call cycle` |
+| a `terminates by` witness on a machine of a cycle of several machines | `contract ranking witness on a call cycle of several machines` |
+| a witness under a view other than `Nat::Descending` (`Slice::Length`, `Nat::IncreasingTo`, `Nat::BoundedDistance`, a declared `measure`), or a short form whose subject has no default view | `contract ranking view other than Nat::Descending` |
+| a witness with a rank range, `in lower..=upper` | `contract rank range on a ranking witness` |
+| a witness over several subjects | `contract ranking over several subjects` |
+| a subject that is not a formal (`items.len`, a field) | `contract ranking subject that is not a formal` |
+| a subject that is a signed, address or width-generic formal | `contract ranking subject that is not an unsigned fixed-width integer formal` |
+| a witness the typed trees hold only as text (no `RankingExpressionCustody`) | `spelling ranking subject kept only as text` |
+| a `terminates`, bare or witnessed, on a machine that lies on or calls into a cycle no member ranks | `contract termination promise over a call cycle` |
 | `terminates` under a progress premise | `contract termination under a progress premise` |
 | `ensures` on a member | `contract ensures on a call cycle` |
 | a `crashes Cause` clause with a route guard on a member | `contract guarded crash route on a call cycle` |
@@ -735,7 +768,8 @@ refuses, by name, what the slice does not serve:
 | `&mut` of a binding that is not `mut` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
 | another argument of the same call that names a lent slot (`f(&mut a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
-| `let r = reference;` without a declared type, and whole assignment through a record reference | `statement local bound to a reference without a declared type`, `statement whole assignment through a reference` |
+| `let r = reference;` without a declared type | `statement local bound to a reference without a declared type` |
+| whole assignment to a slice formal | `statement whole assignment through a reference` |
 | an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
 | a borrowed formal on a call cycle | `machine storage on a call cycle` |
 
@@ -779,7 +813,6 @@ the slice that serves it:
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
-| a store into a payload member, `s.at = x` | `statement store into a case payload` |
 | a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
 | a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
@@ -801,9 +834,8 @@ that still resolves to a constant is refused as `expression const`.
 ## How identity is fixed
 
 - **Types** are scalar only through `SymbolTable::builtin_type_atom` on the
-  resolved symbol of a `Named` type: the compiler-installed root slot. The
-  typed trees' `PrimitiveType::from_name` classifies by spelling and is not
-  used. A `Named` type with an invalid symbol is refused as a spelling; a
+  resolved symbol of a `Named` type, using the shared builtin classification
+  in `symbols`. A `Named` type with an invalid symbol is refused as a spelling; a
   declaration spelled `u32` is a different symbol and is refused as nominal.
   Integer literals take their type from the landing stage 04 recorded.
 - **Record types** are the `StructuralTypeId` minted for a `SymbolKind::Data`
@@ -1031,7 +1063,39 @@ declaration states a crash route is refused (`call external completion that
 declares a crash route`). A call with no continuation anywhere but terminal
 position, and any statement after one, is refused, not dropped.
 
-No `ranked_scc` is written: these cycles promise nothing.
+## Rankings
+
+A cycle with no witness promises nothing and gets no `ranked_scc`. A machine
+that calls itself and supplies a witness gets one
+([lower/ranking.rs](src/lower/ranking.rs)), in the row Terminal Psi already
+has for it
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
+"A ranking declaration binds a well-founded relation, block ranks, and every
+derived in-component edge."):
+
+- **One rank per block of the loop's cycle:** the head parameter that stands
+  for the witness's subject. The body is lowered beneath its head, so that
+  value is in scope in every block of the cycle.
+- **One row per edge inside the cycle.** An edge that stays beneath the head
+  keeps the rank and claims `Preserving`. A jump back to the head is the
+  recursive call: its successor rank is the argument the call passes for the
+  subject, and it claims `Strict`, because "Removing strict edges must leave
+  an acyclic graph" and every cycle of this graph closes through such a
+  jump.
+- **One `WellFoundedness` obligation** at the entry of the cycle's first
+  block, the head, and **one `RankComparison`** on each edge row, at that
+  edge.
+
+Lowering proves none of it. The checker recomputes the cycle, compares every
+row with the graph and decides each comparison
+([terminal-psi-to-terminal-psi](../06_terminal-psi-to-terminal-psi/README.md#rankings)).
+
+A promise is accepted only where nothing it depends on is unranked
+(`components`, `reaches_unranked_cycle`): termination.md, "A cyclic
+terminating body must supply its witness; inference never chooses its
+subjects or silently publishes a guarantee. Unknown progress dependencies
+prevent a checked guarantee." A witness on a machine that lies on no cycle
+has nothing to rank and stands as the promise it discharges.
 
 ## Places, roots and the write log
 
@@ -1139,8 +1203,8 @@ established value or the type is gated
 ([terminal-psi-to-terminal-psi](../06_terminal-psi-to-terminal-psi/README.md#zero-establishment)).
 
 A scalar local is zero-constructed by the same rule
-(`local-without-initializer`): `let mut x: u32; f(x)` reads zero, as the
-deleted checker accepted. Lowering logs `Content::Value(zero)` on the scalar
+(`local-without-initializer`): `let mut x: u32; f(x)` reads zero.
+Lowering logs `Content::Value(zero)` on the scalar
 home at its `EstablishPrimitiveLocal`, naming the zero constant emitted just
 before it
 ([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
@@ -1261,6 +1325,8 @@ interpreter loads and runs both.
 | `PublishedGuarantee` | one per `ensures` clause, the identity `ContractClause` carries | the entry block |
 | `NormalGuarantee` | one per `ensures` clause per normal exit edge, naming its `PublishedGuarantee` | that edge |
 | `ArrivalInvariant` | one per edge into a block with parameters: a short-circuit join, whose predicate the checker infers, or a loop head, whose predicate is its member's `requires` | that edge |
+| `WellFoundedness` | one per ranked cycle ([Rankings](#rankings)) | the entry of the cycle's first block |
+| `RankComparison` | one per edge inside a ranked cycle | that edge |
 | `CrashCoverage` | one per crash site and cause. `CrashSite::Block`: a `Crash` terminator (its one cause), or an `InvokeNoNormal` terminator (each cause among its continuations). `CrashSite::Operation`: a `Call` or `CallUnit` whose callee may return and publishes crash routes (each cause among its continuations) | the point before the terminator or the call |
 
 ## Source correspondence
@@ -1274,7 +1340,7 @@ An origin is the authored span, or `Unpositioned` with the reason
 `LoweredSourceCustody` was not used: it records call occurrences only and
 depended on a removed representation.
 
-`Elaboration::names` ([names.rs](src/names.rs)) is what diagnostics call
+`Elaboration::names` ([names.rs](../../representations/terminal-psi/check-tables/src/names.rs)) is what diagnostics call
 those constructs, because the lowered form carries identities and spans but
 no binder names. The reader records, per machine, its name (a template's for
 a generated specialization) and its state's, its formals' names, the
@@ -1415,12 +1481,10 @@ worked around by adding to `terminal-check-tables`.
 20. **A record pattern carries its field roster as symbols.**
     `let { x, y as _ } = p;` reaches the typed trees as a marker local
     followed by one ordinary field-read local per bound field. The marker
-    used to name its fields only in its own name (`__destructure#x#y`), which
-    the deleted checker split and compared by spelling. It now carries a
-    roster (`TableLocalData::pattern_fields`, one row per named field, bound
-    or waived) that typed preparation resolves against the subject's declared
+    carries a roster (`TableLocalData::pattern_fields`, one row per named
+    field, bound or waived) that typed preparation resolves against the subject's declared
     record (`pattern_subject`), and `validate_destructure_exhaustiveness`
-    and this route both decide coverage from those symbols.
+    and this reader decide coverage from those symbols.
     [Patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings)
     requires the pattern to name every field, so a roster that omits one is
     refused here as it is rejected there.
@@ -1470,12 +1534,14 @@ worked around by adding to `terminal-check-tables`.
     leaf stated as a value in the caller, which this slice does not do.
 29. **A machine generated for a static application keeps its declaration's
     identities.** Stage 04 generates one machine per application of a
-    generic machine; its state symbol's `generated_from` is the declared
-    machine. The call's authored selection and binding still name the
+    generic machine; its retained application owns the template, bound
+    arguments and exact entry-state correspondence. The call's authored selection and binding still name the
     declaration, and the generated machine's `ensures` clause still records
-    `result` against the declaration, because it shares the declaration's
-    clause trees. The reader accepts each where the symbol is the callee's
-    `generated_from` and refuses any other mismatch. Nothing is matched by
+    `result` against the declaration, because the copied clauses retain their
+    declaration owner. The reader accepts each where the symbol is the declaration
+    retained by the callee's application and refuses missing or ambiguous
+    entry correspondence and any other mismatch. Symbol provenance is not a
+    second application marker. Nothing is matched by
     name.
 30. **A trait requirement is a bare signature.** The typed trees hold a
     requirement as a `StateSignature`, not as a machine, so the reader has a
@@ -1488,11 +1554,9 @@ worked around by adding to `terminal-check-tables`.
     its published routes"; "`crashes none` admitting only crash-free
     members"). Both publish no route in the generic form, so the generic
     check decides nothing about crashes through the call either way. The
-    deleted checker refused a member that is not crash-free where it
-    satisfies a `crashes none` requirement, and gives each application of a
-    deferring requirement the selected member's routes
-    (`tests/omega/fail/traits/omitted_requirement_crashes_reach_generic_caller`).
-    This route hands those programs back (conformances are outside it).
+    selected member must satisfy an explicit `crashes none` ceiling;
+    an omitted ceiling instead uses that member's published routes. A
+    requirement description alone does not prove either obligation.
 31. **The declared machine's call through a parameter names a child of the
     parameter.** In the generic declaration `Selected::apply(x)` targets a
     state symbol under the parameter's symbol, with no requirement recorded
@@ -1508,25 +1572,20 @@ worked around by adding to `terminal-check-tables`.
     wants requirements out of `module.machines` needs a callee row for one.
 
 33. **A resolved call is not a permitted call.** The typed trees hold a call
-    into a dependency's private machine fully resolved; the deleted checker
-    rejects it later, where a product selects the callee. The reader
-    therefore checks visibility itself: a callee that is not public must be
-    declared in the caller's package, by the source file each symbol was
+    into a dependency's private machine fully resolved. Resolution grants
+    no visibility, so the reader checks that separately: a callee that is not
+    public must be declared in the caller's package, by the source file each symbol was
     declared in, with a generated machine placed where its declaration is
     (`visible_to`). Any other call is refused as `call private machine of
-    another package`, so the deleted checker decided the compilation
-    (`tests/fixtures/fail/build/executed_dependency_private_call`).
-34. **A runtime read of an erased binding falls back; it is not yet rejected
-    here.** The deleted checker rejected `let total: i32 = bound;` for an
-    erased `bound` ("erased parameter `bound` has no runtime value"). That is
-    a verdict about the program, and this route has no refusal reason for it,
-    so the reader refuses the closure as `Unsupported` and the current
-    checker decides. The slice that owns the rejection adds the reason.
-35. **The current pipeline cannot lower an erased local supplied as an erased
-    term.** `let witness [erased]: i32 = limit; keep(n, witness)` passes the
-    deleted checker and then fails in Psi 06 ("scalar read has no authored
-    binding"). This route lowers it: the local names the term. The witness is
-    `tests/omega/pending/relevance/erased_local_forwarded_to_erased_formal`.
+    another package`; it cannot produce an accepted closure.
+34. **A runtime read of an erased binding is not served.** An erased
+    binding has no runtime value. The reader refuses this use as
+    `Unsupported`, so no artifact is accepted. Classifying that invalid
+    source as a rule violation remains separate from supporting the read.
+35. **An erased local supplied as an erased term needs its term identity.**
+    Lowering an erased local does not create executable storage for it.
+    Forwarding it must retain the proof term; a scalar storage read cannot
+    stand in for that correspondence.
 36. **A recursive call records its selection as the entry state.** A call of
     another machine carries an authored selection that resolves to the
     symbol the call names. A call of the machine being read names the
@@ -1534,15 +1593,15 @@ worked around by adding to `terminal-check-tables`.
     reader accepts a selection when both symbols enter the same machine
     (`entered_machine`: a machine, or the one state of one), comparing
     symbols only.
-37. **A ranking witness is refused wherever it stands.** The typed trees
-    hold its subjects twice, as rendered text
+37. **A ranking witness is read from its typed expressions only.** The
+    typed trees hold its subjects twice, as rendered text
     (`RankingWitness::subjects`) and as typed expressions
-    (`RankingExpressionCustody`). This slice reads neither and refuses the
-    witness, on an acyclic machine too, because whether a witness with
-    nothing to rank is an error is the ranking slice's to decide. That slice
-    reads the custody and never the text.
+    (`RankingExpressionCustody`). The reader takes the subject from the
+    custody and refuses a witness that has none as a spelling. The
+    specification does not say that a witness with nothing to rank is an
+    error, so one on a machine that lies on no cycle is accepted as the
+    promise it discharges: its machine ends because it has no cycle.
 38. **A final value counts as terminal position.** Stage 01 leaves a body's
     final expression as an expression, and the reader makes it the
     unguarded arm that completes the machine, so `machine f(n: u32) -> u32
-    { f(n) }` is a jump back like `transition { _ -> f(n) }`. Whether the
-    deleted checker treated the two alike was not measured.
+    { f(n) }` is a jump back like `transition { _ -> f(n) }`.

@@ -2,9 +2,9 @@
 //! Provider choices are already canonical Psi rows; settlement never reopens
 //! source declarations or treats retained provider bodies as separate entries.
 
-use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use products::CheckedProductSource;
 use provider_planning::target_supply::{
     JudgedProvider, PreparedTargetSupply, ReachedBoundaryRequirement, TargetSupplyRequest,
 };
@@ -19,13 +19,13 @@ pub(crate) struct PreparedProductTarget {
 /// A selection of an operator family names each coordinate as its own slot.
 pub(crate) fn selected_supplies(
     selection: &build_time_evaluation::provider_declarations::ProviderSelection,
-) -> Vec<psi_compiler::TerminalSourceSupply> {
+) -> Vec<source_compiler::TerminalSourceSupply> {
     use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
     let provider = selection.provider_type.symbol;
     match &selection.subject {
         ProviderSelectionSubject::BoundaryTrait(identity)
         | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![psi_compiler::TerminalSourceSupply {
+            vec![source_compiler::TerminalSourceSupply {
                 slot: identity.symbol,
                 provider,
             }]
@@ -33,7 +33,7 @@ pub(crate) fn selected_supplies(
         ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
             .coordinates()
             .iter()
-            .map(|coordinate| psi_compiler::TerminalSourceSupply {
+            .map(|coordinate| source_compiler::TerminalSourceSupply {
                 slot: coordinate.symbol,
                 provider,
             })
@@ -46,7 +46,7 @@ pub(crate) fn selected_supplies(
 /// declare.
 pub struct ProductSupplySource<'a> {
     /// The source and complete roster authenticated by one actual judgment.
-    pub publication: std::sync::Arc<compilation_products::ProductTerminalPublication>,
+    pub publication: std::sync::Arc<products::ProductTerminalPublication>,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
@@ -54,7 +54,7 @@ pub struct ProductSupplySource<'a> {
 }
 
 /// The existing authenticated publication, extended by every chosen supply.
-pub type SuppliedProduct = std::sync::Arc<compilation_products::ProductTerminalPublication>;
+pub type SuppliedProduct = std::sync::Arc<products::ProductTerminalPublication>;
 
 /// What the demand walk of any target reads from one accepted module.
 struct ModuleDemand {
@@ -65,8 +65,8 @@ struct ModuleDemand {
 
 impl ModuleDemand {
     fn read(
-        accepted: &psi_compiler::AcceptedTerminalSource,
-        roster: &compilation_products::ProductRoster,
+        accepted: &source_compiler::AcceptedTerminalSource,
+        roster: &products::ProductRoster,
     ) -> Result<Self, Vec<Diagnostic>> {
         let declared = accepted
             .boundary_requirements_declared()
@@ -112,7 +112,7 @@ impl ModuleDemand {
 
     fn prepare(
         &self,
-        accepted: &psi_compiler::AcceptedTerminalSource,
+        accepted: &source_compiler::AcceptedTerminalSource,
         build: &[build_time_evaluation::provider_declarations::ProviderSelection],
         defaults: &[build_time_evaluation::provider_declarations::TargetProviderDefaults],
         target: Option<&str>,
@@ -183,7 +183,7 @@ pub fn judge_supplied_product(
         if roster.supplies.len() == before {
             return Ok(publication);
         }
-        publication = std::sync::Arc::new(compilation_products::ProductTerminalPublication::judge(
+        publication = std::sync::Arc::new(products::ProductTerminalPublication::judge(
             std::sync::Arc::clone(accepted.source()),
             roster,
             publication.optimizations().clone(),
@@ -195,7 +195,7 @@ pub fn judge_supplied_product(
 /// that target's supply.
 pub struct TargetSupplySource<'a> {
     /// The Product's source and supplied roster, paired by their judgment.
-    pub publication: &'a compilation_products::ProductTerminalPublication,
+    pub publication: &'a products::ProductTerminalPublication,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],

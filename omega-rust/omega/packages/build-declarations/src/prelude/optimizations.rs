@@ -9,23 +9,23 @@
 use optimization_core::Optimization;
 
 const DECLARATIONS_SLOT: &str = "// compiler-owned optimization declarations\n";
-const ENABLE_SLOT: &str = "// compiler-owned optimization enable machine\n";
-const REPORT_SLOT: &str = "// compiler-owned optimization report machine\n";
 
 pub(super) fn install(base: &str) -> String {
-    for slot in [DECLARATIONS_SLOT, ENABLE_SLOT, REPORT_SLOT] {
-        assert_eq!(
-            base.matches(slot).count(),
-            1,
-            "build prelude must contain exactly one `{}` slot",
-            slot.trim()
-        );
-    }
+    assert_eq!(
+        base.matches(DECLARATIONS_SLOT).count(),
+        1,
+        "build prelude must contain exactly one optimization declaration slot"
+    );
     let declarations = declarations();
-    let enable_machine = enable_machine();
     base.replacen(DECLARATIONS_SLOT, &declarations, 1)
-        .replacen(ENABLE_SLOT, &enable_machine, 1)
-        .replacen(REPORT_SLOT, REPORT_MACHINE, 1)
+}
+
+pub(super) fn module_source() -> String {
+    format!(
+        "module Optimizations;\n{}{}",
+        enable_machine(),
+        REPORT_MACHINE
+    )
 }
 
 fn declarations() -> String {
@@ -52,12 +52,12 @@ fn enable_machine() -> String {
         ));
     }
     text.push_str(
-        "    }\n}\npublic machine Optimizations::enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
+        "    }\n}\npublic machine enable(optimizations: &mut Optimizations, optimization: Optimization) {\n    let slot: u64 = optimization_selection_slot(optimization);\n    optimizations.selected[slot] = optimizations.selected[slot] + 1;\n}\n",
     );
     text
 }
 
-const REPORT_MACHINE: &str = r#"public machine Optimizations::emit_report(optimizations: &mut Optimizations) {
+const REPORT_MACHINE: &str = r#"public machine emit_report(optimizations: &mut Optimizations) {
     optimizations.human_report = optimizations.human_report + 1;
 }
 "#;

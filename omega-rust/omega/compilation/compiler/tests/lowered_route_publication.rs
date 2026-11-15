@@ -13,12 +13,15 @@
 //! that artifact and its seals stay beside it for Omega 00. An executable
 //! child requests its calling declarations before publication and receives a
 //! new judgment over the same source and full roster.
-use psi_work::WorkMeter;
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
+
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalStructuralInputs,
 };
 use terminal_psi_to_terminal_psi::RoutePublication;
+use terminal_work::WorkMeter;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -133,9 +136,9 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         !expected.is_empty(),
         "the program has discharged operations"
     );
-    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-        publication.artifact.semantic_module(),
-        publication.seals.clone(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
     )
     .expect("Omega 00 lowers the published module with its seals")
     .into_optimization_artifact()
@@ -143,7 +146,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let (_, unit) =
         abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )
         .expect("Omega 01 builds the verified unit")
         .into_parts();
@@ -201,7 +204,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     .expect("the selected target's authenticated entry declaration");
     let mut roster = checked.terminal_publication().roster().unwrap().clone();
     roster.declaration_metadata.push(boundary);
-    let executable = compilation_products::ProductTerminalPublication::judge(
+    let executable = products::ProductTerminalPublication::judge(
         std::sync::Arc::clone(accepted.source()),
         roster,
         checked.terminal_publication().optimizations().clone(),

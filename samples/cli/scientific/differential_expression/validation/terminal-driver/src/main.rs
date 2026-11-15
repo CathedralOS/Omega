@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("observed Terminal {name} exit {}", completion.return_code);
     }
     let published =
-        compilation_products::publication::publish_compilation(report, &output.join("native"))?;
+        products::publication::publish_compilation(report, &output.join("native"))?;
     let executable = published
         .checked_native_executable_path()
         .ok_or("native publication did not retain executable custody")?;

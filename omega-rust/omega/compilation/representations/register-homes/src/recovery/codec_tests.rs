@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v98), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v100), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use abstract_operations::StructuralTypeCatalog;
@@ -383,7 +383,11 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
         allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
-        source_evidence: crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
+        source_evidence: crate::FixedViewCopySourceEvidence {
+            fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
+            split_requirements: FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([22; 32]),
+            segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
+        },
         policy,
         budget: OptimizationWorkBudget::new(3, 3, 3, 3, 1).unwrap(),
         usage: OptimizationWorkUsage {
@@ -432,7 +436,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &98_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &100_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -495,12 +499,15 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         FixedViewCopyPlan::decode(&transformed_identity_tamper),
         Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
     );
-    let mut evidence_tag = encoded.clone();
-    evidence_tag[transformed_identity_offset(&encoded) + 32] = 99;
-    assert_eq!(
-        FixedViewCopyPlan::decode(&evidence_tag),
-        Err(FixedViewCopyDecodeError::UnknownSourceEvidence(99))
-    );
+    let evidence_offset = transformed_identity_offset(&encoded) + 32;
+    for field in 0..3 {
+        let mut evidence_tamper = encoded.clone();
+        evidence_tamper[evidence_offset + field * 32] ^= 1;
+        assert_eq!(
+            FixedViewCopyPlan::decode(&evidence_tamper),
+            Err(FixedViewCopyDecodeError::IdentityMismatch)
+        );
+    }
     assert_eq!(
         FixedViewCopyPlan::decode(&encoded[..encoded.len() - 1]),
         Err(FixedViewCopyDecodeError::Truncated)
@@ -587,7 +594,7 @@ fn every_previous_wire_generation_rejects_before_payload_decoding() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1)
         .encode()
         .unwrap();
-    for version in 0..32_u32 {
+    for version in 0..VERSION {
         let mut stale = encoded.clone();
         patch_encoded(&mut stale, 8, version.to_le_bytes());
         assert_eq!(
@@ -600,15 +607,6 @@ fn every_previous_wire_generation_rejects_before_payload_decoding() {
             Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
         );
     }
-}
-
-#[test]
-fn cleanup_call_owner_wire_requires_the_new_envelope() {
-    let original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&with_stale_version(&original, 40)),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(40))
-    );
 }
 
 #[test]
@@ -649,7 +647,7 @@ fn process_exit_codec_preserves_terminal_nominal_edge_and_source_without_scratch
 }
 
 #[test]
-fn successor_transfer_vocabulary_requires_the_current_envelope() {
+fn current_artifact_round_trips_successor_transfers() {
     let mut transferred = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     std::sync::Arc::make_mut(&mut transferred.transformed).functions[0] =
         successor_parameter_function();
@@ -657,23 +655,6 @@ fn successor_transfer_vocabulary_requires_the_current_envelope() {
         FixedViewCopyPlan::decode(&transferred.encode().unwrap()).unwrap(),
         transferred
     );
-    for encoded in [
-        with_stale_version(&transferred, 4),
-        with_stale_version(&transferred, 5),
-        with_stale_version(&transferred, 6),
-        with_stale_version(&transferred, 7),
-        with_stale_version(&transferred, 8),
-        with_stale_version(&transferred, 9),
-        with_stale_version(&transferred, 10),
-        with_stale_version(&transferred, 11),
-    ] {
-        assert_eq!(
-            FixedViewCopyPlan::decode(&encoded),
-            Err(FixedViewCopyDecodeError::UnsupportedVersion(
-                u32::from_le_bytes(encoded[8..12].try_into().unwrap())
-            ))
-        );
-    }
 
     let mut jumped = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let SelectedTerminator::ConditionalBranch {
@@ -693,32 +674,6 @@ fn successor_transfer_vocabulary_requires_the_current_envelope() {
     assert_eq!(
         FixedViewCopyPlan::decode(&jumped.encode().unwrap()).unwrap(),
         jumped
-    );
-    for encoded in [
-        with_stale_version(&jumped, 4),
-        with_stale_version(&jumped, 5),
-        with_stale_version(&jumped, 6),
-        with_stale_version(&jumped, 7),
-        with_stale_version(&jumped, 8),
-        with_stale_version(&jumped, 9),
-        with_stale_version(&jumped, 10),
-        with_stale_version(&jumped, 11),
-    ] {
-        assert_eq!(
-            FixedViewCopyPlan::decode(&encoded),
-            Err(FixedViewCopyDecodeError::UnsupportedVersion(
-                u32::from_le_bytes(encoded[8..12].try_into().unwrap())
-            ))
-        );
-    }
-
-    let mut instruction_only = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    std::sync::Arc::make_mut(&mut instruction_only.transformed).functions[0].blocks[0]
-        .instructions[0]
-        .kind = SelectedInstructionKind::Jump;
-    assert_eq!(
-        FixedViewCopyPlan::decode(&with_stale_version(&instruction_only, 11)),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(11))
     );
 }
 
@@ -745,39 +700,6 @@ fn artifact_round_trips_every_policy_and_full_transformed_custody() {
 }
 
 #[test]
-fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() {
-    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    plan.source_evidence = crate::FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
-        fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
-        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([22; 32]),
-        segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
-    };
-    let encoded = plan.encode().unwrap();
-    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
-    for encoded in [
-        with_stale_version(&plan, 10),
-        with_stale_version(&plan, 11),
-        with_stale_version(&plan, 23),
-        with_stale_version(&plan, 25),
-        with_stale_version(&plan, 39),
-        with_stale_version(&plan, 40),
-        with_stale_version(&plan, 41),
-        with_stale_version(&plan, 42),
-        with_stale_version(&plan, 43),
-        with_stale_version(&plan, 44),
-        with_stale_version(&plan, 45),
-        with_stale_version(&plan, 46),
-        with_stale_version(&plan, 93),
-    ] {
-        let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
-        assert_eq!(
-            FixedViewCopyPlan::decode(&encoded),
-            Err(FixedViewCopyDecodeError::UnsupportedVersion(version))
-        );
-    }
-}
-
-#[test]
 fn artifact_current_retains_absent_structural_contracts() {
     let plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
     let decoded = FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap();
@@ -788,24 +710,6 @@ fn artifact_current_retains_absent_structural_contracts() {
             .functions
             .iter()
             .all(|function| function.structural.is_none())
-    );
-}
-
-#[test]
-fn artifact_rejects_pre_compare_identity_version() {
-    let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&with_stale_version(&plan, 6)),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(6))
-    );
-}
-
-#[test]
-fn artifact_rejects_pre_predicate_identity_version() {
-    let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    assert_eq!(
-        FixedViewCopyPlan::decode(&with_stale_version(&plan, 7)),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(7))
     );
 }
 

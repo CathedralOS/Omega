@@ -148,3 +148,53 @@ impl SelectedProgramStorageEntryPlan {
         self.physical_contract.as_ref()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use effects::provider_plan::{ServiceMethod, ServiceSchema};
+
+    #[test]
+    fn storage_entry_interns_the_selected_requirement_and_refuses_a_missing_method() {
+        let slot = target::TargetProfile::WindowsX64.program_entry_slot();
+        let mut schema = ServiceSchema::default();
+        let declaration = std::sync::Arc::make_mut(&mut schema.declaration);
+        declaration.identities.intern("unrelated identity");
+        declaration.trait_name = declaration.identities.intern(slot.boundary_schema.unwrap());
+        let requirement = "ProgramStorageEntry::enter";
+        let source_identity = declaration.identities.intern(requirement);
+        declaration.methods.push(ServiceMethod {
+            name: "enter".into(),
+            requirement_owner: "ProgramStorageEntry".into(),
+            requirement_identity: source_identity,
+            ..Default::default()
+        });
+        let plan = SelectedProgramStorageEntryPlan::from_target_slot(
+            slot,
+            schema.clone(),
+            requirement.into(),
+        )
+        .unwrap();
+        assert_eq!(
+            plan.identities().text(plan.requirement_identity()),
+            Some(requirement)
+        );
+        assert_eq!(plan.schema().identity_text(source_identity), requirement);
+        assert_eq!(plan.schema(), &schema);
+        assert!(
+            SelectedProgramStorageEntryPlan::from_target_slot(
+                slot,
+                schema.clone(),
+                "other requirement".into()
+            )
+            .is_err()
+        );
+        std::sync::Arc::make_mut(&mut schema.declaration)
+            .methods
+            .clear();
+        assert!(
+            SelectedProgramStorageEntryPlan::from_target_slot(slot, schema, requirement.into())
+                .is_err()
+        );
+    }
+}

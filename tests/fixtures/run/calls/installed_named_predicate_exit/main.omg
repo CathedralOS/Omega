@@ -1,0 +1,7 @@
+// Expected exit: 0.
+// The installed arrival establishes the named source predicate before invocation.
+let is_zero(value: u32): core::Strict<0> = value == 0u32;
+
+let reflexive(value: u32): core::Strict<0> = value == value;
+
+machine launch() requires is_zero(0u32) { }

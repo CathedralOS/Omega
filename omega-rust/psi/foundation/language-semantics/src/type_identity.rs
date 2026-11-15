@@ -170,16 +170,6 @@ mod framing {
             self.peek_token().and_then(F::parse)
         }
 
-        pub(super) fn peek_after_comma<F: Vocabulary>(&self) -> Option<F> {
-            self.next(b',').then_some(())?;
-            Self {
-                text: self.text,
-                position: self.position + 1,
-                callable_regions: self.callable_regions,
-            }
-            .peek()
-        }
-
         pub(super) fn peek_compound<F: Vocabulary>(&self) -> Option<F> {
             let token = self.peek_token()?;
             self.opens(token).then(|| F::parse(token)).flatten()
@@ -367,7 +357,9 @@ mod grammar {
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
-        match reader.production::<TypeForm>()? {
+        let form = reader.production::<TypeForm>()?;
+        visitor.enter_type(form)?;
+        let result = match form {
             TypeForm::Unit => scoped(visitor, |_| Ok(())),
             TypeForm::Nominal => compound(reader, visitor, nominal),
             TypeForm::CompilerType => compound(reader, visitor, compiler_type),
@@ -375,11 +367,12 @@ mod grammar {
                 compound(reader, visitor, |reader, visitor| {
                     type_identity(reader, visitor)?;
                     if reader.next(b',') {
-                        if !reader.callable_regions {
-                            return Err(region_operand(reader));
-                        }
                         reader.expect(b',')?;
-                        region(reader, visitor)?;
+                        if reader.callable_regions {
+                            region(reader, visitor)?;
+                        } else {
+                            declared_region(reader, visitor)?;
+                        }
                     }
                     Ok(())
                 })
@@ -388,26 +381,30 @@ mod grammar {
             TypeForm::Array => compound(reader, visitor, |reader, visitor| {
                 type_identity(reader, visitor)?;
                 reader.expect(b',')?;
-                index::array_length(reader, visitor)
+                visitor.enter_type_metadata();
+                let result = index::array_length(reader, visitor);
+                visitor.leave_type_metadata();
+                result
             }),
             TypeForm::Constrained => compound(reader, visitor, |reader, visitor| {
                 type_identity(reader, visitor)?;
                 while reader.next(b',') {
                     reader.expect(b',')?;
-                    constraint(reader, visitor)?;
+                    visitor.enter_type_metadata();
+                    let result = constraint(reader, visitor);
+                    visitor.leave_type_metadata();
+                    result?;
                 }
                 Ok(())
             }),
-            TypeForm::Generic | TypeForm::DynamicTrait => {
-                compound(reader, visitor, |reader, visitor| {
-                    name_atom(reader, Label::Name, visitor)?;
-                    while reader.next(b',') {
-                        reader.expect(b',')?;
-                        index::static_argument(reader, visitor)?;
-                    }
-                    Ok(())
-                })
-            }
+            TypeForm::Generic => compound(reader, visitor, |reader, visitor| {
+                name_atom(reader, Label::Name, visitor)?;
+                while reader.next(b',') {
+                    reader.expect(b',')?;
+                    index::static_argument(reader, visitor)?;
+                }
+                Ok(())
+            }),
             TypeForm::Named => compound(reader, visitor, |reader, visitor| {
                 match reader.peek::<IndexForm>() {
                     Some(IndexForm::IntegerConst) => {
@@ -429,7 +426,42 @@ mod grammar {
                 reader.callable_regions = previous;
                 result
             }),
+        };
+        visitor.leave_type(form);
+        result
+    }
+
+    // Schema regions describe a declaration's binder, never a live value's
+    // lifetime. Ordinary identity consumers still refuse them through the
+    // default visitor; the signature reader must explicitly request them.
+    fn declared_region(
+        reader: &mut Reader<'_>,
+        visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
+    ) -> Result {
+        if reader.peek::<RegionForm>() != Some(RegionForm::Region) {
+            return Err(region_operand(reader));
         }
+        reader.production::<RegionForm>()?;
+        compound(reader, visitor, |reader, visitor| {
+            if reader.atom(Label::Owner, visitor)?.as_ref() != "schema" {
+                return Err(unadmitted(Unadmitted::ApplicationScope));
+            }
+            reader.expect(b',')?;
+            let ordinal = reader.atom(Label::Ordinal, visitor)?;
+            if ordinal.is_empty() || (ordinal.len() > 1 && ordinal.starts_with('0')) {
+                return Err(Error::MalformedIdentity);
+            }
+            let ordinal = ordinal
+                .bytes()
+                .try_fold(0_u32, |value, byte| {
+                    if !byte.is_ascii_digit() {
+                        return None;
+                    }
+                    value.checked_mul(10)?.checked_add(u32::from(byte - b'0'))
+                })
+                .ok_or(Error::MalformedIdentity)?;
+            visitor.schema_region(ordinal)
+        })
     }
 
     pub(super) fn callable_child(
@@ -517,7 +549,7 @@ mod grammar {
     }
 
     fn region_operand(reader: &Reader<'_>) -> Error {
-        match reader.peek_after_comma::<RegionForm>() {
+        match reader.peek::<RegionForm>() {
             Some(RegionForm::Region | RegionForm::Elided | RegionForm::Unresolved) => {
                 unadmitted(Unadmitted::ApplicationScope)
             }
@@ -1191,7 +1223,7 @@ pub mod vocabulary {
             Constrained = "constrained",
             Generic = "generic",
             Named = "named",
-            DynamicTrait = "dynamic-trait",
+
             IndexExpression = "index-expression",
             Callable = "callable",
         }
@@ -1401,6 +1433,22 @@ pub trait TypeIdentityPackageOwnerVisitor {
     fn reserve(&mut self, owned_bytes: usize) -> Result<(), TypeIdentityVisitError>;
     fn package_owner(&mut self, digest: [u8; 32]) -> Result<(), TypeIdentityVisitError>;
     fn embedded_name(&mut self, name: &str) -> Result<(), TypeIdentityVisitError>;
+
+    fn enter_type(&mut self, _form: vocabulary::TypeForm) -> Result<(), TypeIdentityVisitError> {
+        Ok(())
+    }
+
+    fn leave_type(&mut self, _form: vocabulary::TypeForm) {}
+
+    fn enter_type_metadata(&mut self) {}
+
+    fn leave_type_metadata(&mut self) {}
+
+    fn schema_region(&mut self, _ordinal: u32) -> Result<(), TypeIdentityVisitError> {
+        Err(TypeIdentityVisitError::Unadmitted(
+            vocabulary::Unadmitted::ApplicationScope,
+        ))
+    }
 }
 
 pub fn visit_type_identity_package_owners(
@@ -1451,4 +1499,49 @@ fn scoped<T>(
     let result = action(visitor);
     visitor.leave();
     result
+}
+
+#[cfg(test)]
+mod signature_region_tests {
+    use super::*;
+
+    #[test]
+    fn schema_regions_describe_binders_without_admitting_value_regions() {
+        #[derive(Default)]
+        struct Schema(Vec<u32>);
+        impl TypeIdentityPackageOwnerVisitor for Schema {
+            fn enter(&mut self) -> Result {
+                Ok(())
+            }
+            fn leave(&mut self) {}
+            fn reserve(&mut self, _: usize) -> Result {
+                Ok(())
+            }
+            fn package_owner(&mut self, _: [u8; 32]) -> Result {
+                Ok(())
+            }
+            fn embedded_name(&mut self, _: &str) -> Result {
+                Ok(())
+            }
+            fn schema_region(&mut self, ordinal: u32) -> Result {
+                self.0.push(ordinal);
+                Ok(())
+            }
+        }
+        let identity = "ref-mut(ref(compiler-type(atom(i64)),region(owner(schema),ordinal(1))),region(owner(schema),ordinal(0)))";
+        assert!(
+            malformed_identity_offset(identity).is_some(),
+            "ordinary portable identities still refuse signature regions"
+        );
+        let mut schema = Schema::default();
+        visit_type_identity_package_owners(identity, &mut schema).unwrap();
+        assert_eq!(schema.0, vec![1, 0]);
+        for invalid in [
+            identity.replace("ordinal(1)", "ordinal(01)"),
+            identity.replace("owner(schema)", "owner(42:1)"),
+            identity.replace("ordinal(1)", "ordinal(4294967296)"),
+        ] {
+            assert!(visit_type_identity_package_owners(&invalid, &mut Schema::default()).is_err());
+        }
+    }
 }

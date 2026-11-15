@@ -30,7 +30,7 @@ Module layout:
 - `syntax_projection`: AST-level role and entry validation over `build.omg`.
 - `declaration_errors`: user-facing diagnostics for every syntax projection
   refusal.
-- `prelude`: the toolchain-authored `Build` API source (`build_prelude_source`),
+- `prelude`: the toolchain-authored `Build` API source bundle (`build_prelude`),
   assembled with the shared target and optimization catalogs.
 */
 
@@ -58,7 +58,7 @@ pub use dependencies::{
     DependencyPurpose, DependencyRow, DependencyRowError, FROM_SOURCE_HELPER_NAME,
     WITH_ALIAS_HELPER_NAME, is_dependency_call, project_dependency_rows,
 };
-pub use prelude::{build_prelude_source, default_build_source};
+pub use prelude::{BuildPrelude, build_prelude, default_build_source};
 pub use syntax_projection::{
     BuildEntrySyntaxProjection, package_authored_type_name, project_build_declaration_from_source,
     project_build_declaration_in_entry, project_build_entry_syntax,

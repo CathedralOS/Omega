@@ -3,7 +3,7 @@
 `Build::dependency` + `Build::build_dependency` select `dependency/` with no alias.
 The dep declares `Build::package(builder, "custody_kernel")`.
 
-Both scopes try the dep's declared name: `use custody_kernel::main` in
+Both scopes try the dep's declared name: `use custody_kernel;` in
 `build.omg` and in `main.omg`. If the unaliased family names imports by
 declared package name this compiles; if the family names them by directory
 or merges unqualified the `use` fails and this becomes a control.

@@ -8,7 +8,7 @@ The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
-[Terminal production](../../../psi/compilation/psi-compiler/terminal-production/README.md)
+[Terminal production](../../../psi/compilation/terminal-production/README.md)
 publishes an accepted lowered-form module with the same evidence and retained
 source owner. This driver supplies product policy and timing observations;
 [entry receipts](../../../psi/compilation/representations/terminal-psi/codec/src/entry_receipt.rs)
@@ -20,7 +20,7 @@ Terminal-to-image sequence behind a source-free dependency boundary. This
 coordinator calls it after Terminal production; it no longer owns native stages.
 Consumers use
 `native-artifact`, `image-emission`, and Omega 00's `provider_admission` directly
-for those contracts. Reports and publication come from `compilation-products`;
+for those contracts. Reports and publication come from `products`;
 there is no compiler-owned `report` or `artifact_publication` module. Root-level
 request/result exports remain conveniences for the compilation entrypoints.
 
@@ -70,7 +70,7 @@ pending Terminal work. It borrows only the pending work for shared production,
 then finishes each application in that same order; no indexed output holes or
 parallel pending/result tables are reconstructed. [Product execution](src/product_execution.rs)
 owns one application's stop, permission admission, artifact completion and output.
-[Product report planning](../products/src/checked_compilation/report.rs) owns
+[Product report planning](../products/src/checked_compilation_report.rs) owns
 the requested output together with native production inputs, and settles the
 optimization rollback once. The same choices feed Terminal, native production
 and the final receipt. A native request is carried by its native report
@@ -186,7 +186,7 @@ result reconciliation; they do not invoke compilation. Application Build
 receives reports or Terminal inspections, never a checked checkpoint to return
 for production. The compiler compares fresh supplied
 permissions with the exact root Product consent before native production,
-using the independent package-evidence projection owner. Inspection is an
+using the independent review-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
 production submit the same `CompilationProduct` through `orchestration::produce_source`;
 named inspection joins shared Terminal production and completes declaration
@@ -234,10 +234,10 @@ The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
 then [prepare each target's complete selected execution](src/execution_settlement.rs).
-The Build coordinator calls the [Psi source continuation](../../../psi/compilation/psi-compiler/src/source_compilation.rs)
+The Build coordinator calls the [Psi source continuation](../../../psi/compilation/source-compiler/src/source_compilation.rs)
 for resolution, typing and generated-source completion. It owns package admission
 and Build authority, not the resolver/typing fixed points or their paired arenas.
-[Psi source checking](../../../psi/compilation/psi-compiler/src/source_checking.rs) then
+[Psi source checking](../../../psi/compilation/source-compiler/src/source_checking.rs) then
 owns preparation, retained-judgment matching, checking and product pruning.
 Build admission uses that same checking sequence. Shared source projections and
 operator queries belong to semantic checking libraries, not a stage backdoor.
@@ -348,9 +348,9 @@ production; neither restarts Psi or independently verifies its fresh output.
 Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. One effective Psi optimization selection governs the
 whole program, including callback roots. The coordinator passes the artifact
-and build choices to the [shared native proposal owner](../representations/abstract-operations/verified-input/src/native_proposal.rs).
+and build choices to the [shared native proposal owner](../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs).
 That owner checks the entry, selected implementations and callback occurrences;
-its [execution preparation](../representations/abstract-operations/verified-input/src/native_execution.rs)
+its [execution preparation](../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
 then determines the functions that can run and completes their implementation
 choices. [Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs)
 lowers and admits that checked selection. The compiler orchestrates these
@@ -405,7 +405,7 @@ canonical row encoder, preserving the existing byte format and identities.
 
 ## Intrinsic settlement conversion
 
-[Native builtin projection](../pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/compiler_builtins/proposals.rs) validates all
+[Native builtin projection](../realization/provider-admission/src/compiler_builtins.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive
@@ -526,7 +526,7 @@ oracle's source-coordinate associations do not substitute for that portable join
 ## Native realization
 
 Final image construction and Direct/Dynamic-ELF artifact dispatch belong to
-[native-artifact emission](../backend/artifacts/native-artifact/src/native_artifact/emission.rs).
+[native-artifact emission](../backend/artifacts/native-artifact/src/lib.rs).
 The coordinator supplies source-free selected-plan projections and forwards the
 emitted object and retained evidence; the backend constructs and independently
 replays the complete product. No compiler-local artifact assembler remains.
@@ -567,7 +567,7 @@ of carrying a second plan copy and separately supplied identity fields.
 Independent fragment, object, and image replay still check the complete join.
 
 Direct compilation and retained Terminal re-entry share the Terminal entry stage's
-[source-binding preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/source_evaluated_bindings.rs).
+[source-binding preparation](../realization/provider-admission/src/source_evaluated_bindings.rs).
 It joins demanded imports and syscalls to exact selected plans, derives import execution and stack
 inputs when none are supplied, and rejects incomplete or substituted supplied
 rosters. The coordinator forwards the prepared settlements; it does not derive
@@ -584,13 +584,13 @@ alone is not evidence that a syscall-backed program runs.
 
 Starting a native program must preserve the entry contract reviewed for that
 build. [Entry roots](../../../../wiki/spec/build/entry_roots.md) defines the
-source and arrival contract. The [shared entry settlement](../representations/abstract-operations/verified-input/src/entry_settlement.rs)
+source and arrival contract. The [shared entry settlement](../representations/abstract-operations/verified-optimization-input/src/entry_settlement.rs)
 independently checks the target, source signature, calling/storage plans,
 canonical artifact, exact entry and service establishment before issuing the
 validated record.
 It does not call the Psi receipt producer to validate that producer's output.
 
-[entry_settlement.rs](../representations/abstract-operations/verified-input/src/entry_settlement.rs) joins
+[entry_settlement.rs](../representations/abstract-operations/verified-optimization-input/src/entry_settlement.rs) joins
 selected Fused service evidence to the Terminal receiver's attachment and exact
 erased fields, then to the selected provider plans. Semantic receiver identity
 and retained Terminal attachment identity are separate facts and need not have
@@ -644,7 +644,7 @@ result, and resource custody; metadata-only receipt tests do not close the route
 
 A callback must retain the function and argument placement selected by its
 calling contract. Canonical callback applications and target calling applications
-remain separate inputs to the realization request. The [shared callback settlement](../representations/abstract-operations/verified-input/src/callback_settlement.rs)
+remain separate inputs to the realization request. The [shared callback settlement](../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
 joins their exact requirement and static binder ordinal, then produces the
 [backend placement](../backend/plans/backend-plan/src/callback_placements.rs):
 a direct callback parameter or record-field root with its native ordinal and

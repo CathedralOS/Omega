@@ -277,6 +277,7 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
         }
     }
     let mut suspension = None;
+    let mut crossings = Vec::new();
     for (position, (machine, calls)) in machines.iter().enumerate() {
         if published(machine) != inferred[position] {
             return Err(fault(
@@ -344,7 +345,16 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                 }
             }
             if flags[0] {
-                suspension.get_or_insert((machine.id, site));
+                match call.site {
+                    CallSite::Operation(operation) if !call.tail => {
+                        crossings.push((machine.id, operation));
+                    }
+                    // A crossing is a property of an operation. A call a
+                    // terminator makes, or one lowered to a jump, has none.
+                    CallSite::Operation(_) | CallSite::Edge(_) => {
+                        suspension.get_or_insert((machine.id, site));
+                    }
+                }
             }
         }
     }
@@ -353,7 +363,107 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
             RefusalReason::Unsupported,
             machine,
             site,
-            "a possibly suspending call needs checked continuation, carry and loan preservation evidence",
+            "a possibly suspending terminal call needs a checked suspension crossing",
+        ));
+    }
+    crossings_are_stated(elaboration, &crossings)
+}
+
+/// Every call operation that may suspend, and no other operation, carries a
+/// suspension crossing, and the module states for each exactly the site and
+/// plan this checker reconstructs from the operations themselves.
+/// calls_and_outcomes.md, "Suspension": "Completeness requires an
+/// independently established possibly-suspending crossing roster. Matching a
+/// producer's site and plan is not enough: deleting both must not erase a
+/// required crossing."
+///
+/// What a live value owes to cross (resources/carry.md): its carry policy
+/// must allow suspension, which is checked row by row. The other duties do
+/// not arise on this route. A resource claim is refused before it could be
+/// live here (`activation_storage::validate_module`). An ownership window
+/// cannot be open, because the reader refuses an owned extraction from
+/// borrowed storage. A loan is not ended by the call, so the loan judgment
+/// already holds every lender for as long as its borrower is live.
+fn crossings_are_stated(
+    elaboration: &Elaboration,
+    expected: &[(
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::OperationId,
+    )],
+) -> Checked<()> {
+    use terminal_semantics::suspension_frontier::{call_plan, call_site};
+    let module = &elaboration.module;
+    let mut stated = 0usize;
+    for machine in &module.machines {
+        for operation in machine.operations() {
+            let site = Construct::Operation(operation.id);
+            let owed = expected.contains(&(machine.id, operation.id));
+            let Some(crossing) = operation.suspension_crossing else {
+                if owed {
+                    return Err(fault(
+                        machine.id,
+                        site,
+                        "a possibly suspending call carries no suspension crossing",
+                    ));
+                }
+                continue;
+            };
+            if !owed {
+                return Err(fault(
+                    machine.id,
+                    site,
+                    "a suspension crossing is on an operation that cannot suspend",
+                ));
+            }
+            stated += 1;
+            let plan = call_plan(module, machine, operation.id, crossing)
+                .map_err(|reason| fault(machine.id, site, reason))?;
+            let mut plans = module
+                .suspension_call_plans
+                .iter()
+                .filter(|plan| plan.crossing == crossing);
+            if plans.next() != Some(&plan) || plans.next().is_some() {
+                return Err(fault(
+                    machine.id,
+                    site,
+                    "a suspension plan is not the live frontier of its call",
+                ));
+            }
+            let mut sites = module
+                .suspension_call_sites
+                .iter()
+                .filter(|site| site.crossing == crossing);
+            if sites.next() != Some(&call_site(module, &plan)) || sites.next().is_some() {
+                return Err(fault(
+                    machine.id,
+                    site,
+                    "a suspension site does not commit to the live frontier of its call",
+                ));
+            }
+            // carry.md: "A suspension-forbidden live value rejects an
+            // explicit semantic suspension point."
+            if plan
+                .live_values
+                .iter()
+                .any(|live| live.effective.suspension != language_core::CarrySuspension::Allowed)
+            {
+                return Err(refusal(
+                    RefusalReason::Violation(None),
+                    machine.id,
+                    site,
+                    "a value live across this call forbids suspension",
+                ));
+            }
+        }
+    }
+    if stated != module.suspension_call_plans.len()
+        || stated != module.suspension_call_sites.len()
+        || u32::try_from(stated).ok() != Some(module.suspension_call_plan_count)
+    {
+        return Err(fault(
+            semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
+            Construct::Machine,
+            "the module states a suspension site or plan no call owns",
         ));
     }
     Ok(())

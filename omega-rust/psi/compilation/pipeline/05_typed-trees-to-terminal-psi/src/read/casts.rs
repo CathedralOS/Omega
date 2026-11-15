@@ -30,8 +30,8 @@ impl Program<'_> {
         if let Some(entry) = cast.form.entry() {
             return self.domain_entry(id, slots, cast, entry, source);
         }
-        if cast.form != language_core::CastForm::Value {
-            return unserved("recast");
+        if cast.form.is_recast() {
+            return unserved("storage view outside reference formation");
         }
         if cast.semantic_domain_symbol.is_valid() || !cast.semantic_domain.is_empty() {
             return unserved("cast naming a domain");
@@ -121,6 +121,11 @@ impl Program<'_> {
         let converted = if from == to {
             operand
         } else {
+            // counts_and_addresses.md: "neither arbitrary value-to-address
+            // conversions nor the inverse ... follow from these queries".
+            if from.is_address() || to.is_address() {
+                return unserved("cast to or from an address");
+            }
             if !from.can_widen_to(to) && !from.can_exact_cast_to(to) {
                 return unserved("cast with no exact conversion");
             }
@@ -549,16 +554,16 @@ mod tests {
         refusal.detail
     }
 
-    /// Each cast outside the carrier family is refused by what the typed
-    /// trees record about it, before its operand or target is read.
+    /// Missing retained types and unserved domain combinations refuse before
+    /// reading the operand; a recast needs its exact reference destination.
     #[test]
-    fn a_cast_that_is_not_a_plain_carrier_cast_is_refused_by_name() {
+    fn casts_refuse_missing_types_and_unserved_domain_combinations_before_the_operand() {
         assert_eq!(
             refused(TableCastExpression {
                 form: CastForm::Recast(ReferenceAccess::Shared),
                 ..plain()
             }),
-            "expression recast"
+            "expression storage view outside reference formation"
         );
         assert_eq!(
             refused(TableCastExpression {

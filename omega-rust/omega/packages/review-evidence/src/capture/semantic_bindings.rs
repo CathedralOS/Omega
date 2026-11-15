@@ -11,9 +11,9 @@ formed from a retained copy.
 */
 
 use crate::record::SemanticBindingReviewCandidate;
-use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
+use products::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
 
 #[derive(Debug, Clone)]

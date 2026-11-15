@@ -97,8 +97,8 @@ pub use prepared_build::{
     SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
-    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier, SourcePreparation,
-    TypedCompilationFrontier,
+    BuildStage, DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier,
+    SourcePreparation, TypedCompilationFrontier,
 };
 pub use terminal_installation::PrivateEntryRamInitialization;
 pub use terminal_psi_to_abstract_operations::{

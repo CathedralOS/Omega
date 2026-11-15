@@ -95,18 +95,106 @@ fn a_hidden_body_still_contributes_its_deferred_crash_route() {
     );
 }
 
-/// A public body is not a published no-return promise. Its private crash
-/// must not remove the operation checked after an ordinary call either.
+/// Public visibility does not hide an exact checked body from its own unit.
+/// The inferred outcome changes this local continuation, not the public API.
 #[test]
-fn a_public_body_does_not_silently_publish_nonreturn() {
+fn a_local_public_nonreturn_still_ends_the_callers_path() {
     let verdicts = judge_build_all(
         "public machine stop() -> u32 crashes Trap { crash Trap; }\n\
          machine build_entry() crashes Trap {\n\
              let value: u32 = stop(); let next: u32 = value + 1;\n\
          }",
     );
+    let [Ok(RouteVerdict::Accepted(accepted))] = &verdicts[..] else {
+        panic!("the exact local body excludes the addition: {verdicts:?}");
+    };
+    assert_eq!(accepted.elaboration.unreachable_statements().count(), 1);
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash) if crash.cause == semantic_vocabulary::CrashCause::Trap),
+        "{status:?}"
+    );
+}
+
+/// The same public body in a dependency remains an ordinary returning API.
+/// Importing its source does not let the client skip the unsafe addition.
+#[test]
+fn a_dependency_body_does_not_silently_publish_nonreturn() {
+    let mut sources = source::SourceMap::default();
+    let mut syntax = None;
+    let mut source_ids = Vec::with_capacity(2);
+    let client_package = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
+    for (path, root, text, digest) in [
+        (
+            "library/api.omg",
+            "library",
+            "public machine stop() -> u32 crashes Trap { crash Trap; }",
+            [1; 32],
+        ),
+        (
+            "client/main.omg",
+            "client",
+            "machine entry() crashes Trap { let value: u32 = stop(); let next: u32 = value + 1; }",
+            [2; 32],
+        ),
+    ] {
+        let source = sources
+            .add_checked_instance(
+                path.into(),
+                text,
+                root.into(),
+                Some(semantic_vocabulary::PackageKeyIdentity::from_digest(digest).unwrap()),
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        source_ids.push(source);
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        match &mut syntax {
+            Some(syntax) => {
+                tokens_to_syntax_trees::parse(syntax, source, &tokens).unwrap();
+            }
+            None => {
+                syntax = Some(
+                    tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap(),
+                )
+            }
+        }
+    }
+    let mut request =
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+    request.sources = Some(std::sync::Arc::new(sources));
+    request
+        .top_level_bindings
+        .push(symbols::SourceScopedTopLevelBinding::new(
+            source_ids[1],
+            source_ids[0],
+            "stop",
+        ));
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let entry = super::build_purpose::symbol(&typed, "entry");
+    let verdicts = crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            super::build_purpose::roster(
+                &[entry],
+                &[Some(client_package)],
+                source::DependencyScope::Product,
+            ),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    );
     let [Ok(RouteVerdict::Rejected { unproved, .. })] = &verdicts[..] else {
-        panic!("the public contract permits an unbounded returned value");
+        panic!("the dependency contract permits a returned value: {verdicts:?}");
     };
     assert!(
         unproved

@@ -3,6 +3,10 @@ Control-flow graph reachability, predecessor/successor indices, dominance, and e
 over `TerminalMachine` blocks.
 */
 
+mod dominance;
+
+pub use dominance::{DominanceInterval, dominance_forest};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::MachineId;
@@ -335,13 +339,7 @@ fn reverse_postorder_from_successors(
 
 pub struct DominatorTree {
     positions: BTreeMap<BlockId, usize>,
-    nodes: Vec<DominatorNode>,
-}
-
-struct DominatorNode {
-    traversal_start: usize,
-    traversal_end: usize,
-    depth: usize,
+    nodes: Vec<DominanceInterval>,
 }
 
 impl DominatorTree {
@@ -352,16 +350,13 @@ impl DominatorTree {
         ) else {
             return false;
         };
-        let definition = &self.nodes[definition];
-        let use_block = &self.nodes[use_block];
-        definition.traversal_start <= use_block.traversal_start
-            && use_block.traversal_start < definition.traversal_end
+        self.nodes[definition].dominates(&self.nodes[use_block])
     }
 
     pub fn depth(&self, block: BlockId) -> Option<usize> {
         self.positions
             .get(&block)
-            .map(|&position| self.nodes[position].depth)
+            .map(|&position| self.nodes[position].depth())
     }
 }
 
@@ -379,72 +374,12 @@ pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
             predecessors[positions[target]].push(positions[block]);
         }
     }
-
-    let mut immediate = vec![usize::MAX; ordered.len()];
-    immediate[0] = 0;
-    loop {
-        let mut changed = false;
-        for position in 1..ordered.len() {
-            let mut common = usize::MAX;
-            for &predecessor in &predecessors[position] {
-                if immediate[predecessor] == usize::MAX {
-                    continue;
-                }
-                common = if common == usize::MAX {
-                    predecessor
-                } else {
-                    intersect_dominator_chains(common, predecessor, &immediate)
-                };
-            }
-            debug_assert!(common < position);
-            if immediate[position] != common {
-                immediate[position] = common;
-                changed = true;
-            }
-        }
-        if !changed {
-            break;
-        }
-    }
-
-    let mut children = vec![Vec::new(); ordered.len()];
-    for position in 1..ordered.len() {
-        children[immediate[position]].push(position);
-    }
-    let mut nodes = (0..ordered.len())
-        .map(|_| DominatorNode {
-            traversal_start: 0,
-            traversal_end: 0,
-            depth: 0,
-        })
-        .collect::<Vec<_>>();
-    nodes[0].depth = 1;
-    let mut next_start = 1;
-    let mut pending = vec![(0, 0)];
-    while let Some((position, child_position)) = pending.last_mut() {
-        let Some(&child) = children[*position].get(*child_position) else {
-            nodes[*position].traversal_end = next_start;
-            pending.pop();
-            continue;
-        };
-        *child_position += 1;
-        nodes[child].depth = nodes[*position].depth + 1;
-        nodes[child].traversal_start = next_start;
-        next_start += 1;
-        pending.push((child, 0));
-    }
+    let mut roots = vec![false; ordered.len()];
+    roots[0] = true;
+    let slots: Vec<_> = (0..ordered.len()).collect();
+    let nodes = dominance_forest(&predecessors, &slots, &roots)
+        .expect("the validated machine graph is reachable in reverse postorder");
     DominatorTree { positions, nodes }
-}
-
-fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[usize]) -> usize {
-    while first != second {
-        if first > second {
-            first = immediate[first];
-        } else {
-            second = immediate[second];
-        }
-    }
-    first
 }
 
 pub fn control_cycle_identity(

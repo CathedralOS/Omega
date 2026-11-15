@@ -288,6 +288,11 @@ impl<'a> Storage<'a> {
             })
         };
         let mut rows = Vec::new();
+        if let Some(source) = self.moved_source(operation)? {
+            rows.push((fresh()?, Stored::Moved(source.clone())));
+            rows.push((source, Stored::Vacated));
+            return Ok(rows);
+        }
         match &operation.kind {
             OperationKind::EstablishStructuralLocal {} => {
                 rows.push((fresh()?, Stored::Vacated));
@@ -403,11 +408,6 @@ impl<'a> Storage<'a> {
                     Stored::Moved(self.stored_at(*source, path, concerns)?),
                 ));
             }
-            OperationKind::MoveStructuralValue { source } => {
-                let source = self.argument(source, concerns)?;
-                rows.push((fresh()?, Stored::Moved(source.clone())));
-                rows.push((source, Stored::Vacated));
-            }
             OperationKind::WriteOnlyPrimitiveStore {
                 destination,
                 path,
@@ -435,25 +435,12 @@ impl<'a> Storage<'a> {
             OperationKind::StoreStructuralField {
                 destination,
                 path,
-                field: Some(field),
-                value,
-                ..
-            } => {
-                let carrier = self.stored_at(*destination, path, concerns)?;
-                rows.push((
-                    beneath(&carrier, &[Segment::Field(*field)])?,
-                    Stored::Moved(self.argument(value, concerns)?),
-                ));
-            }
-            OperationKind::StoreStructuralField {
-                destination,
-                path,
-                field: None,
+                field,
                 value,
                 ..
             } => {
                 rows.push((
-                    self.stored_at(*destination, path, concerns)?,
+                    self.projected_storage(*destination, path, *field, concerns)?,
                     Stored::Moved(self.argument(value, concerns)?),
                 ));
             }
@@ -484,7 +471,9 @@ impl<'a> Storage<'a> {
                 self.shared_subslice(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
-            OperationKind::EstablishReference { .. } => {
+            OperationKind::EstablishReference { .. }
+            | OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. } => {
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -496,6 +485,13 @@ impl<'a> Storage<'a> {
             OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 rows.push((fresh()?, Stored::Value(*value)));
             }
+            OperationKind::ByteSequenceWrite { destination, .. } => {
+                self.writable_byte_view(operation, *destination)?;
+                // Payload writes are tracked by descriptor backing analysis.
+                // The descriptor itself retains its extent and initialization.
+            }
+            // A comparison observes both views and stores nothing.
+            OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }

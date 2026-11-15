@@ -3248,7 +3248,7 @@ pub(crate) mod hosted_receiver {
         {
             return Err(invalid());
         }
-        if let Some(selections) = replay.target_machine_selections() {
+        if let Some(selections) = replay.target_context() {
             if selections.target() != source.target_slot().owner.target_name()
                 || selections
                     .entry(

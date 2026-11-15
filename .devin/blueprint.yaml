@@ -1,32 +1,12 @@
 initialize:
   - name: system packages
     run: apt-get update && apt-get install -y build-essential pkg-config python3
-  - name: rust toolchain
+  - name: toolchain and mbx
     run: |
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly-2026-09-04 -c clippy -c rustfmt
+      bash tools/agent_setup.sh
       echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$ENVRC"
-  - name: cargo-nextest
-    run: |
       export PATH="$HOME/.cargo/bin:$PATH"
-      curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C "$HOME/.cargo/bin"
-      cargo nextest --version
-  - name: mbx
-    run: |
-      # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
-      # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
-      # Same checksum-checked release as tools/agent_setup.sh, pinned in
-      # tools/mbx-version, read relative to the checkout this step runs in.
-      export PATH="$HOME/.cargo/bin:$PATH"
-      version=$(tr -d "[:space:]" < tools/mbx-version)
-      archive=mbx-$(uname -m)-unknown-linux-gnu.tar.gz
-      release=https://github.com/jdx/mr-boxington/releases/download/v$version
-      work=$(mktemp -d)
-      (cd "$work" &&
-        curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
-        grep " $archive\$" SHA256SUMS | sha256sum --check --strict - &&
-        tar -xzf "$archive" -C "$HOME/.cargo/bin" mbx)
-      rm -rf "$work"
-      mbx --version
+      mbx xtask doctor
 maintenance:
   - name: submodules (best effort; Squalr is in the CathedralOS org)
     run: git submodule update --init --recursive || echo "submodule init skipped"
@@ -45,11 +25,12 @@ maintenance:
       mbx nextest run --workspace --lib --no-run
 knowledge:
   - name: rules
-    contents: Read AGENTS.md in full before any change. Build and test with mbx (Mr Boxington, https://mr-boxington.jdx.dev/), as AGENTS.md's commands do; `mbx doctor` checks it.
+    contents: Read AGENTS.md in full before any change. Build and test with mbx (Mr Boxington, https://mr-boxington.jdx.dev/), as AGENTS.md's commands do; `mbx xtask doctor` checks it.
   - name: test
     contents: |
-      Scoped: python3 tools/test_affected.py --base <verified-commit> --plan, then without --plan.
-      One crate test: mbx nextest run -p <crate> <filter>. Compiler behavior: a test on the changed code, with any program it reads kept under tests/fixtures/
+      Tests on the changed crate/area: mbx test -p <crate> --test <test> (or mbx nextest run -p <crate> <filter>).
+      Samples (differential native + Psi): mbx xtask sample-gate --filter <sample_path>.
+      Repository rules, lint & formatting: mbx xtask check-rules --base origin/main --title "<lane>: <subject>", mbx xtask fmt --check, mbx clippy -p <crate> --all-targets -- -D warnings, mbx xtask check-boundary.
       Bootstrap gates: sh tools/bootstrap/check-chain-hygiene.sh ; sh tests/bootstrap/alpha-beta-edge.sh --edge
   - name: landing
-    contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/docs/landing.md. Never push main directly.
+    contents: Coordinate via mbx xtask claims and mbx xtask worktree; push a work/<topic> branch, open a PR with an mbx xtask provenance footer, wait for admission, and squash-merge into main (see tools/docs/landing.md). Never push main directly.

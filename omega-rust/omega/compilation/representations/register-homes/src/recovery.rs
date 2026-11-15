@@ -949,13 +949,12 @@ pub enum FixedViewCopyPolicy {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FixedViewCopySourceEvidence {
-    LegacyLegalityTransitionsV1,
-    FixedPrecoloredSegmentHomesV1 {
-        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
-        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
-        segment_homes: FixedPrecoloredSegmentHomePlanIdentity,
-    },
+pub struct FixedViewCopySourceEvidence {
+    // Recovery consumes these three admitted plans together. There is no
+    // alternate source contract based only on historical legality transitions.
+    pub fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
+    pub split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
+    pub segment_homes: FixedPrecoloredSegmentHomePlanIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1008,7 +1007,6 @@ pub enum FixedViewCopyDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     UnknownPolicy(u8),
-    UnknownSourceEvidence(u8),
     UnknownDefinitionSite(u8),
     UnknownFixedSite(u8),
     UnknownRegisterOrigin(u8),
@@ -1138,7 +1136,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_bytes(crate::codec_bytes::domain_identity(
-        b"omega.terminal-fixed-view-copies.v7\0",
+        b"omega.terminal-fixed-view-copies.v9\0",
         &bytes,
     ))
 }
@@ -1497,7 +1495,7 @@ mod tests {
             source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
-            source_evidence: FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
+            source_evidence: FixedViewCopySourceEvidence {
                 fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([6; 32]),
                 split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
                     [7; 32],
@@ -1586,7 +1584,18 @@ mod tests {
                 plan.allocator_availability =
                     crate::AllocatorAvailabilityIdentity::from_bytes([16; 32])
             },
-            |plan| plan.source_evidence = FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
+            |plan| {
+                plan.source_evidence.fixed_intervals =
+                    crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([17; 32])
+            },
+            |plan| {
+                plan.source_evidence.split_requirements =
+                    crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([18; 32])
+            },
+            |plan| {
+                plan.source_evidence.segment_homes =
+                    crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([19; 32])
+            },
             |plan| plan.budget = OptimizationWorkBudget::new(11, 10, 10, 10, 10).unwrap(),
             |plan| plan.usage.commits += 1,
             |plan| plan.copies[0].function += 1,

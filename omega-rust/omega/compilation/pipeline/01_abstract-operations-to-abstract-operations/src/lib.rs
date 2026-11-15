@@ -119,8 +119,8 @@ pub use verified_unit::{
 use crate::pass_manager::{OptimizationRunError, run_registries};
 use crate::publication::publish_optimization_run;
 use crate::rules::built_in_psi_steps_for_selections;
-use psi_work::WorkSchedule;
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_work::WorkSchedule;
 
 #[derive(Debug)]
 pub enum AbstractOptimizationError {

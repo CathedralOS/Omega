@@ -150,410 +150,7 @@ pub mod calls {
             declaration.is_boundary.then_some(signature)
         }
     }
-    pub mod dynamic_traits {
-        use crate::TypedTrees;
-        use crate::domain::ProofFact;
-        use crate::expression::ExpressionHandle;
-        use crate::name::Identifier;
-        use crate::signature::StateSignature;
-        use crate::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
-        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-        use symbols::SymbolHandle;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum DynamicNonSignatureIneligibility {
-            PrivateContractIdentity,
-            UnprojectableResultLifetime,
-            UnfittableEnvelope,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-        pub struct DynamicSlotSignature {
-            pub symbol: SymbolHandle,
-            pub interface_identity: crate::type_identity::TypeIdentityId,
-            pub declaring_trait: SymbolHandle,
-            pub requirement: SymbolHandle,
-            pub call_requirement: SymbolHandle,
-            pub parameters: Vec<crate::signature::StateParameter>,
-            pub return_type: TypeReferenceHandle,
-        }
-
-        impl DynamicSlotSignature {
-            pub fn data_parameters(&self) -> &[crate::signature::StateParameter] {
-                self.parameters.get(1..).unwrap_or_default()
-            }
-        }
-
-        impl TypedTrees {
-            pub fn dynamic_slot(
-                &self,
-                interface_identity: crate::type_identity::TypeIdentityId,
-                requirement: SymbolHandle,
-            ) -> Option<&DynamicSlotSignature> {
-                self.dynamic_slots.iter().find(|slot| {
-                    slot.call_requirement == requirement
-                        && slot.interface_identity == interface_identity
-                })
-            }
-
-            pub fn dynamic_slot_requirement(
-                &self,
-                slot: &DynamicSlotSignature,
-            ) -> Option<&crate::signature::StateSignature> {
-                let definition = self.trait_definition_by_symbol(slot.declaring_trait)?;
-                self.trait_machine_signature_by_symbol(definition, slot.requirement)
-            }
-
-            pub fn dynamic_slot_by_symbol(
-                &self,
-                symbol: SymbolHandle,
-            ) -> Option<&DynamicSlotSignature> {
-                if !symbol.is_valid() {
-                    return None;
-                }
-                self.dynamic_slots.iter().find(|slot| slot.symbol == symbol)
-            }
-
-            pub fn dynamic_signature_eligibility(
-                &self,
-                trait_definition: &TraitDefinition,
-                requirement: &StateSignature,
-            ) -> Result<(), DynamicSignatureIneligibility> {
-                if trait_definition.is_boundary {
-                    return Err(DynamicSignatureIneligibility::BoundaryRequirement);
-                }
-                if !self.state_signature_type_parameters(requirement).is_empty()
-                    && !matches!(
-                        self.finite_signature_family(requirement),
-                        crate::finite_family::FamilyProbe::Finite { .. }
-                    )
-                {
-                    return Err(DynamicSignatureIneligibility::RequirementLocalGenerics);
-                }
-
-                Ok(())
-            }
-
-            pub fn dynamic_non_signature_eligibility(
-                &self,
-                requirement: &StateSignature,
-            ) -> Result<(), DynamicNonSignatureIneligibility> {
-                if self.requirement_contract_names_private_identity(requirement) {
-                    return Err(DynamicNonSignatureIneligibility::PrivateContractIdentity);
-                }
-                if !self.result_lifetimes_expressible_from_inputs(requirement) {
-                    return Err(DynamicNonSignatureIneligibility::UnprojectableResultLifetime);
-                }
-                if requirement.service_reach_is_installation_bound
-                    || !requirement.native_callback_parameters.is_empty()
-                {
-                    return Err(DynamicNonSignatureIneligibility::UnfittableEnvelope);
-                }
-                Ok(())
-            }
-
-            fn requirement_contract_names_private_identity(
-                &self,
-                requirement: &StateSignature,
-            ) -> bool {
-                let mut symbols = Vec::new();
-                for contract in self.state_signature_contracts(requirement) {
-                    for fact in self.proof_facts.span_or_empty(contract.facts) {
-                        self.collect_proof_fact_symbols(fact, &mut symbols);
-                    }
-                }
-                symbols
-                    .iter()
-                    .any(|symbol| contract_identity_is_public(self, *symbol) == Some(false))
-            }
-
-            fn result_lifetimes_expressible_from_inputs(
-                &self,
-                requirement: &StateSignature,
-            ) -> bool {
-                let mut input_lifetimes = Vec::new();
-                for parameter in self.state_signature_parameters(requirement) {
-                    collect_type_reference_lifetimes(
-                        self,
-                        parameter.type_reference,
-                        &mut input_lifetimes,
-                    );
-                }
-                if !requirement.return_type.is_valid() {
-                    return true;
-                }
-                let mut result_lifetimes = Vec::new();
-                collect_type_reference_lifetimes(
-                    self,
-                    requirement.return_type,
-                    &mut result_lifetimes,
-                );
-                result_lifetimes
-                    .iter()
-                    .all(|lifetime| input_lifetimes.contains(lifetime))
-            }
-
-            fn collect_proof_fact_symbols(
-                &self,
-                fact: &ProofFact,
-                symbols: &mut Vec<SymbolHandle>,
-            ) {
-                match fact {
-                    ProofFact::Expression(expression) => {
-                        self.collect_expression_symbols(*expression, symbols);
-                    }
-                    ProofFact::Membership(membership) => {
-                        symbols.push(membership.domain_symbol);
-                        self.collect_expression_symbols(membership.value, symbols);
-                        for argument in self.type_reference_handles(membership.domain_arguments) {
-                            collect_type_reference_symbols(self, *argument, symbols);
-                        }
-                    }
-                    ProofFact::Proposition(application) => {
-                        symbols.push(application.proposition);
-                        for binder in application.binder_arguments.iter() {
-                            symbols.push(binder.symbol);
-                        }
-                        for argument in self
-                            .expression_table
-                            .expression_handles(application.arguments)
-                        {
-                            self.collect_expression_symbols(*argument, symbols);
-                        }
-                    }
-                }
-            }
-
-            fn collect_expression_symbols(
-                &self,
-                expression: ExpressionHandle,
-                symbols: &mut Vec<SymbolHandle>,
-            ) {
-                if expression.is_valid() {
-                    symbols.extend(crate::references::collect_expression_symbol_dependencies(
-                        self, expression,
-                    ));
-                }
-            }
-        }
-
-        fn contract_identity_is_public(program: &TypedTrees, symbol: SymbolHandle) -> Option<bool> {
-            if !symbol.is_valid() {
-                return None;
-            }
-            program
-                .data_definitions()
-                .iter()
-                .find_map(|definition| {
-                    (definition.symbol == symbol).then_some(definition.is_public)
-                })
-                .or_else(|| program.machine(symbol).map(|machine| machine.is_public))
-                .or_else(|| {
-                    program.traits().iter().find_map(|definition| {
-                        (definition.symbol == symbol).then_some(definition.is_public)
-                    })
-                })
-                .or_else(|| {
-                    program.domain_definitions().iter().find_map(|definition| {
-                        (definition.symbol == symbol).then_some(definition.is_public)
-                    })
-                })
-                .or_else(|| {
-                    program.propositions().iter().find_map(|definition| {
-                        (definition.symbol == symbol).then_some(definition.is_public)
-                    })
-                })
-                .or_else(|| {
-                    program.conformances().iter().find_map(|conformance| {
-                        (conformance.symbol == symbol).then_some(conformance.is_public)
-                    })
-                })
-                .or_else(|| {
-                    program.const_declarations().iter().find_map(|declaration| {
-                        (declaration.symbol == symbol).then_some(declaration.is_public)
-                    })
-                })
-                .or_else(|| {
-                    program
-                        .mathematical_definitions()
-                        .iter()
-                        .find_map(|definition| {
-                            (definition.symbol == symbol).then_some(definition.is_public)
-                        })
-                })
-                .or_else(|| {
-                    program.operators().iter().find_map(|definition| {
-                        (definition.symbol == symbol).then_some(definition.is_public)
-                    })
-                })
-        }
-
-        fn collect_type_reference_symbols(
-            program: &TypedTrees,
-            type_reference: TypeReferenceHandle,
-            symbols: &mut Vec<SymbolHandle>,
-        ) {
-            if type_reference.is_valid() {
-                symbols.extend(crate::references::collect_type_symbol_dependencies(
-                    program,
-                    type_reference,
-                ));
-            }
-        }
-
-        fn collect_type_reference_lifetimes(
-            program: &TypedTrees,
-            type_reference: TypeReferenceHandle,
-            lifetimes: &mut Vec<String>,
-        ) {
-            if !type_reference.is_valid() {
-                return;
-            }
-            let mut inputs = LifetimeInputs {
-                program,
-                lifetimes,
-                scopes: Vec::new(),
-                pending_lifetimes: Vec::new(),
-                types: std::collections::HashSet::new(),
-                expressions: std::collections::HashSet::new(),
-            };
-            crate::references::visit_type_reference(program, &mut inputs, type_reference);
-        }
-
-        struct LifetimeInputs<'program, 'output> {
-            program: &'program TypedTrees,
-            lifetimes: &'output mut Vec<String>,
-            scopes: Vec<Vec<String>>,
-            pending_lifetimes: Vec<String>,
-            types: std::collections::HashSet<(TypeReferenceHandle, Vec<String>)>,
-            expressions: std::collections::HashSet<(ExpressionHandle, Vec<String>)>,
-        }
-
-        impl LifetimeInputs<'_, '_> {
-            fn context(&self) -> Vec<String> {
-                let mut names = self.scopes.iter().flatten().cloned().collect::<Vec<_>>();
-                names.sort_unstable();
-                names.dedup();
-                names
-            }
-            fn lifetime(&mut self, name: &Identifier) {
-                if !self
-                    .scopes
-                    .iter()
-                    .flatten()
-                    .any(|bound| bound == name.as_str())
-                {
-                    push_lifetime_name(self.lifetimes, name);
-                }
-            }
-            fn argument(&mut self, argument: &crate::expression::StaticMachineArgument) {
-                if let Some(application) = &argument.application {
-                    for lifetime in application.lifetime_arguments.iter() {
-                        self.lifetime(lifetime);
-                    }
-                    for nested in application.arguments.iter() {
-                        self.argument(nested);
-                    }
-                    let program = self.program;
-                    if let Some(member) = program.expression_table.static_member(application.member)
-                    {
-                        self.argument(member);
-                    }
-                }
-            }
-        }
-
-        impl Extend<SymbolHandle> for LifetimeInputs<'_, '_> {
-            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
-        }
-
-        impl crate::references::TypedReferences for LifetimeInputs<'_, '_> {
-            fn callable_signature(&mut self, signature: &StateSignature) {
-                self.pending_lifetimes = signature
-                    .lifetime_parameters
-                    .iter()
-                    .map(|name| name.as_str().to_owned())
-                    .collect();
-            }
-            fn enter_lexical_scope(&mut self, _: SymbolHandle) {
-                self.scopes
-                    .push(std::mem::take(&mut self.pending_lifetimes));
-            }
-            fn leave_lexical_scope(&mut self) {
-                self.scopes.pop();
-            }
-            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-                let context = self.context();
-                if !self.types.insert((reference, context)) {
-                    return false;
-                }
-                let program = self.program;
-                match program.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::Reference {
-                        lifetime: Some(name),
-                        ..
-                    } => self.lifetime(name),
-                    TypeReferenceNode::Generic {
-                        lifetime_arguments, ..
-                    } => {
-                        for lifetime in lifetime_arguments {
-                            self.lifetime(lifetime);
-                        }
-                    }
-                    _ => {}
-                }
-                true
-            }
-            fn expression(&mut self, expression: ExpressionHandle) -> bool {
-                let context = self.context();
-                if !self.expressions.insert((expression, context)) {
-                    return false;
-                }
-                let program = self.program;
-                match program.expression_table.expression(expression) {
-                    crate::expression::ExpressionNode::MachineValue(value) => {
-                        self.argument(&value.selected)
-                    }
-                    crate::expression::ExpressionNode::Call(call) => {
-                        for argument in call.machine_arguments.iter() {
-                            self.argument(argument);
-                        }
-                        if let Some(operation) = &call.installed_interrupt_operation {
-                            self.argument(&operation.registrar);
-                            self.argument(&operation.timer_slot);
-                        }
-                        if let Some(operation) = &call.private_layout_operation {
-                            self.argument(&operation.selected_slot);
-                        }
-                        if let Some(operation) = &call.quotient_operation {
-                            self.argument(&operation.representative_operation);
-                            for theorem in operation.theorem_evidence.iter() {
-                                self.argument(&theorem.application);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                true
-            }
-            fn static_application(
-                &mut self,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-            ) {
-                let program = self.program;
-                for binding in program.static_machine_application_lifetimes(application) {
-                    self.lifetime(&binding.argument);
-                }
-            }
-        }
-
-        fn push_lifetime_name(lifetimes: &mut Vec<String>, name: &Identifier) {
-            let name = name.as_str();
-            if !name.is_empty() && !lifetimes.iter().any(|seen| seen == name) {
-                lifetimes.push(name.to_owned());
-            }
-        }
-    }
     pub mod finite_family {
         use crate::TypedTrees;
         use crate::expression::BinaryOperator;
@@ -943,8 +540,6 @@ pub mod calls {
                     self.machine_states(machine)
                         .first()
                         .map(|state| self.state_parameters(state))
-                } else if let Some(slot) = self.dynamic_slot_by_symbol(target) {
-                    Some(slot.parameters.as_slice())
                 } else {
                     self.trait_machine_signature(target)
                         .map(|(_, signature)| self.state_signature_parameters(signature))
@@ -1480,33 +1075,20 @@ pub mod calls {
                     && call.arguments.len()
                         == self.state_signature_parameters(requirement.signature).len();
             }
-            let slot = self.dynamic_slot_by_symbol(call.target_symbol);
-            let requirement = slot.map_or(call.target_symbol, |slot| slot.requirement);
-            let mut requirements = self
-                .traits()
-                .iter()
-                .filter(|owner| slot.is_none_or(|slot| slot.declaring_trait == owner.symbol))
-                .filter_map(|owner| {
-                    self.trait_machine_signature_by_symbol(owner, requirement)
-                        .map(|signature| (owner, signature))
-                });
+            let mut requirements = self.traits().iter().filter_map(|owner| {
+                self.trait_machine_signature_by_symbol(owner, call.target_symbol)
+                    .map(|signature| (owner, signature))
+            });
             let Some((owner, signature)) = requirements.next() else {
                 return false;
             };
             let parameters = self.state_signature_parameters(signature);
-            let operand_count = match slot {
-                Some(slot) if slot.data_parameters().len() == parameters.len() => {
-                    slot.parameters.len()
-                }
-                Some(_) => return false,
-                None => parameters.len(),
-            };
             let arguments = self.expression_table.expression_handles(call.arguments);
             if requirements.next().is_some()
                 || !call.target_symbol.is_valid()
                 || arguments.len() != call.arguments.count() as usize
-                || arguments.len() != operand_count
-                || (slot.is_none() && call.target.as_str() != signature.name.as_str())
+                || arguments.len() != parameters.len()
+                || call.target.as_str() != signature.name.as_str()
             {
                 return false;
             }
@@ -1601,9 +1183,6 @@ pub mod calls {
         ) -> Option<crate::types::TypeReferenceHandle> {
             if let Some(state) = call_target_state(program, target_state_symbol) {
                 return Some(state.return_type);
-            }
-            if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
-                return Some(slot.return_type);
             }
             if let Some(application) = program.closed_requirement_application(target_state_symbol) {
                 return Some(application.signature.return_type);
@@ -1786,7 +1365,6 @@ pub mod calls {
                 | crate::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
                 crate::types::TypeReferenceNode::Callable { .. }
                 | crate::types::TypeReferenceNode::Generic { .. }
-                | crate::types::TypeReferenceNode::DynamicTrait { .. }
                 | crate::types::TypeReferenceNode::Named { .. }
                 | crate::types::TypeReferenceNode::ConstExpression(_)
                 | crate::types::TypeReferenceNode::Unit => None,

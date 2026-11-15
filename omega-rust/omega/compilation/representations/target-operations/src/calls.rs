@@ -5,8 +5,8 @@ Keeping all call-boundary contracts together makes the relationship between `Cal
 */
 
 use crate::{
-    TargetOperationPlan, TargetReferenceResult, TargetStructuralHomeRequirement,
-    TargetStructuralParameter, TargetUnitScalarHomeRequirement,
+    TargetReferenceResult, TargetStructuralHomeRequirement, TargetStructuralParameter,
+    TargetUnitScalarHomeRequirement,
 };
 use calling_conventions::{BoundaryEntryPlan, CallPlan, NativePlace, ValuePlacement};
 use semantic_vocabulary::{
@@ -38,13 +38,6 @@ pub struct TargetAccessViewInput {
     pub referent_byte_size: u64,
     pub referent_alignment: u64,
     pub placement: ValuePlacement,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetOperationPlanWithAccessViewInputs {
-    pub plan: TargetOperationPlan,
-    pub entry_call_plan: CallPlan, // Complete entry ABI including placed access-view inputs.
-    pub access_view_inputs: Vec<TargetAccessViewInput>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

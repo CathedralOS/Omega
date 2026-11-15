@@ -71,12 +71,7 @@ impl Program<'_> {
         match self.node(id, assignment.target)? {
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
-                if let Some((referent, access)) =
-                    self.reference_referent(id, slots[slot].value_type)?
-                {
-                    if !terminal_psi::StructuralAccess::MutableBorrow.admits_referent(access) {
-                        return Err(unserved("write through a reference without mutable access"));
-                    }
+                if let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)? {
                     let descriptor = crate::Expression {
                         call_context: None,
                         kind: ExpressionKind::Slot(slot),
@@ -91,6 +86,7 @@ impl Program<'_> {
                     };
                     self.reference_place_access(
                         id,
+                        slots,
                         &destination,
                         language_core::ReferenceAccess::Mutable,
                     )?;
@@ -108,10 +104,19 @@ impl Program<'_> {
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
                 }
-                // A whole record stored through a reference replaces the
-                // caller's storage in place, a store no slice lowers yet; a
-                // record local's assignment rebinds its slot instead.
-                if slots[slot].borrowed.is_some() && !slots[slot].homed {
+                // A slice formal carries a view rather than a borrowed
+                // value's storage. Keep whole-view assignment at its existing
+                // refusal; replacing its descriptor is not this operation.
+                if slots[slot].borrowed.is_some()
+                    && !slots[slot].homed
+                    && !self
+                        .signatures
+                        .get(id)
+                        .and_then(|signature| signature.borrowed(slot))
+                        .is_some_and(|borrowed| {
+                            borrowed.referent == crate::body::BorrowedReferent::Value
+                        })
+                {
                     return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
@@ -122,7 +127,10 @@ impl Program<'_> {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
-                Ok(if slots[slot].homed {
+                // A borrowed formal already names the caller's storage.
+                // Replace there through the same captured-place store as a
+                // field; only an owned value binding may acquire a new root.
+                Ok(if slots[slot].homed || slots[slot].borrowed.is_some() {
                     Statement::Store {
                         destination: crate::Expression {
                             call_context: None,
@@ -141,35 +149,66 @@ impl Program<'_> {
                 // A destination names existing local storage. Retain its
                 // expression intact after checking the root's authority;
                 // lowering captures its selectors before the replacement.
-                let place = self.expression(id, slots, assignment.target, None)?;
+                //
+                // A field that holds a reference is the descriptor's place:
+                // assigning to it replaces the reference, where naming it as
+                // a value would observe its referent (`expressions::observed`).
+                // lifetimes.md, "Carried-loan transport": "Assignment
+                // evaluates the replacement while old loans remain active,
+                // ends the overwritten field's carried loans, then installs
+                // the replacement's exact loans."
+                let place = self.assigned_place(id, slots, assignment.target)?;
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
+                // A byte assignment writes through the view, not over its
+                // descriptor. Keep the read expression out of the place walk.
+                let storage = if let ExpressionKind::ByteElement { base, .. } = &place.kind {
+                    let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
+                        return Err(typing());
+                    };
+                    if !matches!(
+                        self.data_type(id, record)?.shape,
+                        crate::StorageShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::MutableBorrow)
+                            }
+                        )
+                    ) {
+                        return Err(unserved("store through a byte view without mutable access"));
+                    }
+                    self.authorized(id, value_type, Access::Write)?;
+                    base.as_ref()
+                } else {
+                    &place
+                };
+                let byte_store = matches!(place.kind, ExpressionKind::ByteElement { .. });
                 let root = super::storage_path::walk(
-                    &place,
+                    storage,
                     |_| Err(unserved("store into a value that is not a local")),
-                    |projection, _| {
-                        // A payload is stored into through its case's
-                        // dispatch binding or a directly authored member
-                        // (`s.at = x`); neither store is lowered yet.
-                        if matches!(projection.kind, ExpressionKind::Payload { .. }) {
-                            return Err(unserved("store into a case payload"));
-                        }
-                        Ok(())
-                    },
+                    // The captured path retains a payload's exact case and
+                    // field. Storage checking proves that case at the store;
+                    // ancestry itself grants no membership or write authority.
+                    |_, _| Ok(()),
                 )?;
                 let ExpressionKind::Slot(slot) = root.kind else {
                     return Err(unserved("store into a value that is not a local"));
                 };
                 let crossed = self.reference_place_access(
                     id,
-                    &place,
+                    slots,
+                    storage,
                     language_core::ReferenceAccess::Mutable,
                 )?;
-                if !crossed && !slots[slot].assignable {
+                if !crossed && !byte_store && !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
-                self.written_through(id, &place)?;
+                if byte_store
+                    && slots[slot].borrowed == Some(language_core::ReferenceAccess::Shared)
+                {
+                    return Err(unserved("store through shared descriptor storage"));
+                }
+                self.written_through(id, storage)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
                 if !self.agrees(value.result, stored) {
                     return Err(assigned(self, &value, stored));
@@ -397,6 +436,12 @@ impl Program<'_> {
                 "local initializer type",
             ));
         }
+        // A bottom initializer produces no value, but the declared local
+        // keeps its annotation for source checking after the call. Keep
+        // existing inferred regions when the ordinary carriers already agree.
+        let value_type = declared
+            .filter(|declared| declared.erased() != value_type.erased())
+            .unwrap_or(value_type);
         let slot = Slot {
             symbol: local.symbol,
             value_type,

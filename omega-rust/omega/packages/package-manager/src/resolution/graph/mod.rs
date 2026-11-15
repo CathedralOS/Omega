@@ -27,11 +27,11 @@ pub(crate) use accepted::{
     admit_locked_issued_source_request, admit_locked_source_request, mutable_local_graph_matches,
 };
 pub(crate) use git_pins::{GitDependencyPins, GitResolutionOptions};
-use package_source::{IdentityError, ImmutableSourceResolution};
 pub(crate) use reconcile::{
     DependencyRequestPath, ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure,
 };
 pub(crate) use root_request::PackageRootSourceRequest;
+use source_acquisition::{IdentityError, ImmutableSourceResolution};
 use std::collections::{BTreeMap, BTreeSet};
 pub(crate) use subject::{
     CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,

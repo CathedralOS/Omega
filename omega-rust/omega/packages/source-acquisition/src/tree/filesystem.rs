@@ -263,4 +263,5 @@ impl<T> IoResultAt<T> for Result<T, std::io::Error> {
 }
 
 #[cfg(test)]
+#[path = "filesystem_read_tests.rs"]
 mod read_tests;

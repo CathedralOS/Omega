@@ -16,10 +16,15 @@ stay untouched (`ReviewRequired`); once all changes are accepted, the build sess
 before `publish_reviewed_package_change` commits `build.omg` and `omega.lock`.
 */
 
+#[path = "change_decisions.rs"]
 mod change_decisions;
+#[path = "planning.rs"]
 mod planning;
+#[path = "proposal.rs"]
 mod proposal;
+#[path = "source_review.rs"]
 mod source_review;
+#[path = "state.rs"]
 mod state;
 
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
@@ -38,12 +43,12 @@ use crate::resolution::source::{
     AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
 };
 use crate::review::{CompileResolvedPackageReviewsError, PackageReviewExecutor};
-use package_source::PrimaryGitChoices;
-use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::local::staging::StagedLocalSnapshot;
-use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
+use source_acquisition::PrimaryGitChoices;
+use source_acquisition::git::resolution::GitExactRevisionAcquisition;
+use source_acquisition::local::staging::StagedLocalSnapshot;
+use source_acquisition::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use state::{LIMITS, PROPOSAL, discard, file_failure, read, text, write_proposal};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -309,8 +314,8 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         if closure.source_requests().root().request() != &self.root_request()
             || root.snapshot_root() != self.stage.snapshot_root()
             || root.resolution()
-                != &package_source::ImmutableSourceResolution::external_local(
-                    package_source::SourceContentDigest::derive(
+                != &source_acquisition::ImmutableSourceResolution::external_local(
+                    source_acquisition::SourceContentDigest::derive(
                         self.stage.normalized().content_identity.as_bytes(),
                     ),
                 )
@@ -668,7 +673,7 @@ pub struct PackageCommandOutcome {
 #[derive(Debug)]
 pub struct PackageCommandError {
     cause: PackageCommandCause,
-    accounting: compilation_products::SourceCompletionAccounting,
+    accounting: products::SourceCompletionAccounting,
 }
 
 #[derive(Debug)]
@@ -676,26 +681,24 @@ enum PackageCommandCause {
     Message(String),
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::operations::PackageChangeError>),
-    Compilation(compilation_products::CompileFailure),
+    Compilation(products::CompileFailure),
     Preparation(Box<crate::operations::PrepareLocalProjectError>),
 }
 
 impl PackageCommandError {
-    pub fn source_completion_accounting(
-        &self,
-    ) -> &compilation_products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
         &self.accounting
     }
 
     pub fn with_source_completion_accounting(
         mut self,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     ) -> Self {
         self.accounting.append(accounting);
         self
     }
 
-    pub fn compilation_failure(&self) -> Option<&compilation_products::CompileFailure> {
+    pub fn compilation_failure(&self) -> Option<&products::CompileFailure> {
         match &self.cause {
             PackageCommandCause::Compilation(failure) => Some(failure),
             _ => None,
@@ -743,8 +746,8 @@ impl PackageCommandError {
     }
 }
 
-impl From<compilation_products::CompileFailure> for PackageCommandError {
-    fn from(error: compilation_products::CompileFailure) -> Self {
+impl From<products::CompileFailure> for PackageCommandError {
+    fn from(error: products::CompileFailure) -> Self {
         let accounting = error
             .source_completion_accounting()
             .cloned()

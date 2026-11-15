@@ -328,7 +328,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             "{place}: {:?}",
             observation.status
         );
-        let published = compilation_products::publication::publish_compilation(report, &output)
+        let published = products::publication::publish_compilation(report, &output)
             .expect("native publication");
         let executable = published
             .checked_native_executable_path()

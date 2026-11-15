@@ -4,9 +4,11 @@
 // `depkit`. Declared names are diagnostic identity; the alias is the
 // import name; the directory is on-disk reality — none needs to match.
 
-use depkit::main;
+use depkit;
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+suspends
+{
     Build::application(builder, "app_declared");
     let mut depkit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "depdir" });
     dependency::with_alias(&mut depkit_dependency, "depkit");
@@ -15,7 +17,8 @@ machine build(builder: &mut Build) {
     dependency::with_alias(&mut depkit_dependency_2, "depkit");
     let depkit_registration_2: DependencyRegistration = Build::dependency(builder, depkit_dependency_2);
     builder.freestanding = true;
-    let observed: i32 = value();
+    suspend Build::prepare_dependency(builder, depkit_registration);
+    let observed: i32 = depkit::value();
     transition observed == 9 {
         true -> done()
         _ -> wrong()

@@ -7,7 +7,7 @@ self-hosted compiler and not a language rung.
 - `psi/` implements source processing, language judgments, and terminal Psi.
 - `omega/` consumes terminal Psi and performs target lowering and artifact
   emission.
-- `omega/application/cli/` is the `omega` product package and development
+- `omega/application/` is the `omega` product package and development
   command.
 - `library/` contains Rust reference implementations of ordinary Omega library
   contracts; these do not become compiler subsystems.
@@ -66,10 +66,10 @@ shared foundations and utilities remain independently owned. Durable IRs stay
 in `psi/compilation/representations/` and `omega/compilation/representations/`, separate
 from their producing pipeline stages. The
 independent optimization-unit checker sits beside its IR at
-[`omega/compilation/representations/abstract-operations/optimization-unit/semantics/`](omega/compilation/representations/abstract-operations/optimization-unit/semantics),
+[`omega/compilation/representations/abstract-operations/optimization-unit-semantics/`](omega/compilation/representations/abstract-operations/optimization-unit-semantics),
 with no reverse dependency from the representation to its checker.
 
-Run the product through the `omega` package in `omega/application/cli/`; repository commands and validation policy are
+Run the product through the `omega` package in `omega/application/`; repository commands and validation policy are
 in [AGENTS.md](../AGENTS.md#commands). Programs the Rust tests read live in `../tests/fixtures/`,
 cross-owner tests in `../tests/`, and crate-specific tests beside their owner.
 Public crate roots map responsibilities; test families and implementation

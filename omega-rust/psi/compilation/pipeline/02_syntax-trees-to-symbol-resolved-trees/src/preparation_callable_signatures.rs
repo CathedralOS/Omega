@@ -306,11 +306,7 @@ pub(in crate::preparation) fn bound_type_occurrences(
                 }
             }
             TypeReferenceNode::Slice { element_type } => pending.push((*element_type, hidden)),
-            TypeReferenceNode::Generic { arguments, .. }
-            | TypeReferenceNode::DynamicTrait {
-                trait_arguments: arguments,
-                ..
-            } => {
+            TypeReferenceNode::Generic { arguments, .. } => {
                 pending.extend(
                     syntax
                         .type_references

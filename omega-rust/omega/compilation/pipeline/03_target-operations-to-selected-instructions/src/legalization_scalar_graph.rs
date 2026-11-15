@@ -2356,18 +2356,17 @@ pub(crate) mod call_origin {
 
     pub(crate) fn validate_boundary_origins(
         native: &TargetOperationPlan,
-        unit: &super::PsiOptimizationUnit,
         input: target_operations::BoundaryOriginFacts<'_>,
     ) -> Result<(), LegalizationError> {
         let profile = input
-            .target_machine_selections
+            .target_context
             .map(|selection| target::TargetProfile::from_canonical_target_name(selection.target()))
             .transpose()
             .map_err(|_| LegalizationError::custody())?;
         if native.profile != profile
             || profile.is_some_and(|profile| profile.native_realization() != Some(native.target))
             || input
-                .target_machine_selections
+                .target_context
                 .is_some_and(|selection| selection.terminal_psi() != native.psi)
         {
             return Err(LegalizationError::custody());
@@ -2404,95 +2403,6 @@ pub(crate) mod call_origin {
                     ..
                 } = operation
                     && !input.assumed_bindings.contains(assumption)
-                {
-                    return Err(LegalizationError::custody());
-                }
-                let TargetUnitOperation::Call {
-                    psi_operation,
-                    origin:
-                        NativeCallOrigin::TargetFamily {
-                            boundary,
-                            member,
-                            target,
-                            completion_claim_sources,
-                            completion_receipts,
-                        },
-                    target: call_target,
-                    ..
-                } = operation
-                else {
-                    continue;
-                };
-                let target_operations::NativeCallTarget::Machine(callee) = call_target else {
-                    return Err(LegalizationError::custody());
-                };
-                let selections = input
-                    .target_machine_selections
-                    .ok_or_else(LegalizationError::custody)?;
-                let module = input.module;
-                let head = terminal_psi::TargetMachineCallable::Boundary(*boundary);
-                let callable = terminal_psi::TargetMachineCallable::Machine(*member);
-                let selected = selections
-                    .member(head)
-                    .map_err(|_| LegalizationError::custody())?;
-                let mut families = module
-                    .target_machine_families
-                    .iter()
-                    .filter(|family| family.canonical == head);
-                let family = families.next().ok_or_else(LegalizationError::custody)?;
-                if families.next().is_some()
-                    || *member != *callee
-                    || selections.terminal_psi() != native.psi
-                    || selections.target() != target
-                    || selected.callable() != callable
-                    || !matches!(
-                        selected.supply(),
-                        terminal_psi::TargetMachineSupply::CheckedBody
-                            | terminal_psi::TargetMachineSupply::Boundary
-                    )
-                    || family
-                        .members
-                        .iter()
-                        .filter(|entry| {
-                            entry.target == *target
-                                && entry.callable == callable
-                                && entry.supply == selected.supply()
-                        })
-                        .count()
-                        != 1
-                {
-                    return Err(LegalizationError::custody());
-                }
-                let mut callers = unit
-                    .functions
-                    .iter()
-                    .filter(|caller| caller.machine == function.machine);
-                let caller = callers.next().ok_or_else(LegalizationError::custody)?;
-                if callers.next().is_some() {
-                    return Err(LegalizationError::custody());
-                }
-                let mut source_rows =
-                    caller
-                        .block_nodes()
-                        .filter_map(|node| match &node.operation {
-                            AbstractOperation::BoundaryCall {
-                                psi_operation: identity,
-                                boundary: source_boundary,
-                                completion_claim_sources: sources,
-                                completion_receipts: receipts,
-                                ..
-                            } if identity == psi_operation => {
-                                Some((source_boundary, sources, receipts))
-                            }
-                            _ => None,
-                        });
-                let Some((source_boundary, sources, receipts)) = source_rows.next() else {
-                    return Err(LegalizationError::custody());
-                };
-                if sources != completion_claim_sources
-                    || receipts != completion_receipts
-                    || source_boundary != boundary
-                    || source_rows.next().is_some()
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -2542,7 +2452,6 @@ pub(crate) mod call_origin {
             return Ok(None);
         };
         let callee = *callee;
-        let family = matches!(origin, NativeCallOrigin::TargetFamily { .. });
         let assumed_entry = matches!(
             origin,
             NativeCallOrigin::InstalledProvider {
@@ -2561,22 +2470,6 @@ pub(crate) mod call_origin {
             } => {
                 if selected_boundary != boundary
                     || *entry != callee
-                    || retained_sources != completion_claim_sources
-                    || retained_receipts != completion_receipts
-                {
-                    return Err(LegalizationError::custody());
-                }
-                None
-            }
-            NativeCallOrigin::TargetFamily {
-                boundary: selected_boundary,
-                member,
-                completion_claim_sources: retained_sources,
-                completion_receipts: retained_receipts,
-                ..
-            } => {
-                if selected_boundary != boundary
-                    || *member != callee
                     || retained_sources != completion_claim_sources
                     || retained_receipts != completion_receipts
                 {
@@ -2675,19 +2568,9 @@ pub(crate) mod call_origin {
                 || expected.structural_type != actual.structural_type
                 || expected.access != actual.access
                 || expected.multiplicity != actual.multiplicity
-                || (!family
-                    && !assumed_entry
+                || (!assumed_entry
                     && (expected.qualifications != actual.qualifications
                         || expected.projected_qualifications != actual.projected_qualifications))
-                || (family
-                    && (actual
-                        .qualifications
-                        .iter()
-                        .any(|domain| !expected.qualifications.contains(domain))
-                        || actual
-                            .projected_qualifications
-                            .iter()
-                            .any(|row| !expected.projected_qualifications.contains(row))))
                 || provider.is_some_and(|provider| {
                     let signature = &provider.signature.parameters[position];
                     expected.position != signature.position
@@ -2784,17 +2667,10 @@ pub(crate) mod call_origin {
                     .qualifications
                     .iter()
                     .all(|domain| boundary_result.qualifications.contains(domain))
-                && if family {
-                    boundary_result
-                        .qualifications
-                        .iter()
-                        .all(|domain| candidate_result.qualifications.contains(domain))
-                } else {
-                    candidate_result
-                        .qualifications
-                        .iter()
-                        .all(|domain| boundary_result.qualifications.contains(domain))
-                } =>
+                && candidate_result
+                    .qualifications
+                    .iter()
+                    .all(|domain| boundary_result.qualifications.contains(domain)) =>
             {
                 AbstractOperation::CallStructural {
                     psi_operation: *psi_operation,
@@ -8753,26 +8629,13 @@ pub(crate) fn match_input(
     };
     if optimized.blocks.is_empty()
         || optimized.entry != abstracted.entry
-        || abstracted.block_entries.len() != optimized.blocks.len()
-        || abstracted.block_entries[0].operation_offset != 0
+        || abstracted.blocks.len() != optimized.blocks.len()
     {
         return Err(LegalizationError::custody());
     }
     let function_inputs = crate::legalization_function_inputs::FunctionInputs::new(optimized);
-    for (position, (entry, block)) in abstracted
-        .block_entries
-        .iter()
-        .zip(&optimized.blocks)
-        .enumerate()
-    {
-        let end = abstracted
-            .block_entries
-            .get(position + 1)
-            .map_or(abstracted.operations.len(), |next| next.operation_offset);
-        let operations = abstracted
-            .operations
-            .get(entry.operation_offset..end)
-            .ok_or(LegalizationError::custody())?;
+    for (entry, block) in abstracted.blocks.iter().zip(&optimized.blocks) {
+        let operations = &entry.operations;
         if entry.block != block.id
             || entry.structural_parameters != block.structural_parameters
             || entry.parameters.len() != block.parameters.len()

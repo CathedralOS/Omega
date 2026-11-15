@@ -179,3 +179,54 @@ fn an_ordinary_const_value_is_not_an_integer_width_use() {
             .all(|(_, verdict)| verdict.is_ok())
     );
 }
+
+/// A width-generic body is judged at every width it admits: `value + 1`
+/// fits `u<N>` under `value < limit`, whatever `N` is.
+#[test]
+fn a_bounded_successor_fits_every_width() {
+    let verdict = judge(Ok(generic(
+        "machine entry<const N: u64>(value: u<N>, limit: u<N>) -> u<N> requires N > 0u64 && value < limit crashes none { value + 1 }",
+    )))
+    .expect("source has a valid reconstruction");
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+fn unproved_range(text: &str) {
+    match judge(Ok(generic(text))).expect("source has a valid reconstruction") {
+        RouteVerdict::Rejected { unproved, .. } => assert!(
+            unproved
+                .iter()
+                .any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. })),
+            "{unproved:?}"
+        ),
+        other => panic!("a range no width admits must reject: {other:?}"),
+    }
+}
+
+/// The twin drops `value < limit`: the largest `u<N>` has no successor
+/// there, at any width.
+#[test]
+fn an_unbounded_successor_fits_no_width() {
+    unproved_range(
+        "machine entry<const N: u64>(value: u<N>, limit: u<N>) -> u<N> requires N > 0u64 crashes none { value + 1 }",
+    );
+}
+
+/// `1` lands in `u<N>` from `N > 0`, which gives `2 <= 2^N`. In `i<N>` it
+/// needs `2 <= 2^(N-1)`, which `N > 0` does not give: at `i1` there is no
+/// one. "A generic body admitting `i1` cannot assume that positive one
+/// inhabits its carrier."
+#[test]
+fn one_inhabits_every_unsigned_width_and_not_every_signed_one() {
+    let verdict = judge(Ok(generic(
+        "machine entry<const N: u64>() -> u<N> requires N > 0u64 crashes none { 1 }",
+    )))
+    .expect("source has a valid reconstruction");
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    unproved_range("machine entry<const N: u64>() -> i<N> requires N > 0u64 crashes none { 1 }");
+    let verdict = judge(Ok(generic(
+        "machine entry<const N: u64>() -> i<N> requires N > 1u64 crashes none { 1 }",
+    )))
+    .expect("source has a valid reconstruction");
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}

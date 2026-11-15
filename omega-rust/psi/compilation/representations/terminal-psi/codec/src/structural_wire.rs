@@ -1161,30 +1161,7 @@ pub(crate) mod structural_signature_wire {
                     output.dependencies.len(),
                 )?;
                 for dependency in &output.dependencies {
-                    match dependency {
-                        BoundaryLifetimeDependency::Referent {
-                            argument_index,
-                            access,
-                        } => {
-                            writer.u8(0);
-                            writer.u32(*argument_index);
-                            encode_structural_access(writer, *access);
-                        }
-                        BoundaryLifetimeDependency::Stored {
-                            argument_index,
-                            path,
-                            access,
-                        } => {
-                            writer.u8(1);
-                            writer.u32(*argument_index);
-                            encode_structural_access(writer, *access);
-                            encode_structural_path(
-                                writer,
-                                "boundary reference lifetime path",
-                                path,
-                            )?;
-                        }
-                    }
+                    encode_dependency(writer, dependency)?;
                 }
             }
             Ok(())
@@ -1200,18 +1177,7 @@ pub(crate) mod structural_signature_wire {
                 };
                 let path = decode_structural_path(reader)?;
                 let access = decode_structural_access(reader)?;
-                let dependencies = decode_counted(reader, |reader| match reader.u8()? {
-                    0 => Ok(BoundaryLifetimeDependency::Referent {
-                        argument_index: reader.u32()?,
-                        access: decode_structural_access(reader)?,
-                    }),
-                    1 => Ok(BoundaryLifetimeDependency::Stored {
-                        argument_index: reader.u32()?,
-                        access: decode_structural_access(reader)?,
-                        path: decode_structural_path(reader)?,
-                    }),
-                    tag => Err(CodecError::InvalidTag("BoundaryLifetimeDependency", tag)),
-                })?;
+                let dependencies = decode_counted(reader, decode_dependency)?;
                 Ok(BoundaryReferenceOutput {
                     destination,
                     path,
@@ -1219,6 +1185,50 @@ pub(crate) mod structural_signature_wire {
                     dependencies,
                 })
             })
+        }
+
+        pub(crate) fn encode_dependency(
+            writer: &mut Writer,
+            dependency: &BoundaryLifetimeDependency,
+        ) -> Result<(), CodecError> {
+            match dependency {
+                BoundaryLifetimeDependency::Referent {
+                    argument_index,
+                    access,
+                } => {
+                    writer.u8(0);
+                    writer.u32(*argument_index);
+                    encode_structural_access(writer, *access);
+                }
+                BoundaryLifetimeDependency::Stored {
+                    argument_index,
+                    path,
+                    access,
+                } => {
+                    writer.u8(1);
+                    writer.u32(*argument_index);
+                    encode_structural_access(writer, *access);
+                    encode_structural_path(writer, "boundary reference lifetime path", path)?;
+                }
+            }
+            Ok(())
+        }
+
+        pub(crate) fn decode_dependency(
+            reader: &mut Reader<'_>,
+        ) -> Result<BoundaryLifetimeDependency, CodecError> {
+            match reader.u8()? {
+                0 => Ok(BoundaryLifetimeDependency::Referent {
+                    argument_index: reader.u32()?,
+                    access: decode_structural_access(reader)?,
+                }),
+                1 => Ok(BoundaryLifetimeDependency::Stored {
+                    argument_index: reader.u32()?,
+                    access: decode_structural_access(reader)?,
+                    path: decode_structural_path(reader)?,
+                }),
+                tag => Err(CodecError::InvalidTag("BoundaryLifetimeDependency", tag)),
+            }
         }
     }
 
@@ -1723,11 +1733,10 @@ pub(crate) mod structural_type_wire {
     use crate::sections::semantic_module::wire::{bounded_count, decode_counted};
     use crate::term_wire::proposition_wire::{decode_proposition, encode_proposition};
 
-    /// A packed record or a sum that declares `requires` clauses takes its
-    /// own shape tag, followed after the shape by the counted clauses, so a
-    /// declaration without clauses keeps the bytes it had before clauses
-    /// had a slot.
-    const PACKED_RECORD_WITH_REQUIRES: u8 = 17;
+    /// A record keeps its invariant regardless of how its fields are laid
+    /// out. Its existing requires wrapper encloses the ordinary storage shape;
+    /// declarations without clauses keep their original shape encoding.
+    const RECORD_WITH_REQUIRES: u8 = 17;
     const SUM_WITH_REQUIRES: u8 = 18;
 
     pub(crate) fn encode_structural_type(
@@ -1794,10 +1803,10 @@ pub(crate) mod structural_type_wire {
                 }
             }
             StructuralTypeShape::Record { fields, storage } => {
+                if !declaration.requires.is_empty() {
+                    writer.u8(RECORD_WITH_REQUIRES);
+                }
                 writer.u8(match storage {
-                    StructuralRecordStorage::Packed if !declaration.requires.is_empty() => {
-                        PACKED_RECORD_WITH_REQUIRES
-                    }
                     StructuralRecordStorage::Packed => 1,
                     StructuralRecordStorage::AccessView(_) => 14,
                     StructuralRecordStorage::Accessor(_) => 15,
@@ -1873,13 +1882,10 @@ pub(crate) mod structural_type_wire {
         if !declaration.requires.is_empty() {
             if !matches!(
                 declaration.shape,
-                StructuralTypeShape::Record {
-                    storage: StructuralRecordStorage::Packed,
-                    ..
-                } | StructuralTypeShape::Sum { .. }
+                StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
             ) {
                 return Err(CodecError::MalformedStructuralFoundation(
-                    "only a packed record or a sum declares requires clauses",
+                    "only a record or a sum declares requires clauses",
                 ));
             }
             writer.len("structural type requires", declaration.requires.len())?;
@@ -1906,8 +1912,19 @@ pub(crate) mod structural_type_wire {
         let copyable = reader.boolean()?;
         let mut scalar_restriction = None;
         let tag = reader.u8()?;
-        let declares_requires = matches!(tag, PACKED_RECORD_WITH_REQUIRES | SUM_WITH_REQUIRES);
-        let shape = match tag {
+        let declares_requires = matches!(tag, RECORD_WITH_REQUIRES | SUM_WITH_REQUIRES);
+        let shape_tag = if tag == RECORD_WITH_REQUIRES {
+            let storage_tag = reader.u8()?;
+            if !matches!(storage_tag, 1 | 10 | 13 | 14 | 15) {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "record requires wrapper must contain an ordinary record storage shape",
+                ));
+            }
+            storage_tag
+        } else {
+            tag
+        };
+        let shape = match shape_tag {
             19 => StructuralTypeShape::Opaque,
             7 => StructuralTypeShape::Reference {
                 referent: reader.id("StructuralTypeId")?,
@@ -1945,7 +1962,7 @@ pub(crate) mod structural_type_wire {
                     },
                 }
             }
-            1 | PACKED_RECORD_WITH_REQUIRES => StructuralTypeShape::Record {
+            1 => StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::Packed,
                 fields: decode_counted(reader, decode_structural_field)?,
             },
@@ -2135,6 +2152,120 @@ pub(crate) mod structural_type_wire {
             StructuralFieldId, StructuralTypeId,
         };
         use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+
+        fn invariant_record(storage: StructuralRecordStorage) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                requires: vec![
+                    semantic_vocabulary::Proposition::Truth,
+                    semantic_vocabulary::Proposition::Falsehood,
+                ],
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: true,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                id: StructuralTypeId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    storage,
+                    fields: Vec::new(),
+                },
+            }
+        }
+
+        fn shape_offset(bytes: &[u8]) -> usize {
+            let mut reader = Reader::new(bytes);
+            assert!(!reader.boolean().unwrap());
+            let _: StructuralTypeId = reader.id("StructuralTypeId").unwrap();
+            reader.u32().unwrap();
+            for _ in 0..4 {
+                reader.boolean().unwrap();
+            }
+            bytes.len() - reader.remaining()
+        }
+
+        #[test]
+        fn record_requires_preserve_the_storage_shape_and_ordered_clauses() {
+            // Geometry and predicates are independent. Each existing storage
+            // shape must keep its clauses in the same authored order.
+            let geometry = AuthoredRecordStorage {
+                byte_size: 0,
+                byte_alignment: 1,
+            };
+            for storage in [
+                StructuralRecordStorage::Packed,
+                StructuralRecordStorage::Authored(geometry),
+                StructuralRecordStorage::TargetLayout(LayoutApplicationId(1)),
+                StructuralRecordStorage::AccessView(geometry),
+                StructuralRecordStorage::Accessor(geometry),
+            ] {
+                let declaration = invariant_record(storage);
+                let mut writer = Writer::default();
+                encode_structural_type(&mut writer, &declaration).unwrap();
+                let wrapped = writer.finish();
+                let offset = shape_offset(&wrapped);
+                assert_eq!(wrapped[offset], RECORD_WITH_REQUIRES);
+                let mut reader = Reader::new(&wrapped);
+                assert_eq!(decode_structural_type(&mut reader).unwrap(), declaration);
+                assert_eq!(reader.remaining(), 0);
+
+                let mut plain = declaration;
+                plain.requires.clear();
+                let mut writer = Writer::default();
+                encode_structural_type(&mut writer, &plain).unwrap();
+                let ordinary = writer.finish();
+                assert_eq!(wrapped[..offset], ordinary[..offset]);
+                assert_eq!(wrapped[offset + 1..ordinary.len() + 1], ordinary[offset..]);
+            }
+
+            let mut sum = invariant_record(StructuralRecordStorage::Packed);
+            sum.shape = StructuralTypeShape::Sum { cases: Vec::new() };
+            let mut writer = Writer::default();
+            encode_structural_type(&mut writer, &sum).unwrap();
+            let bytes = writer.finish();
+            assert_eq!(bytes[shape_offset(&bytes)], SUM_WITH_REQUIRES);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_structural_type(&mut reader).unwrap(), sum);
+            assert_eq!(reader.remaining(), 0);
+        }
+
+        #[test]
+        fn record_requires_refuse_nonrecords_empty_clauses_and_truncation() {
+            let declaration = invariant_record(StructuralRecordStorage::Packed);
+            let mut writer = Writer::default();
+            encode_structural_type(&mut writer, &declaration).unwrap();
+            let bytes = writer.finish();
+            let offset = shape_offset(&bytes);
+            for tag in [RECORD_WITH_REQUIRES, SUM_WITH_REQUIRES, 2, 6, 19] {
+                let mut wrong = bytes.clone();
+                wrong[offset + 1] = tag;
+                assert_eq!(
+                    decode_structural_type(&mut Reader::new(&wrong)),
+                    Err(CodecError::MalformedStructuralFoundation(
+                        "record requires wrapper must contain an ordinary record storage shape"
+                    ))
+                );
+            }
+            for length in [offset, offset + 1, bytes.len() - 1] {
+                assert!(decode_structural_type(&mut Reader::new(&bytes[..length])).is_err());
+            }
+            let mut plain = declaration;
+            plain.requires.clear();
+            let mut writer = Writer::default();
+            encode_structural_type(&mut writer, &plain).unwrap();
+            let mut empty = writer.finish();
+            empty.insert(offset, RECORD_WITH_REQUIRES);
+            let mut writer = Writer::default();
+            writer.len("test empty clauses", 0).unwrap();
+            empty.extend(writer.finish());
+            assert_eq!(
+                decode_structural_type(&mut Reader::new(&empty)),
+                Err(CodecError::MalformedStructuralFoundation(
+                    "a declaration tagged with requires clauses declares none"
+                ))
+            );
+        }
 
         #[test]
         fn logical_copy_permission_changes_encoded_identity() {

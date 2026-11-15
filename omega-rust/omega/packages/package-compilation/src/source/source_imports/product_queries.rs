@@ -21,6 +21,11 @@ use syntax_trees::{ParsedSources, item::Item};
 pub struct ProductQueryDependency {
     pub alias: String,
     pub inputs: PackageCompilationInputs,
+    /// The handoff of the dependency's own Build, when the dependency is
+    /// mounted for a Build stage: the source that Build generated is part of
+    /// the package the stage may call. A Product query describes authored
+    /// declarations and mounts none.
+    pub generated: Option<crate::PackageBuildHandoff>,
 }
 
 #[cfg(test)]
@@ -68,6 +73,7 @@ mod tests {
         ProductQueryDependency {
             alias: alias.into(),
             inputs,
+            generated: None,
         }
     }
 
@@ -155,6 +161,10 @@ mod tests {
 pub struct ProductQueryInputs {
     original: Option<PackageCompilationInputs>,
     dependencies: Vec<ProductQueryDependency>,
+    /// The build dependencies a staged Build has prepared, by the alias its
+    /// Build sources import them under (`for_build_stage`). A Product query
+    /// mounts none.
+    build_dependencies: Vec<ProductQueryDependency>,
 }
 
 impl ProductQueryInputs {
@@ -185,17 +195,106 @@ impl ProductQueryInputs {
                 );
             }
         }
-        let inputs = Self {
+        Self {
             original,
             dependencies,
-        };
-        let graphs = inputs.graphs().collect::<Vec<_>>();
+            build_dependencies: Vec::new(),
+        }
+        .with_consistent_sources()
+    }
+
+    /// The source routing of one stage of a staged Build after its first:
+    /// the Build's own sources, with each build dependency an earlier stage
+    /// prepared selectable from them under its alias
+    /// (`wiki/spec/build/scoped_execution.md`, "Dependency declarations and
+    /// binding": "After preparation, the compiler resolves and checks the
+    /// dependent continuation before it executes"). No Product dependency is
+    /// mounted: "Product dependencies supply no callable Build authority".
+    pub fn for_build_stage(
+        original: Option<PackageCompilationInputs>,
+        build_dependencies: Vec<ProductQueryDependency>,
+    ) -> Result<Self, String> {
+        Self::new(original, Vec::new())?.with_prepared_build_dependencies(build_dependencies)
+    }
+
+    /// The same routing with `build_dependencies` also mounted for the
+    /// root's Build sources. A query asked by a later stage of a staged
+    /// Build is answered on such a frontier: its author may be a source of a
+    /// package that stage calls, and must be found there. A build dependency
+    /// the query already mounts under the same alias is mounted once.
+    pub fn with_prepared_build_dependencies(
+        mut self,
+        mut build_dependencies: Vec<ProductQueryDependency>,
+    ) -> Result<Self, String> {
+        build_dependencies.retain(|prepared| {
+            !self
+                .dependencies
+                .iter()
+                .any(|mounted| mounted.alias == prepared.alias)
+        });
+        let original = &self.original;
+        for (position, dependency) in build_dependencies.iter().enumerate() {
+            if dependency.alias.is_empty()
+                || build_dependencies[..position]
+                    .iter()
+                    .any(|previous| previous.alias == dependency.alias)
+            {
+                return Err("prepared build dependency aliases must be nonempty and unique".into());
+            }
+            if dependency.inputs.root_role() != build_declarations::BuildDeclarationKind::Package {
+                return Err("prepared build dependency must declare a package".into());
+            }
+            if let Some(original) = original
+                && original.dependency_target_for_purpose(
+                    original.root(),
+                    DependencyPurpose::Build,
+                    &dependency.alias,
+                ) != Some(dependency.inputs.root())
+            {
+                return Err(
+                    "prepared build dependency differs from its originally admitted alias".into(),
+                );
+            }
+        }
+        self.build_dependencies = build_dependencies;
+        self.with_consistent_sources()
+    }
+
+    fn with_consistent_sources(self) -> Result<Self, String> {
+        let graphs = self.graphs().collect::<Vec<_>>();
         for (position, graph) in graphs.iter().enumerate() {
             for previous in &graphs[..position] {
                 graph.require_same_shared_product_sources(previous)?;
             }
         }
-        Ok(inputs)
+        Ok(self)
+    }
+
+    pub(crate) fn build_dependencies(&self) -> &[ProductQueryDependency] {
+        &self.build_dependencies
+    }
+
+    /// The mounted dependency a source of the unbound root selects by
+    /// `alias`. A query's dependencies are selectable from every source of
+    /// the root, as they were before stages: a Build names the provider it
+    /// waits for through one. What a stage mounts is selectable from Build
+    /// sources only, so a Product source loaded with the stage gains nothing
+    /// from the Build's preparations: "Product dependencies supply no
+    /// callable Build authority", and the reverse
+    /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts").
+    fn mounted_for(
+        &self,
+        scope: source::DependencyScope,
+        alias: &str,
+    ) -> Option<&ProductQueryDependency> {
+        let staged: &[ProductQueryDependency] = match scope {
+            source::DependencyScope::Product => &[],
+            source::DependencyScope::Build => &self.build_dependencies,
+        };
+        self.dependencies
+            .iter()
+            .chain(staged)
+            .find(|dependency| dependency.alias == alias)
     }
 
     pub(crate) fn original(&self) -> Option<&PackageCompilationInputs> {
@@ -206,6 +305,7 @@ impl ProductQueryInputs {
         self.original.iter().chain(
             self.dependencies
                 .iter()
+                .chain(&self.build_dependencies)
                 .map(|dependency| &dependency.inputs),
         )
     }
@@ -265,12 +365,32 @@ impl ProductQueryInputs {
                 let members = syntax.items.identifier_path_members(import.path);
                 let (root, paths, prefix) = if let Some(inputs) = owner {
                     let requester = inputs.package_for_source(&authored.path);
+                    // A mounted dependency's sources resolve through its own
+                    // Product edges and by the Product acquisition rule,
+                    // whichever context loaded them: "A build dependency's
+                    // ordinary dependencies are its library implementation
+                    // dependencies in the host/build graph", and "Its own
+                    // build dependencies belong to its separate build
+                    // activation" (scoped_execution.md, "Two checked
+                    // contexts").
+                    let mounted = !self
+                        .original
+                        .as_ref()
+                        .is_some_and(|original| std::ptr::eq(original, inputs));
+                    let (purpose, importer) = if mounted {
+                        (DependencyPurpose::Product, source::DependencyScope::Product)
+                    } else {
+                        (
+                            super::source_import_scope(inputs, authored.scope, &authored.path),
+                            authored.scope,
+                        )
+                    };
                     let selected = reconciled_package_import(
                         syntax,
                         &authored.path,
                         members,
                         requester,
-                        super::source_import_scope(inputs, authored.scope, &authored.path),
+                        purpose,
                         storage.toolchain_contract_custody.root_for(&authored.path),
                         inputs,
                     )?;
@@ -287,8 +407,14 @@ impl ProductQueryInputs {
                         }
                         ReconciledPackageImport::Package(request) => {
                             let prefix = members.len() - request.relative_path.components().count();
-                            let paths =
-                                request.logical_sources(inputs, &mut storage.package_roots)?;
+                            let paths = request.logical_sources(
+                                inputs,
+                                &mut storage.package_roots,
+                                importer,
+                            )?;
+                            if paths.is_empty() && request.defers_in(importer) {
+                                continue;
+                            }
                             (request.expected_root, paths, prefix)
                         }
                     }
@@ -314,10 +440,8 @@ impl ProductQueryInputs {
                             )]);
                         }
                         (core, 0)
-                    } else if let Some(dependency) = self
-                        .dependencies
-                        .iter()
-                        .find(|dependency| dependency.alias == first.as_str(syntax))
+                    } else if let Some(dependency) =
+                        self.mounted_for(authored.scope, first.as_str(syntax))
                     {
                         let root = dependency
                             .inputs
@@ -335,10 +459,26 @@ impl ProductQueryInputs {
                         .iter()
                         .map(|name| name.as_str(syntax).to_owned())
                         .collect::<Vec<_>>();
-                    let paths =
+                    // The Build sources of the unbound root keep their
+                    // deferred imports while a query is answered.
+                    let own_build_import = authored.scope == source::DependencyScope::Build
+                        && prefix == 0
+                        && root == storage.default_package_root();
+                    let paths = if own_build_import {
+                        storage.package_roots.select_declaring(
+                            &root,
+                            &logical,
+                            &storage.filesystem,
+                            Vec::new(),
+                        )?
+                    } else {
                         storage
                             .package_roots
-                            .select(&root, &logical, &storage.filesystem)?;
+                            .select(&root, &logical, &storage.filesystem)?
+                    };
+                    if paths.is_empty() && own_build_import {
+                        continue;
+                    }
                     (root, paths, prefix)
                 };
                 if paths.is_empty() {

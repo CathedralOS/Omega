@@ -59,7 +59,7 @@ pub use process_child::{
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod private_observation;
 #[cfg(windows)]
-#[path = "private_observation/windows.rs"]
+#[path = "private_observation_windows.rs"]
 mod private_observation;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub use private_observation::{

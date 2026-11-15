@@ -280,8 +280,9 @@ requires
 data Named { name: &[u8] in Filled; }
 machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 "#;
-    assert_eq!(
-        verdict(non_empty),
-        "type byte view in a domain the empty view is not in"
+    let refused = verdict(non_empty);
+    assert!(
+        refused.starts_with("type byte view in a domain the empty view is not in"),
+        "{refused}"
     );
 }

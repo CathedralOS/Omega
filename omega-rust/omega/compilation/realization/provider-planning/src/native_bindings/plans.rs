@@ -10,6 +10,7 @@ use effects::provider_plan::{
 use semantic_vocabulary::NativeBindingLocator;
 
 #[cfg(test)]
+#[path = "plans_tests.rs"]
 mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

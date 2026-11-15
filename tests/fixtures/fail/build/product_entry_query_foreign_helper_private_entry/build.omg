@@ -5,10 +5,13 @@
 // owner's product namespace, so the helper cannot enumerate it.
 use support::configure;
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+suspends
+{
     Build::application(builder, "product_entry_query_foreign_helper_private_entry");
     let mut support_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "helper" });
     dependency::with_alias(&mut support_dependency, "support");
     let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
+    suspend Build::prepare_dependency(builder, support_registration);
     configure::configure(builder);
 }

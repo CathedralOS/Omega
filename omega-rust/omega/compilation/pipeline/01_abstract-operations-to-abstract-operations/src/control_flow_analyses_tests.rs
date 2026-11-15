@@ -1,5 +1,5 @@
 use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+    AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
     AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractStructuralBinding,
     AbstractStructuralCaseSuccessor, AbstractSuccessor,
 };
@@ -123,46 +123,57 @@ fn case_plan() -> AbstractOperationPlan {
             entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
-            block_entries: (1..=5)
-                .map(|position| AbstractBlockEntry {
-                    block: block(position),
-                    structural_parameters: if position == 2 {
-                        vec![parameter(2)]
-                    } else {
-                        Vec::new()
-                    },
+            blocks: vec![
+                AbstractBlock {
+                    block: block(1),
+                    structural_parameters: Vec::new(),
                     parameters: Vec::new(),
-                    operation_offset: if position == 1 {
-                        0
-                    } else {
-                        position as usize + 1
-                    },
-                })
-                .collect(),
-            operations: vec![
-                O::BooleanConstant {
-                    psi_operation: OperationId::new(1).unwrap(),
-                    result: ValueId::new(2).unwrap(),
-                    value: true,
+                    operations: vec![
+                        O::BooleanConstant {
+                            psi_operation: OperationId::new(1).unwrap(),
+                            result: ValueId::new(2).unwrap(),
+                            value: true,
+                        },
+                        O::BooleanConstant {
+                            psi_operation: OperationId::new(2).unwrap(),
+                            result: ValueId::new(4).unwrap(),
+                            value: false,
+                        },
+                        O::StructuralCase {
+                            source: place(1),
+                            path: Vec::new(),
+                            cases: vec![first, case(2, 2, 3)],
+                        },
+                    ],
                 },
-                O::BooleanConstant {
-                    psi_operation: OperationId::new(2).unwrap(),
-                    result: ValueId::new(4).unwrap(),
-                    value: false,
+                AbstractBlock {
+                    block: block(2),
+                    structural_parameters: vec![parameter(2)],
+                    parameters: Vec::new(),
+                    operations: vec![O::StructuralCase {
+                        source: place(2),
+                        path: Vec::new(),
+                        cases: vec![case(3, 1, 4), case(4, 2, 4)],
+                    }],
                 },
-                O::StructuralCase {
-                    source: place(1),
-                    path: Vec::new(),
-                    cases: vec![first, case(2, 2, 3)],
+                AbstractBlock {
+                    block: block(3),
+                    structural_parameters: Vec::new(),
+                    parameters: Vec::new(),
+                    operations: vec![returning(5, 2)],
                 },
-                O::StructuralCase {
-                    source: place(2),
-                    path: Vec::new(),
-                    cases: vec![case(3, 1, 4), case(4, 2, 4)],
+                AbstractBlock {
+                    block: block(4),
+                    structural_parameters: Vec::new(),
+                    parameters: Vec::new(),
+                    operations: vec![returning(6, 2)],
                 },
-                returning(5, 2),
-                returning(6, 2),
-                returning(7, 1),
+                AbstractBlock {
+                    block: block(5),
+                    structural_parameters: Vec::new(),
+                    parameters: Vec::new(),
+                    operations: vec![returning(7, 1)],
+                },
             ],
         }],
     }
@@ -188,14 +199,14 @@ fn constant_ranges_drive_comparisons_and_reject_forged_bounds() {
     let function = &mut plan.functions[0];
     function.parameters.clear();
     function.structural_parameters.clear();
-    function.block_entries = vec![AbstractBlockEntry {
+    function.blocks = vec![AbstractBlock {
         block: block(1),
         structural_parameters: Vec::new(),
         parameters: Vec::new(),
-        operation_offset: 0,
+        operations: Vec::new(),
     }];
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
-    function.operations = vec![
+    function.blocks[0].operations = vec![
         O::IntegerConstant {
             psi_operation: OperationId::new(1).unwrap(),
             result: ValueId::new(1).unwrap(),
@@ -261,6 +272,22 @@ fn constant_ranges_drive_comparisons_and_reject_forged_bounds() {
     };
     verify(&IntegerLessThanRangeConstantRule);
     verify(&IntegerLessThanRangeRangeRule);
+}
+
+// Removing a node from one block must leave every other block's owner and
+// transfers intact when the optimized program crosses into target lowering.
+#[test]
+fn optimized_publication_keeps_block_ownership_after_node_removal() {
+    let source = case_plan();
+    let mut optimized = unit(&source);
+    optimized.functions[0].blocks[0].nodes.remove(1);
+    let published = crate::publication::source::project_plan(&source, &optimized).unwrap();
+    let function = &published.functions[0];
+    assert_eq!(function.blocks.len(), 5);
+    assert_eq!(function.blocks[0].operations.len(), 2);
+    assert_eq!(function.blocks[1..], source.functions[0].blocks[1..]);
+    assert_eq!(function.operations().count(), 6);
+    assert_eq!(control_flow(&unit(&published)), control_flow(&optimized));
 }
 
 #[test]
@@ -333,15 +360,15 @@ fn jump_and_conditional_share_the_case_graph() {
         structural_bindings: edge.structural_bindings,
         cleanup_actions: edge.cleanup_actions,
     };
-    let O::StructuralCase { cases, .. } = &plan.functions[0].operations[2] else {
+    let O::StructuralCase { cases, .. } = &plan.functions[0].blocks[0].operations[2] else {
         panic!("entry case");
     };
-    plan.functions[0].operations[2] = O::Conditional {
+    plan.functions[0].blocks[0].operations[2] = O::Conditional {
         condition: ValueId::new(1).unwrap(),
         when_true: successor(cases[0].clone()),
         when_false: successor(cases[1].clone()),
     };
-    plan.functions[0].operations[3] = O::Jump {
+    plan.functions[0].blocks[1].operations[0] = O::Jump {
         psi_edge: EdgeId::new(3).unwrap(),
         target: block(4),
         bindings: Vec::new(),
@@ -367,7 +394,7 @@ fn case_successors_preserve_place_origins() {
 #[test]
 fn case_backedge_is_a_loop_not_an_exit() {
     let mut plan = case_plan();
-    let O::StructuralCase { cases, .. } = &mut plan.functions[0].operations[3] else {
+    let O::StructuralCase { cases, .. } = &mut plan.functions[0].blocks[1].operations[0] else {
         panic!("nested case");
     };
     cases[0].target = block(2);

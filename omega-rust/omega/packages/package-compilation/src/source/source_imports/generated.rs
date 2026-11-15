@@ -224,7 +224,7 @@ pub(crate) fn admit_dependency_build_handoffs(
         .collect()
 }
 
-pub(super) fn dependency_generated_source_logical_path(
+pub(crate) fn dependency_generated_source_logical_path(
     package_root: &Path,
     source: &build_output::PackageGeneratedSource,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
