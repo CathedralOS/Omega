@@ -115,13 +115,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The test can no longer verify which stable observation justifies the subtraction. Trace the retained identities and keep the two-same-leaf positive and different-leaf negative.
 - Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
 
-### A recycled worktree retains a dangling Rust target directory
-- Category: verifying costs more than writing
-- Where: [worktree acquisition](tools/xtask/src/worktree.rs#L417), [worktree cache rules](tools/docs/build_slot.md)
-- Saw: At `7c1e8d6b2b3`, acquiring pool slot `worker-11` left its `target` symlink pointing at a missing mbx cache directory. Both focused `mbx test` invocations failed immediately with `failed to create directory …/worker-11/target: Not a directory (os error 20)`. A separate target path started the same compiler build.
-- Cost: The recycled slot cannot start its Rust checks through the ordinary command. Reconnect or discard only the stale worktree-local cache link when reacquiring a slot, and preserve live caches.
-- Reported: 2026-11-14, Codex, while validating scoped case resolution
-
 ### Writes to immutable owned bindings are reported as unavailable
 - Category: a verdict with nothing behind it
 - Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L83), [projected store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L182)
