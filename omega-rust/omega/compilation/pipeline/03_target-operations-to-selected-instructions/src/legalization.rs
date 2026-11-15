@@ -527,47 +527,43 @@ pub(crate) use source::derive_source_function_rosters;
 #[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
+    _abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    legalize_target_operations_with_types(
+    legalize_retained_target_operations(
         target,
-        abstract_plan,
-        unit,
+        crate::TargetSelectionEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
         origins,
         installed_interrupts,
         installed_entry_execution,
         installed_stack_requirements,
-        None,
     )
 }
 
-pub(crate) fn legalize_target_operations_with_types(
+pub(crate) fn legalize_retained_target_operations(
     target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
+    evidence: crate::TargetSelectionEvidence<'_>,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
-    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    crate::installed_interrupts::validate_target(
-        target,
-        origins.module,
-        installed_interrupts,
-        abstract_plan,
-    )?;
+    crate::installed_interrupts::authorize_target(target, origins.module, installed_interrupts)?;
     validate_boundary_origins(target, origins)?;
-    let rosters = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
+    let rosters = source::derive_target_function_rosters(target, evidence)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
-        optimization_unit: unit.identity,
-        work_schedule: unit.work_schedule,
+        optimization_unit: evidence.optimization_unit,
+        work_schedule: evidence.work_schedule,
         target: target.target,
         profile: target.profile,
         entry: target.entry,
@@ -575,7 +571,6 @@ pub(crate) fn legalize_target_operations_with_types(
     };
     Ok(seal(
         target,
-        unit,
         plan,
         installed_interrupts,
         installed_entry_execution,
@@ -585,7 +580,6 @@ pub(crate) fn legalize_target_operations_with_types(
 
 pub(crate) fn seal(
     target: &TargetOperationPlan,
-    unit: &optimization_unit::PsiOptimizationUnit,
     plan: LegalizedOperationPlan,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
@@ -594,8 +588,8 @@ pub(crate) fn seal(
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
-        optimization_unit: unit.identity,
-        work_schedule: unit.work_schedule,
+        optimization_unit: plan.optimization_unit,
+        work_schedule: plan.work_schedule,
         target: target.target,
         function_count: plan.scalar_functions.len(),
     };
@@ -711,6 +705,19 @@ pub(crate) fn audit_target_operation_plan(
             &descriptor_inputs,
         )
         .map_err(|error| error.attributed(function.machine, None))?;
+    }
+    let expected = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
+    let retained = source::derive_target_function_rosters(
+        target,
+        crate::TargetSelectionEvidence {
+            optimization_unit: unit.identity,
+            work_schedule: unit.work_schedule,
+            accepted_obligation_facts: &unit.accepted_obligation_facts,
+            ownership_frontier_facts: &unit.ownership_frontier_facts,
+        },
+    )?;
+    if expected.scalar_functions != retained.scalar_functions {
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

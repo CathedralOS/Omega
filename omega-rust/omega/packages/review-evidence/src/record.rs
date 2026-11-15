@@ -12,8 +12,8 @@ grants package admission.
 mod accessors;
 mod authority;
 mod baseline;
-pub use baseline::PackagePolicyBaseline;
-pub(crate) use baseline::{PackagePolicyComponentAssumption, PackagePolicyNativeBinding};
+pub(crate) use baseline::PackagePolicyComponentAssumption;
+pub use baseline::{PackagePolicyBaseline, PackagePolicyNativeBinding};
 mod authority_expressions;
 mod behavior_policy;
 pub(crate) use behavior_policy::{
@@ -160,12 +160,12 @@ pub(crate) use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
     PackagePolicyExternalRequirement, PackageReviewConformanceBound,
-    PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
-    PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
-    PackageReviewRequirementRealization, PackageReviewSignatureParameter,
-    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTypeIdentity,
+    PackageReviewExternalCallableParameter, PackageReviewPropositionParameterSignature,
+    PackageReviewPropositionParameterValue, PackageReviewRequirementRealization,
+    PackageReviewSignatureParameter, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
+    PackageReviewTypeIdentity,
 };
 pub use signatures::{
-    PackageReviewBorrowOrigin, PackageReviewParameterQualification,
+    PackageReviewBorrowOrigin, PackageReviewForeignLocator, PackageReviewParameterQualification,
     PackageReviewReturnedBorrowOrigin,
 };

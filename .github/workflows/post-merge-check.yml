@@ -6,9 +6,10 @@ name: Post-merge check
 # is verified as one batch.
 #
 # `post-merge-check` lints the workspace and runs the lowered-route tests;
-# `sample` runs one sample natively and in the interpreter; `tests` runs every
-# Rust test in the workspace, only when a run is started by hand with `full`
-# set. `report` writes the verdict and the batch's commits to the run summary.
+# `sample` runs one sample and one program that imports `std`, each natively
+# and in the interpreter; `tests` runs every Rust test in the workspace, only
+# when a run is started by hand with `full` set. `report` writes the verdict
+# and the batch's commits to the run summary.
 #
 # There is no fixture corpus and no ledger: the run measures no rows and
 # publishes nothing. The run reverts nothing.
@@ -68,9 +69,9 @@ jobs:
       - name: Check the lowered route's verdicts on fixture programs
         run: mbx test --locked -p compiler --test lowered_route_subjects --test lowered_route_generics
 
-  # One sample natively and in the interpreter. It builds `omega` from main's
-  # restored warm build, beside the other jobs, so the compile holds up none
-  # of them.
+  # One sample and one `std` program, natively and in the interpreter. It
+  # builds `omega` from main's restored warm build, beside the other jobs, so
+  # the compile holds up none of them.
   sample:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -99,6 +100,18 @@ jobs:
           cd /workspace/Omega
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
+      # The sample above imports no `std`, so a change that breaks the
+      # standard library would pass it. This fixture writes `K` through
+      # `std`'s Console and its Build's provider choices. It reuses the
+      # compiler the sample gate just built and takes about three minutes.
+      - name: Run a program that imports std natively and in the interpreter
+        run: |
+          cd /workspace/Omega/tests/fixtures/run/providers/default_console_provider_reached
+          omega=/workspace/Omega/target/debug/omega
+          [ -x "$omega" ] || { echo "the sample gate left no compiler at $omega" >&2; exit 1; }
+          env -u CI -u GITHUB_ACTIONS "$omega" run --both \
+            --build-input build.omg --build-input main.omg main.omg < /dev/null > "$RUNNER_TEMP/stdout.txt"
+          diff expected_stdout.txt "$RUNNER_TEMP/stdout.txt"
 
   # Every Rust test in the workspace, only for a run started by hand with
   # `full` set: it adds most of an hour.
@@ -193,7 +206,7 @@ jobs:
             bad "the \`post-merge-check\` job failed or did not finish ($CHECKS); its log names the step."
           fi
           if [ "$SAMPLE" = success ]; then
-            ok "The sample runs natively and in the interpreter."
+            ok "The sample and the std program run natively and in the interpreter."
           else
             bad "the \`sample\` job failed or did not finish ($SAMPLE)."
           fi

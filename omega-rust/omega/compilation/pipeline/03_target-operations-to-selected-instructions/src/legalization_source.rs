@@ -29,7 +29,7 @@ pub(crate) mod custody {
         Ok(())
     }
 }
-pub(crate) mod ordinary_roster {
+pub(crate) mod audit_roster {
     use super::TargetOperationPlan;
     use crate::LegalizationError as Error;
     use crate::LegalizationError;
@@ -221,33 +221,26 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_normalized_foreign_call(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
                 native: &TargetOperationPlan,
-                unit: &crate::native_geometry::NativeUnit<'_>,
                 operation: OperationId,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
-                    unreachable!("dispatched project_normalized_foreign_call")
-                };
-                let Some(target_operations::TargetUnitOperation::NormalizedForeignCall {
+                let target_operations::TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
-                    boundary: row_boundary,
+                    boundary,
                     provider_execution,
                     binding,
                     scalar_arguments,
                     structural_arguments,
                     result,
                     descriptor_input,
-                }) = scalar_graph_input::normalized_foreign::row(
-                    native,
-                    optimized.machine,
-                    operation,
-                )?
+                } = targeted
                 else {
                     return Err(Error::custody());
                 };
-                if *psi_operation != operation || *row_boundary != *boundary {
+                if *psi_operation != operation {
                     return Err(Error::custody());
                 }
                 let callbacks =
@@ -265,8 +258,8 @@ pub(crate) mod scalar_graph {
                             .iter()
                             .map(|argument| {
                                 crate::legalization::runtime_indices::retained_operands(
-                                    &unit.accepted_obligation_facts,
-                                    optimized.machine,
+                                    facts,
+                                    machine,
                                     operation,
                                     &argument.indices,
                                 )
@@ -713,9 +706,7 @@ pub(crate) mod scalar_graph {
             use crate::LegalizationError;
             use crate::legalization::accepted_fact;
             use crate::legalization::scalar_graph_input;
-            use crate::structural_inputs::structural_reference_input::{
-                element_leaf_projection, storage_address_geometry,
-            };
+            use crate::structural_inputs::structural_reference_input::storage_address_geometry;
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
             use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
@@ -1498,47 +1489,107 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_element_view_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::ElementViewRead {
-                    psi_operation,
-                    source,
-                    index,
-                    length,
-                    obligation,
-                    path,
-                    result,
-                    ..
-                } = &node.operation
-                else {
-                    unreachable!("dispatched project_element_view_read")
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<Option<LegalizedScalarInstructionKind>, LegalizationError> {
+                use target_operations::{
+                    TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+                    TargetUnitOperation,
                 };
-                Ok(LegalizedScalarInstructionKind::ElementViewRead {
-                    source: *source,
-                    index: *index,
+                use terminal_psi::StructuralPathSegment;
+
+                let TargetUnitOperation::ScalarDefinition {
+                    result_home,
+                    expression,
+                } = targeted
+                else {
+                    return Ok(None);
+                };
+                let (owner, result, source, indices, index, length, obligation, path) =
+                    match expression {
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ElementViewRead {
+                                    psi_operation,
+                                    source_value,
+                                    source,
+                                    indices,
+                                    index,
+                                    length,
+                                    obligation,
+                                    path,
+                                    ..
+                                },
+                            ..
+                        }
+                        | TargetScalarExpression::Boolean(
+                            TargetBooleanExpression::ElementViewRead {
+                                psi_operation,
+                                source_value,
+                                source,
+                                indices,
+                                index,
+                                length,
+                                obligation,
+                                path,
+                                ..
+                            },
+                        )
+                        | TargetScalarExpression::IeeeFloatElementViewRead {
+                            psi_operation,
+                            source_value,
+                            source,
+                            indices,
+                            index,
+                            length,
+                            obligation,
+                            path,
+                            ..
+                        } => (
+                            psi_operation,
+                            source_value,
+                            source,
+                            indices,
+                            index,
+                            length,
+                            obligation,
+                            path,
+                        ),
+                        _ => return Ok(None),
+                    };
+                // A checked by-value read may choose a runtime element of the
+                // slice, but the scalar leaf inside that element is static.
+                if *owner != operation
+                    || result_home.defining_operation != operation
+                    || result_home.source_value != *result
+                    || result_home.scalar_type != expression.scalar_type()
+                    || !path.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        )
+                    })
+                {
+                    return Err(Error::custody());
+                }
+                Ok(Some(LegalizedScalarInstructionKind::ElementViewRead {
+                    source: source.clone(),
+                    index: index.operand_value().ok_or(Error::custody())?,
                     length: *length,
                     obligation: *obligation,
-                    accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                    accepted_fact: crate::legalization::obligations::retained_fact(
+                        facts,
+                        machine,
+                        operation,
+                        *obligation,
+                    )?,
                     path: path.clone(),
-                    indices: {
-                        let element = scalar_graph_input::byte_views::element_type(
-                            optimized,
-                            *source,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        let (_, _, elements) = element_leaf_projection(
-                            element,
-                            path,
-                            result.scalar_type,
-                            unit.geometry(),
-                        )
-                        .ok_or(Error::custody())?;
-                        o!(optimized => unit => *psi_operation => &elements)?
-                    },
-                })
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts, machine, operation, indices,
+                    )?,
+                }))
             }
 
             pub(crate) fn project_byte_sequence_concatenation(
@@ -1876,7 +1927,10 @@ pub(crate) mod scalar_graph {
             home.layout.sum().cloned().ok_or(Error::custody())
         }
 
-        pub(crate) fn project<'a>(
+        pub(crate) use crate::legalization_instruction::project;
+
+        /// Reconstruct the expected execution only for the independent audit.
+        pub(crate) fn audit_project<'a>(
             node: &optimization_unit::OptimizationNode,
             optimized: &optimization_unit::PsiOptimizationFunction,
             native: &'a TargetOperationPlan,
@@ -1956,6 +2010,17 @@ pub(crate) mod scalar_graph {
                 storage_instructions::project_structural_scalar_field_store(
                     optimized.machine,
                     &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::NormalizedForeignCall { .. }
+            ) {
+                call_instructions::project_normalized_foreign_call(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    native,
+                    operation,
                     targeted,
                 )?
             } else if matches!(
@@ -2204,6 +2269,10 @@ pub(crate) mod scalar_graph {
                     indices,
                     operand: operand.map(|source| source.source_value()),
                 }
+            } else if let Some(read) = storage_instructions::project_element_view_read(
+                optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+            )? {
+                read
             } else {
                 match &node.operation {
                     AbstractOperation::RegisterAccess { service, event, .. } => {
@@ -2582,18 +2651,6 @@ pub(crate) mod scalar_graph {
                     AbstractOperation::StorageAddress { .. } => {
                         storage_instructions::project_storage_address(node, optimized, unit)?
                     }
-                    AbstractOperation::BoundaryCall { .. }
-                        if scalar_graph_input::normalized_foreign::row(
-                            native,
-                            optimized.machine,
-                            operation,
-                        )?
-                        .is_some() =>
-                    {
-                        call_instructions::project_normalized_foreign_call(
-                            node, optimized, native, unit, operation,
-                        )?
-                    }
                     AbstractOperation::BoundaryCall {
                         boundary,
                         result,
@@ -2728,9 +2785,6 @@ pub(crate) mod scalar_graph {
                         storage_instructions::project_sequence_length(
                             optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
                         )?
-                    }
-                    AbstractOperation::ElementViewRead { .. } => {
-                        storage_instructions::project_element_view_read(node, optimized, unit)?
                     }
                     AbstractOperation::ElementViewWrite { .. } => {
                         storage_instructions::project_element_view_write(node, optimized, unit)?
@@ -3402,7 +3456,7 @@ pub(crate) mod scalar_graph {
                 let mut instructions = Vec::with_capacity(body.len());
                 for (node, row) in body.iter().zip(rows) {
                     *current_operation = row.source.as_ref().map(|source| source.operation);
-                    instructions.push(instruction::project(
+                    instructions.push(instruction::audit_project(
                         node, optimized, native, plan, unit, row,
                     )?);
                 }
@@ -3485,8 +3539,105 @@ pub(crate) fn derive_source_function_rosters(
     let mut rosters = SourceFunctionRosters {
         scalar_functions: Vec::new(),
     };
-    ordinary_roster::derive_remaining(&mut rosters, target, abstract_plan, unit)?;
+    audit_roster::derive_remaining(&mut rosters, target, abstract_plan, unit)?;
 
     Ok(rosters)
 }
 pub(crate) use custody::validate_source_custody;
+
+/// Ordinary legalization consumes only target execution and immutable judgments.
+pub(crate) fn derive_target_function_rosters(
+    target: &TargetOperationPlan,
+    evidence: crate::TargetSelectionEvidence<'_>,
+) -> Result<SourceFunctionRosters, LegalizationError> {
+    let geometries = crate::native_geometry::NativeGeometries::new(
+        target
+            .functions
+            .iter()
+            .map(|function| function.graph.structural_types.as_ref()),
+    )
+    .map_err(|_| LegalizationError::custody())?;
+    let mut scalar_functions = Vec::with_capacity(target.functions.len());
+    for function in &target.functions {
+        let geometry = geometries
+            .get(&function.graph.structural_types)
+            .ok_or_else(LegalizationError::custody)?;
+        let mut blocks = Vec::with_capacity(function.graph.blocks.len());
+        for block in &function.graph.blocks {
+            let mut instructions = Vec::with_capacity(block.operations.len());
+            for row in &block.operations {
+                if matches!(
+                    row.kind,
+                    target_operations::TargetUnitOperation::CleanupCall { .. }
+                ) {
+                    continue;
+                }
+                instructions.push(
+                    scalar_graph::instruction::project(
+                        function.machine,
+                        evidence.accepted_obligation_facts,
+                        target,
+                        geometry,
+                        row,
+                    )
+                    .map_err(|error| {
+                        error.attributed(
+                            function.machine,
+                            row.source.as_ref().map(|source| source.operation),
+                        )
+                    })?,
+                );
+            }
+            let parameters = block
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(position, parameter)| {
+                    Ok(optimization_unit::ValueDefinition {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                            block: block.block,
+                            position: u32::try_from(position)
+                                .map_err(|_| LegalizationError::custody())?,
+                        },
+                    })
+                })
+                .collect::<Result<_, LegalizationError>>()?;
+            blocks.push(legalized_operations::LegalizedScalarBlock {
+                id: block.block,
+                parameters,
+                structural_parameters: block.structural_parameters.clone(),
+                instructions,
+                terminator: crate::legalization_control::project(
+                    function.machine,
+                    block,
+                    function
+                        .structural_contract
+                        .as_ref()
+                        .map(|contract| contract.parameters.as_slice())
+                        .unwrap_or(&[]),
+                    evidence.accepted_obligation_facts,
+                )?,
+            });
+        }
+        scalar_functions.push(legalized_operations::LegalizedScalarFunction {
+            machine: function.machine,
+            attachment: function.attachment,
+            nominal_cleanup_subject: function.nominal_cleanup_subject,
+            provenance: function.provenance.clone(),
+            call_plan: function.graph.call_plan.clone(),
+            parameters: scalar_graph::parameters(function)?,
+            structural: crate::legalization::scalar_graph_input::structural_contract(function)?,
+            entry_block: function.graph.entry,
+            blocks,
+            ownership_frontier_facts: evidence
+                .ownership_frontier_facts
+                .iter()
+                .filter(|fact| fact.machine == function.machine)
+                .cloned()
+                .collect(),
+        });
+    }
+    Ok(SourceFunctionRosters { scalar_functions })
+}

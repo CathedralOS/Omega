@@ -33,6 +33,7 @@ pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
+pub mod float_meaning_sources;
 pub mod inhabitation;
 pub mod normal_completion;
 pub mod numeric_primitives;
@@ -40,6 +41,10 @@ pub mod plain_affine;
 pub mod reference_ends;
 pub mod references;
 pub mod scalar_qualifications;
+mod scalar_target_ranges;
+pub use scalar_target_ranges::{
+    TargetScalarRange, application_sized_storage, target_scalar_ranges,
+};
 pub mod scalars;
 pub mod storage;
 pub mod structural;
@@ -540,15 +545,15 @@ pub use bytes::byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use bytes::byte_sequence_predicates::{
-    MachineScalarIndex, ScalarConstantOrigin, byte_copied_field_predicates_at_transfer,
-    byte_field_root, byte_literal_qualifications_hold, byte_literal_qualifications_hold_in,
-    byte_owned_call_result, byte_owned_result_predicates, byte_parameter_predicates,
-    byte_parameter_predicates_from_domains, byte_parameter_predicates_in, byte_predicate_carrier,
-    byte_predicate_requirement, byte_qualification_predicates_in,
-    byte_sequence_concatenation_predicates, byte_sequence_source_predicates, byte_view_call_result,
-    indexed_byte_store_goal, machine_scalar_constant_origin, pure_byte_qualifications,
-    scalar_array_qualifications_hold, scalar_constant_value, scalar_operation_literal,
-    shared_byte_field_copy_predicates,
+    MachineScalarIndex, ScalarConstantOrigin, ScalarConstants,
+    byte_copied_field_predicates_at_transfer, byte_field_root, byte_literal_qualifications_hold,
+    byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
+    byte_parameter_predicates, byte_parameter_predicates_from_domains,
+    byte_parameter_predicates_in, byte_predicate_carrier, byte_predicate_requirement,
+    byte_qualification_predicates_in, byte_sequence_concatenation_predicates,
+    byte_sequence_source_predicates, byte_view_call_result, indexed_byte_store_goal,
+    pure_byte_qualifications, scalar_array_qualifications_hold, scalar_operation_literal,
+    scalar_operation_origin, shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
@@ -573,7 +578,8 @@ pub use references::reference_views::{
     reference_storage_export_byte_width, reference_storage_region_source_compatible,
     reference_storage_source_compatible, reference_storage_view_is_compatible,
     representation_view_declaration, scalar_reference_view_admits, scalar_reference_view_is_total,
-    scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
+    scalar_reference_view_value, shared_byte_descriptor_storage_matches,
+    shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
 };
 pub use references::representation_geometry::{
     reference_view_compatible, reference_view_offset_is_zero, validate_reference_view_source,
@@ -609,9 +615,10 @@ pub use semantic_rows::{
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
-    borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, structural_argument_source, structural_projection_authority,
-    view_descriptor_parameter, view_descriptor_projected_qualifications,
+    borrowed_storage_reference_ceiling, borrowed_view_payload_parameter,
+    descriptor_parameter_access, projection_before_edge, root_before_edge, storage_names,
+    structural_argument_source, structural_projection_authority, view_descriptor_parameter,
+    view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,

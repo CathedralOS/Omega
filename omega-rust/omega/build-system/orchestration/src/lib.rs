@@ -72,6 +72,9 @@ pub use compile::source_compilation::{
     check_source, check_source_keeping_typed_frontier, compile_sources, produce_source,
 };
 pub use project::publication;
+pub use project::stage_validators::{
+    StageValidationResult, StageValidationRow, StageValidator, StageValidatorRequest,
+};
 
 pub use build::build;
 pub use build_session::BuildSession;
@@ -138,18 +141,21 @@ pub struct BuildRequest {
     pub require_package_project: bool, // Enforced after transaction recovery and project discovery.
     pub optimization_rollback: OptimizationRollback,
     pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
+    pub stage_validators: StageValidatorRequest, // Empty for default compilation, which runs none.
 }
 
 pub struct BuildOutcome {
     pub output: compiler::CompilationOutput,
     pub timings: CompileTimings,
     pub executable_path: Option<PathBuf>,
+    pub stage_validations: Vec<StageValidationRow>,
 }
 
 pub struct BuildReport {
     pub report: CompileReport,
     pub timings: CompileTimings,
     pub executable_path: Option<PathBuf>, // Present only after native publication succeeds.
+    pub stage_validations: Vec<StageValidationRow>, // One row per requested validator and target.
 }
 
 impl BuildOutcome {
@@ -162,6 +168,7 @@ impl BuildOutcome {
             report,
             timings: self.timings,
             executable_path: self.executable_path,
+            stage_validations: self.stage_validations,
         })
     }
 }
@@ -179,6 +186,9 @@ pub enum BuildError {
     Publication(String),
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
+    /// A requested independent stage validator rejected the compiler's own
+    /// stage output: a compiler invariant failure, not invalid source.
+    StageValidation(StageValidationRow),
 }
 
 impl From<Vec<Diagnostic>> for BuildError {
@@ -202,6 +212,10 @@ impl std::fmt::Display for BuildError {
                 write!(formatter, "cannot create the check workspace: {error}")
             }
             Self::BuildDirectory(conflict) => write!(formatter, "{conflict}"),
+            Self::StageValidation(row) => write!(
+                formatter,
+                "{row}\nthe compiler's own stage output failed an independent validator; this is a compiler defect, not an error in the source"
+            ),
         }
     }
 }

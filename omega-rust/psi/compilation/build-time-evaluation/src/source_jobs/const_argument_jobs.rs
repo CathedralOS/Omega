@@ -25,28 +25,87 @@ use std::collections::VecDeque;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::constant_recipes::{
+    ConstantExpressionContext, RetainedConstantPosition, RetainedConstantRecipe,
+    retain_constant_recipes,
+};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::deferred_refusals::DeferredRequest;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 use super::constant_jobs::{decoded, insert, key};
 use crate::{InvocationTarget, SourceCompletionAccounting};
 
-/// One const argument still written as an expression.
+/// One value required by a type and still written as an expression.
 struct Job {
     argument: TypeReferenceHandle,
     expression: ExpressionHandle,
-    /// The parameter's declared type, a builtin integer or `bool`.
+    /// The argument's exact builtin carrier.
     carrier: TypeReferenceHandle,
     /// The declaration the application is written in.
     owner: SymbolHandle,
-    /// The applied declaration and its parameter, for diagnostics.
-    applied: SymbolHandle,
-    parameter: String,
+    /// The application and parameter that ask for the value, if any.
+    application: Option<(SymbolHandle, String)>,
+}
+
+impl Job {
+    fn description(&self, program: &TypedTrees) -> String {
+        match &self.application {
+            Some((applied, parameter)) => {
+                format!(
+                    "const argument for `{parameter}` of `{}`",
+                    program.symbols.name(*applied)
+                )
+            }
+            None => "computed array extent".to_owned(),
+        }
+    }
+}
+
+fn pending_argument(
+    program: &TypedTrees,
+    jobs: &mut Vec<Job>,
+    argument: TypeReferenceHandle,
+    carrier: TypeReferenceHandle,
+    application: Option<(SymbolHandle, &str)>,
+) {
+    let types = &program.type_reference_table;
+    let TypeReferenceNode::ConstExpression(expression) = *types.type_reference(argument) else {
+        return;
+    };
+    let builtin = types
+        .contains_type_reference(carrier)
+        .then(|| types.type_reference(carrier));
+    let carrier_atom = match builtin {
+        Some(TypeReferenceNode::Named { symbol, .. }) => program.symbols.builtin_type_atom(*symbol),
+        _ => None,
+    };
+    if !(matches!(carrier_atom, Some(symbols::BuiltinTypeAtom::Integer(_)))
+        || (application.is_some() && carrier_atom == Some(symbols::BuiltinTypeAtom::Bool)))
+        || program
+            .static_const_literal_from_type_reference(argument)
+            .is_some()
+        || matches!(
+            program.expression_table.expression(expression),
+            typed_trees::expression::ExpressionNode::Boolean(_)
+        )
+        || program.pending_const_range_endpoints.contains(&expression)
+        || !typed_trees::domain::index_argument_is_closed(program, argument)
+        || jobs.iter().any(|known| known.argument == argument)
+    {
+        return;
+    }
+    jobs.push(Job {
+        argument,
+        expression,
+        carrier,
+        owner: SymbolHandle::invalid(),
+        application: application.map(|(symbol, parameter)| (symbol, parameter.to_owned())),
+    });
 }
 
 /// The const arguments of type applications that are closed expressions and
@@ -56,7 +115,18 @@ struct Job {
 /// left as written and stays refused where it is demanded.
 fn pending(program: &TypedTrees) -> Vec<Job> {
     let mut found: Vec<Job> = Vec::new();
+    let mut array_arguments = Vec::new();
+    let mut generic_arguments = Vec::new();
     for (_, node) in program.type_reference_table.type_reference_rows() {
+        if let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Expression(argument),
+            ..
+        } = node
+            && let TypeReferenceNode::ConstExpression(expression) =
+                program.type_reference_table.type_reference(*argument)
+        {
+            array_arguments.push((*argument, *expression));
+        }
         let TypeReferenceNode::Generic {
             base_symbol,
             arguments,
@@ -85,41 +155,36 @@ fn pending(program: &TypedTrees) -> Vec<Job> {
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 continue;
             };
-            let TypeReferenceNode::ConstExpression(expression) =
-                *program.type_reference_table.type_reference(*argument)
-            else {
-                continue;
-            };
-            let builtin_scalar = matches!(
-                program.type_reference_table.type_reference(type_reference),
-                TypeReferenceNode::Named { symbol, .. }
-                    if matches!(
-                        program.symbols.builtin_type_atom(*symbol),
-                        Some(symbols::BuiltinTypeAtom::Bool | symbols::BuiltinTypeAtom::Integer(_))
-                    )
-            );
-            if !builtin_scalar
-                || program
-                    .static_const_literal_from_type_reference(*argument)
-                    .is_some()
-                || matches!(
-                    program.expression_table.expression(expression),
-                    typed_trees::expression::ExpressionNode::Boolean(_)
-                )
-                || program.pending_const_range_endpoints.contains(&expression)
-                || !typed_trees::domain::index_argument_is_closed(program, *argument)
-                || found.iter().any(|known| known.argument == *argument)
-            {
+            if !matches!(
+                program.type_reference_table.type_reference(*argument),
+                TypeReferenceNode::ConstExpression(_)
+            ) {
                 continue;
             }
-            found.push(Job {
-                argument: *argument,
-                expression,
-                carrier: type_reference,
-                owner: SymbolHandle::invalid(),
-                applied: *base_symbol,
-                parameter: parameter.name.as_str().to_owned(),
-            });
+            generic_arguments.push(*argument);
+            pending_argument(
+                program,
+                &mut found,
+                *argument,
+                type_reference,
+                Some((*base_symbol, parameter.name.as_str())),
+            );
+        }
+    }
+    // Array extents derived from a generic argument keep that parameter's
+    // declared carrier. Only written array expressions supply their own.
+    let coordinate =
+        |argument: TypeReferenceHandle| (argument.arena_index(), argument.generation());
+    generic_arguments.sort_unstable_by_key(|&argument| coordinate(argument));
+    for (argument, expression) in array_arguments {
+        if generic_arguments
+            .binary_search_by_key(&coordinate(argument), |&argument| coordinate(argument))
+            .is_err()
+        {
+            let carrier = program
+                .expression_table
+                .constructed_value_type_reference(expression);
+            pending_argument(program, &mut found, argument, carrier, None);
         }
     }
     found
@@ -168,11 +233,20 @@ fn reached(
 /// The zero-argument machine whose value is `job`'s expression, added to
 /// `probe`: `machine @const-argument<..>() -> Carrier { expression }`.
 fn entry(probe: &mut TypedTrees, job: &Job) -> SymbolHandle {
-    let name = format!(
-        "@const-argument<{}::{}>",
-        probe.symbols.display_path(job.applied, "::"),
-        job.parameter
-    );
+    let name = match &job.application {
+        Some((applied, parameter)) => format!(
+            "@const-argument<{}::{parameter}>",
+            probe.symbols.display_path(*applied, "::"),
+        ),
+        None => format!(
+            "@array-extent<{}>",
+            probe
+                .expression_table
+                .source_span(job.expression)
+                .span
+                .start
+        ),
+    };
     let symbol =
         probe
             .symbols
@@ -281,8 +355,47 @@ pub fn evaluate(
                 source_consent.clone(),
             )
             .map_err(|errors| diagnostics::join_messages(&errors))?;
-            let value = prepared
-                .entry(job.owner, entry, &[])?
+            let invocation = prepared.entry(job.owner, entry, &[])?;
+            if job.application.is_none()
+                && invocation
+                    .accepted()
+                    .module()
+                    .boundary_machines
+                    .iter()
+                    .any(|boundary| {
+                        boundary
+                            .declaration
+                            .as_ref()
+                            .is_some_and(|row| !row.execution.compiler_owned())
+                    })
+            {
+                let symbol = self::entry(program, job);
+                let contexts =
+                    program
+                        .constant_expression_contexts
+                        .insert_many([ConstantExpressionContext {
+                            owner: job.owner,
+                            result_type: job.carrier,
+                            evaluation_entry: symbol,
+                            evaluation_expression: job.expression,
+                        }]);
+                let source_span = program.expression_table.source_span(job.expression);
+                retain_constant_recipes(
+                    program,
+                    [RetainedConstantRecipe {
+                        position: RetainedConstantPosition::ConstApplication {
+                            site: job.argument,
+                            root: job.expression,
+                        },
+                        contexts,
+                        machine: job.owner,
+                        source_span,
+                        ..Default::default()
+                    }],
+                );
+                return Ok(());
+            }
+            let value = invocation
                 .invoke_recorded(
                     InvocationTarget {
                         name: None,
@@ -304,12 +417,8 @@ pub fn evaluate(
         })();
         if let Err(reason) = result {
             return Err(vec![
-                Diagnostic::error(format!(
-                    "const argument for `{}` of `{}`: {reason}",
-                    job.parameter,
-                    program.symbols.name(job.applied)
-                ))
-                .with_source_span(program.expression_table.source_span(job.expression)),
+                Diagnostic::error(format!("{}: {reason}", job.description(program)))
+                    .with_source_span(program.expression_table.source_span(job.expression)),
             ]);
         }
         // The declaration held a request no pass served, and is refused
@@ -332,10 +441,9 @@ pub fn evaluate(
             .expect("an unfinished job");
         return Err(vec![
             Diagnostic::error(format!(
-                "const argument for `{}` of `{}` is computed through a declaration that needs \
+                "{} is computed through a declaration that needs \
                  this argument's value: the evaluation has no first step",
-                job.parameter,
-                program.symbols.name(job.applied)
+                job.description(program),
             ))
             .with_source_span(program.expression_table.source_span(job.expression)),
         ]);

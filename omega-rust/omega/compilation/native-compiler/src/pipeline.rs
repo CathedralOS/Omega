@@ -119,8 +119,12 @@ pub(crate) fn emit_target(
         stage_optimized_instruction_selection(
             TargetSelectionInput {
                 target: target_input.target_operations(),
-                source: optimized.plan(),
-                unit: optimized.unit(),
+                evidence: target_operations_to_selected_instructions::TargetSelectionEvidence {
+                    optimization_unit: optimized.unit().identity,
+                    work_schedule: optimized.unit().work_schedule,
+                    accepted_obligation_facts: &optimized.unit().accepted_obligation_facts,
+                    ownership_frontier_facts: &optimized.unit().ownership_frontier_facts,
+                },
                 closed_module: target_input.lowering_facts().closed_module(),
                 origins: target_input.boundary_origins(),
                 installed_interrupts: target_input.lowering_facts().installed_interrupts(),

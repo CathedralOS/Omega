@@ -291,16 +291,11 @@ impl Lowering<'_> {
                 evaluated.erased.push(witness.term());
                 continue;
             }
-            if let ExpressionKind::Borrow {
-                access,
-                place,
-                home,
-            } = &argument.kind
-            {
+            if let ExpressionKind::Borrow { access, place, .. } = &argument.kind {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let lent = continuing!(self.lend(place, *access, home.as_deref()));
+                let lent = continuing!(self.lend(place, *access));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
                 evaluated.loans.push((lent.place, *access, lent.lender));
@@ -477,14 +472,13 @@ impl Lowering<'_> {
         })
     }
 
-    /// Only actual Boolean formals enter this substitution. In particular a
-    /// callee result ID cannot acquire a caller constant with the same number.
+    /// Bind genuine scalar formals once, with their exact declared carriers.
+    /// A callee result ID cannot acquire a caller constant with the same number.
     fn published_postcondition_is_false(
         &self,
         signature: &crate::body::Signature,
         arguments: &Arguments,
     ) -> Checked<bool> {
-        use semantic_vocabulary::ScalarType;
         if signature.ensures.is_empty() {
             return Ok(false);
         }
@@ -497,23 +491,23 @@ impl Lowering<'_> {
                 let term = erased
                     .next()
                     .ok_or_else(|| self.internal("missing erased call actual"))?;
-                terminal_semantics::inhabitation::boolean_value_with(term, |id| {
-                    self.known_boolean(id)
+                terminal_semantics::inhabitation::known_scalar_value_with(term, |id| {
+                    self.known_scalar(id)
                 })
             } else {
                 let actual = relevant
                     .next()
                     .ok_or_else(|| self.internal("missing call actual"))?;
                 match actual {
-                    Actual::Value(value) => self.known_boolean(*value),
+                    Actual::Value(value) => self.known_scalar(*value),
                     Actual::Place(_) => None,
                 }
             };
-            if matches!(ty, ValueType::Scalar(ScalarType::Boolean, _))
+            if let ValueType::Scalar(expected, _) = ty
                 && signature.borrowed(position).is_none()
                 && let Some(id) = ids[position]
             {
-                bindings.push((id, known));
+                bindings.push((id, known.filter(|(actual, _)| actual == expected)));
             }
         }
         if relevant.next().is_some() || erased.next().is_some() {
@@ -531,24 +525,40 @@ impl Lowering<'_> {
         ))
     }
 
-    fn known_boolean(&self, value: ValueId) -> Option<bool> {
-        let row = self.tables.values.get(value)?;
-        if row.scalar_type != semantic_vocabulary::ScalarType::Boolean || row.rigid.is_some() {
-            return None;
+    fn known_scalar(
+        &self,
+        value: ValueId,
+    ) -> Option<(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    )> {
+        let mut constants = self.scalar_constants.borrow_mut();
+        while constants.registered_count() < self.tables.values.len() {
+            let id = ValueId::new(
+                u64::try_from(constants.registered_count())
+                    .ok()?
+                    .checked_add(1)?,
+            )?;
+            self.tables.values.get(id)?;
+            if !constants.register(id) {
+                return None;
+            }
         }
-        let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin else {
-            return None;
-        };
-        let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
-        let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
-        let (ty, literal) = terminal_semantics::scalar_operation_literal(operation, value)?;
-        match (ty, literal) {
-            (
-                semantic_vocabulary::ScalarType::Boolean,
-                semantic_vocabulary::IntegerValue::Unsigned(value @ 0..=1),
-            ) => Some(value != 0),
-            _ => None,
-        }
+        constants.value(value, |value| {
+            let row = self.tables.values.get(value)?;
+            if row.rigid.is_some() {
+                return None;
+            }
+            // A draft join can still gain arrivals. Only already-emitted
+            // operation definitions are stable enough to memoize here.
+            let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin
+            else {
+                return None;
+            };
+            let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
+            let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
+            terminal_semantics::scalar_operation_origin(operation, value, self)
+        })
     }
 
     fn call_routes(
@@ -598,7 +608,7 @@ impl Lowering<'_> {
             typed_trees::statement::StatementHandle,
         )>,
         arguments: Arguments,
-        source: SourceOrigin,
+        (source, static_reach_binding): (SourceOrigin, Option<u32>),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<()> {
         let routes = self.call_routes(callee, required_contract)?;
@@ -666,7 +676,7 @@ impl Lowering<'_> {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => self
                 .terminate(Terminator::InvokeNoNormal {
                     edge,
-                    static_reach_binding: None,
+                    static_reach_binding,
                     required_contract: self
                         .signatures
                         .canonical_contract(required_contract, self.id)?,
@@ -778,13 +788,14 @@ impl Lowering<'_> {
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
-        (source, source_call): (
+        (source, source_call, static_reach_binding): (
             SourceOrigin,
             Option<(
                 MachineId,
                 typed_trees::expression::ExpressionHandle,
                 typed_trees::statement::StatementHandle,
             )>,
+            Option<u32>,
         ),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
@@ -814,7 +825,7 @@ impl Lowering<'_> {
                 required_contract,
                 source_call,
                 arguments,
-                source,
+                (source, static_reach_binding),
                 acknowledgement
             ));
             return Ok(Reached::Ended(source));
@@ -987,6 +998,7 @@ impl Lowering<'_> {
             return Err(self.internal("a selected contract lost its exact call operation"));
         }
         emitted.required_contract = canonical_contract;
+        emitted.static_reach_binding = static_reach_binding;
         if let Some((selecting, expression, statement)) = source_call {
             self.calls.push((
                 selecting,
@@ -1001,5 +1013,12 @@ impl Lowering<'_> {
             self.retire_homes(&homes, source)?;
         }
         Ok(Reached::Value(value))
+    }
+}
+
+impl terminal_semantics::ValueTypes for Lowering<'_> {
+    fn value_type(&self, value: ValueId) -> Option<semantic_vocabulary::ScalarType> {
+        let row = self.tables.values.get(value)?;
+        row.rigid.is_none().then_some(row.scalar_type)
     }
 }

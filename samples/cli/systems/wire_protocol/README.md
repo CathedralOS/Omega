@@ -1,25 +1,30 @@
 # Wire Protocol
 
-Encodes a `SensorPacket` (nested `RoomHeader` + packed repeated `FixedVec<i32, 4>`
-samples + scalar `depth`) to a compact-binary buffer, then decodes it back
-and verifies every field. Exercises wire schemas with nested messages and
-repeated fields end-to-end. Runs to exit **70**.
+This sample is intended to encode a `SensorPacket` (nested `RoomHeader` +
+packed repeated `FixedVec<i32, 4>`
+samples + scalar `depth`) to a compact-binary buffer, then decode it back
+and verify every field. Success must exit **70**; the current source stops
+before executing that check.
 
-```
-omega run samples/cli/systems/wire_protocol/main.omg
-# exit 70; EOF or Enter closes the console prompt
+```sh
+mbx xtask sample-gate --filter cli/systems/wire_protocol < /dev/null
 ```
 
 Wire layout (13 bytes):
+
 - era discriminator 0x00
 - field 0 (header): length-prefixed sub-message for RoomHeader { room_id: 300 }
 - field 1 (samples): packed `FixedVec` [150, -2] (2 of 4 slots live)
 - field 2 (depth): zigzag-encoded -64
 
-Companion to the `runtime_wire_roundtrip_nested_and_repeated_exit` canary,
-which covers the same schema with the exact same values.
+The original values and exact byte listing remain in [main.omg](main.omg).
+The policy's closed type comparisons and runtime reflection visitors still
+need [LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only).
+The remaining data-owned codec helpers need `STATIC-MACHINE-MIGRATION` in
+that same board. No successful check or native/Psi execution is claimed.
 
-The grammar policy borrows each indexed `FieldKind` while choosing its placement.
+The ordinary `authored_compact_binary_plan` policy takes its state explicitly
+and borrows each indexed `FieldKind` while choosing its placement.
 Its work witness is declared on `fill`, which participates in the recursive
-`fill`/`place` component. The acyclic `evaluate` wrapper derives termination from
-that checked component; lexical nesting does not supply an inherited rank.
+`fill`/`place` component. The acyclic `evaluate_compact_binary_plan` wrapper
+calls that component; lexical nesting supplies no inherited rank.

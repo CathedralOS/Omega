@@ -1492,7 +1492,7 @@ pub(crate) mod operations {
             source: StructuralArgument,
         },
         ElementViewRead {
-            source: PlaceId,
+            source: StructuralArgument,
             index: ValueId,
             length: ValueId,
             obligation: ObligationId,

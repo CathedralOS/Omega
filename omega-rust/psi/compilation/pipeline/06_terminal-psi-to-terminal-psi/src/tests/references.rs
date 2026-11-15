@@ -145,6 +145,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
         call_context: None,
         kind: ExpressionKind::Call {
             required_contract: None,
+            static_reach_binding: None,
             source_call: None,
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
@@ -667,6 +668,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                         call_context: None,
                         kind: ExpressionKind::Call {
                             required_contract: None,
+                            static_reach_binding: None,
                             source_call: None,
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: vec![lend(
@@ -781,7 +783,10 @@ machine entry() crashes none {
         panic!("a selected call without its public header must be refused");
     };
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
-    assert_eq!(refused.detail, "an invocation row names another callee");
+    assert_eq!(
+        refused.detail,
+        "an invocation row names another callee in machine `relay`"
+    );
 
     let mut missing_lifetimes = prepare();
     let TerminalCompilation::Prepared(prepared) = &mut missing_lifetimes else {
@@ -846,7 +851,7 @@ machine entry() crashes none {
         refused.concerns,
         terminal_check_tables::Construct::Operation(operation)
     );
-    assert_eq!(refused.detail, detail);
+    assert_eq!(refused.detail, format!("{detail} in machine `relay`"));
 }
 
 #[test]

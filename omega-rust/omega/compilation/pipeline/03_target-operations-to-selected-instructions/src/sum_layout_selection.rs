@@ -80,10 +80,15 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let node = &unit.functions[0].blocks[0].nodes[0];
     let instruction = &target.functions[0].graph.blocks[0].operations[0];
     let source = instruction.source.as_ref().unwrap();
-    let projected = crate::legalization_source::scalar_graph::instruction::with_metadata(
-        source,
-        legalized_operations::LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(7)),
-    );
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let projected = crate::legalization_source::scalar_graph::instruction::project(
+        unit.functions[0].machine,
+        &unit.accepted_obligation_facts,
+        &target,
+        &geometry,
+        instruction,
+    )
+    .unwrap();
     assert_eq!(projected.operation, op(1));
     assert_eq!(projected.result.as_ref().unwrap().value, val(1));
     assert_eq!(
@@ -124,17 +129,13 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
         crate::legalization_target::control_flow::validate_instruction_metadata(instruction, node)
     };
     audit(instruction).expect("exact instruction metadata");
-    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
-    let native_plan = crate::native_geometry::NativeInput::new(&plan, &geometry);
-    let native_unit = crate::native_geometry::NativeInput::new(&unit, &geometry);
     let mut missing = instruction.clone();
     missing.source = None;
     let failure = crate::legalization_source::scalar_graph::instruction::project(
-        node,
-        &unit.functions[0],
+        unit.functions[0].machine,
+        &unit.accepted_obligation_facts,
         &target,
-        &native_plan,
-        &native_unit,
+        &geometry,
         &missing,
     )
     .expect_err("the old body cannot reconstruct missing target metadata");
@@ -218,6 +219,109 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
             "forged instruction metadata {mutation}"
         );
     }
+}
+
+#[test]
+fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
+    let integer = u64_type();
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::IntegerConstant {
+                        psi_operation: op(1),
+                        result: val(1),
+                        scalar_type: ScalarType::Integer(integer),
+                        value: IntegerValue::Unsigned(7),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        ),
+    );
+    let mut target = target_plan(
+        &plan,
+        vec![block(
+            1,
+            vec![TargetUnitOperation::IntegerConstant {
+                psi_operation: op(1),
+                result: val(1),
+                scalar_type: integer,
+                value: IntegerValue::Unsigned(7),
+            }],
+            return_unit(1),
+        )],
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let module = TerminalModule::for_entry(plan.entry);
+    let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let evidence = crate::TargetSelectionEvidence {
+        optimization_unit: unit.identity,
+        work_schedule: unit.work_schedule,
+        accepted_obligation_facts: &[],
+        ownership_frontier_facts: &[],
+    };
+    let origins = BoundaryOriginFacts {
+        program_entry: None,
+        assumed_bindings: &[],
+        target_context: None,
+        module: &module,
+    };
+    crate::legalization::legalize_retained_target_operations(
+        &target,
+        evidence,
+        origins,
+        &interrupts,
+        None,
+        &[],
+    )
+    .unwrap();
+    // The selector-free helper has a representable operand. Only separately
+    // admitted installation authority may authorize it, not that geometry.
+    target.functions[0].graph.blocks[0].operations[0].kind = TargetUnitOperation::StaticInterrupt {
+        psi_operation: op(1),
+        boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+        operation: language_core::static_interrupts::StaticInterruptOperation::FinishCompletion,
+        token: terminal_psi::StructuralArgument {
+            place: place(1),
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        },
+        indices: Vec::new(),
+        result_home: None,
+    };
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    crate::legalization_source::scalar_graph::instruction::project(
+        machine(),
+        &[],
+        &target,
+        &geometry,
+        &target.functions[0].graph.blocks[0].operations[0],
+    )
+    .unwrap();
+    let error = crate::legalization::legalize_retained_target_operations(
+        &target,
+        evidence,
+        origins,
+        &interrupts,
+        None,
+        &[],
+    )
+    .expect_err("operand geometry cannot invent an admitted helper association");
+    assert!(
+        matches!(error, crate::LegalizationError::InstalledInterruptAssociation {
+        operation: Some(operation), reason: "interrupt helper has no admitted installation association",
+    } if operation == op(1)),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -359,6 +463,93 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
             "forged function storage contract {mutation}"
         );
     }
+}
+
+#[test]
+fn selection_honors_the_stored_call_plan_without_recomputing_it() {
+    use calling_conventions::{MachineRegister, ValueLocation};
+    // The stored plan passes both u64 arguments in the opposite registers from
+    // the plan `evaluate_call_plan` produces. Selection checks the arguments
+    // against the stored plan and accepts it; it never recomputes the plan.
+    // Comparing the stored plan with the callee's own plan is the independent
+    // audit's job (`direct_calls` in legalization_target.rs).
+    let policy = CallingPolicy::native_for_target(HOST());
+    let shape = calling_conventions::ValueShape::for_integer(u64_type()).unwrap();
+    let evaluated = calling_conventions::evaluate_call_plan(
+        policy,
+        &CallSignature {
+            parameters: vec![shape, shape],
+            result: None,
+        },
+    )
+    .unwrap();
+    let register = |register| calling_conventions::ValuePlacement {
+        shape,
+        locations: vec![ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: shape.byte_size,
+        }],
+    };
+    let mut stored = evaluated.clone();
+    stored.parameters = vec![
+        register(MachineRegister::X86Rsi),
+        register(MachineRegister::X86Rdi),
+    ];
+    assert_ne!(
+        stored, evaluated,
+        "the stored plan is not the recomputed one"
+    );
+    let argument = |position: u32| target_operations::TargetUnitScalarCallArgument {
+        parameter_index: position,
+        source: TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation: op(1),
+            source_value: val(u64::from(position) + 1),
+            scalar_type: u64_type(),
+            value: IntegerValue::Unsigned(u128::from(position)),
+        },
+        placement: stored.parameters[position as usize].clone(),
+    };
+    let row = TargetUnitOperation::Call {
+        psi_operation: op(2),
+        origin: target_operations::NativeCallOrigin::Authored,
+        target: target_operations::NativeCallTarget::Machine(MachineId::new(2).unwrap()),
+        call_plan: stored.clone(),
+        result: target_operations::TargetCallResult::Unit,
+        scalar_arguments: vec![argument(0), argument(1)],
+        arguments: Vec::new(),
+        access_bindings: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+        crate::legalization_source::scalar_graph::instruction::call_instructions::project_call(
+            machine(),
+            &[],
+            &row,
+        )
+        .unwrap()
+    else {
+        panic!("call");
+    };
+    assert_eq!(call.call_plan, stored);
+    assert!(crate::selection_call_abi::stored_plan_placements(policy, &call).is_some());
+    // An argument placed somewhere the stored plan does not put it is refused,
+    // even where that placement is what a recomputed plan would choose.
+    let mut moved = call.clone();
+    let legalized_operations::LegalizedScalarArgument::Scalar { placement, .. } =
+        &mut moved.arguments[0]
+    else {
+        panic!("scalar argument");
+    };
+    *placement = evaluated.parameters[0].clone();
+    assert!(crate::selection_call_abi::stored_plan_placements(policy, &moved).is_none());
+    let mut missing = call.clone();
+    missing.arguments.pop();
+    assert!(crate::selection_call_abi::stored_plan_placements(policy, &missing).is_none());
+    let foreign = CallingPolicy::native_for_target(NativeTarget::linux_arm64());
+    assert!(crate::selection_call_abi::stored_plan_placements(foreign, &call).is_none());
 }
 
 #[test]
@@ -1393,6 +1584,208 @@ fn retained_sequence_lengths_project_with_only_their_rows_and_facts() {
         project_sequence_length(machine(), &[], operation, &folded),
         Ok(Kind::Constant(IntegerValue::Unsigned(33)))
     ));
+}
+
+#[test]
+fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_element_view_read;
+    use legalized_operations::LegalizedScalarInstructionKind;
+    use semantic_vocabulary::{IeeeFloatFormat, ObligationId};
+    use target_operations::{
+        TargetBooleanExpression, TargetIntegerExpression, TargetScalarExpression,
+        TargetUnitScalarHomeRequirement,
+    };
+
+    use terminal_psi::StructuralArgument;
+
+    for scalar in [
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+        ScalarType::Boolean,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    ] {
+        let mut names = TerminalIdentityTableBuilder::default();
+        let sibling = scalar_field(1, names.intern("sibling"), u64_type());
+        let mut field = scalar_field(2, names.intern("selected"), u64_type());
+        field.field_type = StructuralFieldType::Scalar(scalar);
+        let path = vec![StructuralPathSegment::Field(field.identity)];
+        let mut element = reference_type(1, names.intern("Element"), ty(1));
+        element.copyable = true;
+        element.shape = StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::Packed,
+            fields: vec![sibling, field],
+        };
+        let mut view_type = reference_type(2, names.intern("View"), ty(2));
+        view_type.shape = StructuralTypeShape::ElementView {
+            element: ty(1),
+            access: Some(StructuralAccess::SharedBorrow),
+        };
+        let source = parameter(ty(2));
+        let mut peer = parameter_at(2, ty(2));
+        peer.position = 1;
+        let bound = ObligationId::new(1).unwrap();
+        let result = AbstractResult {
+            value: val(3),
+            scalar_type: scalar,
+        };
+        let read = AbstractOperation::ElementViewRead {
+            psi_operation: op(3),
+            result,
+            source: StructuralArgument::whole(source.place, source.access),
+            index: val(1),
+            length: val(2),
+            obligation: bound,
+            path: path.clone(),
+        };
+        let function = function_with_body(
+            vec![source.clone(), peer],
+            vec![entry(
+                1,
+                vec![
+                    AbstractOperation::IntegerConstant {
+                        psi_operation: op(1),
+                        result: val(1),
+                        scalar_type: ScalarType::Integer(u64_type()),
+                        value: IntegerValue::Unsigned(1),
+                    },
+                    AbstractOperation::ElementViewLength {
+                        psi_operation: op(2),
+                        result: AbstractResult {
+                            value: val(2),
+                            scalar_type: ScalarType::Integer(u64_type()),
+                        },
+                        source: terminal_psi::StructuralArgument::whole(
+                            source.place,
+                            source.access,
+                        ),
+                    },
+                    read.clone(),
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        );
+        let plan = plan(names, vec![element, view_type], function);
+        let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+        let row =
+            |position: usize, literal, element_byte_offset, path: Vec<StructuralPathSegment>| {
+                let parameter = &target.functions[0].graph.parameters[position];
+                let source = StructuralArgument::whole(parameter.place, source.access);
+                let indices = Vec::new();
+                let index = Box::new(TargetIntegerExpression::Immediate {
+                    source_value: val(1),
+                    value: IntegerValue::Unsigned(literal),
+                });
+                let source_value = result.value;
+                let psi_operation = op(3);
+                let length = val(2);
+                let obligation = bound;
+                macro_rules! read {
+                ($module:ident :: $variant:ident $(, $format:ident)?) => {
+                    $module::$variant {
+                        $($format,)?
+                        psi_operation, source_value, source, indices, index, length, obligation,
+                        path, element_byte_offset,
+                    }
+                };
+            }
+                let expression = match scalar {
+                    ScalarType::Integer(scalar_type) => TargetScalarExpression::Integer {
+                        scalar_type,
+                        expression: read!(TargetIntegerExpression::ElementViewRead),
+                    },
+                    ScalarType::Boolean => TargetScalarExpression::Boolean(read!(
+                        TargetBooleanExpression::ElementViewRead
+                    )),
+                    ScalarType::IeeeFloat(format) => {
+                        read!(TargetScalarExpression::IeeeFloatElementViewRead, format)
+                    }
+                };
+                TargetUnitOperation::ScalarDefinition {
+                    result_home: TargetUnitScalarHomeRequirement {
+                        defining_operation: op(3),
+                        source_value: result.value,
+                        scalar_type: scalar,
+                        shape: crate::legalization::scalar_graph_input::scalar_shape(scalar)
+                            .unwrap(),
+                    },
+                    expression,
+                }
+            };
+        let retained = row(0, 1, 8, path.clone());
+        let fact = optimization_unit::AcceptedObligationFact::new(
+            plan.psi,
+            [7; 32],
+            machine(),
+            optimization_unit::PsiProvenance::Operation(op(3)),
+            bound,
+            vec![2],
+        );
+        let facts = std::slice::from_ref(&fact);
+        assert_eq!(
+            project_element_view_read(machine(), facts, op(3), &retained).unwrap(),
+            Some(LegalizedScalarInstructionKind::ElementViewRead {
+                source: StructuralArgument::whole(source.place, source.access),
+                index: val(1),
+                length: val(2),
+                obligation: bound,
+                accepted_fact: fact.identity,
+                path: path.clone(),
+                indices: Vec::new(),
+            }),
+        );
+        assert!(project_element_view_read(machine(), &[], op(3), &retained).is_err());
+        assert!(project_element_view_read(machine(), facts, op(4), &retained).is_err());
+        let dynamic_path = vec![StructuralPathSegment::RuntimeIndex {
+            index: val(1),
+            obligation: bound,
+        }];
+        assert!(
+            project_element_view_read(machine(), facts, op(3), &row(0, 1, 8, dynamic_path))
+                .is_err()
+        );
+
+        let unit =
+            reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+                .unwrap();
+        let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+        let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+        let inputs = crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+        let sources = crate::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
+        let audit = |row: &TargetUnitOperation| {
+            crate::legalization_target::unit::validate_operation(
+                &target.functions[0],
+                row,
+                &read,
+                &[],
+                &target.functions[0].graph.parameters,
+                &mut sources.available(block_id(1)),
+                &Default::default(),
+                &inputs,
+                &target,
+                &plan_view,
+                &unit_view,
+            )
+        };
+        audit(&retained).expect("retained descriptor, index, and field agree with the source");
+        assert!(
+            audit(&row(1, 1, 8, path.clone())).is_err(),
+            "different live descriptor"
+        );
+        assert!(
+            audit(&row(0, 0, 8, path.clone())).is_err(),
+            "wrong index literal"
+        );
+        assert!(
+            audit(&row(0, 1, 0, path.clone())).is_err(),
+            "wrong leaf offset"
+        );
+    }
 }
 
 #[test]

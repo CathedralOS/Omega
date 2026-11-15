@@ -38,7 +38,7 @@ impl PackagePolicyServiceMethod {
             {
                 return Err("provider method repeats an exact declaration ABI application");
             }
-            calling.validate_canonical_structure()?;
+            calling.validate_for_service(self)?;
             if calling.target.profile.backend_profile() != target
                 || calling.boundary_trait != *schema
                 || calling.requirement != self.requirement

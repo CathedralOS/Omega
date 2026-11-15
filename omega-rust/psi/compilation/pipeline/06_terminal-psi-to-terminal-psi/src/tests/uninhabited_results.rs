@@ -614,7 +614,10 @@ machine main() crashes Trap {
 
 fn scalar_postcondition_call(
     accepted: &crate::verdict::AcceptedClosure,
-    actual: Option<bool>,
+    actual: Option<(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    )>,
     no_normal: bool,
 ) {
     use semantic_vocabulary::InvocationSite;
@@ -655,12 +658,7 @@ fn scalar_postcondition_call(
         (None, []) => {}
         (Some(actual), [argument]) => {
             assert!(caller.operations().any(|operation| {
-                operation
-                    .result
-                    .as_scalar()
-                    .is_some_and(|value| value.id == *argument)
-                    && matches!(operation.kind,
-                        terminal_psi::OperationKind::BooleanConstant { value } if value == actual)
+                terminal_semantics::scalar_operation_literal(operation, *argument) == Some(actual)
             }));
         }
         _ => panic!("the actual arguments must remain unchanged"),
@@ -671,10 +669,11 @@ fn scalar_postcondition_call(
                 operation
                     .module_invocation()
                     .is_none_or(|call| call.callee != stop)
-                    && operation
-                        .result
-                        .as_scalar()
-                        .is_none_or(|value| value.scalar_type != u32_type())
+                    && operation.result.as_scalar().is_none_or(|value| {
+                        value.scalar_type != u32_type()
+                            || (actual.is_some_and(|(ty, _)| ty == u32_type())
+                                && call.inputs.arguments == [value.id])
+                    })
             }),
             "a no-normal scalar call creates no normal call or receiving value"
         );
@@ -725,8 +724,213 @@ fn a_conditional_public_postcondition_uses_the_actual_boolean_argument() {
              machine fail() -> u32 crashes Trap {{ crash Trap; }} }} \
              machine main() -> u32 crashes Trap {{ stop({actual}) }}"
         );
-        scalar_postcondition_call(&accepted(&source), Some(actual), actual);
+        scalar_postcondition_call(
+            &accepted(&source),
+            Some((
+                semantic_vocabulary::ScalarType::Boolean,
+                semantic_vocabulary::IntegerValue::Unsigned(u128::from(u8::from(actual))),
+            )),
+            actual,
+        );
     }
+}
+
+#[test]
+fn a_conditional_public_postcondition_uses_the_actual_integer_argument() {
+    for actual in [0, 1] {
+        let source = format!(
+            "public machine stop(fatal: u32) -> u32 ensures fatal == 0 crashes Trap {{ \
+             transition fatal == 0 {{ true -> 7u32 false -> fail() }} \
+             machine fail() -> u32 crashes Trap {{ crash Trap; }} }} \
+             machine main() -> u32 crashes Trap {{ stop({actual}) }}"
+        );
+        let judged = accepted(&source);
+        scalar_postcondition_call(
+            &judged,
+            Some((
+                u32_type(),
+                semantic_vocabulary::IntegerValue::Unsigned(actual),
+            )),
+            actual != 0,
+        );
+        if actual == 1 {
+            // Keep the declaration and call unchanged, but change the exact
+            // caller literal to a returning input. Receiving must reconstruct
+            // the public exclusion rather than trust the terminal's shape.
+            let mut forged = judged.elaboration.module.clone();
+            let entry = match forged.entry.unwrap() {
+                semantic_vocabulary::TargetMachineCallable::Machine(entry) => entry,
+                _ => panic!("the caller is an ordinary machine"),
+            };
+            let caller = forged.machines.iter_mut().find(|m| m.id == entry).unwrap();
+            let literal = caller
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.operations)
+                .find(|op| {
+                    matches!(
+                        op.kind,
+                        terminal_psi::OperationKind::IntegerConstant {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(1)
+                        }
+                    )
+                })
+                .unwrap();
+            literal.kind = terminal_psi::OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(0),
+            };
+            let encoded = terminal_codec::ClosedTerminalModule::new(forged)
+                .expect("trusted encoding does not repeat receiving verification");
+            let refusal =
+                terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes())
+                    .expect_err("a returning actual cannot justify a no-normal invocation");
+            match refusal {
+                terminal_codec::CodecError::MalformedStructuralFoundation(detail) => {
+                    assert_eq!(detail, "no-normal invocation callee has a normal return");
+                }
+                other => panic!("the changed actual must remove its return exclusion: {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn an_integer_postcondition_uses_the_requirement_instead_of_the_private_member() {
+    let source = "trait Answer { machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0; } \
+                  Stops satisfies Answer { \
+                    machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0 { \
+                      transition fatal == 0 { true -> 7u32 false -> fail() } \
+                      machine fail() -> u32 crashes Trap { crash Trap; } \
+                    } \
+                  } \
+                  machine main() crashes Trap { Stops::answer(1); }";
+    let judged = accepted(source);
+    let module = &judged.elaboration.module;
+    let semantic_vocabulary::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("the caller is an ordinary machine");
+    };
+    let caller = module.machine(entry).unwrap();
+    let calls = caller.module_invocations().collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("one genuine selected call")
+    };
+    assert!(matches!(
+        call.site,
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+    ));
+    assert!(call.inputs.required_contract.is_some());
+    assert_eq!(
+        module
+            .machine(call.inputs.callee)
+            .unwrap()
+            .result
+            .scalar()
+            .unwrap()
+            .scalar_type,
+        u32_type()
+    );
+    judged.publish_invocation().unwrap();
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
+
+    let weakened = source.replace("ensures fatal == 0;", "ensures fatal <= 1;");
+    let verdicts = program(&weakened);
+    assert!(
+        verdicts.iter().any(|v| matches!(
+            v, Ok(RouteVerdict::FallBack(refused))
+                if refused.detail.contains("expression statement that discards its value")
+        )),
+        "the weaker requirement keeps a normal u32 result: {verdicts:?}"
+    );
+}
+
+#[test]
+fn a_computed_integer_actual_uses_the_public_postcondition_and_receiving_source() {
+    let source = "trait Answer { machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0; } \
+                  Stops satisfies Answer { \
+                    machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0 { \
+                      transition fatal == 0 { true -> 7u32 false -> fail() } \
+                      machine fail() -> u32 crashes Trap { crash Trap; } \
+                    } \
+                  } \
+                  machine main() crashes Trap { Stops::answer(0u32 + 1); }";
+    let judged = accepted(source);
+    let module = &judged.elaboration.module;
+    let semantic_vocabulary::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("ordinary caller")
+    };
+    let caller = module.machine(entry).unwrap();
+    let calls = caller.module_invocations().collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1);
+    assert!(matches!(
+        calls[0].site,
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+    ));
+    assert!(calls[0].inputs.required_contract.is_some());
+    assert_eq!(
+        caller
+            .operations()
+            .filter(|op| matches!(op.kind, terminal_psi::OperationKind::ExactIntegerAdd { .. }))
+            .count(),
+        1,
+        "evaluate the authored addition exactly once"
+    );
+    judged.publish_invocation().unwrap();
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
+
+    let mut forged = module.clone();
+    let caller = forged.machines.iter_mut().find(|m| m.id == entry).unwrap();
+    let right = caller
+        .operations()
+        .find_map(|op| match op.kind {
+            terminal_psi::OperationKind::ExactIntegerAdd { right, .. } => Some(right),
+            _ => None,
+        })
+        .unwrap();
+    let literal = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.operations)
+        .find(|op| {
+            op.result
+                .scalar_ref()
+                .is_some_and(|value| value.id == right)
+        })
+        .unwrap();
+    assert!(matches!(
+        literal.kind,
+        terminal_psi::OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(1)
+        }
+    ));
+    literal.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+    };
+    let encoded = terminal_codec::ClosedTerminalModule::new(forged).unwrap();
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "no-normal invocation has no published return exclusion"
+        ))
+    ));
+    for returning in [
+        source.replace("0u32 + 1", "0u32 + 0"),
+        source.replace("ensures fatal == 0;", "ensures fatal <= 1;"),
+    ] {
+        let verdicts = program(&returning);
+        assert!(verdicts.iter().any(|v| matches!(v, Ok(RouteVerdict::FallBack(refused)) if refused.detail.contains("expression statement that discards its value"))), "normal completion still has a u32 result: {verdicts:?}");
+    }
+}
+
+#[test]
+fn a_no_normal_call_still_checks_its_computed_arguments_arithmetic_safety() {
+    let verdicts = program(
+        "public machine stop(fatal: u8) -> u32 ensures false crashes Trap { crash Trap; } machine main() crashes Trap { stop(255u8 + 1); }",
+    );
+    assert!(verdicts.iter().any(|verdict| matches!(verdict,
+        Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|obligation| matches!(obligation.kind, terminal_check_tables::obligations::ObligationKind::OperationSafety { .. }))
+    )), "a false postcondition does not discharge operand safety: {verdicts:?}");
 }
 
 #[test]

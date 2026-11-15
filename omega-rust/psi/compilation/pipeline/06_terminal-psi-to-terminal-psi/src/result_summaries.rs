@@ -382,20 +382,18 @@ fn summarize(
     let mut highest = Some(None);
     for (edge, value) in &exits {
         let point = ProgramPoint::Edge(*edge);
+        let known =
+            entry_inputs::known_at(&scratch, &prepared.graph, &prepared.context, id, point)?;
         let parts = about_result(
             entry_inputs::describe(
-                &scratch,
-                &prepared.graph,
-                &prepared.context,
-                id,
-                point,
+                &known,
                 &[(result.clone(), *value)],
                 &mut Returned {
                     lowered,
                     value: *value,
                     result: &result,
                 },
-            )?,
+            ),
             declared.id,
         );
         // What the returned value is bounded by, where the prover can say:

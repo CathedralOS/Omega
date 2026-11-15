@@ -932,7 +932,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ElementViewLength { source, .. } | O::ByteSequenceLength { source, .. } => {
             places.insert(source.place);
         }
-        O::ReleaseActivationClaim { source, .. } => {
+        O::ReleaseActivationClaim { source, .. } | O::ElementViewRead { source, .. } => {
             places.insert(source.place);
         }
         O::ReleaseReference { source, .. } => {
@@ -955,7 +955,6 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         abstract_operations::primitive_storage_observation_pattern!(source, ..)
         | O::ByteSequenceRead { source, .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(destination: source, ..)
-        | O::ElementViewRead { source, .. }
         | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
         | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {

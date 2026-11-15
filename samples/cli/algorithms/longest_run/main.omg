@@ -16,14 +16,14 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
     let text: [u8; 12] in Utf8 = "aaabbbbccdaa";
     let maximum: i32 in Wrapping = longest_run(&text);
     Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&mut pause);
+    _ = block Console::read_line(&mut pause[..]);
     ProcessExit::exit_process(maximum as i32);
 }
 
@@ -79,5 +79,5 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

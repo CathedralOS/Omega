@@ -6,18 +6,34 @@ with its arguments.
 
 use crate::body::Qualification;
 use language_core::ReferenceAccess;
+use language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionOccurrenceId, ResolvedAuthoredCallBinding,
+};
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::StructuralAccess;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
+};
 use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableCall;
+use typed_trees::static_applications::StaticMachineApplicationHandle;
 
 use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
+
+struct RigidInvocation<'a> {
+    target: SymbolHandle,
+    application: StaticMachineApplicationHandle,
+    authored_arguments: &'a [StaticMachineArgument],
+    arguments: &'a [ExpressionHandle],
+    selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
+    binding: Option<ResolvedAuthoredCallBinding>,
+    unsupported: bool,
+}
 
 impl<'t> Program<'t> {
     /// Read a bodyless boundary through the same formal and contract owner as
@@ -317,6 +333,11 @@ impl<'t> Program<'t> {
                         typed_trees::data::TypeParameterKind::Implementation
                             | typed_trees::data::TypeParameterKind::Const { .. }
                             | typed_trees::data::TypeParameterKind::Type
+                            | typed_trees::data::TypeParameterKind::Machine {
+                                contract: typed_trees::data::MachineParameterContract::Structural(
+                                    _
+                                ),
+                            }
                     )
                 })
                 && machine.lifetime_parameters.is_empty()
@@ -502,6 +523,13 @@ impl<'t> Program<'t> {
         // still names the declaration. Requirements retain that correspondence
         // in their applied signature; body-bearing machines retain it in their
         // executable application. Neither is established by generated names.
+        if selection.is_none()
+            && binding.is_none()
+            && self.typed.symbols.symbols().nodes().is_valid(target)
+            && self.typed.symbols.get(target).kind == SymbolKind::MachineParameter
+        {
+            return unserved("static call has no authored selection");
+        }
         let generated = match self.typed.closed_requirement_application(target) {
             Some(application) => Some(application.template),
             None => self
@@ -603,6 +631,54 @@ impl<'t> Program<'t> {
         }
     }
 
+    /// A call through a callable parameter is selected by the enclosing
+    /// specialization. The authored call still names the parameter itself.
+    pub(super) fn static_machine_target(
+        &self,
+        id: MachineId,
+        target: SymbolHandle,
+        binder: SymbolHandle,
+    ) -> Checked<(SymbolHandle, Option<u32>)> {
+        if !binder.is_valid() {
+            return Ok((target, None));
+        }
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let owner = self
+            .symbols
+            .get(id)
+            .ok_or_else(|| unserved("static call has no owner"))?;
+        let position = self
+            .typed
+            .static_machine_binding_position(*owner, binder, target)
+            .map_err(unserved)?
+            .ok_or_else(|| unserved("static call target is not selected by its binder"))?;
+        Ok((binder, Some(position)))
+    }
+
+    pub(super) fn retain_static_reach(
+        &self,
+        id: MachineId,
+        mut call: Expression,
+        binding: Option<u32>,
+    ) -> Checked<Expression> {
+        if let Some(position) = binding {
+            let ExpressionKind::Call {
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(_),
+                static_reach_binding,
+                ..
+            } = &mut call.kind
+            else {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("static callback did not retain its exact machine invocation"),
+                ));
+            };
+            *static_reach_binding = Some(position);
+        }
+        Ok(call)
+    }
+
     /// A call the typed trees bound to no declaration is refused before
     /// anything asks what its target is: an unbound symbol has no kind,
     /// parent or generated origin to read. Typing leaves such a call unbound
@@ -678,7 +754,9 @@ impl<'t> Program<'t> {
             call.authored_machine_application,
             &call.machine_arguments,
         )?;
-        self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
+        let (authored, static_reach_binding) =
+            self.static_machine_target(id, call.target_symbol, call.static_machine_parameter)?;
+        self.direct_selection(id, authored, call.authored_call_selection, None)?;
         // A boundary qualifier names a requirement without supplying a
         // receiver. An actual value outside the argument list is refused.
         let receiver = call.receiver_root_symbol.is_valid()
@@ -692,14 +770,14 @@ impl<'t> Program<'t> {
         if receiver && !qualified {
             return unserved("receiver call");
         }
-        if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
-            return unserved("machine parameter or evidence");
+        if !call.evidence_arguments.is_empty() {
+            return unserved("evidence arguments");
         }
         let arguments = self
             .typed
             .statement_table
             .expression_handles(call.arguments);
-        if let Some(selected) = named {
+        let read = if let Some(selected) = named {
             self.named_call(
                 id,
                 slots,
@@ -716,7 +794,8 @@ impl<'t> Program<'t> {
                 SourceOrigin::of(call.source_span),
                 None,
             )
-        }
+        }?;
+        self.retain_static_reach(id, read, static_reach_binding)
     }
 
     pub(super) fn call_expression(
@@ -813,9 +892,11 @@ impl<'t> Program<'t> {
         if call.static_requirement_dispatch.is_some() {
             return unserved("static requirement dispatch");
         }
+        let (authored, static_reach_binding) =
+            self.static_machine_target(id, call.target_symbol, call.static_machine_parameter)?;
         self.direct_selection(
             id,
-            call.target_symbol,
+            authored,
             call.authored_call_selection,
             call.authored_call_binding,
         )?;
@@ -841,8 +922,8 @@ impl<'t> Program<'t> {
         {
             return unserved("receiver, requirement or coercion call");
         }
-        if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
-            return unserved("machine parameter or evidence");
+        if !call.evidence_arguments.is_empty() {
+            return unserved("evidence arguments");
         }
         let arguments = self
             .typed
@@ -862,7 +943,7 @@ impl<'t> Program<'t> {
         if call.build_selection.is_valid() {
             self.designate(id, call.build_selection, &mut read)?;
         }
-        Ok(read)
+        self.retain_static_reach(id, read, static_reach_binding)
     }
 
     /// A sealed ordinary borrow returns the source's existing permission.
@@ -876,7 +957,7 @@ impl<'t> Program<'t> {
     /// storage geometry this reader can name; a scalar, a rigid type
     /// parameter and the value form `align_of(view)` stay refused here
     /// rather than receive a fabricated measurement.
-    fn layout_query(
+    pub(super) fn layout_query(
         &mut self,
         id: MachineId,
         call: &TableCallExpression,
@@ -901,19 +982,18 @@ impl<'t> Program<'t> {
             DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
             DataLayoutQueryKind::Alignment => terminal_psi::LayoutMeasurement::Alignment,
         };
+        let scalar_type = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
+        );
+        let application = self
+            .scalar_applications
+            .layout(subject, measurement, scalar_type)
+            .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::LayoutObservation {
-                subject,
-                measurement,
-            },
-            result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
-            ))),
+            kind: ExpressionKind::ScalarApplication { application },
+            result: Some(ValueType::plain(scalar_type)),
             source,
         })
     }
@@ -1794,7 +1874,8 @@ impl<'t> Program<'t> {
     }
 
     /// The entry of a generic check form calling through a rigid
-    /// implementation parameter: a direct call of the requirement.
+    /// implementation or structural machine parameter: a direct call
+    /// read under the binder's published requirement.
     fn rigid_call(
         &mut self,
         id: MachineId,
@@ -1844,10 +1925,90 @@ impl<'t> Program<'t> {
                         || !call.evidence_arguments.is_empty(),
                 ),
             };
+        self.read_rigid_call(
+            id,
+            slots,
+            RigidInvocation {
+                target,
+                application,
+                authored_arguments,
+                arguments,
+                selection,
+                binding,
+                unsupported,
+            },
+            source,
+        )
+    }
+
+    /// A named transition publishes the same binder contract as a call
+    /// expression. Its syntax has no separate static argument application.
+    pub(super) fn rigid_named_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        selection: Option<AuthoredDeclarationSelectionOccurrenceId>,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        if !self.rigid || id.get() != 1 {
+            return Ok(None);
+        }
+        self.read_rigid_call(
+            id,
+            slots,
+            RigidInvocation {
+                target,
+                application: StaticMachineApplicationHandle::invalid(),
+                authored_arguments: &[],
+                arguments,
+                selection,
+                binding: None,
+                unsupported: false,
+            },
+            source,
+        )
+    }
+
+    fn read_rigid_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        invocation: RigidInvocation<'_>,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        let RigidInvocation {
+            target,
+            application,
+            authored_arguments,
+            arguments,
+            selection,
+            binding,
+            unsupported,
+        } = invocation;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
         let requirement = match self.typed.evidence_requirement_declaration(target) {
             Ok(Some(requirement)) => requirement,
-            Ok(None) => return Ok(None),
+            Ok(None) => {
+                let Some(typed_trees::data::MachineParameterContractView::Structural(requirement)) =
+                    self.typed.retained_static_machine_contract(target)
+                else {
+                    return Ok(None);
+                };
+                let owner = self
+                    .symbols
+                    .get(id)
+                    .and_then(|owner| self.typed.machine_by_symbol(*owner));
+                if owner.and_then(|owner| self.typed.machine_parameter_signature_in(owner, target))
+                    != Some(requirement)
+                {
+                    return Err(unserved(
+                        "static machine parameter outside its declaration scope",
+                    ));
+                }
+                requirement
+            }
             Err(_) => {
                 return Err(unserved(
                     "implementation parameter child with no requirement",
@@ -1855,15 +2016,13 @@ impl<'t> Program<'t> {
             }
         };
         if unsupported {
-            return Err(unserved(
-                "implementation parameter call with another call feature",
-            ));
+            return Err(unserved("rigid parameter call with another call feature"));
         }
         // Both source forms keep their real authored selection. A call with
         // no binding record cannot acquire one from its target's spelling.
         if selection.is_none() && binding.is_none() {
             return Err(unserved(
-                "implementation parameter call not bound to its requirement",
+                "rigid parameter call not bound to its requirement",
             ));
         }
         self.direct_selection(id, target, selection, binding)?;
@@ -2188,8 +2347,7 @@ impl<'t> Program<'t> {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
                 let (mut lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
-                lent.result =
-                    self.borrowed_argument_type(id, lent.result, *formal, borrowed.access)?;
+                lent.result = self.borrowed_argument_type(id, slots, &lent, *formal, borrowed)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -2324,6 +2482,7 @@ impl<'t> Program<'t> {
             kind: ExpressionKind::Call {
                 callee,
                 required_contract,
+                static_reach_binding: None,
                 source_call: None,
                 arguments: read,
                 designated: None,
@@ -2389,7 +2548,14 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.borrowed_array_range(id, slots, argument, expected, source)?
+            && let Some(view) = self.borrowed_array_range(
+                id,
+                slots,
+                argument,
+                expected,
+                source,
+                Some(formal.access),
+            )?
         {
             return Ok((
                 Expression {
@@ -2677,20 +2843,21 @@ impl<'t> Program<'t> {
         ))
     }
 
-    /// A shared lend observes an existing mutable descriptor's backing. Its
-    /// argument type may present shared access, while the captured place and
-    /// its producer retain their actual type and exclusive loan. Owned values
-    /// and different descriptor geometry still require exact correspondence.
-    fn borrowed_argument_type(
+    /// A slice lend presents the backing with the formal's access. The
+    /// captured place and its producer retain the actual descriptor type and
+    /// loan. Other geometry still requires exact correspondence.
+    pub(super) fn borrowed_argument_type(
         &mut self,
         machine: MachineId,
-        actual: Option<ValueType>,
+        slots: &[Slot],
+        lent: &Expression,
         expected: ValueType,
-        access: ReferenceAccess,
+        formal: &crate::body::Borrowed,
     ) -> Checked<Option<ValueType>> {
         use crate::StorageShape;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
 
+        let actual = lent.result;
         let (
             Some(ValueType::Record(actual_row, qualification, regions)),
             ValueType::Record(expected_row, _, _),
@@ -2698,16 +2865,33 @@ impl<'t> Program<'t> {
         else {
             return Ok(actual);
         };
-        if access != ReferenceAccess::Shared
-            || self.data_type(machine, actual_row)?.shape
-                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::MutableBorrow),
-                })
-            || self.data_type(machine, expected_row)?.shape
-                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow),
-                })
-        {
+        let actual_access = match self.data_type(machine, actual_row)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+            _ => return Ok(actual),
+        };
+        let expected_access = match self.data_type(machine, expected_row)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+            _ => return Ok(actual),
+        };
+        let lends_mutable_backing = formal.referent == crate::body::BorrowedReferent::Slice
+            && formal.access == ReferenceAccess::Mutable
+            && expected_access.is_none()
+            && actual_access == Some(StructuralAccess::MutableBorrow);
+        let lends_for_observation = formal.access == ReferenceAccess::Shared
+            && matches!(actual_access, None | Some(StructuralAccess::MutableBorrow))
+            && expected_access == Some(StructuralAccess::SharedBorrow);
+        // A shared loan of the direct formal may observe its descriptor.
+        // Only that formal supplies the inner mutable access it describes.
+        let observes_mutable_formal = formal.access == ReferenceAccess::Shared
+            && actual_access.is_none()
+            && expected_access == Some(StructuralAccess::MutableBorrow)
+            && matches!(
+                &lent.kind,
+                ExpressionKind::Borrow { place, .. }
+                    if matches!(place.kind, ExpressionKind::Slot(slot)
+                        if slots.get(slot).and_then(|slot| slot.borrowed) == Some(ReferenceAccess::Mutable))
+            );
+        if !lends_mutable_backing && !lends_for_observation && !observes_mutable_formal {
             return Ok(actual);
         }
         let presented = ValueType::Record(expected_row, qualification, regions);
@@ -2825,7 +3009,7 @@ fn mentions<'a>(
         }
         ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => Ok(false),
         ExpressionKind::Referent(operand)
@@ -2850,7 +3034,7 @@ fn mentions<'a>(
             }
             Ok(false)
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())

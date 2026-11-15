@@ -83,7 +83,7 @@ machine record_frequency(frequencies: &mut [u32 in Wrapping; 5], slot: u64 in Sy
     frequencies[slot] = frequencies[slot] + 1;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("huffman_codec: bottom-up tree construction, bitstream pack, and round-trip decode");
 
     // Alphabet: 'A' (65), 'B' (66), 'C' (67), 'D' (68), 'R' (82)
@@ -724,14 +724,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine pass(main: &mut Main) {
         Console::write_line("PASS: 16 bytes encoded to 29 bits [138, 215, 139, 56] and decoded back (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 
     machine fail(main: &mut Main) {
         Console::write_line("FAIL: Huffman codec verification mismatch (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -739,5 +739,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

@@ -28,7 +28,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
     main.monsters[0].hp = 30;
     main.monsters[1].hp = 12;
@@ -66,7 +66,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("result: total remaining HP is the exit code (35)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.total as i32);
     }
 }
@@ -74,5 +74,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

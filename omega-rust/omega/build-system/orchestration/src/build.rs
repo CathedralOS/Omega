@@ -123,11 +123,15 @@ fn build_on_compile_thread(request: BuildRequest) -> Result<Vec<TargetBuildOutco
         work,
         reports,
         &request.product,
+        &request.stage_validators,
         &mut timings,
     ))
 }
 
 fn validate_request(request: &BuildRequest, profiles: &[TargetProfile]) -> Result<(), BuildError> {
+    request
+        .stage_validators
+        .require_named_applicable(&request.product)?;
     if let ProjectProduct::Native {
         installation_assumptions,
         ..

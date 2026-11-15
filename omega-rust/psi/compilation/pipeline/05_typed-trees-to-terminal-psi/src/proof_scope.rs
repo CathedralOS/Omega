@@ -243,13 +243,15 @@ pub(crate) fn declare(
                     .closed_reach_application
                     .as_ref()
                     .is_some_and(|application| {
-                        !application.dependencies.is_empty()
-                            || !application.calls.is_empty()
-                            || !application.suspension_dependency.parameters.is_empty()
+                        !application.suspension_dependency.parameters.is_empty()
                             || !application.blocking_dependency.parameters.is_empty()
                             || !application.conditional_carry.is_empty()
+                            // A closed direct callback already contributes its
+                            // admitted reach and its callee above. Schema
+                            // dispatch still needs its proof correspondence.
                             || application.parameters().any(|parameter| {
-                                matches!(parameter, terminal_psi::ClosedReachParameter::Machine(_))
+                                matches!(parameter, terminal_psi::ClosedReachParameter::Machine(binding)
+                                    if binding.callee.is_none() || binding.schema.is_some())
                             })
                     })
             {
@@ -418,6 +420,12 @@ fn boundary_header(
             typed
                 .machine_by_symbol(symbol)
                 .map(|machine| typed.machine_type_parameters(machine).len())
+        })
+        .or_else(|| {
+            typed
+                .operator_definition_by_symbol(symbol)
+                .filter(|operator| operator.is_boundary && operator.symbol == symbol)
+                .map(|operator| typed.operator_type_parameters(operator).len())
         })
         .ok_or("proof boundary has no exact source parameter roster")?;
     let evaluation = (|| {

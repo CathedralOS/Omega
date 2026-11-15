@@ -384,7 +384,8 @@ impl StorageShape {
 
         match self {
             Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                access:
+                    None | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             }) => Some(|source| OperationKind::ByteSequenceLength { source }),
             Self::ElementView {
                 access:
@@ -1023,16 +1024,9 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
-    /// `size_of<T>()` or `align_of<T>()` of the record row `subject`.
-    /// layouts/plans.md: "Queries consume the same exact schema, target and
-    /// layout-policy application as placement and ABI" and "Interpretation
-    /// reports the selected target's layout". The value is therefore not
-    /// known here: lowering publishes one module layout observation for the
-    /// row and reads it, and installation closes it under the selected
-    /// target's validated geometry or refuses.
-    LayoutObservation {
-        subject: StructuralTypeId,
-        measurement: terminal_psi::LayoutMeasurement,
+    /// A checked scalar computed in its selected target scope.
+    ScalarApplication {
+        application: semantic_vocabulary::ScalarApplicationId,
     },
     /// One byte of a borrowed byte view, read at `index`. The view is
     /// measured where the byte is read, and the read owes `index < length`
@@ -1045,7 +1039,7 @@ pub enum ExpressionKind {
     },
     /// A new descriptor over the same shared backing. Missing endpoints
     /// mean zero and the captured descriptor's own length, respectively.
-    ByteSubslice {
+    CollectionSubslice {
         base: Box<Expression>,
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,
@@ -1209,6 +1203,7 @@ pub enum ExpressionKind {
     Call {
         callee: TargetMachineCallable,
         required_contract: Option<semantic_vocabulary::ContractId>,
+        static_reach_binding: Option<u32>,
         source_call: Option<(
             MachineId,
             typed_trees::expression::ExpressionHandle,

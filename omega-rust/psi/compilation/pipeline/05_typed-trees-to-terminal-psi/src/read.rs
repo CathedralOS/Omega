@@ -55,7 +55,9 @@ mod transitions;
 mod types;
 
 use arena::Arena;
-use semantic_vocabulary::{BoundaryMachineId, CrashCause, IdTable, MachineId, StructuralTypeId};
+use semantic_vocabulary::{
+    BoundaryMachineId, CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId,
+};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::TypedTrees;
@@ -75,6 +77,12 @@ struct WidthBinding {
 pub(crate) struct LocalSummaryBodies {
     pub outcomes: Vec<MachineId>,
     pub result_contracts: Vec<MachineId>,
+}
+
+pub(crate) struct DeclaredDomain {
+    pub instance: crate::body::DomainInstance,
+    pub carrier: ValueType,
+    pub predicate: Option<semantic_vocabulary::Proposition>,
 }
 
 pub(crate) struct Program<'t> {
@@ -147,6 +155,10 @@ pub(crate) struct Program<'t> {
     /// Every declaration in these machines' verification subject is rooted;
     /// reaching one dependency helper alone does not close its possible uses.
     pub subject_machines: Vec<MachineId>,
+    /// The original request's fixed membership for outcome inference inside
+    /// independent witnesses. It neither roots declarations nor supplies the
+    /// complete caller roster needed by private input/result inference.
+    pub outcome_subjects: Option<Vec<Option<PackageKeyIdentity>>>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -194,9 +206,10 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    pub(crate) scalar_applications: constant_values::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
-    pub declared_domains: Vec<(crate::body::DomainInstance, ValueType)>,
+    pub declared_domains: Vec<DeclaredDomain>,
     /// Only completed source contracts enter this stage-local query cache.
     /// It contains no value facts and is never published as evidence.
     inhabitation: terminal_semantics::inhabitation::Inhabitation,
@@ -365,6 +378,7 @@ impl<'t> Program<'t> {
             requirements: Vec::new(),
             fixed_inputs: Vec::new(),
             subject_machines: Vec::new(),
+            outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),
@@ -380,6 +394,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            scalar_applications: Default::default(),
             declared_domains: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
@@ -737,17 +752,17 @@ mod tests {
         let carrier = program.records.push(plain_record());
         program
             .declared_domains
-            .extend(domains.handles().map(|symbol| {
-                (
-                    crate::body::DomainInstance {
-                        declaration: symbol,
-                        identity: typed.domain_definition(symbol).unwrap().semantic_id,
-                    },
-                    ValueType::record(carrier),
-                )
+            .extend(domains.handles().map(|symbol| DeclaredDomain {
+                instance: crate::body::DomainInstance {
+                    declaration: symbol,
+                    identity: typed.domain_definition(symbol).unwrap().semantic_id,
+                },
+                carrier: ValueType::record(carrier),
+                predicate: None,
             }));
         let bodies = semantic_vocabulary::IdTable::default();
         let components = crate::components::components(&bodies, &mut program.signatures).unwrap();
+        program.prepare_domain_predicates(machine()).unwrap();
         let elaboration = crate::lower_generic_for(
             None,
             &bodies,
@@ -1073,7 +1088,7 @@ mod tests {
                 ValueType::plain(u32_type)
             ))
         );
-        let detail = |scope: &ClauseScope<'_>, handle| {
+        let mut detail = |scope: &ClauseScope<'_>, handle| {
             program
                 .term(machine(), scope, handle, None)
                 .unwrap_err()
@@ -1155,7 +1170,7 @@ mod tests {
                 symbol: formal,
                 ..TableNamePath::default()
             }));
-        let program = Program::new(&typed, false);
+        let mut program = Program::new(&typed, false);
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let value = ValueId::new(1).unwrap();
         let slot = |assignable| Slot {
@@ -1187,7 +1202,7 @@ mod tests {
             },
             ValueType::plain(u32_type),
         ));
-        let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
+        let mut read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);
         assert_eq!(read(&scope(&mutable, false)), term);
         assert_eq!(read(&scope(&immutable, false)), term);
@@ -1436,22 +1451,23 @@ mod tests {
                 .render(&|_| "given".to_owned()),
             "old(given)"
         );
-        let detail = |scope: &ClauseScope<'_>, expression| {
+        let detail = |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
             program
                 .term(machine(), scope, expression, None)
                 .unwrap_err()
                 .detail
         };
-        let invalid_policy_operand = |scope: &ClauseScope<'_>, expression| {
-            let refusal = program
-                .term(machine(), scope, expression, None)
-                .unwrap_err();
-            assert!(matches!(
-                refusal.reason,
-                terminal_check_tables::RefusalReason::Violation
-            ));
-            assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
-        };
+        let invalid_policy_operand =
+            |program: &mut Program<'_>, scope: &ClauseScope<'_>, expression| {
+                let refusal = program
+                    .term(machine(), scope, expression, None)
+                    .unwrap_err();
+                assert!(matches!(
+                    refusal.reason,
+                    terminal_check_tables::RefusalReason::Violation
+                ));
+                assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
+            };
         let no_input = "contract old of a subject without an admitted invocation input";
         assert_eq!(
             program
@@ -1460,29 +1476,33 @@ mod tests {
                 .detail,
             no_input
         );
-        assert_eq!(detail(&scope, old_computed), no_input);
+        assert_eq!(detail(&mut program, &scope, old_computed), no_input);
         assert_eq!(
-            detail(&scope, old_result),
+            detail(&mut program, &scope, old_result),
             "contract result has no callable-entry value"
         );
         assert_eq!(
-            detail(&scope, old_foreign_result),
+            detail(&mut program, &scope, old_foreign_result),
             "contract result of another callable"
         );
-        assert_eq!(detail(&scope, lookalike), "contract call in a clause term");
+        assert_eq!(
+            detail(&mut program, &scope, lookalike),
+            "contract call in a clause term"
+        );
         for expression in [missing_argument, extra_argument] {
             assert_eq!(
-                detail(&scope, expression),
+                detail(&mut program, &scope, expression),
                 "contract old of other than one subject"
             );
         }
-        let no_foreign = detail(&scope, old_foreign);
+        let no_foreign = detail(&mut program, &scope, old_foreign);
         let forged = [(
             foreign,
             ScalarTerm::value(ValueId::new(999).unwrap(), scalar_type),
         )];
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     bound: &forged,
                     ..scope
@@ -1494,6 +1514,7 @@ mod tests {
         let copied_input = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     bound: &copied_input,
                     ..scope
@@ -1506,6 +1527,7 @@ mod tests {
         let wrong_carrier = [(foreign, ScalarTerm::value(value, ScalarType::Boolean))];
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     bound: &wrong_carrier,
                     ..scope
@@ -1523,6 +1545,7 @@ mod tests {
         )];
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     bound: &bound_constant,
                     ..scope
@@ -1537,6 +1560,7 @@ mod tests {
         }];
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     slots: &erased,
                     ..scope
@@ -1547,6 +1571,7 @@ mod tests {
         );
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     values: &[],
                     ..scope
@@ -1627,11 +1652,12 @@ mod tests {
             Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
         );
         for expression in [using_old, computed] {
-            invalid_policy_operand(&domain_scope, expression);
+            invalid_policy_operand(&mut program, &domain_scope, expression);
         }
         let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     bound: &erased_qualification,
                     ..domain_scope
@@ -1650,7 +1676,7 @@ mod tests {
         };
         assert!(program.term(machine(), &qualified_scope, old, None).is_ok());
         for expression in [using_old, computed] {
-            invalid_policy_operand(&qualified_scope, expression);
+            invalid_policy_operand(&mut program, &qualified_scope, expression);
         }
         // A projected invocation keeps the same source input at normal
         // completion. Its guarantee is still an obligation of the ordinary
@@ -1672,9 +1698,10 @@ mod tests {
                 ))
             );
         }
-        let no_logical_foreign = detail(&completion_scope, old_foreign);
+        let no_logical_foreign = detail(&mut program, &completion_scope, old_foreign);
         assert_eq!(
             detail(
+                &mut program,
                 &ClauseScope {
                     bound: &copied_input,
                     ..completion_scope
@@ -1684,7 +1711,9 @@ mod tests {
             no_logical_foreign,
             "a static substitution does not become a projected invocation input"
         );
-        let (signature, names) = logical.signature(&program, owner, &[&completion]).unwrap();
+        let (signature, names) = logical
+            .signature(&mut program, owner, &[&completion])
+            .unwrap();
         assert!(
             signature.requires.is_empty(),
             "the guarantee is not an entry fact"
@@ -1711,6 +1740,7 @@ mod tests {
                 }],
                 designated: None,
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
             },
             result: None,
@@ -2038,7 +2068,7 @@ mod tests {
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };
-        let term = |handle| {
+        let mut term = |handle| {
             program
                 .term(machine(), &scope, handle, None)
                 .unwrap_err()
@@ -2609,7 +2639,7 @@ mod tests {
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };
-        let program = Program::new(&typed, false);
+        let mut program = Program::new(&typed, false);
         let served = scope(MathematicalTerms::Served);
         let embedded = |value: u64| IntegerMathTerm::MathValue {
             source_type: carrier_type,
@@ -2667,7 +2697,7 @@ mod tests {
             program.clause(machine(), &served, carrier),
             Ok(Proposition::LessOrEqual(carrier_sum, carrier_literal(99)))
         );
-        let detail = |scope: &ClauseScope<'_>, handle| {
+        let mut detail = |scope: &ClauseScope<'_>, handle| {
             let refusal = program.clause(machine(), scope, handle).unwrap_err();
             assert_eq!(
                 refusal.reason,

@@ -668,7 +668,7 @@ mod calls {
         target_symbol: SymbolHandle,
         machine_arguments: &mut [StaticMachineArgument],
     ) {
-        let operand_route = build_operand_route(target.as_str(), target_symbol);
+        let operand_route = build_operand_route(symbols, target, target_symbol);
         for (index, argument) in machine_arguments.iter_mut().enumerate() {
             match operand_route {
                 Some(BuildOperation::ProviderReadiness) if index == 0 => {
@@ -721,31 +721,35 @@ mod calls {
         }
     }
 
-    /*
-        The build operation whose static operands name declarations rather than
-        executable static machines, or `None` when a call's operands resolve as
-        ordinary static machine arguments.
-
-        `select_provider<Subject, Product>` and `exclude_service<Service>` name
-        exact declaration paths (see
-        [`assign_provider_selection_argument_symbol`]);
-        `select_representation<Type, Representation>` names declaration identity
-        with an opaque first operand (see
-        [`assign_representation_selection_argument_symbol`]). Provider selection
-        takes this route only while its target is unresolved: a declared machine
-        which happens to be spelled `select_provider` resolves as an ordinary
-        target and keeps ordinary operands. Service exclusion follows the same
-        rule, as does representation selection. The remaining build operations carry no
-        static operands and route nothing here. Assumed binding operands select exact
-        boundary requirement declarations, never executable generic arguments. Their
-        independently checked runtime installation owns compatibility and acceptance.
-    */
-    pub(in crate::symbols) fn build_operand_route(
-        target: &str,
+    // Module calls are normalized before their operands are bound. A
+    // qualified Build call still uses the declaration roles of its operation.
+    fn build_operand_route(
+        symbols: &SymbolTable,
+        target: &symbol_resolved_trees::name::DiagnosticName,
         target_symbol: SymbolHandle,
     ) -> Option<BuildOperation> {
-        let operation = BuildOperation::from_call_target(target)?;
-        (!target_symbol.is_valid() && operation.has_designated_operands()).then_some(operation)
+        if target_symbol.is_valid() {
+            return None;
+        }
+        let spelling = target.as_str();
+        let (qualifier, operation) = spelling
+            .rsplit_once("::")
+            .map_or((None, spelling), |(qualifier, name)| {
+                (Some(qualifier), name)
+            });
+        let operation = BuildOperation::from_call_target(operation)
+            .filter(|operation| operation.has_designated_operands())?;
+        if let Some(qualifier) = qualifier {
+            let namespace = symbols.find_top_level_by_name_and_kinds_from_source(
+                qualifier,
+                &[SymbolKind::Module],
+                target.source_span(),
+            )?;
+            if symbols.name(namespace) != "Build" || !symbols.is_build_prelude_symbol(namespace) {
+                return None;
+            }
+        }
+        Some(operation)
     }
 
     /*
@@ -1205,7 +1209,7 @@ mod transitions {
         parameters: &[symbol_resolved_trees::signature::StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-        child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
         target: &mut symbol_resolved_trees::statement::TransitionTarget,
         symbols: &SymbolTable,

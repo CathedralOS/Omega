@@ -325,6 +325,29 @@ struct Analysis<'a> {
     reference_ends: Vec<ReferenceEnd>,
 }
 
+/// The inline array whose established contents a retained runtime selector
+/// needs. It covers any element the operation could select, so it grants no
+/// exact extraction or vacant initialization.
+pub(crate) fn runtime_array_region(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<Segment>> {
+    let indexed = path
+        .iter()
+        .position(|segment| segment.runtime_index().is_some())?;
+    let (array, indexed_type) =
+        crate::canonical_static_projection(types.iter(), root, &path[..indexed])?;
+    // An element view's elements are outside the storage that holds the
+    // view. Only a fixed inline array's region covers its elements.
+    (matches!(indexed_type.shape, StructuralTypeShape::FixedArray { .. })
+        && matches!(
+            crate::runtime_read_projection_tip(types.iter(), root, path),
+            Some(crate::Position::Declared(_) | crate::Position::ScalarField(_))
+        ))
+    .then_some(array)
+}
+
 fn index(raw: u64) -> Result<usize, Error> {
     usize::try_from(raw)
         .ok()
@@ -1960,6 +1983,28 @@ impl Analysis<'_> {
             }
             retained.reverse();
             outgoing.active = retained;
+            // A copyable home is not an affine owner, so the loop above never
+            // disposes of it. When one arrival released the descriptor it
+            // holds and this arrival did not, the successor enters without
+            // it: the planner retires it on this edge. A checked plan must
+            // supply that retirement itself (below).
+            if let (false, Some(there)) = (bound_output, owned_there) {
+                for (raw, root) in self.roots.iter().enumerate() {
+                    let retire = root.as_ref().is_some_and(|root| {
+                        root.owned
+                            && !root.affine
+                            && root.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Unrestricted
+                    }) && outgoing.regions[raw].is_some()
+                        && there.regions[raw].is_none();
+                    if retire {
+                        let place = PlaceId::new(raw as u64 + 1)
+                            .ok_or(Error::malformed("place identity overflow"))?;
+                        actions.push(TerminalAffineCleanupAction::RetireHome(place));
+                        outgoing.regions[raw] = None;
+                    }
+                }
+            }
             // Explicit retirement still ends a copyable home's availability;
             // merely copying its value above does not. These supplied actions
             // confer no affine scheduling authority.
@@ -2284,6 +2329,19 @@ impl Analysis<'_> {
             Op::StoreStructuralField { value, .. } => self.argument(state, value, site, false)?,
             Op::StructuralByteViewFieldStore { source, .. } => {
                 self.read(state, *source, &[], site)?;
+            }
+            Op::ElementViewRead { source, .. } => {
+                // The slice elements live in the backing. This observation needs
+                // the initialized descriptor at the same place as its length.
+                self.storage_use(
+                    state,
+                    terminal_psi::OperationProjection {
+                        root: source.place,
+                        path: &source.path,
+                    }
+                    .into(),
+                    site,
+                )?;
             }
             kind => {
                 for (used, _) in kind.storage_uses() {
@@ -2750,35 +2808,8 @@ impl Analysis<'_> {
             }
             return Ok((descriptor, false));
         }
-        let Some(indexed) = path
-            .iter()
-            .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
-        else {
-            return Err(outside);
-        };
-        let Some((array, indexed_type)) = crate::canonical_static_projection(
-            self.types.iter(),
-            declaration.structural_type,
-            &path[..indexed],
-        ) else {
-            return Err(outside);
-        };
-        // An element view's elements lie outside the storage that holds the
-        // view, so only an inline array's region covers its elements. The
-        // rest of the path must still be a projection the types declare.
-        if !matches!(
-            indexed_type.shape,
-            terminal_psi::StructuralTypeShape::FixedArray { .. }
-        ) || !matches!(
-            crate::runtime_read_projection_tip(
-                self.types.iter(),
-                declaration.structural_type,
-                path,
-            ),
-            Some(crate::Position::Declared(_) | crate::Position::ScalarField(_))
-        ) {
-            return Err(outside);
-        }
+        let array =
+            runtime_array_region(self.types, declaration.structural_type, path).ok_or(outside)?;
         Ok((array, false))
     }
 

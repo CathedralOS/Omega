@@ -85,20 +85,20 @@ impl<'t> Program<'t> {
     /// traits are not service identities." The typed trees keep one authored
     /// row per written clause, with no target for `reaches none`, so a
     /// clause is told from an omission by the row and never by an empty
-    /// set. A ceiling bound by an installation (`reaches <= Bound`) is an
-    /// abstract row, which no slice reads yet.
+    /// set. `reaches <= Bound` contributes its written upper bound while
+    /// checking source; the selected installation still owes its exact row.
     pub(super) fn reach_ceiling(
         &mut self,
         caller: MachineId,
         owner: symbols::SymbolHandle,
+        requirement: bool,
     ) -> Checked<crate::Ceiling> {
         let typed = self.typed;
-        let unserved = |what| refuse(caller, Construct::Machine, Unserved::Machine(what));
         let mut written = false;
         let mut named = Vec::new();
         for row in typed.authored_service_reach_rows_for(owner) {
-            if row.installation_bound {
-                return Err(unserved("service reach bound by an installation"));
+            if row.installation_bound && !requirement {
+                continue;
             }
             written = true;
             named.extend(row.targets.iter().map(|target| target.service));
@@ -111,6 +111,57 @@ impl<'t> Program<'t> {
             named,
             crate::body::Axis::Reach,
         )?))
+    }
+
+    /// Prepare each selected callable and its binder ceiling in the same
+    /// catalog as the executable body. An unused binding needs its own
+    /// checked declaration but contributes no call or service reach.
+    pub(crate) fn application_binders(
+        &mut self,
+        owner: MachineId,
+    ) -> Checked<crate::declare::BinderReach> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+
+        let typed = self.typed;
+        let unserved = |what| refuse(owner, Construct::Machine, Unserved::Declaration(what));
+        let symbol = *self
+            .symbols
+            .get(owner)
+            .ok_or_else(|| unserved("a callback application lost its owner"))?;
+        let Some(instantiation) = typed.machine_instantiation(symbol).map_err(unserved)? else {
+            return Ok(Vec::new());
+        };
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(instantiation.binding_application());
+        let mut bounds = Vec::new();
+        for binding in bindings {
+            let StaticMachineBindingValue::Machine(argument) = &binding.value else {
+                continue;
+            };
+            let contract = typed
+                .retained_static_machine_contract(binding.parameter)
+                .ok_or_else(|| unserved("a static callback binding has no source requirement"))?;
+            let bound = match self.reach_ceiling(owner, contract.signature().symbol, true)? {
+                crate::Ceiling::Inferred => None,
+                crate::Ceiling::Authored(bound) => Some(bound),
+            };
+            let selected = typed
+                .machine_by_symbol(argument.symbol)
+                .or_else(|| {
+                    typed
+                        .unique_machine_by_entry_state_symbol(argument.symbol)
+                        .map(|(machine, _)| machine)
+                })
+                .ok_or_else(|| {
+                    unserved("a static callback binding has no exact selected machine")
+                })?;
+            if typed.machine_callable_parameters(selected).is_empty() {
+                self.machine(selected.symbol)?;
+            }
+            bounds.push((binding.parameter, bound));
+        }
+        Ok(bounds)
     }
 
     /// What a header says about synchronous entry: its `invokes` rows as
@@ -360,6 +411,18 @@ impl<'t> Program<'t> {
                 caller,
                 Construct::Machine,
             )?;
+            let kind = if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
+                let requirement = typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(self.typed, *symbol)
+                    .ok_or_else(|| unavailable("numeric primitive lost its declaration kind"))?;
+                match requirement.kind {
+                    typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator => semantic_vocabulary::BoundaryRequirementKind::Operator,
+                    typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::TopLevelRequirement => semantic_vocabulary::BoundaryRequirementKind::Machine,
+                }
+            } else if execution.compiler_owned() {
+                semantic_vocabulary::BoundaryRequirementKind::Machine
+            } else {
+                semantic_vocabulary::BoundaryRequirementKind::Trait
+            };
             let mut declaration = crate::lower::boundary(
                 caller,
                 boundary,
@@ -373,6 +436,7 @@ impl<'t> Program<'t> {
                 } else {
                     None
                 },
+                kind,
                 qualifications,
             )?;
             declaration.result_lifetimes = self
@@ -383,6 +447,14 @@ impl<'t> Program<'t> {
                     "boundary result has an unresolved declared lifetime frontier",
                 ));
             }
+            declaration.reference_outputs = self
+                .declared_reference_outputs(
+                    caller,
+                    signature,
+                    &module.structural_types,
+                    &declaration.structural_parameters,
+                )
+                .map_err(unavailable)?;
             boundaries.push(declaration);
         }
         module.boundary_machines = boundaries;

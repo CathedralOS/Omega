@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -240,11 +240,34 @@ impl<'t> Program<'t> {
             outcomes: Vec::with_capacity(self.subject_machines.len()),
             result_contracts: Vec::with_capacity(self.subject_machines.len()),
         };
+        let mut complete_subject = self.symbols.map(|_, _| false);
         for &id in &self.subject_machines {
+            *complete_subject.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local subject without a machine"),
+                )
+            })? = true;
+        }
+        for (id, &symbol) in self.symbols.iter() {
             if boundary.get(id) == Some(&true) {
                 continue;
             }
-            let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let complete = complete_subject.get(id) == Some(&true);
+            let outcome_subject = match &self.outcome_subjects {
+                Some(subjects) if !complete => typed_trees::source_subjects::contains(
+                    self.typed,
+                    symbol,
+                    subjects,
+                    self.purpose,
+                )
+                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
+                _ => complete,
+            };
+            if !outcome_subject {
+                continue;
+            }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
@@ -256,7 +279,7 @@ impl<'t> Program<'t> {
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.outcomes.push(id);
-                if !machine.is_public {
+                if complete && !machine.is_public {
                     local.result_contracts.push(id);
                 }
             }
@@ -988,16 +1011,16 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // A written `reaches` ceiling is read with the signature
-        // (`reach_ceiling`). A ceiling bound by an installation is an
-        // abstract row with no concrete services to compare.
-        if machine.service_reach_is_installation_bound
+        if (machine.service_reach_is_installation_bound
             || self
                 .typed
                 .service_reach_rows
-                .is_abstract(machine.service_reach_row)
+                .is_abstract(machine.service_reach_row))
+            && self.conformer_requirement(id, machine)?.is_none()
         {
-            return unserved("service reach bound by an installation");
+            return unserved(
+                "service reach bound by an installation without a boundary requirement",
+            );
         }
         // A lifetime parameter selects no type, layout or monomorphized
         // copy (lifetimes.md: "Lifetime arguments are erased regions,
@@ -1042,7 +1065,10 @@ impl<'t> Program<'t> {
                 for parameter in parameters {
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Implementation
-                        | typed_trees::data::TypeParameterKind::Const { .. } => {}
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Machine {
+                            contract: typed_trees::data::MachineParameterContract::Structural(_),
+                        } => {}
                         typed_trees::data::TypeParameterKind::Type
                             if parameter.bounds.multiplicity
                                 != language_core::Multiplicity::Linear => {}
@@ -1051,7 +1077,7 @@ impl<'t> Program<'t> {
                         }
                         _ => {
                             return unserved_parameters(
-                                "parameter that is no type, value or implementation",
+                                "parameter without a supported static contract",
                             );
                         }
                     }
@@ -1422,7 +1448,7 @@ impl<'t> Program<'t> {
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
-        signature.reaches = self.reach_ceiling(id, machine.symbol)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
         signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), false)?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
@@ -1430,6 +1456,10 @@ impl<'t> Program<'t> {
             .and_then(|template| self.typed.machine_by_symbol(template))
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
+        names.declared = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(authored.symbol);
         names.state = state.name.as_str().to_owned();
         if matches!(reading, Reading::Closed | Reading::Provider)
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
@@ -1900,8 +1930,10 @@ impl<'t> Program<'t> {
             .operand
             .scalar_type()
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
+        let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
+            .map_err(unavailable)?;
         if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
-            || result != Some(ValueType::plain(ScalarType::Boolean))
+            || result != Some(ValueType::plain(expected_result))
         {
             return Err(unavailable(
                 "numeric primitive differs from its canonical scalar signature",
@@ -2050,14 +2082,6 @@ impl<'t> Program<'t> {
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
-        if requirement.service_reach_is_installation_bound
-            || self
-                .typed
-                .service_reach_rows
-                .is_abstract(requirement.service_reach_row)
-        {
-            return unserved("service reach bound by an installation");
-        }
         let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
@@ -2073,6 +2097,10 @@ impl<'t> Program<'t> {
         signature.invokes =
             self.entry_ceiling(id, self.typed.state_signature_invokes(requirement), true)?;
         names.machine = requirement.name.as_str().to_owned();
+        names.declared = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(requirement.symbol);
         Ok((signature, names))
     }
 
@@ -2355,7 +2383,11 @@ impl<'t> Program<'t> {
             .typed
             .closed_requirement_application(owner)
             .map_or(owner, |closed| closed.template);
-        let reaches = self.reach_ceiling(id, reach_author)?;
+        let reaches = self.reach_ceiling(
+            id,
+            reach_author,
+            matches!(declared, Declarer::Requirement { .. }),
+        )?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -2586,6 +2618,20 @@ impl<'t> Program<'t> {
         }
     }
 
+    pub(super) fn formal_value_type(
+        &mut self,
+        machine: MachineId,
+        carrier: TypeReferenceHandle,
+        referent: BorrowedReferent,
+    ) -> Checked<ValueType> {
+        if referent == BorrowedReferent::Slice
+            && let Some(value) = self.view_type_with_formal_access(machine, carrier, true)?
+        {
+            return Ok(value);
+        }
+        self.value_type(machine, carrier)
+    }
+
     /// A formal's type, whether it is `[erased]`, and the reference it is
     /// passed by. An erased formal is scalar: an erased record travels in
     /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
@@ -2698,7 +2744,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = self.value_type(id, carrier)?;
+        let value_type = self.formal_value_type(id, carrier, referent)?;
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
@@ -2769,7 +2815,11 @@ impl<'t> Program<'t> {
     }
 
     // The outer caller may only receive a refusal, without the partial machine
-    // roster. Keep the actual declaration here, where its identity is known.
+    // roster. Keep the actual declaration here, where its identity is known:
+    // its name, and its position when the refused construct has none of its
+    // own, so the diagnostic leads to the file, line and column even inside
+    // a dependency. The innermost declaration read places the refusal; an
+    // outer one only adds its name.
     fn read_failure_at(
         &self,
         mut refusal: terminal_check_tables::Refusal,
@@ -2780,6 +2830,13 @@ impl<'t> Program<'t> {
             " while reading {part} of `{}`",
             self.typed.symbols.display_path(declaration, "::")
         ));
+        if refusal.source_span.is_none() {
+            refusal.source_span = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(declaration)
+                .filter(|span| *span != source::SourceSpan::default());
+        }
         refusal
     }
 
@@ -3311,7 +3368,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
@@ -3320,7 +3377,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(element, binder, out);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -3506,7 +3563,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => {}
         ExpressionKind::Array { elements } => {
@@ -3514,7 +3571,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(element, uses);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())

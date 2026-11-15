@@ -5,13 +5,24 @@ use crate::record::{
     PackagePolicyProviderBinding, PackagePolicyServiceMethod, PackageReviewNominalOwner,
 };
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackagePolicyNativeBinding {
-    pub application: Option<String>,
-    pub method: PackagePolicyServiceMethod,
-    pub binding: PackagePolicyProviderBinding,
+pub struct PackagePolicyNativeBinding {
+    pub(crate) application: Option<String>,
+    pub(crate) method: PackagePolicyServiceMethod,
+    pub(crate) binding: PackagePolicyProviderBinding,
 }
 impl PackagePolicyNativeBinding {
-    pub fn key(
+    pub fn method(&self) -> &PackagePolicyServiceMethod {
+        &self.method
+    }
+
+    pub fn locator(&self) -> Option<&crate::record::PackageReviewForeignLocator> {
+        match &self.binding {
+            PackagePolicyProviderBinding::Import { locator, .. } => Some(locator),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn key(
         &self,
     ) -> (
         &crate::record::PackageReviewNominalIdentity,
@@ -34,13 +45,13 @@ impl PackagePolicyNativeBinding {
             _ => None,
         }
     }
-    pub fn validate(
+    pub(crate) fn validate(
         &self,
         package: semantic_vocabulary::PackageKeyIdentity,
         target: target::TargetProfile,
     ) -> Result<(), &'static str> {
-        if self.application.as_ref().is_some_and(String::is_empty) {
-            return Err("native inventory has an empty application identity");
+        if self.application.is_some() {
+            return Err("native inventory has an unsupported applied requirement");
         }
         let producer = self
             .producer()
@@ -49,6 +60,12 @@ impl PackagePolicyNativeBinding {
             || producer.declaration.owner() != PackageReviewNominalOwner::Package(package)
         {
             return Err("native inventory substituted its supplying package");
+        }
+        let [calling] = self.method.calling.as_slice() else {
+            return Err("native inventory has no unique pinned calling application");
+        };
+        if calling.abi.requirement_identity == calling.requirement.path {
+            return Err("native inventory has no complete declaration ABI key");
         }
         crate::record::package::validate_native_service_method(&self.method, target)?;
         self.binding.validate_native(target)

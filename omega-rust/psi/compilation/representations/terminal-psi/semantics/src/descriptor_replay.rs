@@ -800,7 +800,7 @@ pub(crate) mod analysis {
             parameter: usize,
             path: &[DescriptorPathSegment],
         ) -> Result<bool, &'static str> {
-            let (callee, descriptor) = {
+            let callee = {
                 let machine = self
                     .replay
                     .machine(caller)
@@ -811,6 +811,18 @@ pub(crate) mod analysis {
                 let Some(callee) = call.stored_effects_callee() else {
                     return Ok(false);
                 };
+                callee
+            };
+            self.preserves_descriptor_storage(callee, parameter, path)
+        }
+
+        pub fn preserves_descriptor_storage(
+            &mut self,
+            callee: MachineId,
+            parameter: usize,
+            path: &[DescriptorPathSegment],
+        ) -> Result<bool, &'static str> {
+            let descriptor = {
                 let body = self
                     .replay
                     .machine(callee)
@@ -828,18 +840,13 @@ pub(crate) mod analysis {
                 else {
                     return Ok(false);
                 };
-                if !is_descriptor(self.replay.types.iter(), selected)
-                    || !self.replay.slot_kind.is_slot(self.replay.types, selected)
-                {
+                if !self.replay.slot_kind.is_slot(self.replay.types, selected) {
                     return Ok(false);
                 }
-                (
-                    callee,
-                    DescriptorLocation {
-                        root: root.place,
-                        path: path.to_vec(),
-                    },
-                )
+                DescriptorLocation {
+                    root: root.place,
+                    path: path.to_vec(),
+                }
             };
             if self.replay.prepare_states(callee).is_none() {
                 return Ok(false);
@@ -929,7 +936,7 @@ pub(crate) mod analysis {
             for effect in &summary.effects {
                 let destination =
                     self.replay
-                        .actual_contents(call, effect.parameter, &effect.steps)?;
+                        .actual_contents(machine, call, effect.parameter, &effect.steps)?;
                 let mut origins = BTreeSet::new();
                 for origin in &effect.origins {
                     origins.extend(self.replay.substitute(machine, before, call, origin)?);
@@ -1136,7 +1143,7 @@ pub(crate) mod analysis {
                     }
                     let query = self
                         .replay
-                        .actual_contents(call, effect.parameter, &effect.steps)
+                        .actual_contents(machine, call, effect.parameter, &effect.steps)
                         .ok_or_else(incomplete_step)?;
                     let targets = self
                         .replay
@@ -1179,7 +1186,7 @@ pub(crate) mod analysis {
                                             ..
                                         } => step.inputs.push(
                                             self.replay
-                                                .actual_contents(call, *position, steps)
+                                                .actual_contents(machine, call, *position, steps)
                                                 .ok_or_else(incomplete_step)?
                                                 .observation(),
                                         ),
@@ -1935,6 +1942,7 @@ pub(crate) mod case_flow {
                 caller.calls.insert(
                     position(0),
                     DescriptorInvocation {
+                        scalar_arguments: Vec::new(),
                         operation: OperationId::new(1).unwrap(),
                         target: DescriptorInvocationTarget::Machine(MachineId::new(2).unwrap()),
                         arguments: vec![],
@@ -2806,8 +2814,11 @@ pub(crate) mod contents_queries {
             completed: Option<(MachineId, DescriptorPosition)>,
         ) -> Option<&'state Value> {
             match self.resolve_storage(machine, state, queried, completed)? {
-                StorageResolution::Unique(location) => state.slots.get(&location),
-                StorageResolution::Alternatives => state.slots.get(queried),
+                StorageResolution::Unique(location) => (!state
+                    .has_selected_inline_contents(&location))
+                .then(|| state.slots.get(&location))?,
+                StorageResolution::Alternatives => (!state.has_selected_inline_contents(queried))
+                    .then(|| state.slots.get(queried))?,
             }
         }
 
@@ -2831,7 +2842,19 @@ pub(crate) mod contents_queries {
             {
                 return value.clone();
             }
-            state.incoming_contents(query)
+            let mut origins = state.incoming_contents(query)?;
+            if query.is_symbolic_location() {
+                // A fixed-slot write may have happened before or after the
+                // selected write. Until the selector is instantiated, a
+                // local read must retain the fixed alternatives as well.
+                origins.extend(self.read_contents_with_depth(
+                    machine,
+                    state,
+                    &query.without_selectors(),
+                    depth,
+                )?);
+            }
+            Some(origins)
         }
 
         // A captured pointer observes the live pointee, but its old source
@@ -2898,7 +2921,7 @@ pub(crate) mod contents_queries {
                 && query
                     .steps
                     .iter()
-                    .any(|step| matches!(step, DescriptorContentsStep::AnyElement { .. }))
+                    .any(|step| matches!(step, DescriptorContentsStep::Element { .. }))
             {
                 return None;
             }
@@ -2906,6 +2929,23 @@ pub(crate) mod contents_queries {
             if self.contents_address_hidden(machine, state, query) {
                 return None;
             }
+            if query.is_symbolic_location()
+                && self
+                    .parameter(machine, query.root)
+                    .is_some_and(|(_, access, _)| {
+                        matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
+                    })
+                && self
+                    .inline_steps(machine, query)?
+                    .iter()
+                    .all(|inline| *inline)
+            {
+                return Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
+                    query.clone(),
+                )]));
+            }
+            let broad = query.retains_selector().then(|| query.without_selectors());
+            let query = broad.as_ref().unwrap_or(query);
             self.contents_targets_at(
                 machine,
                 state,
@@ -2985,7 +3025,7 @@ pub(crate) mod contents_queries {
                 .position(|step| {
                     matches!(
                         step,
-                        DescriptorContentsStep::AnyElement { .. }
+                        DescriptorContentsStep::Element { .. }
                             | DescriptorContentsStep::Address(DescriptorPathSegment::Referent)
                     )
                 })
@@ -3050,7 +3090,7 @@ pub(crate) mod contents_queries {
                 }
                 return Some(targets);
             }
-            let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(prefix_length)
+            let Some(DescriptorContentsStep::Element { element, .. }) = steps.get(prefix_length)
             else {
                 return Some(BTreeSet::from([DescriptorPayloadTarget::Storage {
                     location: match account {
@@ -3197,7 +3237,7 @@ pub(crate) mod contents_queries {
                 .position(|step| {
                     matches!(
                         step,
-                        DescriptorContentsStep::AnyElement { .. }
+                        DescriptorContentsStep::Element { .. }
                             | DescriptorContentsStep::Address(DescriptorPathSegment::Referent)
                     )
                 })
@@ -3237,7 +3277,7 @@ pub(crate) mod contents_queries {
                         )?);
                     }
                 }
-                DescriptorContentsStep::AnyElement { element } => {
+                DescriptorContentsStep::Element { element, .. } => {
                     match find_structural_type(self.types, selected)?.shape {
                         StructuralTypeShape::FixedArray {
                             element: actual,
@@ -3363,7 +3403,7 @@ pub(crate) mod contents_queries {
             depth: &DescriptorReadDepth<'_>,
         ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
             let _read = depth.enter()?;
-            let mut steps = vec![DescriptorContentsStep::AnyElement { element }];
+            let mut steps = vec![DescriptorContentsStep::any_element(element)];
             steps.extend_from_slice(suffix);
             let incoming = match origin {
                 Origin::Backing(DescriptorCallOrigin::Empty) => return Some(BTreeSet::new()),
@@ -3464,7 +3504,7 @@ pub(crate) mod contents_queries {
             let mut incoming = incoming?;
             incoming
                 .steps
-                .push(DescriptorContentsStep::AnyElement { element });
+                .push(DescriptorContentsStep::any_element(element));
             let state = self.live_state(machine, state, depth)?;
             let _live = depth.capture(None);
             self.incoming_targets_at(machine, state, incoming, element, suffix, depth)
@@ -3584,13 +3624,10 @@ pub(crate) mod contents_queries {
                 return None;
             }
             let strong = targets.len() == 1
-                && matches!(
-                    targets.first(),
-                    Some(DescriptorPayloadTarget::Storage {
-                        completed: None,
-                        ..
-                    })
-                );
+                && targets.first().is_some_and(|target| match target {
+                    DescriptorPayloadTarget::Storage { completed, .. } => completed.is_none(),
+                    DescriptorPayloadTarget::Incoming(query) => query.is_symbolic_location(),
+                });
             for target in targets {
                 let value = if strong {
                     incoming.clone()
@@ -3655,13 +3692,81 @@ pub(crate) mod contents_queries {
 
         pub(crate) fn actual_contents(
             &self,
+            machine: &DescriptorMachine,
             call: &DescriptorInvocation,
             parameter: usize,
             steps: &[DescriptorContentsStep],
         ) -> Option<DescriptorContentsQuery> {
-            let mut query =
-                DescriptorContentsQuery::from_location(call.arguments.get(parameter)?.as_ref()?);
-            query.steps.extend_from_slice(steps);
+            let actuals = call.actual_inputs();
+            let query =
+                DescriptorContentsQuery::from_location(actuals.arguments.get(parameter)?.as_ref()?);
+            self.extend_actual_contents(machine, actuals, query, steps)
+        }
+
+        pub(crate) fn extend_actual_contents(
+            &self,
+            machine: &DescriptorMachine,
+            actuals: DescriptorActualInputs<'_>,
+            mut query: DescriptorContentsQuery,
+            steps: &[DescriptorContentsStep],
+        ) -> Option<DescriptorContentsQuery> {
+            if !steps.iter().any(|step| {
+                matches!(
+                    step,
+                    DescriptorContentsStep::Element {
+                        selector: Some(_),
+                        ..
+                    }
+                )
+            }) {
+                query.steps.extend_from_slice(steps);
+                return Some(query);
+            }
+            let mut carrier = *machine.place_types.get(&query.root)?;
+            let mut path = Vec::new();
+            for step in &query.steps {
+                match step {
+                    DescriptorContentsStep::Address(segment) => path.push(*segment),
+                    DescriptorContentsStep::Element { element, .. } => {
+                        carrier = *element;
+                        path.clear();
+                    }
+                }
+            }
+            for step in steps {
+                match step {
+                    DescriptorContentsStep::Address(segment) => {
+                        path.push(*segment);
+                        query.steps.push(step.clone());
+                    }
+                    DescriptorContentsStep::Element { element, selector } => {
+                        let selected = crate::descriptor_lifetimes::descriptor_location_type(
+                            self.types, carrier, &path,
+                        )?;
+                        let shape = &find_structural_type(self.types, selected)?.shape;
+                        let term = selector.as_ref().and_then(|selector| {
+                            crate::substitution::substitute_bound_scalar_term(
+                                selector,
+                                actuals.scalar_arguments,
+                            )
+                        });
+                        let index = super::inline_selected_index(shape, term.as_ref());
+                        query.steps.push(match index {
+                            Some(index) => DescriptorContentsStep::Address(
+                                DescriptorPathSegment::FixedIndex(index),
+                            ),
+                            None => DescriptorContentsStep::Element {
+                                element: *element,
+                                selector: term
+                                    .filter(|term| term.integer_value().is_none())
+                                    .map(Box::new),
+                            },
+                        });
+                        carrier = *element;
+                        path.clear();
+                    }
+                }
+            }
             Some(query)
         }
     }
@@ -4516,6 +4621,17 @@ pub(crate) mod engine {
             location: &DescriptorLocation,
             depth: &DescriptorReadDepth<'_>,
         ) -> Value {
+            self.read_slot(machine, state, location, depth, true)
+        }
+
+        fn read_slot(
+            &self,
+            machine: &DescriptorMachine,
+            state: &State,
+            location: &DescriptorLocation,
+            depth: &DescriptorReadDepth<'_>,
+            include_selected: bool,
+        ) -> Value {
             let _read = depth.enter()?;
             let location = match self.resolve_storage_with_depth(machine, state, location, depth)? {
                 StorageResolution::Unique(location) => location,
@@ -4540,7 +4656,11 @@ pub(crate) mod engine {
             if let Some(value) = state.slots.get(&location)
                 && (value.is_some() || location.path.is_empty() || !external_pointee)
             {
-                return value.clone();
+                return if include_selected {
+                    state.selected_inline_contents(&location, value.clone())
+                } else {
+                    value.clone()
+                };
             }
             if self.slot_kind.tracks_references()
                 && location.path.contains(&DescriptorPathSegment::Referent)
@@ -5146,8 +5266,12 @@ pub(crate) mod engine {
                             {
                                 continue;
                             }
-                            let destination =
-                                self.actual_contents(call, effect.parameter, &effect.steps)?;
+                            let destination = self.actual_contents(
+                                machine,
+                                call,
+                                effect.parameter,
+                                &effect.steps,
+                            )?;
                             super::case_flow::retire_query(
                                 self,
                                 machine,
@@ -5593,8 +5717,12 @@ pub(crate) mod engine {
                     steps,
                     projection,
                 } => {
-                    let mut query = actuals.argument_contents.get(*position)?.as_ref()?.clone();
-                    query.steps.extend_from_slice(steps);
+                    let query = self.extend_actual_contents(
+                        machine,
+                        actuals,
+                        actuals.argument_contents.get(*position)?.as_ref()?.clone(),
+                        steps,
+                    )?;
                     self.project(
                         machine,
                         self.read_contents_with_depth(machine, state, &query, reads),
@@ -6014,7 +6142,13 @@ pub(crate) mod engine {
                     let mut origins = BTreeSet::new();
                     for exit in &machine.normal_exits {
                         if let Some(state) = states.get(exit) {
-                            origins.extend(self.read(machine, state, &slot)?);
+                            origins.extend(self.read_slot(
+                                machine,
+                                state,
+                                &slot,
+                                &DescriptorReadDepth::at(machine, state, None),
+                                false,
+                            )?);
                         }
                     }
                     if origins.is_empty() {
@@ -6045,7 +6179,7 @@ pub(crate) mod engine {
                 let mut origins = BTreeSet::new();
                 for exit in &machine.normal_exits {
                     if let Some(state) = states.get(exit) {
-                        origins.extend(state.incoming_contents(&query)?);
+                        origins.extend(state.effect_contents(&query)?);
                     }
                 }
                 // A slot reached through a reference the formal holds is read
@@ -6187,8 +6321,8 @@ pub(crate) mod engine {
             .collect::<BTreeSet<_>>()
         {
             let value = match (
-                before.incoming_contents(&query),
-                incoming.incoming_contents(&query),
+                before.effect_contents(&query),
+                incoming.effect_contents(&query),
             ) {
                 (Some(mut left), Some(right)) => {
                     left.extend(right);
@@ -6288,7 +6422,7 @@ pub(crate) mod engine {
                                 (segment, step),
                                 (
                                     DescriptorPathSegment::FixedIndex(_),
-                                    DescriptorContentsStep::AnyElement { .. }
+                                    DescriptorContentsStep::Element { .. }
                                 )
                             )
                     }))
@@ -6304,33 +6438,88 @@ pub(crate) mod engine {
             Arc::make_mut(&mut self.contents)
         }
 
-        pub(crate) fn incoming_contents(&self, query: &DescriptorContentsQuery) -> Value {
-            let mut origins = BTreeSet::from([Origin::IncomingContents(
+        fn selected_inline_updates<'a>(
+            &'a self,
+            location: &'a DescriptorLocation,
+        ) -> impl Iterator<Item = &'a Value> {
+            self.contents_for(location.root)
+                .filter_map(|(written, value)| {
+                    (written.is_symbolic_location()
+                        && written.steps.len() == location.path.len()
+                        && written
+                            .steps
+                            .iter()
+                            .zip(&location.path)
+                            .all(|(step, segment)| {
+                                step.may_match(&DescriptorContentsStep::Address(*segment))
+                            }))
+                    .then_some(value)
+                })
+        }
+
+        pub(crate) fn has_selected_inline_contents(&self, location: &DescriptorLocation) -> bool {
+            self.selected_inline_updates(location).next().is_some()
+        }
+
+        fn selected_inline_contents(&self, location: &DescriptorLocation, value: Value) -> Value {
+            let mut origins = value?;
+            for selected in self.selected_inline_updates(location) {
+                origins.extend(selected.as_ref()?.iter().cloned());
+            }
+            Some(origins)
+        }
+
+        fn contents_for(
+            &self,
+            root: PlaceId,
+        ) -> impl Iterator<Item = (&DescriptorContentsQuery, &Value)> {
+            let start = DescriptorContentsQuery {
+                root,
+                steps: Vec::new(),
+            };
+            self.contents
+                .range(start..)
+                .take_while(move |(query, _)| query.root == root)
+        }
+
+        fn incoming_effect(query: &DescriptorContentsQuery) -> BTreeSet<Origin> {
+            BTreeSet::from([Origin::IncomingContents(
                 query.clone(),
                 Projection::new(&[]),
-            )]);
-            for (written, value) in self.contents.iter() {
-                if written.root != query.root {
+            )])
+        }
+
+        fn effect_contents(&self, query: &DescriptorContentsQuery) -> Value {
+            // Publish each logical selected write once. Possible overlap is
+            // accounted for at a local read or after actual arguments are
+            // substituted, so it does not become a second fixed-slot write.
+            if query.is_symbolic_location() {
+                return self
+                    .contents
+                    .get(query)
+                    .cloned()
+                    .unwrap_or_else(|| Some(Self::incoming_effect(query)));
+            }
+            self.incoming_contents(query)
+        }
+
+        pub(crate) fn incoming_contents(&self, query: &DescriptorContentsQuery) -> Value {
+            let selected = query.is_symbolic_location();
+            let mut origins = if selected {
+                self.effect_contents(query)?
+            } else {
+                Self::incoming_effect(query)
+            };
+            for (written, value) in self.contents_for(query.root) {
+                if selected && written == query {
                     continue;
                 }
-                let overlaps = written.steps.iter().zip(&query.steps).all(|(left, right)| {
-                    left == right
-                        || matches!(
-                            (left, right),
-                            (
-                                DescriptorContentsStep::AnyElement { .. },
-                                DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(
-                                    _
-                                ))
-                            ) | (
-                                DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(
-                                    _
-                                )),
-                                DescriptorContentsStep::AnyElement { .. }
-                            )
-                        )
-                });
-                if !overlaps {
+                if !written
+                    .steps
+                    .iter()
+                    .zip(&query.steps)
+                    .all(|(left, right)| left.may_match(right))
+                {
                     continue;
                 }
                 if written.steps.len() != query.steps.len() {
@@ -6572,7 +6761,7 @@ pub(crate) mod engine {
                         .iter()
                         .map(|step| match step {
                             DescriptorContentsStep::Address(segment) => *segment,
-                            DescriptorContentsStep::AnyElement { .. } => unreachable!(),
+                            DescriptorContentsStep::Element { .. } => unreachable!(),
                         })
                         .collect(),
                 },
@@ -6951,6 +7140,7 @@ pub(crate) mod engine {
             caller.calls.insert(
                 entry,
                 DescriptorInvocation {
+                    scalar_arguments: Vec::new(),
                     operation: OperationId::new(1).unwrap(),
                     target: DescriptorInvocationTarget::Machine(callee_id),
                     arguments: vec![Some(stored.clone()), Some(replacement.clone())],
@@ -7473,7 +7663,7 @@ impl DescriptorStoredOrigin {
                         .iter()
                         .map(|step| match step {
                             DescriptorContentsStep::Address(segment) => Some(*segment),
-                            DescriptorContentsStep::AnyElement { .. } => None,
+                            DescriptorContentsStep::Element { .. } => None,
                         })
                         .collect::<Option<Vec<_>>>()?,
                 ),
@@ -7522,7 +7712,7 @@ impl DescriptorStoredEffect {
             .iter()
             .map(|step| match step {
                 DescriptorContentsStep::Address(segment) => Some(*segment),
-                DescriptorContentsStep::AnyElement { .. } => None,
+                DescriptorContentsStep::Element { .. } => None,
             })
             .collect()
     }

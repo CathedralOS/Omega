@@ -35,12 +35,12 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Borrow { .. }
             | ExpressionKind::Integer(_)
             | ExpressionKind::Float(_)
-            | ExpressionKind::LayoutObservation { .. }
+            | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::ByteSubslice { .. }
+            | ExpressionKind::CollectionSubslice { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }

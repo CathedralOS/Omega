@@ -72,6 +72,7 @@ fn windows_canonicalize_receiver() {
     // there is no fixture-injected Console provider or second scheduler here.
     eprintln!("Windows receiver: producing the Windows Terminal program");
     let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        stage_validators: Default::default(),
         root_path: project.join("main.omg"),
         build_directory: Some(project.join("build/terminal")),
         targets: orchestration::BuildTargets::Single(profile),

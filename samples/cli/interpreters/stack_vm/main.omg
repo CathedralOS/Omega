@@ -55,12 +55,12 @@ data Main {
 }
 
 // Initialize VM: sp = -1 (empty stack).
-machine Main::init(main: &mut Main) {
+machine init(main: &mut Main) {
     main.vm.sp = 0 - 1;
 }
 
 // Push a value onto the stack.
-machine Main::push(main: &mut Main, value: i32 in Wrapping) {
+machine push(main: &mut Main, value: i32 in Wrapping) {
     let new_sp: i32 in Wrapping = main.vm.sp + 1;
     main.vm.sp = new_sp;
     transition new_sp == 0 {
@@ -93,7 +93,7 @@ machine Main::push(main: &mut Main, value: i32 in Wrapping) {
 }
 
 // Read top of stack (sp slot) as a value-returning machine.
-machine Main::top(main: &mut Main) -> i32 in Wrapping {
+machine top(main: &mut Main) -> i32 in Wrapping {
     let sp: i32 in Wrapping = main.vm.sp;
     transition sp == 0 {
         true -> (main.vm.stack[0])
@@ -121,8 +121,8 @@ machine Main::top(main: &mut Main) -> i32 in Wrapping {
 
 // Pop the top value off the stack (decrements sp, returns old top).
 // THIS IS THE MISCOMPILE TRIGGER when called twice sequentially.
-machine Main::pop_val(main: &mut Main) -> i32 in Wrapping {
-    let v: i32 in Wrapping = Main::top(main);
+machine pop_val(main: &mut Main) -> i32 in Wrapping {
+    let v: i32 in Wrapping = top(main);
     main.vm.sp = main.vm.sp - 1;
     transition {
         _ -> (v)
@@ -130,7 +130,7 @@ machine Main::pop_val(main: &mut Main) -> i32 in Wrapping {
 }
 
 // Execute one opcode: multi-arm case dispatch.
-machine Main::step(main: &mut Main, op: Opcode) {
+machine step(main: &mut Main, op: Opcode) {
     transition op {
         Opcode::Push { value } -> do_push(main, value)
         Opcode::Add -> do_add(main)
@@ -142,34 +142,34 @@ machine Main::step(main: &mut Main, op: Opcode) {
     }
 
     machine do_push(main: &mut Main, value: i32 in Wrapping) {
-        Main::push(main, value);
+        push(main, value);
     }
 
     machine do_add(main: &mut Main) {
-        let b: i32 in Wrapping = Main::pop_val(main);
-        let a: i32 in Wrapping = Main::pop_val(main);
+        let b: i32 in Wrapping = pop_val(main);
+        let a: i32 in Wrapping = pop_val(main);
         let result: i32 in Wrapping = a + b;
-        Main::push(main, result);
+        push(main, result);
     }
 
     machine do_sub(main: &mut Main) {
         // Sub: second - top (i.e. a - b where b was pushed last).
-        let b: i32 in Wrapping = Main::pop_val(main);
-        let a: i32 in Wrapping = Main::pop_val(main);
+        let b: i32 in Wrapping = pop_val(main);
+        let a: i32 in Wrapping = pop_val(main);
         let result: i32 in Wrapping = a - b;
-        Main::push(main, result);
+        push(main, result);
     }
 
     machine do_mul(main: &mut Main) {
-        let b: i32 in Wrapping = Main::pop_val(main);
-        let a: i32 in Wrapping = Main::pop_val(main);
+        let b: i32 in Wrapping = pop_val(main);
+        let a: i32 in Wrapping = pop_val(main);
         let result: i32 in Wrapping = a * b;
-        Main::push(main, result);
+        push(main, result);
     }
 
     machine do_dup(main: &mut Main) {
-        let v: i32 in Wrapping = Main::top(main);
-        Main::push(main, v);
+        let v: i32 in Wrapping = top(main);
+        push(main, v);
     }
 
     machine do_pop(main: &mut Main) {
@@ -179,24 +179,24 @@ machine Main::step(main: &mut Main, op: Opcode) {
     machine done(main: &mut Main) {}
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
-    Main::init(main);
+    init(main);
 
     // Run program: (3 + 4) * 2 - 1 = 13.
-    Main::step(main, Opcode::Push { value: 3 });
-    Main::step(main, Opcode::Push { value: 4 });
-    Main::step(main, Opcode::Add);
-    Main::step(main, Opcode::Push { value: 2 });
-    Main::step(main, Opcode::Mul);
-    Main::step(main, Opcode::Push { value: 1 });
-    Main::step(main, Opcode::Sub);
-    Main::step(main, Opcode::Dup);
-    Main::step(main, Opcode::Pop);
+    step(main, Opcode::Push { value: 3 });
+    step(main, Opcode::Push { value: 4 });
+    step(main, Opcode::Add);
+    step(main, Opcode::Push { value: 2 });
+    step(main, Opcode::Mul);
+    step(main, Opcode::Push { value: 1 });
+    step(main, Opcode::Sub);
+    step(main, Opcode::Dup);
+    step(main, Opcode::Pop);
 
     // Read top-of-stack: should be 13.
-    let result: i32 in Wrapping = Main::top(main);
+    let result: i32 in Wrapping = top(main);
     let code: i32 in Wrapping = result + 57;
 
     transition code == 70 {
@@ -207,13 +207,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: program evaluated to 13, reported as 13 + 57 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: top of stack was not 13 after the program (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -221,5 +221,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

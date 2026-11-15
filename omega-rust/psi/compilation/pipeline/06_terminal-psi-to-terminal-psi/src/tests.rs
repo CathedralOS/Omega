@@ -61,6 +61,7 @@ mod mutable_formals;
 mod operational_effects;
 mod owned_dispatch;
 mod owned_match_results;
+mod parallel_checks;
 mod proof_scope;
 mod provider_supplies;
 mod published_no_return;
@@ -144,6 +145,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
     expression(
         ExpressionKind::Call {
             required_contract: None,
+            static_reach_binding: None,
             source_call: None,
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
@@ -1553,6 +1555,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
         of_type(
             ExpressionKind::Call {
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                 arguments: vec![place(value, point())],
@@ -2135,6 +2138,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
                 of_type(
                     ExpressionKind::Call {
                         required_contract: None,
+                        static_reach_binding: None,
                         source_call: None,
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                         arguments: Vec::new(),
@@ -3139,6 +3143,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                 of_type(
                     ExpressionKind::Call {
                         required_contract: None,
+                        static_reach_binding: None,
                         source_call: None,
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: vec![place(4, point())],
@@ -4170,6 +4175,7 @@ fn returned_span_store(stored: u128) -> (typed_trees_to_terminal_psi::Elaboratio
                     of_type(
                         ExpressionKind::Call {
                             required_contract: None,
+                            static_reach_binding: None,
                             source_call: None,
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: Vec::new(),
@@ -4797,6 +4803,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                     of_type(
                         ExpressionKind::Call {
                             required_contract: None,
+                            static_reach_binding: None,
                             source_call: None,
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                             arguments: Vec::new(),
@@ -4858,6 +4865,7 @@ fn peeking(argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
             required_contract: None,
+            static_reach_binding: None,
             source_call: None,
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
             arguments: vec![argument],
@@ -4910,6 +4918,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
             vec![returns(peeking(of_type(
                 ExpressionKind::Call {
                     required_contract: None,
+                    static_reach_binding: None,
                     source_call: None,
                     callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                     arguments: Vec::new(),
@@ -5016,6 +5025,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
             required_contract: None,
+            static_reach_binding: None,
             source_call: None,
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments: vec![argument],

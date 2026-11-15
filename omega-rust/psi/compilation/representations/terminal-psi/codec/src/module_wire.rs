@@ -3039,7 +3039,7 @@ pub(crate) mod float_meaning_wire {
         }
     }
 
-    struct Format;
+    pub(crate) struct Format;
     impl Field<IeeeFloatFormat> for Format {
         fn write(writer: &mut Writer, value: &IeeeFloatFormat) -> Result<(), CodecError> {
             encode_ieee_float_format(writer, *value);

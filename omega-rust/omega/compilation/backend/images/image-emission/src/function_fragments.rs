@@ -4468,6 +4468,7 @@ mod source {
                     gdt,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4486,6 +4487,7 @@ mod source {
                     task_state,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4500,6 +4502,7 @@ mod source {
                     service,
                     operation,
                     source,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -5043,6 +5046,7 @@ mod source {
                     arguments,
                     calls,
                     result_home,
+                    ..
                 } = row
                 else {
                     continue;
@@ -9970,6 +9974,7 @@ mod source {
                         token,
                         result_home,
                         operation: kind,
+                        ..
                     } if actual == psi_operation => {
                         Some((actual_boundary, token, result_home, kind))
                     }
@@ -11526,7 +11531,7 @@ mod source {
                             let mut child = query;
                             child
                                 .steps
-                                .push(DescriptorContentsStep::AnyElement { element: *element });
+                                .push(DescriptorContentsStep::any_element(*element));
                             descriptor_queries(types, *element, child, active, slots)?;
                         }
                         StructuralTypeShape::Record { fields, .. } => {
@@ -12047,6 +12052,7 @@ mod source {
                                 *position,
                                 row.callee,
                                 DescriptorActualInputs {
+                                    scalar_arguments: &[],
                                     arguments,
                                     argument_contents: contents,
                                 },
@@ -12312,6 +12318,7 @@ mod source {
                         caller.calls.insert(
                             position,
                             terminal_semantics::descriptor_results::DescriptorInvocation {
+                                scalar_arguments: Vec::new(),
                                 operation: *psi_operation,
                                 target:
                                     terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
@@ -20077,7 +20084,7 @@ mod source {
                     | AbstractOperation::ElementViewLength { .. }
                     | abstract_operations::element_view_read_write_pair_pattern!(..)
                     | AbstractOperation::ElementViewSubslice { .. } => {
-                        element_operation_retained(operation, targeted)
+                        element_operation_retained(operation, targeted.graph.operations())
                     }
                     AbstractOperation::Call {
                         psi_operation,
@@ -20445,16 +20452,15 @@ mod source {
             == 1
     }
 
-    fn element_operation_retained(
+    fn element_operation_retained<'operation>(
         operation: &AbstractOperation,
-        target: &target_operations::TargetFunction,
+        operations: impl IntoIterator<Item = &'operation target_operations::TargetUnitOperation>,
     ) -> bool {
         use target_operations::{
             TargetElementView, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
         };
-        let graph = &target.graph;
-        graph
-            .operations()
+        operations
+            .into_iter()
             .filter(|node| match (operation, node) {
                 (
                     AbstractOperation::EstablishElementView { psi_operation, .. },
@@ -20467,6 +20473,30 @@ mod source {
                         ..
                     },
                 ) => psi_operation == retained,
+                (
+                    AbstractOperation::ElementViewRead {
+                        psi_operation,
+                        result,
+                        ..
+                    },
+                    TargetUnitOperation::ScalarDefinition {
+                        result_home,
+                        expression:
+                            TargetScalarExpression::IeeeFloatElementViewRead {
+                                format,
+                                psi_operation: retained,
+                                source_value,
+                                ..
+                            },
+                    },
+                ) => {
+                    psi_operation == retained
+                        && result_home.defining_operation == *psi_operation
+                        && result_home.source_value == result.value
+                        && *source_value == result.value
+                        && result_home.scalar_type == result.scalar_type
+                        && result.scalar_type == semantic_vocabulary::ScalarType::IeeeFloat(*format)
+                }
                 (
                     AbstractOperation::ElementViewLength { psi_operation, .. },
                     TargetUnitOperation::ScalarDefinition {
@@ -20779,6 +20809,7 @@ mod source {
                 boundary: actual_boundary,
                 operands,
                 result_home,
+                ..
             } if actual == psi_operation => Some((actual_boundary, operands, result_home)),
             _ => None,
         });
@@ -20898,6 +20929,83 @@ mod source {
         use super::{AbstractOperation, ieee_literal_retained, requires_graph_storage_replay};
         use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
         use target_operations::TargetUnitOperation;
+
+        #[test]
+        fn ieee_element_read_coverage_requires_a_unique_exact_result() {
+            use semantic_vocabulary::{
+                IeeeFloatFormat, IntegerValue, ObligationId, PlaceId, ScalarType,
+            };
+            use target_operations::{
+                TargetIntegerExpression, TargetScalarExpression, TargetUnitScalarHomeRequirement,
+            };
+
+            let operation = OperationId::new(1).unwrap();
+            let result = ValueId::new(3).unwrap();
+            let source = terminal_psi::StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                terminal_psi::StructuralAccess::SharedBorrow,
+            );
+            let index = ValueId::new(1).unwrap();
+            let length = ValueId::new(2).unwrap();
+            let obligation = ObligationId::new(1).unwrap();
+            let scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+            let authored = AbstractOperation::ElementViewRead {
+                psi_operation: operation,
+                result: abstract_operations::AbstractResult {
+                    value: result,
+                    scalar_type,
+                },
+                source: source.clone(),
+                index,
+                length,
+                obligation,
+                path: Vec::new(),
+            };
+            let row = |identity, retained_result, format| TargetUnitOperation::ScalarDefinition {
+                result_home: TargetUnitScalarHomeRequirement {
+                    defining_operation: identity,
+                    source_value: retained_result,
+                    scalar_type,
+                    shape: calling_conventions::ValueShape::float(8),
+                },
+                expression: TargetScalarExpression::IeeeFloatElementViewRead {
+                    format,
+                    psi_operation: identity,
+                    source_value: retained_result,
+                    source: source.clone(),
+                    indices: Vec::new(),
+                    index: Box::new(TargetIntegerExpression::Immediate {
+                        source_value: index,
+                        value: IntegerValue::Unsigned(0),
+                    }),
+                    length,
+                    obligation,
+                    path: Vec::new(),
+                    element_byte_offset: 0,
+                },
+            };
+            let retained = row(operation, result, IeeeFloatFormat::Binary64);
+            let covered =
+                |rows: &[TargetUnitOperation]| super::element_operation_retained(&authored, rows);
+            assert!(covered(std::slice::from_ref(&retained)));
+            assert!(!covered(&[]));
+            assert!(!covered(&[retained.clone(), retained]));
+            assert!(!covered(&[row(
+                operation,
+                result,
+                IeeeFloatFormat::Binary32
+            )]));
+            assert!(!covered(&[row(
+                operation,
+                index,
+                IeeeFloatFormat::Binary64
+            )]));
+            assert!(!covered(&[row(
+                OperationId::new(2).unwrap(),
+                result,
+                IeeeFloatFormat::Binary64
+            )]));
+        }
 
         #[test]
         fn atomic_storage_requires_retained_graph_replay() {

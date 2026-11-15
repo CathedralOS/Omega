@@ -916,6 +916,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
                 arguments,
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
                 designated: None,
             },
@@ -929,6 +930,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         identity: "Owned".into(),
@@ -1122,6 +1124,7 @@ mod transferred_on_one_path {
         };
         let mut records = IdTable::default();
         records.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
             identity: "Inner".into(),
@@ -1133,6 +1136,7 @@ mod transferred_on_one_path {
             requires: Vec::new(),
         });
         records.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
             identity: "Pair".into(),
@@ -1174,6 +1178,7 @@ mod transferred_on_one_path {
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
                 arguments,
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
                 designated: None,
             },

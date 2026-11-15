@@ -4,12 +4,14 @@
 //! carry the result to the checker, interpreter and native lowering.
 
 use crate::descriptor_lifetimes::{
-    DescriptorLocation, DescriptorPosition, descriptor_location_lifetime, descriptor_path,
+    DescriptorLocation, DescriptorPosition, canonical_descriptor_location,
+    descriptor_entry_lifetime_with_contents, descriptor_location_lifetime_with_contents,
+    descriptor_path,
 };
 use crate::descriptor_results::{DescriptorAnalysis, DescriptorSlotKind};
 use semantic_vocabulary::{IdTable, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{StructuralAccess, StructuralArgument, TerminalModule};
+use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, TerminalModule};
 
 pub struct Candidate {
     pub argument: StructuralArgument,
@@ -111,6 +113,77 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
     Ok(result)
 }
 
+fn indexed_store_contents(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    prepared: &crate::descriptor_results::DescriptorMachine,
+) -> Result<Vec<(DescriptorPosition, DescriptorLocation)>, Error> {
+    let mut contents = Vec::new();
+    for block in &machine.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let (OperationKind::StoreStructuralField {
+                destination, path, ..
+            }
+            | OperationKind::StructuralByteViewFieldStore {
+                destination, path, ..
+            }) = &operation.kind
+            else {
+                continue;
+            };
+            if !prepared
+                .place_definition(*destination)
+                .is_some_and(|definition| definition.has_independent_storage())
+            {
+                continue;
+            }
+            let root_type = *prepared.place_types.get(destination).ok_or_else(|| {
+                Error::local(
+                    machine.id,
+                    Some(operation.id),
+                    "indexed store lost its destination type",
+                )
+            })?;
+            let Some(array) = crate::plain_affine::runtime_array_region(
+                &module.structural_types,
+                root_type,
+                path,
+            ) else {
+                continue;
+            };
+            if !crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                root_type,
+                path,
+            ) {
+                continue;
+            }
+            let location = canonical_descriptor_location(
+                &module.structural_types,
+                *destination,
+                root_type,
+                &array,
+            )
+            .ok_or_else(|| {
+                Error::local(
+                    machine.id,
+                    Some(operation.id),
+                    "indexed store lost its inline array",
+                )
+            })?;
+            let ordinal = u32::try_from(ordinal).map_err(|_| {
+                Error::local(
+                    machine.id,
+                    Some(operation.id),
+                    "indexed store position overflows",
+                )
+            })?;
+            contents.push(((block.id, ordinal), location));
+        }
+    }
+    contents.sort_unstable_by_key(|(at, _)| *at);
+    Ok(contents)
+}
+
 fn machine_candidates(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
@@ -118,6 +191,16 @@ fn machine_candidates(
     flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
     analysis: &mut DescriptorAnalysis<'_>,
 ) -> Result<Candidates, Error> {
+    // An indexed replacement requires an intact array at its own cut.
+    // Ending an old descriptor before that cut would make the compiler's
+    // own cleanup create a hole. Retaining it there does not read or escape
+    // its backing, and does not change how affine checking judges authored moves.
+    let contents = indexed_store_contents(module, machine, prepared)?;
+    let needs_contents = |at, name: &DescriptorLocation| {
+        contents
+            .binary_search_by_key(&at, |(position, _)| *position)
+            .is_ok_and(|index| contents[index].1.contains(name))
+    };
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
@@ -142,10 +225,11 @@ fn machine_candidates(
                 )
             })?;
         for slot in slots {
-            lifetimes.push(crate::descriptor_lifetimes::descriptor_entry_lifetime(
+            lifetimes.push(descriptor_entry_lifetime_with_contents(
                 flow,
                 (machine.entry, 0),
                 &slot,
+                needs_contents,
             ));
         }
     }
@@ -218,7 +302,8 @@ fn machine_candidates(
                 }
             }
             for slot in slots {
-                let lifetime = descriptor_location_lifetime(flow, birth, &slot);
+                let lifetime =
+                    descriptor_location_lifetime_with_contents(flow, birth, &slot, needs_contents);
                 if let terminal_psi::OperationKind::EstablishReference { source, .. }
                 | terminal_psi::OperationKind::EstablishAccessReference { source, .. }
                 | terminal_psi::OperationKind::EstablishElementView { source, .. }

@@ -1313,14 +1313,12 @@ fn constant_evaluation_keeps_the_callee_cast_location() {
 
 #[test]
 fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
-    let (_, _, base, pending) = constant_base(&[(
-        "main.omg",
-        r#"
+    let source = r#"
         const VALUE: u64 = answer();
         machine answer() -> u64 { selected() }
         linux_x86_64 machine selected() -> u64 { 7u64 }
-    "#,
-    )]);
+    "#;
+    let (_, ids, base, pending) = constant_base(&[("main.omg", source)]);
     let mut program = base.typed().clone();
     let errors = pending
         .evaluate_requested_constants(&mut program)
@@ -1329,11 +1327,18 @@ fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
     let error = diagnostics::join_messages(&errors);
     assert!(error.contains("target"), "{error}");
     let declaration = &program.const_declarations()[0];
-    let declaration_span = program
-        .symbols
-        .symbol_source_span(declaration.symbol)
-        .unwrap();
-    assert_eq!(errors[0].source_span, Some(declaration_span));
+    let site = errors[0]
+        .source_span
+        .expect("the target selection refusal identifies the selected declaration");
+    let callee = "selected";
+    let callee_start = source
+        .rfind(callee)
+        .expect("fixture declares the target body");
+    assert_eq!(site.source_id, ids[0]);
+    assert_eq!(
+        site.span.start..site.span.end,
+        callee_start..callee_start + callee.len()
+    );
     assert!(declaration.evaluated_value.is_none());
 }
 
@@ -1926,6 +1931,72 @@ fn a_const_argument_written_as_a_call_becomes_the_literal_of_its_value() {
     ] {
         assert!(program.deferred_refusal(holder).is_none());
     }
+}
+
+#[test]
+fn a_closed_array_extent_uses_its_checked_value_when_demanded() {
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+    let source = "machine extent() -> u64 { 4u64 }
+        data Packet { bytes: [u8; extent()]; }
+        machine reader(packet: &Packet) -> u64 { 0u64 }
+        machine unrelated() -> u64 { 0u64 }";
+    for (entry, expected_calls) in [("reader", 1), ("unrelated", 0)] {
+        let (program, accounting, result) = evaluate_const_arguments_of(source, entry);
+        result.unwrap();
+        assert_eq!(accounting.receipts().len(), expected_calls);
+        accounting.validate_charges().unwrap();
+        let packet = program.data_definition_by_name_str("Packet").unwrap();
+        let [DataMember::Field(bytes)] = program.data_members(packet) else {
+            panic!("the original array field");
+        };
+        let node = program
+            .type_reference_table
+            .type_reference(bytes.type_reference);
+        if expected_calls == 1 {
+            assert!(
+                matches!(
+                    node,
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Literal(4),
+                        ..
+                    }
+                ),
+                "{node:?}"
+            );
+            assert!(program.deferred_refusal(packet.symbol).is_none());
+        } else {
+            assert!(
+                matches!(
+                    node,
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Expression(_),
+                        ..
+                    }
+                ),
+                "{node:?}"
+            );
+            assert!(program.deferred_refusal(packet.symbol).is_some());
+        }
+    }
+}
+
+#[test]
+fn an_evaluated_array_extent_must_be_a_nonnegative_length() {
+    let source = "machine extent() -> i64 { 0i64 - 1i64 }
+        data Packet { bytes: [u8; extent()]; }
+        machine reader(packet: &Packet) -> u64 { 0u64 }";
+    let (_, accounting, result) = evaluate_const_arguments_of(source, "reader");
+    let errors = result.expect_err("the evaluated extent is negative");
+    assert_eq!(accounting.receipts().len(), 1);
+    assert!(
+        errors.iter().any(|error| {
+            error.message.contains("computed array extent")
+                && error.message.contains("not a closed nonnegative integer")
+        }),
+        "{errors:?}"
+    );
 }
 
 #[test]

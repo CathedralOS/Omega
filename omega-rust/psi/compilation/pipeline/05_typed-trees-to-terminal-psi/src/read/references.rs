@@ -259,7 +259,9 @@ impl Program<'_> {
         expected: ValueType,
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
-        if let Some(view) = self.borrowed_array_range(machine, slots, argument, expected, source)? {
+        if let Some(view) =
+            self.borrowed_array_range(machine, slots, argument, expected, source, None)?
+        {
             return Ok(view);
         }
         let Some((referent, access)) = self.reference_referent(machine, expected)? else {
@@ -314,7 +316,8 @@ impl Program<'_> {
         // A view's loan result carries its chosen presentation; its backing
         // place retains the original type. Empty-value compatibility grants
         // no permission to reinterpret either storage type.
-        if !self.same_type(value.result, referent) {
+        let presented = self.borrowed_argument_type(machine, slots, &value, referent, &formal)?;
+        if !self.same_type(presented, referent) {
             return Err(refuse(
                 machine,
                 Construct::Machine,

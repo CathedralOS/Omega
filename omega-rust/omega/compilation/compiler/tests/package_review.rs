@@ -97,7 +97,25 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let checked = session
         .check_package_build(build)
         .expect("checked installation closure");
+    let module = checked.terminal_publication().accepted().unwrap().module();
+    let [dependency] = module
+        .root_service_reach
+        .installation_dependencies
+        .as_slice()
+    else {
+        panic!("the root reaches one installation-bound requirement");
+    };
+    let requirement = module
+        .identities
+        .text(dependency.requirement_identity)
+        .unwrap();
+    assert!(requirement.contains("A::visit"), "{requirement}");
+    assert_eq!(dependency.upper_bound.len(), 2);
     let selected = checked.execution().plans();
+    assert_eq!(
+        selected.resolve_root_service_reach(module).unwrap().len(),
+        2
+    );
     let reach = |provider: &str| {
         let plan = selected
             .plans()
@@ -136,9 +154,41 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
             ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
         },
     );
-    session
+    let reviewed = session
         .review_package_build(build, usize::MAX)
         .expect("exact installed reach remains reviewable");
+    let bytes = reviewed.evidence.policy.canonical_bytes().unwrap();
+    let recovered = review_evidence::record::PackagePolicyBaseline::recover_canonical(
+        &bytes,
+        review_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+    )
+    .unwrap();
+    for (provider, resolved) in [
+        ("AProvider", &["X", "Y"][..]),
+        ("BProvider", &["X"][..]),
+        ("CProvider", &["Y"][..]),
+        ("DProvider", &["Y"][..]),
+    ] {
+        let plan = recovered
+            .selected_providers()
+            .plans()
+            .iter()
+            .find(|plan| plan.provider_type() == provider)
+            .unwrap();
+        let [row] = plan.rows() else {
+            panic!("one exact visited requirement for {provider}");
+        };
+        let reach = row
+            .installation_reach()
+            .expect("saved selected installation reach");
+        let names = |row: &[review_evidence::record::PackageReviewNominalIdentity]| {
+            row.iter()
+                .map(|name| name.path().to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(reach.upper_bound()), ["X", "Y"]);
+        assert_eq!(names(reach.resolved()), resolved);
+    }
 }
 
 #[test]
@@ -196,11 +246,8 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 
 #[test]
 fn review_policy_round_trip_preserves_inferred_imported_reach() {
-    // The original support package was removed when the facts tree was
-    // deduplicated. Keep its assertion separate from the two live reach probes.
-    let fixture = fixture_package_inputs::repo_root().join(
-        "tests/omega/pass/facts/unannotated_imported_boundary_call_through_local_exit/support/main.omg",
-    );
+    // Review the package that declares the public helper and its private call.
+    let fixture = kept_fixture("pass/effects/inferred_imported_reach/support/main.omg");
     let recovered = reviewed_and_recovered(&fixture, "macos_arm64");
     let callable = recovered
         .callables()
@@ -216,6 +263,116 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
     assert_eq!(realized.len(), 1);
     assert_eq!(realized[0].path(), "Mark");
     assert_eq!(callable.published_service_reach(), Some(realized));
+
+    let mark = recovered
+        .public_traits()
+        .iter()
+        .find(|declaration| declaration.identity() == &realized[0])
+        .expect("the support package's exact Mark declaration");
+    let [read] = mark.requirements() else {
+        panic!("one Mark requirement");
+    };
+    let consumer = reviewed_and_recovered(
+        &kept_fixture("pass/effects/inferred_imported_reach/consumer/main.omg"),
+        "macos_arm64",
+    );
+    let [plan] = consumer.selected_providers().plans() else {
+        panic!("one selected MarkerMark plan");
+    };
+    assert_eq!(plan.target(), "macos_arm64");
+    assert_eq!(plan.schema_declaration(), mark.identity());
+    let [row] = plan.rows() else {
+        panic!("one checked MarkerMark implementation");
+    };
+    let [method] = plan.methods() else {
+        panic!("one imported requirement contract");
+    };
+    assert_eq!(row.requirement(), read.identity());
+    assert_eq!(row.requirement(), method.requirement());
+    assert_eq!(method.requirement_owner(), mark.identity());
+
+    let owner = review_evidence::record::PackageReviewNominalOwner::Package(consumer.package());
+    assert_ne!(owner, mark.identity().owner());
+    let provider = plan
+        .provider_type_declaration()
+        .expect("the local provider");
+    assert_eq!(provider.path(), "MarkerMark");
+    assert_eq!(provider.owner(), owner);
+    let realization = row.realization().expect("the checked local body");
+    assert_eq!(realization.path(), "MarkerMark::read");
+    assert_eq!(realization.owner(), owner);
+    assert!(
+        consumer
+            .public_traits()
+            .iter()
+            .all(|declaration| declaration.identity().path() != "Mark")
+    );
+    assert!(
+        consumer
+            .callables()
+            .callables()
+            .iter()
+            .all(|callable| callable.identity().path() != "Mark::read")
+    );
+}
+
+#[test]
+fn build_service_audit_rejects_an_ordinary_trait() {
+    let fixture = kept_fixture("fail/build/service_audit_requires_boundary/main.omg");
+    let expected = std::fs::read_to_string(fixture.with_file_name("expected.txt")).unwrap();
+    let Err(diagnostics) =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, None)
+    else {
+        panic!("an ordinary trait cannot register a service audit");
+    };
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one refusal at the authored operand: {diagnostics:?}");
+    };
+    assert_eq!(diagnostic.message, expected.trim_end());
+    let location = diagnostic
+        .resolved_location
+        .as_ref()
+        .expect("the authored Build operand location");
+    assert_eq!(location.path.file_name().unwrap(), "build.omg");
+    assert_eq!((location.line, location.column), (3, 12));
+}
+
+#[test]
+fn review_policy_round_trip_keeps_unsupplied_driver_requirements() {
+    let recovered = reviewed_and_recovered(
+        &kept_fixture("pass/effects/root_service_audit/driver/main.omg"),
+        "macos_arm64",
+    );
+    assert!(recovered.selected_providers().plans().is_empty());
+
+    let traits = recovered.public_traits();
+    let driver = traits
+        .iter()
+        .find(|shape| shape.identity().path() == "Driver")
+        .expect("public Driver interface");
+    let [requirement] = driver.requirements() else {
+        panic!("one Driver requirement");
+    };
+    assert_eq!(requirement.identity().path(), "Driver::drive");
+    let callable = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity() == requirement.identity())
+        .expect("the exact bodyless Driver requirement");
+    assert_eq!(format!("{:?}", callable.supply()), "Boundary");
+    assert!(callable.checked_service_reach().realized().is_none());
+
+    let expected = ["DependencyOnly", "MotorControl", "Untaken"].map(|name| {
+        traits
+            .iter()
+            .find(|shape| shape.identity().path() == name)
+            .expect("authored service")
+            .identity()
+            .clone()
+    });
+    assert_eq!(callable.declared_service_reach(), Some(expected.as_slice()));
+    assert_eq!(callable.service_reach_dependency().concrete(), expected);
 }
 
 #[test]
@@ -239,7 +396,33 @@ fn review_policy_round_trip_preserves_authored_reach_slack() {
         .expect("checked body");
     assert_eq!(declared.len(), 2);
     assert_eq!(realized.len(), 1);
+    assert_eq!(realized[0].path(), "Mark");
+    let requirement = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "Mark::read")
+        .expect("the exact boundary requirement");
+    assert_eq!(requirement.declared_service_reach(), Some(realized));
+    assert_eq!(requirement.service_reach_dependency().concrete(), realized);
+    let [audited] = recovered.service_audits() else {
+        panic!("one executed service audit");
+    };
+    assert_eq!(audited.path(), "Unused");
+    assert!(declared.contains(audited));
     assert_eq!(callable.published_service_reach(), Some(declared));
+    assert!(recovered.slack_uses().iter().any(|row| {
+        row.callable() == callable.identity()
+            && row.service() == audited
+            && row.class()
+                == review_evidence::record::PackageReviewDangerousAuthorityClass::ConsumerAudit
+    }));
+    let service = recovered
+        .public_traits()
+        .iter()
+        .find(|declaration| declaration.identity() == audited)
+        .expect("the exact authored service remains a public trait");
+    assert!(service.requirements().is_empty());
 }
 
 #[test]
@@ -402,6 +585,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     fn produce(root: &Path, target_name: &str, product: ProjectProduct) -> compiler::CompileReport {
         let profile = target::TargetProfile::from_canonical_target_name(target_name).unwrap();
         let outcomes = orchestration::build(BuildRequest {
+            stage_validators: Default::default(),
             root_path: root.to_path_buf(),
             build_directory: Some(std::env::temp_dir().join(format!(
                 "omega-layout-closure-{}-{target_name}",
@@ -715,69 +899,308 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
 
 #[test]
 fn toolchain_boundary_applications_recover_against_their_owner_qualified_requirement() {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
     use review_evidence::record::PackageReviewNominalOwner;
 
     // `value + 1.0` closes an application of the toolchain `Float::add`
     // overload, whose requirement identity typed Psi qualifies with the
     // toolchain owner namespace.
-    let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/float/live_float_parameter_across_call_exit/main.omg"),
-        "linux_x86_64",
-    );
-    let add = recovered
-        .boundary_applications()
-        .realizations()
-        .iter()
-        .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
-        .expect("closed Float::add application");
-    assert!(matches!(
-        add.operator_coordinate().identity().owner(),
-        PackageReviewNominalOwner::ToolchainSource(_)
-    ));
-    assert!(
-        add.requirement_identity()
-            .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
-        "{}",
-        add.requirement_identity()
-    );
-}
-
-#[test]
-fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
-    // `read` repeats neither `reaches Probe` nor `blocks`; the requirement it
-    // satisfies publishes both, and an opaque supply has no body from which to
-    // publish anything else.
-    let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg"),
-        "linux_x86_64",
-    );
-    let blocking_reads = recovered
-        .callables()
-        .callables()
-        .iter()
-        .filter(|callable| {
-            callable.checked_may_block() && callable.identity().path().contains("read")
-        })
-        .collect::<Vec<_>>();
-    assert!(
-        !blocking_reads.is_empty(),
-        "the fixture realizes the blocking Probe::read opaquely"
-    );
-    for leaf in blocking_reads {
-        assert_eq!(
-            leaf.declared_may_block(),
-            Some(true),
+    for fixture in [
+        "pass/float/live_float_parameter_across_call_exit/main.omg",
+        "run/float/canonical_arithmetic/main.omg",
+    ] {
+        let recovered = reviewed_and_recovered(&kept_fixture(fixture), "linux_x86_64");
+        let add = recovered
+            .boundary_applications()
+            .realizations()
+            .iter()
+            .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
+            .expect("closed Float::add application");
+        assert!(matches!(
+            add.operator_coordinate().identity().owner(),
+            PackageReviewNominalOwner::ToolchainSource(_)
+        ));
+        assert!(
+            add.requirement_identity()
+                .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
             "{}",
-            leaf.identity().path()
+            add.requirement_identity()
+        );
+        for application in recovered.boundary_applications().realizations() {
+            let plan =
+                &recovered.selected_providers().plans()[application.selected_plan_index() as usize];
+            assert_eq!(plan.target(), "linux_x86_64");
+            assert_eq!(
+                plan.schema_declaration(),
+                application.operator_coordinate().identity()
+            );
+        }
+
+        // Recovery must still join the exact emitted owner and deployment. Change
+        // one copy in the real capsule, leaving the corresponding plan unchanged.
+        let bytes = recovered.canonical_bytes().unwrap();
+        let PackageReviewNominalOwner::ToolchainSource(owner) =
+            add.operator_coordinate().identity().owner()
+        else {
+            unreachable!()
+        };
+        let digest = owner.digest();
+        let position = bytes
+            .windows(digest.len())
+            .rposition(|window| window == digest)
+            .unwrap();
+        let mut substituted_owner = bytes.clone();
+        substituted_owner[position] ^= 1;
+        assert!(
+            PackagePolicyBaseline::recover_canonical(
+                &substituted_owner,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err(),
+            "a substituted toolchain owner must not recover"
+        );
+
+        let target = b"linux_x86_64";
+        let position = bytes
+            .windows(target.len())
+            .rposition(|window| window == target)
+            .unwrap();
+        let mut substituted_target = bytes;
+        substituted_target[position..position + target.len()].copy_from_slice(b"macos_x86_64");
+        assert!(
+            PackagePolicyBaseline::recover_canonical(
+                &substituted_target,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err(),
+            "a different target must not recover under the Linux policy"
         );
     }
 }
 
 #[test]
+fn numeric_library_review_does_not_deploy_unused_calls() {
+    let source = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "unused-numeric-review",
+        false,
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("main.omg"),
+        "public machine calculate(value: f64) -> f64 { value + 1.0 }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("build.omg"),
+        "machine build(builder: &mut Build) { Build::package(builder, \"unused_numeric\"); }\n",
+    )
+    .unwrap();
+    let recovered = reviewed_and_recovered(&source.path().join("main.omg"), "uefi_x86_64");
+    assert!(recovered.boundary_applications().realizations().is_empty());
+    assert!(recovered.semantic_dependencies().iter().any(|dependency| {
+        dependency.dependency().path() == "Float::add"
+            && matches!(
+                dependency.dependency().owner(),
+                review_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+            )
+    }));
+}
+
+#[test]
+fn numeric_review_retains_calls_inside_a_selected_provider() {
+    let recovered = reviewed_and_recovered(
+        &kept_fixture("run/float/reviewed_provider/main.omg"),
+        "linux_x86_64",
+    );
+    assert!(
+        recovered
+            .boundary_applications()
+            .realizations()
+            .iter()
+            .any(|application| {
+                application.operator_coordinate().identity().path() == "Float::add"
+            }),
+        "an arithmetic call reached only through a provider is still deployed"
+    );
+}
+
+#[test]
+fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
+    use review_evidence::record::PackageReviewForeignLocator;
+
+    // The Build supplies the exact requirement without declaring a machine
+    // body. Its checked calling application and inherited ceiling both survive.
+    let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
+    for (target, version, calling_policy) in [
+        (
+            "linux_x86_64",
+            b"GLIBC_2.2.5".as_slice(),
+            calling_conventions::CallingPolicy::SystemVAMD64,
+        ),
+        (
+            "linux_arm64",
+            b"GLIBC_2.17".as_slice(),
+            calling_conventions::CallingPolicy::Aapcs64,
+        ),
+    ] {
+        let recovered = reviewed_and_recovered(&fixture, target);
+        assert!(recovered.selected_providers().plans().is_empty());
+        let [binding] = recovered.native_bindings() else {
+            panic!("one exact native Build binding for {target}");
+        };
+        let method = binding.method();
+        assert_eq!(method.requirement().path(), "Probe::read");
+        assert_eq!(method.requirement_owner().path(), "Probe");
+        assert!(method.may_block());
+        assert!(
+            matches!(binding.locator(), Some(PackageReviewForeignLocator::ElfVersioned {
+            object, symbol, version: actual,
+        }) if object == b"libc.so.6" && symbol == b"read" && actual == version)
+        );
+        let [application] = method.calling() else {
+            panic!("one validated calling application for {target}");
+        };
+        assert_eq!(application.requirement(), method.requirement());
+        assert_eq!(application.native_parameters().len(), 3);
+        assert_eq!(application.physical().parameters().len(), 3);
+        assert_eq!(application.physical().policy(), calling_policy);
+        assert_recovery_rejects_swapped_native_abi(&recovered, method);
+        let requirement = recovered
+            .callables()
+            .callables()
+            .iter()
+            .find(|callable| callable.identity() == method.requirement())
+            .expect("the original public bodyless requirement");
+        assert_eq!(requirement.declared_may_block(), Some(true));
+        assert!(!requirement.checked_may_block());
+        assert!(requirement.checked_service_reach().realized().is_none());
+        let declared = requirement.declared_service_reach().unwrap();
+        assert_eq!(declared, std::slice::from_ref(method.requirement_owner()));
+    }
+}
+
+fn assert_recovery_rejects_swapped_native_abi(
+    policy: &review_evidence::record::PackagePolicyBaseline,
+    method: &review_evidence::record::PackagePolicyServiceMethod,
+) {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
+    use semantic_vocabulary::CallingAbiIdentity;
+
+    fn encode_closed_abi(abi: &CallingAbiIdentity) -> Vec<u8> {
+        assert!(abi.operands.is_empty());
+        let mut bytes = abi.id().get().to_le_bytes().to_vec();
+        for field in [&abi.requirement_identity, &abi.declaring_application] {
+            bytes.extend_from_slice(&(field.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(field.as_bytes());
+        }
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes
+    }
+
+    let [application] = method.calling() else {
+        panic!("one validated calling application");
+    };
+    let abi = application.abi();
+    let original = policy.canonical_bytes().unwrap();
+    let key = encode_closed_abi(abi);
+    let matches = original
+        .windows(key.len())
+        .enumerate()
+        .filter(|(_, bytes)| *bytes == key)
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let [offset] = matches.as_slice() else {
+        panic!("one encoded ABI for Probe::read");
+    };
+    let mut wrong_parameter = abi.clone();
+    wrong_parameter.requirement_identity = abi.requirement_identity.replacen("i32", "u32", 1);
+    let mut wrong_result_dispatch = abi.clone();
+    wrong_result_dispatch.requirement_identity = abi.requirement_identity.replacen(
+        "result-dispatch()",
+        "result-dispatch(arithmetic:saturating)",
+        1,
+    );
+    let mut wrong_application = abi.clone();
+    wrong_application.declaring_application =
+        abi.declaring_application
+            .replacen("arguments()", "arguments(named(name(u64)))", 1);
+    let mut legacy = abi.clone();
+    legacy.requirement_identity = application.requirement().path().to_owned();
+    legacy.declaring_application = application.boundary_trait().path().to_owned();
+    for forged in [
+        wrong_parameter,
+        wrong_result_dispatch,
+        wrong_application,
+        legacy,
+    ] {
+        assert_ne!(forged.id(), abi.id());
+        // Recompute the coordinate too, so a matching checksum cannot conceal
+        // disagreement with the recovered method telescope.
+        let mut bytes = original.clone();
+        bytes.splice(*offset..*offset + key.len(), encode_closed_abi(&forged));
+        let error = PackagePolicyBaseline::recover_canonical(
+            &bytes,
+            PackagePolicyRecoveryLimits::default(),
+        )
+        .expect_err("a canonical ABI key must describe the recovered method");
+        assert_eq!(
+            error.to_string(),
+            "package policy contains an invalid field value"
+        );
+    }
+}
+
+#[test]
+fn review_recovery_retains_native_build_intents_without_runtime_demand() {
+    let fixture = kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg");
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-unused-native-binding",
+        false,
+    )
+    .unwrap();
+    let main = std::fs::read_to_string(&fixture).unwrap();
+    let original_service = "public boundary trait Probe";
+    assert_eq!(main.matches(original_service).count(), 1);
+    let main = main.replace(original_service, "boundary trait Probe") + "\nmachine idle() {}\n";
+    let build = std::fs::read_to_string(fixture.with_file_name("build.omg")).unwrap();
+    let original_entry = "ProgramEntry, entry_start";
+    assert_eq!(build.matches(original_entry).count(), 2);
+    let root = workspace.path().join("main.omg");
+    std::fs::write(&root, main).unwrap();
+    std::fs::write(
+        root.with_file_name("build.omg"),
+        build.replace(original_entry, "ProgramEntry, idle"),
+    )
+    .unwrap();
+
+    // The two original Build choices execute even though this entry never
+    // calls Probe. Review retains the binding for the requested profile.
+    let policy = reviewed_and_recovered(&root, "linux_x86_64");
+    let [binding] = policy.native_bindings() else {
+        panic!("one evaluated binding for the reviewed target");
+    };
+    assert_eq!(binding.method().requirement().path(), "Probe::read");
+    assert!(binding.method().may_block());
+    assert!(
+        policy
+            .public_traits()
+            .iter()
+            .all(|shape| shape.identity().path() != "Probe")
+    );
+    let [application] = binding.method().calling() else {
+        panic!("the unused binding retains one exact calling application");
+    };
+    assert_eq!(
+        application.physical().policy(),
+        calling_conventions::CallingPolicy::SystemVAMD64
+    );
+}
+
+#[test]
 fn completed_scalar_call_preserves_wrapping_index_guard() {
-    let target = "linux_x86_64";
-    let mut failures = Vec::new();
-    for (fixture, accepted) in [
+    check_wrapping_index_guards(&[
         (
             "pass/facts/compound_index_guard_through_call_result_exit",
             true,
@@ -786,6 +1209,13 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_call_result_rejected",
             false,
         ),
+        ("fail/facts/compound_index_guard_wrong_call_actual", false),
+    ]);
+}
+
+#[test]
+fn match_join_preserves_wrapping_index_guard() {
+    check_wrapping_index_guards(&[
         (
             "pass/facts/compound_index_guard_through_match_join_exit",
             true,
@@ -794,18 +1224,36 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_match_join_rejected",
             false,
         ),
-        ("fail/facts/compound_index_guard_wrong_call_actual", false),
-    ] {
+    ]);
+}
+
+fn check_wrapping_index_guards(fixtures: &[(&str, bool)]) {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for &(fixture, accepted) in fixtures {
         let source = kept_fixture(fixture).join("main.omg");
-        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-            &source,
-            Some(target),
+        let result = orchestration::check_source(
+            &mut CompilationSession::default(),
+            CheckedCompileRequest::new(&source, Some(target)),
         )
-        .and_then(|mut prepared| {
-            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
-        });
+        .result
+        .map_err(|failure| failure.into_diagnostics());
         match result {
-            Ok(_) if accepted => eprintln!("SOURCE_CHECK {fixture}: accepted"),
+            Ok(checked) if accepted => {
+                let publication = checked
+                    .terminal_publication()
+                    .published()
+                    .expect("the checked fixture retains its Psi publication");
+                let bytes = publication.artifact().to_bytes();
+                let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+                    .expect("reopen the checked fixture's saved Psi");
+                assert_eq!(
+                    reopened.manifest().semantic(),
+                    publication.artifact().manifest().semantic(),
+                    "{fixture}"
+                );
+                eprintln!("SOURCE_CHECK {fixture}: accepted and reopened");
+            }
             Err(diagnostics)
                 if !accepted
                     && diagnostics.iter().any(|diagnostic| {
@@ -815,7 +1263,7 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             {
                 eprintln!("SOURCE_CHECK {fixture}: intended bound refusal {diagnostics:?}")
             }
-            Ok(_) => failures.push(format!("{fixture}: invalid upperless source accepted")),
+            Ok(_) => failures.push(format!("{fixture}: invalid index source accepted")),
             Err(diagnostics) => failures.push(format!("{fixture}: {diagnostics:?}")),
         }
     }

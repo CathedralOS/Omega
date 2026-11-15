@@ -146,8 +146,8 @@ impl PreparedBuildMachineEntry {
         meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
         let produced = self.produce_invocation()?;
-        let admitted = self.admit_invocation(&produced, target)?;
-        self.execute_invocation(&produced, &admitted, target, meter)
+        let (admitted, requirements) = self.admit_invocation(&produced, target)?;
+        self.execute_invocation(&produced, &admitted, requirements, target, meter)
     }
 
     /// Record the value and actual work/storage charges without treating local
@@ -161,23 +161,18 @@ impl PreparedBuildMachineEntry {
         self.invoke_produced_recorded(produced, target, accounting)
     }
 
-    /// Run a constant's computation once for each deployment whose layout it
-    /// needs. A computation with no authored storage layout is target
-    /// independent and runs once without a target. One that stores through
-    /// a layout application has bytes only under a selected plan, so it runs
-    /// under every listed target's admitted layouts and returns each result
-    /// with its own receipt; with no target to run under, it refuses.
+    /// Run a constant under each deployment that supplies its required
+    /// layout observations or authored storage layouts. Retain one receipt
+    /// per actual deployment. A computation with neither runs once portably.
     pub fn invoke_recorded_in_targets(
         &self,
         targets: &[(&str, Option<&terminal_installation::LayoutTargetFacts>)],
         accounting: &mut crate::SourceCompletionAccounting,
     ) -> Result<Vec<crate::BuildTimeValue>, String> {
         let produced = Arc::new(self.produce_invocation()?);
-        if produced
-            .view()
-            .module()
-            .target_layout_applications
-            .is_empty()
+        let module = produced.view().module();
+        if module.target_layout_applications.is_empty()
+            && module.scalar_applications.declarations().is_empty()
         {
             let target = crate::InvocationTarget {
                 name: None,
@@ -221,12 +216,12 @@ impl PreparedBuildMachineEntry {
         target: crate::InvocationTarget<'_>,
         accounting: &mut crate::SourceCompletionAccounting,
     ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
-        let admitted = self.admit_invocation(&produced, target)?;
+        let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation_accounting::pure_terminal_invocation_account()?;
         let mut meter = terminal_work::WorkMeter::with_invocation(account.clone(), None)
             .map_err(|error| format!("source invocation meter: {error:?}"))?;
         let result = self
-            .execute_invocation(&produced, &admitted, target, &mut meter)
+            .execute_invocation(&produced, &admitted, requirements, target, &mut meter)
             .and_then(|value| {
                 let usage = account
                     .snapshot()
@@ -266,7 +261,13 @@ impl PreparedBuildMachineEntry {
         &self,
         produced: &terminal_production::ProducedTerminalProgram,
         target: crate::InvocationTarget<'_>,
-    ) -> Result<terminal_installation::AdmittedCompilerEvaluation, String> {
+    ) -> Result<
+        (
+            terminal_installation::AdmittedCompilerEvaluation,
+            terminal_interpreter::TerminalExecutionRequirements,
+        ),
+        String,
+    > {
         if target.name.is_none()
             && (target.layout_target.is_some()
                 || target.carrier_layout.is_some()
@@ -296,8 +297,9 @@ impl PreparedBuildMachineEntry {
         if !requirements.imports.is_empty()
             || !requirements.missing_providers.is_empty()
             || !requirements.external_completions.is_empty()
-            || !requirements.scalar_applications.is_empty()
-            || !requirements.scalar_entry_conditions.is_empty()
+            || (target.layout_target.is_none()
+                && (!requirements.scalar_applications.is_empty()
+                    || !requirements.scalar_entry_conditions.is_empty()))
         {
             return Err("source invocation requires selected target, scalar or external authority that is not supplied".into());
         }
@@ -320,9 +322,6 @@ impl PreparedBuildMachineEntry {
         if headers.next().is_some() || !header.supplies_checked_body {
             return Err("source invocation has no unique accepted caller body".into());
         }
-        let providers =
-            terminal_installation::admit_provider_execution_installation(view, &[], &[])
-                .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
         let requester = match (
             self.source.symbols.symbol_package_identity(self.requester),
             self.source.symbols.symbol_source_origin(self.requester),
@@ -346,7 +345,7 @@ impl PreparedBuildMachineEntry {
             view,
             target.name,
             root,
-            providers,
+            unselected,
             requester,
             self.authority.as_deref(),
             source_selection.as_ref().map(|selection| {
@@ -354,7 +353,7 @@ impl PreparedBuildMachineEntry {
             }),
         )?;
         admitted.require_invocation(view, target.name, selected)?;
-        Ok(admitted)
+        Ok((admitted, requirements))
     }
 
     /// A storage application with an authored layout has bytes only under one
@@ -377,6 +376,15 @@ impl PreparedBuildMachineEntry {
         let selected = terminal_installation::terminal_target_context(view, name);
         let layouts = terminal_installation::admit_target_layouts(view, &selected, facts)
             .map_err(|error| format!("source invocation target layouts: {error:?}"))?;
+        Self::runtime_supplies(view, providers, Some(&selected), Some(&layouts)).map(Some)
+    }
+
+    fn runtime_supplies(
+        view: terminal_codec::TerminalExecutionView<'_>,
+        providers: &terminal_installation::AdmittedProviderSelections,
+        selected: Option<&terminal_installation::TerminalTargetContext>,
+        layouts: Option<&terminal_installation::AdmittedTargetLayouts>,
+    ) -> Result<terminal_interpreter::TerminalRuntimeSupplies, String> {
         terminal_interpreter::TerminalProgram::borrow(view)
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 native_code_layouts: None,
@@ -385,10 +393,9 @@ impl PreparedBuildMachineEntry {
                 entry: None,
                 installation: Some(providers),
                 host_imports: &[],
-                target_machines: Some(&selected),
-                target_layouts: Some(&layouts),
+                target_machines: selected,
+                target_layouts: layouts,
             })
-            .map(Some)
             .map_err(|error| format!("source invocation target supplies: {error:?}"))
     }
 
@@ -396,6 +403,7 @@ impl PreparedBuildMachineEntry {
         &self,
         produced: &terminal_production::ProducedTerminalProgram,
         admitted: &terminal_installation::AdmittedCompilerEvaluation,
+        requirements: terminal_interpreter::TerminalExecutionRequirements,
         target: crate::InvocationTarget<'_>,
         meter: &mut terminal_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
@@ -409,11 +417,43 @@ impl PreparedBuildMachineEntry {
             .entry
             .ok_or("source invocation lost its emitted root")?;
         admitted.require_invocation(produced.view(), admitted.target(), selected)?;
-        let installation = Self::layout_supplies(produced, admitted.providers(), target)?
-            .unwrap_or_else(|| {
-                terminal_interpreter::TerminalRuntimeSupplies::from(admitted.providers())
-            });
-        let program = TerminalProgram::borrow(produced.view());
+        let view = produced.view();
+        let providers = admitted.providers();
+        let mut requested = requirements.scalar_applications;
+        requested.extend(requirements.scalar_entry_conditions);
+        requested.sort_unstable();
+        requested.dedup();
+        let scalars = if requested.is_empty() {
+            None
+        } else {
+            let name = target
+                .name
+                .ok_or("source scalar application has no deployment")?;
+            let targets = terminal_installation::terminal_target_context(view, name);
+            let declaration = view
+                .module()
+                .scalar_applications
+                .proof_scope
+                .callable_declaration(selected)
+                .ok_or("source scalar application has no exact invocation root")?;
+            Some(crate::complete_invocation_scalar_applications(
+                view,
+                target,
+                &targets,
+                providers,
+                declaration,
+                &requested,
+                meter,
+            )?)
+        };
+        let installation = if let Some(scalars) = &scalars {
+            let scope = scalars.primary();
+            Self::runtime_supplies(view, scope.providers(), scope.targets(), scope.layouts())?
+        } else {
+            Self::layout_supplies(produced, providers, target)?
+                .unwrap_or_else(|| terminal_interpreter::TerminalRuntimeSupplies::from(providers))
+        };
+        let program = TerminalProgram::borrow(view);
         let entry = program
             .entry()
             .map_err(|error| format!("source invocation entry: {error:?}"))?;
@@ -486,6 +526,7 @@ impl PreparedBuildMachineEntry {
             .instantiate(TerminalInstantiation {
                 account: account.as_ref(),
                 installation: Some(&installation),
+                scalar_admission: scalars.as_ref(),
                 structural_inputs: terminal_interpreter::TerminalStructuralInputs {
                     arguments: &inputs,
                     contents: &contents,

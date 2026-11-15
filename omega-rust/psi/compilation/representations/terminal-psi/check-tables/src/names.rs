@@ -29,6 +29,10 @@ pub struct MachineNames {
     /// The declaration's name as authored; for a machine stage 04 generated
     /// to close a static application, its template's.
     pub machine: String,
+    /// Where that declaration is written, so a refusal of a construct with
+    /// no position of its own still names the file, line and column of the
+    /// machine it is in (a machine of a dependency such as `std` included).
+    pub declared: Option<SourceSpan>,
     /// The name of the machine's one state.
     pub state: String,
     /// The formals' names in position order.

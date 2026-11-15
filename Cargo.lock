@@ -1355,6 +1355,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "language-core",
+ "numerics",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-codec",
@@ -1803,6 +1804,7 @@ name = "review-evidence"
 version = "0.1.0"
 dependencies = [
  "backend-plan",
+ "build-settings",
  "build-time-evaluation",
  "calling-conventions",
  "diagnostics",
@@ -2441,6 +2443,7 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-terminal-psi",
  "terminal-semantics",
@@ -2517,9 +2520,13 @@ name = "terminal-psi-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "execution-admission",
  "language-core",
+ "mimalloc",
+ "numerics",
  "optimization",
  "proof-admission",
+ "rayon",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",

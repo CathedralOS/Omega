@@ -6,12 +6,15 @@
 
 use super::*;
 
-/// Three helpers whose bodies each hold a float literal, which the reader
-/// refuses, and an entry that calls all three.
+const UNSUPPORTED_NARROWING: &str =
+    "expression cast whose exact carrier conversion is not supported";
+
+/// Each helper narrows a float with an `as` cast, which the reader refuses.
+/// The entry calls all three so the grouped reader encounters every body.
 const THREE_HELPERS: &str = r#"
-machine first() -> u32 { let x: f64 = 1.5; 1 }
-machine second() -> u32 { let y: f64 = 2.5; 2 }
-machine third() -> u32 { let z: f64 = 3.5; 3 }
+machine first() -> u32 { let value: f64 = 1.5; let narrowed: f32 = value as f32; 1 }
+machine second() -> u32 { let value: f64 = 2.5; let narrowed: f32 = value as f32; 2 }
+machine third() -> u32 { let value: f64 = 3.5; let narrowed: f32 = value as f32; 3 }
 machine entry() -> u32 {
     let a: u32 = first();
     let b: u32 = second();
@@ -59,7 +62,7 @@ fn every_refused_body_is_its_own_verdict() {
     assert_eq!(refused.len(), 3, "{refused:#?}");
     for (detail, helper) in refused.iter().zip(["first", "second", "third"]) {
         assert!(
-            detail.contains("float literal")
+            detail.contains(UNSUPPORTED_NARROWING)
                 && detail.ends_with(&format!("while reading the body of `{helper}`")),
             "{detail}"
         );
@@ -72,13 +75,22 @@ fn every_refused_body_is_its_own_verdict() {
 #[test]
 fn going_on_after_a_refusal_reports_what_each_machine_meets_alone() {
     let together = not_supported(&verdicts(THREE_HELPERS));
-    let alone = not_supported(&verdicts(
-        &THREE_HELPERS
-            .replace("let x: f64 = 1.5; ", "")
-            .replace("let z: f64 = 3.5; ", ""),
-    ));
-    assert_eq!(alone.len(), 1, "{alone:#?}");
-    assert_eq!(together[1], alone[0]);
+    assert_eq!(together.len(), 3, "{together:#?}");
+    for (number, expected) in together.iter().enumerate() {
+        let mut alone = THREE_HELPERS.to_owned();
+        for (index, value) in ["1.5", "2.5", "3.5"].into_iter().enumerate() {
+            if index != number {
+                alone = alone.replace(
+                    &format!("let value: f64 = {value}; let narrowed: f32 = value as f32; "),
+                    "",
+                );
+            }
+        }
+        assert_eq!(
+            not_supported(&verdicts(&alone)),
+            std::slice::from_ref(expected)
+        );
+    }
 }
 
 /// A machine whose signature is refused is read once. Each later caller is
@@ -135,9 +147,10 @@ fn a_direct_reading_still_refuses_at_the_first() {
     )
     .unwrap_err();
     assert!(
-        refused
-            .detail
-            .ends_with("while reading the body of `first`"),
+        refused.detail.contains(UNSUPPORTED_NARROWING)
+            && refused
+                .detail
+                .ends_with("while reading the body of `first`"),
         "{refused:?}"
     );
 }

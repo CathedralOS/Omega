@@ -29,7 +29,8 @@
 //! visitation, and binder contracts that would need a refinement proof, stay
 //! refused.
 
-use super::{Served, Stop, named_type};
+use super::callable_binder::{Bound, satisfies_binder};
+use super::{Served, Stop, named_type, unserved};
 use language_core::ReferenceAccess;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use symbols::{SymbolHandle, SymbolKind};
@@ -41,7 +42,7 @@ use typed_trees::expression::{
 };
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
-use typed_trees::signature::{SignatureContractKind, StateSignature};
+use typed_trees::signature::StateSignature;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementHandle, StatementNode, TableCall, TableLocalData};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -96,10 +97,6 @@ fn declaration(program: &TypedTrees, target: SymbolHandle) -> Option<&Machine> {
     program
         .machine_by_symbol(target)
         .or_else(|| program.machine_holding_state(target))
-}
-
-fn unserved(reason: &'static str) -> Stop {
-    Stop::Unserved(Some(reason))
 }
 
 /// The statements that replace one `inspect_record_fields` call.
@@ -164,10 +161,20 @@ fn close(
     };
     let context = context_type(program, state, *operand, written_context)?;
     let visitor = callback(program, visitor)?;
+    if program
+        .authored_service_reach_rows_for(binder.symbol)
+        .next()
+        .is_some()
+    {
+        return Err(unserved(
+            "a callback binder needs a refinement proof for its full interface",
+        ));
+    }
     satisfies_binder(
         program,
         &binder,
-        &visitor,
+        &visitor.machine,
+        "reflect::inspect_record_fields",
         &[
             (subject_binder.symbol, Bound::Type(record.type_reference)),
             (context_binder.symbol, Bound::Type(context)),
@@ -465,256 +472,6 @@ fn callback(program: &TypedTrees, argument: &StaticMachineArgument) -> Served<Ca
         entry,
         name,
     })
-}
-
-/// What a binder-side declaration stands for while the callback is compared
-/// with the binder.
-#[derive(Clone, Copy)]
-enum Bound {
-    /// The query's own type parameter, bound at this call.
-    Type(TypeReferenceHandle),
-    /// The binder's type parameter, matched by the callback's own one.
-    Parameter(SymbolHandle),
-}
-
-/// The callback must refine the published binder (generics.md). This checks
-/// the parts that need no proof: the same static parameter, the same
-/// parameter and result types once the call's arguments are substituted, no
-/// precondition the binder lacks, and no effect the binder rules out. A
-/// binder contract that only a refinement proof could discharge is unserved.
-fn satisfies_binder(
-    program: &TypedTrees,
-    binder: &StateSignature,
-    visitor: &Callback,
-    bound: &[(SymbolHandle, Bound)],
-) -> Served<()> {
-    let callback = program.symbols.name(visitor.machine.symbol).to_owned();
-    let refuse = |reason: &str| {
-        Stop::Rejected(format!(
-            "`{callback}` does not satisfy the callback binder of reflect::inspect_record_fields: {reason}"
-        ))
-    };
-    let machine = &visitor.machine;
-    let [binder_kind] = program.state_signature_type_parameters(binder) else {
-        return Err(unserved(
-            "the callback binder has an unexpected static roster",
-        ));
-    };
-    let own = program.machine_callable_parameters(machine);
-    let [callback_kind] = own.as_slice() else {
-        return Err(refuse(
-            "it must take exactly one type parameter, the field type `Kind`",
-        ));
-    };
-    if callback_kind.kind != TypeParameterKind::Type
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.conformance_bounds.is_empty()
-    {
-        return Err(refuse(
-            "it must take exactly one type parameter, the field type `Kind`",
-        ));
-    }
-    let mut map = bound.to_vec();
-    map.push((binder_kind.symbol, Bound::Parameter(callback_kind.symbol)));
-    let entry = program
-        .machine_states(machine)
-        .first()
-        .ok_or(unserved("a field inspection callback has no entry"))?;
-    let required = program.state_signature_parameters(binder);
-    let supplied = program.state_parameters(entry);
-    if required.len() != supplied.len() {
-        return Err(refuse(&format!(
-            "the binder takes {} parameters and the callback takes {}",
-            required.len(),
-            supplied.len()
-        )));
-    }
-    for (position, (required, supplied)) in required.iter().zip(supplied).enumerate() {
-        if !same_type(
-            program,
-            required.type_reference,
-            supplied.type_reference,
-            &map,
-        )? {
-            return Err(refuse(&format!(
-                "parameter {} `{}` does not have the type of the binder's `{}`",
-                position + 1,
-                supplied.name.as_str(),
-                required.name.as_str(),
-            )));
-        }
-    }
-    if !same_type(program, binder.return_type, entry.return_type, &map)? {
-        return Err(refuse("its result type is not the binder's"));
-    }
-    let binder_contracts = program.state_signature_contracts(binder);
-    if binder_contracts
-        .iter()
-        .any(|contract| !matches!(contract.kind, SignatureContractKind::Crashes { .. }))
-    {
-        return Err(unserved(
-            "a callback binder with its own contract needs a refinement proof",
-        ));
-    }
-    let contracts = program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(entry))
-        .collect::<Vec<_>>();
-    if contracts.iter().any(|contract| {
-        contract.kind == SignatureContractKind::Requires && !admits_types_only(program, contract)
-    }) {
-        return Err(refuse(
-            "it declares a precondition on its inputs that the binder does not publish, so a caller of the binder could not establish it",
-        ));
-    }
-    if binder.declares_no_crash_route && contracts.iter().any(|contract| contract.is_crashes()) {
-        return Err(refuse(
-            "it may crash, and the binder declares `crashes none`",
-        ));
-    }
-    if (machine.suspends && !binder.suspends) || (machine.blocks && !binder.blocks) {
-        return Err(refuse("it may suspend or block, and the binder does not"));
-    }
-    if binder.termination_guarantee != language_semantics::TerminationGuarantee::NoGuarantee {
-        return Err(unserved(
-            "a callback binder with a termination promise needs a refinement proof",
-        ));
-    }
-    Ok(())
-}
-
-/// Whether a `requires` clause only restricts which types the callback
-/// admits, such as `Kind == u32 || Kind == i32`. It names no runtime value,
-/// so a caller of the binder has nothing to establish: it is a fact about
-/// each field's application, and the specialization of every generated call
-/// rejects an application outside what the callback admits (reflection.md:
-/// "An unsupported included field rejects with its path and failed
-/// obligation").
-fn admits_types_only(
-    program: &TypedTrees,
-    contract: &typed_trees::signature::SignatureContract,
-) -> bool {
-    use typed_trees::domain::ProofFact;
-    let facts = program.proof_facts.span_or_empty(contract.facts);
-    !facts.is_empty()
-        && facts.iter().all(|fact| {
-            let ProofFact::Expression(root) = fact else {
-                return false;
-            };
-            let mut types_only = root.is_valid();
-            program.subtree_for_each(*root, typed_trees::SubtreeEdges::default(), |_, node| {
-                types_only &= matches!(
-                    node,
-                    ExpressionNode::TypeExpression(_)
-                        | ExpressionNode::Boolean(_)
-                        | ExpressionNode::Binary(_)
-                        | ExpressionNode::Unary(_)
-                );
-            });
-            types_only
-        })
-}
-
-/// Whether the binder's `required` type is the callback's `supplied` type,
-/// reading each binder-side parameter through `map`. Types that mention no
-/// mapped parameter compare by their normalized identity.
-fn same_type(
-    program: &TypedTrees,
-    required: TypeReferenceHandle,
-    supplied: TypeReferenceHandle,
-    map: &[(SymbolHandle, Bound)],
-) -> Served<bool> {
-    let table = &program.type_reference_table;
-    match (
-        table.type_reference(required),
-        table.type_reference(supplied),
-    ) {
-        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => Ok(true),
-        (
-            TypeReferenceNode::Reference {
-                referee: required,
-                access: required_access,
-                lifetime: required_lifetime,
-            },
-            TypeReferenceNode::Reference {
-                referee: supplied,
-                access: supplied_access,
-                lifetime: supplied_lifetime,
-            },
-        ) => {
-            if required_lifetime.is_some() || supplied_lifetime.is_some() {
-                return Err(unserved(
-                    "a callback parameter with a named lifetime is not compared yet",
-                ));
-            }
-            Ok(
-                required_access == supplied_access
-                    && same_type(program, *required, *supplied, map)?,
-            )
-        }
-        (TypeReferenceNode::Named { symbol, .. }, _)
-            if let Some((_, bound)) = map.iter().find(|(binder, _)| binder == symbol) =>
-        {
-            Ok(match *bound {
-                Bound::Parameter(parameter) => matches!(
-                    table.type_reference(supplied),
-                    TypeReferenceNode::Named { symbol, .. } if *symbol == parameter
-                ),
-                Bound::Type(actual) => {
-                    program.normalized_type_identity(actual)
-                        == program.normalized_type_identity(supplied)
-                }
-            })
-        }
-        (
-            TypeReferenceNode::Named { symbol: left, .. },
-            TypeReferenceNode::Named { symbol: right, .. },
-        ) => Ok(left == right),
-        _ => {
-            if mentions(program, required, map) || mentions(program, supplied, map) {
-                return Err(unserved(
-                    "a callback parameter of this shape is not compared yet",
-                ));
-            }
-            Ok(program.normalized_type_identity(required)
-                == program.normalized_type_identity(supplied))
-        }
-    }
-}
-
-/// Whether `reference` names a mapped binder-side parameter or the
-/// callback's own type parameter anywhere inside it.
-fn mentions(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    map: &[(SymbolHandle, Bound)],
-) -> bool {
-    let table = &program.type_reference_table;
-    let named = |symbol: SymbolHandle| {
-        map.iter().any(|(binder, bound)| {
-            *binder == symbol || matches!(bound, Bound::Parameter(own) if *own == symbol)
-        })
-    };
-    match table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => named(*symbol),
-        TypeReferenceNode::Reference { referee, .. } => mentions(program, *referee, map),
-        TypeReferenceNode::Constrained { base_type, .. } => mentions(program, *base_type, map),
-        TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => mentions(program, *element_type, map),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            named(*base_symbol)
-                || table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .any(|argument| mentions(program, *argument, map))
-        }
-        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
-    }
 }
 
 /// The `FieldInfo` the binder's second parameter borrows: the exact

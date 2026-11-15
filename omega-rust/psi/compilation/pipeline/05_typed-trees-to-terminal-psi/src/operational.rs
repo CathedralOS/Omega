@@ -100,7 +100,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         }
         ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Slot(_)
@@ -128,7 +128,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, element)?;
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())

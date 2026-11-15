@@ -1,7 +1,7 @@
 # Standalone benchmark subject
 
-The smallest deployable Omega program: `data Main {}` with an empty
-`Main::main`, bound to every hosted `ProgramEntry` slot, and **no package
+The smallest deployable Omega program: an empty static `machine main()`,
+bound to every hosted `ProgramEntry` slot, and **no package
 dependencies** — not even the standard library.
 
 It exists as a benchmark subject. Every other measured

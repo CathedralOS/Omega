@@ -779,6 +779,7 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         SupplyPlanning {
             module: accepted.module(),
             schemas: &[],
+            installation_requirements: &[],
         },
     )
     .unwrap();
@@ -894,6 +895,7 @@ fn plans(
         .plans(SupplyPlanning {
             module: accepted.module(),
             schemas: &schemas,
+            installation_requirements: &[],
         })
         .map_err(first)
 }
@@ -911,6 +913,7 @@ fn execution(
         SupplyPlanning {
             module: accepted.module(),
             schemas: &schemas,
+            installation_requirements: &[],
         },
     )
     .map_err(first)
@@ -1377,6 +1380,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
         .plans(SupplyPlanning {
             module: &missing,
             schemas: &schemas,
+            installation_requirements: &[],
         })
         .map_err(first)
         .unwrap_err();

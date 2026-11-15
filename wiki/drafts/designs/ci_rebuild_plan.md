@@ -2,7 +2,7 @@
 
 On 2026-11-12 nothing merged for more than four hours, so the old workflows
 and branch rules were removed. This is the plan for what replaces them. The
-goal: a pull request merges in about a minute, main is verified continuously
+goal: a pull request merges in about two minutes, main is verified continuously
 after merge, and a break on main is found, attributed and reverted without a
 person or a session spending time on it.
 
@@ -18,16 +18,25 @@ person or a session spending time on it.
 
 ## Design
 
-### 1. Before merge: `admission`, about one minute, the only required check
+### 1. Before merge: `admission`, about two minutes, the only required check
 
 No compiler build. A prebuilt `xtask` binary (restored from cache, rebuilt
 only when `tools/xtask` changes) runs:
 
 - `check-rules`: title, body, provenance line, file-count and path rules;
-- `fmt --check` when Rust files changed.
+- `fmt --check` when Rust files changed;
+- `mbx check --locked --workspace --all-targets` on the merge commit when
+  Rust or Cargo files changed. Git merges edits to different files without a
+  conflict, so two pull requests that each compile can merge into a tree that
+  does not; #3326 did, and main stayed broken until #3457. The check skips
+  final code generation; build scripts and proc macros still run. The original
+  measurements took 90 seconds cold on four cloud CPUs and 1m57s on GitHub's
+  hosted runner. A restored target saved 12 seconds in the cloud comparison,
+  so the check runs without a compiler target cache.
 
-Squash merge only. No merge queue: with a one-minute check there is nothing
-to queue for.
+Squash merge only. No merge queue: with a two-minute check there is nothing
+to queue for. A pull request whose base moves after `admission` passes can
+still merge a broken tree; the post-merge check catches that.
 
 ### 2. After merge: `post-merge-check`, continuous, one run at a time
 

@@ -14,7 +14,172 @@ use super::Program;
 use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{Unserved, refuse};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScalarApplicationSource {
+    Layout(terminal_psi::ScalarApplication),
+    Evaluation {
+        entry: symbols::SymbolHandle,
+        scalar_type: ScalarType,
+    },
+}
+
+#[derive(Default)]
+pub(crate) struct ScalarApplications {
+    sources: Vec<ScalarApplicationSource>,
+    declarations: terminal_psi::ScalarApplications,
+}
+
+impl ScalarApplications {
+    fn register(
+        &mut self,
+        source: ScalarApplicationSource,
+    ) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
+        let position = self
+            .sources
+            .iter()
+            .position(|existing| *existing == source)
+            .unwrap_or(self.sources.len());
+        let application = u64::try_from(position)
+            .ok()
+            .and_then(|position| position.checked_add(1))
+            .and_then(semantic_vocabulary::ScalarApplicationId::new)
+            .ok_or("scalar application namespace is exhausted")?;
+        if position == self.sources.len() {
+            self.sources.push(source);
+        }
+        Ok(application)
+    }
+
+    pub(super) fn layout(
+        &mut self,
+        subject: semantic_vocabulary::StructuralTypeId,
+        measurement: terminal_psi::LayoutMeasurement,
+        scalar_type: ScalarType,
+    ) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
+        self.register(ScalarApplicationSource::Layout(
+            terminal_psi::ScalarApplication::LayoutObservation {
+                subject,
+                measurement,
+                semantics_version: terminal_psi::LayoutMeasurement::SEMANTICS_VERSION,
+                scalar_type,
+            },
+        ))
+    }
+
+    pub(crate) fn published(&self) -> Result<terminal_psi::ScalarApplications, &'static str> {
+        if self.sources.len() != self.declarations.declarations().len() {
+            return Err("scalar applications still await their exact evaluation entries");
+        }
+        Ok(self.declarations.clone())
+    }
+}
+
 impl Program<'_> {
+    /// Signatures reserve their machine ID before their types are read.
+    /// Discover these separate evaluator bodies between complete reads so the
+    /// application cannot take the signature's reserved machine coordinate.
+    pub(crate) fn resolve_scalar_applications(&mut self, id: MachineId) -> Checked<()> {
+        let unserved = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        while let Some(source) = self
+            .scalar_applications
+            .sources
+            .get(self.scalar_applications.declarations.declarations().len())
+            .copied()
+        {
+            let declaration = match source {
+                ScalarApplicationSource::Layout(declaration) => declaration,
+                ScalarApplicationSource::Evaluation { entry, scalar_type } => {
+                    terminal_psi::ScalarApplication::Evaluate {
+                        entry: self.machine(entry)?.into(),
+                        scalar_type,
+                    }
+                }
+            };
+            self.scalar_applications
+                .declarations
+                .insert(declaration)
+                .map_err(unserved)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn scalar_evaluation(
+        &mut self,
+        id: MachineId,
+        entry: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        result_type: typed_trees::types::TypeReferenceHandle,
+    ) -> Checked<(semantic_vocabulary::ScalarApplicationId, ScalarType)> {
+        let unserved = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        let (_, state) = self.declaration(id, entry)?;
+        let [typed_trees::statement::StatementNode::Transition(transition)] =
+            self.typed.statement_table.statements(state.statement_nodes)
+        else {
+            return Err(unserved("scalar evaluation has no exact value transition"));
+        };
+        if state.return_type != result_type
+            || !self.typed.state_parameters(state).is_empty()
+            || self
+                .typed
+                .statement_table
+                .transition_target(transition.target)
+                != &typed_trees::statement::TransitionTargetNode::Value(expression)
+        {
+            return Err(unserved(
+                "scalar evaluation differs from its retained computation",
+            ));
+        }
+        let ValueType::Scalar(scalar_type, crate::body::Qualification::NONE) =
+            self.value_type(id, result_type)?
+        else {
+            return Err(unserved(
+                "scalar evaluation has no unqualified scalar carrier",
+            ));
+        };
+        let application = self
+            .scalar_applications
+            .register(ScalarApplicationSource::Evaluation { entry, scalar_type })
+            .map_err(unserved)?;
+        Ok((application, scalar_type))
+    }
+
+    pub(super) fn deferred_scalar_constant(
+        &mut self,
+        id: MachineId,
+        constant: &ConstDeclaration,
+    ) -> Checked<(semantic_vocabulary::ScalarApplicationId, ScalarType)> {
+        let unserved = |reason| refuse(id, Construct::Machine, Unserved::Declaration(reason));
+        if !self
+            .typed
+            .tables
+            .machines
+            .is_valid(constant.evaluation_entry)
+        {
+            return Err(unserved(
+                "target constant has no exact retained initializer",
+            ));
+        }
+        let entry = self
+            .typed
+            .tables
+            .machines
+            .get(constant.evaluation_entry)
+            .symbol;
+        if !self.typed.symbols.symbols().nodes().is_valid(entry)
+            || self.typed.symbols.get(entry).generated_from != constant.symbol
+        {
+            return Err(unserved(
+                "target constant initializer belongs to another declaration",
+            ));
+        }
+        self.scalar_evaluation(
+            id,
+            entry,
+            constant.evaluation_expression,
+            constant.declared_type,
+        )
+    }
+
     pub(super) fn subject_constant(
         &mut self,
         id: MachineId,
@@ -46,6 +211,10 @@ impl Program<'_> {
             return Err(unserved(
                 "qualified constant requires its declared value obligations",
             ));
+        }
+        if constant.pending_target_observation && constant.evaluated_value.is_none() {
+            self.deferred_scalar_constant(id, constant)?;
+            return Ok(());
         }
         let value = typed_trees::canonical_const_declaration_value(self.typed, constant.symbol)
             .and_then(|value| value.decode_encoding())

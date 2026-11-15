@@ -794,10 +794,17 @@ pub(crate) mod domain {
                             .domain_path_members
                             .append_to_span(&mut domain, lower_name(syntax_trees, member));
                     }
-                    let domain_arguments =
+                    let domain_name = symbol_resolved_trees::name::DiagnosticName::from_str(
+                        &syntax_items(syntax_trees)
+                            .identifier_path_members(membership.domain)
+                            .joined_path_in(syntax_trees),
+                        source_span.unwrap_or_default(),
+                    );
+                    let (domain_arguments, receiving_application) =
                         crate::lowering::type_reference::lower_indexed_application_arguments(
                             lowerer,
                             syntax_trees,
+                            domain_name,
                             membership.domain_arguments,
                         )?;
                     ProofFact::Membership(ProofMembershipFact {
@@ -805,6 +812,7 @@ pub(crate) mod domain {
                         domain,
                         domain_symbol: SymbolHandle::invalid(),
                         domain_arguments,
+                        receiving_application,
                         authored_domain_selection: None,
                     })
                 }
@@ -4643,7 +4651,12 @@ pub(crate) mod type_reference {
         else {
             return lower_type_reference_node(lowerer, syntax, reference);
         };
-        let arguments = lower_indexed_application_arguments(lowerer, syntax, *arguments)?;
+        let (arguments, receiving_application) = lower_indexed_application_arguments(
+            lowerer,
+            syntax,
+            lower_name(syntax, base_name),
+            *arguments,
+        )?;
         let owner = syntax
             .type_references
             .supplied_operand_owner(reference)
@@ -4652,6 +4665,7 @@ pub(crate) mod type_reference {
         Ok(TypeReference::Generic(GenericTypeReference {
             storage: GenericTypeReferenceStorage {
                 supplied_operand_owner,
+                receiving_application,
                 base_symbol: SymbolHandle::invalid(),
                 base_name: crate::lowering::name::lower_name(syntax, base_name),
                 lifetime_arguments: lower_names(syntax, lifetime_arguments),
@@ -4747,11 +4761,17 @@ pub(crate) mod type_reference {
                     *arguments,
                     lowerer.constant_selection.as_ref(),
                 )?;
-                let lowered_arguments =
-                    lower_indexed_application_arguments(lowerer, syntax_trees, *arguments)?;
+                let (lowered_arguments, receiving_application) =
+                    lower_indexed_application_arguments(
+                        lowerer,
+                        syntax_trees,
+                        lower_name(syntax_trees, base_name),
+                        *arguments,
+                    )?;
                 Ok(TypeReference::Generic(GenericTypeReference {
                     storage: GenericTypeReferenceStorage {
                         supplied_operand_owner: Default::default(),
+                        receiving_application,
                         base_symbol: SymbolHandle::invalid(),
                         base_name: lower_name(syntax_trees, base_name),
                         lifetime_arguments: lower_names(syntax_trees, lifetime_arguments),
@@ -4889,11 +4909,16 @@ pub(crate) mod type_reference {
                 Ok(TypeConstraint::Named(lower_name(syntax_trees, name)))
             }
             syntax::types::TypeConstraintNode::Domain(domain) => {
-                let arguments =
-                    lower_indexed_application_arguments(lowerer, syntax_trees, domain.arguments)?;
+                let (arguments, receiving_application) = lower_indexed_application_arguments(
+                    lowerer,
+                    syntax_trees,
+                    lower_name(syntax_trees, &domain.name),
+                    domain.arguments,
+                )?;
                 Ok(TypeConstraint::Domain(DomainConstraint {
                     name: lower_name(syntax_trees, &domain.name),
                     arguments,
+                    receiving_application,
                 }))
             }
 
@@ -4913,12 +4938,36 @@ pub(crate) mod type_reference {
     pub(crate) fn lower_indexed_application_arguments(
         lowerer: &mut Lowerer,
         syntax_trees: &SyntaxTrees,
+        base_name: symbol_resolved_trees::name::DiagnosticName,
         arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
-    ) -> Result<HandleSpan<TypeReference>, Diagnostic> {
+    ) -> Result<
+        (
+            HandleSpan<TypeReference>,
+            symbol_resolved_trees::types::ReceivingApplicationHandle,
+        ),
+        Diagnostic,
+    > {
         let selection_start = lowerer.pending_const_argument_selections.len();
         let lowered = lower_child_type_references(lowerer, syntax_trees, arguments)?;
+        let slot_start = lowerer.pending_const_argument_slots.len();
         retain_const_argument_slots(lowerer, syntax_trees, arguments, lowered, selection_start);
-        Ok(lowered)
+        let application = if lowerer.pending_const_argument_slots.len() != slot_start {
+            let application = lowerer
+                .declaration_child_type_references()
+                .receiving_applications
+                .insert(symbol_resolved_trees::types::ReceivingApplication {
+                    name: base_name,
+                    arguments: lowered,
+                    ..Default::default()
+                });
+            for slot in &mut lowerer.pending_const_argument_slots[slot_start..] {
+                slot.application = application;
+            }
+            application
+        } else {
+            arena::Handle::invalid()
+        };
+        Ok((lowered, application))
     }
 
     /*
@@ -4956,6 +5005,7 @@ pub(crate) mod type_reference {
                         lowerer.pending_const_argument_slots.push(
                             crate::resolution::lowerer::PendingConstArgumentSlot {
                                 selection,
+                                application: arena::Handle::invalid(),
                                 arguments: lowered_arguments,
                                 ordinal,
                             },

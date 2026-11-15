@@ -676,16 +676,38 @@ impl Program<'_> {
             )?;
             if let crate::StorageShape::ByteSequence(carrier) = declaration.shape {
                 let source_is_bytes = if let Some(application) = &source.application {
+                    let view = super::bytes::source_byte_view(
+                        self.typed,
+                        application.reference,
+                        source.region_owner,
+                        machine,
+                    )?;
                     application.substitutions.is_empty()
-                        && super::bytes::source_byte_view(
-                            self.typed,
-                            application.reference,
-                            source.region_owner,
-                            machine,
-                        )?
-                        .is_some_and(|view| {
-                            view.carrier == carrier && view.identity == declaration.identity
-                        })
+                        && match view {
+                            Some(view)
+                                if matches!(
+                                    carrier,
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: None
+                                    }
+                                ) =>
+                            {
+                                matches!(
+                                    view.carrier,
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: Some(terminal_psi::StructuralAccess::MutableBorrow)
+                                    }
+                                ) && super::bytes::mutable_byte_formal_identity(
+                                    self.typed,
+                                    machine,
+                                    application.reference,
+                                )? == declaration.identity
+                            }
+                            Some(view) => {
+                                view.carrier == carrier && view.identity == declaration.identity
+                            }
+                            None => false,
+                        }
                 } else {
                     carrier.is_shared_readable_view()
                 };

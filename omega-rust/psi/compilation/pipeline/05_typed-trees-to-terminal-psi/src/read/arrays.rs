@@ -157,8 +157,8 @@ impl Program<'_> {
     /// typed element view of the same backing. Both are the one
     /// `ArrayView` formation, which Terminal Psi establishes as a
     /// `WholeCollection` element view whose length is the array's exact
-    /// extent. Existing byte views retain that view's region and endpoint
-    /// proofs through `byte_subslice`.
+    /// extent. A partial range retains that backing through the descriptor's
+    /// checked subslice operation.
     pub(super) fn borrowed_array_range(
         &mut self,
         machine: MachineId,
@@ -166,6 +166,7 @@ impl Program<'_> {
         argument: ExpressionHandle,
         expected: ValueType,
         source: SourceOrigin,
+        formal_access: Option<language_core::ReferenceAccess>,
     ) -> Checked<Option<Expression>> {
         use language_core::ReferenceAccess;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
@@ -184,6 +185,34 @@ impl Program<'_> {
         let ValueType::Record(mut view, Qualification::NONE, _) = expected else {
             return Ok(None);
         };
+        // Formation owns a stored descriptor with the written loan. Only the
+        // callee's direct formal carries its access separately from its shape.
+        if formal_access == Some(ReferenceAccess::Mutable)
+            && self.data_type(machine, view)?.shape
+                == StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None })
+        {
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            let Some(ValueType::Record(actual, Qualification::NONE, _)) =
+                self.view_type(machine, reference)?
+            else {
+                return Err(unavailable("array view without its retained source type"));
+            };
+            if self.data_type(machine, actual)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+            {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
+                ));
+            }
+            view = actual;
+        }
         // A typed view names its element row; a byte view's element is the
         // backing's own `u8` row, checked below.
         let (access, typed_element) = match self.data_type(machine, view)?.shape {
@@ -270,18 +299,13 @@ impl Program<'_> {
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
         // window's `start <= end <= N` legs are checked against that loan's
-        // own length like any other byte subslice (byte_views.md, "Source
-        // correspondence"). A writable window would need a live mutable
-        // subslice descriptor, which that vocabulary does not admit.
+        // own length like any other subslice (byte_views.md, "Source
+        // correspondence"). A writable window also needs to keep its
+        // exclusive descriptor live through the subslice.
         let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
         if partial && requested != StructuralAccess::SharedBorrow {
             return Err(unavailable(
                 "mutable partial array views need a live mutable subslice descriptor",
-            ));
-        }
-        if partial && typed_element.is_some() {
-            return Err(unavailable(
-                "partial typed array views need their element-view subslice formation",
             ));
         }
         let element = match typed_element {
@@ -294,7 +318,7 @@ impl Program<'_> {
                     unavailable("typed array view without a closed array of its exact element")
                 })?,
         };
-        self.byte_range_selection(machine, borrow.target, backing)?;
+        self.collection_range_selection(machine, borrow.target, backing)?;
         let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
@@ -341,7 +365,7 @@ impl Program<'_> {
         };
         if partial {
             return self
-                .byte_window(machine, slots, whole, range, source)
+                .collection_window(machine, slots, whole, range, source)
                 .map(Some);
         }
         Ok(Some(whole))
@@ -631,28 +655,42 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
         element: TypeReferenceHandle,
-        extent: &FixedArrayLength,
+        _extent: &FixedArrayLength,
     ) -> Checked<ValueType> {
-        let FixedArrayLength::Literal(length) = extent else {
-            return Err(refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("unresolved array extent"),
-            ));
+        use typed_trees::constant_recipes::DeclaredArrayExtent;
+
+        let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+        let length = match self.typed.declared_array_extent(reference) {
+            Some(DeclaredArrayExtent::Literal(length)) => ArrayExtent::Literal(length),
+            Some(DeclaredArrayExtent::Recipe(recipe)) => {
+                let recipe = self.typed.constant_recipes.get(recipe);
+                let contexts = self
+                    .typed
+                    .constant_expression_contexts
+                    .span_or_empty(recipe.contexts);
+                let [context] = contexts else {
+                    return Err(unserved(
+                        "array extent has no unique retained evaluation context",
+                    ));
+                };
+                ArrayExtent::Application(
+                    self.scalar_evaluation(
+                        machine,
+                        context.evaluation_entry,
+                        context.evaluation_expression,
+                        context.result_type,
+                    )?
+                    .0,
+                )
+            }
+            None => return Err(unserved("unresolved array extent")),
         };
-        let length = u64::try_from(*length).map_err(|_| {
-            refuse(
-                machine,
-                Construct::Machine,
-                Unserved::Type("array extent outside u64"),
-            )
-        })?;
         let value = self.value_type(machine, element)?;
         let (element, qualification) = self.collection_element_storage(machine, element, value)?;
         let shape = StorageShape::FixedArray {
             element,
             qualification,
-            length: ArrayExtent::Literal(length),
+            length,
         };
         if let Some((id, _)) = self.records.iter().find(|(_, row)| row.shape == shape) {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));

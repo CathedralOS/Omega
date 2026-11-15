@@ -21,6 +21,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 fn build(root: &Path, build_dir: &Path, product: ProjectProduct) -> CompileReport {
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let outcomes = orchestration::build(BuildRequest {
+        stage_validators: Default::default(),
         root_path: root.to_path_buf(),
         build_directory: Some(build_dir.to_path_buf()),
         targets: BuildTargets::Single(profile),

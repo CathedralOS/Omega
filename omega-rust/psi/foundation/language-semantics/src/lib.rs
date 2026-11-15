@@ -991,6 +991,15 @@ pub mod conformance_identity {
             Ok(())
         }
 
+        pub fn machine_argument(&mut self, identity: &str) -> Result<(), &'static str> {
+            use std::hash::Hash;
+            if identity.is_empty() {
+                return Err("machine application has an empty callable argument identity");
+            }
+            ("machine", identity).hash(self);
+            Ok(())
+        }
+
         pub fn finish(self) -> [u8; 32] {
             self.0.finish()
         }
