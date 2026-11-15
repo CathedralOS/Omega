@@ -355,7 +355,10 @@ pub mod boundary_completions {
             let never = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
             let integer = children
                 .handles()
-                .nth(BuiltinTypeAtom::I32.ordinal())
+                .nth(
+                    BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(32))
+                        .ordinal(),
+                )
                 .unwrap();
             let mut typed = TypedTrees {
                 symbols: builder.finish(),
