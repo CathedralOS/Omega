@@ -1,0 +1,1 @@
+unestablished storage: an owned value was moved out of borrowed storage, and the place does not hold a value again where the machine returns the borrow
