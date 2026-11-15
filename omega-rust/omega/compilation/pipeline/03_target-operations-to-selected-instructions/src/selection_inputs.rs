@@ -1824,11 +1824,11 @@ pub(crate) mod byte_owner_input {
         (target.source_byte_offset == geometry.offset
             && crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
             && target.indices.len() == indices.len()
-            && target.indices.iter().zip(indices).all(|(target, index)| {
-                target.operand.source_value() == index.operand.value
-                    && target.operand.scalar_type() == index.operand.scalar_type
-                    && target.stride == index.stride
-            }))
+            && target
+                .indices
+                .iter()
+                .zip(indices)
+                .all(|(target, index)| index.matches_target(target)))
         .then_some((geometry.offset, geometry.capacity))
     }
 

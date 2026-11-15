@@ -32,8 +32,15 @@ selection entry captures the incoming ABI, and call and storage instructions
 consume the target producer's retained addresses, homes and placements.
 Instruction construction does not reconstruct reference custody. The explicit
 `verify_target_operation_plan` entrypoint retains the independent source/target
-audit; the native corpus runner exercises it through the object's retained
+audit; focused native tests exercise it through the object's retained
 pipeline input, off the default compile path.
+
+Direct, normalized foreign and no-normal-return call arguments consume retained
+target selector rows, including the bound and obligation key. Proof lookup uses
+the admitted immutable fact catalog, not an executable body. The independent
+audit still derives source geometry and available scalar sources, and rejects
+changed bounds, proof keys, strides or scalar correspondences. Recovery encoding
+retains these fields as part of the call argument.
 
 Every target function contains its `TargetControlGraph` directly. This stage
 does not convert flat bodies or whole-function expression trees. Unit, scalar,
