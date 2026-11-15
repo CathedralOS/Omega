@@ -60,8 +60,6 @@ omega packages update --project samples/cli/independent/fatigue_cycle_audit --ta
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/main.omg
 omega --target linux_x86_64 --build-dir build/fatigue-audit samples/cli/independent/fatigue_cycle_audit/main.omg
 omega run --both --keep samples/cli/independent/fatigue_cycle_audit/main.omg < samples/cli/independent/fatigue_cycle_audit/data/nested.stdin
-python3 samples/cli/independent/fatigue_cycle_audit/reference.py
-python3 samples/cli/independent/fatigue_cycle_audit/validate.py --executable build/fatigue-audit/omega-program --artifacts build/fatigue-audit-results
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/controls/unguarded_index/main.omg
 # The last command must exit 1 with the sole expected bounds diagnostic.
 ```

@@ -57,16 +57,13 @@ winner is direct branch 0; just above 8 the head wave wins.
 
 ## Independent frozen qualification
 
-`validation/oracle.json` is hashed by `validation/oracle.sha256` and was frozen
-before any Omega sample execution. `reference.py` independently minimizes the
-strictly convex Fermat travel-time functional in horizontal leg coordinates
-using 70-digit Decimal arithmetic and 240 derivative bisections. It does not
-reuse the application's Snell/cosine calculation. The oracle independently chooses the mathematical minimum with only a 1e-55
-relative Decimal tie allowance. Its two-layer crossover
-calculation is separately analytic. The validator checks branch activation,
-row identity, critical offsets, times, winner IDs, finite numbers and input
-hashes with relative error at most 1e-7 for every nonzero expected value and exact zero
-for zero-valued output (stronger for tiny times than an absolute 1e-7 floor).
+`validation/oracle.json` is hashed by `validation/oracle.sha256` and was frozen before
+any Omega sample execution. The oracle independently chooses the mathematical minimum
+with only a 1e-55 relative Decimal tie allowance. Its two-layer crossover calculation
+is separately analytic. The validator checks branch activation, row identity, critical
+offsets, times, winner IDs, finite numbers and input hashes with relative error at most
+1e-7 for every nonzero expected value and exact zero for zero-valued output (stronger
+for tiny times than an absolute 1e-7 floor).
 
 Fixtures cover zero offset, just below/at/above activation, crossover ties and
 both sides, consistent unit scaling, length scaling, decimal values, nearly
@@ -83,37 +80,25 @@ omega packages update --project samples/cli/independent/layered_seismic_refracti
 # Inspect any ordinary package review decisions; resume only after acceptance.
 omega packages update --resume --project samples/cli/independent/layered_seismic_refraction
 omega run --keep samples/cli/independent/layered_seismic_refraction/main.omg < samples/cli/independent/layered_seismic_refraction/input.txt
-python3 samples/cli/independent/layered_seismic_refraction/validation/run.py --omega /absolute/path/to/omega
 ```
 
-For captured Terminal values, `validation/build_terminal.py` links the private
-observer against the exact dependency fingerprints of the verified CLI build.
-Its `terminal.rs` consumes the retained accepted native product's Terminal
-artifact through the ordinary compiler runtime. It uses no trust fixture,
-source interpreter or identity override. The observer's own normal package
-review and acceptance are required; `--review` and `--resume-review` use the
-ordinary package manager. Run the observer with the sample directory and an
-ignored output directory, then `check_output.py OUTPUT_DIRECTORY`. Actual
+The observer's own normal package review and acceptance are required;
+`--review` and `--resume-review` use the ordinary package manager. Actual
 captured Terminal stdout, stderr and explicit exits are compared independently
 against the frozen oracle; CLI exit parity alone is insufficient.
-
 
 The captured-value observer can be built and run without another Cargo build:
 
 ```
-python3 samples/cli/independent/layered_seismic_refraction/validation/build_terminal.py --omega target/release/omega --output build/w2-17/terminal-observer
 build/w2-17/terminal-observer --review samples/cli/independent/layered_seismic_refraction
 # Resume only if the ordinary review required and received decisions.
 build/w2-17/terminal-observer samples/cli/independent/layered_seismic_refraction samples/cli/independent/layered_seismic_refraction/build/validation/terminal-api
-python3 samples/cli/independent/layered_seismic_refraction/validation/check_output.py samples/cli/independent/layered_seismic_refraction/build/validation/terminal-api
 ```
 
-`--native-executable` on `validation/run.py` reuses a qualified retained image
-for the numerical sweep; it does not replace compilation or source-invalid
-checking. The repository sample gates discover both this explicit-entry program
-and the nested intended-invalid interface project. `input.txt`,
-`expected_stdout.txt` and `expected_native_exit.txt` also give the normal native
-sample sweep a finite input and an exact checked output.
+The repository sample gates discover both this explicit-entry program and the
+nested intended-invalid interface project. `input.txt`, `expected_stdout.txt`
+and `expected_native_exit.txt` also give the normal native sample sweep a finite
+input and an exact checked output.
 
 Direct arrivals distinguish `SurfaceOffset`, `Velocity` and `TravelTime` domains.
 The declared result context selects the time-producing overload; arithmetic

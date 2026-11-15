@@ -72,7 +72,6 @@ omega packages update --resume --project samples/cli/independent/acoustic_thickn
 omega --check --target linux_x86_64 samples/cli/independent/acoustic_thickness_echoes/main.omg
 omega run --keep samples/cli/independent/acoustic_thickness_echoes/main.omg < samples/cli/independent/acoustic_thickness_echoes/data/separated.stdin
 omega run --both --keep samples/cli/independent/acoustic_thickness_echoes/main.omg < samples/cli/independent/acoustic_thickness_echoes/data/separated.stdin
-python3 samples/cli/independent/acoustic_thickness_echoes/validate.py --compiler /absolute/path/to/omega
 ```
 
 `build.omg` binds the exact entry for Linux x86_64, Windows x86_64 and macOS
@@ -81,14 +80,11 @@ other hosts are declared targets, not claimed validation results. Package
 review and trust admission remain mandatory. A denied acceptance is recorded
 without retry. Generated images, reports and logs belong under ignored `build/`.
 
-The repository native sweep has no fixture stdin surface, so this input-driven
-sample deliberately uses its own complete driver instead of no-input header
-annotations. The validation driver executes one Omega command at a time, saves commands,
-status, stdout and stderr, verifies all frozen file hashes, compares native
-stdout and statuses, and runs native/Terminal comparison with finite input.
-The CLI's `--both` checks termination agreement; the driver separately checks
-native stdout against the complete frozen output. This is not independent
-Terminal stdout trace validation.
+The repository native sweep has no fixture stdin surface, so this input-driven sample
+deliberately uses its own complete driver instead of no-input header annotations. The
+CLI's `--both` checks termination agreement; the driver separately checks native stdout
+against the complete frozen output. This is not independent Terminal stdout trace
+validation.
 
 ## Intended-invalid control
 

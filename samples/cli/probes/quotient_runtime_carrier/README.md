@@ -12,10 +12,6 @@ call-result paths. Each observed value is checked before the success exit.
 | Parameter | 17 | 17 |
 | Call result | 29 | 29 |
 
-`python3 reference.py` computes this table separately, without reading compiler
-output. Its finite relation checks illustrate the selected laws; they do not
-replace the universally checked Omega theorem bodies.
-
 Run `omega packages update --project samples/cli/proofs/quotient_runtime_carrier --target linux_x86_64`,
 complete the ordinary package review, then run
 `omega run --both --keep samples/cli/proofs/quotient_runtime_carrier/main.omg`.

@@ -37,10 +37,7 @@ formats fixed values, and `module_file_chain` tests imports. None analyzes joint
 Boolean event logic, minimal cut sets or interventions. This is a new workflow.
 
 `data/frozen_oracle.json` freezes nine valid and twelve invalid runtime scenarios
-before execution. `reference.py` independently enumerates Python sets and exact
-integer sums to check the immutable output files; it is verification support,
-not an application implementation. Numerical tolerance is zero. The frozen
-manifest SHA-256 is
+before execution. Numerical tolerance is zero. The frozen manifest SHA-256 is
 `5e6e90275952fe599793db1d04258d4c753ffcfe23daeb7105b99d3783c70918`.
 
 From the repository root, using a compiler built at the recorded base:
@@ -54,11 +51,6 @@ PROJECT=samples/cli/independent/correlated_fault_tree_audit
 # Resume once, after acceptance; a denied route remains a blocker.
 "$OMEGA" update --resume --project "$PROJECT"
 "$OMEGA" run "$PROJECT/main.omg" < "$PROJECT/data/correlated.in"
-python3 "$PROJECT/reference.py"
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route check
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route native
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route terminal
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route invalid
 ```
 
 Native validation first uses the public CLI to compile, run and retain the
@@ -69,10 +61,9 @@ and Terminal replay. The CLI compares termination, not interpreted stdout;
 byte-exact native output checks and recorded Terminal agreement are distinct
 evidence. Unsupported or declined interpretation is not a pass.
 
-`controls/intended_invalid/` is a separate complete program with its own Build
-entry binding. It deliberately writes element 3 of a three-element array.
-The required rejection is `cannot prove index`, the documented collection bounds
-rule; package/custody/review rejection is a wrong-reason failure. See
+`controls/intended_invalid/` is a separate complete program with its own Build entry
+binding. It deliberately writes element 3 of a three-element array. The required rejection
+is `cannot prove index`, the documented collection bounds rule; package/custody/review
+rejection is a wrong-reason failure. See
 `wiki/spec/language/counts_and_addresses.md#bounds-and-lowering` for bounds obligations.
-Use `--output-dir /absolute/external/evidence` on validate.py to keep evolving route
-logs and native products outside the reviewed source tree. The default is ignored `build/`.
+The default is ignored `build/`.

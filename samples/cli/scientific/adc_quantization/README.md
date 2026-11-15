@@ -68,14 +68,12 @@ Wrapping arithmetic never actually wraps on accepted inputs.
 
 ## Frozen acceptance
 
-`ORACLES.json` hashes all expected CSV before the first Omega execution.
-`reference.py` independently uses Python Fraction and Python round; it is an
-oracle, not the delivered application. `data/` contains five valid studies and
-17 malformed-input controls. The valid studies cover unsigned threshold ties,
-signed ties after nonidentity calibration, fractional calibration, 8-bit extrema,
-and a 2-bit signed converter. They include rail endpoints and saturation on
-both sides. `../invalid_adc_quantization_intended/` is a separate complete build-bound Omega project
-with a constant-zero division; it must be rejected independently.
+`ORACLES.json` hashes all expected CSV before the first Omega execution. `data/` contains five valid
+studies and 17 malformed-input controls. The valid studies cover unsigned threshold ties, signed
+ties after nonidentity calibration, fractional calibration, 8-bit extrema, and a 2-bit signed
+converter. They include rail endpoints and saturation on both sides.
+`../invalid_adc_quantization_intended/` is a separate complete build-bound Omega project with a
+constant-zero division; it must be rejected independently.
 
 ## Commands
 
@@ -87,7 +85,6 @@ omega packages update --project samples/cli/independent/adc_quantization
 # Review the generated package decisions and resume the documented review.
 omega --check --target linux_x86_64 samples/cli/independent/adc_quantization/main.omg
 omega run --both --keep samples/cli/independent/adc_quantization/main.omg < samples/cli/independent/adc_quantization/data/signed_calibrated.txt
-python3 samples/cli/independent/adc_quantization/validate.py --omega /absolute/path/to/omega
 ```
 
 Validation runs one Omega command at a time, retains commands, status, stdout

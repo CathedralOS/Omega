@@ -38,30 +38,25 @@ panels. The private exponential is a range-reduced Taylor evaluator. The Wien
 tail above dimensionless 80 is below the documented absolute floor throughout
 the input envelope. Nine significant digits are printed in scientific notation.
 
-`validation/reference.py` freezes an independent 80-digit log-wavelength
-`tanh-sinh` quadrature using mpmath 1.3.0. The independent reference converts input tokens to binary64, then integrates their exact binary denotations at high precision. `FROZEN_SHA256.txt` pins the reference,
-fixtures and frozen expectations before application execution. Validators use
-these files without regeneration. Each numerical column must agree within
-`max(1e-12, 1e-6 * abs(reference))`: the absolute floor is 1e-12 W for powers,
-and 1e-12 for the fraction. Thus underflowed Wien tails are qualified by an
-absolute bound rather than an unjustified relative claim. Resolved near-zero
-net values retain this same rule; equal temperatures must give exactly zero.
+The independent reference converts input tokens to binary64, then integrates
+their exact binary denotations at high precision. `FROZEN_SHA256.txt` pins the
+reference, fixtures and frozen expectations before application execution.
+Validators use these files without regeneration. Each numerical column must
+agree within `max(1e-12, 1e-6 * abs(reference))`: the absolute floor is 1e-12
+W for powers, and 1e-12 for the fraction. Thus underflowed Wien tails are
+qualified by an absolute bound rather than an unjustified relative claim.
+Resolved near-zero net values retain this same rule; equal temperatures must
+give exactly zero.
 
 The fixtures cover 300 K / 8–14 µm, hot narrow and visible bands, wide-band
 Stefan–Boltzmann limits, equal temperatures, band additivity, temperature swap,
 zero coupling, endpoint bounds, EOF and CRLF. Runtime refusal cases cover every
-input bound, malformed/nonfinite tokens and capacity. Validate the actual source refusal with `python validation/check_source.py --omega /absolute/path/to/omega`. The separate source
-control `model/intended_invalid.omg` (documented under `controls/intended_invalid`) violates the panel bound and must
-fail checking for that proof obligation.
+input bound, malformed/nonfinite tokens and capacity. The separate source control
+`model/intended_invalid.omg` (documented under `controls/intended_invalid`)
+violates the panel bound and must fail checking for that proof obligation.
 
-Validate both engines with `python validation/run.py --omega /absolute/path/to/omega`
-from this sample after `omega packages update`: it compiles once with
-`omega run --both --inputs data`, runs every case natively, replays it
-through the Terminal reference, and checks both engines' streams and exits
-against the oracle and each other. `python validation/run.py --native
-/absolute/path/to/application` checks an already built executable alone.
-Package review and acceptance use normal tool decisions and do not grant
-unrequested host authority.
+Package review and acceptance use normal tool decisions and do not grant unrequested
+host authority.
 
 The input scanner passes its seven values through a shared slice stored in a
 record. This also exercises the general compiler rule that indexing and named

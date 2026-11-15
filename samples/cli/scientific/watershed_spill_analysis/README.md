@@ -48,15 +48,13 @@ thresholding and connected-component labeling.
 
 ## Frozen independent reference
 
-Before the first Omega execution, `reference/oracle.py --freeze` generated the
-committed expected stdout and `reference/frozen.json`, containing input/output
-SHA-256 and exit oracles. Numerical tolerance is **zero**. Filling is independently
-calculated by exhaustive boundary flooding at each integer water elevation 0–9,
-without the Omega solver's priority scan. A heap implementation separately specifies
-the deterministic tie policy; every parent chain is checked for adjacency,
-monotone filled levels, absence of cycles and the claimed boundary outlet.
-Per-outlet and global volumes are independently summed from the flood result.
-Normal validation checks these frozen bytes and never rewrites them.
+Numerical tolerance is **zero**. Filling is independently calculated by exhaustive
+boundary flooding at each integer water elevation 0–9, without the Omega solver's
+priority scan. A heap implementation separately specifies the deterministic tie
+policy; every parent chain is checked for adjacency, monotone filled levels, absence
+of cycles and the claimed boundary outlet. Per-outlet and global volumes are
+independently summed from the flood result. Normal validation checks these frozen
+bytes and never rewrites them.
 
 Cases include a closed bowl, a lowered spill outlet, two separated basins, a flat
 plateau, a sloped ridge, zero terrain, maximum depth, a saddle and mixed whitespace. Invalid input
@@ -76,8 +74,6 @@ From the repository root, using an exact verified compiler binary `OMEGA`:
 "$OMEGA" update --resume --project samples/cli/independent/watershed_spill_analysis
 "$OMEGA" --check samples/cli/independent/watershed_spill_analysis/main.omg
 "$OMEGA" run --both --keep samples/cli/independent/watershed_spill_analysis/main.omg < samples/cli/independent/watershed_spill_analysis/fixtures/bowl.txt
-python3 samples/cli/independent/watershed_spill_analysis/reference/oracle.py
-python3 samples/cli/independent/watershed_spill_analysis/reference/validate.py --omega "$OMEGA"
 ```
 
 `build/validation/` holds captured commands, statuses, stdout/stderr and hashes.
@@ -103,7 +99,6 @@ does not reconstruct artifacts or interpret checked trees.
 
 ```sh
 mbx build -p omega --release --message-format=json > samples/cli/independent/watershed_spill_analysis/build/validation/rust-build.jsonl
-python3 samples/cli/independent/watershed_spill_analysis/reference/build_validator.py --target-dir target/release --build-record samples/cli/independent/watershed_spill_analysis/build/validation/rust-build.jsonl
 samples/cli/independent/watershed_spill_analysis/build/validation/terminal_validate samples/cli/independent/watershed_spill_analysis
 ```
 

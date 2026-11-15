@@ -37,16 +37,14 @@ toward zero; divide them by 1e6 Hz and 1e9 physical-units²/Hz respectively.
 The bounded domain keeps these reports inside signed i64 without saturation.
 
 `fixtures.json` freezes independent Python direct complex DFT outputs before
-execution. `validate.py` recomputes those pinned outputs, independently checks
-Parseval, and checks actual numerical stdout, frequency bins, integrated physical
-power and status separately for native and Terminal. Fixtures include all four
-FFT sizes, rectangular and periodic Hann windows, overlapping segments,
-calibration gain/offset, DC, Nyquist, silence and incomplete trailing segments.
-`validation/` uses normal package preparation and native compilation, then
-executes the exact retained Terminal artifact and the published native product.
-It captures both outputs; `omega run --both` alone compares only termination.
-The harness grants domain exit only to its isolated containing domain, as the
-normal CLI does; package and root authority admission remain intact.
+execution. Fixtures include all four FFT sizes, rectangular and periodic Hann
+windows, overlapping segments, calibration gain/offset, DC, Nyquist, silence and
+incomplete trailing segments. `validation/` uses normal package preparation and
+native compilation, then executes the exact retained Terminal artifact and the
+published native product. It captures both outputs; `omega run --both` alone
+compares only termination. The harness grants domain exit only to its isolated
+containing domain, as the normal CLI does; package and root authority admission
+remain intact.
 
 From repository root, with the documented cloud environment activated:
 
@@ -54,7 +52,6 @@ From repository root, with the documented cloud environment activated:
 omega packages update --project samples/cli/independent/spectral_power --target linux_x86_64
 omega run samples/cli/independent/spectral_power/main.omg < samples/cli/independent/spectral_power/input.txt
 CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p spectral-power-validation
-python3 samples/cli/independent/spectral_power/validate.py --runner /absolute/path/to/spectral-power-validation --evidence /absolute/path/to/evidence
 ```
 
 The Build root binds Linux x86-64, Windows x86-64 and macOS ARM64 entries.

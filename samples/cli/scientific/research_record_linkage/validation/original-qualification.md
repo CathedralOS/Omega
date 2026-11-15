@@ -40,7 +40,6 @@ All comparisons use exact integers: absolute and relative tolerances zero.
 Original 29 cases were frozen before any Omega execution:
 
 ```text
-a17fbadfb6e0bfda23b827e9aa3a30c49c43d7fefd403fa9e63cadaf1c009a51  reference.py
 59f3b4882bc761a86cda3667f728be23458c3556ca70a1cd450838e720dc2c7c  data/frozen.json
 ```
 
@@ -85,12 +84,6 @@ binary. Complete logs and runtime stdout/stderr are in the Library packet.
 - `OMEGA --timings --target linux_x86_64 --build-dir /workspace/new064-renewed-acceptance-20261011/native --report-file /workspace/new064-renewed-acceptance-20261011/native-compile-report.txt samples/cli/independent/research_record_linkage/main.omg`:
   exit 0 in 22.953s. Real ELF `native/omega-program`, SHA-256
   `b7a6465104d34c3e502c1c6ab36829521b6a26abdfecf398c9285ac8423bc2a3`.
-- `PYTHONDONTWRITEBYTECODE=1 python3 -B samples/cli/independent/research_record_linkage/validate.py --executable /workspace/new064-renewed-acceptance-20261011/native/omega-program`:
-  all 39 cases passed exact 13-field stdout, empty stderr and authored exit.
-- `PYTHONDONTWRITEBYTECODE=1 python3 -B samples/cli/independent/research_record_linkage/validate.py --terminal --omega ABSOLUTE_OMEGA`:
-  all 19 cases passed actual `run --both`, native exact stdout and Terminal exit
-  agreement. Terminal CLI exposes termination only; its computed field
-  fingerprint is checked, not independently exposed Terminal stdout.
 - `OMEGA_CORPUS_JOBS=1 python3 tools/corpus_gate.py --runner RUNNER --filter COMMA_SEPARATED_15_NAMES --json corpus-final.json`:
   clean, seven checked/eight rejected, zero wrong reasons/lost successes.
   Exact full filter and observations accompany corpus-final.json.

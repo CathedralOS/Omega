@@ -61,30 +61,26 @@ SAMPLE=samples/cli/independent/bounded_state_estimation
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" run --keep "$SAMPLE/main.omg" < "$SAMPLE/data/missing_middle.txt" > trace.txt
 "$OMEGA" run --both --keep "$SAMPLE/main.omg" < "$SAMPLE/data/velocity_correction.txt"
-python3 "$SAMPLE/validate.py" --omega "$OMEGA"
 "$OMEGA" --check "$SAMPLE/intended_invalid/invalid_index.omg"
 ```
 
-The last command must reject an out-of-bounds covariance index, independently
-of runtime errors. This is a complete separately built intended-invalid project.
+The last command must reject an out-of-bounds covariance index, independently of
+runtime errors. This is a complete separately built intended-invalid project.
 Validation retains commands, exits, stdout, stderr and binary/oracle hashes in
 `build/validation/`. Both native and Terminal comparisons are run sequentially.
 The documented `--both` interface checks termination agreement; it does not
-compare interpreter trace bytes. The validator requires explicit agreement,
-rejects declines, and checks the surfaced native output against the oracle.
+compare interpreter trace bytes.
 
-`expected.json` was frozen before Omega execution. `reference.py --freeze`
-uses exact rational Gaussian conditioning P - (P h)(h' P)/S, independently
-of the application's Joseph matrix implementation. Validation never regenerates
+`expected.json` was frozen before Omega execution. Validation never regenerates
 expectations. Fixtures cover constant velocity, missing observations, velocity
 correction with dt=2, noisy observations, eight maximum-noise missing steps,
 perfect measurements, singular updates, capacity and malformed runtime input.
 Every expected row retains its exact fractions and fixture hash. Output tolerance
 is 2e-6 absolute plus 1e-9 relative; this covers decimal truncation. Internal
 symmetry, diagonal and determinant checks allow 1e-10; S must exceed 1e-12.
-Printed PSD checks account for quantization error in the determinant rather
-than requiring a rounded covariance to be exactly PSD. No failures are accepted
-by widening tolerances after execution.
+Printed PSD checks account for quantization error in the determinant rather than
+requiring a rounded covariance to be exactly PSD. No failures are accepted by
+widening tolerances after execution.
 
 Semantic overlap was inspected before authoring: `collections/matrix_multiply`
 computes one fixed integer product; `arithmetic/stats_compute` computes moments;

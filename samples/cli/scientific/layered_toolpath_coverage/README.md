@@ -39,14 +39,11 @@ No in-progress numerics library or other worker output is imported.
 
 ## Frozen acceptance
 
-`ORACLE.json` and `data/*.out` were frozen before the first compiler check.
-All geometry, lengths, counts and output bytes use exact integer equality;
+`ORACLE.json` and `data/*.out` were frozen before the first compiler check. All
+geometry, lengths, counts and output bytes use exact integer equality;
 numerical tolerance is **zero**. The oracle manifest SHA-256 is
-`d4f566be2f960fa708f16d9cd039950c65c4c890969d258e3245ddd8d1950a6e`.
-`reference.py` constructs independent rectangle sets, subtracts holes, unions
-islands, groups mathematical intervals, and enumerates emitted D records again
-when validating. It is an oracle and validator; execution is the Omega program.
-Do not re-freeze expectations to make a failed execution pass.
+`d4f566be2f960fa708f16d9cd039950c65c4c890969d258e3245ddd8d1950a6e`. Do not
+re-freeze expectations to make a failed execution pass.
 
 Nine fixtures exercise rectangles, holes, disconnected islands, three differing
 layers, vertical orientation, stride-two undercoverage, empty regions, a unit
@@ -74,8 +71,6 @@ omega packages update --project samples/cli/independent/layered_toolpath_coverag
 omega packages update --project samples/cli/independent/layered_toolpath_coverage --resume
 omega --check samples/cli/independent/layered_toolpath_coverage/main.omg
 omega run samples/cli/independent/layered_toolpath_coverage/main.omg < samples/cli/independent/layered_toolpath_coverage/data/hole.in
-python3 samples/cli/independent/layered_toolpath_coverage/reference.py --cli /absolute/path/to/omega
-python3 samples/cli/independent/layered_toolpath_coverage/reference.py --cli /absolute/path/to/omega --both
 omega --check samples/cli/independent/layered_toolpath_coverage/controls/out_of_bounds/main.omg
 ```
 

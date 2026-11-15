@@ -40,22 +40,17 @@ a third pass. The per-stage denominator is
 limit. Up to eight stages bound storage and computation. Guarded accesses keep
 all stage and node indices within their arrays.
 
-Before any Omega execution, `reference.py` independently froze exact rational
-solutions using simultaneous duty equations and Fraction Gaussian elimination.
-It checks every midpoint relation, monotonicity and both enthalpy sums.
-`data/oracle.json` preserves exact fractions, input hashes and tolerances;
-its initial SHA-256 is
-`fba8b0b7e3bde8a7795425d6691f1cdeeb64d29174fcd32fe22ea9d4c241a32c`.
-Internal absolute balance and temperature tolerance is 1e-7. Display uses
-integer millidegrees/milliwatts (quantum 0.001). Computed values within 1e-7
-degrees Celsius or watts of a half-milli threshold are treated as ties and
-rounded upward; elsewhere nearest rounding applies. This small display tie
-band accounts for binary64 propagation error and does not claim exact rational
-rounding for every bounded input. Authored stdout files remain exact byte
-oracles. Independent review's additional exact-tie fixture and its display
-policy were frozen separately in `data/supplemental_oracle.json` before its
-Omega execution; the original oracle was preserved. The reference is supporting evidence, while
-`main.omg` and the three domain modules are the delivered application.
+`data/oracle.json` preserves exact fractions, input hashes and tolerances; its initial SHA-256
+is `fba8b0b7e3bde8a7795425d6691f1cdeeb64d29174fcd32fe22ea9d4c241a32c`. Internal absolute
+balance and temperature tolerance is 1e-7. Display uses integer millidegrees/milliwatts
+(quantum 0.001). Computed values within 1e-7 degrees Celsius or watts of a half-milli threshold
+are treated as ties and rounded upward; elsewhere nearest rounding applies. This small display
+tie band accounts for binary64 propagation error and does not claim exact rational rounding for
+every bounded input. Authored stdout files remain exact byte oracles. Independent review's
+additional exact-tie fixture and its display policy were frozen separately in
+`data/supplemental_oracle.json` before its Omega execution; the original oracle was preserved.
+The reference is supporting evidence, while `main.omg` and the three domain modules are the
+delivered application.
 
 Nine valid fixtures cover zero conductance, one and multiple equal-capacity
 stages, unequal streams in both directions, heterogeneous conductances,
@@ -83,11 +78,8 @@ omega --check --target linux_x86_64 samples/cli/independent/heat_exchanger_balan
 omega --target linux_x86_64 samples/cli/independent/heat_exchanger_balances/main.omg
 omega run --both samples/cli/independent/heat_exchanger_balances/main.omg < samples/cli/independent/heat_exchanger_balances/data/unequal_hot_larger.txt
 omega --check samples/cli/independent/heat_exchanger_balances/controls/out_of_bounds/main.omg
-python3 samples/cli/independent/heat_exchanger_balances/validate.py --cli /absolute/path/to/omega
 ```
 
-`validate.py` runs each fixture sequentially, compares native stdout and exits
-with frozen files, and records Terminal agreement or explicit decline. The CLI's
-`--both` contract compares termination only; it does not expose interpreted
-stdout, so native output verification does not establish Terminal output identity.
-Build products and validation logs belong in ignored `build/`.
+The CLI's `--both` contract compares termination only; it does not expose
+interpreted stdout, so native output verification does not establish Terminal
+output identity. Build products and validation logs belong in ignored `build/`.

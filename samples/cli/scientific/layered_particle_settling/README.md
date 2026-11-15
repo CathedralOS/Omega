@@ -52,19 +52,14 @@ speed, force and residual are signed integer microunits truncated toward zero;
 step/layer are unscaled signed integers. No formatted floating output package
 is needed. Fixed signed width preserves zero and negative values.
 
-The oracle was independently frozen before Omega execution. `data/reference.py`
-uses exact rational arithmetic for every discrete trace, and analytic square
-roots for terminal balances. `data/frozen.json` and `frozen.sha256` preserve it.
-Trace output permits one microunit for floating rounding/truncation boundaries;
-force residual checks permit absolute 1e-8. Bisection's speed bracket after 40
-halvings is at most 8/2^40, supporting the frozen analytic terminal speed
-tolerance of 1e-8. The validator compares printed terminal speeds only at
-microunit precision; it does not measure that tighter raw speed tolerance.
-The raw speed bound relies on the bisection interval and runtime force checks.
-A printed zero alone cannot establish the force tolerance: the application
-checks the unquantized residual at runtime. Event rows, layer choices, counts, exits and
-invalid messages must match exactly. The validator never recalculates expected
-results, performs acceptance, or accepts a wrong-reason control rejection.
+The oracle was independently frozen before Omega execution. `data/frozen.json` and
+`frozen.sha256` preserve it. Trace output permits one microunit for floating
+rounding/truncation boundaries; force residual checks permit absolute 1e-8. Bisection's
+speed bracket after 40 halvings is at most 8/2^40, supporting the frozen analytic
+terminal speed tolerance of 1e-8. The raw speed bound relies on the bisection interval
+and runtime force checks. A printed zero alone cannot establish the force tolerance: the
+application checks the unquantized residual at runtime. Event rows, layer choices,
+counts, exits and invalid messages must match exactly.
 
 `particle_sim` only evolves one constant-acceleration particle for five Euler
 steps. `bouncing_particles` and `bouncing_ball_2d` cover grid/wall reflection and
@@ -78,10 +73,6 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BINARY" update --project sample
 # Read the emitted package review and accept only its reviewed decisions.
 # Resume once if approved; do not retry a denied acceptance.
 OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BINARY" update --resume --project samples/cli/independent/layered_particle_settling
-python3 samples/cli/independent/layered_particle_settling/validate.py --omega "$OMEGA_BINARY" --route check
-python3 samples/cli/independent/layered_particle_settling/validate.py --omega "$OMEGA_BINARY" --route invalid-source
-python3 samples/cli/independent/layered_particle_settling/validate.py --omega "$OMEGA_BINARY" --route native
-python3 samples/cli/independent/layered_particle_settling/validate.py --omega "$OMEGA_BINARY" --route terminal
 ```
 
 Each route runs one Omega operation at a time and records exact commands,
