@@ -34,13 +34,13 @@ reaches FilesystemMetadataQuery {
     }
     machine open(path: [u16; 4096] in WindowsNativePath, output: &mut [u8], count: u64) -> i64 {
         let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_open_reparse(&path);
-        transition handle != 0 {
+        transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
             true -> block query(handle, output, count)
             false -> (WindowsFilesystemNativeProvider::failure_i64())
         }
     }
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
-    requires handle != 0 {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let result: i64 = block windows_reparse_query(handle, output, count);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition result < 0 { true -> (result) false -> complete(result, released) }
@@ -51,7 +51,7 @@ reaches FilesystemMetadataQuery {
 }
 
 windows_x86_64 machine windows_reparse_query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut [u8], count: u64) -> i64
-requires handle != 0
+requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches FilesystemMetadataQuery {
     let mut data: WindowsNativeReparseData;
     let mut returned: u32 = 0;

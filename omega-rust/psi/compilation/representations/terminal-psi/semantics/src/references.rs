@@ -289,6 +289,17 @@ pub(crate) mod reference_completion {
     ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
         for (identity, lifetime) in candidates {
+            // An input a provider-returned view keeps borrowed is retained for
+            // the result's use, but the provider lends the bytes: that
+            // lifetime authorizes no carrier anywhere and is never a view's
+            // immediate loan occurrence.
+            if lifetime
+                .authorized
+                .values()
+                .all(std::collections::BTreeSet::is_empty)
+            {
+                continue;
+            }
             let authorized = lifetime
                 .authorized
                 .get(&at)
@@ -496,15 +507,54 @@ pub(crate) mod reference_completion {
         }
     }
 
+    /// The storage one call input keeps borrowed after the call returns, and
+    /// for how long. `path` is the caller's storage path under the input's
+    /// place: the argument's own path, or the longer exact source a returned
+    /// reference's published origin binds (`grid.cells` for `pick(&mut grid,
+    /// i)` returning `&mut grid.cells[i].x`). The argument's own loan still
+    /// covers its whole place for the call; this narrower region is what
+    /// lifetimes.md, "Returned views", requires to "remain live for the
+    /// result's use".
+    pub struct RetainedCallLoan {
+        pub position: usize,
+        pub path: Vec<StructuralPathSegment>,
+        pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    }
+
+    /// The exact retained region for a bound source beneath `argument`.
+    /// A loan row captures fields, cases and fixed indices exactly; a
+    /// runtime selector chosen inside the callee, a referent crossing or a
+    /// representation step stops the region at the storage enclosing it.
+    /// Stopping early only widens the retained region, never narrows it.
+    fn retained_call_path(
+        argument: &terminal_psi::StructuralArgument,
+        source: &[StructuralPathSegment],
+    ) -> Vec<StructuralPathSegment> {
+        let exact = source[argument.path.len()..]
+            .iter()
+            .take_while(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            .count();
+        source[..argument.path.len() + exact].to_vec()
+    }
+
     fn retain_call_lifetime(
-        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        retained: &mut Vec<RetainedCallLoan>,
         position: usize,
+        path: Vec<StructuralPathSegment>,
         lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
-    ) -> Result<(), &'static str> {
-        let previous = retained
-            .get_mut(position)
-            .ok_or("returned borrow dependency has no input position")?;
-        if let Some(previous) = previous {
+    ) {
+        if let Some(previous) = retained
+            .iter_mut()
+            .find(|previous| previous.position == position && previous.path == path)
+        {
+            let previous = &mut previous.lifetime;
             previous.live.extend(lifetime.live);
             for (at, names) in lifetime.demanded {
                 previous.demanded.entry(at).or_default().extend(names);
@@ -516,9 +566,12 @@ pub(crate) mod reference_completion {
                 previous.authorized.entry(at).or_default().extend(names);
             }
         } else {
-            *previous = Some(lifetime);
+            retained.push(RetainedCallLoan {
+                position,
+                path,
+                lifetime,
+            });
         }
-        Ok(())
     }
 
     fn retain_provider_inputs(
@@ -531,14 +584,13 @@ pub(crate) mod reference_completion {
             crate::descriptor_lifetimes::DescriptorPosition,
             crate::descriptor_lifetimes::DescriptorFlowStep,
         >,
-        retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+        retained: &mut Vec<RetainedCallLoan>,
     ) -> Result<(), &'static str> {
         use crate::descriptor_results::DescriptorStoredOrigin;
         let parameters = module
             .invocation_structural_parameters(call.callee, call.required_contract)
             .ok_or("returned provider view has no retained input contract")?;
-        if parameters.len() != call.structural_arguments.len() || parameters.len() != retained.len()
-        {
+        if parameters.len() != call.structural_arguments.len() {
             return Err("returned provider view differs from its input contract");
         }
         for slot in slots {
@@ -637,16 +689,21 @@ pub(crate) mod reference_completion {
                 }
             }
             for position in inputs {
+                let argument = call
+                    .structural_arguments
+                    .get(position)
+                    .ok_or("returned provider dependency names no actual argument")?;
                 retain_call_lifetime(
                     retained,
                     position,
+                    argument.path.clone(),
                     crate::descriptor_lifetimes::DescriptorLifetime {
                         live: lifetime.live.clone(),
                         demanded: lifetime.demanded.clone(),
                         surviving: lifetime.surviving.clone(),
                         authorized: Default::default(),
                     },
-                )?;
+                );
             }
         }
         Ok(())
@@ -663,7 +720,12 @@ pub(crate) mod reference_completion {
         caller: &terminal_psi::TerminalMachine,
         operation: &terminal_psi::Operation,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    ) -> Result<Vec<(usize, crate::descriptor_lifetimes::DescriptorLifetime)>, &'static str> {
+    ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
+        let refuse = |detail| {
+            crate::descriptor_results::DescriptorGraphError::at_operation(
+                module, caller.id, operation, detail,
+            )
+        };
         use super::reference_origins::{
             ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
         };
@@ -689,11 +751,11 @@ pub(crate) mod reference_completion {
                 operation.kind,
                 terminal_psi::OperationKind::CallDynamic { .. }
             ) {
-                Err(if returns_reference {
+                Err(refuse(if returns_reference {
                     "returned dynamic reference needs its admitted completion resource"
                 } else {
                     "returned dynamic view needs its declared lifetime contract"
-                })
+                }))
             } else {
                 Ok(Vec::new())
             };
@@ -701,28 +763,31 @@ pub(crate) mod reference_completion {
         let (declared_parameters, slots, actual, public) = match call.callee {
             terminal_psi::TargetMachineCallable::Boundary(boundary) => {
                 if returns_reference {
-                    return Err(
+                    return Err(refuse(
                         "returned boundary reference needs its admitted completion resource",
-                    );
+                    ));
                 }
                 let declaration = module
                     .boundary_machine(boundary)
-                    .ok_or("returned boundary view has no exact declaration")?;
+                    .ok_or_else(|| refuse("returned boundary view has no exact declaration"))?;
                 let terminal_psi::BoundaryMachineResult::Structural(expected) = &declaration.result
                 else {
-                    return Err("returned view has no structural boundary result");
+                    return Err(refuse("returned view has no structural boundary result"));
                 };
                 if result.qualifications != expected.qualifications
                     || result.projected_qualifications != expected.projected_qualifications
                 {
-                    return Err("returned view differs from its boundary result contract");
+                    return Err(refuse(
+                        "returned view differs from its boundary result contract",
+                    ));
                 }
                 let slots = crate::boundary_result_slots(
                     &module.structural_types,
                     declaration,
                     crate::descriptor_results::DescriptorSlotKind::Views,
                     result,
-                )?;
+                )
+                .map_err(refuse)?;
                 (
                     declaration.structural_parameters.as_slice(),
                     slots,
@@ -733,20 +798,23 @@ pub(crate) mod reference_completion {
             terminal_psi::TargetMachineCallable::Machine(callee) => {
                 let callee = module
                     .machine(callee)
-                    .ok_or("returned reference call has no actual callee body")?;
-                let signature = callee
-                    .result
-                    .structural()
-                    .ok_or("returned reference call has no structural result contract")?;
+                    .ok_or_else(|| refuse("returned reference call has no actual callee body"))?;
+                let signature = callee.result.structural().ok_or_else(|| {
+                    refuse("returned reference call has no structural result contract")
+                })?;
                 if result.structural_type != signature.structural_type
                     || result.multiplicity != signature.multiplicity
                 {
-                    return Err("returned reference call changes its declared result carrier");
+                    return Err(refuse(
+                        "returned reference call changes its declared result carrier",
+                    ));
                 }
                 // A rigid call reaches a bodiless requirement: its declared
                 // lifetimes are the only origins, and no body can narrow them.
                 // It binds through the same public account a selected call reads.
-                if let Some(requirement) = super::requirement_reference_result(module, callee.id)? {
+                if let Some(requirement) =
+                    super::requirement_reference_result(module, callee.id).map_err(refuse)?
+                {
                     (
                         callee.structural_parameters.as_slice(),
                         Vec::new(),
@@ -754,23 +822,28 @@ pub(crate) mod reference_completion {
                         Some(requirement),
                     )
                 } else {
-                    let slots = analysis.result_slots(callee.id).ok_or(
-                        "returned reference callee has no complete actual source correspondence",
-                    )?;
+                    let slots = analysis.result_slots(callee.id).ok_or_else(|| {
+                        // A dependency can fail before its return sources are
+                        // exported. Keep that flow's actual machine and site.
+                        analysis.flow(callee.id).err().unwrap_or_else(|| {
+                            refuse("returned reference callee has no complete actual source correspondence")
+                        })
+                    })?;
                     let actual = if returns_reference {
                         super::reference_origins::reference_result_sources(
                             &module.structural_types,
                             &callee.structural_parameters,
                             signature,
                             &slots,
-                        )?
+                        )
+                        .map_err(refuse)?
                     } else {
                         Vec::new()
                     };
                     if actual != signature.reference_sources {
-                        return Err(
+                        return Err(refuse(
                             "returned reference header differs from its actual body origins",
-                        );
+                        ));
                     }
                     let public = call
                         .required_contract
@@ -778,9 +851,12 @@ pub(crate) mod reference_completion {
                         .map(|required| {
                             super::selected_reference_result(module, caller.id, callee.id, required)
                         })
-                        .transpose()?;
+                        .transpose()
+                        .map_err(refuse)?;
                     if let Some(public) = &public {
-                        public.validate_actual_sources(&callee.structural_parameters, &actual)?;
+                        public
+                            .validate_actual_sources(&callee.structural_parameters, &actual)
+                            .map_err(refuse)?;
                     }
                     (
                         callee.structural_parameters.as_slice(),
@@ -801,7 +877,8 @@ pub(crate) mod reference_completion {
                 module.structural_types.iter(),
                 public,
                 call.structural_arguments,
-            )?
+            )
+            .map_err(refuse)?
         } else {
             bind_reference_call_results(
                 module.structural_types.iter(),
@@ -810,7 +887,8 @@ pub(crate) mod reference_completion {
                     sources: &actual,
                 },
                 call.structural_arguments,
-            )?
+            )
+            .map_err(refuse)?
         };
         let mut positions = caller.blocks.iter().flat_map(|block| {
             block
@@ -824,57 +902,57 @@ pub(crate) mod reference_completion {
         });
         let (block, ordinal) = positions
             .next()
-            .ok_or("returned reference has no exact caller operation")?;
+            .ok_or_else(|| refuse("returned reference has no exact caller operation"))?;
         if positions.next().is_some() {
-            return Err("returned reference has ambiguous caller operation coordinates");
+            return Err(refuse(
+                "returned reference has ambiguous caller operation coordinates",
+            ));
         }
         let at = (
             block,
-            u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
+            u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
         );
-        let flow = analysis.flow(caller.id).map_err(|error| {
-            error
-                .detail()
-                .unwrap_or("returned reference caller has no complete descriptor flow")
-        })?;
-        let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
-            (0..parameters.len()).map(|_| None).collect();
+        let flow = analysis.flow(caller.id)?;
+        let mut retained = Vec::new();
         for (mapping_index, binding) in bindings.into_iter().enumerate() {
             let source_positions = if let Some(public) = &public {
                 use terminal_psi::ReferenceResultShape;
                 public
                     .reference_regions(&binding.path)
                     .map(|region| {
-                        let region = region?;
+                        let region = region.map_err(refuse)?;
                         let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
                             argument_index,
                         } = region.origin
                         else {
-                            return Err(
+                            return Err(refuse(
                                 "selected reference input unexpectedly uses provider storage",
-                            );
+                            ));
                         };
-                        usize::try_from(argument_index)
-                            .map_err(|_| "selected reference input ordinal exceeds host positions")
+                        usize::try_from(argument_index).map_err(|_| {
+                            refuse("selected reference input ordinal exceeds host positions")
+                        })
                     })
                     .collect::<Result<Vec<_>, _>>()?
             } else {
                 actual
                     .get(mapping_index)
-                    .ok_or("returned reference binding lost its body mapping")?
+                    .ok_or_else(|| refuse("returned reference binding lost its body mapping"))?
                     .sources
                     .iter()
                     .map(|origin| {
-                        let formal = origin
-                            .parameter()
-                            .ok_or("returned reference has no formal input origin")?;
+                        let formal = origin.parameter().ok_or_else(|| {
+                            refuse("returned reference has no formal input origin")
+                        })?;
                         terminal_psi::structural_parameter_position(parameters, formal.place)
-                            .ok_or("returned reference names no formal input")
+                            .ok_or_else(|| refuse("returned reference names no formal input"))
                     })
                     .collect::<Result<Vec<_>, _>>()?
             };
             if source_positions.len() != binding.sources.len() {
-                return Err("returned reference binding differs from its exact source ordinals");
+                return Err(refuse(
+                    "returned reference binding differs from its exact source ordinals",
+                ));
             }
             let descriptor = descriptor_location(
                 &module.structural_types,
@@ -883,14 +961,16 @@ pub(crate) mod reference_completion {
                 &binding.path,
                 None,
             )
-            .ok_or("returned reference has no exact result descriptor path")?;
+            .ok_or_else(|| refuse("returned reference has no exact result descriptor path"))?;
             for (position, bound) in source_positions.into_iter().zip(binding.sources) {
                 let ReferenceCallOrigin::Parameter {
                     source,
                     transfers_existing,
                 } = bound.origin
                 else {
-                    return Err("returned invocation reference needs its admitted resource");
+                    return Err(refuse(
+                        "returned invocation reference needs its admitted resource",
+                    ));
                 };
                 if transfers_existing {
                     // The existing descriptor flow transports that input
@@ -900,18 +980,27 @@ pub(crate) mod reference_completion {
                 let argument = call
                     .structural_arguments
                     .get(position)
-                    .ok_or("returned reference input has no actual argument")?;
+                    .ok_or_else(|| refuse("returned reference input has no actual argument"))?;
                 if argument.access == StructuralAccess::Owned
                     || source.place != argument.place
                     || !source.path.starts_with(&argument.path)
                 {
-                    return Err("returned reference does not retain an actual input loan");
+                    return Err(refuse(
+                        "returned reference does not retain an actual input loan",
+                    ));
                 }
                 let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
                 if lifetime.live.contains(&at) {
-                    return Err("returned reference loan crosses its own call formation");
+                    return Err(refuse(
+                        "returned reference loan crosses its own call formation",
+                    ));
                 }
-                retain_call_lifetime(&mut retained, position, lifetime)?;
+                retain_call_lifetime(
+                    &mut retained,
+                    position,
+                    retained_call_path(argument, &source.path),
+                    lifetime,
+                );
             }
         }
         // A view leaf has no published header row: its origins are the
@@ -937,7 +1026,7 @@ pub(crate) mod reference_completion {
                 &slot.path,
             )
             .and_then(|leaf| module.structural_type(leaf))
-            .ok_or("returned view slot has no typed result leaf")?;
+            .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
             if !is_view(&leaf.shape) {
                 continue;
             }
@@ -959,7 +1048,7 @@ pub(crate) mod reference_completion {
                 let formal = parameters
                     .get(*position)
                     .and_then(|formal| module.structural_type(formal.structural_type))
-                    .ok_or("returned view input has no typed formal")?;
+                    .ok_or_else(|| refuse("returned view input has no typed formal"))?;
                 if is_view(&formal.shape)
                     || projection
                         .path
@@ -970,7 +1059,7 @@ pub(crate) mod reference_completion {
                 let argument = call
                     .structural_arguments
                     .get(*position)
-                    .ok_or("returned view input has no actual argument")?;
+                    .ok_or_else(|| refuse("returned view input has no actual argument"))?;
                 if argument.access == StructuralAccess::Owned {
                     // An owned input moves into the callee, so a view it
                     // returns is a descriptor the input carried, as when a
@@ -980,17 +1069,29 @@ pub(crate) mod reference_completion {
                 }
                 let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
                 if lifetime.live.contains(&at) {
-                    return Err("returned view loan crosses its own call formation");
+                    return Err(refuse("returned view loan crosses its own call formation"));
                 }
-                retain_call_lifetime(&mut retained, *position, lifetime)?;
+                retain_call_lifetime(&mut retained, *position, argument.path.clone(), lifetime);
             }
         }
-        retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)?;
-        Ok(retained
-            .into_iter()
-            .enumerate()
-            .filter_map(|(position, lifetime)| lifetime.map(|lifetime| (position, lifetime)))
-            .collect())
+        retain_provider_inputs(module, result, call, &slots, at, &flow, &mut retained)
+            .map_err(refuse)?;
+        if retained
+            .iter()
+            .any(|loan| loan.position >= parameters.len())
+        {
+            return Err(refuse("returned borrow dependency has no input position"));
+        }
+        // Consumers walk the call's arguments in order: each input's own
+        // region first, then its narrower ones in path order.
+        retained.sort_by(|left, right| {
+            (left.position, left.path.len(), &left.path).cmp(&(
+                right.position,
+                right.path.len(),
+                &right.path,
+            ))
+        });
+        Ok(retained)
     }
 
     pub fn cleanup_disposes_reference(

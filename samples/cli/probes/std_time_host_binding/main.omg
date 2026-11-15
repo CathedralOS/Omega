@@ -1,6 +1,6 @@
 use omega::language::core::ProcessExit;
 // The raw time-host seams are boundary traits selected under `TimeHost`.
-// `Time::now` reads the monotonic clock and `Time::sleep_for` waits 50ms.
+// `instant_now` reads the monotonic clock and `sleep_for` waits 50ms.
 // The interpreter's virtual clock advances by exactly that wait; a host
 // clock measures at least 50ms. Exit 70 when both observations hold.
 //
@@ -8,19 +8,20 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega_language_std::Duration;
 use omega_language_std::Instant;
-use omega_language_std::Time;
 use omega_language_std::TimeHost;
+use omega_language_std::elapsed_since;
+use omega_language_std::instant_now;
+use omega_language_std::sleep_for;
 
 data Main {
-    time: Time;
 }
 
 machine entry_start() reaches ProcessExit + Console + TimeHost {
     let mut entry: Main;
-    let start: Instant = Time::now(&mut entry.time);
+    let start: Instant = instant_now();
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
-    let slept: u32 = block Time::sleep_for(&mut entry.time, pause);
-    let elapsed: Duration = Time::elapsed_since(&mut entry.time, start);
+    let slept: u32 = block sleep_for(pause);
+    let elapsed: Duration = elapsed_since(start);
     let long_enough: bool = elapsed.seconds > 0 || elapsed.subsecond_nanoseconds >= 50000000;
     transition slept == 50 && long_enough {
         true -> pass()

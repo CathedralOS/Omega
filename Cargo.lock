@@ -2685,6 +2685,7 @@ name = "typed-trees-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "diagnostics",
  "language-core",
  "language-semantics",
  "numerics",

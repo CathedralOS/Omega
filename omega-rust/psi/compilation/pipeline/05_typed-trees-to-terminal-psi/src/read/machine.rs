@@ -14,13 +14,13 @@ use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
-    ValueType,
+    Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
+    Termination, ValueType,
 };
 use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -2549,6 +2549,27 @@ impl<'t> Program<'t> {
         Ok(nothing)
     }
 
+    /// A slice formal carries its borrowed descriptor. A loan of a stored
+    /// value uses the referent's carrier. The executable signature and calling
+    /// ABI use this same choice when they read the formal's type.
+    pub(super) fn borrowed_formal_carrier(
+        &self,
+        reference: TypeReferenceHandle,
+        referee: TypeReferenceHandle,
+    ) -> (TypeReferenceHandle, BorrowedReferent) {
+        let types = &self.typed.type_reference_table;
+        if types.contains_type_reference(referee)
+            && matches!(
+                types.type_reference(referee),
+                TypeReferenceNode::Slice { .. }
+            )
+        {
+            (reference, BorrowedReferent::Slice)
+        } else {
+            (referee, BorrowedReferent::Value)
+        }
+    }
+
     /// A formal's type, whether it is `[erased]`, and the reference it is
     /// passed by. An erased formal is scalar: an erased record travels in
     /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
@@ -2632,17 +2653,11 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        // A byte view keeps the region it names in its type (`bytes`). A
-        // reference to anything else is a loan of one place, and what its
-        // lifetime relates it to has no reader yet.
-        let is_view = matches!(
-            self.typed.type_reference_table.type_reference(referee),
-            TypeReferenceNode::Slice { .. }
-        );
+        let (carrier, referent) = self.borrowed_formal_carrier(formal.type_reference, referee);
         // Retain the outer loan itself, independently of nested views in
         // its referent. A returned reference cannot borrow only a pointer
         // word or substitute a referent's nested lifetime for this one.
-        let ordinary_region = if is_view {
+        let ordinary_region = if referent == BorrowedReferent::Slice {
             None
         } else {
             let identity = self
@@ -2667,11 +2682,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = if is_view {
-            self.value_type(id, formal.type_reference)?
-        } else {
-            self.value_type(id, referee)?
-        };
+        let value_type = self.value_type(id, carrier)?;
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
@@ -2716,11 +2727,7 @@ impl<'t> Program<'t> {
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
-                referent: if is_view {
-                    crate::body::BorrowedReferent::Slice
-                } else {
-                    crate::body::BorrowedReferent::Value
-                },
+                referent,
                 regions,
                 home,
             }),

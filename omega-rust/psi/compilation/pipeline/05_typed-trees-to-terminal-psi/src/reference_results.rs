@@ -29,6 +29,7 @@ pub(crate) fn publish(
     selections: &[crate::Selected],
 ) -> Checked<()> {
     publish_results(&mut elaboration.module, selections)?;
+    publish_retained_call_loans(elaboration)?;
     let successor_loans = publish_successor_loans(elaboration)?;
     publish_parents(elaboration, &successor_loans)
 }
@@ -82,6 +83,151 @@ pub(crate) fn publish_requirements(
             .ok_or_else(|| unavailable(requirement, "requirement result declaration disappeared"))?
             .contract
             .result_lifetimes = groups;
+    }
+    Ok(())
+}
+
+/// A returned reference keeps only the storage its published origin names
+/// borrowed: `pick(&mut grid, i)` returning `&mut grid.cells[i].x` retains
+/// `grid.cells`, not `grid`. The call's own argument loan covers the whole
+/// argument for the call and ends when it returns; a second `Loan` row,
+/// formed at the same point, captures the narrower region and carries the
+/// result's lifetime (lifetimes.md, "Returned views"). Mint that row here,
+/// once results are published, so the checker can reconstruct the same
+/// region from `reference_call_lifetimes` and claim it.
+fn publish_retained_call_loans(elaboration: &mut crate::Elaboration) -> Checked<()> {
+    use terminal_check_tables::ProgramPoint;
+    use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
+    let module = &elaboration.module;
+    let contains_reference = |ty| {
+        terminal_psi::structural_type_contains_reference_by(|id| module.structural_type(id), ty)
+    };
+    let returns_borrowed = |operation: &terminal_psi::Operation| {
+        operation.declared_invocation().is_some_and(|call| {
+            call.structural_arguments
+                .iter()
+                .any(|argument| reference_access(argument.access).is_some())
+        }) && operation
+            .result
+            .as_structural()
+            .is_some_and(|result| contains_reference(result.structural_type))
+    };
+    let mut callers: Vec<_> = module
+        .machines
+        .iter()
+        .filter(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(returns_borrowed)
+        })
+        .map(|machine| machine.id)
+        .collect();
+    callers.sort_unstable();
+    if callers.is_empty() {
+        return Ok(());
+    }
+    // A caller's retained regions come from its callees' actual returns, so
+    // the one closure covers every body that returns a reference.
+    let bodies = module.machines.iter().filter(|machine| {
+        !machine.blocks.is_empty()
+            && (callers.binary_search(&machine.id).is_ok()
+                || machine
+                    .result
+                    .structural()
+                    .is_some_and(|result| contains_reference(result.structural_type)))
+    });
+    let graph = terminal_borrowed_storage_graph_from(module, bodies.map(|machine| machine.id), &[])
+        .map_err(|error| graph_unavailable(module, error))?;
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+    for machine in &module.machines {
+        if callers.binary_search(&machine.id).is_err() {
+            continue;
+        }
+        let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
+        let tables = elaboration
+            .tables
+            .machines
+            .get_mut(machine.id)
+            .ok_or_else(|| unavailable("retained call loan lost its machine tables"))?;
+        let sources = elaboration
+            .sources
+            .get_mut(machine.id)
+            .ok_or_else(|| unavailable("retained call loan lost its source coordinates"))?;
+        for block in &machine.blocks {
+            let mut before = ProgramPoint::BlockEntry(block.id);
+            for operation in &block.operations {
+                let point = before;
+                before = ProgramPoint::AfterOperation(operation.id);
+                if !returns_borrowed(operation) {
+                    continue;
+                }
+                let retained = terminal_semantics::reference_call_lifetimes(
+                    module,
+                    machine,
+                    operation,
+                    &mut analysis,
+                )
+                .map_err(|error| graph_unavailable(module, error))?;
+                let call = operation
+                    .declared_invocation()
+                    .ok_or_else(|| unavailable("retained call loan lost its actual call"))?;
+                for retained in retained {
+                    let argument = call
+                        .structural_arguments
+                        .get(retained.position)
+                        .ok_or_else(|| unavailable("retained call loan has no actual argument"))?;
+                    if retained.path == argument.path {
+                        continue;
+                    }
+                    let access = reference_access(argument.access)
+                        .ok_or_else(|| unavailable("retained call loan has no borrowed input"))?;
+                    // The argument's own row supplies the lender and source
+                    // coordinates; the narrower row is formed by the same call.
+                    let argument_loan =
+                        retained_loan_row(module, machine, tables, point, argument, access, &[])
+                            .map_err(unavailable)?
+                            .ok_or_else(|| {
+                                unavailable("retained call loan has no argument occurrence row")
+                            })?;
+                    let Some(ObligationKind::Loan { lender, .. }) =
+                        tables.obligations.get(argument_loan).map(|row| row.kind)
+                    else {
+                        return Err(unavailable("retained call loan lost its argument row"));
+                    };
+                    let origin = sources
+                        .obligations
+                        .get(argument_loan)
+                        .copied()
+                        .ok_or_else(|| unavailable("retained call loan has no source origin"))?;
+                    let captured = capture_argument(
+                        machine,
+                        &module.structural_types,
+                        tables,
+                        &terminal_psi::StructuralArgument {
+                            place: argument.place,
+                            path: retained.path,
+                            access: argument.access,
+                        },
+                    )?;
+                    let obligation = tables.obligations.push(ObligationRow {
+                        kind: ObligationKind::Loan {
+                            captured,
+                            access,
+                            lender,
+                        },
+                        created_at: point,
+                    });
+                    if sources.obligations.push(origin) != obligation {
+                        return Err(unavailable(
+                            "retained call loan and source coordinates differ",
+                        ));
+                    }
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -592,71 +738,66 @@ fn publish_parents(
                     operation,
                     &mut analysis,
                 )
-                .map_err(|reason| unavailable(machine.id, reason))?;
+                .map_err(|error| graph_unavailable(module, error))?;
                 if !retained.is_empty() {
                     let call = operation.kind.declared_invocation().ok_or_else(|| {
                         unavailable(machine.id, "retained reference lost its actual call")
                     })?;
+                    // Each argument's own row first, in argument order, then
+                    // each narrower retained region's row
+                    // (`publish_retained_call_loans`).
                     let mut claimed = Vec::new();
-                    let mut retained = retained.into_iter().peekable();
-                    for (position, source) in call.structural_arguments.iter().enumerate() {
+                    let mut own = Vec::with_capacity(call.structural_arguments.len());
+                    for source in call.structural_arguments {
                         let Some(access) = reference_access(source.access) else {
+                            own.push(None);
                             continue;
                         };
-                        let ty = machine.structural_place_type(source.place).ok_or_else(|| {
-                            unavailable(machine.id, "retained call loan has no source type")
-                        })?;
-                        let location = descriptor_location(
-                            &module.structural_types,
-                            source.place,
-                            ty,
-                            &source.path,
-                            None,
+                        let id = retained_loan_row(
+                            module, machine, tables, before, source, access, &claimed,
                         )
+                        .map_err(|reason| unavailable(machine.id, reason))?
                         .ok_or_else(|| {
-                            unavailable(machine.id, "retained call loan has no exact source")
-                        })?;
-                        let mut found = None;
-                        for (id, row) in tables.obligations.iter() {
-                            let ObligationKind::Loan {
-                                captured,
-                                access: actual,
-                                ..
-                            } = row.kind
-                            else {
-                                continue;
-                            };
-                            if row.created_at != before || actual != access || claimed.contains(&id)
-                            {
-                                continue;
-                            }
-                            let (root, path) = captured_path(tables, captured)
-                                .map_err(|reason| unavailable(machine.id, reason))?;
-                            if DescriptorLocation::captured(root, &path).as_ref() == Some(&location)
-                            {
-                                found = Some(id);
-                                break;
-                            }
-                        }
-                        let id = found.ok_or_else(|| {
                             unavailable(
                                 machine.id,
                                 "retained call loan has no exact occurrence row",
                             )
                         })?;
                         claimed.push(id);
-                        if retained.peek().is_some_and(|(input, _)| *input == position) {
-                            let (_, lifetime) = retained.next().ok_or_else(|| {
-                                unavailable(machine.id, "retained call loan lifetime disappeared")
-                            })?;
-                            parents.push((id, lifetime));
-                        }
+                        own.push(Some(id));
                     }
-                    if retained.next().is_some() {
-                        return Err(unavailable(
-                            machine.id,
-                            "returned reference lifetime has no borrowed call occurrence",
-                        ));
+                    for retained in retained {
+                        let argument = call
+                            .structural_arguments
+                            .get(retained.position)
+                            .ok_or_else(|| {
+                                unavailable(machine.id, "retained call loan lost its argument")
+                            })?;
+                        let id = if retained.path == argument.path {
+                            own.get(retained.position).copied().flatten()
+                        } else {
+                            let access = reference_access(argument.access).ok_or_else(|| {
+                                unavailable(machine.id, "retained call loan has no borrowed input")
+                            })?;
+                            let region = terminal_psi::StructuralArgument {
+                                place: argument.place,
+                                path: retained.path,
+                                access: argument.access,
+                            };
+                            let id = retained_loan_row(
+                                module, machine, tables, before, &region, access, &claimed,
+                            )
+                            .map_err(|reason| unavailable(machine.id, reason))?;
+                            claimed.extend(id);
+                            id
+                        }
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "returned reference lifetime has no borrowed call occurrence",
+                            )
+                        })?;
+                        parents.push((id, retained.lifetime));
                     }
                 }
                 before = ProgramPoint::AfterOperation(operation.id);
@@ -735,6 +876,50 @@ fn publish_parents(
         *slot = lender;
     }
     Ok(())
+}
+
+/// The unclaimed `Loan` row formed at `before` that captures exactly
+/// `source` with `access`.
+fn retained_loan_row(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    tables: &terminal_check_tables::MachineTables,
+    before: terminal_check_tables::ProgramPoint,
+    source: &terminal_psi::StructuralArgument,
+    access: language_core::ReferenceAccess,
+    claimed: &[semantic_vocabulary::ObligationId],
+) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+    use terminal_check_tables::obligations::ObligationKind;
+    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_location};
+    let ty = machine
+        .structural_place_type(source.place)
+        .ok_or("retained call loan has no source type")?;
+    let location = descriptor_location(
+        &module.structural_types,
+        source.place,
+        ty,
+        &source.path,
+        None,
+    )
+    .ok_or("retained call loan has no exact source")?;
+    for (id, row) in tables.obligations.iter() {
+        let ObligationKind::Loan {
+            captured,
+            access: actual,
+            ..
+        } = row.kind
+        else {
+            continue;
+        };
+        if row.created_at != before || actual != access || claimed.contains(&id) {
+            continue;
+        }
+        let (root, path) = captured_path(tables, captured)?;
+        if DescriptorLocation::captured(root, &path).as_ref() == Some(&location) {
+            return Ok(Some(id));
+        }
+    }
+    Ok(None)
 }
 
 /// A view formal borrows payload permission. A reference formal instead

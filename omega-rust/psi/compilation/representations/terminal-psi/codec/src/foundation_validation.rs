@@ -8314,11 +8314,14 @@ pub(crate) mod storage_foundations {
                 "reference release requires an owned descriptor path and Unit result",
             );
         }
-        let leaf_type = validate_structural_path(module, source_type, path)?;
-        if !module.structural_types.iter().any(|row| {
-            row.id == leaf_type && matches!(row.shape, StructuralTypeShape::Reference { .. })
-        }) {
-            return malformed("reference release requires a reference carrier");
+        if terminal_semantics::inline_descriptor_type(
+            module.structural_types.iter(),
+            source_type,
+            path,
+        )
+        .is_none()
+        {
+            return malformed("reference release requires a borrowed descriptor");
         }
         Ok(())
     }

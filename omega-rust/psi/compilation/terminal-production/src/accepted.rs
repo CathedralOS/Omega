@@ -470,6 +470,7 @@ impl AcceptedTerminalSource {
             ),
             declaration,
         )
+        .ok()
         .map(|projected| projected.declaration)
     }
 

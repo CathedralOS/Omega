@@ -1,6 +1,7 @@
 //! A reference to a field of one runtime-selected array element is formed,
-//! returned and written through in both engines, and the array it came from
-//! stays borrowed while that reference is live.
+//! returned and written through in both engines. The array it came from
+//! stays borrowed while that reference is live; the record's other fields
+//! do not.
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -27,6 +28,15 @@ fn run_both(fixture: &str) -> (bool, String) {
 #[test]
 fn a_runtime_element_field_reference_returns_to_the_caller_in_both_engines() {
     let (success, report) = run_both("run/ownership/runtime_element_reference_return");
+    assert!(success, "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}
+
+#[test]
+fn a_returned_element_reference_leaves_the_other_fields_of_its_argument_free() {
+    let (success, report) = run_both("run/ownership/returned_reference_disjoint_field");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");

@@ -328,12 +328,123 @@ pub mod type_system;
 pub mod values;
 pub(crate) mod canonical_values {
     use crate::TypedTrees;
-    use crate::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
-    use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+    use crate::data::{DataDefinition, DataField, DataVariant};
+    use crate::expression::{
+        ExpressionNode, TableCastExpression, TableStructLiteral, TableStructLiteralField,
+    };
+    use crate::types::{
+        DomainConstraint, DomainConstraintSubject, FixedArrayLength, PrimitiveType,
+        TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    };
+    use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
     use language_semantics::const_value::DecodedCanonicalConstValue;
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
 
+    /// The declared domains a carrier qualifies its value with, innermost
+    /// first, and the carrier beneath them.
+    ///
+    /// An evaluated snapshot holds a value's bits and declared carrier, not
+    /// the evidence its invocation checked for each domain on it. The
+    /// materializer re-establishes each domain with an `as +D` entry, so the
+    /// reader of the materialized value owes that domain's ordinary issuer
+    /// and predicate checks (domains.md, "Domain-only casts"); the
+    /// evaluator refuses a domain whose issuance is restricted before this
+    /// point, since a constant grants no authority (constants.md). An
+    /// arithmetic policy stays on the carrier, where integer landing reads
+    /// it; any other constraint, alone or beside a declared domain, has no
+    /// materialization and yields `None`.
+    pub(crate) fn declared_domain_qualifications(
+        program: &TypedTrees,
+        carrier: TypeReferenceHandle,
+    ) -> Option<(TypeReferenceHandle, Vec<&DomainConstraint>)> {
+        let mut base = carrier;
+        let mut outermost_first = Vec::new();
+        while base.is_valid() {
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = program.type_reference_node(base)
+            else {
+                break;
+            };
+            let constraints = program.type_reference_table.constraints(*constraints);
+            if constraints
+                .iter()
+                .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
+            {
+                break;
+            }
+            for constraint in constraints.iter().rev() {
+                let TypeConstraintNode::Domain(domain) = constraint else {
+                    return None;
+                };
+                if domain.subject != DomainConstraintSubject::Declared || !domain.symbol.is_valid()
+                {
+                    return None;
+                }
+                outermost_first.push(domain);
+            }
+            base = *base_type;
+        }
+        outermost_first.reverse();
+        Some((base, outermost_first))
+    }
+
     pub(crate) fn materialize(
+        program: &mut TypedTrees,
+        declared_type: TypeReferenceHandle,
+        value: &DecodedCanonicalConstValue,
+    ) -> Option<ExpressionNode> {
+        let (base, domains) = declared_domain_qualifications(program, declared_type)?;
+        if domains.is_empty() {
+            return materialize_carrier(program, declared_type, value);
+        }
+        let domains = domains.into_iter().cloned().collect::<Vec<_>>();
+        let mut node = materialize_carrier(program, base, value)?;
+        for (position, domain) in domains.iter().enumerate() {
+            // Each entry adds one domain; the type after it carries that
+            // domain and every one added beneath it.
+            let result_type = if position + 1 == domains.len() {
+                declared_type
+            } else {
+                let constraints = program.type_reference_table.insert_constraints(
+                    domains[..=position]
+                        .iter()
+                        .cloned()
+                        .map(TypeConstraintNode::Domain),
+                );
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Constrained {
+                        base_type: base,
+                        constraints,
+                    })
+            };
+            node = ExpressionNode::Cast(TableCastExpression {
+                value: program.expression_table.insert(node),
+                target_type: result_type,
+                result_type,
+                target_label: arena::HandleSpan::empty(),
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                semantic_domain: arena::HandleSpan::empty(),
+                semantic_domain_arguments: arena::HandleSpan::empty(),
+                semantic_domain_symbol: domain.symbol,
+                semantic_domain_id: domain.semantic_id,
+                form: added(position == 0),
+            });
+        }
+        Some(node)
+    }
+
+    fn added(first: bool) -> CastForm {
+        CastForm::Entry(CastEntry {
+            kind: CastEntryKind::Add,
+            first,
+            after_carrier: false,
+        })
+    }
+
+    fn materialize_carrier(
         program: &mut TypedTrees,
         declared_type: TypeReferenceHandle,
         value: &DecodedCanonicalConstValue,
@@ -395,6 +506,33 @@ pub(crate) mod canonical_values {
         }
     }
 
+    fn aggregate_declaration<'a>(
+        program: &'a TypedTrees,
+        carrier: TypeReferenceHandle,
+        type_name: &str,
+    ) -> Option<&'a DataDefinition> {
+        let carrier = program.unwrapped_type_reference(carrier)?;
+        let symbol = program.type_reference_node(carrier).as_named_symbol()?;
+        let declaration = program.data_definition_by_symbol(symbol)?;
+        (symbol.is_valid() && declaration.name.as_str() == type_name).then_some(declaration)
+    }
+
+    fn named_case<'a>(
+        program: &'a TypedTrees,
+        declaration: &'a DataDefinition,
+        name: &str,
+    ) -> Option<&'a DataVariant> {
+        let mut matching = program
+            .data_members(declaration)
+            .iter()
+            .filter_map(|member| member.as_variant())
+            .filter(|case| case.name.as_str() == name);
+        let (Some(case), None) = (matching.next(), matching.next()) else {
+            return None;
+        };
+        case.symbol.is_valid().then_some(case)
+    }
+
     fn record(
         program: &mut TypedTrees,
         declared_type: TypeReferenceHandle,
@@ -402,27 +540,14 @@ pub(crate) mod canonical_values {
         case_name: Option<&str>,
         fields: &[(String, DecodedCanonicalConstValue)],
     ) -> Option<ExpressionNode> {
-        let declared_type = program.unwrapped_type_reference(declared_type)?;
-        let symbol = &program
-            .type_reference_node(declared_type)
-            .as_named_symbol()?;
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol.is_valid() && definition.symbol == *symbol)?;
-        if definition.name.as_str() != type_name {
-            return None;
-        }
+        let definition = aggregate_declaration(program, declared_type, type_name)?;
         let mut literal = TableStructLiteral {
             type_name: definition.name.clone(),
             type_symbol: definition.symbol,
             ..TableStructLiteral::default()
         };
         let declared_fields = if let Some(case_name) = case_name {
-            let variant = program.data_members(definition).iter().find_map(|member| {
-                let variant = member.as_variant()?;
-                (variant.name.as_str() == case_name).then_some(variant)
-            })?;
+            let variant = named_case(program, definition, case_name)?;
             literal.case_name = Some(variant.name.clone());
             literal.case_symbol = Some(variant.symbol);
             program.data_payload_fields(variant).to_vec()
@@ -481,6 +606,30 @@ pub(crate) mod canonical_values {
         if !program.expression_table.expression_is_valid(expression) {
             return false;
         }
+        let Some((base, domains)) = declared_domain_qualifications(program, carrier) else {
+            return false;
+        };
+        if !domains.is_empty() {
+            let mut expression = expression;
+            for (position, domain) in domains.iter().enumerate().rev() {
+                if !program.expression_table.expression_is_valid(expression) {
+                    return false;
+                }
+                let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
+                else {
+                    return false;
+                };
+                if cast.form != added(position == 0)
+                    || cast.semantic_domain_symbol != domain.symbol
+                    || cast.semantic_domain_id != domain.semantic_id
+                    || (position + 1 == domains.len() && cast.result_type != carrier)
+                {
+                    return false;
+                }
+                expression = cast.value;
+            }
+            return matches_materialized(program, base, expression, value);
+        }
         match (program.expression_table.expression(expression), value) {
             (ExpressionNode::Boolean(actual), DecodedCanonicalConstValue::Boolean(expected)) => {
                 actual == expected
@@ -521,45 +670,79 @@ pub(crate) mod canonical_values {
                         matches_materialized(program, *element_type, *expression, value)
                     })
             }
-            (
-                ExpressionNode::StructLiteral(actual),
-                DecodedCanonicalConstValue::Record { type_name, fields },
-            ) => {
-                let Some(underlying) = program.unwrapped_type_reference(carrier) else {
+            (ExpressionNode::StructLiteral(actual), value) => {
+                let (type_name, case_name, fields) = match value {
+                    DecodedCanonicalConstValue::Record { type_name, fields } => {
+                        (type_name, None, fields)
+                    }
+                    DecodedCanonicalConstValue::Variant {
+                        type_name,
+                        case_name,
+                        fields,
+                    } => (type_name, Some(case_name.as_str()), fields),
+                    _ => return false,
+                };
+                let Some(declaration) = aggregate_declaration(program, carrier, type_name) else {
                     return false;
                 };
-                let Some(symbol) = program.type_reference_node(underlying).as_named_symbol() else {
+                if actual.type_symbol != declaration.symbol {
                     return false;
-                };
-                let Some(record) = program.data_definition_by_symbol(symbol) else {
-                    return false;
-                };
-                let members = program.data_members(record);
+                }
                 let expressions = program.expression_table.struct_fields(actual.fields);
-                actual.type_symbol == symbol
-                    && actual.case_symbol.is_none()
-                    && actual.case_name.is_none()
-                    && type_name == record.name.as_str()
-                    && members.len() == fields.len()
-                    && expressions.len() == fields.len()
-                    && members.iter().zip(expressions).zip(fields).all(
-                        |((member, expression), (name, value))| {
-                            member.as_field().is_some_and(|field| {
-                                field.symbol == expression.field_symbol
-                                    && field.name == expression.name
-                                    && field.name.as_str() == name
-                                    && matches_materialized(
-                                        program,
-                                        field.type_reference,
-                                        expression.value,
-                                        value,
-                                    )
-                            })
-                        },
-                    )
+                if let Some(case_name) = case_name {
+                    let Some(case) = named_case(program, declaration, case_name) else {
+                        return false;
+                    };
+                    actual.case_symbol == Some(case.symbol)
+                        && actual.case_name.as_ref() == Some(&case.name)
+                        && matches_fields(
+                            program,
+                            program.data_payload_fields(case).iter().map(Some),
+                            expressions,
+                            fields,
+                        )
+                } else {
+                    actual.case_symbol.is_none()
+                        && actual.case_name.is_none()
+                        && matches_fields(
+                            program,
+                            program
+                                .data_members(declaration)
+                                .iter()
+                                .map(|member| member.as_field()),
+                            expressions,
+                            fields,
+                        )
+                }
             }
             _ => false,
         }
+    }
+
+    fn matches_fields<'a>(
+        program: &TypedTrees,
+        declared: impl ExactSizeIterator<Item = Option<&'a DataField>>,
+        expressions: &[TableStructLiteralField],
+        fields: &[(String, DecodedCanonicalConstValue)],
+    ) -> bool {
+        declared.len() == fields.len()
+            && expressions.len() == fields.len()
+            && declared
+                .zip(expressions)
+                .zip(fields)
+                .all(|((field, expression), (name, value))| {
+                    field.is_some_and(|field| {
+                        field.symbol == expression.field_symbol
+                            && field.name == expression.name
+                            && field.name.as_str() == name
+                            && matches_materialized(
+                                program,
+                                field.type_reference,
+                                expression.value,
+                                value,
+                            )
+                    })
+                })
     }
 
     impl TypedTrees {
@@ -570,6 +753,15 @@ pub(crate) mod canonical_values {
             value: &DecodedCanonicalConstValue,
         ) -> bool {
             matches_materialized(self, carrier, expression, value)
+        }
+
+        /// The declared domains on a constant carrier, innermost first
+        /// (`declared_domain_qualifications`).
+        pub fn constant_domain_qualifications(
+            &self,
+            carrier: TypeReferenceHandle,
+        ) -> Option<Vec<&DomainConstraint>> {
+            declared_domain_qualifications(self, carrier).map(|(_, domains)| domains)
         }
 
         pub fn materialize_canonical_const_value(

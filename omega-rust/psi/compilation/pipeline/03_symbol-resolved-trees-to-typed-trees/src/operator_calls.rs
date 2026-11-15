@@ -153,6 +153,101 @@ pub(crate) fn sites(
         .collect()
 }
 
+/// A builtin operator takes unqualified operands only, in executable code and
+/// in `requires` and `ensures` alike (domains.md, "Operands"). When typing
+/// knows every operand's type, one of them carries a declared domain, and no
+/// operator declaration accepts those types, the program breaks that rule:
+/// report it and show the cast that removes the domain. An operand whose type
+/// typing cannot read here, or a declaration that matches but cannot be
+/// selected yet, is not decided here; the lowered-form reader refuses those.
+fn qualified_builtin_operand(
+    program: &TypedTrees,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    owner: symbols::SymbolHandle,
+    handle: typed_trees::expression::ExpressionHandle,
+    binary: typed_trees::expression::TableBinaryExpression,
+) -> Option<Diagnostic> {
+    let spelling = typed_trees::operator::binary_operator_spelling(binary.operator)?;
+    let mut operands = [None; 2];
+    let mut qualified = None;
+    for (position, operand) in [binary.left, binary.right].into_iter().enumerate() {
+        let reference = types.get(program, owner, operand);
+        if reference.is_none()
+            && !typed_trees::closed_numeric::has_anonymous_numeric_results(program, operand)
+        {
+            return None;
+        }
+        if qualified.is_none()
+            && let Some(reference) = reference
+            && let Some(written) = declared_domains(program, reference)
+        {
+            qualified = Some((operand, written));
+        }
+        operands[position] = reference;
+    }
+    let (operand, (carrier, domains)) = qualified?;
+    let span = program.expression_table.source_span(handle);
+    if !typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operands, span)
+        .is_empty()
+    {
+        return None;
+    }
+    let operator = binary.operator.display_name();
+    let value = program.expression_table.display_name(operand);
+    // A compound operand keeps its own grouping inside the suggested cast.
+    let cast_operand = if value.contains(' ') {
+        format!("({value})")
+    } else {
+        value.clone()
+    };
+    let removal = domains
+        .iter()
+        .map(|domain| format!("-{domain}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(
+        Diagnostic::error(format!(
+            "builtin operator `{operator}` takes unqualified operands only, but `{value}` has \
+             type `{carrier} in {}` and no operator `{operator}` is declared for it; remove the \
+             domain with a cast first, such as `({cast_operand} as {removal})`",
+            domains.join(" & "),
+        ))
+        .with_source_span(span),
+    )
+}
+
+/// The carrier and the declared domains a type reference carries directly,
+/// by name, or `None` when it carries none. An arithmetic policy is not a
+/// declared domain: core declares the policy operators.
+fn declared_domains(
+    program: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<(String, Vec<String>)> {
+    use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
+    let table = &program.type_reference_table;
+    let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = table.type_reference(reference)
+    else {
+        return None;
+    };
+    let names = table
+        .constraint_span(*constraints)?
+        .iter()
+        .filter_map(|constraint| match constraint {
+            TypeConstraintNode::Domain(domain)
+                if domain.subject == DomainConstraintSubject::Declared
+                    && domain.symbol.is_valid() =>
+            {
+                Some(domain.name.as_str().to_owned())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    (!names.is_empty()).then(|| (table.display_name(*base_type), names))
+}
+
 pub(crate) fn prepare_site(
     program: &mut TypedTrees,
     owners: &typed_trees::references::ProgramOperandOwners,
@@ -180,6 +275,11 @@ pub(crate) fn prepare_site(
         answer = Some(selected);
     }
     let Some(Some(selected)) = answer else {
+        if answer.is_some()
+            && let Some(error) = qualified_builtin_operand(program, types, caller, handle, binary)
+        {
+            return Err(error);
+        }
         return Ok(());
     };
     let target = selected.target;

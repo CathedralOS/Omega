@@ -921,7 +921,7 @@ pub mod compiler_evaluation {
         pub local_terminates: bool,
         pub entry_requires: bool,
         pub linear_carrier: Option<String>,
-        pub static_application: Option<String>,
+        pub invocation_refusal: Option<String>,
         pub selections: Result<Vec<DeclarationAuthorityRequest>, String>,
     }
 

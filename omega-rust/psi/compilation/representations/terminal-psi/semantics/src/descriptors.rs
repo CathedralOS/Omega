@@ -662,6 +662,12 @@ pub mod descriptor_lifetimes {
     #[derive(Clone, Default)]
     pub struct DescriptorFlowStep {
         pub definitions: Vec<DescriptorLocation>,
+        /// The subset of `definitions` that an owned move consumes rather
+        /// than overwrites. Loan liveness treats both alike. Descriptor
+        /// replay keeps a consumed parameter's entry value readable, so the
+        /// machine's summary can still report the caller's storage behind a
+        /// reference the parameter held.
+        pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub inputs: Vec<DescriptorLocation>,
@@ -13256,13 +13262,15 @@ pub mod descriptor_results {
             step: &mut DescriptorFlowStep,
         ) -> Option<()> {
             let mut consume = |argument: &StructuralArgument| {
-                step.definitions.push(descriptor_location(
+                let consumed = descriptor_location(
                     &module.structural_types,
                     argument.place,
                     machine.structural_place_type(argument.place)?,
                     &argument.path,
                     None,
-                )?);
+                )?;
+                step.definitions.push(consumed.clone());
+                step.consumed.push(consumed);
                 Some(())
             };
             let retained = |argument: &StructuralArgument| {
@@ -16123,6 +16131,38 @@ pub mod descriptor_results {
         "reference use without exact live backing correspondence";
 
     impl DescriptorGraphError {
+        /// Report a location only when the operation ID is unique and its
+        /// instruction matches. Other failures retain only the machine.
+        pub fn at_operation(
+            module: &TerminalModule,
+            machine: MachineId,
+            operation: &Operation,
+            detail: &'static str,
+        ) -> Self {
+            let position = exactly_one(module.machines.iter(), |row| row.id == machine)
+                .and_then(|machine| {
+                    exactly_one(
+                        machine.blocks.iter().flat_map(|block| {
+                            block
+                                .operations
+                                .iter()
+                                .enumerate()
+                                .filter_map(move |(index, row)| {
+                                    (row.id == operation.id).then_some((block.id, index, row))
+                                })
+                        }),
+                        |_| true,
+                    )
+                    .and_then(|(block, index, row)| (row == operation).then_some((block, index)))
+                })
+                .and_then(|(block, index)| u32::try_from(index).ok().map(|index| (block, index)));
+            Self::IncompleteMachine {
+                machine,
+                position,
+                detail: Some(detail),
+            }
+        }
+
         pub const fn detail(self) -> Option<&'static str> {
             match self {
                 Self::IncompleteMachine { detail, .. } => detail,
@@ -16176,6 +16216,23 @@ pub mod descriptor_results {
                     crate::OperationSemanticTag::for_operation(&operation.kind).name(),
                     operation.id
                 ));
+                if let Some(call) = operation.declared_invocation() {
+                    detail.push_str(&format!("; invocation target {:?}", call.callee));
+                    if let Some(required) = call.required_contract {
+                        detail.push_str(&format!("; required contract {required:?}"));
+                    }
+                    if let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee
+                        && let Some(name) =
+                            exactly_one(module.machines.iter(), |row| row.id == callee)
+                                .and_then(|callee| callee.declaration.as_ref())
+                                .and_then(|declaration| {
+                                    module.identities.text(declaration.callable)
+                                })
+                    {
+                        detail.push_str("; callee body ");
+                        detail.push_str(name);
+                    }
+                }
             }
             if let Some(name) = name {
                 detail.push_str("; declaration ");

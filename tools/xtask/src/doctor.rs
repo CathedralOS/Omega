@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::repo_root;
 
-const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
+const CLAIMS_REF: &str = "refs/heads/work/claims";
 const CLAIMS_MISSING_PUSH_URL_FIX: &str = "mbx xtask claims needs exactly one push URL";
 const CLAIMS_UNREACHABLE_FIX: &str =
     "mbx xtask claims status/note/claim will fail until the coordination remote answers";

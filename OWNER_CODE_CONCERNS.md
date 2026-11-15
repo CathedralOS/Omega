@@ -73,61 +73,61 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Constant validation refuses a case the source reader already materialized
-- Category: knowledge crossing a boundary
-- Where: [constant materialization check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/constant_values.rs#L214)
-- Saw: On macOS arm64 with the bundled-fence repair, using `const selected: Policy = Policy::Read` in a two-case copyable sum refuses with “constant of a sum type requires its case materializer.” Constructing `Policy::Read` inline and taking the same checked case branch exits 0 in both engines. A named `FenceOrdering::Receive` constant stops at the same earlier check.
-- Cost: The compiler already reads the retained initializer before it compares it with the decoded constant. Compare the materialized variant's exact nominal declaration, case, and payload through the existing agreement check. Refuse a mismatch in any of them.
-- Reported: 2026-11-15, Codex, while tracing static named fence arguments.
+### Run help omits that an explicit host target skips execution
+- Category: the documents disagree
+- Where: [run usage](omega-rust/omega/application/src/arguments/run.rs#L23), [native and Psi selection](omega-rust/omega/application/src/execution/mod.rs#L219), [target-only result](omega-rust/omega/application/src/execution/mod.rs#L247)
+- Saw: On macOS arm64 at `2de81092693`, `omega run --both --keep --target macos_arm64` on the kept fixed-layout field sample exits 0 with only “compiled for target” and saves an inspectable artifact. Omitting `--target` runs both engines and reports both exits. The usage lists `--both` and `--target` together without explaining that an explicit target means emission only.
+- Cost: A caller can request both engines, name the host, and mistake a successful compile for an execution comparison. Explain when the command emits without running, and make the success report explicit about which engines ran.
+- Reported: 2026-11-15, Codex, while independently opening the fixed-layout field program's saved Psi artifact.
 
-### A fence loses the ordering known from a local initializer
+### A last-use ownership refusal drops its source site
+- Category: knowledge crossing a boundary
+- Where: [affine walk](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L1650), [source refusal adapter](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_ends.rs#L47)
+- Saw: On macOS arm64 at `a532f60be46`, the retained fixed-layout field sample refused without a source location. A focused trace identified `OperationId(23)` at the proposed reference release. The affine walk attaches an operation identity to errors from the operation itself but drops the known identity from last-use planning errors; the stage 05 adapter also leaves the source span empty.
+- Cost: Another last-use planning error can leave a reader unable to locate the failing borrow or use. Keep the existing error site through planning and use its authored source correspondence when available.
+- Reported: 2026-11-15, Codex, while tracing the fixed-layout field samples.
+
+### A typed slice refuses indexing after proving its live extent
 - Category: branch per shape
-- Where: [fence argument reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L196), [ordering rules](wiki/spec/language/concurrency.md#orderings)
-- Saw: On macOS arm64, the bundled-fence repair runs a direct `FenceOrdering::Receive` in both engines. Binding that same case to an immutable local immediately before the call makes checked compilation refuse at `main.omg:6:5` with “an atomic fence needs a known case of FenceOrdering.” The reader looks for the variant symbol on the argument expression itself.
-- Cost: A refactor from an explicit case to a local loses a statically determined order. Use existing proof facts to select the exact normalized fence event when they establish one case. Keep a runtime choice and an unrelated declaration from supplying ordering or proof authority.
-- Reported: 2026-11-15, Codex, while restoring the bundled atomic fence.
+- Where: [typed collection reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L442), [collection access contract](wiki/spec/language/expressions.md#indexing-and-ranges)
+- Saw: On macOS arm64 on clean `a532f60be46`, the same fixed Ticket array supports a native and Psi typed-slice length read and an indexed read through a fixed-array reference. Its borrowed `&[Ticket]` indexed read refuses before discharge when `requires tickets.len >= 1` proves index 0, and when the same fact is established by a local branch. The source reader rejects every extent other than a fixed literal.
+- Cost: The checker cannot use ordinary contract or branch evidence to read through a typed slice's own descriptor. Feed its exact path, current length and index into the existing checked access operation. Keep an out-of-bounds index and a bound from another slice refused.
+- Reported: 2026-11-15, Codex, while checking native backing for owned record sequences.
 
-### A descriptor length premise cannot cross the loop join
+### Saved named record sequences lose their storage contracts
 - Category: knowledge crossing a boundary
-- Where: [descriptor ranking](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/rankings.rs#L720), [arrival substitution](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L675)
-- Saw: On macOS arm64 with stored-length reads on `4d76bebd83e`, a loop using `terminates by (tickets.len - position) -> Nat::Descending` and `requires position <= tickets.len` reaches “join predicate form outside the scalar subset.” Replacing the owned record sequence with an actual borrowed byte descriptor and keeping the same rank and requirement reaches the same refusal. The original non-loop stored length machine executes in Psi.
-- Cost: The rank observes the current descriptor, but the arrival substitution only maps scalar values. Rebind the extent to the actual descriptor and path coming into each join, preserving the existing refusal for a rebound or unrelated descriptor.
-- Reported: 2026-11-15, Codex, while carrying stored record sequence length through checking and execution.
+- Where: [constant-element sequence](tests/fixtures/run/ownership/owned_record_sequence/main.omg#L9), [runtime-valued sequence](tests/fixtures/pending/ownership/runtime_record_sequence/main.omg#L7), [payload replay](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L5677)
+- Saw: On clean `8bfa8ba2dee` on macOS arm64, the constant-element sequence exits 0 in native and Psi. Its saved artifact fails inspection in `main`, block 5, operation 10 with `established payload contract is absent`. The runtime-valued fixture exits 0 in Psi and its artifact fails in block 3, operation 5 with `structural store backing is unresolved`. Both name the returned sequence in a local before passing it by value. An unchanged local-only literal and a direct returned-value call both reopen.
+- Cost: Programs can run with a named returned sequence that the independent reader cannot follow through storage. Retain the exact backing and payload contract at the existing store and join machinery and keep unmatched backing refused.
+- Reported: 2026-11-15, Codex, while independently checking the native record-sequence work.
 
-### Typed whole-array slice probes stop before their length checks
-- Category: tests that pin the bug
-- Where: [kept typed slice probe](samples/cli/facts/as_slice_views/local/main.omg#L8), [invalid twin](samples/cli/facts/as_slice_views/invalid_local/main.omg#L8), [borrow expression reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs)
-- Saw: On macOS arm64 at `0eefa10be23` and after the stored-length read repair on `4d76bebd83e`, both kept local probes stop at `let view: &[Entry] = &entries[..];` with “typing borrow without a reference destination.” The authored assertion and the twin's weaker range never reach judgment.
-- Cost: The kept tests cannot distinguish a correct whole-array extent from the wrong one. Join this exact authored fixed-array range to the existing typed-view formation and preserve the shared backing and the exact length premise.
-- Reported: 2026-11-15, Codex, while checking element length through the same operation as byte length.
-
-### Stage06 reference controls disagree with their existing verdicts
-- Category: tests that pin the bug
-- Where: [byte cohort controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L493), [boundary result views](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/returned_views.rs#L62), [owned record with a reference](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L631)
-- Saw: On clean macOS arm64 `4d76bebd83e` and `781f2f5cb50`, the same 14 Stage06 tests fail. Two byte-view cohort positives reject, ten returned-view checks diverge from their verdicts, and two owned record transfers refuse incomplete reference disposition. The unknown-origin returned-view control is accepted where it expects one conflicting loan.
-- Cost: The suite no longer establishes when a returned descriptor keeps or retires its exact loan. Reproduce the accepted and rejected cases through their actual authored source and distinguish stale artifact fixtures from changes to the loan and disposition checks before changing their oracles.
-- Reported: 2026-11-15, Codex, while comparing the stored-length repair with an unchanged Stage06 test baseline.
-
-### Build-time returned views keep their caller loans past last use
+### Console reload treats a mutable byte window as a replaceable descriptor
 - Category: knowledge crossing a boundary
-- Where: [shared returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L576), [exclusive returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L631)
-- Saw: On clean `781f2f5cb50` on macOS arm64, the shared positive refuses its write after `see(view)` as a conflicting loan. The exclusive positive refuses its array read after `fill(view)` as observation outside a live exclusive reference. The controls call `run()` with no host inputs and both passed on clean `a225808b7c9`.
-- Cost: Build-time source judgment cannot reuse the backing after these returned references' last use. Keep the exact call result origin and end its loan at the existing caller frontier. The twins that use the view after accessing the backing must still refuse.
-- Reported: 2026-11-15, Codex, while verifying closed Build-time arguments against current main.
+- Where: [Console requirement](source/library/std/console.omg#L36), [formal lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L529), [writable descriptor slots](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs#L7341), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13050)
+- Saw: On macOS arm64 with the borrowed-slice ABI repair based on `dd0a0349985`, the unchanged Console program prints `K` and exits 0 in native and Psi. Independent inspection of its saved artifact reaches `boundary reference parameter contract has incomplete leaf coverage`. Two selected provider programs differing only between `&mut [u8]` and `&mut &mut [u8]` on the retained requirement and its implementation both run and reach that same refusal. Their raw structural formals both name an unrestricted mutable borrow of the same `BorrowedView { access: Some(MutableBorrow) }` shape and both have an empty reference-output roster.
+- Cost: The published structural formal loses the distinction between lending bytes and lending a stored descriptor that can be replaced. Carry the source's direct-view role through the shared formal owner using the existing canonical descriptor with access on the parameter. Preserve output coverage for the writable stored descriptor and keep provider and calling signatures aligned.
+- Reported: 2026-11-15, Codex, while repairing saved byte-view calling signatures.
 
-### Fixed-layout negative samples still expect retired range wording
-- Category: tests that pin the bug
-- Where: [local oracle](samples/cli/facts/fixed_layout_storage/invalid_local/expected.txt#L1), [field oracle](samples/cli/facts/fixed_layout_storage/invalid_field/expected.txt#L1), [literal diagnostic check](tools/xtask/src/samples.rs#L510)
-- Saw: On macOS arm64 with the closed-application repair at `ca02a870855`, both unchanged negative programs exit 200 at `41u64 as +Delivered` on line 24, column 25. The checker cites `u64::Delivered` and `self >= 42 && self <= 42`, while both expectation files still require the literal `expected 42..=42`.
-- Cost: The sample gate calls the correct cast refusal a mismatch. Replay the other pinned placements and update the oracles to identify the refused cast, exact domain and unchanged bound.
-- Reported: 2026-11-15, Codex, while validating closed Build-time layout arguments.
-
-### A constant snapshot loses a checked element qualification
+### A fixed-layout record constant loses its target selection
 - Category: knowledge crossing a boundary
-- Where: [observed result records](omega-rust/psi/compilation/build-time-evaluation/src/terminal_values.rs#L356), [constant array recovery](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L338), [checked element construction](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L324)
-- Saw: On macOS arm64 with the copyable record constant repair on `4a720b7a9b5`, the accepted invocation behind `const issued_tickets: [Ticket in Stamped; 2] = make();` returns both field values and passes the constant receipt check. Product then refuses the reconstructed element at “typing array literal element.” Calling the original `make()` directly preserves the qualification through both engines. Ordinary computed and literal `[Ticket; 2]` constants also run in both engines.
-- Cost: The snapshot holds a record's field bits and declared type while the invocation checked qualification on each element path. Separate copy-eligible refinement facts from authority that a constant may not grant. Use the invocation's existing checked result to authenticate any recoverable refinement and refuse authority-bearing snapshots at their constant boundary.
-- Reported: 2026-11-15, Codex, while carrying evaluated record-array constants to named use.
+- Where: [kept initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L720), [shared Product preparation](omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L162)
+- Saw: On clean `8bb3a79076b` on macOS arm64, `const_name` refuses at `SAVED` with `TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The unchanged `call_result` exits 0 in both engines and `invalid_const_name` reaches its exact cast refusal. An isolated replay with the existing Linux x86-64 and macOS arm64 layout admissions returns `lo=42, hi=9` at offsets `[8, 0]` on both, then the ordinary constant snapshot decoder refuses the applied `LayoutStorage` carrier.
+- Cost: Shared Product preparation substitutes one value before selecting any of the five authored deployments. Keep the recipe until exact target closure, then join the authenticated layout and copy-eligible semantic snapshot through the existing target-scoped fold. Preserve the policy, field qualifications, and wrong-target and cast refusals.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles and tracing the kept named constant.
+
+### Package review refuses the fixed-layout target-body boundary
+- Category: knowledge crossing a boundary
+- Where: [Delivery boundary](samples/cli/facts/fixed_layout_storage/target_body/main.omg#L28), [review capture](omega-rust/omega/packages/review-evidence/src/capture/policy.rs#L209)
+- Saw: On clean `15145194c7d` on macOS arm64, `fixed_layout_storage/target_body` reaches package review projection and refuses with `package review cannot retain trait and boundary declaration contracts from the accepted declaration`. Its invalid twin reaches the authored `Delivered` cast under `--check`.
+- Cost: Package review stops execution before the original provider markers and byte offsets can be observed. Retain the accepted `Delivery` contract in the existing review record and keep incomplete contracts refused.
+- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
+
+### Six Stage06 loan and ranking controls fail on clean main
+- Category: tests that pin the bug
+- Where: [two-input reference](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L256), [literal arrivals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs#L428), [slice loop ranks](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/rankings.rs#L357), [short-circuit cleanup](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/successor_loans.rs#L195)
+- Saw: On clean linux x86_64 `8bfa8ba2dee`, `mbx test -p terminal-psi-to-terminal-psi --lib` fails six tests that passed on `15145194c7d`: `a_reference_backed_by_either_of_two_inputs_is_refused_by_name` now has a longer refusal than its pinned text; both `machine_lifetimes` literal-arrival tests and `cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view` refuse with "an edge leaves a frontier its successor does not enter"; and both slice-loop `rankings` tests fail.
+- Cost: The loan and ranking suites no longer show whether the merges since `15145194c7d` broke edge frontiers for views. Bisect the merges between those commits and repair the regression before touching any oracle; the pinned refusal text may just need the new location suffix.
+- Reported: 2026-11-15, Claude Code, while repairing the Stage06 reference controls.
 
 ### A textual merge can pass Admission with a Rust type error
 - Category: verifying costs more than writing
@@ -135,20 +135,6 @@ framework or a list of unimplemented features.
 - Saw: [PR #3326](https://github.com/CathedralOS/Omega/pull/3326) had green Admission, then squash commit `d5d5c987120` failed a clean macOS arm64 Rust build with E0533. The new evaluation statement shape and the existing atomic-store constructor were in different files. Git merged the text without a conflict. Admission runs rules and formatting on the merge, and the compiler checks start after publication.
 - Cost: Unrelated compiler builds and two in-flight repairs stopped before tests could run. Compare the latency and detection coverage of checking the affected crates on a warmed merge tree with the current post-merge validation.
 - Reported: 2026-11-15, Codex, while validating copyable record constants and the owned-element call path.
-
-### A copied-owner test refuses before checking either package's types
-- Category: tests that pin the bug
-- Where: [copied-owner control](omega-rust/omega/compilation/compiler/tests/anonymous_module_owner.rs#L422), [fixture entry preparation](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L190), [bundled Console realization](source/library/std/console.omg#L105)
-- Saw: On clean `ce501a3161d4` on macOS arm64, `equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute` fails at its fixture's separate Linux ProgramEntry preparation. Checking the whole std supplier rejects `ConsoleNativeProvider::read_line` with `a data declaration cannot own a machine`. Even if that check succeeds, the helper always returns an error about an unpublished service schema. The separate ordinary and named artifact reload test passes.
-- Cost: The imported-package acceptance and copied-owner rejection are never exercised. Use the existing Build and package admission route for the actual entry, with both captured sources and the original nominal-type controls intact.
-- Reported: 2026-11-15, Codex, while verifying named-map artifact reload.
-
-### An owned record-sequence literal stops at native target lowering
-- Category: knowledge crossing a boundary
-- Where: [native structural construction](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow_storage.rs#L3397), [Psi immutable backing](omega-rust/psi/interpreter/src/storage_records_and_arrays.rs)
-- Saw: On macOS arm64, native target lowering refuses `let tickets: [Ticket] = [Ticket { number: 11u32 }];` with `UnsupportedControlFlow` at `control_flow_storage.rs:3397`. Returning that sequence from a machine and transferring it to a by-value formal reaches the same native refusal. The local literal executes in Psi. The exact local type twin `[Ticket; 1]` exits 0 in both engines.
-- Cost: Native target lowering receives the checked element roster and places only inline fixed arrays for this operation. Settle physical backing for the stored-length descriptor so the checked element roster keeps its ownership when it leaves its creating machine.
-- Reported: 2026-11-15, Codex, while checking structural domains in arrays.
 
 ### Two returned-window probes stop at unbuilt language forms
 - Category: tests that pin the bug
@@ -159,10 +145,10 @@ framework or a list of unimplemented features.
 
 ### Eight host access-view controls stop before any domain access view exists
 - Category: zombie machinery
-- Where: [placed view fixture](tests/fixtures/pass/layouts/placed_view_call_custody/main.omg#L28), [fixture admission](omega-rust/omega/compilation/compiler/tests/access_view_calls.rs#L22), [layout roots](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L287)
-- Saw: The fixture now uses the current `core::access` surface: `RegisterLayout satisfies FixedLayout<Registers>`, `domain Registers::Placed access RegisterAccess`, `access::new_plan` with `access::observe` for an External read of `status` and an External write of `transmit`, and views typed `RegisterStorage in Registers::Placed`. On linux_x86_64 at `c75dc2fc5`, all eight tests are refused during the fixture's entryless package Check, before inspection, at three successive points. (1) Layout policies run only for machines reachable from Build root bindings, but the Check judges every machine the package declares, so `observe`'s signature hits `LayoutPolicyStorage`. Adding the subject's machines to each target's layout roots clears this, but one test went from about 2 s to 337 s, so that change was not landed. (2) A bodyless `read(&view.status)` with inferred type arguments is refused because there is no specialization for bodyless static calls, so the fixture now passes `read<Accessor<u32>, u32>` explicitly. (3) `RegisterStorage in Registers::Placed` is refused as a domain application without its prepared theory (`read/types.rs`). `alloc::vec` uses the same three constructs.
-- Cost: Even past (3), nothing in production fills `typed.access_view_plans` from a domain's `AccessPolicy` (only a `type_identity.rs` unit fixture does), and the source frontier refuses a non-empty table. So the tests still cannot reach their checks of exact shared and exclusive backing, alias rejection, field effects and reordered inputs. Build that route together with the issuer-set entry below (evaluate the applied policy once, join it to the selected layout, publish the view plan), make subject machines layout roots without the slowdown, then re-run `access_view_calls` unchanged.
-- Reported: 2026-11-15, Codex, while restoring Psi source inspection; narrowed 2026-11-15, Claude Code, after migrating the fixture.
+- Where: [placed view fixture](tests/fixtures/pass/layouts/placed_view_call_custody/main.omg#L28), [fixture admission](omega-rust/omega/compilation/compiler/tests/access_view_calls.rs#L22), [declared domain reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/types.rs#L146)
+- Saw: The fixture uses the current `core::access` surface: `RegisterLayout satisfies FixedLayout<Registers>`, `domain Registers::Placed access RegisterAccess`, `access::new_plan` with `access::observe` for an External read of `status` and an External write of `transmit`, and views typed `RegisterStorage in Registers::Placed`; `alloc::vec` writes `VecCellStorage in VecCell::Controlled` the same way. An entryless Check now lays out the storage its own machines name, and the fixture passes `read<Accessor<u32>, u32>` explicitly because bodyless static calls with inferred type arguments have no specialization. On linux_x86_64 all eight tests are still refused during the fixture's Check, at the signature of `observe`, with "domain application without its prepared theory": Psi 05 reads a domain of `Registers` placed on its `LayoutStorage` application. By static reading, `declared_domain` would next refuse it as "a domain declared on another carrier".
+- Cost: Psi 05 must read `LayoutStorage<T, L> in T::D` as T's domain over T's laid representation (wiki/spec/layouts/plans.md, "Representation applications"). Then nothing in production fills `typed.access_view_plans` from the domain's `AccessPolicy` (only a `type_identity.rs` unit fixture does), and the source frontier refuses a non-empty table. `domain_access_plans::evaluate` leaves a plan with field demands unjudged; it must instead join the evaluated field demands to the selected layout and publish the view plan. Only then do the tests reach their checks of exact shared and exclusive backing, alias rejection, field effects and reordered inputs. Re-run `access_view_calls` unchanged.
+- Reported: 2026-11-15, Codex, while restoring Psi source inspection; narrowed 2026-11-15, Claude Code, after migrating the fixture and again after entryless Checks began laying out their own storage.
 
 ### A reference match loses the incoming loan at its result
 - Category: knowledge crossing a boundary
@@ -178,40 +164,12 @@ framework or a list of unimplemented features.
 - Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Add an advisory priority for managed views to mbx and set it from the pool’s existing assignment state. Respect explicit operator rules and running-command locks, and still let assigned views be reclaimed under disk pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
 
-### Psi cannot run until native lowering succeeds
-- Category: knowledge crossing a boundary
-- Where: [runtime admission](omega-rust/omega/compilation/native-compiler/src/realization.rs#L152), [borrowed-storage layout extraction](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L30)
-- Saw: At `2669589de8a`, both `omega run --both` and `omega run --engine psi` refuse the unchanged console program with the same native target-lowering error. Neither executes guest code. Runtime admission calls `lower_borrowed_storage_layouts`, which lowers the whole guest program before taking its borrowed-storage descriptions. These runs do not measure that step's time.
-- Cost: A backend gap prevents Psi from running checked code. Have the layout stage supply the exact borrowed-storage descriptions directly. Preserve native binding, layout, authority and provider checks, and keep full native lowering for image production.
-- Reported: 2026-11-15, Codex, while checking the console's interpreter and native paths
-
-### Test edits change the production compiler identity
-- Category: verifying costs more than writing
-- Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)
-- Saw: The build hashes every `.rs`, `.toml` and `.omg` under `omega-rust`, including integration tests. Changing only a control in `compiler/tests/executed_fixture_discovery.rs` rebuilt `compiler`, `package-manager` and `orchestration` in 18.21 seconds before the filtered test ran. Shipped code had not changed.
-- Cost: Test edits also change the compiler-version key for accepted packages, forcing compilation and review as the test tree grows. Derive the key from production inputs and configuration. Still invalidate uncommitted implementation changes; ignoring required source or using only Git HEAD would miss changes.
-- Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
-
-### The service-contract reader hides why it refused a declaration
-- Category: verifying costs more than writing
-- Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)
-- Saw: At `9101613dfcd`, both `native_boundary_supply` and `default_console_provider_reached` stop during source discovery with `boundary declaration has no complete service contract`. The reader returns `None` for a wrong source scope, an unavailable receiver application, or a method it cannot read. This repair fixes the Build-scope lookup; the API still drops the cause and declaring requirement.
-- Cost: Each later failure looks like an unsupported language construct, even when the compiler used the wrong context. Return the reason and declaring requirement from the shared reader so callers can explain the refusal.
-- Reported: 2026-11-14, Codex, while carrying Build native bindings through console execution
-
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
-- Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
-- Saw: At `1897804e0dbd`, ordinary Omega 03 construction receives target operations with abstract operations and the optimized executable unit. It pairs optimized blocks and operation nodes with target rows (`legalization_source.rs:3101`) and rebuilds structural-call indices from optimized definitions, path geometry and accepted obligation facts. Target arguments already keep index operands and strides but omit the extent and proof facts this rebuild supplies, so the target handoff is incomplete. Call results that carry descriptors can rebuild an optimized catalog graph and selected boundary operations to find origins. These are production paths, not only explicit independent validators or shared immutable type-catalog queries; this audit measured no miscompile or runtime cost.
-- Cost: Target operands still depend on earlier executable bodies and their matching operation list, so adding a value form or changing target operations can require matching recognizers in several stages. Make the producer write the needed runtime-index evidence and descriptor-origin records into the target representation, sharing immutable catalogs rather than copying them; have ordinary selection read that product and keep earlier bodies for independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
-- Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
-
-### A returned reference keeps its whole call argument borrowed
-- Category: a verdict with nothing behind it
-- Where: [call lifetimes](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs) (`reference_call_lifetimes`, `retain_call_lifetime`), [retained call loans](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_results.rs), [loan formation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs) (`lent`)
-- Saw: `bind_reference_call_results` narrows each returned reference to the argument storage its published origin names, such as `grid.cells` for `pick(&mut grid, i)` returning `&mut grid.cells[i].x`. `reference_call_lifetimes` then retains the argument's own `Loan` row, which captures all of `grid`, for the result's whole life. Stage 05 forms Loan rows only for actual call arguments, so no row exists for the narrower path.
-- Cost: while a returned reference is live, the caller cannot write any disjoint field of the argument, such as `grid.tag`, even when the reference's origin is exact. A repair forms a narrower retained Loan row at the call for the bound source path and ends the argument's own loan at the return. It must carry that row through Terminal Psi validation, the Psi interpreter's loan frontier and native lowering.
-- Reported: 2026-11-15, Claude Code, after returned runtime-element references started publishing their exact element path. Replaces the stripped-window entry, whose publication half is fixed.
+- Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [paired instruction projection](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs) (`instruction::project`, `successor`), [body-derived runtime indices](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs) (`runtime_indices::operands`, `runtime_indices::projection`)
+- Saw: Ordinary Omega 03 construction still receives the optimized executable unit and pairs each target row with its optimized operation node. Calls (#3388), scalar reads and stores, view formation, references, and now structural leaf copies, structural field stores and case-membership tests take their operands, selector extents and proof keys from the retained target row and the admitted fact list; their reconstruction is left only in the independent audit. Write-only primitive stores, element-view reads and writes, storage addresses, byte-sequence and element-view length operations, accessor scalar access, static-interrupt installation, descriptor-table setup and structural edge bindings (`successor`) still rebuild runtime-index operands from optimized definitions and path geometry. Boundary and normalized foreign calls still read their abstract operation from the optimized node.
+- Cost: Those operand families still depend on earlier executable bodies and their matching operation list, so changing one of them can require matching recognizers in several stages. Move each to its retained target row (most rows already carry `indices` with stride, extent and obligation), delete its body-reading branch, and keep the rebuild in the audit. Acceptance: `instruction::project` and `successor` take no optimized node or function, and `TargetSelectionInput` drops `source` and `unit` except for the independent validator. That validator, `verify_target_operation_plan`, has no caller outside the crate's own unit tests (`image-emission`'s `verify_retained_target_operations` is exported but never called), so no validator request or test harness runs it on compiled programs yet.
+- Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only. Narrowed 2026-11-15, Claude Code, after moving leaf copies, field stores and case membership to retained target rows.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
@@ -241,10 +199,3 @@ framework or a list of unimplemented features.
 - Saw: With ordinary numbered records admitted, `omega --check samples/cli/systems/wire_protocol/main.omg` reaches `POLICY_ACCEPTED`, where it refuses the call held by `selected_policy_is_valid` as “holding a call whose static arguments no pass specializes yet.” A one-field record has the same refusal with either inferred or explicitly named context type. Its exact `reflect::field` query and explicit `visit<u64>` call, written separately, run together in native and Psi. A direct, non-reflective `apply<picked>(7u64)` with a callable parameter is also refused at the static application. Specialization cannot read a machine operand, and the field visitor's producer was removed when the earlier checker was retired in #2823.
 - Cost: The wire sample cannot check its codec policy against the numbered fields. Use the existing applied callable contract to check the selected visitor and its exact arguments before emitting ordinary per-member calls. The callback must satisfy the published binder, even when the application's concrete inputs would also satisfy a narrower callback.
 - Reported: 2026-11-15, Codex, macOS arm64, with the precheck repair based on `8f2ba3e8ea6`.
-
-### The scalar C layout program loses field identity at checked publication
-- Category: knowledge crossing a boundary
-- Where: [C scalar source](samples/cli/facts/c_layout_scalar_record/local/main.omg#L18), [field-symbol check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/places.rs#L795), [C control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs) (`the_library_c_layout_policy_keeps_its_existing_scalar_record`)
-- Saw: On macOS arm64 at `fd26884075d` over `781f2f5cb50`, the real C policy computes size 24, alignment 8 and offsets `[0, 8, 16]`. After #3465, Product judgment refuses `main` with “spelling member without a field symbol.” A typed-source probe of the same program found the three fields unresolved on the owned `record`, its local copy and the mapped reference.
-- Cost: The exact C-layout control reaches its geometry assertions and still stops before publication. Carry the selected record's authored field symbols through the existing projection path for the `CLayout<Record>` alias and its reference. Keep the test source and byte oracle.
-- Reported: 2026-11-15, Claude Code, while repairing default-provider layout demand. Narrowed 2026-11-15, Codex, after selected layout observations landed.

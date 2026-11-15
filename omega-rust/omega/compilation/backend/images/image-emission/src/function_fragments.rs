@@ -1494,6 +1494,7 @@ mod byte_literals {
         ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
         StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
     };
+    use std::borrow::Cow;
     use std::collections::BTreeMap;
 
     pub(super) const POOL_SYMBOL_NAME: &str = "omega_byte_literal_pool";
@@ -1640,12 +1641,16 @@ mod byte_literals {
             .iter()
             .map(|(row, _)| literal_octets(source, row))
             .collect::<Result<Vec<_>, _>>()?;
-        let (pool, offsets) = pack_octets(&literals, text_offset)?;
+        let entries = literals
+            .iter()
+            .map(|(octets, alignment)| (octets.as_ref(), *alignment))
+            .collect::<Vec<_>>();
+        let (pool, offsets) = pack_octets(&entries, text_offset)?;
         let addresses = placed
             .iter()
             .zip(literals.iter().zip(offsets))
             .map(
-                |((row, literal), (octets, pool_offset))| ObjectByteLiteralAddress {
+                |((row, literal), ((octets, _), pool_offset))| ObjectByteLiteralAddress {
                     machine: row.machine,
                     literal: *literal,
                     fields: row.fields,
@@ -1657,16 +1662,34 @@ mod byte_literals {
         Ok(Some((pool, addresses)))
     }
 
-    fn pack_octets(literals: &[&[u8]], text_offset: usize) -> Result<(Vec<u8>, Vec<usize>), Error> {
+    /// Packs each literal at an image position aligned to its element alignment (at most the
+    /// pool's own alignment, which the text section also honors). Identical octets share an
+    /// entry when that entry is already aligned enough.
+    fn pack_octets(
+        literals: &[(&[u8], usize)],
+        text_offset: usize,
+    ) -> Result<(Vec<u8>, Vec<usize>), Error> {
         let mut pool = Vec::new();
         let mut entries = BTreeMap::<&[u8], usize>::new();
         let mut offsets = Vec::with_capacity(literals.len());
-        for octets in literals {
-            let offset = *entries.entry(*octets).or_insert_with(|| {
-                let offset = pool.len();
-                pool.extend_from_slice(octets);
-                offset
-            });
+        for (octets, alignment) in literals {
+            if !alignment.is_power_of_two() || *alignment > POOL_ALIGNMENT {
+                return Err(Error::Mismatch("literal alignment exceeds the pool's"));
+            }
+            let aligned = |offset: usize| (text_offset + offset).is_multiple_of(*alignment);
+            let offset = match entries.get(octets) {
+                Some(offset) if aligned(*offset) => *offset,
+                _ => {
+                    let offset = (text_offset + pool.len())
+                        .checked_next_multiple_of(*alignment)
+                        .ok_or(Error::Overflow)?
+                        - text_offset;
+                    pool.resize(offset, 0);
+                    pool.extend_from_slice(octets);
+                    entries.insert(octets, offset);
+                    offset
+                }
+            };
             offsets.push(offset);
         }
         let end = text_offset
@@ -1677,17 +1700,19 @@ mod byte_literals {
         Ok((pool, offsets))
     }
 
+    /// The octets a pool address names, with the alignment they need: a byte literal's own
+    /// bytes, or the encoded roster of an owned element sequence.
     fn literal_octets<'a>(
         source: &'a StagedOptimizedRelocationFreeObjectContainer,
         row: &PlacedImageAddress,
-    ) -> Result<&'a [u8], Error> {
+    ) -> Result<(Cow<'a, [u8]>, usize), Error> {
         let literal = row
             .byte_literal()
             .ok_or(Error::Mismatch("non-literal address in literal pool"))?;
         if row.operation != literal.operation {
             return Err(Error::Mismatch("literal address operation changed"));
         }
-        let (abstracted, _) = source::function(source, row.machine)?;
+        let (abstracted, targeted) = source::function(source, row.machine)?;
         let mut matches = abstracted
             .operations()
             .filter_map(|operation| match operation {
@@ -1697,12 +1722,30 @@ mod byte_literals {
                     bytes,
                     ..
                 } if *psi_operation == literal.operation && place.id == literal.place => {
-                    Some(bytes.as_slice())
+                    Some(Some((Cow::Borrowed(bytes.as_slice()), 1)))
+                }
+                AbstractOperation::EstablishStructuralArray {
+                    psi_operation,
+                    result,
+                    ..
+                } if *psi_operation == literal.operation && result.place == literal.place => {
+                    let geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+                        &targeted.graph.structural_types,
+                    )
+                    .ok()?;
+                    Some(
+                        target_operations::constant_element_roster(
+                            abstracted.blocks.iter().flat_map(|block| &block.operations),
+                            operation,
+                            &geometry,
+                        )
+                        .map(|roster| (Cow::Owned(roster.octets), usize::from(roster.alignment))),
+                    )
                 }
                 _ => None,
             });
         match (matches.next(), matches.next()) {
-            (Some(bytes), None) => Ok(bytes),
+            (Some(Some(octets)), None) => Ok(octets),
             _ => Err(Error::Mismatch(
                 "byte-literal address names no unique retained literal",
             )),
@@ -1716,7 +1759,11 @@ mod byte_literals {
         #[test]
         fn identical_octets_share_one_entry_and_the_pool_ends_aligned() {
             let (pool, offsets) = pack_octets(
-                &[b"Door".as_slice(), b"Gate".as_slice(), b"Door".as_slice()],
+                &[
+                    (b"Door".as_slice(), 1),
+                    (b"Gate".as_slice(), 1),
+                    (b"Door".as_slice(), 1),
+                ],
                 20,
             )
             .unwrap();
@@ -1728,11 +1775,22 @@ mod byte_literals {
 
         #[test]
         fn empty_literals_still_own_one_aligned_granule() {
-            let (pool, offsets) = pack_octets(&[b"".as_slice()], 32).unwrap();
+            let (pool, offsets) = pack_octets(&[(b"".as_slice(), 1)], 32).unwrap();
             assert_eq!(offsets, [0]);
             assert_eq!(pool, [0; 16]);
-            let (pool, _) = pack_octets(&[b"".as_slice()], 33).unwrap();
+            let (pool, _) = pack_octets(&[(b"".as_slice(), 1)], 33).unwrap();
             assert_eq!(pool.len(), 15);
+        }
+
+        #[test]
+        fn an_element_roster_starts_at_its_alignment_in_the_image() {
+            let roster = 11_u32.to_le_bytes();
+            let (pool, offsets) =
+                pack_octets(&[(b"Gate".as_slice(), 1), (roster.as_slice(), 4)], 21).unwrap();
+            assert_eq!(offsets, [0, 7]);
+            assert_eq!((21 + offsets[1]) % 4, 0);
+            assert_eq!(&pool[7..11], roster);
+            assert!(pack_octets(&[(roster.as_slice(), 32)], 0).is_err());
         }
     }
 }
@@ -10320,9 +10378,11 @@ mod source {
                 AbstractOperation::EstablishStructuralArray { psi_operation, result, elements } => {
                     graph.structural_types.iter().any(|declaration|
                         declaration.id == result.structural_type
-                            && matches!(declaration.shape,
+                            && (matches!(declaration.shape,
                                 terminal_psi::StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. }
-                                    if u64::try_from(elements.len()).ok() == Some(length)))
+                                    if u64::try_from(elements.len()).ok() == Some(length))
+                                || matches!(declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ElementView { access: None, .. })))
                         && graph.operations().filter(|row| matches!(row,
                             TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }
                                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
