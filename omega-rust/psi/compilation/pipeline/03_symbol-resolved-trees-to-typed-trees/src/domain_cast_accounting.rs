@@ -409,6 +409,10 @@ fn operand_type(
     // (domains.md, "Byte containers and encoding domains": "Quoted literals
     // supply raw bytes"). With a receiving view it is that view with the
     // domains its referent displays left off, which the entries then add.
+    // It keeps no lifetime the destination names: that binder belongs to
+    // the destination's declaration (a record's field), and a literal takes
+    // the lifetime its use requires (lifetimes.md, "Caller-chosen result
+    // lifetimes"), which the reader decides from that use.
     if matches!(
         program.expression_table.expression(operand),
         ExpressionNode::String(_)
@@ -420,7 +424,7 @@ fn operand_type(
         let Some(TypeReferenceNode::Reference {
             referee,
             access: language_core::ReferenceAccess::Shared,
-            lifetime,
+            ..
         }) = destination.map(|destination| {
             program
                 .type_reference_table
@@ -438,7 +442,7 @@ fn operand_type(
             .insert(TypeReferenceNode::Reference {
                 referee,
                 access: language_core::ReferenceAccess::Shared,
-                lifetime,
+                lifetime: None,
             }));
     }
     if !is_anonymous_literal(program, operand) {

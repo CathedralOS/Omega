@@ -317,8 +317,8 @@ fn a_build_dispatch_captures_a_reference_without_copying_its_referent() {
     let program = |body: &str| {
         format!(
             r#"
-data Source {{
-    case Path(location: &[u8]);
+data Source<'path> {{
+    case Path(location: &'path [u8]);
     case Empty;
 }}
 machine build_entry(source: &Source) {{ {body} }}

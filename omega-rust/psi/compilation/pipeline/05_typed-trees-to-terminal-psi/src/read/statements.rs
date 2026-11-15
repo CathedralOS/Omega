@@ -311,12 +311,18 @@ impl Program<'_> {
             if local.is_mutable || local.relevance != language_core::BindingRelevance::Relevant {
                 return unserved("reference capture without an immutable relevant binding");
             }
-            let value_type = self.value_type(id, *referee)?;
-            let value = self.expression(id, slots, local.initial_value, Some(value_type))?;
+            // The binding's type is read as a local's annotation is
+            // (`local_type`): an elided lifetime there is a region variable
+            // the captured reference decides, and the capture keeps that
+            // reference's exact type.
+            let declared = self.local_type(id, *referee)?;
+            let value = self.expression(id, slots, local.initial_value, Some(declared))?;
             let ExpressionKind::Slot(original) = value.kind else {
                 return unserved("reference capture without an existing reference binding");
             };
-            if slots[original].borrowed != Some(*access) || slots[original].value_type != value_type
+            let value_type = slots[original].value_type;
+            if slots[original].borrowed != Some(*access)
+                || !self.same_type(Some(value_type), declared)
             {
                 return unserved("reference capture without matching storage and access");
             }

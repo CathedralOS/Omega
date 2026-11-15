@@ -1,7 +1,7 @@
 // Fact: A checked call through a nested generic owner preserves the exact caller destination and input backing of a stored borrowed descriptor.
 // Expected exit: 0
-data Subject [copy] { items: &[u8]; }
-data Holder { value: Subject; }
+data Subject<'view> [copy] { items: &'view [u8]; }
+data Holder<'view> { value: Subject<'view>; }
 machine update<const N: u64>(value: &mut Subject, bytes: &[u8; N]) {
     region(value, &bytes[..], 0u64, N);
     machine region(value: &mut Subject, bytes: &[u8], start: u64, end: u64) {

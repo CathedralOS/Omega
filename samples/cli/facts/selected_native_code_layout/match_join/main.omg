@@ -12,7 +12,7 @@ terminates
         layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
     }
 }
-data MarkedLayout { layout: CodeLayout; path: u64; }
+data MarkedLayout<'view> { layout: CodeLayout<'view>; path: u64; }
 machine marked_layout() -> MarkedLayout terminates {
     let layout: CodeLayout = code_layout<selected<u64, 7>>();
     MarkedLayout { layout: layout, path: 1 }

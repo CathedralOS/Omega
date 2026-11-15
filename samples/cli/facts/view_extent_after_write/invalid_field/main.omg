@@ -1,7 +1,7 @@
 // A view of at least 1024 bytes retains its extent after an indexed byte write through a helper.
 // Invalid control: the 1024-byte lower bound is not established.
 machine write_first(first: &mut u8) { first = 41; }
-data Holder { view: &mut [u8]; }
+data Holder<'view> { view: &'view mut [u8]; }
 machine preserve_suffix(bytes: &mut [u8])
 requires bytes.len >= 3
 {

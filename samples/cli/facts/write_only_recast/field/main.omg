@@ -2,7 +2,7 @@
 // Fact: a write-only representation view writes 73 to the original record without granting observation.
 data Original { value: u32; }
 data Viewed { value: u32; }
-data Envelope { view: &write Viewed; }
+data Envelope<'view> { view: &'view write Viewed; }
 machine overwrite(storage: &write Original) {
     let mut envelope: Envelope = Envelope { view: storage as &write Viewed };
     envelope.view.value = 73;

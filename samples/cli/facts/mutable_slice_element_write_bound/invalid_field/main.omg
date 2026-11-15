@@ -10,8 +10,8 @@ machine storage_view<'input>(backing: &'input mut Backing) -> &'input mut [u64]
     &mut backing.items
 }
 
-data Holder {
-    view: &mut [u64];
+data Holder<'view> {
+    view: &'view mut [u64];
 }
 
 machine mutate_field(bytes: &mut [u64]) -> u64
