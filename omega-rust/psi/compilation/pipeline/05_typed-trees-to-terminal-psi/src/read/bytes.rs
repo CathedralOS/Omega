@@ -558,6 +558,9 @@ impl Program<'_> {
             return Ok(None);
         }
         let identity = direct_window_identity(&row.identity);
+        // Copy permission follows the window it describes: a shared window
+        // copies, an exclusive one moves.
+        let copyable = row.copyable;
         let source = self
             .record_sources
             .get(view)
@@ -574,7 +577,7 @@ impl Program<'_> {
         }
         let id = self.records.push(RecordType {
             owns_linear_claim: false,
-            copyable: false,
+            copyable,
             identity,
             shape: canonical,
             requires: Vec::new(),
