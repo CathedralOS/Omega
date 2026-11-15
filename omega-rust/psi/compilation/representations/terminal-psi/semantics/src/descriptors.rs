@@ -10766,6 +10766,52 @@ pub mod descriptor_results {
                     crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
                 );
                 assert!(replay.summary(caller, 0).is_none());
+
+                // Moving the constructed roster itself does not let it carry
+                // its own backing: its elements still hold the caller's views.
+                let mut moved = sequence_capture_module();
+                moved.structural_types[1].copyable = false;
+                let body = &mut moved.machines[0];
+                body.blocks[0].operations.truncate(1);
+                body.structural_places.retain(|place| place.id.get() <= 3);
+                body.result =
+                    TerminalMachineResult::Structural(terminal_psi::StructuralResultDeclaration {
+                        place: PlaceId::new(3).unwrap(),
+                        structural_type: sequence,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        reference_sources: Vec::new(),
+                    });
+                body.blocks[0].terminator = Terminator::ReturnStructural {
+                    edge: EdgeId::new(1).unwrap(),
+                    source: PlaceId::new(3).unwrap(),
+                    returned_claims: Vec::new(),
+                    cleanup_actions: Vec::new(),
+                };
+                let graph = crate::descriptor_results::terminal_borrowed_storage_graph_from(
+                    &moved,
+                    [caller],
+                    &[],
+                )
+                .unwrap();
+                let mut replay = Replay::with_slot_kind(
+                    &moved.structural_types,
+                    &graph,
+                    crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                );
+                let result = replay.summary(caller, 0).and_then(|summary| summary.result);
+                assert!(
+                    result
+                        .as_ref()
+                        .is_none_or(|slots| slots.iter().all(|slot| !slot.origins.iter().any(
+                            |origin| matches!(
+                                origin,
+                                crate::descriptor_replay::DescriptorStoredOrigin::Carried
+                            )
+                        ))),
+                    "a roster of borrowed elements is not its own backing"
+                );
             }
 
             // Moving a borrowed sequence value retires its descriptor, not
