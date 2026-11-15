@@ -660,41 +660,41 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
-    /// The projected memberships every value of `record` carries: one row
-    /// per domain a field beneath it declares, at that field's path.
+    /// The memberships every value of `record` carries. Each domain belongs
+    /// to the exact storage its qualification describes.
     /// `wiki/spec/language/dependent_values.md`: "A data declaration's field
     /// qualifications and `requires` clauses define its default domain", so
     /// a field's domains are a property of every place of its owner, and the
     /// lowered form states them there rather than on the field.
-    pub(crate) fn projected_memberships(
+    fn value_memberships(
         &self,
         record: StructuralTypeId,
+        qualification: Qualification,
         qualifications: &crate::qualifications::Qualifications,
         machine: MachineId,
-    ) -> Checked<Vec<terminal_psi::StructuralPathQualification>> {
-        let mut rows = Vec::new();
-        // A primitive home's type is not a record: it has no field beneath
-        // it, and its scalar domains are on its own type.
-        if self
-            .primitives
-            .iter()
-            .any(|(_, _, primitive)| *primitive == record)
-        {
-            return Ok(rows);
-        }
-        self.collect_memberships(record, &mut Vec::new(), qualifications, machine, &mut rows)?;
-        rows.sort_unstable();
-        rows.dedup();
-        Ok(rows)
+    ) -> Checked<Memberships> {
+        let mut memberships = Memberships::default();
+        self.collect_memberships(
+            record,
+            qualification,
+            &mut Vec::new(),
+            qualifications,
+            machine,
+            &mut memberships,
+        )?;
+        memberships.1.sort_unstable();
+        memberships.1.dedup();
+        Ok(memberships)
     }
 
     fn collect_memberships(
         &self,
         record: StructuralTypeId,
+        qualification: Qualification,
         prefix: &mut Vec<StructuralPathSegment>,
         qualifications: &crate::qualifications::Qualifications,
         machine: MachineId,
-        rows: &mut Vec<terminal_psi::StructuralPathQualification>,
+        memberships: &mut Memberships,
     ) -> Checked<()> {
         // A data type cannot contain itself by value, so the walk is bounded
         // by its nesting; the bound only refuses a malformed table.
@@ -705,23 +705,46 @@ impl Records<'_> {
                 Unserved::Type("data type contains itself by value"),
             ));
         }
+        // Scalar homes live in their own roster and have no record fields.
+        if self.types.get(record).is_none() && self.is_primitive_home(record) {
+            memberships
+                .0
+                .extend(qualifications.structural(machine, record, qualification)?);
+            return Ok(());
+        }
         let declaration =
             terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
-        // A reference's referent has its type's field domains beneath it.
-        // Its whole-value domains are not part of the reference type, so a
-        // reference value names none for its referent.
-        if let StorageShape::Reference { referent, .. } = declaration.shape {
-            if self
-                .primitives
-                .iter()
-                .any(|(_, _, primitive)| *primitive == referent)
-            {
-                return Ok(());
-            }
+        // Byte predicates belong to the storage the byte judgment sees.
+        if matches!(declaration.shape, StorageShape::ByteSequence(_)) {
+            return Ok(());
+        }
+        // A reference's source qualification belongs to its referent. The
+        // same path also carries the referent's field qualifications.
+        if let StorageShape::Reference { referent, .. } = declaration.shape
+            && !self.is_primitive_home(referent)
+        {
             prefix.push(StructuralPathSegment::Referent);
-            self.collect_memberships(referent, prefix, qualifications, machine, rows)?;
+            self.collect_memberships(
+                referent,
+                qualification,
+                prefix,
+                qualifications,
+                machine,
+                memberships,
+            )?;
             prefix.pop();
             return Ok(());
+        }
+        let domains = qualifications.structural(machine, record, qualification)?;
+        if prefix.is_empty() {
+            memberships.0.extend(domains);
+        } else {
+            memberships.1.extend(domains.into_iter().map(|domain| {
+                terminal_psi::StructuralPathQualification {
+                    path: prefix.clone(),
+                    domain,
+                }
+            }));
         }
         let mut members: Vec<(
             Option<StructuralCaseId>,
@@ -777,13 +800,14 @@ impl Records<'_> {
                 prefix.push(StructuralPathSegment::Case(case));
             }
             prefix.push(StructuralPathSegment::Field(identity));
-            for domain in qualifications.structural(machine, inner, qualification)? {
-                rows.push(terminal_psi::StructuralPathQualification {
-                    path: prefix.clone(),
-                    domain,
-                });
-            }
-            self.collect_memberships(inner, prefix, qualifications, machine, rows)?;
+            self.collect_memberships(
+                inner,
+                qualification,
+                prefix,
+                qualifications,
+                machine,
+                memberships,
+            )?;
             prefix.truncate(depth);
         }
         Ok(())
@@ -802,16 +826,19 @@ impl Records<'_> {
             .iter()
             .map(|(value_type, _, id)| (*value_type, *id))
     }
+
+    fn is_primitive_home(&self, record: StructuralTypeId) -> bool {
+        self.primitives
+            .iter()
+            .any(|(_, _, primitive)| *primitive == record)
+    }
+
     pub(super) fn multiplicity(
         &self,
         record: StructuralTypeId,
         machine: MachineId,
     ) -> Checked<StructuralMultiplicity> {
-        if self
-            .primitives
-            .iter()
-            .any(|(_, _, primitive)| *primitive == record)
-        {
+        if self.is_primitive_home(record) {
             return Ok(StructuralMultiplicity::Unrestricted);
         }
         let record = terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
@@ -1259,7 +1286,11 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    fn storage_value_type(&self, storage: StructuralTypeId) -> Checked<ValueType> {
+    fn storage_value_type(
+        &self,
+        storage: StructuralTypeId,
+        record_qualification: Qualification,
+    ) -> Checked<ValueType> {
         Ok(match self.record_type(storage)?.shape {
             StorageShape::PrimitiveScalar {
                 scalar_type,
@@ -1269,7 +1300,7 @@ impl<'a> Lowering<'a> {
                 scalar_type,
                 policy: Some(policy),
             } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
-            _ => ValueType::record(storage),
+            _ => ValueType::Record(storage, record_qualification, crate::body::Regions::NONE),
         })
     }
 
@@ -1411,15 +1442,8 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         qualification: Qualification,
     ) -> Checked<Memberships> {
-        if self.is_byte_sequence(record) {
-            return Ok((Vec::new(), Vec::new()));
-        }
-        Ok((
-            self.qualifications
-                .structural(self.id, record, qualification)?,
-            self.records
-                .projected_memberships(record, self.qualifications, self.id)?,
-        ))
+        self.records
+            .value_memberships(record, qualification, self.qualifications, self.id)
     }
 
     /// Emits an operation whose result is a fresh record root.
@@ -1482,7 +1506,7 @@ impl<'a> Lowering<'a> {
     }
 
     fn located(&mut self, expression: &Expression) -> Evaluation<Located> {
-        let Some(ValueType::Record(record, _, _)) = expression.result else {
+        let Some(ValueType::Record(record, qualification, _)) = expression.result else {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
@@ -1878,7 +1902,7 @@ impl<'a> Lowering<'a> {
                     return Err(self.internal("a reference formation changed its source access"));
                 }
                 let reinterpret = place.result.map(ValueType::erased)
-                    != Some(self.storage_value_type(referent)?.erased());
+                    != Some(self.storage_value_type(referent, qualification)?.erased());
                 // An exclusive formation lending shared access is still
                 // exclusive here.
                 if reinterpret && *formation != language_core::ReferenceAccess::Shared {
@@ -1888,19 +1912,6 @@ impl<'a> Lowering<'a> {
                         Unserved::Expression(
                             "exclusive reference view without restoration evidence",
                         ),
-                    ));
-                }
-                // A reference type names its referent's storage type, which
-                // carries the referent's field domains but not domains of
-                // the whole referent: such a reference would erase them.
-                if let Some(ValueType::Record(lent, qualification, _)) = place.result
-                    && !self.is_byte_sequence(lent)
-                    && !qualification.domains.is_empty()
-                {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Machine,
-                        Unserved::Expression("persistent reference to a data value in a domain"),
                     ));
                 }
                 // A persistent reference borrows the original storage. The
@@ -1954,9 +1965,16 @@ impl<'a> Lowering<'a> {
                     )?,
                     access: lent.argument.2,
                 };
-                let (root, place) = self.produce(
+                // Scalar homes carry their own qualification. A record
+                // descriptor publishes the qualification at its referent.
+                let qualification = match place.result {
+                    Some(ValueType::Record(..)) => qualification,
+                    _ => Qualification::NONE,
+                };
+                let (root, place) = self.produce_qualified(
                     operation,
                     record,
+                    qualification,
                     OperationKind::EstablishReference { source, storage },
                 )?;
                 self.write(
@@ -2284,6 +2302,9 @@ impl<'a> Lowering<'a> {
                 (root, Vec::new(), self.exact_root(root)?, value_type)
             }
             ExpressionKind::Referent(descriptor) => {
+                let Some(ValueType::Record(_, qualification, _)) = descriptor.result else {
+                    return Err(self.internal("a reference crossing has no descriptor value"));
+                };
                 let mut at = continuing!(self.located(descriptor));
                 let StorageShape::Reference { referent, .. } = self.record_type(at.record)?.shape
                 else {
@@ -2295,7 +2316,7 @@ impl<'a> Lowering<'a> {
                 let actual = expression
                     .result
                     .ok_or_else(|| self.internal("a referent has no value type"))?;
-                if actual.erased() != self.storage_value_type(referent)?.erased() {
+                if actual.erased() != self.storage_value_type(referent, qualification)?.erased() {
                     return Err(self.internal("a reference crossing changed its referent type"));
                 }
                 (at.root, at.path, at.place, actual)
@@ -2322,7 +2343,7 @@ impl<'a> Lowering<'a> {
                     return Err(self.internal("an indexed place crosses scalar storage"));
                 };
                 let (element, _) = self.array_element(owner)?;
-                let value_type = self.storage_value_type(element)?;
+                let value_type = self.storage_value_type(element, Qualification::NONE)?;
                 let step = continuing!(self.index_step(owner, index));
                 let exact = self.step(parent, step)?;
                 steps.push(step);
@@ -2469,7 +2490,7 @@ impl<'a> Lowering<'a> {
         {
             return Err(self.internal("an array literal has another extent than its type"));
         }
-        let value_type = self.storage_value_type(element_type)?;
+        let value_type = self.storage_value_type(element_type, Qualification::NONE)?;
         let mut operands = Vec::with_capacity(elements.len());
         for element in elements {
             if element.result.map(ValueType::erased) != Some(value_type.erased()) {
