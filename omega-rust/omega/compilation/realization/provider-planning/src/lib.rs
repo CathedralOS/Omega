@@ -5,6 +5,8 @@
 // provider authority never becomes a source fallback or a fabricated proof.
 
 pub mod calling_policy_plans;
+mod canonical_schemas;
+pub use canonical_schemas::{hosted_primitive_schemas, hosted_requirement_schema};
 pub mod native_bindings;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;

@@ -476,6 +476,20 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
             semantic_vocabulary::ExternalCompletionKind::ProcessExit,
         )
     );
+    let projected = provider_planning::hosted_requirement_schema(
+        accepted.module(),
+        language_core::sealed_intrinsics::HostedOperation::ProcessExit,
+        boundary.id,
+    )
+    .expect("the admitted canonical declaration retains its complete schema");
+    let source_schema = accepted
+        .slot_schema(requirement.reached.slot)
+        .expect("the actual source owns the complete Core schema");
+    assert_eq!(
+        projected.declaration.as_ref(),
+        source_schema.as_ref(),
+        "native projection must retain nominal result, progress and all public rows",
+    );
     assert!(requirement.supplies.is_empty());
     let missing = supply.settle().expect_err("no provider was selected");
     assert_eq!(missing.len(), 1);
