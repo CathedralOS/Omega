@@ -217,6 +217,12 @@ pub(crate) fn reference_graph(
             .structural_parameters
             .iter()
             .any(|parameter| contains(parameter.structural_type))
+        // Byte literals have declared storage even without a producing operation.
+        || lowered
+            .structural_places
+            .iter()
+            .filter_map(|place| place.kind.produced_structural_type())
+            .any(contains)
         || lowered.blocks.iter().any(|block| {
             block.structural_parameters.iter().any(|parameter| {
                 parameter.access != StructuralAccess::Owned || contains(parameter.structural_type)
@@ -227,10 +233,7 @@ pub(crate) fn reference_graph(
                         | terminal_psi::OperationKind::EstablishElementView { .. }
                         | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                         | terminal_psi::OperationKind::ReleaseReference { .. }
-                ) || operation
-                    .result
-                    .as_structural()
-                    .is_some_and(|result| contains(result.structural_type))
+                )
             })
         });
     if !demanded {
