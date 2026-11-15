@@ -11,12 +11,20 @@ mod native_entry_controls;
 
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use review_evidence::PackageReviewProjectionError;
+use std::path::{Path, PathBuf};
+
+fn kept_fixture(relative: &str) -> PathBuf {
+    fixture_package_inputs::repo_root()
+        .join("tests/fixtures")
+        .join(relative)
+}
 
 #[test]
 fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
     // These libraries have no program entry. Their UEFI target request belongs
     // to this package check; the positive also covers ordinary source checking.
     let target = "uefi_x86_64";
+    let mut failures = Vec::new();
     for (fixture, refusal) in [
         ("pass/float/rootless_target_realization_scope", None),
         (
@@ -32,10 +40,7 @@ fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() 
             Some("has no observation-free, reach-free, crash-free value denotation"),
         ),
     ] {
-        let source = fixture_package_inputs::repo_root()
-            .join("tests/omega")
-            .join(fixture)
-            .join("main.omg");
+        let source = kept_fixture(fixture).join("main.omg");
         let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
             &source,
             Some(target),
@@ -45,16 +50,20 @@ fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() 
         });
         match (result, refusal) {
             (Ok(_), None) => {}
-            (Err(diagnostics), Some(fragment)) => assert!(
-                diagnostics
+            (Err(diagnostics), Some(fragment))
+                if diagnostics
                     .iter()
-                    .any(|diagnostic| diagnostic.message.contains(fragment)),
+                    .any(|diagnostic| diagnostic.message.contains(fragment)) => {}
+            (Err(diagnostics), Some(fragment)) => failures.push(format!(
                 "{fixture}: expected {fragment:?}, got {diagnostics:?}"
-            ),
-            (Ok(_), Some(fragment)) => panic!("{fixture}: accepted instead of {fragment:?}"),
-            (Err(diagnostics), None) => panic!("{fixture}: {diagnostics:?}"),
+            )),
+            (Ok(_), Some(fragment)) => {
+                failures.push(format!("{fixture}: accepted instead of {fragment:?}"));
+            }
+            (Err(diagnostics), None) => failures.push(format!("{fixture}: {diagnostics:?}")),
         }
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 fn execute_build(
@@ -73,8 +82,7 @@ fn execute_build(
 #[test]
 fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let target = "macos_arm64";
-    let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/providers/staggered_installation_reach_exit/main.omg");
+    let fixture = kept_fixture("pass/providers/staggered_installation_reach_exit/main.omg");
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("installation reach fixture inputs");
@@ -136,8 +144,7 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
 #[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
-    let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/calls/machine_self_call_recursion_compile/main.omg");
+    let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("fixture has admitted package inputs");
@@ -188,114 +195,77 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 }
 
 #[test]
-fn review_policy_round_trip_preserves_authored_and_inferred_reach() {
-    use review_evidence::encoding::PackagePolicyRecoveryLimits;
-    use review_evidence::record::PackagePolicyBaseline;
+fn review_policy_round_trip_preserves_inferred_imported_reach() {
+    // The original support package was removed when the facts tree was
+    // deduplicated. Keep its assertion separate from the two live reach probes.
+    let fixture = fixture_package_inputs::repo_root().join(
+        "tests/omega/pass/facts/unannotated_imported_boundary_call_through_local_exit/support/main.omg",
+    );
+    let recovered = reviewed_and_recovered(&fixture, "macos_arm64");
+    let callable = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("fetch_mark"))
+        .expect("exported inferred helper");
+    assert!(callable.declared_service_reach().is_none());
+    let realized = callable
+        .checked_service_reach()
+        .realized()
+        .expect("checked body");
+    assert_eq!(realized.len(), 1);
+    assert_eq!(realized[0].path(), "Mark");
+    assert_eq!(callable.published_service_reach(), Some(realized));
+}
 
-    let root = fixture_package_inputs::repo_root();
-    for (fixture, expected) in [
-        (
-            "tests/omega/pass/facts/unannotated_imported_boundary_call_through_local_exit/support/main.omg",
-            "inferred",
-        ),
-        (
-            "tests/omega/pass/effects/optional_reach_declared_slack_exit/main.omg",
-            "slack",
-        ),
-        (
-            "tests/omega/pass/effects/optional_reach_empty_exit/main.omg",
-            "empty",
-        ),
-    ] {
-        let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-            &root.join(fixture),
-            Some("macos_arm64"),
-        )
-        .expect("reviewable reach fixture");
-        let mut session = CompilationSession::default();
-        let build = execute_build(
-            &mut session,
-            CheckedCompileRequest {
-                package_inputs: prepared.package_inputs,
-                ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
-            },
-        );
-        let reviewed = session
-            .review_package_build(build, usize::MAX)
-            .expect("reach review");
-        let bytes = reviewed
-            .evidence
-            .policy
-            .canonical_bytes()
-            .expect("encode reach policy");
-        let recovered = PackagePolicyBaseline::recover_canonical(
-            &bytes,
-            PackagePolicyRecoveryLimits::default(),
-        )
-        .expect("recover source-free reach policy");
-        // Provider identity tables retain construction interning beyond the
-        // rows they serialize. Compare persisted meaning, then inspect the
-        // recovered reach fields themselves below.
-        assert_eq!(
-            recovered.canonical_bytes().expect("re-encode policy"),
-            bytes
-        );
-        let callables = recovered.callables().callables().iter().collect::<Vec<_>>();
-        assert!(!callables.is_empty(), "{fixture}");
-        match expected {
-            "inferred" => {
-                let callable = callables
-                    .iter()
-                    .find(|callable| callable.identity().path().contains("fetch_mark"))
-                    .expect("exported inferred helper");
-                assert!(callable.declared_service_reach().is_none());
-                let realized = callable
-                    .checked_service_reach()
-                    .realized()
-                    .expect("checked body");
-                assert_eq!(realized.len(), 1);
-                assert_eq!(realized[0].path(), "Mark");
-                assert_eq!(callable.published_service_reach(), Some(realized));
-            }
-            "slack" => {
-                let callable = callables
-                    .iter()
-                    .find(|callable| callable.identity().path().contains("read_mark"))
-                    .expect("exported bounded helper");
-                let declared = callable
-                    .declared_service_reach()
-                    .expect("authored wider ceiling");
-                let realized = callable
-                    .checked_service_reach()
-                    .realized()
-                    .expect("checked body");
-                assert_eq!(declared.len(), 2);
-                assert_eq!(realized.len(), 1);
-                assert_eq!(callable.published_service_reach(), Some(declared));
-            }
-            "empty" => {
-                let explicit = callables
-                    .iter()
-                    .find(|callable| callable.identity().path().contains("read_mark"))
-                    .expect("explicit empty helper");
-                let inferred = callables
-                    .iter()
-                    .find(|callable| callable.identity().path().contains("inferred_empty"))
-                    .expect("inferred empty helper");
-                assert_eq!(explicit.declared_service_reach(), Some([].as_slice()));
-                assert!(inferred.declared_service_reach().is_none());
-                assert_eq!(explicit.published_service_reach(), Some([].as_slice()));
-                assert_eq!(inferred.published_service_reach(), Some([].as_slice()));
-            }
-            _ => unreachable!(),
-        }
-    }
+#[test]
+fn review_policy_round_trip_preserves_authored_reach_slack() {
+    let recovered = reviewed_and_recovered(
+        &kept_fixture("pass/effects/optional_reach_declared_slack_exit/main.omg"),
+        "macos_arm64",
+    );
+    let callable = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("read_mark"))
+        .expect("exported bounded helper");
+    let declared = callable
+        .declared_service_reach()
+        .expect("authored wider ceiling");
+    let realized = callable
+        .checked_service_reach()
+        .realized()
+        .expect("checked body");
+    assert_eq!(declared.len(), 2);
+    assert_eq!(realized.len(), 1);
+    assert_eq!(callable.published_service_reach(), Some(declared));
+}
+
+#[test]
+fn review_policy_round_trip_distinguishes_explicit_and_inferred_empty_reach() {
+    let recovered = reviewed_and_recovered(
+        &kept_fixture("pass/effects/optional_reach_empty_exit/main.omg"),
+        "macos_arm64",
+    );
+    let callables = recovered.callables().callables();
+    let explicit = callables
+        .iter()
+        .find(|callable| callable.identity().path().contains("read_mark"))
+        .expect("explicit empty helper");
+    let inferred = callables
+        .iter()
+        .find(|callable| callable.identity().path().contains("inferred_empty"))
+        .expect("inferred empty helper");
+    assert_eq!(explicit.declared_service_reach(), Some([].as_slice()));
+    assert!(inferred.declared_service_reach().is_none());
+    assert_eq!(explicit.published_service_reach(), Some([].as_slice()));
+    assert_eq!(inferred.published_service_reach(), Some([].as_slice()));
 }
 
 #[test]
 fn historical_constant_closure_requires_exact_target_and_provider() {
     use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
-    use std::path::Path;
 
     fn produce(
         root: &Path,
@@ -488,8 +458,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
 #[test]
 fn review_records_dynamic_slot_origin_and_qualification() {
     let target = "linux_x86_64";
-    let fixture = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/traits/runtime_dyn_slot_metadata_exit/main.omg");
+    let fixture = kept_fixture("pass/traits/runtime_dyn_slot_metadata_exit/main.omg");
     let prepared =
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("slot metadata fixture inputs");
@@ -571,25 +540,21 @@ fn review_records_dynamic_slot_origin_and_qualification() {
 /// Capture and recovery are separate owners of the same binder and identity
 /// vocabulary; only a fixture that crosses both can notice them disagreeing.
 fn reviewed_and_recovered(
-    fixture: &str,
+    fixture: &Path,
     target: &str,
 ) -> review_evidence::record::PackagePolicyBaseline {
     use review_evidence::encoding::PackagePolicyRecoveryLimits;
     use review_evidence::record::PackagePolicyBaseline;
 
-    let fixture = fixture_package_inputs::repo_root().join(fixture);
-    let prepared =
-        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
-            .expect("fixture inputs");
-    let mut session = CompilationSession::default();
-    let build = execute_build(
-        &mut session,
-        CheckedCompileRequest {
-            package_inputs: prepared.package_inputs,
-            ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
-        },
-    );
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "repository-package-review",
+        false,
+    )
+    .unwrap();
+    let target = target::TargetProfile::from_omega_target_name(Some(target)).unwrap();
+    let (mut session, build, _) = captured_package_build(fixture, workspace.path(), target);
     let reviewed = session
+        .compiler()
         .review_package_build(build, usize::MAX)
         .expect("fixture review");
     let bytes = reviewed
@@ -613,7 +578,7 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
     // so its contract names the requirement's own static binder. A trait has no
     // implicit subject binder before its declared statics.
     let recovered = reviewed_and_recovered(
-        "tests/omega/pass/facts/static_callback_reach_boundary_schema/main.omg",
+        &kept_fixture("pass/facts/static_callback_reach_boundary_schema/main.omg"),
         "linux_x86_64",
     );
     let contract = recovered
@@ -637,7 +602,7 @@ fn toolchain_boundary_applications_recover_against_their_owner_qualified_require
     // overload, whose requirement identity typed Psi qualifies with the
     // toolchain owner namespace.
     let recovered = reviewed_and_recovered(
-        "tests/omega/pass/float/live_float_parameter_across_call_exit/main.omg",
+        &kept_fixture("pass/float/live_float_parameter_across_call_exit/main.omg"),
         "linux_x86_64",
     );
     let add = recovered
@@ -664,7 +629,7 @@ fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
     // satisfies publishes both, and an opaque supply has no body from which to
     // publish anything else.
     let recovered = reviewed_and_recovered(
-        "tests/omega/pass/boundary/native_provider_unoffered_read/main.omg",
+        &kept_fixture("pass/boundary/native_provider_unoffered_read/main.omg"),
         "linux_x86_64",
     );
     let blocking_reads = recovered
@@ -712,10 +677,7 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
         ),
         ("fail/facts/compound_index_guard_wrong_call_actual", false),
     ] {
-        let source = fixture_package_inputs::repo_root()
-            .join("tests/omega")
-            .join(fixture)
-            .join("main.omg");
+        let source = kept_fixture(fixture).join("main.omg");
         let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
             &source,
             Some(target),
@@ -750,7 +712,7 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
 fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     use std::sync::Arc;
     let root = fixture_package_inputs::repo_root();
-    let fixture = root.join("tests/omega/pass/layouts/private_callback_inherited_policy_exit");
+    let fixture = kept_fixture("pass/layouts/private_callback_inherited_policy_exit");
     let scratch = root.join("build").join(format!(
         "omega-closed-native-callback-{}-{}",
         std::process::id(),
@@ -1444,20 +1406,46 @@ fn captured_review_compilation_at(
     std::fs::write(project.join("main.omg"), main_source).unwrap();
     std::fs::write(project.join("build.omg"), build_source).unwrap();
     let target = target::TargetProfile::host_if_supported().expect("host Product target");
-    let preparation = package_manager::operations::begin_local_project_preparation(
-        &project.join("main.omg"),
-        &[target],
-        true,
-    )
-    .unwrap()
-    .expect("ordinary captured project");
+    let (mut session, build, inputs) =
+        captured_package_build(&project.join("main.omg"), session_path, target);
+    let checked = session
+        .compiler()
+        .check_package_build(build)
+        .map_err(|failure| failure.into_diagnostics());
+    if let Ok(checked) = &checked {
+        assert_eq!(
+            checked.sources().accepted_semantic_bindings(),
+            inputs
+                .accepted_semantic_bindings()
+                .cloned()
+                .collect::<Vec<_>>()
+        );
+    }
+    (session, checked)
+}
+
+// Capture the exact authored project and finish its Build before checking or
+// reviewing the Product. Review has no fixture-supplied execution authority.
+fn captured_package_build(
+    root_path: &Path,
+    session_path: &Path,
+    target: target::TargetProfile,
+) -> (
+    orchestration::BuildSession,
+    compiler::PackageBuild,
+    package_compilation::PackageCompilationInputs,
+) {
+    let preparation =
+        package_manager::operations::begin_local_project_preparation(root_path, &[target], true)
+            .unwrap()
+            .expect("ordinary captured project");
     let mut session = orchestration::BuildSession::create(session_path).unwrap();
     let resolved = orchestration::resolve_project_sources(
         &mut session,
         orchestration::ProjectSourceRequest {
             preparation,
             execution: package_compilation::BuildExecutionInputs {
-                profile: Some(target),
+                profile: target::TargetProfile::host_if_supported(),
                 ..Default::default()
             },
             collect_timings: false,
@@ -1474,20 +1462,7 @@ fn captured_review_compilation_at(
     let build = build
         .complete(session.compiler(), target, inputs.clone())
         .unwrap_or_else(|failure| panic!("Product preparation: {:?}", failure.into_diagnostics()));
-    let checked = session
-        .compiler()
-        .check_package_build(build)
-        .map_err(|failure| failure.into_diagnostics());
-    if let Ok(checked) = &checked {
-        assert_eq!(
-            checked.sources().accepted_semantic_bindings(),
-            inputs
-                .accepted_semantic_bindings()
-                .cloned()
-                .collect::<Vec<_>>()
-        );
-    }
-    (session, checked)
+    (session, build, inputs)
 }
 
 #[test]
