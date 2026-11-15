@@ -1312,42 +1312,42 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_structural_byte_sequence_field_read(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &crate::native_geometry::NativeUnit<'_>,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::StructuralByteSequenceFieldRead {
+                let target_operations::TargetUnitOperation::StructuralByteSequenceFieldRead {
                     psi_operation,
+                    source,
                     field,
+                    indices,
                     index,
                     length,
                     obligation,
                     ..
-                } = &node.operation
+                } = targeted
                 else {
-                    unreachable!("dispatched project_structural_byte_sequence_field_read")
+                    return Err(Error::custody());
                 };
-                let source = crate::legalization::scalar_graph_input::structural_fields::byte_read(
-                    optimized,
-                    &node.operation,
-                    unit.geometry(),
-                )
-                .ok_or(Error::custody())?;
                 Ok(
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
-                        indices: scalar_graph_input::structural_fields::byte_index_operands(
-                            optimized,
-                            unit,
-                            *psi_operation,
-                            &source,
-                            *field,
-                        )?,
-                        source,
+                        source: source.clone(),
                         field: *field,
-                        index: *index,
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            indices,
+                        )?,
+                        index: index.source_value(),
                         length: *length,
                         obligation: *obligation,
-                        accepted_fact: accepted_fact(unit, optimized, *psi_operation, *obligation)?,
+                        accepted_fact: crate::legalization::obligations::retained_fact(
+                            facts,
+                            machine,
+                            *psi_operation,
+                            *obligation,
+                        )?,
                     },
                 )
             }
@@ -1953,6 +1953,15 @@ pub(crate) mod scalar_graph {
                 target_operations::TargetUnitOperation::StructuralCaseMembership { .. }
             ) {
                 storage_instructions::project_structural_case_membership(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
+                target_operations::TargetUnitOperation::StructuralByteSequenceFieldRead { .. }
+            ) {
+                storage_instructions::project_structural_byte_sequence_field_read(
                     optimized.machine,
                     &unit.accepted_obligation_facts,
                     targeted,
@@ -2637,11 +2646,6 @@ pub(crate) mod scalar_graph {
                     AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
                         storage_instructions::project_structural_byte_sequence_field_byte_store(
                             node, optimized, unit, targeted,
-                        )?
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
-                        storage_instructions::project_structural_byte_sequence_field_read(
-                            node, optimized, unit,
                         )?
                     }
                     AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
