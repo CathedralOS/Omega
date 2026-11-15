@@ -150,12 +150,12 @@ framework or a list of features that remain unimplemented.
 - Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
 - Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### Provider-supply controls lose the reasons their runtime module is rejected
-- Category: tests that pin the bug
-- Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)
-- Saw: At `7f12cb9f722` five provider-supply tests fail with `part 0 rejected`, including the provider that should refine its requirement and the controls for reach and invocation ceilings. The harness formats only unproved and exceeded rows and omits the other evidence of rejection.
-- Cost: A runtime rejection can hide the failure that prevented the suite from reaching its intended refinement, effect ceiling, or publication check. Recover the actual rejection evidence while keeping the matching positive and negative supply programs.
-- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+### Provider supply ignores named implementations' selection rows
+- Category: a fact with no owner
+- Where: [provider realization](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1618), [provider declaration identity](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L212)
+- Saw: At `7fca4c49c98` the Stage 06 supply harness finds one typed reference row for `Native satisfies Service { Service::go = provider_go; }`, and that row retains the exact `provider_go` machine. Nominating `Native` for `Service::go` or for the whole `Service` still refuses with `provider does not give the supplied requirement exactly one machine`. The inline implementation of the same contract passes and publishes.
+- Cost: Provider admission looks for a machine owned by the implementation. A selection row keeps the existing machine's original declaration. Resolve the named implementation's exact row and check its body against the nominated requirement.
+- Reported: 2026-11-14, Codex, while restoring the Stage 06 provider-supply controls
 
 ### The selected reference result control stops before checking its public contract
 - Category: tests that pin the bug
