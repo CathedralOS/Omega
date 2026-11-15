@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A computed array extent blocks a layout constant before target evaluation
+- Category: knowledge crossing a boundary
+- Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [deferred type references](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L158), [checked const arguments](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs#L216)
+- Saw: On `87ab66c1c09` with only the authored `build.omg` and `main.omg`, macOS arm64 and Linux x86-64 refuse `OBSERVED_SIZE` at `Main` on line 8, column 6 with “type written as an expression, which no pass evaluates yet”. The unchanged local and invalid-local pair reaches the same refusal. A scratch-only pure `limit() { 8 }` still refuses; substituting a literal extent reaches the next size-query proof instead.
+- Cost: The checked argument preparer does not settle a demanded array's computed extent, even before the historical target closure needs to carry the selected provider. Serve that extent through the existing checked computation and keep the original bound and invalid twin. The [target fold and snapshot concern](#a-fixed-layout-record-constant-loses-its-target-selection) tracks the later publication needs.
+- Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory.
+
 ### A runtime-indexed byte-view replacement loses descriptor flow at its call
 - Category: branch per shape
 - Where: [descriptor graph closure](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13411)
@@ -86,13 +93,6 @@ framework or a list of unimplemented features.
 - Saw: The original `fetch_mark` support package was deleted in `67936f8b622`. On `8329cdc221e` its exact archived `values.omg:1:64` requires a crash ceiling. Adding `crashes none` and removing the retired sibling import in scratch reaches package review, which refuses the complete boundary/service inventory.
 - Cost: The exact inferred `Mark` reach still has no live recovery witness. Preserve the original private-to-public call and require the recovered row to retain the inferred reach, its absent authored ceiling, and the exact service identity.
 - Reported: 2026-11-15, Codex, while reconnecting package review's kept fixtures.
-
-### The historical layout closure cannot see its authored Answer selection
-- Category: knowledge crossing a boundary
-- Where: [historical closure consumer](omega-rust/omega/compilation/compiler/tests/package_review.rs#L267), [selected provider operand](samples/cli/facts/target_layout_derived_constant/build.omg#L8)
-- Saw: Clean `8329cdc221e` refuses the existing `Build::select_provider<Answer, Small>` at line 8, column 12 with “cannot select provider operand `Answer` here”. This test already uses its live sample path.
-- Cost: The stored layout constant never reaches the exact-target, absent-plan, duplicate-plan, and equal-result provider substitution checks. Restore the declaration's visibility in its existing Build operand owner and retain those custody assertions.
-- Reported: 2026-11-15, Codex, while establishing the clean package-review suite baseline.
 
 ### The compound index probes stop at the wrapping array type
 - Category: tests that pin the bug
@@ -175,8 +175,8 @@ framework or a list of unimplemented features.
 ### A fixed-layout record constant loses its target selection
 - Category: knowledge crossing a boundary
 - Where: [kept initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L720), [shared Product preparation](omega-rust/psi/compilation/source-compiler/src/source_checking.rs#L162)
-- Saw: On clean `8bb3a79076b` on macOS arm64, `const_name` refuses at `SAVED` with `TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The unchanged `call_result` exits 0 in both engines and `invalid_const_name` reaches its exact cast refusal. An isolated replay with the existing Linux x86-64 and macOS arm64 layout admissions returns `lo=42, hi=9` at offsets `[8, 0]` on both, then the ordinary constant snapshot decoder refuses the applied `LayoutStorage` carrier.
-- Cost: Shared Product preparation substitutes one value before selecting any of the five authored deployments. Keep the recipe until exact target closure, then join the authenticated layout and copy-eligible semantic snapshot through the existing target-scoped fold. Preserve the policy, field qualifications, and wrong-target and cast refusals.
+- Saw: On clean `8bb3a79076b` on macOS arm64, `const_name` refuses at `SAVED` with `TargetLayoutSelectionMissing(LayoutApplicationId(1))`. The unchanged `call_result` exits 0 in both engines and `invalid_const_name` reaches its exact cast refusal. An isolated replay with the existing Linux x86-64 and macOS arm64 layout admissions returns `lo=42, hi=9` at offsets `[8, 0]` on both, then the ordinary constant snapshot decoder refuses the applied `LayoutStorage` carrier. On `87ab66c1c09` the unchanged `SAVED` still reports missing target layout. The kept [ordinary layout-query constant](tests/fixtures/pass/layouts/runtime_constant_layout_contract_exit/main.omg#L5) also refuses because its invocation lacks selected target, scalar or external authority. The historical scalar control exposes an [earlier computed extent refusal](#a-computed-array-extent-blocks-a-layout-constant-before-target-evaluation). Its existing Psi folded-constant rows have readers and no source producer.
+- Cost: Shared Product preparation substitutes one value before selecting any of the five authored deployments. Keep the recipe until exact target closure, then join the authenticated layout and copy-eligible semantic snapshot through the existing target-scoped fold. Publish the exact source-selected provider commitment through the existing folded-constant closure. Preserve field qualifications and the wrong-target, absent/repeated plan, equal-result substitution and cast refusals.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles and tracing the kept named constant.
 
 ### Six Stage06 loan and ranking controls fail on clean main
