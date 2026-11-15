@@ -80,13 +80,6 @@ framework or a list of unimplemented features.
 - Cost: The existing two-endpoint subslice rule cannot receive this typed array's backing and element extent. Carry the shared array loan into the existing element-window operation, keeping the actual range and distinct ordered bounds.
 - Reported: 2026-11-15, Codex, while checking typed slice fields through a runtime-selected array element.
 
-### An affine-view refusal hides the source sequence bounds test
-- Category: tests that pin the bug
-- Where: [literal index witness](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L36), [exact diagnostic assertion](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L207)
-- Saw: The isolated test fails on clean `1b4247dd558` and the computed-extent candidate with “affine element views” on `forbidden_index(value: [Item])`. The expected refusal is the missing live length and bounds fact for `value[0].number`. The test reaches the earlier wrong-element-identity check.
-- Cost: The final negative never reaches the operation-safety judgment. Determine how an exact checked view can observe the same scalar field through the original owned sequence before restoring the bound oracle.
-- Reported: 2026-11-15, Codex, while validating checked type computations.
-
 ### A target-computed array extent lacks its selected provider during evaluation
 - Category: knowledge crossing a boundary
 - Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [closed computation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs), [invocation admission](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs)
