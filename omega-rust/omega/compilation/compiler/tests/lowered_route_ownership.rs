@@ -929,6 +929,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         identity: "Owned".into(),
@@ -1122,6 +1123,7 @@ mod transferred_on_one_path {
         };
         let mut records = IdTable::default();
         records.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
             identity: "Inner".into(),
@@ -1133,6 +1135,7 @@ mod transferred_on_one_path {
             requires: Vec::new(),
         });
         records.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
             identity: "Pair".into(),
