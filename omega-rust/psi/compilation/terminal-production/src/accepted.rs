@@ -534,6 +534,23 @@ impl AcceptedTerminalSource {
         &self.closure.elaboration.module
     }
 
+    /// Bind exact selected-plan commitments before any artifact or evidence
+    /// seals are produced from this accepted target module.
+    pub fn retain_folded_constants(
+        &mut self,
+        folded: terminal_psi::FoldedConstantClosure,
+    ) -> Result<(), &'static str> {
+        let module = &mut self.closure.elaboration.module;
+        if self.publication != terminal_codec::TerminalPublication::Portable
+            || module.folded_constants.target.is_some()
+        {
+            return Err("folded constant custody requires an unbound portable product");
+        }
+        folded.validate(module)?;
+        module.folded_constants = folded;
+        Ok(())
+    }
+
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {
         &self.source
     }

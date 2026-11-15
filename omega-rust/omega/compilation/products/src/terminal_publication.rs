@@ -190,6 +190,29 @@ impl ProductTerminalPublication {
         Self::new(self.optimizations.clone())
     }
 
+    pub fn retain_folded_constants(
+        &mut self,
+        folded: terminal_psi::FoldedConstantClosure,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.program.get().is_some() {
+            return Err(vec![Diagnostic::error(
+                "folded constants must be bound before Psi publication",
+            )]);
+        }
+        let target = self
+            .accepted
+            .as_mut()
+            .and_then(|(accepted, _)| Arc::get_mut(accepted))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "folded constants require the exact unshared target judgment",
+                )]
+            })?;
+        target
+            .retain_folded_constants(folded)
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+
     pub fn optimizations(&self) -> &OptimizationSelections {
         &self.optimizations
     }

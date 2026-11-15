@@ -1024,8 +1024,8 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
-    /// A query of the selected target's exact layout for its subject.
-    LayoutObservation {
+    /// A checked scalar computed in its selected target scope.
+    ScalarApplication {
         application: semantic_vocabulary::ScalarApplicationId,
     },
     /// One byte of a borrowed byte view, read at `index`. The view is

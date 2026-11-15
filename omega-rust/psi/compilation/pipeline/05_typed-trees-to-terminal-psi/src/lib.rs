@@ -360,7 +360,11 @@ fn read_bodies(
     let mut position = 0;
     // `program.body` appends callees while bodies are read, so the bound is
     // re-read on every step.
-    while position < program.symbols.len() {
+    loop {
+        program.resolve_scalar_applications(diagnostic)?;
+        if position == program.symbols.len() {
+            break;
+        }
         position += 1;
         let next = MachineId::new(position as u64).ok_or_else(|| {
             refuse(
@@ -787,7 +791,17 @@ fn finish_reading_into<'source>(
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
     let mut binder_reach = IdTable::default();
-    while binder_reach.len() < program.symbols.len() {
+    let mut predicates_prepared = false;
+    loop {
+        program.resolve_scalar_applications(diagnostic)?;
+        if binder_reach.len() == program.symbols.len() {
+            if predicates_prepared {
+                break;
+            }
+            program.prepare_domain_predicates(diagnostic)?;
+            predicates_prepared = true;
+            continue;
+        }
         let next = MachineId::new(binder_reach.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 diagnostic,
@@ -800,7 +814,6 @@ fn finish_reading_into<'source>(
         }
         binder_reach.push(program.application_binders(next)?);
     }
-    program.prepare_domain_predicates(diagnostic)?;
     program.finish_declarations(diagnostic)?;
     let components = components::components(&bodies, &mut program.signatures)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
@@ -1172,7 +1185,13 @@ fn lower_generic_for<'source>(
     if let Some(source) = declarations {
         let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
         let conditions = std::mem::take(&mut module.scalar_applications.conditions);
-        module.scalar_applications = source.scalar_applications.clone();
+        module.scalar_applications = source.scalar_applications.published().map_err(|reason| {
+            refuse(
+                MachineId::new(1).expect("nonzero identity"),
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        })?;
         module.scalar_applications.proof_scope = proof_scope;
         module.scalar_applications.conditions = conditions;
     }

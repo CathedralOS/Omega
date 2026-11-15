@@ -38,6 +38,7 @@ pub use target_providers::{
     SelectedCheckedInvocationCandidate, SelectedCheckedInvocationRow, SelectedProviderCandidateRow,
     TerminalTargetProviderProposal, TerminalTargetProviderSelection,
     admit_selected_checked_providers, close_checked_provider_specializations,
-    matching_folded_constant_dependencies, selected_checked_adapter_header,
-    selected_checked_invocation_rows, selected_provider_candidate_rows,
+    folded_constant_dependencies, matching_folded_constant_dependencies,
+    selected_checked_adapter_header, selected_checked_invocation_rows,
+    selected_provider_candidate_rows,
 };
