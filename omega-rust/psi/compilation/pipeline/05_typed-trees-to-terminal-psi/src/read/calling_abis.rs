@@ -368,14 +368,15 @@ impl Program<'_> {
                     language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
                     language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
                 };
-                (*referee, access)
+                let (carrier, _) = self.borrowed_formal_carrier(reference, *referee);
+                (carrier, access)
             }
             _ => (reference, StructuralAccess::Owned),
         };
         let structural_type = self.calling_abi_storage(entry, reference)?;
-        // Callback closure walks the complete direct carrier after the one
-        // ordinary loan shell above. Missing backing must not imply that a
-        // represented parameter has no callback storage to inspect.
+        // Callback closure walks the same direct carrier as the ABI formal,
+        // including a borrowed slice's descriptor. A represented parameter
+        // still needs its callback storage checked.
         let callback_backing = self.records.get(structural_type).map(|_| structural_type);
         Ok(CallingAbiParameter {
             structural_type,
@@ -638,6 +639,78 @@ mod descriptor_storage_tests {
                 constraints,
             });
         (typed, address, record, qualified, envelope)
+    }
+
+    #[test]
+    fn borrowed_slice_abi_formals_use_the_checked_descriptor() {
+        use language_core::ReferenceAccess;
+
+        let (mut typed, address, _, _, _) = fixture();
+        let byte_symbol = typed
+            .symbols
+            .builtin_atom_symbol(BuiltinTypeAtom::U8)
+            .unwrap();
+        let byte = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: byte_symbol,
+            name: "u8".into(),
+        });
+        let bytes = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice { element_type: byte });
+        let addresses = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: address,
+        });
+        let cases = [
+            (
+                bytes,
+                ReferenceAccess::Shared,
+                StructuralAccess::SharedBorrow,
+            ),
+            (
+                bytes,
+                ReferenceAccess::Mutable,
+                StructuralAccess::MutableBorrow,
+            ),
+            (
+                addresses,
+                ReferenceAccess::Shared,
+                StructuralAccess::SharedBorrow,
+            ),
+        ];
+        let written = cases.map(|(referee, access, expected_access)| {
+            let reference = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee,
+                    access,
+                    lifetime: None,
+                });
+            (reference, expected_access)
+        });
+        let entry = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        let checked = written.map(|(reference, _)| {
+            let crate::ValueType::Record(carrier, _, _) =
+                program.value_type(entry, reference).unwrap()
+            else {
+                panic!("a borrowed slice has structural descriptor storage");
+            };
+            carrier
+        });
+        program.begin_declaration_storage(entry, 0).unwrap();
+        let owned = program.calling_abi_parameter(entry, bytes).unwrap();
+        assert_eq!(owned.access, StructuralAccess::Owned);
+        for ((reference, access), carrier) in written.into_iter().zip(checked) {
+            assert_ne!(carrier, owned.structural_type);
+            assert_eq!(
+                program.calling_abi_parameter(entry, reference).unwrap(),
+                CallingAbiParameter {
+                    structural_type: carrier,
+                    callback_backing: Some(carrier),
+                    access,
+                },
+            );
+        }
     }
 
     #[test]
