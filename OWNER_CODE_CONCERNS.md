@@ -122,13 +122,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Native target lowering receives the checked element roster and places only inline fixed arrays for this operation. Settle physical backing for the stored-length descriptor so the checked element roster keeps its ownership when it leaves its creating machine.
 - Reported: 2026-11-15, Codex, while checking structural domains in arrays.
 
-### A published edge discards an unrestricted record as though it owns affine contents
-- Category: knowledge crossing a boundary
-- Where: [published copyable-discard control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/owned_dispatch.rs#L171), [schedule verification](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L626), [runtime edge preflight](omega-rust/psi/interpreter/src/engine_terminators.rs#L242)
-- Saw: On macOS arm64 with the reference-match cleanup repair on `30ae6323d4b`, a Build entry calls the existing copyable-record dispatch with `Selection::Root` and a `CopyHolder`. The unchanged closure completes in Psi, as does a freshly prepared twin with `RetireHome(spare)` on that edge. A twin replacing just that action with `DiscardRoot(spare)` passes Stage06 judgment and invocation publication, then fails with `AffineFrontierMismatch` at machine 4, block 4. The exact `spare` row is owned and unrestricted.
-- Cost: A published invocation can fail on cleanup the checker approved. Require the existing cleanup verifier and executor to agree on which checked homes can use whole affine discard, keeping the valid unrestricted retirement available.
-- Reported: 2026-11-15, Codex, while tracing shared-reference match cleanup.
-
 ### Two returned-window probes still use retired callable forms
 - Category: tests that pin the bug
 - Where: [case-selected typed slice](samples/cli/probes/case_selected_slice_reference/main.omg#L7), [selected byte window](samples/cli/probes/byte_window_dispatch/main.omg#L21), [attached-machine refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L891), [dynamic type refusal](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs#L623)

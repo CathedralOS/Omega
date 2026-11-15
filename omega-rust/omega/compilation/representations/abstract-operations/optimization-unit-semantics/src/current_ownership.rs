@@ -3192,9 +3192,9 @@ mod cleanup {
         Ok(remaining)
     }
 
-    /// Copyable values owe no disposal, but an explicit cleanup still needs
-    /// their actual owned source and no-code declaration. Foundation validation
-    /// checks that each cleanup use follows its dominating producer.
+    /// A copyable value's home can retire when its actual owner and no-code
+    /// declaration permit it. Foundation validation checks that each
+    /// retirement follows its dominating producer.
     pub(crate) fn unrestricted_owned_cleanup_roots(
         function: &PsiOptimizationFunction,
         types: &(impl crate::StructuralTypes + ?Sized),
@@ -3478,7 +3478,7 @@ mod cleanup {
         };
         if unrestricted.binary_search(&place).is_ok() {
             if !matches!(actions,
-                [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
+                [TerminalAffineCleanupAction::RetireHome(root)] if *root == place)
                 || frontier.owned_places.contains_key(&place)
                 || frontier.partial_custody_paths.contains_key(&place)
                 || frontier
@@ -10322,30 +10322,46 @@ mod value_custody {
                 partial_custody_paths: BTreeMap::new(),
                 live_references: Vec::new(),
             };
-            for action in [Action::RetireHome(id(1)), Action::DiscardRoot(id(1))] {
-                let mut frontier = empty();
-                cleanup(&function, &types, &mut frontier, &[action]).unwrap();
-                assert_eq!(
-                    frontier,
-                    empty(),
-                    "a copy has no finite obligation to invent"
-                );
-            }
+            let (affine_function, affine_types, _) = context();
+            let mut affine_frontier = current(Vec::new());
+            cleanup(
+                &affine_function,
+                &affine_types,
+                &mut affine_frontier,
+                &[Action::DiscardRoot(id(1))],
+            )
+            .unwrap();
+            assert_eq!(affine_frontier, empty());
+
+            let mut frontier = empty();
+            cleanup(
+                &function,
+                &types,
+                &mut frontier,
+                &[Action::RetireHome(id(1))],
+            )
+            .unwrap();
+            assert_eq!(frontier, empty());
+            assert!(matches!(
+                cleanup(
+                    &function,
+                    &types,
+                    &mut frontier,
+                    &[Action::DiscardRoot(id(1))]
+                ),
+                Err(OptimizationUnitValidationError::CurrentCleanupMismatch { machine, block })
+                    if machine == function.machine && block == id(1)
+            ));
+            assert_eq!(frontier, empty());
             for borrowed in [
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::MutableBorrow,
             ] {
                 let mut borrowed_function = function.clone();
                 borrowed_function.structural_parameters[0].access = borrowed;
-                assert!(
-                    cleanup(
-                        &borrowed_function,
-                        &types,
-                        &mut empty(),
-                        &[Action::RetireHome(id(1))]
-                    )
-                    .is_err()
-                );
+                for action in [Action::RetireHome(id(1)), Action::DiscardRoot(id(1))] {
+                    assert!(cleanup(&borrowed_function, &types, &mut empty(), &[action]).is_err());
+                }
             }
             for changed in 0..4 {
                 let mut declarations = types.clone();
