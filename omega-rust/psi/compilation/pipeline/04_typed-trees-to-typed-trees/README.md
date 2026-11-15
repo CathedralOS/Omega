@@ -61,25 +61,27 @@ the same request, and the reader of the selection takes each parameter's
 value from the generated machine's application
 (`typed_trees::product_operand::capture_static_environment`).
 
-A generic machine's lexically nested checked-body machines are copied with
-its closed application when they have no independent static telescope. The
-whole tree is validated first, then each machine, state, formal and local is
-given a fresh symbol before any body is rebound. A nested declaration retains
-its own source template and the actual enclosing application's static bindings;
-two outer applications therefore cannot share a helper's identity or signature.
-Calls between the copied declarations use that one symbol map. Runtime values
-still require explicit arguments; no enclosing activation is captured. A child
-with its own static parameters is left unserved with the whole tree.
+Checked-body machines nested inside a generic machine are copied with its
+closed application if they have no static parameters of their own. The pass
+validates the whole tree first, then gives each machine, state,
+formal and local a fresh symbol before rebinding any body. A nested
+declaration keeps its own source template and its enclosing application's
+static bindings, so two outer applications never share a
+helper's identity or signature. Calls between the copies use that one symbol
+map. Runtime values still need explicit arguments; no enclosing
+activation is captured. If a child has its own static parameters,
+the whole tree is left unserved.
 
 A fully applied named map with a default type-only telescope uses the same
 copier through [named conformance preparation](src/passes/specialization/named_conformances.rs).
-Its call retains the public requirement. An existing `CapturedMachineApplication`
-retains the actual constructor bindings, complete tuple and lexical owner, with
-fresh body, state and formal correspondence. An unused binder still belongs to
-that capture's source application. The copier preserves written reach rows,
-including `reaches none`; installation-bound rows remain unserved. Captured
-members with nested declaration trees, map lifetimes and non-type map binders
-remain unserved. This metadata grants no accepted-template proof.
+Its call keeps the public requirement. An existing `CapturedMachineApplication`
+keeps the actual constructor bindings, complete tuple and lexical owner,
+mapped to the fresh body, states and formals. An unused binder
+still belongs to that capture's source application. The copier keeps written
+reach rows, `reaches none` included; installation-bound rows stay unserved,
+as do captured members with nested declaration trees, map
+lifetimes or non-type map binders. This metadata proves nothing about the
+template.
 
 The record-pattern pass resolves a subject that names a parameter or a typed
 local whose declared type is a plain, non-generic record. A field path, a call
@@ -88,18 +90,17 @@ the checker refuses the pattern where a program reaches it.
 
 ## What is not here yet
 
-The deleted preparation ran about forty passes of five kinds. Three kinds are
-this stage's work and return as passes: annotations the checker reads,
-specialization of generic machines and requirement applications, and selection
-(calls bound through a value receiver). Operator calls and their authored
-selection/static-argument packets are prepared by the typed producer in
-[Psi 03](../03_symbol-resolved-trees-to-typed-trees/src/expression_meanings.rs).
+The deleted preparation ran about forty passes of five kinds. Three kinds
+belong to this stage and come back as passes: annotations the checker reads,
+specialization of generic machines and requirement applications, and
+selection (calls bound through a value receiver). Typing in
+[Psi 03](../03_symbol-resolved-trees-to-typed-trees/src/expression_meanings.rs)
+prepares operator calls with their authored selection and static arguments.
 The first annotation pass and specialization by type arguments exist. Until
-the others are rebuilt, the
-requests they would serve stay in the trees as typing left them, and
-structural elaboration refuses each one by name where a program demands it
-(`generic application`, `receiver call`, `static requirement dispatch` and so
-on).
+the rest are rebuilt, the requests they would serve stay in the trees as
+typing left them, and structural elaboration refuses each by name where a
+program needs it (`generic application`, `receiver call`,
+`static requirement dispatch` and so on).
 
 Two kinds do not return here. The old checker's judgments (wire protocol,
 assembly discharge, domain membership carriers, mathematical declarations)
@@ -113,16 +114,16 @@ its own slots.
 
 Requested work beside the program (deferred layout applications, opaque
 representation selections, wire compatibility demands) has no pass and is
-refused by name. [Product operand preparation](src/product/mod.rs) forms the application
-of a provider choice whose slot or provider is applied to static arguments
-([applications](src/product/applications.rs)): the operand graph the request
-carries, closed with the static arguments of the generic helper that made the
-choice, becomes one argument tuple checked against the declaration's
-parameters. It refuses a requirement applied to static arguments (a native
-binding's operand).
+refused by name. [Product operand preparation](src/product/mod.rs) builds the
+application of a provider choice whose slot or provider takes static
+arguments ([applications](src/product/applications.rs)): it closes the
+request's operand graph with the static arguments of the generic helper that
+made the choice, and checks the resulting argument tuple against the
+declaration's parameters. It refuses a requirement applied to static
+arguments (a native binding's operand).
 
-This stage sees the program together with the whole bundled library and has no
-notion of what an entry demands. A pass that refuses therefore refuses every
-program, including ones that never reach the construct. A pass whose requests
+This stage sees the program together with the whole bundled library and
+does not know what an entry needs. So a pass that refuses refuses every
+program, even one that never reaches the construct. A pass whose requests
 occur in the library must either serve them all or leave the refusal to the
 reader of the declaration.

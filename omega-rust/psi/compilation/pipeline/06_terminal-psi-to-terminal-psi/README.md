@@ -1,15 +1,11 @@
 # 06 — Terminal Psi to Terminal Psi
 
-Discharge uses branch conditions, dispatch bindings and value relations as
-ordinary premises. There is no reduced-knowledge comparison mode. This is
-distinct from the specified [automatic-discharge floor](../../../../../wiki/spec/build/command_line.md#checker-conformance),
-which retains cited lemmas, branches and contracts, and from explicit stage
-validators, which add checking without changing source acceptance.
-
-This crate decides the obligations that
-[structure-only elaboration](../05_typed-trees-to-terminal-psi/README.md) mints, and it
-accepts one only when the proof kernel accepted a certificate for it. It is
-the third piece of
+This crate is the lowered-form checker: it decides whether a program's
+proof obligations hold, and its verdict is the compiler's only verdict.
+[Structure-only elaboration](../05_typed-trees-to-terminal-psi/README.md)
+(stage 05) writes the obligations into the lowered form (Terminal Psi), and
+this crate accepts one only when the proof kernel accepted a certificate for
+it. It is the third piece of
 [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
 every other outcome is a `Refusal` with reason `Unproved`. There is no
 interval verdict, no admitted route and no assumption, so a discharged
@@ -18,6 +14,13 @@ rule 2 lets remove a runtime check. The product driver passes the complete
 Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
 the compilation verdict, including every demanded generic and conformance form.
+
+The checker always uses branch conditions, dispatch bindings and value
+relations as premises; no mode compares results with less knowledge. That is
+separate from the specified
+[automatic-discharge floor](../../../../../wiki/spec/build/command_line.md#checker-conformance),
+which keeps cited lemmas, branches and contracts, and from explicit stage
+validators, which add checks without changing which sources are accepted.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). After shared inference settles,
 [machine_inputs.rs](src/machine_inputs.rs) borrows each machine's existing
@@ -30,9 +33,9 @@ checks that the rows to decide are the ones the lowered form owes;
 it, from the stores [places/log.rs](src/places/log.rs) derives from the
 operations; [prove.rs](src/prove.rs) is the one prover.
 [branch_warnings.rs](src/branch_warnings.rs) reports impossible authored arms
-from kernel-accepted refutations and their actual premise citations. Queries
-share results only within that machine's immutable advisory analysis; warning
-explanations neither retry assumption subsets nor decide program obligations.
+from refutations the kernel accepted and the premises they cite. It shares
+results only within one machine's read-only analysis, never retries with a
+subset of the assumptions, and decides no obligation.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
@@ -44,24 +47,26 @@ rules could not have decided
 
 ## Forming declarations before using their facts
 
-A contract must be meaningful before it can justify another computation.
+A contract clause justifies other code only once it is well defined:
+`a / b > 0` means nothing where `b` may be zero.
 [formation.rs](src/formation.rs) checks every partial scalar term with the
-existing canonical safety goal, prover and proof kernel. Only independently
-formed clauses supply premises. Pending clauses can use clauses formed later
-in authored order, but self-dependencies and cycles supply no evidence. Exact
-field paths distinguish entry from current contents; nested results receive
-carrier facts only after their own computations form.
+same safety goal, prover and proof kernel as an operation. Only clauses
+formed on their own supply premises. A pending clause can use a clause formed
+later in authored order, but a clause that depends on itself, or a cycle,
+supplies nothing. Exact field paths tell entry contents from current
+contents; a nested result gets its carrier's facts only after its own
+computation forms.
 
-This check covers machine and bodyless contracts, boundary guards and declared
-data or scalar domains. Inferred input and result contracts are formed before
-their first downstream use. Its logical observations and proofs are private
-checking scratch, not runtime operations or a new saved evidence table.
+The check covers machine and bodyless contracts, boundary guards and declared
+data or scalar domains. An inferred input or result contract is formed before
+anything uses it. What the check observes and proves stays private to it: it
+adds no runtime operation and no saved evidence table.
 
-`prepare_replay` performs formation explicitly and returns an exclusive borrow
-of the elaboration. Replay borrows that formed module and checks the existing
-certificates without proof search. Declaration changes go through publishers
-that form the proposed contract before changing it; callers cannot mutate the
-module while replay holds its formed view.
+`prepare_replay` runs formation and returns an exclusive borrow of the
+elaboration. Replay borrows that formed module and checks the existing
+certificates without searching for proofs. A declaration changes only through
+a function that forms the new contract first, and no caller can change the
+module while replay holds it.
 
 ## What it decides
 
@@ -80,18 +85,17 @@ module while replay holds its formed view.
 A `Loan` is not proved: it is judged by structure ([Loans](#loans)). Any
 other kind is refused as `Unsupported`.
 
-Beside the obligations it makes two structural judgments, which share one
-verdict per operation and terminator that touches storage
-(`MachineDischarge::uses`), and it follows each invariant window to the
-points that consume it (`MachineDischarge::windows`). Initialization: a use that some path reaches
-with nothing established is refused. Payload access: a case payload named where
-its case is not established on every path is refused, and so is a dispatch
-with no edge for a declared case. All three are refused with reason
-`Unestablished`, a compile error of the program like `Unproved`, not a
-construct outside the subset; see [Initialization](#initialization) and
-[Payload access](#payload-access).
+It also makes two structural judgments, with one shared verdict per
+operation and terminator that touches storage (`MachineDischarge::uses`),
+and follows each invariant window to the points that consume it
+(`MachineDischarge::windows`). [Initialization](#initialization) refuses a
+use that some path reaches with nothing established.
+[Payload access](#payload-access) refuses a case payload named where its case
+is not established on every path, and a dispatch with no edge for a declared
+case. Both refuse with reason `Unestablished`: like `Unproved`, an error in
+the program, not a construct outside the subset.
 
-Hypotheses come only from the lowered form and the tables. `discharge` fills
+Hypotheses come only from the lowered form and its tables. `discharge` fills
 each machine's `knowledge` table with one row per entry `requires` clause
 (`EntryRequirement`, at the entry block; a clause over a field of a record
 formal is stated over that field's entry content value, and states nothing
@@ -111,10 +115,11 @@ true edge and `false` on the false edge) and per payload parameter a dispatch
 edge binds (`DispatchBinding` of that edge: the parameter equals the one
 value its payload leaf holds, when there is one, and holds each clause of
 its storage's type that a payload read at the head of the arm could state;
-see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition is in `MachineTables::propositions`. A row is passed to the kernel for
-an obligation only when its point dominates the obligation's point.
-Requires and guarantees go in as assumptions, result equations as semantic
-axioms, which is how the kernel's definition rules cite them.
+see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition
+is in `MachineTables::propositions`. The kernel gets a row for an obligation
+only when the row's point dominates the obligation's. Requires and guarantees
+go in as assumptions and result equations as semantic axioms, which is how
+the kernel's definition rules cite them.
 
 ## Clauses over mathematical integers
 
@@ -222,12 +227,12 @@ borrowed formal; a fact that names `result` inside a term
 alternative per return. A helper that returns its input inside `[20, 60]` and
 40 otherwise is known to return a value in `[20, 60]`, not `value` or 40: a
 caller's proof splits at most once over a disjunction, and with alternatives
-kept `pass/calls/private_arrival_guarded_helper_range_exit` was rejected
-where its caller passes the result to a private helper. The module's
-fingerprint is the only record of which body a caller's proof depended on:
-the per-fact dependency the specification asks for ("Using a body-derived
-fact records a dependency on that exact checked body") waits for dependency
-slices.
+kept, the deleted corpus program
+`pass/calls/private_arrival_guarded_helper_range_exit` was rejected where its
+caller passes the result to a private helper. Only the module's fingerprint
+records which body a caller's proof depended on: the per-fact dependency the
+specification asks for ("Using a body-derived fact records a dependency on
+that exact checked body") waits for dependency slices.
 
 ## The rows are checked against the lowered form
 
@@ -250,33 +255,32 @@ already carries every identity:
 | `WellFoundedness` | each cycle of the machine's `ranked_scc` owes one, named by the identity of its edges | the entry of the cycle's first block |
 | `RankComparison` | each edge row of a ranked cycle owes one | that edge |
 
-A row of the first four kinds, or of the last four, that nothing owes is refused as well, and so is
-a row owed twice. The point matters as much as the kind: it selects the
-knowledge a proof may use, so a row moved past a guard, or past its own call
-where the callee's `ensures` is already known, would be proved from facts
-that do not hold where the obligation sits.
+A row of the first four kinds, or of the last four, that nothing owes is
+refused, and so is a row owed twice. The point matters as much as the kind,
+because it selects the knowledge a proof may use: a row moved past a guard,
+or past its own call where the callee's `ensures` is known, would be proved
+from facts that do not hold where the obligation sits.
 
 Two more tables feed the proofs and are checked the same way. An invocation
 row must restate one call of the machine: its callee, its scalar actuals in
-order and its record actuals as the roots the call passes. It is what a call
-requirement and a callee guarantee are stated over, so a row for a call the
-machine does not make would be a premise nothing established. An edge row
-must have the source and destination of its terminator's edge, since
-dominance is computed from the edge table.
+order and its record actuals as the roots the call passes. Call requirements
+and callee guarantees are stated over it, so a row for a call the machine
+does not make would be a premise nothing established. An edge row must have
+the source and destination of its terminator's edge, because dominance is
+computed from the edge table.
 
-The data `requires` clauses come to the discharge in a table beside the
-module (`Elaboration::domains`), and they are the goal of every `DataDomain`
-row and the premise a read of an arrived value learns from its type. The
-module's own type declarations state them
-(`StructuralTypeDeclaration::requires`, part of the encoded module and so of
-its identity), so `domains_are_declared` ([minted.rs](src/minted.rs)) refuses
-a table that is not exactly those clauses, type by type and in authored
-order. A clause weakened, strengthened, dropped or moved to another type in
-the table would otherwise change what is proved for every construction,
-store and read of the type.
+The data `requires` clauses arrive in a table beside the module
+(`Elaboration::domains`). They are the goal of every `DataDomain` row and the
+premise a read of an arrived value learns from its type. The module's own
+type declarations state them (`StructuralTypeDeclaration::requires`, part of
+the encoded module and so of its identity), so `domains_are_declared`
+([minted.rs](src/minted.rs)) refuses a table that is not exactly those
+clauses, type by type and in authored order. Otherwise a clause weakened,
+strengthened, dropped or moved to another type in the table would change
+what is proved for every construction, store and read of the type.
 
-A disagreement is a defect of the route, not of the program: the refusal has
-reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
+A disagreement is a defect of the compiler, not of the program: the refusal
+has reason `ForeignIdentity`, which `judge` returns as `Err`, so nothing is
 accepted on it.
 
 ### The tables that say what storage holds
@@ -357,8 +361,8 @@ rows end a path and in what an edge can establish:
 - **Overlap.** One function answers whether two places may share storage: a
   place overlaps itself, its ancestors and its descendants; two places that
   part by two different record fields are disjoint; any other pair of sibling
-  segments overlaps, and places under different roots do not. Later lanes
-  extend this function (indices, referents) and add no second relation.
+  segments overlaps, and places under different roots do not. Indices and
+  referents will extend this function, not add a second one.
 - **Reaching.** Walking the graph back from the use, the last store into an
   overlapping place on each path is the one that reaches along it.
   - A store of the value `v` into exactly the leaf supplies `v`.
@@ -418,12 +422,11 @@ If some path supplies nothing, the use's verdict is a refusal with reason
 
 A local declared without an initializer is zero-constructed
 (`local-without-initializer`), so in an elaborated program every path
-supplies something: the zeros of the declaration, which are a value unless
-the type is gated, described next. The
-sentence "An unestablished local cannot be read"
+supplies at least the declaration's zeros, which are a value unless the type
+is gated (described next). The sentence "An unestablished local cannot be read"
 ([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary))
-governs declared shared view locals, which the references lane owns and this
-route refuses; it does not govern a plain scalar or data local.
+governs declared shared view locals, which belong to the references work and
+which this checker refuses; it does not govern a plain scalar or data local.
 
 <a id="zero-establishment"></a>
 A data local declared without an initializer is zero-established: its
@@ -458,8 +461,8 @@ serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
 no domain clause and no gated scalar occurs in this subset.
 
-It is a structural judgment over the stores and the graph. It is not a
-proposition, so it has no obligation row, no certificate and no part in the
+Initialization is a structural judgment over the stores and the graph, not
+a proposition: it has no obligation row, no certificate and no part in the
 prover.
 
 ### Data `requires`
@@ -550,11 +553,10 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   "A call need not close an unrelated domain window when its complete
   access, effect and outcome contracts prove that it cannot observe or
   expose the broken coupling ... Unknown access/effects are treated
-  conservatively." The tables hold no callee summary to prove that from,
-  so no call is treated as
-  unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is rejected at
-  `same(7)`. Using the exception needs a
-  summary term for a callee's access and effects.
+  conservatively." The tables hold no callee summary to prove that from, so
+  no call is unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is
+  rejected at `same(7)`. The exception needs a summary term for a callee's
+  access and effects.
 
   A window a zero establishment opened is consumed by every read under its
   root that still observes a leaf of the window's place the declaration
@@ -597,11 +599,11 @@ A window is a structural judgment plus a proof question, not a conserved
 obligation row. `ObligationKind::DomainDebt` names its domain by a
 `DomainSemanticId`, and a data `requires` clause has none: it lives in
 `Elaboration::domains` by type and position. Minting `DomainDebt` would also
-need a disposition on every edge, which elaboration does not lay yet (it
-refuses any conserved obligation at a no-successor edge) and this crate
-does not check. The `DataDomain` row of the opening write already names the
-type, the place (through its operation) and the clause, so the debt reuses
-its identity.
+need a disposition on every edge, which elaboration does not write yet (it
+refuses any conserved obligation at a no-successor edge) and this crate does
+not check. The opening write's `DataDomain` row already names the type, the
+place (through its operation) and the clause, so the window reuses its
+identity.
 
 ### What a read learns from its type
 
@@ -712,18 +714,17 @@ A dispatch whose payloads take a premise relies on the domain of every
 place those leaves lie in, so it is a consumption point of a window open
 there, as such a read is.
 
-The case itself is not a knowledge row. A dispatch has no Boolean value to
-state it over, and knowledge names values only; it is the structural
-judgment above and nothing else.
-
-Knowledge names values only. No row states a proposition about a place and
-no structural `Proposition` variant is used, so the prover gained no
+The case itself is not a knowledge row: a dispatch has no Boolean value to
+state it over, and knowledge names values only. The case is the structural
+judgment above and nothing else. No row states a proposition about a place
+and no structural `Proposition` variant is used, so the prover has no
 field-aware path: it sees one more equation between two values.
 
-A call's actuals are replaced into the callee's clauses by position in the
-scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
-actual. A record actual is a place and no clause term can name it, because
-elaboration refuses a clause that names or projects a record formal.
+A call's actuals replace the callee's formals in its clauses by position
+among the scalars: the callee's `k`-th scalar formal becomes the caller's
+`k`-th scalar actual. A record actual is a place, and no clause term can name
+it, because elaboration refuses a clause that names or projects a record
+formal.
 
 ## Loans
 
@@ -731,16 +732,16 @@ A call that passes a place to a borrowed formal lends it for the call
 ([typed-trees-to-terminal-psi](../05_typed-trees-to-terminal-psi/README.md#references)):
 the structural argument names the place with the loan's access, and one
 `Loan` row stands for it. [places/loans.rs](src/places/loans.rs) recomputes
-the rows from the lowered form, as every other row is
-([The rows are checked against the lowered form](#the-rows-are-checked-against-the-lowered-form)):
-one per borrowed structural argument of each call, created at the point
-before the call, whose captured place is the invocation row's actual at that
-position and the place the argument's storage path names, and whose lender
-is the incoming loan when the root is a borrowed formal (`Lender::Incoming`),
-an earlier loan for a reborrow, the admitted provider permission for a
-provider-established view, or the storage owner. The access must be the callee
-formal's declared access. A row the lowered form does not owe, or owes otherwise, is
-`ForeignIdentity`.
+the rows from the lowered form, as for every other row
+([The rows are checked against the lowered form](#the-rows-are-checked-against-the-lowered-form)).
+There is one per borrowed structural argument of each call, created at the
+point before the call. Its captured place is the invocation row's actual at
+that position and the place the argument's storage path names. Its lender is
+the incoming loan when the root is a borrowed formal (`Lender::Incoming`), an
+earlier loan for a reborrow, the admitted provider permission for a
+provider-established view, or else the storage owner. Its access must be the
+callee formal's declared access. A row the lowered form does not owe, or owes
+differently, is `ForeignIdentity`.
 
 A loan used only during a call ends when it returns, so it is live on no
 edge and no edge disposes of it. A returned view can instead keep the input
@@ -748,22 +749,21 @@ loans alive until that view's last use. Those dependencies restrict access to
 the inputs; they do not make the result's pointer an alias of an input.
 
 An admitted provider contract can establish a stable shared view whose address
-is unknown. That permission can coexist with an independent mutable caller
-object. The complete input loans still prevent mutation of an input on which
-the view depends, and the provider permission cannot authorize mutable access.
-The storage-overlap operation continues to require exact known places.
+is unknown. That permission can coexist with an independent mutable object of
+the caller. The input loans still prevent mutating an input the view depends
+on, and the provider permission cannot authorize mutable access. The overlap
+check still requires exact known places.
 
-A loan formed for a call with no normal
-return (an `InvokeNoNormal` or `ExternalCompletion` terminator) is carried
-into that transfer, and its edge must consume exactly those loans, each once
-(`Fate::Consumed`), and dispose of nothing else; any other roster is
-`ForeignIdentity`. Nothing of the machine runs after such a call, so no later
-use can meet the loan. What an exclusive loan's callee did is a store of its own: the
+A loan formed for a call with no normal return (an `InvokeNoNormal` or
+`ExternalCompletion` terminator) is carried into that transfer. Its edge must
+consume exactly those loans, each once (`Fate::Consumed`), and dispose of
+nothing else; any other roster is `ForeignIdentity`. Nothing of the machine
+runs after such a call, so no later use can meet the loan. An exclusive
+loan's call counts as a store: from the call's normal continuation on, the
 lent place holds contents its callee established, with no value identity
-here, from the call's normal continuation on (`Stored::Returned`), and
-nothing outside it changes. A sibling field keeps what it held, so a read of
-it still has its read equation; a read of the lent field has none. A shared
-loan stores nothing.
+here (`Stored::Returned`), and nothing outside it changes. A sibling field
+keeps what it held, so a read of it still has its read equation; a read of
+the lent field has none. A shared loan stores nothing.
 
 Whether a loan may be formed is a resource judgment, not a proposition
 ([loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan descent,
@@ -821,11 +821,11 @@ with a row, and the prover does the rest unchanged.
 
 That row is all that is known about a head's parameters. A parameter is a
 value of its own on every arrival, so what a caller knew about an argument
-says nothing about it, which is the specification's "At a cyclic scheduling
+says nothing about it. This is the specification's "At a cyclic scheduling
 cut, only checked invariant predicates enter as induction hypotheses; prefix
-facts are discarded" in a model where knowledge names values. A row about a
-value evaluated before the loop stays available inside it by dominance: that
-value does not change.
+facts are discarded" when knowledge names values. A row about a value
+evaluated before the loop stays available inside it by dominance, because
+that value does not change.
 
 The invariant is used before it is proved, as an induction hypothesis must
 be. That is sound only because a closure is accepted whole: `judge` accepts
@@ -856,7 +856,7 @@ it reconstructs the actual cyclic components and checks:
   constants, exact subtraction and descriptor bindings.
 - Removing strict edges leaves no cycle, so every complete cycle must descend.
 
-The admitted associations are retained by obligation identity for discharge and
+What `admit` accepted is kept by obligation identity for discharge and
 proof reuse. `WellFoundedness` produces `FiniteIntegerRanking`, a structural
 judgment containing the checked bindings and finite carriers. It does not ask
 the prover for a carrier-floor proposition. Each edge comparison separately
@@ -877,7 +877,7 @@ this judgment does not establish termination of external callees.
 
 ## The prover
 
-One goal-directed prover serves all three kinds. It carries interval bounds as
+One goal-directed prover serves every proved kind. It carries interval bounds as
 proof: each integer value gets a best upper and lower literal bound, each with
 a node the kernel checks, from the carrier bound of its type, a hypothesis
 bounding it or relating it to another value, or, for an exact add or subtract
@@ -913,16 +913,16 @@ kernel's correlated unsigned subtract. A goal the direct search misses is
 split over a disjunctive fact (a disequality guard transports to `v < k or
 k < v`): each alternative proves the goal as a local assumption or
 contradicts what is known (`DisjunctionElimination`, contradiction
-elimination). Splits do not nest. An implication, the goal at a call
-that may crash, is proved by assuming its premise and proving its conclusion
+elimination). Splits do not nest. An implication, the goal at a call that
+may crash, is proved by assuming its premise and proving its conclusion
 (`ImplicationIntroduction`): under a callee's route `d == 0`, the caller's
 `requires d != 0` (`d < 0 or 0 < d`) splits into two contradictions, and
-`Falsehood` follows. A goal still unproved is tried last as a
-goal on an unreachable path, and so is `Falsehood`, which a crash site owes
-when its machine publishes no route for its cause: when an order fact known at the point
-contradicts the bounds of its own endpoints (`requires count >= 10` under the
-guard `count < 5`), chaining the two gives a closed false relation between
-literals, whose denotation is `Falsehood`, and the goal follows
+`Falsehood` follows. Last, the prover tries a goal still unproved as one on
+an unreachable path, and likewise `Falsehood`, which a crash site owes when
+its machine publishes no route for its cause. When an order fact known at the
+point contradicts the bounds of its own endpoints (`requires count >= 10`
+under the guard `count < 5`), chaining the two gives a closed false relation
+between literals, whose denotation is `Falsehood`, and the goal follows
 ([integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules):
 "closes an impossible arrival without pruning that arrival").
 
@@ -962,7 +962,8 @@ the kernel refuses remains an unproved obligation.
 
 Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
-so the obligation is `Unproved`. None is worked around here.
+so the obligation is `Unproved`. None is worked around here. The programs
+named below were in the deleted `tests/omega/` corpus.
 
 Whether such an obligation rejects the program depends on what it rests on
 ([prove/reach.rs](src/prove/reach.rs)). A goal that depends on a value
@@ -1026,15 +1027,16 @@ quotient or a right shift, so those stay unreached.
 
 ## Why this route and not the arithmetic engine
 
-The existing certificate builders (`proof/src/checker.rs`, module
-`certificate`) take typed-tree expression handles and a `ProofPlan`, so they
-cannot be driven from Terminal values; only their kernel interface
-(`ProofNode`, `verify_obligation`) can. The arithmetic engine
-(`validation/src/contract_entailment.rs`, `arithmetic_domains.rs`) decides by
-interval and relational search and emits no derivation; making it emit one
-the kernel re-decides would mean threading proof terms through it, and its
-hypotheses are bound to source shapes. The kernel already has the rules this
-subset needs, so the prover emits them directly.
+The code compared here belonged to the checked-tree stages, removed on
+2026-11-12. Their certificate
+builders (`proof/src/checker.rs`, module `certificate`) took typed-tree
+expression handles and a `ProofPlan`, so Terminal values could not drive
+them; only the kernel interface (`ProofNode`, `verify_obligation`) could. The
+arithmetic engine (`validation/src/contract_entailment.rs`,
+`arithmetic_domains.rs`) decided by interval and relational search and
+emitted no derivation, and its hypotheses were bound to source shapes. The
+kernel already has the rules this subset needs, so the prover emits them
+directly.
 
 ## Findings
 
@@ -1072,13 +1074,12 @@ subset needs, so the prover emits them directly.
    call's result, so those stores are all `Overwritten` in the log. The walk
    reads the derived store (`Stored`), which says each of them, and the log
    is only compared with it.
-8. **A scalar local with no initializer holds zero, here as in the current
-   checker.** `let mut x: u32; f(x)` is accepted with `x == 0` known
-   (`local-without-initializer`). The establishing operation names the
-   zero as its operand, so the home's store is derived from it like any
-   other, and elaboration logs the same row. A scalar
-   type that zero does not satisfy would be gated like a data type, but
-   none is served: the reader refuses a constrained scalar type.
+8. **A scalar local with no initializer holds zero.** `let mut x: u32; f(x)`
+   is accepted with `x == 0` known (`local-without-initializer`). The
+   establishing operation names the zero as its operand, so the home's store
+   is derived from it like any other, and elaboration logs the same row. A
+   scalar type that zero does not satisfy would be gated like a data type,
+   but none is served: the reader refuses a constrained scalar type.
 
 9. **A case fact is not knowledge.** The lane plan asks for "the
    membership value on each `StructuralCase` edge, as the existing
@@ -1092,9 +1093,9 @@ subset needs, so the prover emits them directly.
     leaves a directly authored payload member (`s.at`) with no field symbol,
     so elaboration refuses it as a spelling, and the payload members it does
     read are pattern bindings, which lie under their own dispatch edge.
-    The refusing paths of the judgment (a read after a write to the sum, on
-    a false edge, of a formal, of another case) are exercised by tests over
-    closed bodies, not yet by a corpus program.
+    Only tests over closed bodies exercise the refusing paths of the
+    judgment (a read after a write to the sum, on a false edge, of a formal,
+    of another case); no source program does yet.
 
 11. **A write that opens a window has a verdict that is neither a
     discharge nor a refusal.** `Discharged::Window` holds why the clause
@@ -1163,8 +1164,8 @@ module lowered from bytes, including one a cache rebuilt, arrives with
 An obligation the prover cannot discharge is a compile error for the program,
 never a slower guarded form
 ([route one](../../../../../wiki/drafts/designs/check_on_lowered_form.md#route-one-before-anything-else-is-built-on-it)).
-`judge` ([verdict.rs](src/verdict.rs)) is the one function a router takes the
-route's decision from. It discharges an elaborated closure and returns:
+`judge` ([verdict.rs](src/verdict.rs)) is the one function callers take the
+decision from. It discharges an elaborated closure and returns:
 
 - `Accepted`: every obligation of every machine was discharged by a
   certificate the kernel accepted and every use of storage is established,
@@ -1213,7 +1214,7 @@ route's decision from. It discharges an elaborated closure and returns:
 - `Incomplete`: every unproved obligation's goal has a form the prover has no
   rule for (`NoRuleForGoalForm`: an order or equality over non-integers, a
   proposition form it does not reason about). The program
-  may be valid and the route cannot judge it, so this is the outcome table's
+  may be valid and the checker cannot judge it, so this is the outcome table's
   "unsupported valid case" (owner ruling on `unproved-goal-form-outcome`). No
   artifact and no fallback either. `Reject` wins when both kinds occur. The
   closed `Incomplete` resource table has no provision for a proof goal form
@@ -1221,13 +1222,13 @@ route's decision from. It discharges an elaborated closure and returns:
   publish it as `Reject`. The prover has no search bound, so no obligation is
   `Incomplete` for exhaustion.
 - `FallBack`: elaboration or some obligation was refused as `Unsupported`.
-  Despite its historical name, this stops compilation without an artifact;
-  no second checker receives the closure. This wins over `Unproved`.
+  Despite the name, this stops compilation without an artifact; there is no
+  second checker to fall back to. This wins over `Unproved`.
 
-There is no variant for a partly proved closure. Omega 00 accepts every
+There is no variant for a partly proved closure: Omega 00 accepts every
 obligation of the module it is given and fills evidence only where a seal
 arrives, so a module with an undischarged obligation must never reach it. Any
-other refusal is a defect of the route and comes back as `Err`.
+other refusal is a compiler defect and comes back as `Err`.
 
 The product producer's
 [`AcceptedTerminalSource::judge`](../../terminal-production/src/accepted.rs)
@@ -1273,8 +1274,8 @@ exit's edge is where `Fate::Abandoned` belongs.
 
 A machine's header may bound two things by naming boundary services: the
 services its calls may reach (`reaches`) and the callbacks or inbound entries
-control may arrive at before it returns (`invokes`). Both are a written
-ceiling over what the body's calls contribute, published to callers
+that may run before it returns (`invokes`). Each is a written upper bound
+(ceiling) on what the body's calls contribute, published to callers
 ([effects](../../../../../wiki/spec/language/effects.md#declarations),
 [direct synchronous invocation](../../../../../wiki/spec/language/effects.md#direct-synchronous-invocation):
 "the callee's published `invokes` joins the caller's, as its reach does"), so
@@ -1330,9 +1331,7 @@ here.
 ## Running the checker on a source program
 
 The probe shows this crate one source program and prints its verdict. It does
-not run the program's Build and it does not run the old checker (Psi 05,
-validation's judgments, Psi 06), so it keeps working while those stages are
-removed and while no Build program can run:
+not run the program's Build, so it works while no Build program can run:
 
 ```
 mbx run -p compiler --example route_probe -- tests/fixtures/run/calls/scalar_contract_route_exit/main.omg < /dev/null
@@ -1401,7 +1400,7 @@ closed machine, under its own type
 and [what is missing](#what-the-lowered-form-does-not-carry) says what a
 generic form of it needs.
 
-The example the tests and the corpus fixture use:
+The example the tests and the fixture use:
 
 ```omega
 trait Step {
@@ -1416,9 +1415,10 @@ ensures result <= 21
 In the tests `Double::apply` publishes the requirement's own contract and
 returns `value + value`, and `Shift::apply` asks less and promises more
 (`requires value <= 12 ensures result <= 17`) and returns `value + 5`. The
-corpus fixture selects `Shift` and `Hold`, which returns `value` and promises
-`result <= 10`, so that both of its uses satisfy a bound the requirement
-does not give.
+fixture (`tests/fixtures/run/generics/implementation_parameter_contract`)
+selects `Shift` and `Hold`, which returns `value` and promises
+`result <= 10`, so both of its uses satisfy a bound the requirement does not
+give.
 
 **The generic check form.** Elaboration lowers `advance` once with
 `Selected` rigid ([typed-trees-to-terminal-psi](../05_typed-trees-to-terminal-psi/README.md#generic-machines)):
@@ -1459,8 +1459,8 @@ specialization it computes the goal and the hypotheses from that module, as
 - the specialization's own call requirement is the implementation's
   `requires`, and its proof is the witness's, moved the same way.
 
-The kernel decides the assembled proof through `verify`, the one acceptance
-path. Nothing about it is trusted, and nothing searches: `reuse.rs` cannot
+The kernel decides the assembled proof through `verify`, the only way to
+accept one. Nothing in it is trusted and nothing searches: `reuse.rs` cannot
 reach the prover, and the tests count prover starts.
 
 **What the tests show** (`tests.rs`, `generic_bodies`):
@@ -1614,9 +1614,9 @@ refused by name (`generic machine ... on a call cycle`) whether or not it
 states a contract: every form on such a cycle would take the next one's
 contract as given, and no form judges the cycle (tail position, a
 `terminates` promise) the way elaboration judges a cycle among bodies it
-read. A requirement reached
-through an implementation parameter is not covered: its rows stay refused
-until each conformance's refinement is judged in the same compilation.
+read. A requirement reached through an implementation parameter is not
+covered: its rows stay refused until each conformance's refinement is judged
+in the same compilation.
 
 **No proposition names a rigid value.** Under
 [generics.md](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
@@ -1725,7 +1725,7 @@ is not read.
 
 ### What the lowered form does not carry
 
-Read from the types, not built:
+Found by reading the types; not built:
 
 - **A place of a rigid type.** A value of an opaque `T` is served
   ([type parameters](#type-parameters)); a place has a declared
@@ -1765,12 +1765,12 @@ Limits of what was built:
 
 ## Facts across a join
 
-A branch fact holds on its edge only, and "A fact from one arm does not
-survive the join" (`fact_validity.md`). So after `transition total > 9000 ||
+A branch fact holds on its edge only: "A fact from one arm does not survive
+the join" (`fact_validity.md`). So after `transition total > 9000 ||
 total < 3`, the false edge says only that the `||` join's Boolean parameter
-`p` is `false`, and a use of `total <= 9000` there learned nothing. The
-specification's mechanism is a block predicate checked on every arrival
-before it justifies anything downstream (`fact_validity.md`, "Premise
+`p` is `false`, which alone tells a use nothing about `total <= 9000`. The
+specification's answer is a block predicate checked on every arrival before
+it justifies anything downstream (`fact_validity.md`, "Premise
 availability"; `control_flow.md`, "Equality relations"). [joins.rs](src/joins.rs)
 builds one per join, so no shape of join is special:
 
@@ -1793,8 +1793,7 @@ builds one per join, so no shape of join is special:
   false` transports through it (`ValueEqualityTransport`, the existing rule)
   into `total <= 9000`.
 
-The prover's transport now takes any proved definition of a Boolean value,
-not only an operation's result equation, and a goal whose transported
-denotation is `Truth` or a known fact closes by the same rule. A join on a
-cycle gets no predicate: cyclic cuts need induction, which this route does not
-do.
+The prover's transport takes any proved definition of a Boolean value, not
+only an operation's result equation, and a goal whose transported denotation
+is `Truth` or a known fact closes by the same rule. A join on a cycle gets
+no predicate: cyclic cuts need induction, which this checker does not do.

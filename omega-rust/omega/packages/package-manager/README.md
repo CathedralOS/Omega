@@ -1,8 +1,9 @@
 # Omega Package Manager
 
-Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
-transaction, admit install/update/resume requests, resolve the candidate,
-and reconcile findings for publication. Application Build's
+Start at
+[`src/package_manager.rs`](src/package_manager.rs): it recovers the project
+transaction, admits install, update and resume requests, resolves the
+candidate, and reconciles findings for publication. Application Build's
 [`package_commands.rs`](../../build-system/orchestration/src/package/package_commands.rs) runs
 the target-review loop. Compiler preparation and read-only inspection have
 separate entrances in [`operations`](src/operations/mod.rs).
@@ -11,15 +12,14 @@ separate entrances in [`operations`](src/operations/mod.rs).
 requester-local graph and workspace-member contract. Acquisition enforces the
 [resolver security boundary](../../../../wiki/spec/packages/resolver_security.md).
 
-The ratified destination is Cargo-like repository install/update with
-compiler-derived reachability, unsafe API, and assumption review. The lock
-records pins, the graph, accepted policy, occurrence-scoped compilation inputs,
-and decisions; the project trusts
-whoever lands it. No sealed/certified `PackageInstance` or certificate of lock
-acceptance is required. Source publication consumes checked review and exact
-project decisions directly. Actual
-compiler proof/reach checks and native artifact validation remain independent
-of installation.
+The ratified design is Cargo-like install and update from repositories, with
+review of reachability, unsafe API and assumptions that the compiler derives.
+The lock records pins, the graph, accepted policy, the compilation inputs of
+each occurrence, and decisions; the project trusts whoever lands it. No sealed
+or certified `PackageInstance` or certificate of lock acceptance is needed.
+Publishing source uses the checked review and exact project decisions directly.
+The compiler's proof and reach checks and native artifact validation stay
+independent of installation.
 
 ```text
 package-manager/
@@ -35,100 +35,100 @@ package-manager/
 │   └── review/            admit review passes, join evidence, compare and decide
 ```
 
-`PackageCommandTransaction` keeps the project lock and retained review-file root
-alive while application Build executes its admitted target requests. Completion
-requires the whole target roster from that exact admission before writing decision documents or
-publishing accepted files. The original proposal handle remains borrowed across
-that work, so completion checks the file that admission read, not a replacement.
-Binding discovery, exact occurrence reuse, policy comparison and cache admission
-remain here. Application Build executes the admitted dependency work through
-one whole-pass executor, shared by commands and audit. Package policy does not
+`PackageCommandTransaction` holds the project lock and the review-file root
+while application Build runs the admitted target requests. Before it writes
+decision documents or publishes accepted files, completion needs every target
+from that admission. The original proposal handle stays borrowed throughout,
+so completion checks the file admission read, not a replacement. Binding
+discovery, exact occurrence reuse, policy comparison and cache admission live
+here. Application Build runs the admitted dependency work through one
+whole-pass executor that commands and audit share. Package policy does not
 prepare Builds, publish components or finish compiler reviews.
 Supporting packages are siblings under [packages/](../README.md).
 The independent [declaration](../build-declarations/README.md),
 [output](../build-output/README.md) and [compilation-input](../package-compilation/README.md)
-packages are below both the compiler and this command application. Their placement
-does not make the compiler depend on install/update orchestration. Source
-acquisition constructs input custody; compiler consumption records the exact
-source units it used; review joins those results to package policy.
+packages sit below both the compiler and this crate, so the compiler does not
+depend on install/update code. Source acquisition creates input custody, the
+compiler records the exact source units it used, and review joins both to
+package policy.
 
 [`PackageInspectionTransaction`](src/operations/inspect_packages/README.md)
-admits `omega packages audit`: current project source, pinned dependencies,
-fresh compiler findings, and comparison with accepted policy without publishing
-changes. Default summaries and `--details` separate readable inspection from
-the complete normalized policy.
-`operations::stage_build_dependency_edit` joins the conservative declaration
-planner to a proposed source snapshot without writing the live `build.omg`.
-It accepts an automatic replacement only and checks the planner's old-file
-digest. The staged local project resolver reads the proposed declaration while
-preserving the original root path/context for package identity and relative
-dependency lookup. Keep the edit plan and staged original identity through
-review and publication. The pin-aware staged resolver takes `GitDependencyPins`
+runs `omega packages audit`. It checks the current project source and pinned
+dependencies, collects fresh compiler findings and compares them with accepted
+policy, without publishing changes. The default summary is readable; `--details`
+prints the complete normalized policy.
+`operations::stage_build_dependency_edit` applies the declaration planner's
+edit to a proposed source snapshot without writing the live `build.omg`. It
+accepts only an automatic replacement and checks the planner's digest of the
+old file. The staged local project resolver reads the proposed declaration but
+keeps the original root path and context for package identity and relative
+dependency lookup. The edit plan and original identity are kept through review
+and publication. The pin-aware staged resolver takes `GitDependencyPins`
 from the accepted source graph and exact selected package keys. Unchanged Git
 locator/revision requests keep their recorded commit, tree, and content; an
 empty update selection preserves all existing Git requests for installation.
 Selected Git repositories refresh as a unit, including their reachable workspace
 members and relative Path edges. Unrelated repositories, including unchanged
 transitive requests, stay pinned. New or changed requests resolve normally.
-Missing preserved pins use either offline failure or explicit exact-commit fetch,
-never selector refresh. This policy changes resolution only, not accepted policy.
+A preserved pin whose content is missing either fails offline or fetches its
+exact commit, never a fresh selector. This changes resolution, not accepted
+policy.
 
-`GitResolutionOptions::offline` separately forbids all fresh Git selection,
-including new transitive requests, and overrides preserved-pin fetch permission.
-CLI `--offline` uses that restriction for install/update and reuses proposed pins
-on resume. Missing old-source bytes only limit code diffs, not lock policy
-comparison; historical recovery also honors the network restriction.
+`GitResolutionOptions::offline` forbids all fresh Git selection, including
+new transitive requests, and overrides permission to fetch preserved pins. The
+CLI's `--offline` applies it to install and update and reuses proposed pins on
+resume. Missing old source bytes only limit code diffs, not lock policy
+comparison; historical recovery also respects the network restriction.
 
-`operations::review_package_change` checks an already-resolved candidate for an
-exact target, with ordinary contract obligations rejected by Psi checking,
-and compares its risk-bearing projection against an optional accepted lock section. Missing
-baseline means fresh review; unavailable old source is not needed for comparison.
-The resulting `PackageChangeReview` exposes compiler findings and the ordinary
-editable review document's input, without a reconstruction question, native
-artifact, or evidence-promotion prerequisite.
+`operations::review_package_change` checks an already-resolved candidate for
+one exact target (Psi checking rejects broken contract obligations) and
+compares its risk-bearing rows with an optional accepted lock section. No
+baseline means a fresh review; old source is not needed for the comparison.
+The resulting `PackageChangeReview` gives the compiler findings and the input
+for the editable review document. It needs no reconstruction, native artifact
+or evidence promotion.
 
-After resolving the exact comparison, `propose_lock_target` requires all choices
-to accept, rechecks retained source snapshots and selections, and constructs the
-proposed target from compact candidate acceptance rows and direct decision history.
-It also retains each review's exact semantic bindings and compiler input identity,
-captured before checking and rechecked afterward and before proposal. The identity
-joins the compiler's embedded build-input digest and selected toolchain library
-content; it invalidates stale inputs and is not a compiler or audit attestation.
-Rejected, foreign, or stale choices cannot produce a proposal through this
-operation. The result remains an unwritten `PackageLockTarget`, not permission
-to publish. `publish_reviewed_package_change` joins the staged edit and all
+Once the comparison is resolved, `propose_lock_target` requires every choice
+to be accept, rechecks the retained source snapshots and selections, and builds
+the proposed target from compact candidate acceptance rows and the decision
+history. It keeps each review's exact semantic bindings and compiler input
+identity, captured before checking and rechecked after it and before the
+proposal. The identity combines the compiler's embedded build-input digest
+with the selected toolchain library content; it catches stale inputs and does
+not attest to a compiler run or audit. Rejected, foreign or stale choices
+produce no proposal. The result is an unwritten `PackageLockTarget`, not
+permission to publish. `publish_reviewed_package_change` joins the staged edit and all
 retained target reviews to exact current project bytes, then records commit
-intent and publishes the pair under a project mutex. Interruption recovery
-completes forward only from recorded old/new contents; unrelated edits stop it.
-Ordinary project preparation coordinates with existing pending state before
-snapshotting. See [publication](src/operations/publication/README.md) for the
+intent and publishes the pair under a project mutex. After an interruption,
+recovery only completes the write, from the recorded old and new contents;
+unrelated edits stop it. Ordinary project preparation settles pending state
+before taking a snapshot. See [publication](src/operations/publication/README.md) for the
 file protocol and platform limits. The [command operation](#install-and-update)
 owns package/alias selection, persisted per-target findings, exact candidate
 resume, and reviewed publication for `omega packages install` and `omega packages update`.
 
 `begin_local_project_preparation` opens recovery and snapshot policy before
-application-owned execution resolves the source graph. Accepted discovery
-preserves dependency pins, fetching only recorded commits when needed.
-Accepted compilation requires exact source identities for every occurrence,
-including the local root, together with the dependency projections, identities,
-roles, and selected edges. A source edit requires explicit `omega packages update` review
-before ordinary accepted compilation; there is no mutable-root exception.
-Local package identity remains tied to its canonical path.
+the application resolves the source graph. Accepted discovery keeps dependency
+pins and fetches only recorded commits when needed. Accepted compilation needs
+exact source identities for every occurrence, including the local root, plus
+the dependency projections, identities, roles and selected edges. After a
+source edit, even to the root, `omega packages update` must review it before
+ordinary accepted compilation. Local package identity stays tied to its
+canonical path.
 
-The application's `BuildRequest` accepts invocation-local `offline` selection.
-Cached accepted Git pins and unlocked local-only graphs
-remain usable. Missing recorded Git content fails without transport. Offline
-selection does not waive source/compiler identity matching or change the lock
-format.
+The application's `BuildRequest` accepts `offline` for one invocation. Cached
+accepted Git pins and unlocked local-only graphs stay usable; missing recorded
+Git content fails without network access. Offline mode keeps source and
+compiler identity matching and the lock format unchanged.
 
-Per the owner ruling of 2026-10-03, ordinary checks and native production use
-accepted compilation, not the candidate-review pipeline. The application
-[`orchestration`](../../build-system/orchestration/README.md) owns their compiler invocation,
-including inspection and SDK consumers. Package management's
-`admit_project_compilation` returns ordered requests plus a completion owner
-retaining staging, aggregate sponsors and source custody. Completion maps occurrence
-failures back to packages, checks compiler-library identity and reports disposal
-failures. Neither admission nor completion invokes compilation.
+Per the owner ruling of 2026-10-03, ordinary checks and native builds use
+accepted compilation, not candidate review. The application's
+[`orchestration`](../../build-system/orchestration/README.md) calls the compiler
+for them, including inspection and SDK consumers. Package management's
+`admit_project_compilation` returns ordered requests and a completion owner that
+holds staging, total sponsors and source custody. Completion maps occurrence
+failures back to packages, checks compiler-library identity and reports
+disposal failures. Neither step runs the compiler.
 Every accepted occurrence's source and compiler input identities must match its
 lock record before Build execution. A match supplies the exact accepted semantic
 bindings for that occurrence; a mismatch rejects with the package name and
@@ -139,48 +139,47 @@ The requested root source entry, scoped Build execution, generated-source custod
 ordinary trust settlement, and requested compiler observations remain intact.
 Reporting uses the retained checked root; it does not run Build again.
 
-Check-only observation without a lock is permitted but creates no accepted state
-or native-compiler authority. Malformed and older locks reject rather than
-becoming absent acceptance. Full-package discovery/bound review remains an
-explicit review, acceptance, or update operation.
+Checking without a lock is allowed but creates no accepted state or
+native-compiler authority. Malformed and older locks are rejected, not treated
+as missing. Full-package discovery and bound review happen only in an explicit
+review, acceptance or update operation.
 
-Candidate checking executes the existing scoped build evaluator, so it is not
-side-effect-free: package-input reads, disposable-output writes, and compiler
-logging can occur even when later checking fails. Runtime boundary services are
+Candidate checking runs the scoped build evaluator, so it has side effects:
+it can read package inputs, write disposable outputs and log, even when later
+checking fails. Runtime boundary services are
 rejected before authored build execution. Package runtime capability decisions
 do not grant additional build or resolver authority. Accepted project files are
 not modified by this operation.
 
-Opaque declaration visibility, selected conformance validity and by-value
-representation demands are checked during compilation, without reading a
-review projection. The consumer's Build selects the representation for the
+Compilation checks opaque declaration visibility, selected conformance
+validity and by-value representation demands without reading a review
+projection. The consumer's Build selects the representation for the
 combined source compilation; a dependency's historical root-build choice is
 not a second selection. Independently compiled artifact composition is a
 different boundary and still requires representation agreement.
 
-Its package-aware native operation consumes a `PreparedLocalProject` carrying
-the source closure and accepted `omega.lock` section for one exact target.
-Missing acceptance rejects before Build. Matching source/compiler identities
-permit use of the retained occurrence bindings without a fresh production review
-or a second approval file; mismatches direct the user to `omega packages update`.
-Native compilation never writes acceptance. Source-only changes remain visible
+A package-aware native build takes a `PreparedLocalProject` with the source
+closure and the accepted `omega.lock` section for one exact target. Without
+acceptance it fails before Build. When source and compiler identities match,
+it uses the kept occurrence bindings with no fresh review or second approval
+file; a mismatch tells the user to run `omega packages update`. Native
+compilation never writes acceptance. Source-only changes remain visible
 in explicit package inspection and review. Retained permissions still constrain
 production, while receiving permission policy remains a separate input.
 
-The CLI update/resume regression reaches the independent native publication
-gate; executable publication remains blocked by the missing function-validation
-evidence producer under [`TARGET-MATRICES`](../../../../TASKS_OPTIMIZER.md#verification-and-rollout).
-Retained native
-artifact validation is not a claim of successful publication.
+The CLI update/resume regression test reaches the independent native
+publication gate. Executable publication is still blocked: nothing produces
+the function-validation evidence tracked under
+[`TARGET-MATRICES`](../../../../TASKS_OPTIMIZER.md#verification-and-rollout).
+Native artifact validation does not mean publication succeeded.
 
 `declarations` reads the statically checked package declarations in
-`build.omg`; Omega has no second package manifest. `resolution` binds those
-declarations to immutable sources and reconciles one exact closure. `review`
-turns that closure into compiler-issued facts and root-owned decisions; there
-is no parallel initial-conflict comparison or second approval decision. Source
-contract validity belongs to Psi's call and
-normal-exit checks, including a return through a tail call. The result remains
-review and policy state.
+`build.omg`; Omega has no second package manifest. `resolution` binds them to
+immutable sources and settles one exact closure. `review` turns that closure
+into compiler-issued facts and decisions owned by the root, with no separate
+initial-conflict comparison or second approval. Psi's call and normal-exit
+checks, including returns through tail calls, judge source contracts; the
+result is review and policy state.
 
 Ordinary accepted compilation consumes accepted package inputs without
 repeating review: the driver reads the lock's Terminal permission rows
@@ -188,19 +187,20 @@ directly. Build-host permissions never project into the product's native
 authority, even when both roles use the same target. Changed requirements need
 ordinary project review.
 
-A receiving-policy verdict
-belongs to explicit artifact admission, not ordinary package/native production.
-Absence of receiver policy makes no receiver-admission claim; it neither blocks
-ordinary production by itself nor invents an execution grant. Install/update must
+Only explicit artifact admission gives a receiving-policy verdict; ordinary
+package and native builds do not. Without a receiver policy, nothing is
+claimed about receiver admission: production is not blocked and no execution
+grant is invented. Install/update must
 separately surface and accept restricted build requests before execution, retain decisions in the lock,
 and require actual host grants under
 [restricted-build acceptance](../../../../wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
-Captured source and named inputs with bounded private output staging need no
-restricted-action decision. The filesystem sponsor owns that fresh staging
-session and cleanup; generic sponsors for supplied directories carry no such
-exemption. Broader host scopes still project restricted requests, whose retained
-lock meaning is distinct from actual invocation grants.
+Reading captured source and named inputs, with bounded private output
+staging, needs no restricted-action decision. The filesystem sponsor owns that
+fresh staging session and its cleanup; generic sponsors for supplied
+directories get no such exemption. Broader host scopes still raise restricted
+requests, and what the lock records for them differs from the grants an
+invocation actually receives.
 
 The top-level invocation owns one `PackageBuildSession` across its review
 targets and rounds. Application Build's
@@ -246,81 +246,84 @@ Build session and staging ownership are shared through `build_session`; review
 policy and ledger budgeting remain with the review owner.
 [`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
 
-`review_resolved_packages` is the candidate entrance for install/update and
-audit. Both discover bindings before the final bound pass; observational review
-projects restricted requests but never grants them. Accepted production builds
-admit grants separately through `accepted_compilation`.
-Each package uses its authored `main.omg` when present, otherwise
-its authored `build.omg` through the compiler's existing build-file entrance.
-This creates no source exports: missing imported modules still reject. Explicit
-root check entries and native application entry requirements remain unchanged.
-It uses one preliminary compiler review only to discover supported
-package-owned semantic surfaces, then recompiles with exact consumer-scoped
-bindings. Only that final review may proceed to policy comparison and admission;
-the discovery pass is neither policy nor evidence that an audit occurred.
-The passes share one compiler session. It retains prepared source, completed
-Pure Builds and exact language judgments; package review owns source bindings,
-dependency order, occurrence consent and sponsor accounts, not compiler caches.
-Each activation still validates custody, selections, generated inputs and grants.
-A matching prior judgment lends checked storage only after fresh admission.
-`PackageSourceBindings` records resolved roots by package position; it is not a
-frontend checkpoint table. The command's `PackageBuildSession` persists across
-review rounds and targets, so sponsors are not replenished per target.
-Ordinary accepted compilation constructs a dependency-ordered request from those
+`review_resolved_packages` is the candidate review entry point for install,
+update and audit. Both discover bindings before the final bound pass;
+observational review shows restricted requests but never grants them. Accepted
+production builds admit grants separately through `accepted_compilation`.
+Each package uses its authored `main.omg` if it has one, otherwise its
+authored `build.omg` through the compiler's build-file entry. This creates no
+source exports: missing imported modules are still rejected. Explicit root
+check entries and native application entry requirements are unchanged.
+
+A preliminary compiler review only discovers the package's supported
+semantic surfaces; the package is then recompiled with exact consumer-scoped
+bindings. Only that final review goes on to policy comparison and admission;
+the discovery pass is neither policy nor evidence that an audit happened. The
+passes share one compiler session, which keeps prepared source, completed Pure
+Builds and exact language judgments. Package review owns source bindings,
+dependency order, occurrence consent and sponsor accounts, not compiler
+caches. Each activation still validates custody, selections, generated inputs
+and grants. A matching earlier judgment lends checked storage only after fresh
+admission. `PackageSourceBindings` records resolved roots by package position;
+it is not a frontend checkpoint table. The command's `PackageBuildSession`
+lasts across review rounds and targets, so sponsors are not refilled per
+target.
+
+Ordinary accepted compilation builds a dependency-ordered request from those
 inputs. Application Build schedules dependencies and joins generated outputs;
-the compiler retains opaque Build continuations and publishes demanded independent
-components. Package operations no longer drive
-`prepare_build` / `check_build` or retain their continuations. Review requests
-component descriptions through the compiler too, without a backend-publication
-dependency in this package.
-Check, native and inspection requests name their finished product up front.
-The compiler owns root permission comparison and completion; ordinary package
-operations do not return checked source or hand it back to finish production.
-Each returned package review also exposes borrowed access to its complete typed
-`PackagePolicyBaseline`, projected from that same final checked source and
-target. The compiler's `review_package_build` returns that evidence together with
-an opaque `PackageReviewSource`; review cannot extract a checked program, Build
-configuration or execution plans from it. Its source-free facts support reuse
-and cache capture, and its component publication operation runs only on demand.
-The compiler checks each projection against the caller's remaining policy budget
-before nomination; the closure still owns aggregate accounting and decisions.
-The closure retains at most 64 MiB in aggregate canonical policy
-encoding size; this is not an exact heap-size limit. Legacy comparison rows,
-commitments, and obligation checks remain separate and unchanged. This retained
-finding is not accepted-lock storage or an additional authorization stage.
-Binding nomination belongs to compiler-owned
+the compiler keeps opaque Build continuations and publishes the independent
+components that are needed. Review also asks the compiler for component
+descriptions, so this crate has no backend-publication dependency. Check,
+native and inspection requests name their finished product up front. The
+compiler owns root permission comparison and completion; package operations do
+not return checked source or hand it back to finish production.
+
+Each package review also lends its complete typed `PackagePolicyBaseline`,
+taken from the same final checked source and target. The compiler's
+`review_package_build` returns that evidence with an opaque
+`PackageReviewSource`, from which review cannot extract a checked program,
+Build configuration or execution plan. Its source-free facts support reuse
+and cache capture, and its component publication runs only on demand. The
+compiler checks each projection against the caller's remaining policy budget
+before nomination; the closure still owns total accounting and decisions. The
+closure keeps at most 64 MiB of canonical policy encoding in total; this is
+not an exact heap limit. Legacy comparison rows, commitments, and obligation
+checks remain separate and unchanged. This finding is not accepted-lock
+storage or an extra authorization stage.
+
+Binding nomination belongs to the compiler's
 [`review-evidence::capture`](../review-evidence/src/capture/semantic_bindings.rs),
-which reads checked callable reach/invocation facts, entry requirements and
-selected provider plans. Package review consumes its inert candidates, attaches
-consumer context to projection errors, and scopes permission proposals; it no
-longer walks checked machines, symbols, traits or provider plans, and has no
-provider-planning, flow-effects or symbols dependency. The review exposes the
-exact checked `ServiceSchema` beside each proposed binding. This is
-non-authoritative review material: a consumer may use complete requirement
-identities from that schema to author terminal-permission rows. Requirement-only
-services do not gain authority from readable names. Hosted leaf proposals use
-the compiler's fixed permission policy and remain subject to root approval.
-The resulting binding must still survive the complete final recompilation and
-ordinary root-policy admission. Hosted permission proposals are retained with
-the candidate, but only the current product root carries them into policy;
-dependency/build-host uses strip them even on a cache hit. Nomination does not
-read rendered callable or provider review rows. Ordinary accepted compilation
-consumes the resulting retained bindings and does not repeat nomination or review.
+which reads checked callable reach and invocation facts, entry requirements and
+selected provider plans. Package review takes its inert candidates, adds
+consumer context to projection errors, and scopes permission proposals; it does
+not walk checked machines, symbols, traits or provider plans, and has no
+provider-planning, flow-effects or symbols dependency. The review shows the
+exact checked `ServiceSchema` beside each proposed binding. This material
+grants nothing: a consumer may use the schema's complete requirement
+identities to write terminal-permission rows. Requirement-only services gain no
+authority from readable names. Hosted leaf proposals use the compiler's fixed
+permission policy and still need root approval. The binding must survive the
+complete final recompilation and ordinary root-policy admission. Hosted
+permission proposals are kept with the candidate, but only the current product
+root carries them into policy; dependency and build-host uses drop them, even
+on a cache hit. Nomination does not read rendered callable or provider review
+rows. Ordinary accepted compilation uses the kept bindings and does not repeat
+nomination or review.
 
-Install and update belong in `package_manager.rs`, with accepted baselines and decisions
-recorded directly. Their command flow does not extend the promotion layer or
-certify lock acceptance. The source and review crates remain subordinate.
+Install and update live in `package_manager.rs`, which records accepted
+baselines and decisions directly and certifies nothing; the source and review
+modules serve it.
 
-`lock/decisions` records historical choices against the complete canonical
-source subject. `HistoricalPackagePolicyDecisions::capture_policy` consumes the
+`lock/decisions` records past choices against the complete canonical source
+subject. `HistoricalPackagePolicyDecisions::capture_policy` takes the
 complete-policy comparison and its exact resolved project choices. Version 2
-retains the comparison identity, optional prior source association, and typed
-row/root-role/source-replacement subjects. Removed-package decisions do not
-index the candidate-only graph. Version 1 records remain readable in their
-original indexed form; loading does not invent a modern comparison for them.
-Recovery needs only the retained source subject, not an old checkout or
-recreated compiler conflict. It preserves acceptance and rejection as trusted
-project records, without making either fresh authorization or audit evidence.
+keeps the comparison identity, an optional link to the prior source, and typed
+row, root-role and source-replacement subjects. Decisions about removed
+packages do not index the candidate-only graph. Version 1 records stay
+readable in their original indexed form; loading does not invent a modern
+comparison for them. Recovery needs only the kept source subject, not an old
+checkout or a recreated compiler conflict. Acceptances and rejections stay
+trusted project records, not fresh authorization or audit evidence.
 
 `lock::PackageLock` composes that history with the immutable source graph and
 one `PackagePolicyOccurrence` per source-package/purpose pair. Each contains
@@ -328,9 +331,9 @@ compact `PackagePolicyAcceptance` and required `AcceptedPackageCompilation`
 with the accepted compiler identity and exact semantic binding roster. Exact target
 sections are sorted by canonical target identity and must agree on the same
 target-independent source graph. Each baseline matches its source package and
-target; decisions match the complete target-bound source subject. These are
-trusted project inputs whose use requires current source/compiler identity
-matching, not a fresh review or an attestation.
+target; decisions match the complete target-bound source subject. They are
+trusted project inputs: using them requires matching current source and
+compiler identities, not a fresh review or attestation.
 
 Acceptance retains complete readable canonical rows for admission-claim and
 external-realization callables, external supplies, dangerous capabilities, and
@@ -341,11 +344,11 @@ whole-candidate review and audit, not in the lock. Retained binding inputs inclu
 only exact semantic role/owner/declaration, schema and selected-plan digests,
 and explicit terminal permissions; they are not these full review tables.
 
-Version 4 `omega.lock` text embeds canonical source, compact acceptance, required
-accepted-compilation, and historical-decision sections using explicit byte lengths.
-Older versions, including version 3, reject rather than inferring compiler identity
-or bindings. The compact acceptance child uses policy row schema 3. No whole
-child is replaced by an opaque escaped payload. Loading requires no checkout,
+Version 4 `omega.lock` text holds canonical source, compact acceptance,
+required accepted-compilation and historical-decision sections, each with an
+explicit byte length. Older versions, including version 3, are rejected rather
+than guessing compiler identity or bindings. The compact acceptance section
+uses policy row schema 3. No section is stored as an opaque escaped payload. Loading requires no checkout,
 source acquisition, compiler run, proof certificate, or native replay. Recovery
 checks outer framing and every child's canonical meaning and associations.
 `PackageLockRecoveryLimits` bounds the entire input, requested owned storage
@@ -356,15 +359,14 @@ usage is deducted from the same aggregate limits rather than reset per target.
 Allocator overhead and already borrowed input are not part of owned-storage
 accounting. Reviewed publication owns recoverable pair writes; install/update
 commands retain all accepted targets when publishing.
-Serialization uses the same recovery accounting one child at a time, discarding
-that scratch before the next child. It therefore refuses an output that exceeds
-the chosen recovery ceilings even when its text fits. This is a resource check,
-not a second compiler review or a certificate that project choices are correct.
+Serialization applies the same recovery accounting one section at a time,
+freeing scratch before the next, so it refuses output that exceeds the
+recovery limits even when the text fits. This is a resource check, not a
+second compiler review or proof that project choices are correct.
 
-Commands treat a missing baseline as fresh graph review. Old source
-is not needed to compare retained policy. Command source diffs use exact old
-Git acquisition, verified cached local snapshots, matching current custody, or
-the unchanged live root. Historical local lookup uses the current resolver-known
+Command source diffs get old source from
+the exact old Git commit, verified cached local snapshots, matching current
+custody or the unchanged live root. Historical local lookup uses the current resolver-known
 origin and accepted content pin, not a filesystem path decoded from the lock.
 Missing or corrupt old bytes produce explicit standalone-candidate output.
 This diagnostic recovery does not relax live-source checks for compilation.
@@ -378,10 +380,10 @@ old source no longer exists. Old and new resolutions and dependency paths remain
 separate; a removed package has no invented candidate source or path. Same-named
 packages from different source lineages do not merge.
 
-Detailed capability comparison prepares one borrowed predecessor tree for its
-candidate closure. Requested explanation paths retain shortest-path selection,
-authored-edge tie order, purpose and dependency ordinal; only final paths copy
-keys and aliases. A one-off path query still stops when its target is discovered.
+Detailed capability comparison builds one borrowed predecessor tree for the
+candidate closure. Explanation paths keep shortest-path selection, ties broken
+by authored edge order, purpose and dependency ordinal; only final paths copy
+keys and aliases. A one-off path query stops when it finds its target.
 
 Root role changes retain their directional compatibility finding: package to
 application breaks dependency compatibility, while application to package
@@ -403,29 +405,29 @@ command is required. Never pair unrelated packages by name or authored row
 position. Replacement findings share the changed-row count
 ceiling; their retained keys and binding scratch use the context-byte ceiling.
 
-The report retains added, removed, and changed rows with full old/new readable
-meaning, decision requirements, and audit recommendations. Unchanged candidate
-packages remain visible for retained dangerous authority, external supplies,
-and slack. Source changes also remain reviewable. Complete source subjects,
-normalized policies, and fresh candidate compiler/source/build commitments bind
-the versioned comparison fingerprints; historical policy is never adapted into
-a fabricated compiler review or execution receipt. Both graphs share resource
-ceilings rather than receiving a fresh budget per package.
+The report lists added, removed and changed rows with full readable old and
+new meaning, required decisions and audit recommendations. Unchanged
+candidate packages stay visible for kept dangerous authority, external
+supplies and slack, and source changes stay reviewable. Complete source
+subjects, normalized policies and fresh candidate compiler, source and build
+commitments feed the versioned comparison fingerprints; old policy is never
+turned into an invented compiler review or execution receipt. Both graphs
+share one set of resource limits, not a fresh budget per package.
 
-Rebuildable API and representation changes alone require no approval. Risk-row
-changes, source replacements, and root-role changes retain their exact decision
-coverage. Source changes remain audit recommendations; neither comparison nor
-historical lock recovery compiles old source.
+API and representation changes that only need a rebuild need no approval.
+Risk-row changes, source replacements and root-role changes each need their
+exact decision. Source changes are audit recommendations; neither comparison
+nor lock recovery compiles old source.
 
-`review::resolve_package_policy_decisions` consumes that report and the digest
-retained with the project's choices. Each required row, root-role change, and
-source replacement needs exactly one accept/reject choice. Removed-package rows do not
-need the old checkout or a candidate-graph package index. Missing, duplicate,
-unknown, advisory-only, and wrong-comparison choices reject. The result stores
-choices in canonical subject order and preserves rejection; a comparison with
-no required choices accepts an empty set without manufacturing approval work.
-This uses the checked report directly, with no compiler reconstruction or
-evidence-promotion step. It records decisions, not whether an audit happened.
+`review::resolve_package_policy_decisions` takes that report and the digest
+kept with the project's choices. Each required row, root-role change and
+source replacement needs exactly one accept or reject choice. Rows for removed
+packages need neither the old checkout nor a candidate-graph package index.
+Missing, duplicate, unknown, advisory-only and wrong-comparison choices are
+rejected. The result stores choices in canonical subject order and keeps
+rejections; a comparison with no required choices accepts an empty set. It
+uses the checked report directly, with no compiler reconstruction, and records
+decisions, not whether an audit happened.
 
 `review::render_package_policy_review` places editable `pending` decisions beside
 the complete comparison's readable before/after policy rows, source replacements,
@@ -441,9 +443,9 @@ all choices. The versioned text uses LF and a caller-selected byte ceiling for
 both rendering and recovery. This is ordinary resume consistency, not an audit
 certificate, reviewer receipt, or authentication of the project author.
 
-`all_required_changes_accepted` describes only the represented choices, not
-permission to publish. Reviewed publication joins these choices to candidate
-and project-file checks. Review-file loading/resume is command-owned.
+`all_required_changes_accepted` reports only on the recorded choices; it is
+not permission to publish. Reviewed publication combines the choices with
+candidate and project-file checks. The commands load review files and resume.
 
 Related contracts and usage:
 
@@ -493,9 +495,9 @@ is selected: dependency builds keep their own inventories. Missing required
 inputs fail before the affected build executes. Neither option grants host
 access or accepts policy.
 
-Pending review retains that selection for every target and both review passes.
-`--resume` uses the retained inventory, revalidates source custody, and compiles
-fresh before applying decisions; it does not default to a broader view. Resume
+A pending review keeps that selection for every target and both review
+passes. `--resume` uses it, rechecks source custody and compiles fresh before
+applying decisions; it never widens the view. Resume
 and discard reject input flags. To change inputs or their bytes, discard the
 proposal and start a fresh command. Proposal format 2 records this intent;
 older pending proposals must be discarded and recreated. Existing accepted locks
@@ -516,7 +518,7 @@ supplies the capability comparison. Offline mode does not disable compiler
 checking, scoped build outputs, review decisions, or publication recovery.
 It is not a sandbox for a program later executed by the user.
 
-Install supports Git HTTPS/SSH and local sources through existing adapters.
+Install supports Git HTTPS/SSH and local sources.
 The fetched `build.omg` supplies the package name and default import alias;
 `--as` is an optional local override. Git defaults to `HEAD` when `--rev` is
 omitted. `--package <declared-name>` selects one Git workspace member by its own
@@ -547,11 +549,11 @@ approve the fresh review. Dangerous dependencies still require their exact
 decisions before a new lock is published.
 
 Blocking findings return exit status 3 and leave accepted project files intact.
-Edit each `pending` decision to `accept` or `reject` in the reported review
-files, then use the matching command's `--resume`. Only those tokens are
-editable. Rejection keeps the proposal unpublished. Findings include complete
-compiler-derived policy changes and audit recommendations, not package prose
-or proof that somebody audited the source. Nonblocking candidates publish
+In the reported review files, change each `pending` decision to `accept` or
+`reject` (nothing else is editable), then run the matching command with
+`--resume`. A rejection keeps the proposal unpublished. Findings hold the
+compiler's complete policy changes and audit recommendations, not package
+prose or proof that anyone audited the source. Nonblocking candidates publish
 directly; retained dangerous authority still recommends an audit on upgrades.
 
 Compiler failures return status 1 with the package, failed phase, and diagnostic
@@ -573,9 +575,9 @@ Ignored `build/package-manager/` contains:
 - `transaction.lock` and `pending`: the separate publication mutex and
   commit-intent journal, owned by [publication](src/operations/publication/README.md).
 
-Resume fetches only the proposed exact pins if needed and not offline, recompiles, and rejects
-source, graph, accepted-file, or finding drift. Missing old source does not
-prevent comparison with accepted policy. Source diagnostics recover recorded
+Resume fetches only the proposed exact pins, when needed and not offline,
+recompiles, and rejects any change in source, graph, accepted files or
+findings. Source diagnostics recover recorded
 Git commits and named members without refreshing selectors. Changed local
 sources use verified historical snapshots from the existing cache; lookup binds
 the known local origin to the accepted content pin. Unchanged candidate custody
@@ -596,8 +598,7 @@ It resolves and reviews each immutable request before an implementation can be
 installed as a typed Build binding. The graph becomes complete only when every
 Build has returned and all outstanding requests join. A missing transitive
 package may therefore reject after earlier benign Build observations or
-disposable staging writes, but no failed graph publishes a result. Candidate
-builds use the existing scoped evaluator.
+disposable staging writes, but no failed graph publishes a result.
 Runtime boundary services and resolver credentials are not supplied to builds.
 Source and output paths stay relative to their compiler-supplied roots; absolute
 paths and parent traversal reject. Publication checks build-input content even
@@ -607,5 +608,4 @@ reach rows while preserving every existing row ID and meaning. They receive
 ordinary final effect checking and capability review. Broader generated
 declaration shapes remain subject to the compiler's supported continuation;
 accepting a review decision cannot enable an unsupported compiler case.
-The lock records trusted project decisions, not an audit certificate. Separate
-compiler/native admission policy remains outside this transaction.
+Separate compiler/native admission policy remains outside this transaction.

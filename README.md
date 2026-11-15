@@ -1,20 +1,20 @@
 # Omega
 
-Omega is a systems language built around explicit state machines, mathematical proofs, and ownership of memory and resources. Entire classes of bugs are eliminated while keeping performance on par with C.
+Omega is a systems language built around explicit state machines, mathematical proofs, and ownership of memory and resources. It rules out whole classes of bugs while matching C's performance.
 
-Instability can only arise under faulty premises, such as a faulty Operating System API contract. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
+A program can only misbehave when a premise it trusts is false, such as an operating system API breaking its contract. There is no `unsafe` escape hatch: even inline assembly must satisfy checked contracts.
 
-The state-machine structure of Omega turns your codebase into a queryable graph, allowing quick answers to hard questions:
+Because Omega programs are state machines, your codebase becomes a queryable graph that answers hard questions quickly:
 - Does an API access the filesystem, including through its dependencies?
 - Does an API call crash? Does it provably terminate? Under what conditions?
 - Does a program perform well under load?
 
-Omega is being built for software where performance is critical, and failure is costly; from user facing apps, to aircraft systems, to OS kernels.
+Omega is built for software where performance is critical and failure is costly, from user-facing apps to aircraft systems to OS kernels.
 
-Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral puts the design to work on kernel problems: managing memory, controlling hardware, and running untrusted software.
+Its first major application is **[Cathedral](https://github.com/CathedralOS/Cathedral)**, an operating system being developed alongside the language. Cathedral applies the design to kernel problems: managing memory, controlling hardware, and running untrusted software.
 
 **Pre-Alpha.** The Rust compiler is under active development. The language
-design is ahead of its implementation; native support is still being completed.
+design is ahead of its implementation; native support is not finished.
 
 [Language guide](wiki/language_guide/language_guide.md) ·
 [Specification](wiki/README.md#current-specification-subjects) ·
@@ -39,9 +39,9 @@ These are design guarantees, within the stated trust boundaries:
 | Dependency supply-chain attacks | 🌟 Preventable | Reviewable reach graphs, package manager reports. |
 | Compiler supply-chain attacks | 🌟 Preventable | Auditable bootstrap chain. |
 
-These guarantees rely on the contracts of external code and hardware. A foreign
-function that lies about its memory access, or an OS that violates its contract,
-is not made safe by calling it from Omega.
+These guarantees rely on the contracts of external code and hardware. Calling
+from Omega does not make safe a foreign function that lies about its memory
+access, or an OS that breaks its contract.
 
 ## Machines
 
@@ -83,21 +83,22 @@ crashes Trap false
 }
 ```
 
-`divide` permits a guarded `Trap`; the caller's `crashes Trap false` permits none.
-The zero-enemy branch returns directly. On the other branch, the checker knows
-`enemy_count != 0` and disproves the callee's crash route for that call.
+`divide` may crash with `Trap` only under its condition; the caller's
+`crashes Trap false` allows no crash. The zero-enemy branch returns directly.
+On the other branch the checker knows `enemy_count != 0`, so it proves this
+call cannot crash.
 
-Remove the branch and call `divide` directly: the caller must prove a nonzero
-count another way or relax its explicit no-Trap contract. This is not exception handling
+Remove the branch and call `divide` directly, and the caller must prove
+a nonzero count another way or drop its no-Trap contract. This is not exception handling
 or an assertion asking the compiler to trust the programmer.
 
 Longer control flow uses nested machines and explicit transitions. Proved
-runtime tail cycles carry values and ownership without growing the call stack.
+tail loops carry values and ownership without growing the call stack.
 [Machines](wiki/language_guide/chapter_3_machines.md)
 [Nested machines and transitions](wiki/language_guide/chapter_4_nested_machines_transitions.md)
 
 ## Data
-The `data` keyword is the only manner by which data is described in Omega.
+The `data` keyword is the only way to describe data in Omega.
 
 ```omega
 data User {
@@ -126,9 +127,9 @@ machine targets_one_user(command: &Command) -> bool {
 
 `command_id` is present in every case and can be read as `command.command_id`
 without matching first. `user_id` exists only in GetUser and DeleteUser. The
-`let` pattern handles the common fields once and binds a case-only view with
-`case as operation`. This decomposition cannot fail for a valid Command; an
-equivalent one-arm outer match is also allowed. The match patterns name only
+`let` pattern reads the common fields once and binds the case-specific part with
+`case as operation`. This pattern cannot fail for a valid Command; an equivalent
+one-arm match is also allowed. The match patterns name only
 payload fields; `as _` explicitly ignores values this helper does not need.
 All inline cases follow the common fields. See
 [data decomposition](wiki/spec/language/patterns.md#data-and-case-decomposition)
@@ -136,8 +137,8 @@ and [irrefutable bindings](wiki/spec/language/patterns.md#irrefutable-data-bindi
 
 ## Domains and invariants
 
-The data declaration's `requires` clause keeps every valid player's health between
-0 and 100. Named domains describe additional facts: a player may respawn only
+The data declaration's `requires` keeps every valid player's health
+between 0 and 100. Named domains describe further facts: a player may respawn only
 when dead and outside a cutscene, and respawning must leave them alive:
 
 ```omega
@@ -174,18 +175,18 @@ machine update(player: &mut Player) {
 ```
 
 `requires` is the caller's obligation; `ensures` is the implementation's
-obligation. The branch in `update` establishes both respawn conditions, and
-`respawn` establishes `Alive` by setting health to 100. Check only for zero health
-and the call is rejected: the cutscene condition is still missing.
+obligation. The branch in `update` proves both respawn conditions, and
+`respawn` proves `Alive` by setting health to 100. Test only for zero health
+and the call is rejected: the cutscene condition is still unproved.
 
-The branch tests ordinary fields. Domain qualification adds no runtime state
-tag or wrapper. The default domain must hold whenever the whole value is
-observed; exclusive mutation may temporarily break and then restore it. Setting
-health to 100 establishes `Alive` while preserving the player's default domain.
+The branch tests ordinary fields; a domain adds no runtime tag or wrapper. The
+default domain must hold whenever the whole value is observed; exclusive
+access may break it briefly and restore it. Setting health to
+100 makes the player `Alive` and keeps the default domain.
 
-Ordinary machines can also establish mathematical theorems, and eligible
-computations can run at compile time or be referenced in proofs without a
-separate implementation.
+Ordinary machines can also prove mathematical theorems, and suitable
+computations can run at compile time or be used in proofs without a separate
+implementation.
 [Domains](wiki/language_guide/chapter_8_domains.md) ·
 [Invariant windows](wiki/language_guide/chapter_11_invariant_windows.md) ·
 [Mathematical proofs](wiki/language_guide/chapter_10_compile_time_proofs.md)
@@ -227,15 +228,15 @@ machine execute<T>(
 }
 ```
 
-The positional binding follows authored order: request_id, requested_at_ms, sequence, then one case-only view. `_` ignores each metadata binding. The transition retains the original Command's domain facts, so selecting a case establishes the corresponding equality for T.
+The positional binding follows declaration order: request_id, requested_at_ms, sequence, then the case-specific part. `_` ignores each metadata field. The transition keeps the original Command's domain facts, so each case arm knows the matching equality for T.
 
 `Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
 
-GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is deliberately invalid because changing only its type argument breaks that relationship. The explicit `..` zero-initializes omitted metadata fields; without it, each runtime field must be supplied. It does not bypass the case constraint. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
+GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is invalid on purpose: changing only its type argument breaks that relationship. The explicit `..` sets omitted metadata fields to zero; without it, every runtime field must be given. It does not bypass the case constraint. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
 
-The `#N` identities are neither offsets nor runtime tags, and each payload has its own numbering scope. The two Command declarations above are alternative examples, not declarations to combine in one module.
+The `#N` identities are neither offsets nor runtime tags, and each payload numbers its fields separately. The two Command declarations above are alternative examples, not declarations for one module.
 
-The same semantic data can use different representations. Custom policies use compile-time reflection to choose a layout, subject to compiler validation. The declarations below illustrate storage types, not implicit conversions; assume a protobuf package supplies the named encoded representation:
+The same data can be stored in different layouts. A custom layout policy uses compile-time reflection to choose a layout, and the compiler checks it. The declarations below illustrate storage types, not implicit conversions; assume a protobuf package supplies the named encoded representation:
 
 ```omega
 // Instantiate under the standard Omega layout.
@@ -249,7 +250,7 @@ use protobuf;
 let command_proto: ProtobufLayout<Command<User>>;
 ```
 
-Variable-length protobuf encoding needs explicit byte storage and checked encode/decode operations; it is not merely a fixed C-style layout.
+Variable-length protobuf encoding needs explicit byte storage and checked encode and decode operations; it is not just a fixed C-style layout.
 
 ## Reach Reporting
 
@@ -268,13 +269,13 @@ reaches FilesystemContentWrite
 }
 ```
 
-`reaches FilesystemContentWrite` is a ceiling on this operation and its checked
-transitive calls. Adding network, Console or process-launch reach anywhere in
-that call chain would exceed the ceiling and fail to compile.
+`reaches FilesystemContentWrite` limits what this operation and everything it
+calls may do. Adding network, Console or process-launch access anywhere in that
+call chain fails to compile.
 
-`blocks` and the call-site `block` acknowledge that the worker may be occupied
-while the operation waits. `suspend` instead parks an activation and returns
-control to its executor. Neither grants additional service access.
+`blocks` and the call-site `block` state that the worker may be busy while the
+operation waits. `suspend` instead pauses the call and returns control to its
+executor. Neither grants extra service access.
 
 ## Trust Boundaries
 
@@ -318,9 +319,9 @@ machine build(builder: &mut Build) {
 }
 ```
 
-The foreign implementation must be explicitly trusted to honor its contract;
-if it lies, the caller's guarantees no longer hold. Wrapping the call cannot
-hide its `ClockObservation` reach, but reach checking does not sandbox native code.
+The foreign implementation must be explicitly trusted to keep its contract; if
+it lies, the caller's guarantees no longer hold. Wrapping the call cannot hide
+its `ClockObservation` reach, but reach checking does not sandbox native code.
 
 See [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
 and [reach contracts](wiki/spec/language/effects.md).
@@ -368,20 +369,21 @@ registers
 }
 ```
 
-The packet length and destination type establish bounds; the borrows supply
-access. **Addresses are not authority**. Removing the length requirement or
-shifting the store one byte forward leaves an unproved memory access.
+The packet length and destination type prove the bounds; the borrows grant
+access. **Addresses are not authority**. Removing the length requirement or moving the store one byte forward
+leaves an unproved memory access.
 
-`transition` names the adjacent successor without emitting a jump; `jmp` branches.
-Both conditional successors are explicit, and register clobbers are inferred.
+`transition` names the block that follows directly, without emitting a jump;
+`jmp` branches. Both targets of a conditional jump are explicit, and register
+clobbers are inferred.
 
 ## Hardware access
 
-The same-sized memory is not always permitted to support the same operations.
-Assume the platform's `DeviceRegisters` domain selects a policy describing a
+Memory of the same size does not always allow the same operations.
+Assume the platform's `DeviceRegisters` domain selects a policy for a
 write-only transmit register:
 writing sends data to the device, but borrowing it as ordinary read/write RAM
-is not permitted. This example deliberately fails at the final borrow:
+is not permitted. This example fails on purpose at the final borrow:
 
 ```omega
 data UartRegisters {
@@ -408,11 +410,11 @@ reaches DeviceIo
 
 The RAM borrow and explicit device write are permitted. The rejected call tries
 to pass a device accessor to a helper requiring an ordinary RAM reference.
-Even exclusive access to `uart` cannot manufacture the missing access mode.
-Recasts and checked assembly must respect that distinction too.
+Even exclusive access to `uart` cannot create the missing access mode.
+Recasts and checked assembly must respect that difference too.
 
-The platform supplies the domain access policy, independent layout and correspondence to the actual
-device. Omega checks against those contracts; it does not infer a datasheet from
+The platform supplies the domain's access policy, independent layout and
+mapping to the actual device. Omega checks against those contracts; it does not infer a datasheet from
 a field name.
 
 The same model extends to
@@ -434,8 +436,8 @@ flowchart LR
         api -. rejected bypass .-> account
 ```
 
-An ordinary build-only topology library will express the rule over verified
-component instances. In schematic form:
+An ordinary build-time topology library will state the rule over verified
+components. In outline:
 
 ```text
 bind API.authorization -> Authorization.requests
@@ -448,23 +450,24 @@ will not make the rule pass: `only_via` also requires a route to exist.
 
 The check will extend beyond the diagram:
 
-- **Check independently built code.** Component evidence will account for all entries
-    and outgoing authority, including callbacks, cleanup, and selected providers.
-    An independent consumer will check it without merging the services' source trees.
-- **Run the checker as ordinary build code.** A `Build::build_dependency` will grant library
-    access to the build, not the application. The helper will receive captured
-    component inputs and a linear output obligation, not deployment credentials.
+- **Check independently built code.** Component evidence will list all
+    entry points and outgoing authority, including callbacks, cleanup, and
+    selected providers. A separate consumer will check it without merging the
+    services' source.
+- **Run the checker as ordinary build code.** A `Build::build_dependency`
+    will give the build, not the application, access to the library. The helper will
+    receive captured component inputs and one required output, not
+    deployment credentials.
 - **Enforce the actual connections.** The installer will receive the owner's
-    required policy independently of the plan, recheck it, and establish complete
-    endpoint bindings before allowing application entry. Publishing a plan will
-    grant no authority.
+    policy separately from the plan, recheck it, and bind every endpoint before
+    the application starts. Publishing a plan will grant no authority.
 
-Graph algorithms and codecs will stay in a library. The compiler will establish
-complete component facts; selected providers will enforce the actual connections
-under explicit OS and transport contracts.
+Graph algorithms and codecs will stay in a library. The compiler will produce
+complete component facts; selected providers will enforce the
+connections under explicit OS and transport contracts.
 
-The topology will make Authorization unavoidable. Its own contracts will still
-need to establish which user may perform which operation on which account.
+The topology will make Authorization unavoidable. Its own contracts must still
+decide which user may do what to which account.
 
 [Topology contract](wiki/spec/packages/topology.md) ·
 [Build isolation and outputs](wiki/spec/build/scoped_execution.md) ·
@@ -505,34 +508,34 @@ Start with a small precondition-checking case:
 cargo run -p omega -- --check tests/fixtures/pass/constraints/scalar_requires_satisfied_by_literal/main.omg
 ```
 
-It should finish successfully: its call supplies `5` to a machine requiring
-a positive value. This checks source; it does not emit or run a native program.
-No debug dumps are generated. Add `--timings` for command-stage durations and
-total elapsed time on stderr; no timing file is written.
+It should succeed: its call passes `5` to a machine requiring a positive value.
+This only checks source: no native program is built or run, and no debug
+dumps are written. Add `--timings` to print stage durations and total time on
+stderr; no timing file is written.
 
-To restrict the root build's readable inputs, pass an explicit inventory
-(same syntax in PowerShell and a POSIX shell):
+To limit the files the root build may read, list them (same syntax in
+PowerShell and a POSIX shell):
 
 ```text
 omega --build-input build.omg --build-input main.omg --build-input templates --optional-build-input local.cfg main.omg
 ```
 
 Paths are exact UTF-8 `/`-separated names relative to the root source directory,
-not host paths. A directory includes its subtree. Include every consumed root
-source file; missing required entries, duplicate or nested declarations reject.
-Optional missing entries stay absent. Package preparation captures the editable
-project without changing its permissions; dependencies retain their own inputs.
+not host paths. A directory includes everything under it. List every root source
+file the build reads; missing required, duplicate or nested entries are
+rejected. Missing optional entries stay absent. Package preparation copies
+the editable project without changing its permissions; dependencies keep their
+own inputs.
 The options apply to compilation, `--check`, `omega packages audit`, and new
-package install/update commands, not `run`. Pass the same inventory through
-review, audit, and compilation. A pending review retains its selection;
-`--resume` uses it without repeating or overriding the input flags. Audit never
-changes acceptance. Without these options, existing package-inventory behavior
-is unchanged. They grant
-no extra host access and do not publish companion outputs. A changed build policy
+package install/update commands, not `run`. Pass the same list to review, audit,
+and compilation. A pending review keeps its list; `--resume` uses it
+without repeating or overriding the input flags. Audit never changes acceptance.
+Without these options, package inputs behave as before. They grant no
+extra host access and publish no companion outputs. A changed build policy
 still needs ordinary package acceptance.
 
 For a full application, start with the [CLI example](samples/cli/basics/cli_mvp/README.md).
-Its instructions distinguish the intended result from the current compiler
+Its instructions separate the intended result from current compiler
 limitations. The [command-line contract](wiki/spec/build/command_line.md) defines
 subsystem routing, optional source rewriting and independent validator selection.
 
@@ -548,20 +551,20 @@ flowchart LR
     psi --> interpret["Interpreter"]
 ```
 
-Psi is the portable output of source checking. Consumers reuse a trusted
-producer's checked judgments for the exact artifact; the interpreter enforces
-operation safety and installed host permissions. Execution admission and the
-requirements for future untrusted interpretation are defined in the
+Psi is the portable output of source checking. A consumer reuses the checks a
+trusted compiler made on that exact artifact; the interpreter enforces
+operation safety and installed host permissions. When an artifact may run, and
+what future untrusted interpretation requires, are defined in the
 [product contract](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption).
 Development tests compare
 native execution with the Psi interpreter using `omega run --both`.
-The compiler's transformations remain trusted; execution agreement covers the
-tested inputs and observations.
+The compiler's transformations are still trusted; native/Psi agreement covers
+only the tested inputs and observations.
 [Follow the pipeline →](omega-rust/pipeline.md#verification-placement)
 
-The separate [bootstrap chain](bootstrap/README.md) works toward constructing
-the compiler from a small auditable starting point. It is not required to work
-on the Rust implementation.
+The separate [bootstrap chain](bootstrap/README.md) aims to build the compiler
+from a small auditable starting point. You do not need it to work on the Rust
+implementation.
 
 ## Explore
 
@@ -577,8 +580,8 @@ on the Rust implementation.
 
 ## Development
 
-Current work prioritizes finishing the Rust compiler before self-hosting and
-bootstrap completion. The [compiler board](TASKS.md),
+Current work puts finishing the Rust compiler ahead of self-hosting and the
+bootstrap. The [compiler board](TASKS.md),
 [optimizer board](TASKS_OPTIMIZER.md), and
 [completion criteria](wiki/drafts/reference/rust_compiler_completion.md) describe the work.
 

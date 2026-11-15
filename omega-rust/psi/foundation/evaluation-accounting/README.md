@@ -1,87 +1,80 @@
 # Evaluation accounting
 
-This foundation owns source-neutral resource accounts, movable storage leases,
-and tagged measurement records. It contains no interpreter, source admission,
-Build execution, or filesystem implementation.
+This crate holds source-neutral resource accounts, movable storage leases and
+tagged measurement records for compile-time evaluation. It has no interpreter, source admission, Build execution
+or filesystem code.
 
-`BuildEvaluationSponsor::new` stamps the current Terminal Psi measurement.
-`new_with_measurement` binds an explicit supported identity immutably.
-The same account is shared across a package closure and retries; another
-storage schedule cannot spend that account's ceilings. Equal numeric work
-markers never imply equal work or storage units.
+`BuildEvaluationSponsor::new` records the current Terminal Psi measurement;
+`new_with_measurement` fixes an explicit supported one. One account is shared
+across a package closure and its retries; another storage schedule cannot
+spend its ceilings. Equal work markers never mean equal work or storage units.
 
-`EvaluationInvocationAccount::reserve_site` checks work and live storage in one
-aggregate-before-local transaction before engine execution. Refusal changes
-neither counter; dropping the returned lease releases only live storage. Engine
-storage owners move leases across frames/maps and share an owning backing lease
-through `Arc`; copy-on-write must reserve the overlapping replacement before it
-allocates. `EvaluationStorageLease::absorb` joins existing reservations only
-within the exact invocation, without charging again. `truncate_cells` retires
-that owner's removed rows without changing its payload reservation. Result preparation
-reserves copied live storage before allocation; publication charges cumulative
-result custody before exposing the completed result. Custody is not
-refunded on teardown or retry.
+Before the engine runs, `EvaluationInvocationAccount::reserve_site` checks
+work and live storage in one all-or-nothing step, shared total first. A refusal changes neither counter; dropping the returned lease frees
+only live storage. The engine moves leases between frames and maps and shares
+an owning backing's lease through `Arc`; copy-on-write reserves the
+overlapping replacement before allocating. `EvaluationStorageLease::absorb`
+merges reservations within one invocation without charging twice.
+`truncate_cells` frees an owner's removed rows without changing its payload
+reservation. Result preparation reserves copied live storage before
+allocating; publication charges the cumulative result before exposing it.
+That charge is not refunded on teardown or retry.
 
-Terminal Psi measurement uses schema 8, semantic operation/edge work schedule
-1 and distinct logical storage schedule 1. Usage schema 7 is not a measurement
-this account accepts. Terminal storage includes logical runtime rows, frame
-headers, array/case payload elements and full retained byte backings once per
-owning backing. This is not heap capacity, allocator overhead or process memory.
+Terminal Psi measurement uses schema 8, operation/edge work schedule 1 and
+logical storage schedule 1. Usage schema 7 is rejected. Terminal storage counts logical runtime rows, frame headers,
+array and case payload elements, and each kept byte backing in full, once per
+owner. It is not heap capacity, allocator overhead or process memory.
 
-Usage records are telemetry, not admission or transferable sponsorship.
-In-process `EvaluationInvocationUsage` retains exact account custody for issuer
-checks. Cache records retain the explicit measurement, work and storage
-identities and reject unknown versions. An unknown measurement tag does
-not decode as this account's Terminal Psi identity.
+Usage records are telemetry: they admit nothing and are not transferable. In-process `EvaluationInvocationUsage` keeps the exact account for
+issuer checks. Cache records keep the explicit measurement, work and storage
+identities and reject unknown versions; an unknown measurement tag never
+decodes as this account's Terminal Psi measurement.
 
-The common Terminal work meter can retain an exact invocation account and pay
-it at each operation/selected edge before execution. Local resumable allowance
-and the shared invocation/aggregate ceilings are independent: replenishment or
-meter cloning cannot enlarge that shared account. A refused shared charge
-commits neither local attribution nor account counters and remains a host error.
-The source-produced Build integration test checks both exact-budget completion
-and one-unit-short refusal across two activations with ordered binding effects.
+The shared Terminal work meter can hold an invocation account and pay it
+before each operation or selected edge. Its local resumable allowance is
+separate from the shared invocation and total ceilings: refilling or cloning
+the meter cannot enlarge them. A refused shared charge changes neither count
+and stays a host error. A Build integration test checks that an exact
+budget completes and one unit less is refused, across two activations with ordered binding effects.
 
-Terminal byte backings now carry leases selected before entry allocation.
-Aliases share the full backing reservation; copy-on-write reserves the overlapping
-replacement, and boundary buffers transfer the same owner at writeback. Actual
-Build execution tests exact and one-byte-short live payload budgets. Scalar and
-structural runtime tables now reserve each new row and overlapping copy; frame
-moves and joins transfer leases, and retiring rows releases their cells. The same
-Build control checks exact and one-cell-short budgets through work-budget pauses.
-Root activations and saved call headers reserve one cell each before creation;
-saved headers retire on return, while the root remains through readback until
-instance close. Source-produced empty calls check peak depth rather than cumulative
-call count. Packed scalar-array elements now own reservations through construction,
-independent guest copies, frame transfers and retained result inspection. Inspection
-aliases share one reservation; mutation funds any detached replacement first.
-Frame-local descriptor tables now use that same row reservation owner; staged
-arguments and joins transfer their leases instead of reallocating unpaid maps.
-Failed return installation retains the outgoing backing and continuation even
-after partial caller installation. Global descriptor/placed/case rows and provider
-records now carry their own leases, as do codec and field-transfer payloads.
+Terminal byte backings get leases before entry allocation. Aliases share the
+whole backing's reservation, copy-on-write reserves the overlapping
+replacement, and boundary buffers hand the same owner back at writeback. Build
+runs test exact and one-byte-short live payload budgets. Scalar and
+structural runtime tables reserve each new row and overlapping copy; frame
+moves and joins transfer leases; retiring rows frees their cells. The same
+Build test checks exact and one-cell-short budgets across work-budget pauses.
+Root activations and saved call headers each reserve one cell; saved headers
+are freed on return, the root at instance close. Empty calls built from source test peak depth, not total calls.
+Packed scalar-array elements hold reservations through construction, guest
+copies, frame transfers and inspection of kept results. Inspection aliases
+share one reservation; a mutation pays for a detached replacement first.
+Frame-local descriptor tables use the same row reservation; staged arguments
+and joins transfer leases instead of allocating unpaid maps. A failed return
+keeps the outgoing backing and continuation, even partly installed. Global descriptor, placed and case rows, provider
+records, and codec and field-transfer payloads carry their own leases.
 
-Terminal result publication charges one envelope cell even for Unit, followed
-by its actual retained payload rows and array/case elements. Immutable byte
-backings count their full retained length once per backing identity within the
-publication, including windows and descriptor/reference edges. Provider allocation
-records and recursively retained resident custody count once per owning handle;
-provider-supplied bytes, metadata and borrowed referent contents are not owned
-result payloads. A returned descriptor's presentation identity is not authority
-to include coincident referent storage. Scalar-case inspection shares its funded
-payload, just like packed-array inspection. Root descriptors retain their backing
-until instance close. Failed publication keeps the complete outgoing custody;
-cached completion and inspection do not charge again. Independent invocations
-and component completions share cumulative ceilings and each publication pays.
-These partial snapshots are not complete Build usage or storage budgeting; do
-not publish them as production Build accounting receipts. The ordinary
-package-aware CLI remains on the checked Build evaluator until accounting and
+Publishing a Terminal result charges one envelope cell, even for Unit, then
+its kept payload rows and array and case elements. An immutable byte backing
+counts its full length once per backing in a publication, including windows
+and descriptor or reference edges. Provider allocation records and resident
+records they keep count once per owning handle; provider-supplied bytes,
+metadata and borrowed referents are not result payload. A returned
+descriptor's identity does not permit counting storage that merely coincides
+with its referent. Scalar-case inspection shares its paid payload, like
+packed-array inspection. Root descriptors keep their backing until instance
+close. A failed publication keeps everything outgoing; cached completion and
+inspection do not charge again. Separate invocations and component
+completions share cumulative ceilings, and each publication pays. These
+partial counts are not complete Build budgeting; do not publish them as production Build accounting receipts. The ordinary
+package-aware CLI stays on the checked Build evaluator until accounting and
 host adapters are complete.
 
-`BuildEvaluationSponsor::charge_pure_usage` atomically pays validated recorded
-cost for an already admitted pure result. It checks the exact engine/schedule,
-refuses filesystem-observing usage, spends cumulative work/log/result quotas,
-and admits recorded peak demand beside existing reservations as an immediately
-retired logical reservation. It returns current-account telemetry without
-retaining the producing account. The caller still proves result identity,
-current admission and absence of effects; a usage record proves none of those.
+`BuildEvaluationSponsor::charge_pure_usage` pays, in one step, the checked
+recorded cost of an already admitted pure result. It checks the exact engine
+and schedule, refuses usage that observed the filesystem, spends cumulative
+work, log and result quotas, and admits the recorded peak beside existing
+reservations as a reservation freed at once. It returns current-account telemetry
+without keeping the producing account. The caller must still
+prove the result's identity, current admission and lack of effects; a usage
+record proves none of these.

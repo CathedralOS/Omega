@@ -8,22 +8,25 @@ there is no merge queue.
 
 `.github/workflows/admission.yml` is the only check a pull request needs. It
 builds no compiler: a prebuilt `xtask` runs `check-rules` on the title, body
-and diff, then `fmt --check` when Rust files changed, which runs one `rustfmt`
-per CPU. `tools/xtask/bootstrap-mbx.sh` lives under `tools/xtask/` so
-`admission.yml`'s `tools/xtask/**` push filter and cache key cover it alongside
-the `xtask` crate, installing checksum-verified `mbx` from `tools/mbx-version`.
-A pull request can restore a cache only from its own runs or from main's, so
-the same workflow runs on pushes to main that change `tools/xtask`,
+and diff, then, when Rust files changed, `fmt --check`, which runs one
+`rustfmt` per CPU.
+
+`tools/xtask/bootstrap-mbx.sh` installs `mbx` at the version in
+`tools/mbx-version` and verifies its checksum. It lives under `tools/xtask/` so
+that `admission.yml`'s `tools/xtask/**` push filter and cache key cover it
+along with the `xtask` crate.
+
+A pull request can restore a cache only from its own runs or from main's. So
+the same workflow also runs on pushes to main that change `tools/xtask`,
 `Cargo.lock` or the toolchain, and saves the built `xtask` there for every pull
 request to restore.
 
 ## Post-merge check
 
-Pull requests merge on the admission check alone, which builds no compiler.
-`.github/workflows/post-merge-check.yml` runs on every push to main, one run
-at a time, and judges the batch of commits main gained since the last run that
-reached a verdict. A push that arrives while a run is in progress waits, and a
-newer push replaces it, so a burst of merges is judged once.
+`.github/workflows/post-merge-check.yml` runs on every push
+to main, one run at a time. It judges the batch of commits main gained since
+the last run that reached a verdict. A push that arrives during a run waits,
+and a newer push replaces a waiting one, so a burst of merges is judged once.
 
 - `post-merge-check` checks dependency boundaries, lints the workspace and
   runs the lowered-route tests.
@@ -34,22 +37,20 @@ newer push replaces it, so a burst of merges is judged once.
   does not bisect it.
 
 A run started by hand with the input `full` set (Actions, Post-merge check,
-Run workflow) also runs every Rust test in the workspace, in the `tests` job.
-It is meant for after a large wave of merges; pushes run as before. Linux only.
+Run workflow) also runs every Rust test in the workspace, in the `tests` job,
+on Linux only. Use it after many merges; push-started runs skip that job.
 
-There is no fixture corpus, no corpus gate and no ledger: the run measures no
-rows and publishes nothing. The jobs that build the compiler restore main's
-warm build with `tools/ci/session_host.sh`.
+There is no fixture corpus, no corpus gate and no ledger. The jobs that build the compiler restore
+main's warm build with `tools/ci/session_host.sh`.
 
-The run reverts nothing; that is a later step of
+A failed run does not revert any commit; automatic reverts are a later step of
 `wiki/drafts/designs/ci_rebuild_plan.md`.
 
 ## Administration
 
-Live branch and ruleset protection for `main` is stored in GitHub repository
-settings rather than checked into this directory. Inspect the repository's
-existing rulesets (for example via `gh api repos/:owner/:repo/rulesets`) before
-applying any definition, and update the named ruleset rather than creating a
-duplicate. Admin access is needed only to configure rules; ordinary write
-access suffices to open and merge pull requests. Changing protection is an
-owner/admin operation, not an author fallback.
+Branch and ruleset protection for `main` lives in GitHub repository settings,
+not in this directory. Before applying a ruleset, list the existing ones (for
+example with `gh api repos/:owner/:repo/rulesets`) and update the named ruleset
+instead of creating a duplicate. Configuring rules needs admin access; opening
+and merging pull requests needs only write access. Only the owner or an admin
+changes protection; an author must not change it to get a pull request merged.

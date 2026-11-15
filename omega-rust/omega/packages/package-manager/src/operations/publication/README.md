@@ -1,49 +1,48 @@
 # Package publication
 
-Start at `../publication.rs`. This operation publishes accepted project files;
-it does not certify packages or prove that anyone audited them.
+Start at `../publication.rs`. This operation writes accepted project files; it
+does not certify packages or prove anyone audited them.
 
 ```text
 publication/
 ├── checked.rs       join staged source, target reviews, and exact decisions
+├── checked_error.rs checked-publication errors
 ├── transaction.rs   publish/recover the build.omg and omega.lock pair
 ├── journal.rs       bounded old/new byte framing; no selectable paths
 ├── directory.rs     retain project and ignored build/package-manager state
-├── error.rs         distinguish pre-write failure from pending recovery
-└── tests/           process interruption and filesystem behavior
+└── error.rs         distinguish pre-write failure from pending recovery
 ```
 
-`publish_reviewed_package_change` checks edit/stage/root identity, accepted lock
-bytes, and complete target coverage. It compares against that baseline without
-rerunning the compiler, requires each target's accepting decisions, rechecks
-snapshots and live local dependency pins, and verifies unchanged original source.
-Previously accepted target sections cannot be silently dropped.
+`publish_reviewed_package_change` checks edit, stage and root identity,
+accepted lock bytes and complete target coverage. It compares against that
+baseline without rerunning the compiler, requires each target's accepting
+decisions, rechecks snapshots and live local dependency pins, and verifies the
+original source is unchanged. It never silently drops an accepted target section.
 
-Open `PackageFileTransaction` before reading an install/update baseline, recover
-pending intent, and retain the guard while using the pair. `transaction.lock`
-holds an OS mutex; its continued existence does not mean a process is running.
-Contention returns `Busy`. Ordinary project preparation participates when state
-already exists or an accepted package lock is present. A fresh locked checkout
-creates coordination state before acquiring dependencies; unlocked source-only
-reads do not create it.
+Open `PackageFileTransaction` before reading an install/update baseline,
+recover any pending write, and hold the guard while using the pair.
+`transaction.lock` holds an OS mutex; its existence does not mean a process
+is running. Contention returns `Busy`. Ordinary project preparation joins in
+when the state or an accepted lock exists. A fresh locked checkout
+creates it before fetching dependencies; unlocked source-only reads do not.
 
-The bounded `pending` journal records exact old/new bytes for the two fixed
-files, including an explicitly absent old lock. Once recorded, it is commit
-intent: recovery completes forward. Each live file must match its old or new
-contents. A third-party edit stops recovery before further replacement and
-retains the journal. Pre-intent failures leave the pair unchanged; `Pending`
-means publication may have progressed and must be inspected or recovered.
+The bounded `pending` journal records exact old and new bytes of the two
+files, including an explicitly absent old lock. Once written, it commits the
+change: recovery finishes it forward. Each file must match its old or new
+contents; another party's edit stops recovery and keeps the journal. A failure before the journal leaves the pair
+unchanged; `Pending` means publication may have progressed and must be
+inspected or recovered.
 
 Atomic stages stay under `build/package-manager`, not in source input.
-Replacement preserves permissions, including the executable bit used in source
-identity. Files are synchronized before publication; Unix directory sync errors
-propagate. The Windows utility does not flush directory metadata, so it makes no
-equivalent power-loss durability claim. Cross-device atomic operations fail
-without a non-atomic copy fallback.
+Replacement keeps permissions, including the executable bit in source
+identity. Files are synced before publication; Unix directory sync errors are
+reported. Windows does not flush directory metadata, so it promises no
+equivalent power-loss durability. Cross-device atomic operations fail with no
+non-atomic copy fallback.
 
-Two renames are not simultaneous for readers that ignore the mutex. This is
-process coordination and interruption recovery, not protection from a hostile
-process acting as the same user. Do not delete pending journals as build-cache
-cleanup. [Package commands](../../../README.md#install-and-update) own review-file
-persistence/resume and selective update pin selection. Their `proposal` restart
+A reader ignoring the mutex may see one rename without the other. This
+coordinates processes and recovers interruptions; it does not stop a hostile
+process running as the same user. Do not delete pending journals as
+build-cache cleanup. [Package commands](../../../README.md#install-and-update)
+save and resume review files and pick pins for selective updates. Their `proposal` restart
 record is separate from this publication journal.
