@@ -27,6 +27,48 @@ fn verdict(build: &str) -> String {
     }
 }
 
+/// Identical image-backed bodies can implement different public lifetime
+/// promises. A receiver must distinguish those promises after source erasure.
+#[test]
+fn an_ordinary_published_header_retains_its_declared_result_lifetime_relation() {
+    let declared_contract = |result_lifetime: &str| {
+        let source = format!(
+            "machine build_entry() {{\n\
+                 let output: &[u8] = label(\"input\");\n\
+                 take(output);\n\
+             }}\n\
+             machine label<'input, 'other>(value: &'input [u8]) -> &'{result_lifetime} [u8] {{\n\
+                 \"label\"\n\
+             }}\n\
+             machine take(view: &[u8]) {{ }}"
+        );
+        let verdict = judge_build(&source);
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            panic!("both lifetime promises admit the literal body: {verdict:?}");
+        };
+        let publication = accepted.publish_invocation().unwrap();
+        let module = publication.artifact.view().module();
+        let mut declarations = module
+            .machines
+            .iter()
+            .filter_map(|machine| machine.declaration.as_ref())
+            .filter(|declaration| {
+                module
+                    .identities
+                    .text(declaration.callable)
+                    .is_some_and(|identity| identity.contains("label"))
+            });
+        let declaration = declarations.next().expect("label's published header");
+        assert!(declarations.next().is_none());
+        declaration.contract
+    };
+    assert_ne!(
+        declared_contract("input"),
+        declared_contract("other"),
+        "an input-related promise must not become a caller-chosen promise through erasure"
+    );
+}
+
 /// The one statement a program judged wrong breaks.
 fn violation(build: &str) -> String {
     let verdict = judge_build(build);
