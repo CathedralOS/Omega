@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native binding admission cannot check an owned record result
+- Category: the documents disagree
+- Where: [native geometry admission](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs#L610), [foreign affine record sample](samples/cli/facts/foreign_indirect_float_record_result/README.md)
+- Saw: On clean `d897503cd19` and candidate `02cd253f7b6` on macOS arm64, the unchanged `CGAffineTransformMake` sample exits 200 before instruction selection with “native owned aggregate needs complete canonical field calling correspondence.” Its result is an owned 48-byte record of six `f64` fields. The sample documents successful native and Psi execution.
+- Cost: Admission refuses the record before comparing its fields. Use the existing calling application's ordered field carriers and placement with the canonical record layout so an exact binding can proceed and a field or layout mismatch still refuses.
+- Reported: 2026-11-15, Codex, while verifying retained indirect result placement.
+
 ### Structural equality refuses a field of a closed generic type
 - Category: knowledge crossing a boundary
 - Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
@@ -107,13 +114,6 @@ framework or a list of unimplemented features.
 - Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
 - Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
 - Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
-
-### Selection recomputes the plan for a call's indirect result
-- Category: re-deriving
-- Where: [indirect result check](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection_inputs.rs#L1492) (`aggregate_result_input::indirect_result`)
-- Saw: Selection decides whether a call returns through a caller-supplied result pointer by running `calling_conventions::evaluate_call_plan` on a result-only signature and comparing its result placement with the stored one. Borrowed and owned call arguments now take their placements from the stored plan, and the independent audit compares that plan with the callee's own plan. This check still recomputes the plan.
-- Cost: Every call whose result comes back through a result pointer runs the calling convention a second time in default compilation. Read the register from the stored placement's shape and location, and leave the plan comparison to the audit. A live claim (call_contract_repair domain enforcement) lists this file.
-- Reported: 2026-11-15, Claude Code, while removing the recomputed plan from borrowed and owned call arguments
 
 ### Literal declaration validation still judges selected predicates in syntax
 - Category: one idea, several implementations
