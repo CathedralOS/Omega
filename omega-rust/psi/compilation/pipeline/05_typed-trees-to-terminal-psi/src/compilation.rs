@@ -212,7 +212,10 @@ pub fn prepare_compilation(
                 *requirement,
                 arguments,
                 *implementation,
-                captures.clone(),
+                crate::WitnessInputs {
+                    captures: captures.clone(),
+                    outcome_subjects: Some((compilation.subjects, compilation.purpose)),
+                },
             ),
             None => crate::elaborate_witness_with_captures(
                 typed,
@@ -221,7 +224,10 @@ pub fn prepare_compilation(
                 arguments,
                 *implementation,
                 None,
-                captures.clone(),
+                crate::WitnessInputs {
+                    captures: captures.clone(),
+                    outcome_subjects: Some((compilation.subjects, compilation.purpose)),
+                },
             ),
         };
         if let Ok(witness) = &mut witness {

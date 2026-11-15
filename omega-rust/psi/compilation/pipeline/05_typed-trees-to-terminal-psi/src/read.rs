@@ -55,7 +55,9 @@ mod transitions;
 mod types;
 
 use arena::Arena;
-use semantic_vocabulary::{BoundaryMachineId, CrashCause, IdTable, MachineId, StructuralTypeId};
+use semantic_vocabulary::{
+    BoundaryMachineId, CrashCause, IdTable, MachineId, PackageKeyIdentity, StructuralTypeId,
+};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::TypedTrees;
@@ -146,6 +148,10 @@ pub(crate) struct Program<'t> {
     /// Every declaration in these machines' verification subject is rooted;
     /// reaching one dependency helper alone does not close its possible uses.
     pub subject_machines: Vec<MachineId>,
+    /// The original request's fixed membership for outcome inference inside
+    /// independent witnesses. It neither roots declarations nor supplies the
+    /// complete caller roster needed by private input/result inference.
+    pub outcome_subjects: Option<(Vec<Option<PackageKeyIdentity>>, source::DependencyScope)>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -347,6 +353,7 @@ impl<'t> Program<'t> {
             requirements: Vec::new(),
             fixed_inputs: Vec::new(),
             subject_machines: Vec::new(),
+            outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
             scopes: IdTable::default(),

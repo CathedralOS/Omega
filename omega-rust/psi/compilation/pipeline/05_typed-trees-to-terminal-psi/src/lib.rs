@@ -433,6 +433,14 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
         .flatten()
 }
 
+struct WitnessInputs<'scope> {
+    captures: NamedCaptures,
+    outcome_subjects: Option<(
+        &'scope [Option<PackageKeyIdentity>],
+        source::DependencyScope,
+    )>,
+}
+
 /// Elaborates the conformance witness of `implementation` for `requirement`:
 /// machine 1 has the requirement's formals, result and contract, and its
 /// body is one call of the implementation with those formals, returning its
@@ -461,7 +469,10 @@ pub fn elaborate_witness(
         arguments,
         implementation,
         None,
-        named_captures(typed),
+        WitnessInputs {
+            captures: named_captures(typed),
+            outcome_subjects: None,
+        },
     )
 }
 
@@ -472,7 +483,7 @@ fn elaborate_applied_witness(
     requirement: SymbolHandle,
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
-    captures: NamedCaptures,
+    inputs: WitnessInputs<'_>,
 ) -> Checked<Elaboration> {
     elaborate_witness_with_captures(
         typed,
@@ -481,7 +492,7 @@ fn elaborate_applied_witness(
         arguments,
         implementation,
         Some(required),
-        captures,
+        inputs,
     )
 }
 
@@ -492,12 +503,15 @@ fn elaborate_witness_with_captures(
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
     expected: Option<&typed_trees::signature::StateSignature>,
-    captures: NamedCaptures,
+    inputs: WitnessInputs<'_>,
 ) -> Checked<Elaboration> {
     let generic = typed
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
-    let mut program = read::Program::with_captures(typed, generic, captures);
+    let mut program = read::Program::with_captures(typed, generic, inputs.captures);
+    program.outcome_subjects = inputs
+        .outcome_subjects
+        .map(|(subjects, purpose)| (subjects.to_vec(), purpose));
     let entry = program.witnessed(
         declaring_trait,
         requirement,
