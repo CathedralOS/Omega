@@ -3896,6 +3896,14 @@ pub mod types {
         pub semantic_roles: language_semantics::DomainSemanticRoles,
         pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
         pub source_selection: Option<DomainConstraintSource>,
+        /// Typing selected no domain for this written name, and no domain
+        /// of that name is visible from its source under ordinary
+        /// resolution, whatever the carrier: the type is malformed in every
+        /// program (state_contracts.md: "an unknown machine name or
+        /// malformed type is an error wherever it appears"). False on a
+        /// selected domain and on a name some visible domain has (another
+        /// carrier's, or two candidates), which stays a request.
+        pub names_no_visible_domain: bool,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]

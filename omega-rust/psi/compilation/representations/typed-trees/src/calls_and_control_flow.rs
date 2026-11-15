@@ -676,8 +676,20 @@ pub mod calls {
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
         pub enum AuthoredInvocationTarget {
+            /// Typing found no target, but the source this row was written
+            /// in can see some declaration of that spelling (another kind,
+            /// or two candidate requirements), or the row is a path typing
+            /// does not follow: a request no reader serves yet.
             Unresolved,
-            Parameter { ordinal: u32, symbol: SymbolHandle },
+            /// No parameter, and no declaration of any kind visible from
+            /// the row's source under ordinary resolution, has the written
+            /// name: wrong in every program (effects.md, "A row names a
+            /// parameter path or a requirement identity").
+            Undeclared,
+            Parameter {
+                ordinal: u32,
+                symbol: SymbolHandle,
+            },
             Service(SymbolHandle),
         }
 

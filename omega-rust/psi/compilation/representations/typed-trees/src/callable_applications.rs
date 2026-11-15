@@ -1808,8 +1808,7 @@ pub(crate) mod machine_instances {
         ) -> Result<Option<MachineInstantiation<'_>>, &'static str> {
             let mut receipts = self
                 .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.instance == instance)
+                .for_instance(instance)
                 .map(MachineInstantiation::Specialization)
                 .chain(
                     self.captured_machine_applications
@@ -1909,10 +1908,7 @@ pub(crate) mod machine_instances {
                     return Err("static call has cyclic invocation ownership");
                 }
                 visited.push(owner);
-                let mut instances = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|instance| instance.instance == owner);
+                let mut instances = self.machine_specializations.for_instance(owner);
                 let Some(instance) = instances.next() else {
                     return Ok(false);
                 };
@@ -5428,9 +5424,8 @@ pub(crate) mod requirement_instances {
             let source_owner = self
                 .static_machine_application(application.application)
                 .lexical_owner;
-            let mut matches = self.machine_specializations.iter().filter(|receipt| {
+            let mut matches = self.machine_specializations.for_instance(provider).filter(|receipt| {
             if receipt.template != realization
-                || receipt.instance != provider
                 || !receipt.binding_application.is_valid()
             {
                 return false;
@@ -6909,9 +6904,8 @@ pub(crate) mod signatures {
                         signature::AuthoredInvocationTarget::Service(symbol) => {
                             signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
                         }
-                        signature::AuthoredInvocationTarget::Unresolved => {
-                            signature::AuthoredInvocationTarget::Unresolved
-                        }
+                        unresolved @ (signature::AuthoredInvocationTarget::Unresolved
+                        | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
                     };
                     program
                         .signature_invokes
@@ -7642,7 +7636,7 @@ pub(crate) mod table {
             let mut replacement = Arena::default();
             let replacement_one = replacement.insert(selection(second));
             let replacement_two = replacement.insert(selection(second));
-            assert_eq!(replacement.revision(), clone.revision());
+            assert_ne!(replacement.revision(), clone.revision());
             table = replacement.into();
             assert!(rows(&table, first).is_empty());
             assert_eq!(rows(&table, second), [replacement_one, replacement_two]);

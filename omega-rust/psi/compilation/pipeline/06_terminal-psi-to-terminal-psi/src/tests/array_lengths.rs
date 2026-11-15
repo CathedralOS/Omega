@@ -70,6 +70,7 @@ fn the_length_of_an_array_that_must_be_evaluated_first_is_refused() {
             "machine make() -> [u8; 4] { [0, 0, 0, 0] }
 machine build_entry() -> u64 { make().len }"
         ),
-        "expression length of a fixed array that is not a field path"
+        "expression length of a fixed array that is not a field path while reading the body of \
+         `build_entry`"
     );
 }

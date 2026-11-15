@@ -359,7 +359,7 @@ fn a_whole_borrowed_record_replacement_requires_mutable_access() {
     };
     assert_eq!(
         refusal.detail,
-        "statement assignment to an immutable binding"
+        "statement assignment to an immutable binding while reading the body of `replace`"
     );
 }
 
@@ -377,7 +377,10 @@ machine build_entry(owner: &mut Item, replacement: Item) {
     let RouteVerdict::FallBack(refusal) = verdict else {
         panic!("unserved linear custody must remain unavailable: {verdict:?}");
     };
-    assert_eq!(refusal.detail, "type data with custody");
+    assert_eq!(
+        refusal.detail,
+        "type data with custody while reading the signature of `build_entry`"
+    );
 }
 
 #[test]
@@ -427,6 +430,6 @@ machine build_entry<'storage>(view: &'storage mut [u8]) {
     };
     assert_eq!(
         refusal.detail,
-        "statement whole assignment through a reference"
+        "statement whole assignment through a reference while reading the body of `build_entry`"
     );
 }

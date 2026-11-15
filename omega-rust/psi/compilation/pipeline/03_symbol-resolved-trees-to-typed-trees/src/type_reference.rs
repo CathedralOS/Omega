@@ -178,7 +178,25 @@ pub(crate) mod domain_constraints {
                 &domain_constraint.arguments,
             );
             let [domain] = matches.as_slice() else {
-                normalized.push(TypeConstraintNode::Domain(domain_constraint));
+                // Whether any domain of this name is visible here at all,
+                // for any carrier: if none is, the name is unknown and the
+                // type malformed, not a selection a reader defers.
+                let names_no_visible_domain = matches.is_empty()
+                    && domain_constraint.subject == DomainConstraintSubject::Declared
+                    && reference.is_some()
+                    && select_domain_candidates_where(
+                        source,
+                        program,
+                        authored_name,
+                        reference,
+                        domain_constraint.symbol,
+                        |_| true,
+                    )
+                    .is_empty();
+                normalized.push(TypeConstraintNode::Domain(DomainConstraint {
+                    names_no_visible_domain,
+                    ..domain_constraint
+                }));
                 continue;
             };
 
@@ -240,6 +258,7 @@ pub(crate) mod domain_constraints {
                     semantic_roles,
                     establishment_routes: domain.establishment_routes.clone(),
                     source_selection: None,
+                    names_no_visible_domain: false,
                 }));
                 continue;
             }
@@ -286,6 +305,7 @@ pub(crate) mod domain_constraints {
                         .map(|domain| domain.establishment_routes.clone())
                         .unwrap_or_default(),
                     source_selection: None,
+                    names_no_visible_domain: false,
                 }));
             }
         }
@@ -792,7 +812,7 @@ pub(crate) mod const_arguments {
                 }));
             }
             for (declaration, arguments, owner) in applications {
-                if let Some(sort) = universe_sort(program, declaration) {
+                if let Some(sort) = program.symbols.universe_sort_for_symbol(declaration) {
                     // `core::Type<u>` and `core::Strict<u>` apply one universe
                     // level, which is not a constant argument: it has no
                     // carrier and no value to admit. Typing owns the arity;
@@ -1041,23 +1061,6 @@ pub(crate) mod const_arguments {
                 }
                 _ => Ok(None),
             }
-        }
-
-        /// The fixed sort `declaration` is, when it is one of the two that
-        /// apply a universe level. Only the compiler-installed slot counts.
-        fn universe_sort(
-            program: &TypedTrees,
-            declaration: symbols::SymbolHandle,
-        ) -> Option<symbols::FixedCoreDeclaration> {
-            program
-                .symbols
-                .fixed_core_declaration_for_symbol(declaration)
-                .filter(|sort| {
-                    matches!(
-                        sort,
-                        symbols::FixedCoreDeclaration::Type | symbols::FixedCoreDeclaration::Strict
-                    )
-                })
         }
 
         fn parameter_declarations(

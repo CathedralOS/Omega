@@ -73,54 +73,82 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### The macOS entry adapter exhausts proof search before running a Unit program
-- Category: verifying costs more than writing
-- Where: [macOS arm64 entry Calling policy](source/library/std/targets/macos_arm64/entry.omg#L38), `physical_indices`
-- Saw: On macOS arm64, the compiler built from clean `a70ae5ad39e56fd0b94f412321050e7b5c891361` exits 200 on `omega run --both` for a plain Unit `main` with the trapping fixture's unchanged hosted Build. The bundled Calling policy reports exhausted bounded disjunction search for operation safety in `physical_indices`, before either engine runs.
-- Cost: Hosted native acceptance can stop in the standard library independently of the program being checked. Trace the conjunction of array-index bounds and preserve each index guard and its invalid control when repairing the proof path. Other targets were unmeasured.
-- Reported: 2026-11-14, Codex, while validating native execution of suffixed arithmetic
+### A caught specialization receipt edit can leave stale index positions
+- Category: a verdict with nothing behind it
+- Where: [MachineSpecializations mutations](omega-rust/psi/compilation/representations/typed-trees/src/machine_specializations.rs#L128)
+- Saw: On `02588834b33` with the receipt index from #3298, catch a panic after `edit` or `retain` removes the first of two receipts. The row count falls to one, then `for_instance` panics at line 85 while looking up the surviving receipt through the older index position 1.
+- Cost: A caller that catches the callback panic can no longer use a table whose mutation API promises to keep row queries exact. Restore the existing index invariant on completion and unwind and check both mutation routes.
+- Reported: 2026-11-14, Codex, while restoring the Terminal codec tests and checking the landed receipt index
 
-### Stage 05 refusal tests expect diagnostics without their declaration context
+### Provider-selection fixtures find no authored selection to test
 - Category: tests that pin the bug
-- Where: [requirement body test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/calls_visibility_tests.rs#L274), [demanded signature test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L672)
-- Saw: On macOS arm64 at clean base `a70ae5ad39e56fd0b94f412321050e7b5c891361`, the Stage 05 unit suite fails these two exact-message assertions. The actual refusal adds the body of `Raw::read` or the signature of `holder` to the original reason.
-- Cost: The unit suite stays red while dropping coverage for declaration context. Pin the reason and the correct contextual owner for both refusals.
-- Reported: 2026-11-14, Codex, while validating suffixed operation selection
+- Where: [Build-time provider fixture](omega-rust/psi/compilation/build-time-evaluation/src/product/provider_selection_tests.rs#L150)
+- Saw: On macOS arm64 at base `69ec9aa5bd8`, seven tests fail before collector assertions because the fixture's typed `Build::select_provider` produces zero provider-selection occurrences. The mismatch persists with and without the universe-level admission repair.
+- Cost: The fixture cannot check occurrence rejoining, private-provider visibility, operand validation, or ordering. Restore the authored Build protocol inputs and verify that the controls reach those judgments.
+- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### The target-body reachability policy has no compiler caller
-- Category: zombie machinery
-- Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
-- Saw: `DirectTargetBodyAbsences` and `reject_reached_inert_calls` appear only at their definitions and reexports in the workspace. The inventory's direct-call accessors have only crate tests as customers. Current [target supply](omega-rust/omega/compilation/realization/provider-planning/src/target_supply.rs#L639) refuses a demanded target-machine family by name.
-- Cost: The exported graph and inventory tests can look like evidence that current target preparation resolves these requests. Trace the remaining direct-call projections before retiring the unused path while preserving the active refusal.
-- Reported: 2026-11-14, Codex, while tracing the surviving path from provider choice to publication
+### The Build-time sequence fixtures stop at reference result correspondence
+- Category: tests that pin the bug
+- Where: [sequence fixture](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L81), [direct result slot lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L279)
+- Saw: On macOS arm64 at base `69ec9aa5bd8`, both sequence controls fail preparing the ordinary `make` entry with `returned reference callee has no complete actual source correspondence`. The same refusal remains with the universe-level admission repair.
+- Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
+- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### A view returned by a call keeps no loan of the input it borrows from
+### An unavailable declaration loses its retained source span
 - Category: a verdict with nothing behind it
-- Where: `reference_call_lifetimes` in [terminal-psi semantics references.rs](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs), consumed by `formed` in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs)
-- Saw: an argument's loan outlives its call only when the result holds a `Reference` (`structural_type_contains_reference_by`); a byte view or element view result retains nothing. Accepted on `6bba6174a2d`: `machine inner(output: &[u8; 4]) -> &[u8] { &output[..] }` with `let view: &[u8] = inner(&name); name[0] = 9; see(view);`, the same with the owner moved (`eat(token); see(view);`), and the same through a boundary requirement (`let path: &[u8] = Fs::required_path(&token); eat(token); see(path);`). The twin with a reference result, `inner(output: &Cell) -> &Cell`, is rejected (`storage is changed while a conflicting reference remains live`). A view passed in as a view is tracked: its own loan follows the result through the flow
-- Cost: lifetimes.md, "Returned views", requires the source to "remain live for the result's use", and the checker accepts programs that write or move it. A machine's result has its origins in the callee's summary (`result_slots`). A boundary's result first needs its declared result lifetimes on the boundary declaration (`Program::declared_result_lifetimes`, `05_typed-trees-to-terminal-psi/src/read/regions/result_lifetimes.rs`, published for selected methods only). `result_reference_regions` is not that row: a region states that the result lies inside an input's storage, which [foreign storage](wiki/spec/build/foreign_storage.md#provider-owned-views-and-completion) denies for a provider-owned view, and the interpreter takes every boundary that declares one through its captured-reference protocol (`terminal-interpreter/src/boundary_storage_inputs.rs`, `capture_reference_inputs`). Until then a machine that hands on a boundary's view has that result slot recorded as of unknown origin (`Summary::unknown_results`, `terminal-psi/semantics/src/descriptor_replay.rs`), which keeps every view passed to the call live for the result's use and keeps no loan of storage lent in place
-- Reported: 2026-11-14, Claude Code (worker-11), while tracing a Build refused for a missing descriptor flow
+- Where: [Stage 05 deferred refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L838), [terminal publication](omega-rust/psi/compilation/terminal-production/src/accepted.rs#L560)
+- Saw: With the universe-level admission repair at base `69ec9aa5bd8`, macOS arm64 `omega --check main.omg` exits 1 for `data Held<const Count: u64 in Wrapping> { count: u64; } machine main() { let held: Held<4>; }` using the [hosted trapping fixture Build](tests/fixtures/run/arithmetic/trapping_primitives/build.omg). It correctly refuses the unavailable type expression and names the signature of `main`, but emits no file or line. Stage 05 uses the retained span only when the request is a language violation.
+- Cost: An author cannot locate an unavailable declaration using the CLI's source attribution. Carry the stored span through the shared refusal and publication path while preserving the unavailable outcome.
+- Reported: 2026-11-14, Codex, while restoring checked universe levels at hosted entry
 
-### The checker ends a stored reference at its last use; the interpreter keeps it until its record dies
+### Provider-supply controls lose the reasons their runtime module is rejected
+- Category: tests that pin the bug
+- Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)
+- Saw: At `7f12cb9f722` five provider-supply tests fail with `part 0 rejected`, including the provider that should refine its requirement and the controls for reach and invocation ceilings. The harness formats only unproved and exceeded rows and omits the other evidence of rejection.
+- Cost: A runtime rejection can hide the failure that prevented the suite from reaching its intended refinement, effect ceiling, or publication check. Recover the actual rejection evidence while keeping the matching positive and negative supply programs.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+
+### The selected reference result control stops before checking its public contract
+- Category: tests that pin the bug
+- Where: [Stage 06 selected result control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L694)
+- Saw: At `7f12cb9f722` the call of `Chosen::hand` in `relay` refuses with `call selected result has no complete original declared types`. The test expects the refusal for the absent public requirement contract on a selected reference result.
+- Cost: The test cannot demonstrate that the selected call refuses to use only the private implementation's result origin. Trace the selected declaration and preserve the missing-contract control.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+
+### The machine lifetime control loses the reason a data lifetime is unavailable
+- Category: tests that pin the bug
+- Where: [Stage 06 data-name machine lifetime control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs#L253)
+- Saw: At `7f12cb9f722` a machine under `Session` that names its data declaration's lifetime returns `rejected` from the test harness. The test expects the explicit refusal that the byte view has no complete owned region identity.
+- Cost: The control cannot show that the machine rejected the data declaration's lifetime because the machine has no binder for it. Inspect the rejection evidence before updating the expected outcome.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+
+### An indexed read from a lent record cannot retain its scalar qualification
+- Category: knowledge crossing a boundary
+- Where: [Stage 06 runtime indexed element controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs)
+- Saw: At production base `af9510104ca` with the test-constructor compatibility repair, the read/write acceptance test expects `accepted` and receives `MalformedStructuralFoundation("ordinary scalar operation cannot establish a declared domain")` from scalar-qualification validation.
+- Cost: The ordinary indexed-element route cannot show that a value taken from lent storage keeps its declared scalar qualification. Trace the selected array element type through the emitted operation and its validator before changing the fixture.
+- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation on macOS arm64
+
+### A view returned by a boundary keeps no loan of the input it borrows from
 - Category: a verdict with nothing behind it
-- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); interpreter transfer check `owned value cannot transfer while its storage is borrowed` in `omega-rust/psi/interpreter`
-- Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter: the record is not used again, but its reference is still registered at run time. The same program with `Mode [copy]` runs (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
-- Cost: an accepted program fails when run; either lowering must release a reference carrier where the checker closes its loan, or the checker must keep the loan to the carrier's end
-- Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference
+- Where: the boundary and dynamic arms of `reference_call_lifetimes` in [terminal-psi semantics references.rs](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs), consumed by `formed` in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs)
+- Saw: a view returned by a machine now keeps the loan of the borrowed input its body's return slots point into (`build-time-evaluation/src/source_jobs/borrowed_views.rs`, `a_view_returned_by_a_call_keeps_the_loan_of_its_input`). A view returned by a boundary or a dynamic call still retains nothing: `let path: &[u8] = Fs::required_path(&token); eat(token); see(path);` was accepted on `6bba6174a2d`
+- Cost: lifetimes.md, "Returned views", requires the source to "remain live for the result's use". A boundary's result first needs its declared result lifetimes on the boundary declaration (`Program::declared_result_lifetimes`, `05_typed-trees-to-terminal-psi/src/read/regions/result_lifetimes.rs`, published for selected methods only). `result_reference_regions` is not that row: a region states that the result lies inside an input's storage, which [foreign storage](wiki/spec/build/foreign_storage.md#provider-owned-views-and-completion) denies for a provider-owned view, and the interpreter takes every boundary that declares one through its captured-reference protocol (`terminal-interpreter/src/boundary_storage_inputs.rs`, `capture_reference_inputs`). Until then a machine that hands on a boundary's view has that result slot recorded as of unknown origin (`Summary::unknown_results`, `terminal-psi/semantics/src/descriptor_replay.rs`), which keeps every view passed to the call live for the result's use and keeps no loan of storage lent in place
+- Reported: 2026-11-14, Claude Code (worker-11), while tracing a Build refused for a missing descriptor flow; narrowed 2026-11-15 when machine results were repaired
 
-### Derived-index freshness keys omit storage and roster identity
+### The checker ends a reference loan at its last use; the lowering never releases the carrier
 - Category: a verdict with nothing behind it
-- Where: [call-target index key](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1880), [roster marker](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1377), [structural fingerprint](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1561), [index reuse](omega-rust/psi/foundation/arena/src/owned_index.rs#L60)
-- Saw: call-target freshness sums independent arena revisions and roster markers; `roster_marker` includes ordinal/count but omits generation. The broader fingerprint adds revisions and several collection lengths. `OwnedIndex` reuses an answer when the supplied key compares equal. These keys do not distinguish replacement storage with matching revision/counts or every same-length edit. Public typed tables/roots permit replacement; ordinary monotonic mutation of one unchanged arena is not itself evidence of a collision. Callable memoization also depends on the broad fingerprint, invalidating it for unrelated changes.
-- Cost: The freshness contract can reuse a derived answer without identifying all of its inputs, while also rebuilding for irrelevant mutations. Give each index exact dependency stamps: relevant storage identities, complete roster handles and mutation epochs, or encapsulated mutation with explicit invalidation. Do not merely hash the existing incomplete inputs. Acceptance warms an index, replaces relevant storage at matching counts/revisions, changes generations and makes same-length edits, then compares against a cold rebuild; unrelated body edits must not rebuild signature-only indexes. Establish the affected production mutation routes before claiming a compiler misjudgment; none was demonstrated by this source audit.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
+- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); the 05 lowering emits no `ReleaseReference` and places carrier cleanup only at returns (`05_typed-trees-to-terminal-psi/src/lower/places.rs`); interpreter transfer check `owned value cannot transfer while its storage is borrowed` (`terminal-interpreter/src/storage_records_and_arrays.rs`, `stage_owned_value`)
+- Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter. It is not specific to a reference stored in a record: on `372860cf534` the plain local `let lent: &mut Engine = &mut engine; start(lent); transition engine.mode { ... }` traps the same way. The same programs with `Mode [copy]` run (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
+- Cost: an accepted program fails when run. ownership.md, "Borrows and aliases", closes a local's loan "after the last use of that local", so the checker is right and the lowering must release each reference carrier (a local, or the reference field of a record) where its loan closes, on every edge leaving its live range, with 06 checking that release against the same descriptor lifetime
+- Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference; widened 2026-11-15 to plain locals
 
-### Proof preparation copies complete derivations before knowing which facts are needed
-- Category: re-deriving
-- Where: [conjunction expansion](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L57), [fact preparation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L136), [owned proof trees](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L393)
-- Saw: `Known::new` constructs proofs for every assumption/axiom. For each conjunct, `flatten` embeds `Box::new(proof.clone())`; `ProofNode` owns its conclusion and recursive children, so this copies their payload. The equation list clones selected facts/proofs again. A wide conjunction can therefore retain its whole parent proposition in every leaf proof.
-- Cost: Available but unused facts create potentially quadratic certificate payload. Retain compact proof origins during search (assumption/axiom plus conjunct path, or shared derivation nodes), materializing only selected certificates for kernel checking/publication. A portable proof-format change is not required. Acceptance measures allocations/retained bytes for wide and nested conjunctions with few used facts, checks selected certificates independently under the same assumptions, and preserves specified logical proof accounting; physical sharing must not silently change proof-budget semantics.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; payload growth is inferred from owned clones, not benchmarked
+### The callable-identity memo keys on a lossy whole-program fingerprint
+- Category: a verdict with nothing behind it
+- Where: [structural fingerprint](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs), `tables_fingerprint`/`roots_fingerprint`/`roster_marker` there, [callable memo](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs), composite `revision()` sums such as `ExpressionTable::revision`, `StatementTable::revision`, `TypeReferenceTable::revision`, `OrderedRootArena::revision` and `PagedArena::revision`
+- Saw: `Arena::revision()` is now a process-unique stamp of one storage at one mutation epoch, and the call-target and data-member indexes key on exact tuples of stamps and complete rosters. `structural_fingerprint` still sums those stamps, adds rosters through `roster_marker` (start index and count, no generation) and adds bare `Vec` lengths (`machine_specializations`, `wire_schema_plans`, `access_view_plans`, ...), so a same-length `Vec` edit or a roster generation change keeps the key, and two different stamp sets can sum equal. Composite tables sum their component stamps the same way. The memo also reads every table, so a body edit discards signature-only callable identities.
+- Cost: The callable-identity memo can reuse identities after an unstamped edit and recomputes them after irrelevant ones. Key it on the exact inputs callable identity derivation reads (stamps and complete rosters as a tuple, with `Vec`-backed inputs moved to stamped storage or encapsulated mutation), and give composite tables a tuple key rather than a sum. Acceptance warms the memo, makes a same-length edit to each `Vec`-backed input it reads and a roster generation change, and compares with a cold derivation; a statement-body edit must keep the memo.
+- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; narrowed 2026-11-15 by Claude Code after the arena stamp and exact call-target/data-member keys landed
 
 ### An explicit exclusive borrow becomes shared before the checker sees its formation
 - Category: a verdict with nothing behind it
@@ -136,26 +164,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Repeated uses revisit unrelated locals or records. Provide owner-aware, uniqueness-preserving borrowed lookup through the existing relationship owner; during mutable construction, maintain the relevant body's binding index instead of repeatedly rebuilding a global one. Return a row or compact coordinate without allocating candidate vectors on successful queries. Acceptance holds queried identities fixed while growing unrelated records, and grows locals/uses independently while counting visits. Preserve duplicate-binder, foreign-state, stale-generation and case/constructor-owner refusals, with cold and retained-snapshot controls.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
 
-### Typing and Psi 05 classify unresolved names by global leaf spelling
+### Typing classifies unbound value and call names by global leaf spelling
 - Category: knowledge crossing a boundary
-- Where: [typing's unbound-value classification](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L808), [domain reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/types.rs#L715), [invocation reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/services.rs#L149), [global spelling query](omega-rust/psi/compilation/representations/typed-trees/src/deferred_refusals.rs#L260)
-- Saw: typing classifies batches of unbound value/call names with `names_nothing_has`; Psi 05 calls it again for individual unresolved domain/invocation rows. The helper walks every symbol and compares only its final name segment, regardless of namespace, visibility or declaration kind. The domain reader first strips its qualified spelling. An unrelated local or library declaration can therefore change unknown-versus-unserved classification; this observation is not evidence that the final checker accepts an invalid program.
-- Cost: Later stages repair incomplete resolution information with a weaker global query, and each Psi 05 request revisits the entire symbol table. Have resolution/typing carry the exact resolved target or a structured unresolved reason with its source, scope and authority; let the reader consume that outcome. Preserve the distinction between malformed source and a valid construct deferred until demanded. Acceptance needs same-leaf names in different namespaces and declaration kinds, inaccessible imports, qualified unknown names, and unreachable malformed uses; unrelated declarations must not change the result or trigger another whole-program search. Trace value/call, domain and invocation producers through publication rather than merely indexing the spelling search.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; source inspection, not an execution or timing result
-
-### Specialization receipt queries scan every receipt per dispatched call
-- Category: re-deriving
-- Where: [receipt lookup](omega-rust/psi/compilation/representations/typed-trees/src/callable_signature_shapes.rs#L127)
-- Saw: `selected_implementation_receipt` filters all of `machine_specializations` for the one receipt of an instance, once per dispatched call read by stage 05, proof scope and build-time evaluation. Stage 04 application lookup and the repeated scan in `source_call_requirement_signature` are indexed or removed already.
-- Cost: D dispatched calls over S receipts cost D*S symbol comparisons. A carried instance-to-receipt index has to survive `machine_specializations` being a public `Vec` that declaration projection retains and tests mutate, so it needs one stage-owned construction point rather than a cache. Keep the missing/ambiguous/stale refusals.
-- Reported: 2026-11-14, Claude Code, while indexing stage 04 generated applications; structural bound, not a benchmark
-
-### Logical-module discovery discards a full parse that source admission repeats
-- Category: re-deriving
-- Where: [logical inventory parsing](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L185), [inventory output](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L211), [selected-source parsing](omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L949)
-- Saw: discovery runs the ordinary lexer/parser over the owner's eligible captured files, retains only each path and module name, and drops the syntax. Selected files are then parsed again after admission; source reselection also parses under fresh consumer coordinates. Those fresh coordinates protect source ownership and selection ledgers, but the syntax work is repeated over unchanged bytes.
-- Cost: Selected files pay for syntax construction twice. Retain immutable syntax and a module/import index within the invocation, separately from semantic owner, scope, stratum and bindings. Pin parse counts, distinct Build/Product identities, changed-input behavior and diagnostic locations. Release unused discovery syntax when ownership permits and measure retained memory against avoided parsing; do not add a persistent cache. See the [draft syntax retention design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+- Where: [typing's unbound-value classification](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L808), [global spelling query](omega-rust/psi/compilation/representations/typed-trees/src/deferred_refusals.rs#L274)
+- Saw: typing classifies its batch of unbound value names and bare call names with `names_nothing_has`, which walks every symbol and compares only its final name segment, regardless of namespace, visibility or declaration kind. A parameter or local of an unrelated machine, or an unimported library declaration, sharing the spelling turns an unknown name (`UndeclaredValueName`/`UndeclaredCallName`, a violation) into no row or an unserved request. `invokes` rows and domain names no longer use it: typing records the ordinary scoped lookup's outcome on them (`AuthoredInvocationTarget::Undeclared`, `DomainConstraint::names_no_visible_domain`) and Psi 05 reads that. This observation is not evidence that the final checker accepts an invalid program.
+- Cost: A scoped replacement needs resolution to say, per value/call occurrence, that no local, parameter, import or qualified path visible there has the name, rather than typing re-deriving it; narrowing the global query to visible top-level kinds alone would misclassify names typing leaves unbound but readers still resolve (fields, cases, callable locals). Acceptance needs same-leaf names in other machines and declaration kinds, inaccessible imports, qualified unknown names and unreachable malformed uses.
+- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; narrowed 2026-11-15 by Claude Code after the `invokes` and domain readers moved to typing's scoped outcome
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
@@ -178,32 +192,11 @@ framework or a list of features that remain unimplemented.
 - Cost: the first slice that forms a view of local storage, or lets a variable decide as that region, exchanges views across unrelated records. lifetimes.md says borrow-carrying data "declares the lifetimes of its views"; either refuse the form (and state lifetimes in the bundled data above) or give each field its own region
 - Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes; narrowed 2026-11-15
 
-### Interface ownership still changes some imported-service checks
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/service_reach.rs:39`; `src/execution/host_imports/filesystem.rs:513`; `omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs:451`
-- Saw: native delegation removes the import's owning service from its declared reach before checking delegation (its unit permits `[owning_service]` with `Unprovided`); filesystem admission skips that same identity; assumed-binding operational compatibility ignores an extra supplied ceiling member when it equals the supplied owner. `wiki/spec/language/effects.md` distinguishes catalogue ownership from the requirement's explicit reach. These permission/compatibility checks must not be reused as proof that a declared ceiling is empty.
-- Cost: the source boundary producer can retain a real catalogue owner even for `reaches none`, so downstream code must keep ownership, declared reach and actual delegated host permissions separate. This entry records the wider retained consumers; the current boundary work requires an explicit source ceiling and fixes the actual exclusion walk's implicit owner contribution, without treating these checks as source proof or expanding into an assumed-binding/delegation campaign.
-- Reported: 2026-11-13, Codex, while carrying selected entry and ordinary Build boundary calls through the surviving lowered route
-
-### Constructing the source compiler repeats an hour of checking before its tests
-- Category: verifying costs more than writing
-- Where: [tests/product/gate.sh:42](tests/product/gate.sh#L42), [tests/product/gate.sh:70](tests/product/gate.sh#L70)
-- Saw: frozen Rust producer b520 checked the 269-unit, 3.8 MB compiler in 4,089 seconds during update; native construction then took 3,796 seconds, including 3,227 seconds in Psi 05, with a peak near 19 GiB; all 191 product cases took 80 seconds afterward
-- Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
-- Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
-
 ### Unchecked arena lookups still conflate stale handles with the zero sentinel
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/foundation/arena/src/arena.rs` (`get`, `get_mut`, `span_or_empty`); `paged.rs` (corresponding paged lookups)
 - Saw: unchecked lookups return the shared default or an empty slice for unresolved nonzero handles; mutable lookups can change that default. Handle zero deliberately names absence, including its shared default; generation checks alone cannot establish ownership between arenas using the same generation.
 - Cost: consumers without an owning-boundary validation can interpret a stale handle as a missing declaration or mutate the shared default. Those consumers need recoverable validation before using these infallible APIs, without changing legitimate zero-sentinel behavior.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
-- Saw: `malformed()` returns `VerifiedOperationMalformed` and is called 1,329 times across 15 files; an exact add, multiply or divide whose result does not fit ends in `.ok_or(malformed())?`; a program crash is built on only 7 lines (trapping integer, trapping float, crash terminator, host effect); no crate outside the interpreter names the variant
-- Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### A whole-program stage refuses every program for a library construct nobody calls
@@ -227,9 +220,9 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### The scalar contract fixture's inferred call proof is refused by the kernel
-- Category: a proof producer and checker disagree
-- Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
-- Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
-- Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
-- Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
+### Every product gate is refused at a macOS layout alias while building for Linux
+- Category: a verdict with nothing behind it
+- Where: `source/library/std/targets/macos_arm64/filesystem_abi.omg:20` (`atime: CLayout<DarwinTimespec>`); reached by `tests/product/gate.sh` through each `tests/psi/*` gate and the product roots
+- Saw: `OMEGA_TARGET=linux_x86_64 sh tests/psi/resolver/test-resolver.sh` at `372860cf534` stops after 54 s with "checked compilation failed for package `psi`: selected type alias has no retained source declaration" at that macOS-only field, before any gate case runs
+- Cost: no product compiler gate can build its artifact on main, so source compiler repairs have no executable cases; the field belongs to another target's ABI and may be the same uncalled-library refusal as "A whole-program stage refuses every program for a library construct nobody calls"
+- Reported: 2026-11-15, Claude Code, while removing the product gate's duplicate review pass

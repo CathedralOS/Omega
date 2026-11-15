@@ -911,10 +911,7 @@ pub(crate) mod block_bindings {
                     self.structural_cases.as_map(),
                     self.account.as_ref(),
                 )?;
-                let captured = admitted
-                    .get(&parameter.place)
-                    .cloned()
-                    .ok_or_else(malformed)?;
+                let captured = admitted.get(&parameter.place).cloned().ok_or(malformed())?;
                 aggregate_payload.stage(
                     self,
                     argument,
@@ -1996,7 +1993,7 @@ pub(crate) mod structural_return {
                 return Err(malformed());
             }
             let selected =
-                terminal_psi::find_structural_case(cases, contents.case).ok_or_else(malformed)?;
+                terminal_psi::find_structural_case(cases, contents.case).ok_or(malformed())?;
             if selected.fields.iter().any(|field| {
                 field.relevance.is_erased() || field.field_type.scalar_type().is_none()
             }) {
@@ -2012,7 +2009,7 @@ pub(crate) mod structural_return {
                     .map(crate::storage::scalar_storage::ScalarCell::read)
                     .transpose()?
                     .map(|scalar| (field.id, scalar))
-                    .ok_or_else(malformed)
+                    .ok_or(malformed())
             });
             let snapshot = TerminalScalarCaseResult::collect(
                 declaration,

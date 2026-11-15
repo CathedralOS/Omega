@@ -388,7 +388,7 @@ machine entry() -> u32 {{ Probe::read(1) }}
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert_eq!(
         refusal.detail,
-        "call boundary requirement must declare its crash ceiling"
+        "call boundary requirement must declare its crash ceiling while reading the body of `entry`"
     );
     assert!(call("\n    crashes none").is_ok());
 }
@@ -1136,8 +1136,10 @@ fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
 fn an_anonymous_parameter_application_rejects_a_foreign_template_handle() {
     let mut prepared = inline_parameter_prepared("7", "").into_inner();
     let template = prepared.machine_specializations[0].template;
-    prepared.machine_specializations[0].template =
-        symbols::SymbolHandle::from_parts(template.arena_index(), template.generation() + 1);
+    prepared.machine_specializations.edit(|rows| {
+        rows[0].template =
+            symbols::SymbolHandle::from_parts(template.arena_index(), template.generation() + 1)
+    });
     assert!(
         !prepared
             .symbols

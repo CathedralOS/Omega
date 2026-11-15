@@ -240,7 +240,7 @@ pub(crate) mod frames {
                 result,
                 _frame_storage: frame_storage,
             });
-            self.call_stack.last_mut().ok_or_else(malformed)
+            self.call_stack.last_mut().ok_or(malformed())
         }
 
         pub(crate) fn consume_affine_call_argument(
@@ -407,7 +407,7 @@ pub(crate) mod frames {
                         parameter,
                         self.structural_types().values(),
                     )
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                 } else {
                     if !is_direct_borrowed_rebinding(
                         parameter,
@@ -468,7 +468,7 @@ pub(crate) mod frames {
                 *expected_reference_backings = self
                     .bind_reference_return_backings(
                         &callee.structural_parameters,
-                        callee.result.structural().ok_or_else(malformed)?,
+                        callee.result.structural().ok_or(malformed())?,
                         &structural_values,
                         &prepared_arguments.aggregate_backings,
                         &prepared_arguments.primitive_loans,
@@ -544,7 +544,7 @@ pub(crate) mod frames {
                 let operation = caller
                     .block(&self.current)
                     .and_then(|block| block.operations.get(self.next_operation))
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .id;
                 let completions =
                     self.loan_completions_for_operation(operation)
@@ -1051,11 +1051,8 @@ pub(crate) mod component_arguments {
                 return Err(malformed());
             }
             for &index in &self.opaque_arguments {
-                let parameter = entry
-                    .structural_parameters
-                    .get(index)
-                    .ok_or_else(malformed)?;
-                let value = self.values.get(index).ok_or_else(malformed)?;
+                let parameter = entry.structural_parameters.get(index).ok_or(malformed())?;
+                let value = self.values.get(index).ok_or(malformed())?;
                 if !matches!(
                     parameter.access,
                     terminal_psi::reading_borrow_pair_pattern!()
@@ -1164,10 +1161,10 @@ pub(crate) mod component_arguments {
                 let linear = required.multiplicity == StructuralMultiplicity::Linear;
                 let receiver_type = receiver_types
                     .get(&required.structural_type)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let provider_type = provider_types
                     .get(&supplied.structural_type)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let owned = argument.access == StructuralAccess::Owned;
                 let lent = matches!(
                     argument.access,
@@ -1386,7 +1383,7 @@ pub(crate) mod component_arguments {
                 .map(|argument| {
                     argument.lend(
                         self,
-                        scalar_scope.as_ref().ok_or_else(malformed)?,
+                        scalar_scope.as_ref().ok_or(malformed())?,
                         &mut scalar_views,
                     )
                 })
@@ -1827,16 +1824,16 @@ pub(crate) mod component_contents {
                 TerminalStorageContents::Case(case) => {
                     let source = self.source_types.declaration(&source_type)?;
                     let source = terminal_psi::find_structural_case(
-                        source.shape.sum_cases().ok_or_else(malformed)?,
+                        source.shape.sum_cases().ok_or(malformed())?,
                         case,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     let destination = self.destination_types.declaration(&destination_type)?;
                     let destination = terminal_psi::structural_case_by_identity(
-                        destination.shape.sum_cases().ok_or_else(malformed)?,
+                        destination.shape.sum_cases().ok_or(malformed())?,
                         self.map_identity(source.identity)?,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     TerminalStorageContents::Case(destination.id)
                 }
             };
@@ -1865,16 +1862,16 @@ pub(crate) mod component_contents {
                             return Err(malformed());
                         }
                         let source = terminal_psi::find_structural_case(
-                            source.shape.sum_cases().ok_or_else(malformed)?,
+                            source.shape.sum_cases().ok_or(malformed())?,
                             *case,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                         let identity = self.map_identity(source.identity)?;
                         let destination = terminal_psi::structural_case_by_identity(
-                            destination.shape.sum_cases().ok_or_else(malformed)?,
+                            destination.shape.sum_cases().ok_or(malformed())?,
                             identity,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                         path.push(Path::Case(destination.id));
                         source_case_fields = Some(source.fields.as_slice());
                         destination_case_fields = Some(destination.fields.as_slice());
@@ -1883,20 +1880,20 @@ pub(crate) mod component_contents {
                         let source_fields = source_case_fields
                             .take()
                             .or_else(|| source.shape.direct_fields())
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let source = source_fields
                             .iter()
                             .find(|candidate| candidate.id == *field)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let destination_fields = destination_case_fields
                             .take()
                             .or_else(|| destination.shape.direct_fields())
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let destination = terminal_psi::live_field_by_identity(
                             destination_fields,
                             self.map_identity(source.identity)?,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                         if source.relevance.is_erased() {
                             return Err(malformed());
                         }
@@ -1970,10 +1967,10 @@ pub(crate) mod component_contents {
                 .source_identities
                 .text(identity)
                 .filter(|identity| !identity.is_empty())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             self.destination_identities
                 .index_of(identity)
-                .ok_or_else(malformed)
+                .ok_or(malformed())
         }
     }
 
@@ -2267,7 +2264,7 @@ pub(crate) mod component_empty_arguments {
             let parameter = entry
                 .structural_parameters
                 .get(self.index)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if parameter.access != StructuralAccess::SharedBorrow {
                 return Err(malformed());
             }
@@ -2471,7 +2468,7 @@ pub(crate) mod component_scalar_arguments {
                     }
                     previous.clone()
                 } else {
-                    let original = cell_mut(source, &prepared.source).ok_or_else(malformed)?;
+                    let original = cell_mut(source, &prepared.source).ok_or(malformed())?;
                     let borrowed = lifetime.lend(original, self.access)?;
                     views.insert(prepared.source.clone(), (self.access, borrowed.clone()));
                     borrowed
@@ -2495,7 +2492,7 @@ pub(crate) mod component_scalar_arguments {
             let parameter = entry
                 .structural_parameters
                 .get(self.index)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if parameter.access != self.access {
                 return Err(malformed());
             }
@@ -2647,7 +2644,7 @@ fn select_positions<T: Clone>(
 ) -> Result<Vec<T>, TerminalInterpretError> {
     positions
         .iter()
-        .map(|position| rows.get(*position).cloned().ok_or_else(malformed))
+        .map(|position| rows.get(*position).cloned().ok_or(malformed()))
         .collect()
 }
 
@@ -2879,12 +2876,12 @@ impl<'artifact> TerminalExecution<'artifact> {
             if let Some(status) = self.boundary_effect_wait(operation, handler, pending)? {
                 self.awaiting_effect
                     .as_mut()
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .awaiting_provider_readiness =
                     matches!(status, TerminalExecutionStatus::AwaitingEffect(_));
                 return Ok(OperationFlow::Yield(status));
             }
-            let pending = self.awaiting_effect.take().ok_or_else(malformed)?;
+            let pending = self.awaiting_effect.take().ok_or(malformed())?;
             return self.complete_boundary_effect(operation, handler, *pending);
         }
         dispatched_operation!(operation => BoundaryCall {
@@ -2918,7 +2915,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .access_lifecycle_plans()
                 .iter()
                 .find(|plan| plan.boundary == boundary)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             match placement_operation {
                 terminal_psi::TerminalAccessLifecycleOperation::View => {
                     self.establish_access_view(operation, plan)?;
@@ -3070,8 +3067,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                 let formal = callee
                     .structural_parameters
                     .get(position)
-                    .ok_or_else(malformed)?;
-                let argument = structural_arguments.get(position).ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
+                let argument = structural_arguments.get(position).ok_or(malformed())?;
                 if formal.structural_type
                     != boundary_declaration.structural_parameters[position].structural_type
                 {
@@ -3366,7 +3363,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 Some(boundary_arguments.prepare_reference_result(
                     self,
                     boundary_declaration,
-                    operation.result.structural().ok_or_else(malformed)?,
+                    operation.result.structural().ok_or(malformed())?,
                     selection,
                 )?)
             } else {
@@ -3378,7 +3375,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         boundary_arguments.commit_identity_cursor(self);
         if let Some(prepared) = prepared_reference {
             self.commit_boundary_reference_result(
-                operation.result.structural().ok_or_else(malformed)?,
+                operation.result.structural().ok_or(malformed())?,
                 prepared,
             )?;
         } else {
@@ -3667,7 +3664,7 @@ mod finite_family_tests {
             } else {
                 assert!(matches!(
                     result,
-                    Err(TerminalInterpretError::VerifiedOperationMalformed)
+                    Err(TerminalInterpretError::VerifiedOperationMalformed { .. })
                 ));
                 assert_eq!(execution.current_machine, MachineId::new(1).unwrap());
             }

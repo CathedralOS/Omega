@@ -439,10 +439,7 @@ pub mod product_operand {
             program: &TypedTrees,
             machine: SymbolHandle,
         ) -> Result<Option<Arc<ProductStaticEnvironment>>, String> {
-            let mut specializations = program
-                .machine_specializations
-                .iter()
-                .filter(|specialization| specialization.instance == machine);
+            let mut specializations = program.machine_specializations.for_instance(machine);
             let Some(specialization) = specializations.next() else {
                 return Ok(None);
             };

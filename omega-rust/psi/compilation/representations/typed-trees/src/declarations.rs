@@ -2232,7 +2232,7 @@ pub mod invocations {
         let mut targets = Vec::new();
         for declaration in declarations {
             let target = match declaration.target {
-                AuthoredInvocationTarget::Unresolved => None,
+                AuthoredInvocationTarget::Unresolved | AuthoredInvocationTarget::Undeclared => None,
                 AuthoredInvocationTarget::Parameter { ordinal, symbol } => parameters
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.symbol == symbol)
@@ -2868,8 +2868,7 @@ pub mod visibility {
         for _ in 0..=origin_count {
             let mut origins = program
                 .machine_specializations
-                .iter()
-                .filter(|specialization| specialization.instance == declaration)
+                .for_instance(declaration)
                 .map(|specialization| specialization.template)
                 .chain(
                     program

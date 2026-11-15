@@ -158,7 +158,8 @@ machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Tex
 "#;
     assert_eq!(
         verdict(laundered),
-        "expression removal of a byte predicate a quoted literal was just given"
+        "expression removal of a byte predicate a quoted literal was just given while reading the \
+         local binding of `build_entry::entry::p` while reading the body of `build_entry`"
     );
     let non_empty = r#"
 domain [u8]::Filled
@@ -169,6 +170,7 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 "#;
     assert_eq!(
         verdict(non_empty),
-        "type byte view in a domain the empty view is not in"
+        "type byte view in a domain the empty view is not in while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Named\\)\\)))`"
     );
 }

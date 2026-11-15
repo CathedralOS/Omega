@@ -896,7 +896,7 @@ pub(crate) mod instance {
                             .machine(execution.current_machine)?
                             .result
                             .structural()
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .place;
                         observe_leaf(execution, source, &returned.observation_value(), path)
                     }
@@ -1099,7 +1099,7 @@ pub(crate) mod instance {
             path: &[Path],
         ) -> Result<TerminalStorageObservationValue<'static>, TerminalStorageObservationError>
         {
-            let selected = value.result_case.ok_or_else(malformed)?;
+            let selected = value.result_case.ok_or(malformed())?;
             if path.is_empty() {
                 return Ok(TerminalStorageObservationValue::Storage(
                     crate::TerminalStorageContents::Case(selected),
@@ -1123,7 +1123,7 @@ pub(crate) mod instance {
             };
             let declaration = terminal_psi::find_structural_case(cases, selected)
                 .and_then(|case| case.fields.iter().find(|candidate| candidate.id == *field))
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let stored_scalar = declaration
                 .storage
                 .as_ref()
@@ -1154,7 +1154,7 @@ pub(crate) mod instance {
                 let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
                     return Err(TerminalStorageObservationError::UnknownPath);
                 };
-                let length = length.literal().ok_or_else(malformed)?;
+                let length = length.literal().ok_or(malformed())?;
                 if *index >= length {
                     return Err(TerminalStorageObservationError::UnknownPath);
                 }
@@ -1168,9 +1168,9 @@ pub(crate) mod instance {
                         usize::try_from(*index)
                             .map_err(|_| malformed())?
                             .checked_mul(remaining)
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 structural_type = element;
             }
             let declaration = execution.structural_declaration(structural_type)?;
@@ -1180,7 +1180,7 @@ pub(crate) mod instance {
             if remaining != 1 {
                 return Err(malformed().into());
             }
-            let scalar = *value.elements().get(offset).ok_or_else(malformed)?;
+            let scalar = *value.elements().get(offset).ok_or(malformed())?;
             if scalar.scalar_type() != scalar_type {
                 return Err(malformed().into());
             }
@@ -2201,7 +2201,7 @@ pub(crate) mod program {
                 &self,
                 identity: &Declaration::Identity,
             ) -> Result<&'storage Declaration, TerminalInterpretError> {
-                self.get(identity).ok_or_else(malformed)
+                self.get(identity).ok_or(malformed())
             }
 
             pub(crate) fn values(
@@ -2417,7 +2417,7 @@ pub(crate) mod program {
             &self,
             machine_id: MachineId,
         ) -> Result<&terminal_psi::TerminalMachine, TerminalInterpretError> {
-            self.machines().get(&machine_id).ok_or_else(malformed)
+            self.machines().get(&machine_id).ok_or(malformed())
         }
 
         pub(crate) fn verified_machine(

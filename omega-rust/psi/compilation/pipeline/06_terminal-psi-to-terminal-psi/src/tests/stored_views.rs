@@ -115,7 +115,7 @@ machine build_entry(session: &mut Session, other: &Session) {
 }
 "#
         ),
-        "typing assigned value type"
+        "typing assigned value type while reading the body of `build_entry`"
     );
 }
 
@@ -132,7 +132,7 @@ machine build_entry(session: &Session, other: &Session) {
 }
 "#
         ),
-        "statement store into an immutable binding"
+        "statement store into an immutable binding while reading the body of `build_entry`"
     );
 }
 

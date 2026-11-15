@@ -285,6 +285,12 @@ impl TypedTrees {
     /// last segment of its name. A name nothing has is an error wherever it
     /// is written; a name something has may name that thing validly where a
     /// reader does not follow it yet.
+    ///
+    /// Only typing's batch over unbound value and call names asks this, once
+    /// per typing pass. `invokes` rows and domain names carry typing's
+    /// scoped-lookup outcome instead (`AuthoredInvocationTarget::Undeclared`,
+    /// `DomainConstraint::names_no_visible_domain`), so no later stage
+    /// classifies a name by spelling.
     pub fn names_nothing_has<'a>(&self, mut names: Vec<&'a str>) -> Vec<&'a str> {
         names.retain(|name| !name.is_empty());
         names.sort_unstable();
