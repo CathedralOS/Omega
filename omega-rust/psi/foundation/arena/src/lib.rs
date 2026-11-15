@@ -39,8 +39,8 @@ mod owned_index;
 mod paged;
 
 pub use arena::{
-    Arena, ArenaIter, ArenaSlotStorage, ArenaSpanInserter, ArenaStorageView, Handle, HandleSpan,
-    HierarchyArena, HierarchyNode, OrderedRootArena, OrderedRootArenaIter, SpanHandles,
+    Arena, ArenaIter, ArenaRevision, ArenaSlotStorage, ArenaSpanInserter, ArenaStorageView, Handle,
+    HandleSpan, HierarchyArena, HierarchyNode, OrderedRootArena, OrderedRootArenaIter, SpanHandles,
     unique_handles_in_order,
 };
 pub use owned_index::*;

@@ -1485,6 +1485,17 @@ pub mod declaration_index {
 
     type DomainPositionIndex = SymbolRows<usize>;
 
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct CallTargetInputs {
+        machines: arena::ArenaRevision,
+        states: arena::ArenaRevision,
+        parameters: arena::ArenaRevision,
+        traits: arena::ArenaRevision,
+        signatures: arena::ArenaRevision,
+        machine_roster: HandleSpan<machine::Machine>,
+        trait_roster: HandleSpan<crate::trait_definition::TraitDefinition>,
+    }
+
     #[derive(Clone, Default)]
     pub struct CallTargetIndex {
         pub boundary_machine_by_state: symbols::SymbolKeyMap<SymbolHandle, u32>,
@@ -1533,7 +1544,7 @@ pub mod declaration_index {
         state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
         data_members: OwnedIndex<DataMemberIndex>,
         domains: OwnedIndex<DomainPositionIndex, DomainDeclarationScope>,
-        call_targets: OwnedIndex<CallTargetIndex>,
+        call_targets: OwnedIndex<CallTargetIndex, CallTargetInputs>,
         requirement_applications: OwnedIndex<RequirementApplicationIndex>,
         domain_candidates: OwnedIndex<DomainCandidateIndex, DomainDeclarationScope>,
         operator_spellings: OwnedIndex<OperatorSpellingIndex, OperatorSpellingScope>,
@@ -1551,6 +1562,97 @@ pub mod declaration_index {
     impl std::fmt::Debug for DeclarationIndexes {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             formatter.write_str("DeclarationIndexes")
+        }
+    }
+
+    #[cfg(test)]
+    mod call_target_input_tests {
+        use crate::TypedTrees;
+        use crate::trait_definition::TraitDefinition;
+        use arena::{Handle, HandleSpan};
+        use symbols::SymbolHandle;
+
+        fn program(symbol: SymbolHandle) -> TypedTrees {
+            let mut program = TypedTrees::default();
+            program.roots.traits = program.tables.traits.insert_many([TraitDefinition {
+                symbol,
+                ..Default::default()
+            }]);
+            program
+        }
+
+        fn trait_position(program: &TypedTrees, symbol: SymbolHandle) -> Option<u32> {
+            program.with_call_target_index(|index| index.trait_by_symbol.get(&symbol).copied())
+        }
+
+        #[test]
+        fn replacement_storage_with_matching_revisions_matches_a_cold_lookup() {
+            let first = SymbolHandle::from_parts(1, 1);
+            let second = SymbolHandle::from_parts(2, 1);
+            let mut program = program(first);
+            assert_eq!(trait_position(&program, first), Some(0));
+            let replacement = self::program(second);
+            assert_eq!(
+                program.tables.traits.revision(),
+                replacement.tables.traits.revision()
+            );
+            assert_eq!(program.roots.traits, replacement.roots.traits);
+            program.tables.traits = replacement.tables.traits;
+            let warmed = trait_position(&program, first);
+            program.declaration_indexes = Default::default();
+            let cold = trait_position(&program, first);
+            assert_eq!(cold, None);
+            assert_eq!(
+                warmed, cold,
+                "replacement storage must not reuse the prior owner's rows"
+            );
+            assert_eq!(trait_position(&program, second), Some(0));
+        }
+
+        #[test]
+        fn changed_roster_generation_matches_a_cold_lookup() {
+            let symbol = SymbolHandle::from_parts(1, 1);
+            let mut program = program(symbol);
+            assert_eq!(trait_position(&program, symbol), Some(0));
+            let roster = program.roots.traits;
+            program.roots.traits = HandleSpan::from_parts(
+                Handle::from_parts(
+                    roster.start().arena_index(),
+                    roster.start().generation() + 1,
+                ),
+                roster.count(),
+            );
+            let warmed = trait_position(&program, symbol);
+            program.declaration_indexes = Default::default();
+            let cold = trait_position(&program, symbol);
+            assert_eq!(cold, None);
+            assert_eq!(
+                warmed, cold,
+                "a stale roster must not retain its previous rows"
+            );
+        }
+
+        #[test]
+        fn same_length_edits_invalidate_but_unrelated_body_storage_does_not() {
+            let first = SymbolHandle::from_parts(1, 1);
+            let second = SymbolHandle::from_parts(2, 1);
+            let mut program = program(first);
+            assert_eq!(trait_position(&program, first), Some(0));
+            let inputs = program.call_target_inputs();
+            program
+                .statement_table
+                .insert(crate::statement::StatementNode::Expression(
+                    crate::expression::ExpressionHandle::invalid(),
+                ));
+            assert_eq!(inputs, program.call_target_inputs());
+            program
+                .tables
+                .traits
+                .get_mut(program.roots.traits.start())
+                .symbol = second;
+            assert_ne!(inputs, program.call_target_inputs());
+            assert_eq!(trait_position(&program, first), None);
+            assert_eq!(trait_position(&program, second), Some(0));
         }
     }
 
@@ -1923,19 +2025,23 @@ pub mod declaration_index {
                     .is_some_and(|data| data.cleanup_selection.is_some())
         }
 
+        fn call_target_inputs(&self) -> CallTargetInputs {
+            CallTargetInputs {
+                machines: self.tables.machines.revision_stamp(),
+                states: self.tables.machine_states.revision_stamp(),
+                parameters: self.tables.data_type_parameters.revision_stamp(),
+                traits: self.tables.traits.revision_stamp(),
+                signatures: self.tables.trait_machine_signatures.revision_stamp(),
+                machine_roster: self.roots.machines,
+                trait_roster: self.roots.traits,
+            }
+        }
+
         pub fn with_call_target_index<R>(&self, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
-            let revision = self
-                .tables
-                .machines
-                .revision()
-                .wrapping_add(self.tables.machine_states.revision())
-                .wrapping_add(self.tables.data_type_parameters.revision())
-                .wrapping_add(self.tables.traits.revision())
-                .wrapping_add(self.tables.trait_machine_signatures.revision())
-                .wrapping_add(roster_marker(self.roots.machines))
-                .wrapping_add(roster_marker(self.roots.traits));
+            // Counts are local to their storage, and rosters include generations.
+            // Keep the independent inputs rather than adding them into one key.
             self.declaration_indexes.call_targets.with(
-                revision,
+                self.call_target_inputs(),
                 || self.build_call_target_index(),
                 run,
             )

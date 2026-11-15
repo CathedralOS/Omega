@@ -15,6 +15,23 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut, Range};
+use std::sync::Arc;
+
+/// A process-local revision of one owned arena. Equal payloads in independent
+/// storage do not share it. This is not a proof that any handle is valid.
+#[derive(Clone, Debug)]
+pub struct ArenaRevision {
+    owner: Arc<()>,
+    revision: u64,
+}
+
+impl PartialEq for ArenaRevision {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.owner, &other.owner) && self.revision == other.revision
+    }
+}
+
+impl Eq for ArenaRevision {}
 
 pub struct Handle<T> {
     arena_index: u32,
@@ -412,6 +429,7 @@ impl Clone for SlotMetadata {
 }
 
 pub struct Arena<T> {
+    storage_owner: Arc<()>,
     dummy: T,
     items: Vec<T>,
     slot_metadata: Option<Box<SlotMetadata>>,
@@ -488,6 +506,7 @@ impl<T> Arena<T> {
             items.len()
         };
         Ok(Self {
+            storage_owner: Arc::new(()),
             dummy,
             items,
             implicit_slot_metadata: slots.is_none(),
@@ -624,6 +643,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Arena<T> {
 impl<T: Clone> Clone for Arena<T> {
     fn clone(&self) -> Self {
         Self {
+            storage_owner: Arc::new(()),
             dummy: self.dummy.clone(),
             items: self.items.clone(),
             slot_metadata: if self.implicit_slot_metadata {
@@ -706,6 +726,15 @@ impl<T> Arena<T> {
     #[inline]
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+
+    /// Retains the owner as well as its local mutation count, so replacement
+    /// storage with an equal count cannot reuse an earlier derived answer.
+    pub fn revision_stamp(&self) -> ArenaRevision {
+        ArenaRevision {
+            owner: Arc::clone(&self.storage_owner),
+            revision: self.revision,
+        }
     }
 
     #[inline]
@@ -792,6 +821,7 @@ impl<T: Default> Arena<T> {
     pub fn with_capacity_and_generation(capacity: usize, generation: u32) -> Self {
         assert!(generation != 0, "arena fresh generation must be nonzero");
         Self {
+            storage_owner: Arc::new(()),
             dummy: T::default(),
             items: Vec::with_capacity(capacity),
             slot_metadata: None,
@@ -1263,6 +1293,7 @@ impl<T: Default> Arena<T> {
         items.extend(self.items.into_iter().map(&mut map_item));
 
         Arena {
+            storage_owner: Arc::new(()),
             dummy: U::default(),
             items,
             slot_metadata: self.slot_metadata,
@@ -1858,6 +1889,43 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn revision_stamps_distinguish_independent_storage_and_equal_mutation_counts() {
+        let mut source = super::Arena::<u32>::new();
+        let handle = source.insert(7);
+        let initial = source.revision_stamp();
+        assert_eq!(initial, source.revision_stamp());
+        let mut cloned = source.clone();
+        assert_eq!(source, cloned);
+        assert_eq!(source.revision(), cloned.revision());
+        assert_ne!(initial, cloned.revision_stamp());
+        *source.get_mut(handle) = 8;
+        *cloned.get_mut(handle) = 9;
+        assert_eq!(source.revision(), cloned.revision());
+        assert_ne!(source.revision_stamp(), cloned.revision_stamp());
+        assert_ne!(initial, source.revision_stamp());
+        let previous = source.revision_stamp();
+        source.clone_from(&cloned);
+        assert_ne!(previous, source.revision_stamp());
+        let previous = source.revision_stamp();
+        let mapped = source.map(std::convert::identity);
+        assert_ne!(previous, mapped.revision_stamp());
+    }
+
+    #[test]
+    fn revision_stamps_are_not_stored_or_value_identity() {
+        let mut original = super::Arena::<u32>::new();
+        original.insert(7);
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&original, limits).unwrap();
+        let stamp = original.revision_stamp();
+        assert_eq!(compiler_storage::encode(&original, limits).unwrap(), bytes);
+        let restored: super::Arena<u32> = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(original, restored);
+        assert_ne!(stamp, restored.revision_stamp());
+        assert_eq!(compiler_storage::encode(&restored, limits).unwrap(), bytes);
+    }
+
     #[test]
     fn removed_ordered_roots_retain_metadata_without_membership() {
         let mut roots = super::OrderedRootArena::new();
