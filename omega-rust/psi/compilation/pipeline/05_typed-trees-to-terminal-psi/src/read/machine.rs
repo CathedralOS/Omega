@@ -1473,7 +1473,13 @@ impl<'t> Program<'t> {
             signature.ensures = routed.ensures;
             names.requires = routed_names.requires;
             names.ensures = routed_names.ensures;
-            if !matches!(routed.reaches, crate::Ceiling::Inferred) {
+            // An abstract requirement bounds the selected installation's
+            // resolved row. Its body keeps its own written ceiling or
+            // inference; replacing that with the abstract bound would
+            // reject a child whose wider bound resolves to a smaller row.
+            if !requirement.service_reach_is_installation_bound
+                && !matches!(routed.reaches, crate::Ceiling::Inferred)
+            {
                 signature.reaches = routed.reaches;
             }
             signature.invokes = routed.invokes;

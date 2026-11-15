@@ -1680,6 +1680,7 @@ dependencies = [
  "boundary-applications",
  "diagnostics",
  "effects",
+ "flow-effects",
  "language-semantics",
  "semantic-vocabulary",
  "target",
@@ -2397,6 +2398,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
+ "flow-effects",
  "layout-plans",
  "numerics",
  "proof-admission",

@@ -564,7 +564,7 @@ fn retain_installation_reach(
         return Ok(());
     }
     let reach = terminal_installation::SynchronousCallGraph::new(module, None)
-        .and_then(|graph| graph.service_reach_from(entry, &requirements, false))
+        .and_then(|graph| graph.service_reach_from(entry, &requirements))
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     if !reach.installation_dependencies.is_empty() {
         module.root_service_reach = reach;

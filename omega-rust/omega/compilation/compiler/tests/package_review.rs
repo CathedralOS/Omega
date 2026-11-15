@@ -253,7 +253,11 @@ fn narrow_installation_bound_uses_the_selected_child_row() {
                     .expect("resolved parent row");
                 assert_eq!(row.resolved_row.len(), 1);
                 let module = checked.terminal_publication().accepted().unwrap().module();
-                assert_eq!(selected.resolve_root_service_reach(module).unwrap().len(), 2);
+                assert_eq!(
+                    selected.resolve_root_service_reach(module).unwrap().len(),
+                    2
+                );
+                check_reopened_installation_reach(module, selected.plans());
             }
             (Err(errors), Some(expected))
                 if errors.iter().any(|error| error.message.contains(expected)) => {}
@@ -264,6 +268,79 @@ fn narrow_installation_bound_uses_the_selected_child_row() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Reopening code must check the selected bodies, rather than trust the
+/// producer's saved resolved rows or substitute a requirement's wider bound.
+fn check_reopened_installation_reach(
+    module: &terminal_psi::TerminalModule,
+    plans: &[effects::provider_plan::ProviderPlan],
+) {
+    let encoded = terminal_codec::encode_module(module).unwrap();
+    let mut reopened = terminal_codec::decode_module(&encoded).unwrap();
+    let calls = backend_plan::selected_checked_invocation_rows(plans, &reopened)
+        .unwrap()
+        .into_iter()
+        .flat_map(|row| row.candidates)
+        .map(|candidate| {
+            (
+                candidate.conformance.boundary,
+                candidate.conformance.candidate,
+            )
+        })
+        .collect::<Vec<_>>();
+    let terminal_psi::TargetMachineCallable::Machine(entry) = reopened.entry.unwrap() else {
+        panic!("fixture has an executable root");
+    };
+    let check = |module: &terminal_psi::TerminalModule, calls: &[_]| {
+        terminal_installation::SynchronousCallGraph::new(module, None)
+            .unwrap()
+            .with_boundary_calls(calls.iter().copied())
+            .unwrap()
+            .validate_installed_service_reach(entry)
+    };
+    check(&reopened, &calls).expect("reopened narrower child fits its parent");
+    let parent = reopened
+        .boundary_machines
+        .iter()
+        .position(|boundary| {
+            reopened
+                .identities
+                .text(boundary.identity)
+                .unwrap()
+                .contains("A::visit")
+        })
+        .unwrap();
+    let child = reopened
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            reopened
+                .identities
+                .text(boundary.identity)
+                .unwrap()
+                .contains("B::visit")
+        })
+        .unwrap()
+        .id;
+    let incomplete = calls
+        .iter()
+        .copied()
+        .filter(|(boundary, _)| *boundary != child)
+        .collect::<Vec<_>>();
+    assert!(
+        check(&reopened, &incomplete)
+            .unwrap_err()
+            .contains("no checked selected provider")
+    );
+    reopened.boundary_machines[parent]
+        .published_service_ceiling
+        .clear();
+    assert!(
+        check(&reopened, &calls)
+            .unwrap_err()
+            .contains("exceeds its published upper bound")
+    );
 }
 
 #[test]
