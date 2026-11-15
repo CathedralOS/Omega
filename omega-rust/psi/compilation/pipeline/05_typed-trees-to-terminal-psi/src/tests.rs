@@ -2285,6 +2285,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(2, "y", ValueType::Scalar(u32_type(), Qualification::NONE)),
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records.push(RecordType {
         owns_linear_claim: false,
@@ -2295,6 +2296,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
             field(4, "to", point()),
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records
 }
@@ -2977,6 +2979,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
             },
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     let envelope = ValueType::record(id(3));
     let endpoint = |field| member(member(place(0, envelope), 0, line()), field, point());
@@ -3354,6 +3357,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records.push(RecordType {
         owns_linear_claim: false,
@@ -3370,6 +3374,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
             case(4, "Empty", Vec::new()),
         ]),
         requires: Vec::new(),
+        authored_layout: false,
     });
     records
 }

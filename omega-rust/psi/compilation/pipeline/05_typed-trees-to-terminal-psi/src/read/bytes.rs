@@ -618,6 +618,7 @@ impl Program<'_> {
             identity,
             shape: StorageShape::ByteSequence(carrier),
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources.push(RecordSource {
             declaration: SymbolHandle::invalid(),
@@ -702,6 +703,7 @@ impl Program<'_> {
             identity: "immutable literal bytes".into(),
             shape: StorageShape::ByteSequence(carrier),
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources.push(RecordSource {
             declaration: SymbolHandle::invalid(),

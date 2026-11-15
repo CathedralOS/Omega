@@ -651,6 +651,7 @@ mod tests {
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
+            authored_layout: false,
         }
     }
 
