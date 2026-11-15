@@ -835,6 +835,9 @@ pub mod closed_conformances {
             || canonical.kind != BoundaryRequirementKind::Trait
             || canonical_source.execution != CheckedBoundaryExecution::Provider
             || checked.source.callable == canonical_source.source.callable
+            || checked.source.semantic_declaration == canonical_source.source.semantic_declaration
+            || canonical_source.source.published_may_suspend
+            || canonical_source.source.published_may_block
             || checked.source.specialization.is_some()
             || !checked.method_arguments.is_empty()
             || boundary.attachment.is_some()
@@ -862,6 +865,21 @@ pub mod closed_conformances {
             || boundary.result != canonical.result
             || checked.source.parameter_types != canonical_source.source.parameter_types
             || checked.source.result_type != canonical_source.source.result_type
+            || boundary.crash_routes != canonical.crash_routes
+            || boundary.scalar_requires != canonical.scalar_requires
+            || boundary.scalar_ensures != canonical.scalar_ensures
+            || boundary.requires != canonical.requires
+            || boundary.normal_qualifications != canonical.normal_qualifications
+            || boundary.scalar_domain_requirements != canonical.scalar_domain_requirements
+            || boundary.reference_outputs != canonical.reference_outputs
+            || boundary.content_guarantees != canonical.content_guarantees
+            || boundary.program_local_root_introductions
+                != canonical.program_local_root_introductions
+            || canonical.owning_service.is_none_or(|service| {
+                canonical.fixed_service_reach != [service]
+                    || canonical.published_service_ceiling != [service]
+            })
+            || !boundary.published_synchronous_entries.is_empty()
             || !boundary.crash_routes.is_empty()
             || !boundary.scalar_requires.is_empty()
             || !boundary.scalar_ensures.is_empty()

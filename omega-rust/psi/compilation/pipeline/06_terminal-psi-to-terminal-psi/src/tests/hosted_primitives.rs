@@ -97,8 +97,17 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
             .expect("independent primitive receiving");
     assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
 
-    for mutation in 0..5 {
+    for mutation in 0..6 {
         let mut changed = module.clone();
+        if mutation == 5 {
+            changed
+                .boundary_machines
+                .iter_mut()
+                .find(|row| row.id == requirement)
+                .unwrap()
+                .scalar_requires
+                .push(Proposition::Falsehood);
+        }
         let boundary = changed
             .boundary_machines
             .iter_mut()
@@ -116,6 +125,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
             2 => boundary.unconditional_termination = false,
             3 => boundary.result = terminal_psi::BoundaryMachineResult::Unit,
             4 => boundary.scalar_parameters.clear(),
+            5 => {}
             _ => unreachable!(),
         }
         let encoded = terminal_codec::ClosedTerminalModule::new(changed).unwrap();
