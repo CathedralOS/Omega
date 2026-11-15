@@ -6,15 +6,20 @@ array into that same destination at offset 5. The destination stores its used
 length separately. The entry checks that the live view equals `"Room A1"` and
 has length 7, then traps if either check fails.
 
-The [Build file](build.omg) selects an entry for all four hosted targets. The
-probe currently stops before the entry executes. On macOS arm64 at
-`93f7c2a52bf`, checking refused the fixed-array ASCII predicates and the
-data-attached `Main::main` declaration. [The repair queue](../../../../OWNER_CODE_CONCERNS.md#the-bounded-copy-probe-stops-before-its-byte-and-length-checks)
-tracks the remaining compiler and source work.
+The [Build file](build.omg) selects an entry for all four hosted targets.
 
-Reproduce from this directory:
+The lowered-form checker, which checks proofs and ownership after lowering,
+does not yet support this program's fixed-array ASCII predicates and their
+qualified copy/view contracts. The retained source also needs explicit literal
+qualification under the current [domain rules](../../../../wiki/spec/language/domains.md#literals-and-expected-types).
+[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only)
+tracks that remaining work. The source and its oracle remain in place; no
+successful check or native/Psi execution is claimed. Psi is the portable program
+form and its interpreter.
+
+Reproduce the outstanding check and execution requirements with:
 
 ```sh
-omega --check --build-input build.omg --build-input main.omg ./main.omg < /dev/null
-omega run --both --build-input build.omg --build-input main.omg ./main.omg < /dev/null
+mbx run -p omega -- --check samples/cli/probes/bounded_concat/main.omg
+mbx run -p omega -- run --both samples/cli/probes/bounded_concat/main.omg
 ```

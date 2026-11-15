@@ -73,13 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### The bounded-copy probe stops before its byte and length checks
-- Category: knowledge crossing a boundary
-- Where: [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [borrowed field twins](samples/cli/facts/borrowed_result_field_domains/), [byte predicate selection](omega-rust/psi/compilation/representations/typed-trees/src/evidence_and_inspection.rs#L49), [fixed-array view formation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L106)
-- Saw: On macOS arm64 at `93f7c2a52bf`, the unchanged probe exits 1 from check and 200 from paired execution. Its fixed-array ASCII predicate is treated as an undeclared call, including in the sibling borrowed-result and indexed-write probes. The same predicate on a borrowed byte field accepts ASCII and rejects a non-ASCII twin.
-- Cost: The two copies, exact ASCII preservation, and live-length oracle remain unverified. Equivalent ordinary fixed-array clauses distinguish valid and invalid construction, but lending that qualified array still fails at the plain-array gate. Carry the existing byte predicate and exact backing through fixed-array storage, its writes and borrowed windows, then migrate the retired machine attachment and replay both copies.
-- Reported: 2026-11-15, Codex, while tracing retained byte-sequence target operands.
-
 ### An affine-view refusal hides the source sequence bounds test
 - Category: tests that pin the bug
 - Where: [literal index witness](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L36), [exact diagnostic assertion](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L207)
