@@ -50,11 +50,11 @@ pub(crate) fn prepare(
 > {
     let failure = |reason| vec![Diagnostic::error(reason)];
     let build = &checked.build().config;
-    if !build.native_bindings.is_empty() {
-        return Err(failure(
-            "no product route yet: executable native bindings need their completed application plans",
-        ));
-    }
+    // Build retains authenticated bindings from dependency packages, including
+    // unused requirements and foreign targets. Declaration is not demand:
+    // target supply has already settled the actual executable closure. Below,
+    // every selected row still needs its canonical execution producer; only
+    // checked adapters and the admitted core primitives have one on this route.
     if !checked.execution().plans().assumed_bindings().is_empty() {
         return Err(failure(
             "no product route yet: executable assumed provider bindings need their admitted applications",
