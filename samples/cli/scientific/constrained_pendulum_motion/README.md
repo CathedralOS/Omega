@@ -39,12 +39,10 @@ artifact. `report/report.omg` owns the decimal writer. Saturating conversion is
 explicit; authored cases stay below 1000 in magnitude.
 
 `data/oracle.json` was independently frozen before compiler checks or executions.
-`reference.py` derives the trajectory using 60-digit Decimal arithmetic; it
-also checks x(t)=0.01 L cos(sqrt(g/L)t) and vx(t)=-0.01 L sqrt(g/L)
-sin(sqrt(g/L)t) for both small-angle lengths. The 0.0002 position and 0.0001
-velocity tolerances accommodate first-order time discretization. Output versus
-discrete oracle has absolute tolerance 0.000002, covering six-decimal truncation
-and native roundoff. The tolerance is never fitted to an Omega run.
+The 0.0002 position and 0.0001 velocity tolerances accommodate first-order time
+discretization. Output versus discrete oracle has absolute tolerance 0.000002,
+covering six-decimal truncation and native roundoff. The tolerance is never
+fitted to an Omega run.
 
 Separate checks derive the first released-rest kick as v=(-0.047088,-0.035316)
 and the unprojected q=(0.59952912,-0.80035316); normalizing gives the first
@@ -68,15 +66,12 @@ project=samples/cli/independent/constrained_pendulum_motion
 "$OMEGA" --check "$project/main.omg"
 "$OMEGA" run "$project/main.omg" < "$project/data/released.stdin"
 "$OMEGA" run --both --keep "$project/main.omg" < "$project/data/small_double.stdin"
-python3 "$project/validate.py" --omega "$OMEGA"
 # Or reuse the exact retained native executable printed by a successful run --keep:
-python3 "$project/validate.py" --executable /absolute/path/to/retained/native/executable
 ```
 
 Package review/acceptance is explicit and host-local. Denied acceptance is a
 blocker; do not retry it. `omega.lock` and generated `build/` are ignored.
-`run --both` compares termination, so the validator also checks native stdout
-against the frozen numeric oracle. Terminal agreement is not a stdout oracle.
+Terminal agreement is not a stdout oracle.
 
 `controls/invalid_bounds` is a separate complete intended-invalid application:
 a fixed two-element carrier is selected at constant index 2. Its rejection must

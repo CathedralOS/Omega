@@ -46,16 +46,13 @@ beta-binomial adjacent-bin recurrence; it needs neither factorials nor huge
 integers. Its denominator is positive for admitted counts. No renormalization
 conceals lost probability.
 
-`validation/reference.py` instead integrates the expanded Beta density with
-200-digit Decimal Horner evaluation and computes quantiles in 120 bisections.
-Its predictive probabilities are exact Python fractions from factorials.
 `validation/FREEZE.json` commits source, oracle and input identities before the
 first application check or execution. The validator requires quantile error
 ≤10^-7, an independently recomputed CDF residual ≤10^-8 at each *printed*
 limit, and predictive agreement ≤10^-9. Mean, variance and P(p>0.5) have
 10^-10 absolute tolerance. It additionally checks distribution normalization,
-predictive expectation, all-success/failure and complementary symmetry,
-batch order/regrouping invariance and equivalent whitespace.
+predictive expectation, all-success/failure and complementary symmetry, batch
+order/regrouping invariance and equivalent whitespace.
 
 From the repository root with the documented toolchain setup and a compiler
 built from the qualified checkout:
@@ -64,7 +61,6 @@ built from the qualified checkout:
 omega packages update --project samples/cli/independent/germination_probability_inference --target linux_x86_64
 # Review exact pending authority decisions before resuming, when required.
 omega run --both --keep samples/cli/independent/germination_probability_inference/main.omg < samples/cli/independent/germination_probability_inference/input.txt
-python3 samples/cli/independent/germination_probability_inference/validation/validate.py --omega /absolute/path/to/omega --route all
 ```
 
 The validator compiles and runs the actual native product with each finite
@@ -99,10 +95,8 @@ qualified call forms, missing and redundant markers.
 
 Pinned qualification can separate production from observation. Run the same
 validator with `--route all --prepare-only` to compile the native executable
-and strict Terminal sponsor, then `--route all --prepared` to execute all
-cases against their recorded hashes without rewriting those artifacts. The
-prepared mode still checks the source-invalid bin and every numerical/refusal
-oracle. `validation/freeze_producer.py` copies a verified CLI/sponsor closure
-into a fresh private root; strict sponsor linking verifies that copied closure.
-Preparation alone is not numerical acceptance. The default command continues
-to prepare and validate both routes in one invocation.
+and strict Terminal sponsor, then `--route all --prepared` to execute all cases
+against their recorded hashes without rewriting those artifacts. The prepared
+mode still checks the source-invalid bin and every numerical/refusal oracle.
+Preparation alone is not numerical acceptance. The default command continues to
+prepare and validate both routes in one invocation.

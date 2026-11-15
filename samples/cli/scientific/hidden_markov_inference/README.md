@@ -28,10 +28,9 @@ omega packages update --project samples/cli/independent/hidden_markov_inference 
 omega run samples/cli/independent/hidden_markov_inference/main.omg < samples/cli/independent/hidden_markov_inference/data/standard.stdin
 ```
 
-`reference.py` exhaustively enumerates every hidden path with 90-digit Decimal
-arithmetic. `expected.json` and the input digests were frozen before executing
-the implementation. Validation must consume that file, never regenerate it.
-The 16-step cases enumerate all 65536 paths. State permutation, exact ambiguity,
+`expected.json` and the input digests were frozen before executing the
+implementation. Validation must consume that file, never regenerate it. The
+16-step cases enumerate all 65536 paths. State permutation, exact ambiguity,
 determinism, zero transitions, tiny likelihood and impossible observations are
 covered, alongside runtime and source-invalid controls.
 
@@ -50,7 +49,6 @@ After preparation, capture both products and validate their numerical output:
 
 ```
 target/debug/hmm-terminal-validation samples/cli/independent/hidden_markov_inference/main.omg samples/cli/independent/hidden_markov_inference/build/terminal
-python3 samples/cli/independent/hidden_markov_inference/validate.py --native /absolute/path/from/native-path.txt --terminal samples/cli/independent/hidden_markov_inference/build/terminal --producer target/debug/hmm-terminal-validation
 ```
 
 The consumer uses the ordinary accepted package/native driver, retains its exact

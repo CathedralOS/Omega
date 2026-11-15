@@ -30,14 +30,11 @@ half the sum of four paired differences squared. Components use
 means and residual sums, and directly computes total SS. It does not use these
 contrast identities.
 
-Before the first Omega check/run, `python3 reference.py --freeze` froze
-`data/expected.json`; SHA256
-`8ca6770dce8b8cc15b470aaad8f41eeacb6a1cec0d7202e4b92a738a486c6832`.
 Tolerance is **zero** for rational numerators, stdout bytes and exits. Fixtures
 cover additive effects, interaction, pure interaction with negative main effects,
-zero variation, translation and label/repeat permutations, and invalid input.
-The closest existing sample, `arithmetic/stats_compute`, computes mean/variance
-of one fixed series and a weighted sum; it has no crossed cell validation,
+zero variation, translation and label/repeat permutations, and invalid input. The
+closest existing sample, `arithmetic/stats_compute`, computes mean/variance of
+one fixed series and a weighted sum; it has no crossed cell validation,
 interaction decomposition, signed components or stdin study workflow.
 
 From the repository root, using a compiler built from the recorded base:
@@ -49,7 +46,6 @@ omega packages update --resume --project samples/cli/independent/crossed_gauge_s
 omega --check samples/cli/independent/crossed_gauge_study/main.omg
 omega samples/cli/independent/crossed_gauge_study/main.omg
 omega run --both samples/cli/independent/crossed_gauge_study/main.omg < samples/cli/independent/crossed_gauge_study/data/interaction.stdin
-python3 samples/cli/independent/crossed_gauge_study/validate.py --omega /absolute/omega --native /absolute/published-executable
 omega --check samples/cli/independent/crossed_gauge_study/controls/out_of_bounds/main.omg
 ```
 

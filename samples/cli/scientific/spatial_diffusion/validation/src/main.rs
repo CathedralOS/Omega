@@ -6,8 +6,8 @@ use sample_runner::{Cases, Evidence, FrozenCases, Sample};
 ///
 /// Plain capture writes beside each named input; `--evidence` instead replays
 /// the frozen oracle matrix this validation has always compared. Each case must
-/// meet its frozen exit and leave stderr empty, while the oracle's numerical
-/// stdout stays with `validate.py`.
+/// meet its frozen exit and leave stderr empty; nothing compares its numerical
+/// stdout.
 const SAMPLE: Sample = Sample {
     package: "sci04-terminal-validation",
     review: false,

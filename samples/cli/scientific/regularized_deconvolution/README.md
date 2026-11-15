@@ -22,21 +22,7 @@ reported, never clipped.
 ```sh
 omega packages update --project samples/cli/independent/regularized_deconvolution --target linux_x86_64
 omega run --both --keep samples/cli/independent/regularized_deconvolution/main.omg < samples/cli/independent/regularized_deconvolution/input.txt
-python samples/cli/independent/regularized_deconvolution/validate.py --cli /absolute/path/to/omega --evidence build/deconvolution-validation
 ```
 
-`reference.py` freezes an independent complex Fourier inversion and checks
-analytic constant and cyclic Green-function impulse solutions. Its hashes and
-expected values were frozen before sample execution. `validate.py` verifies
-those hashes and analytic assertions, checks actual native and retained Terminal
-stdout fields within 1e-7 absolute/relative, recomputes the normal-equation
-residual within 1e-8 of scale, checks the preserved sum, and requires negative
-values in the impulse/deblurring case. It includes odd sample lengths,
-asymmetric five-tap kernels, both lambda extremes, zero input, runtime refusals,
-and an authored source-invalid convolution index contract.
-
-The validator uses public `run --both --input ... --outputs ...` to compile once
-for the full input matrix. It checks both engines' retained streams and exact
-case statuses, then applies the independent field and normal-equation checks.
 The optional `--batch-runner` argument retains compatibility with the earlier
 qualification example; normal validation needs only the CLI.

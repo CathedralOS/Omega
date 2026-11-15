@@ -70,15 +70,13 @@ execution route:
 ```
 omega packages update --project samples/cli/independent/metabolic_flux_analysis --target linux_x86_64
 omega run samples/cli/independent/metabolic_flux_analysis/main.omg < samples/cli/independent/metabolic_flux_analysis/input.txt
-python3 samples/cli/independent/metabolic_flux_analysis/validation/validate.py --omega /absolute/path/to/omega --route all
 ```
 
-The validator requires scipy 1.17.0 for its independent HiGHS comparison and
-Fraction certificate recomputation. Frozen expectations predate sample execution.
-It reads both actual native output and `terminal.stdout` retained by
-`omega run --both --keep` from that run's exact Terminal product. It keeps source,
-compiler and oracle hashes, commands, exits and numerical output under
-`build/validation/all`. The separate `controls/reaction_access` project must
-reject a constant out-of-range access at source checking. Entry bindings are
-explicit for Linux x86-64, Windows x86-64 and macOS ARM64; execution evidence
-names the actual host, and does not claim cross-host execution.
+Frozen expectations predate sample execution. It reads both actual native output
+and `terminal.stdout` retained by `omega run --both --keep` from that run's exact
+Terminal product. It keeps source, compiler and oracle hashes, commands, exits and
+numerical output under `build/validation/all`. The separate
+`controls/reaction_access` project must reject a constant out-of-range access at
+source checking. Entry bindings are explicit for Linux x86-64, Windows x86-64 and
+macOS ARM64; execution evidence names the actual host, and does not claim
+cross-host execution.

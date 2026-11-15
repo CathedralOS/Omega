@@ -59,7 +59,6 @@ mbx build -p omega --release --message-format=json
 omega packages update --project samples/cli/independent/mold_front_vent_analysis --target linux_x86_64
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
-PYTHONDONTWRITEBYTECODE=1 python3 samples/cli/independent/mold_front_vent_analysis/validation/validate.py /workspace/Omega/.codex/worktrees/new078/samples/cli/independent/mold_front_vent_analysis/build/omega-program
 samples/cli/independent/mold_front_vent_analysis/build/terminal-validator /workspace/Omega/.codex/worktrees/new078/samples/cli/independent/mold_front_vent_analysis
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/controls/out_of_bounds/main.omg
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/controls/last_cell/main.omg

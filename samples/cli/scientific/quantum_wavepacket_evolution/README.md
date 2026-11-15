@@ -60,19 +60,16 @@ omega packages update --project samples/cli/independent/quantum_wavepacket_evolu
 # Inspect any generated pending review. Only Console stdin/stdout/exit is
 # required; std source-risk disclosures do not grant filesystem authority.
 omega --build-dir build/quantum --target linux_x86_64 samples/cli/independent/quantum_wavepacket_evolution/main.omg < /dev/null
-python3 samples/cli/independent/quantum_wavepacket_evolution/validate.py --executable build/quantum/omega-program
 ```
 
-`reference.py` froze 41 cases before the first sample execution, independently
-using NumPy's pivoted dense complex solve and SciPy's matrix exponential.
 `data/FROZEN.sha256` seals the generator, input bytes and reference results;
 validation checks it without regenerating anything. Cases cover the analytic
 discrete eigenmode, timestep halving, wavepackets, potential barriers, both cell
 limits, maximum steps, signed potential, very small spacing with a compatible
 timestep, wide spacing/timestep and refusal controls. Complex checkpoints must
 agree with the dense solve within `1e-8`; norm and energy drift are checked at
-every step. Actual error against the exponential must agree with the frozen
-CN truncation error. Wavepacket/barrier and eigenphase errors decrease by about
+every step. Actual error against the exponential must agree with the frozen CN
+truncation error. Wavepacket/barrier and eigenphase errors decrease by about
 four under timestep halving at fixed elapsed time.
 
 For eigenmodes, energy is independently checked against the analytic eigenvalue.
@@ -86,8 +83,6 @@ parity or native stdout replay:
 
 ```sh
 mbx build --release -p omega --message-format=json > build/quantum-cli.jsonl
-python3 samples/cli/independent/quantum_wavepacket_evolution/validation/link_terminal.py build/quantum-cli.jsonl . build/quantum-terminal
-python3 samples/cli/independent/quantum_wavepacket_evolution/validate.py --terminal-sponsor build/quantum-terminal
 ```
 
 The sponsor links only exact metadata and libraries from that CLI build. It

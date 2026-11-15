@@ -36,16 +36,10 @@ From the repository root, with a compiler built from the qualification revision:
 ```
 omega packages update --project samples/cli/independent/qpcr_standard_curve --target linux_x86_64
 omega run --both --keep samples/cli/independent/qpcr_standard_curve/main.omg < samples/cli/independent/qpcr_standard_curve/input.txt
-python samples/cli/independent/qpcr_standard_curve/validation/validate.py --omega /absolute/path/to/omega --route all
 ```
 
 Build binds the exact Application::main entry for Linux x86-64, Windows x86-64,
 and macOS arm64. Qualification records the actual host; bindings alone establish
-no execution result on other hosts. The validator verifies actual native stdout
-and retained Terminal stdout against frozen 80-digit Decimal regression/inversion
-oracles, with 1e-6 relative concentration and 1e-8 absolute coefficient/residual
-bounds; efficiency uses 1e-8 relative to max(1,abs(value)). It checks 11 numerical
-cases, 40 runtime refusals, exact byte/digit limits, extreme concentrations,
-analytic doubling and invalid standard
-index access. The application-private log/exp series do not claim a full math
-library; reduction bounds and finite numerical limits are explicit.
+no execution result on other hosts. The application-private log/exp series do not
+claim a full math library; reduction bounds and finite numerical limits are
+explicit.

@@ -10,9 +10,8 @@ The first stdin line must contain exactly two ASCII digits and LF: variant then
 horizon (0..8). The application processes that line and ignores trailing input.
 Variants: 0 healthy degradation, 1 repair, 2 unreachable failure, 3 initially
 failed, 4 deterministic failure after two steps, 5 initially degraded. All
-transition rows use quarters, including the failed row (0,0,4). The full matrices
-are in `reference.py`; the private Omega scalar implementation is in
-`domain/process.omg`. No numerics library or worker dependency is used.
+transition rows use quarters, including the failed row (0,0,4). No numerics
+library or worker dependency is used.
 
 Each row is `step healthy degraded failed survival denominator`. Probability
 columns are integer numerators with the last column as shared denominator.
@@ -49,7 +48,6 @@ omega packages update --project samples/cli/independent/absorbing_reliability --
 omega --check --target linux_x86_64 samples/cli/independent/absorbing_reliability/main.omg
 omega --target linux_x86_64 samples/cli/independent/absorbing_reliability/main.omg
 printf '04\n' | omega run --both --keep samples/cli/independent/absorbing_reliability/main.omg
-python3 samples/cli/independent/absorbing_reliability/reference.py
 omega --check samples/cli/independent/absorbing_reliability/intended_invalid/main.omg
 ```
 

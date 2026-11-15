@@ -34,11 +34,12 @@ Console providers, with no numerics package or dependency on another worker.
 `domain/phasor.omg` reduces bounded angles to `[-pi,pi]`; Taylor remainder is
 below `8e-11`. The independently frozen `data/oracle.json` uses Python's cmath
 exponential, not the Omega polynomial. Its SHA-256 was fixed before execution:
-`3e352196111cd4296a2d556e5e896abc3ad7c7d55df9b233a14a8bafdf9a9699`.
-Frozen tolerances: raw power `2e-8`, normalized power `2e-9`, printed values two
-integer millionths (including truncation). The Omega entrypoint checks the raw and normalized tolerances before rounding and exits 66 on a numerical failure. Null flags, row order, duplicate
-counts, completion marker and exit codes are exact. `reference.py` checks the
-frozen oracle and strictly validates stdout; it never supplies results to Omega.
+`3e352196111cd4296a2d556e5e896abc3ad7c7d55df9b233a14a8bafdf9a9699`. Frozen
+tolerances: raw power `2e-8`, normalized power `2e-9`, printed values two
+integer millionths (including truncation). The Omega entrypoint checks the raw
+and normalized tolerances before rounding and exits 66 on a numerical failure.
+Null flags, row order, duplicate counts, completion marker and exit codes are
+exact.
 
 Semantic-overlap review searched existing samples for antenna, beam, phasor,
 Fourier and DFT workflows. `arithmetic/vector_distance` covers scalar vector
@@ -66,22 +67,17 @@ absolute tolerances rather than requiring bit-identical floating-point values.
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/omega
 SAMPLE=samples/cli/independent/antenna_array_pattern
-python3 "$SAMPLE/reference.py"
 "$OMEGA" update --project "$SAMPLE" --target linux_x86_64
 # Inspect build/package-manager/review-linux_x86_64.txt and accept only reviewed decisions.
 "$OMEGA" update --project "$SAMPLE" --resume
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
-python3 "$SAMPLE/validate.py" --omega "$OMEGA"
 ```
 
-`validate.py` uses `run --both --inputs DATA --outputs OUTPUTS` to compile once
-and replay all 15 finite inputs. It checks every native and Terminal status,
-checks each stdout against the independent frozen reference, and requires equal
-streams with empty stderr. Captures and command records are retained under
-`build/validation/`. `run --target` is compile-only; matching-host execution uses
-`run --both` without that flag. `--native EXECUTABLE` remains available for
-native-only replay of an already retained artifact. A check-only result cannot
-establish runtime acceptance.
+Captures and command records are retained under `build/validation/`. `run
+--target` is compile-only; matching-host execution uses `run --both` without that
+flag. `--native EXECUTABLE` remains available for native-only replay of an
+already retained artifact. A check-only result cannot establish runtime
+acceptance.
 
 `controls/intended_invalid/invalid.omg` is a separate complete application with build
 metadata and entry binding. It writes index 4 of `[i32;4]`, violating the

@@ -20,14 +20,12 @@ designs report their chosen indices, information and zero determinant with
 explicit non-identifiable status; undefined covariance and variance are omitted.
 
 The independent manifest was frozen before application execution. Its SHA256 is
-`a22eed47caab37c8cd16fcdec6dfe70e2f607844b048dcf720af0c098cabdfe1`.
-`reference.py` independently enumerates combinations, expands determinants over
-permutations, and performs `Fraction` Gauss–Jordan inversion. Source selection
-instead enumerates masks with integer moment determinants and computes inverse
-numerators by cofactors. An independent reviewer challenged determinants and
-tie behavior with Cauchy–Binet on 300 seeded designs/25,026 subsets, and inverse
-and prediction formulas on 209 identifiable random designs. The final review
-also checks recorded execution values and integration inputs.
+`a22eed47caab37c8cd16fcdec6dfe70e2f607844b048dcf720af0c098cabdfe1`. Source
+selection instead enumerates masks with integer moment determinants and computes
+inverse numerators by cofactors. An independent reviewer challenged determinants
+and tie behavior with Cauchy–Binet on 300 seeded designs/25,026 subsets, and
+inverse and prediction formulas on 209 identifiable random designs. The final
+review also checks recorded execution values and integration inputs.
 
 The final application delegates its moment determinant to a const-generic
 helper. Selected returning guards establish the moment extent before indexing;
@@ -63,14 +61,11 @@ no root filesystem grant or `Build::grant`. No blanket acceptance flag, borrowed
 accepted lock, denied-action bypass or authority-check modification was used.
 
 The earlier full CLI native/Terminal case loop took 308.42s (6.05–10.22s per CLI invocation).
-Repeated native iteration can reuse a recorded produced executable through
-`validate.py --native ... --native-only`, avoiding repeated compilation while
-retaining the full Terminal gate separately. All 46 direct-native cases took
-0.0381s in total. Native-only runs cannot silently
-skip execution and preserve their own result directory. Coordination initially
-exceeded its budget and suffered Git OOM kills; verified cache tips, an existing
-authorized GitHub credential helper scoped to this worktree, and one pack thread
-restored bounded claim/status/note operations. No credential was printed.
+All 46 direct-native cases took 0.0381s in total. Native-only runs cannot silently skip
+execution and preserve their own result directory. Coordination initially exceeded its budget
+and suffered Git OOM kills; verified cache tips, an existing authorized GitHub credential
+helper scoped to this worktree, and one pack thread restored bounded claim/status/note
+operations. No credential was printed.
 
 Detailed commands, actual exits and streams, source/oracle/producer hashes,
 package inventory continuity, authority/custody evidence and review findings are

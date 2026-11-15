@@ -30,14 +30,13 @@ maximum residual sum is 51200000, so the private Wrapping arithmetic never
 actually wraps for accepted input. Table widths are positive by construction.
 Direction comparison uses stimulus history, independently of noisy response.
 
-The oracle was frozen **before Omega execution** in `ORACLE_FREEZE.json`.
-`reference.py` uses Python `Fraction` independently of the Omega scanner and
-reporting implementation. Report comparisons have tolerance **zero milliunits**;
-each prediction differs from exact real interpolation by less than 1 milliunit,
-and reported width differs from exact branch separation by less than 1 milliunit.
-The frozen ideal loop has six forward and six reverse calibrated rows, zero
-residuals, one reversal, and peak width 7000. The plateau/reversal trace has four
-plateaus, three reversals, forward absolute sum 100 and reverse absolute sum 87.
+The oracle was frozen **before Omega execution** in `ORACLE_FREEZE.json`. Report
+comparisons have tolerance **zero milliunits**; each prediction differs from
+exact real interpolation by less than 1 milliunit, and reported width differs
+from exact branch separation by less than 1 milliunit. The frozen ideal loop has
+six forward and six reverse calibrated rows, zero residuals, one reversal, and
+peak width 7000. The plateau/reversal trace has four plateaus, three reversals,
+forward absolute sum 100 and reverse absolute sum 87.
 
 Existing `arithmetic/dual_float`, `text/parse_int`, `text/format_number` and
 `simulation/particle_sim` were compared before authoring. They demonstrate
@@ -56,28 +55,17 @@ SAMPLE=samples/cli/independent/instrument_hysteresis
 "$OMEGA" update --resume --project "$SAMPLE"
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" run --both "$SAMPLE/main.omg" < "$SAMPLE/data/loop.stdin"
-python3 "$SAMPLE/validate.py" --omega "$OMEGA"
 # Build the stable corpus runner once, then use its reported executable path:
 mbx test --release -p compiler --test corpus_runner --no-run
-python3 "$SAMPLE/terminal_validate.py" --runner /absolute/path/to/corpus_runner
 ```
 
-`validate.py` first verifies frozen hashes and recomputes reference results,
-checks the source, compiles one native executable, then runs all fixtures
-sequentially with exact stdout/exit assertions. It runs Terminal/native
-comparisons and verifies separate intended-invalid source rejection. Results,
-commands, elapsed times, stderr and native stdout are retained under `build/`.
-The current public `--both` contract compares termination only; its native
-stdout is checked against the frozen oracle. It does not expose Terminal stdout,
-so termination agreement does not claim a byte-for-byte Terminal output check.
-`terminal_validate.py` separately uses the stable corpus runner with one job and
-the Terminal engine to assert exact stdout, empty stderr and exit for eight
-frozen traces/invalid inputs. It stages byte-identical domain, input, reporting
-and entry modules in temporary corpus fixtures; only the local std build path
-changes. It verifies copy hashes and removes those fixtures afterward. Its
-records remain under `build/terminal_validation/`; it never modifies goldens.
-The invalid control must fail for the authored value-101 invariant violation,
-not merely for missing package review or another infrastructure failure.
+Results, commands, elapsed times, stderr and native stdout are retained under
+`build/`. The current public `--both` contract compares termination only; its
+native stdout is checked against the frozen oracle. It does not expose Terminal
+stdout, so termination agreement does not claim a byte-for-byte Terminal output
+check. The invalid control must fail for the authored value-101 invariant
+violation, not merely for missing package review or another infrastructure
+failure.
 
 All source remains under this namespace. Generated products and accepted local
 package locks belong in ignored `build/`/local state, never source inputs.
