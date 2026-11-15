@@ -73,6 +73,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Psi loses a mutable byte view on arrival in another state
+- Category: branch per shape
+- Where: [byte descriptor source lookup](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L587), [structural argument binding](omega-rust/psi/interpreter/src/engine_custody.rs#L1143)
+- Saw: On macOS arm64 with CLI SHA-256 prefix `578557363f0a`, a local mutable view of `[41u8, 19u8]` passes to a nested state declared as `inspect(input: &mut [u8]) requires input.len == 2`. The program's native image exits 0 and the saved Psi opens independently. Psi refuses the successor's `ByteSequenceLength` at machine 3, block 1, operation 2 while matching its bound descriptor home.
+- Cost: A validated direct view changes its destination home without a usable payload binding. Preserve the exact caller backing and verify the state reads both original bytes.
+- Reported: 2026-11-15, Codex, while replaying a loan of descriptor storage.
+
+### Psi loses a live mutable byte descriptor on a short-circuit branch
+- Category: branch per shape
+- Where: [byte descriptor lookup](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs), [active structural argument binding](omega-rust/psi/interpreter/src/engine_custody.rs#L1028)
+- Saw: On macOS arm64 with the `578557363f0a` CLI SHA prefix, a state creates a mutable view of `[41u8, 19u8]` and tests `window.len == 2 && window[0] == 41u8 && window[1] == 19u8` in one transition. Native exits 0. Psi fails its first `ByteSequenceRead` at machine 1, block 4, operation 12 with `VerifiedStructuralPlaceMissing(PlaceId(3))`.
+- Cost: The bounds guard is checked, but its true branch cannot read the same live descriptor. Trace the exact branch custody through both guarded reads.
+- Reported: 2026-11-15, Codex, while replaying a loan of descriptor storage.
+
 ### The bounded concat probe describes an operation its source no longer uses
 - Category: the documents disagree
 - Where: [probe guide](samples/cli/probes/bounded_concat/README.md#L5), [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [fixed-array rule](wiki/spec/language/domains.md#domains-and-qualification)
@@ -182,7 +196,7 @@ framework or a list of unimplemented features.
 ### A boundary that borrows a stored mutable byte descriptor omits its output contract
 - Category: knowledge crossing a boundary
 - Where: [structural boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs) (`reference_outputs`), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs) (`provider_outputs_cover_writable_slots`)
-- Saw: The unchanged Console program prints `K`, exits 0 in native and Psi on macOS arm64 and reopens with its original direct `Console::read_line(&mut [u8])` requirement. A separate selected requirement and implementation with `input: &mut &mut [u8]` still run and then refuse readback with “boundary reference parameter contract has incomplete leaf coverage”. Such a formal borrows the descriptor's storage, and its output roster is empty.
+- Saw: The unchanged Console program prints `K`, exits 0 in native and Psi on macOS arm64 and reopens with its original direct `Console::read_line(&mut [u8])` requirement. A separate selected requirement and implementation with `input: &mut &mut [u8]` still run and then refuse readback with “boundary reference parameter contract has incomplete leaf coverage”. A reached call now lends the descriptor slot without conflicting with the live payload; its saved Psi still refuses the same incomplete output roster.
 - Cost: A mutable loan of stored descriptor storage can replace the slot. The checked boundary must publish the exact writable slot's handback origin or replacement before independent readback can admit it. Preserve the distinction from directly borrowed bytes and keep incomplete output coverage refused.
 - Reported: 2026-11-15, Codex, while repairing saved byte-view calling signatures. Narrowed after replaying the direct and stored-parameter twins.
 
