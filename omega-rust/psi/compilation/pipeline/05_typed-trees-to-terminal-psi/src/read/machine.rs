@@ -1420,11 +1420,23 @@ impl<'t> Program<'t> {
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
-            let (routed, _) = self.requirement_signature(id, requirement, &arguments)?;
+            let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
-            // The body keeps its own contract for checking and generic proof
-            // correspondence. Calls expose the requirement through call_of;
-            // this independent witness still owes the complete refinement.
+            // The executable entry exposes only its requirement. The existing
+            // independent witness checks the member under its own contract.
+            signature.requires = routed.requires;
+            signature.ensures = routed.ensures;
+            names.requires = routed_names.requires;
+            names.ensures = routed_names.ensures;
+            if !matches!(routed.reaches, crate::Ceiling::Inferred) {
+                signature.reaches = routed.reaches;
+            }
+            signature.invokes = routed.invokes;
+            signature.operational = routed.operational;
+            signature.termination = routed.termination;
+            if !matches!(routed.crashes, CrashCeiling::Inferred) {
+                signature.crashes = routed.crashes;
+            }
             let witness = crate::ConformanceWitness {
                 declaring_trait: owner,
                 requirement: requirement.symbol,
@@ -1436,36 +1448,6 @@ impl<'t> Program<'t> {
             }
         }
         Ok((signature, names, binders.len()))
-    }
-
-    pub(super) fn conformer_call_contract(
-        &mut self,
-        id: MachineId,
-        callee: MachineId,
-    ) -> Checked<Option<semantic_vocabulary::ContractId>> {
-        let Some(machine) = self
-            .symbols
-            .get(callee)
-            .and_then(|symbol| self.typed.machine_by_symbol(*symbol))
-        else {
-            return Ok(None);
-        };
-        let Some((_, requirement)) = self.conformer_requirement(id, machine)? else {
-            return Ok(None);
-        };
-        let arguments = self.conformer_value_arguments(id, machine, requirement)?;
-        let (required, _) = self.requirement_signature(id, requirement, &arguments)?;
-        let contract = self.declaration_signatures.push(required);
-        if self.declaration_sources.push(requirement) != contract
-            || self.declaration_selections.push(None) != contract
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Call("conformer call lost its public contract coordinate"),
-            ));
-        }
-        Ok(Some(contract))
     }
 
     /// The one requirement that owns this body. A reference row owns no
@@ -1800,6 +1782,9 @@ impl<'t> Program<'t> {
         }
         let mut binders = Vec::with_capacity(parameters.len());
         for parameter in parameters {
+            if parameter.bounds != typed_trees::data::DataProperties::default() {
+                return unserved("requirement value parameter eligibility");
+            }
             let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
             else {
                 return Err(refuse_parameters(
@@ -1808,7 +1793,13 @@ impl<'t> Program<'t> {
                     requirement.name.as_str(),
                 ));
             };
-            if !parameter.symbol.is_valid() {
+            if !self
+                .typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(parameter.symbol)
+            {
                 return Err(refuse(
                     id,
                     Construct::Machine,

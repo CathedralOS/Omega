@@ -4729,6 +4729,18 @@ mod declaration_invocations {
             original: SymbolHandle,
         ) -> Result<(), &'static str> {
             use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(application)
+                || !self.symbols.symbols().nodes().is_valid(original)
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(dispatch.evidence_parameter)
+            {
+                return Err("selected public application has stale source coordinates");
+            }
             let invocation = self.static_machine_application(application).clone();
             let receipt = self
                 .machine_instantiation(invocation.lexical_owner)?

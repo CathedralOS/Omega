@@ -1893,12 +1893,6 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
         expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
-        let required_contract = match (required_contract, callee) {
-            (None, semantic_vocabulary::TargetMachineCallable::Machine(machine)) => {
-                self.conformer_call_contract(id, machine)?
-            }
-            (contract, _) => contract,
-        };
         let free: Vec<_> = if let Some(required) = required_contract {
             let requirement = self
                 .declaration_sources
