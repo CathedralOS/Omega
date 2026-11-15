@@ -10,6 +10,9 @@ use native_compiler::{
 };
 use optimization_core::OptimizationSelections;
 use source_compiler::ProducedTerminalApplication;
+use terminal_psi_to_abstract_operations::provider_admission::{
+    CompilerIntrinsicPlanProvenance, current_terminal_authority_policy,
+};
 
 use super::ProducedTerminalProduct;
 
@@ -142,9 +145,7 @@ pub(crate) fn prepare(
             Ok(vec![None; plan.rows.len()])
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let policy =
-        terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(
-        );
+    let policy = current_terminal_authority_policy();
     let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permission_rows = Vec::new();
     for leaf in &leaves {
@@ -166,10 +167,8 @@ pub(crate) fn prepare(
     }
     // The receiving host grants only the exact admitted primitive rows above.
     // Ordinary packages and unrelated checked instructions keep no permission.
-    let permissions = native_compiler::admit_package_permissions(
-        permission_rows,
-        permission_identities.finish(),
-    )?;
+    let permissions =
+        native_compiler::admit_package_permissions(permission_rows, permission_identities.build())?;
     let semantic = entry
         .semantic_calling_application()
         .ok_or_else(|| failure("native entry lost its semantic calling application"))?;
@@ -183,13 +182,16 @@ pub(crate) fn prepare(
         target_profile: Some(profile),
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: checked.execution().plans(),
-            selected_provider_provenance: selected.plans.iter().zip(&row_executions).map(|(plan, executions)| {
-                terminal_psi_to_abstract_operations::provider_admission::CompilerIntrinsicPlanProvenance {
+            selected_provider_provenance: selected
+                .plans
+                .iter()
+                .zip(&row_executions)
+                .map(|(plan, executions)| CompilerIntrinsicPlanProvenance {
                     plan,
                     semantic_schema: &plan.schema,
                     row_executions: executions,
-                }
-            }).collect(),
+                })
+                .collect(),
             calling_applications: vec![semantic.clone(), physical.clone()],
         },
         native_target: Some(profile.native_target()),
