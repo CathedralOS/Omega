@@ -495,10 +495,10 @@ impl<'t> Program<'t> {
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
-                return self.indexed(id, slots, indexed, handle, expected);
+                return self.indexed(id, slots, indexed, handle, expected, Access::Read);
             }
             ExpressionNode::Member(member) => {
-                let value = self.member(id, slots, member, source)?;
+                let value = self.member(id, slots, member, source, Access::Read)?;
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
@@ -594,12 +594,37 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         target: ExpressionHandle,
     ) -> Checked<Expression> {
+        self.place(id, slots, target, None, Access::Write)
+    }
+
+    /// The place `target` names, read for `access` to its contents: a
+    /// member or an element of a value is a path into it, and every value
+    /// the path goes through is opened for that same access. A value read
+    /// opens each for reading; a store's destination opens each for writing
+    /// ("Changing contents, including projected writes ... requires write
+    /// authority", domains.md), and reads nothing it only names. Anything
+    /// else is an ordinary value: the root of a path, or a value it is
+    /// computed from.
+    pub(super) fn place(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: ExpressionHandle,
+        expected: Option<ValueType>,
+        access: Access,
+    ) -> Checked<Expression> {
+        if access == Access::Read {
+            return self.expression(id, slots, target, expected);
+        }
         match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source)
+                self.member(id, slots, member, source, access)
             }
-            _ => self.expression(id, slots, target, None),
+            ExpressionNode::Indexed(indexed) => {
+                self.indexed(id, slots, indexed, target, expected, access)
+            }
+            _ => self.expression(id, slots, target, expected),
         }
     }
 
@@ -681,7 +706,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         matched: &typed_trees::expression::TableMatchExpression,
-        record: semantic_vocabulary::StructuralTypeId,
+        record: super::authority::Opened,
         subject: &Expression,
         expected: Option<ValueType>,
     ) -> Checked<(Vec<(usize, Expression)>, Option<Box<Expression>>, ValueType)> {
