@@ -220,6 +220,53 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
 }
 
 #[test]
+fn narrow_installation_bound_uses_the_selected_child_row() {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for (fixture, refusal) in [
+        ("pass/providers/narrow_installation_reach", None),
+        (
+            "fail/providers/narrow_installation_reach",
+            Some("exceeds its published upper bound"),
+        ),
+    ] {
+        let source = kept_fixture(fixture).join("main.omg");
+        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &source,
+            Some(target),
+        )
+        .and_then(|mut prepared| {
+            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        });
+        match (result, refusal) {
+            (Ok(checked), None) => {
+                let selected = checked.execution().plans();
+                let plan = selected
+                    .plans()
+                    .iter()
+                    .find(|plan| plan.provider_type == "AProvider")
+                    .expect("selected bounded parent");
+                let row = selected
+                    .installation_reach_resolutions()
+                    .iter()
+                    .find(|row| row.provider_plan_report_identity == plan.report_fingerprint())
+                    .expect("resolved parent row");
+                assert_eq!(row.resolved_row.len(), 1);
+                let module = checked.terminal_publication().accepted().unwrap().module();
+                assert_eq!(selected.resolve_root_service_reach(module).unwrap().len(), 2);
+            }
+            (Err(errors), Some(expected))
+                if errors.iter().any(|error| error.message.contains(expected)) => {}
+            (Err(errors), _) => failures.push(format!("{fixture}: {errors:?}")),
+            (Ok(_), Some(expected)) => {
+                failures.push(format!("{fixture}: accepted instead of {expected:?}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
     let fixture = kept_fixture("pass/calls/machine_self_call_recursion_compile/main.omg");
