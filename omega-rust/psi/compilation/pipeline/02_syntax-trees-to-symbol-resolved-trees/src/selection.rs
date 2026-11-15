@@ -533,11 +533,14 @@ pub(crate) mod call_identity {
         {
             return Err("source-less call target is not its exact owning entry".to_owned());
         }
-        let entry = program
-            .symbols
-            .child_handles(symbol.parent)
-            .and_then(|mut children| {
-                children.find(|child| program.symbols.get(*child).kind == SymbolKind::State)
+        // Copied selections can still name an inactive incarnation of this
+        // machine. Compare against that exact owner's retained children.
+        let entry =
+            crate::symbols::select_machine_entry(program.symbols.name(symbol.parent), |name| {
+                program.symbols.child_handles(symbol.parent)?.find(|child| {
+                    program.symbols.get(*child).kind == SymbolKind::State
+                        && program.symbols.name(*child) == name
+                })
             });
         if entry != Some(target) {
             return Err("source-less call target is not its exact owning entry".to_owned());
@@ -1661,17 +1664,13 @@ pub(crate) mod conformance_blocks {
                     .as_str()
                     .rsplit_once("::")
                     .map_or(machine.name.as_str(), |(_, leaf)| leaf);
-                machine
-                    .states
-                    .iter()
-                    .find(|state| state.name.as_str() == leaf)
-                    .or_else(|| {
-                        machine
-                            .states
-                            .iter()
-                            .find(|state| state.name.as_str() == "entry")
-                    })
-                    .map(|state| (machine, state))
+                crate::symbols::select_machine_entry(leaf, |name| {
+                    machine
+                        .states
+                        .iter()
+                        .find(|state| state.name.as_str() == name)
+                })
+                .map(|state| (machine, state))
             })
             .filter(|(_, state)| {
                 requirement_shape.is_none_or(|shape| {

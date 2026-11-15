@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Build and Product operator-domain resolution controls fail on main
+- Category: tests that pin the bug
+- Where: [Stage 02 primitive-family tests](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs#L2890)
+- Saw: On macOS arm64 at clean base `0fc8f51db365ee7b7a3f136794978e1c307ed118`, `mbx test -p syntax-trees-to-symbol-resolved-trees --lib` fails `domain_token_homes_keep_distinct_build_and_product_instances` with no selected domain where it expects `SemanticDomainId(4)`. `inactive_retained_token_bindings_do_not_rejoin_a_product_frontier` refuses the retained `Quantity::subtract` operator because neither operand carries its home domain.
+- Cost: The resolution suite cannot show that same-named domain families stay separate across Build and Product or that inactive retained bindings stay out of the Product frontier. Trace domain qualification and selected source custody before changing the tests or their oracles.
+- Reported: 2026-11-14, Codex, while attributing resolver test failures during the implicit-entry repair
+
 ### The target-body reachability policy has no compiler caller
 - Category: zombie machinery
 - Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
@@ -228,13 +235,6 @@ framework or a list of features that remain unimplemented.
 - Saw: frozen Rust producer b520 checked the 269-unit, 3.8 MB compiler in 4,089 seconds during update; native construction then took 3,796 seconds, including 3,227 seconds in Psi 05, with a peak near 19 GiB; all 191 product cases took 80 seconds afterward
 - Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
 - Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
-
-### Resolution selects an implicit entry by name in one place and child order in another
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs` (`resolve_realizations`, `call_custody_source`)
-- Saw: implicit realization selection chooses the state named like the machine's last segment, then `entry`; source-less call custody requires the first State child. The former Build and checker copies are gone, but these two selectors remain.
-- Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Stage 05 of the Omega pipeline hands out "Validated" homes and "validation receipts" with no replay behind them
 - Category: a verdict with nothing behind it
