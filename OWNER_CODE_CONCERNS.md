@@ -94,13 +94,6 @@ framework or a list of features that remain unimplemented.
 - Cost: A checked direct array window cannot reach its last-byte check. Use the fixed storage's exact extent and projected window when checking a direct range and establishing its loan.
 - Reported: 2026-11-14, Codex, while restoring the post-merge runtime sample
 
-### A match loses a byte window's length when its arms name equivalent values
-- Category: tests that pin the bug
-- Where: [match length sample](samples/cli/facts/length/match_join/main.omg#L7)
-- Saw: On `ef7d7a17936` with the shared-view range repair, the macOS arm64 check for `let length: u64 = match flag { true -> window.len, false -> count };` refuses the last-byte read at `8:11` because it cannot prove operation safety. `window` was formed from `items[0..count]` with positive `count`. The control whose false arm uses the backing length also fails to establish the operation.
-- Cost: A match arm that uses the endpoint by which the window was formed cannot carry the same bound as an arm that reads its length. Retain the shared equality at the join and keep the backing-length twin unsafe.
-- Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
-
 ### A shared byte window loses its completion observation across a length call
 - Category: a verdict with nothing behind it
 - Where: [length result sample](samples/cli/facts/length/call_result/main.omg#L11), [forwarded length sample](samples/cli/facts/length/other_machine/main.omg#L14), [completion observation reader](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3851)

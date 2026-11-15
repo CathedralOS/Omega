@@ -907,3 +907,81 @@ machine use(same: bool) { }"
          reading the body of `build_entry`"
     );
 }
+
+/// A match whose arms name the window's length, or the endpoints the window
+/// was formed from, still indexes the window's last byte after the join. The
+/// arm that read `window.len` crosses as `length == count - 0`; the read after
+/// the join measures the same window again as `count - start`. Only
+/// transport through that arrival equality relates the two.
+fn last_byte_through_a_match(range: &str, requires: &str, arms: &str) -> RouteVerdict {
+    let source = format!(
+        "machine last_byte(items: &[u8], count: u64, flag: bool) -> u8
+requires {requires} && count <= items.len
+{{
+    let window: &[u8] = &items[{range}];
+    let length: u64 = match flag {{ {arms} }};
+    window[length - 1]
+}}
+machine build_entry(path: &[u8]) {{ transition path.len > 2 {{ true -> use(last_byte(path, 2, true)) false -> none() }} }}
+machine use(byte: u8) {{ }}
+machine none() {{ }}"
+    );
+    judge_build(&source).unwrap()
+}
+
+#[test]
+fn a_match_of_a_window_length_and_its_endpoint_keeps_the_last_byte_in_range() {
+    for (range, requires, arms) in [
+        (
+            "0..count",
+            "count > 0",
+            "true -> window.len, false -> count",
+        ),
+        (
+            "0..count",
+            "count > 0",
+            "true -> window.len, false -> window.len",
+        ),
+        (
+            "1..count",
+            "count > 1",
+            "true -> window.len, false -> count - 1",
+        ),
+    ] {
+        let verdict = last_byte_through_a_match(range, requires, arms);
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{range} / {arms}: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn a_match_arm_naming_the_backing_length_leaves_the_last_byte_unproved() {
+    for (range, requires, arms) in [
+        (
+            "0..count",
+            "count > 0",
+            "true -> window.len, false -> items.len",
+        ),
+        (
+            "1..count",
+            "count > 1",
+            "true -> window.len, false -> count",
+        ),
+    ] {
+        let RouteVerdict::Rejected { unproved, .. } =
+            last_byte_through_a_match(range, requires, arms)
+        else {
+            panic!("{range} / {arms} is accepted");
+        };
+        assert!(
+            unproved.iter().any(|row| {
+                matches!(row.kind, ObligationKind::OperationSafety { .. })
+                    && row.cause == UnprovedCause::NoDerivation
+                    && row.statement.contains("machine `last_byte`")
+            }),
+            "{range} / {arms}: {unproved:?}"
+        );
+    }
+}
