@@ -4,6 +4,7 @@ use std::fs::{self, File, FileTimes};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const ACTIVE_THREAD: &str = "11111111-1111-4111-8111-111111111111";
@@ -13,12 +14,17 @@ struct Transcripts(PathBuf);
 
 impl Transcripts {
     fn new() -> Self {
+        static NEXT_FIXTURE: AtomicUsize = AtomicUsize::new(0);
+        let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let home =
-            std::env::temp_dir().join(format!("omega-provenance-{}-{unique}", std::process::id()));
+        let home = std::env::temp_dir().join(format!(
+            "omega-provenance-{}-{unique}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&home).unwrap();
         fs::create_dir_all(home.join(".codex/sessions/2026/11/14")).unwrap();
         Self(home)
     }
