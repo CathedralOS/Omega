@@ -18,6 +18,8 @@
 //!   for instead; see [`acquire_base`].
 //! - `cargo xtask worktree release [worker-N]` — reset a finished slot to `origin/main`
 //!   and clear its topic while keeping its warm `target/` cache.
+//! - `cargo xtask worktree begin` — begin the next outcome's audit interval in the
+//!   current warm slot, without changing its source, cache or pool lease.
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
 //!   non-pool worktrees, orphaned directories, and stray log files in parallel. It
 //!   also prunes registrations whose checkout directory is gone; the other
@@ -710,7 +712,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     match sub {
         "-h" | "--help" | "help" => {
             println!(
-                "usage:\n  cargo xtask worktree status\n  cargo xtask worktree acquire [<lane>-<topic>]\n  cargo xtask worktree release [worker-N]\n  cargo xtask worktree clean [--dry-run] [--keep <name>...]"
+                "usage:\n  cargo xtask worktree status\n  cargo xtask worktree acquire [<lane>-<topic>]\n  cargo xtask worktree begin\n  cargo xtask worktree release [worker-N]\n  cargo xtask worktree clean [--dry-run] [--keep <name>...]"
             );
             Ok(())
         }
@@ -750,6 +752,38 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 }
                 writeln!(output, "worktree: {} registered worktree(s)", items.len())
             })
+        }
+        "begin" => {
+            if args.len() != 1 || worker_slot_index(&current_name).is_none() {
+                eprintln!(
+                    "worktree begin: run without arguments in your assigned worker-N checkout"
+                );
+                return Err(2);
+            }
+            let _pool = lock_pool(&main_root).map_err(report_error)?;
+            let git_dir = worktree_git_dir(&current).map_err(report_error)?;
+            let detached = Command::new("git")
+                .args(["symbolic-ref", "--quiet", "HEAD"])
+                .current_dir(&current)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|status| status.code() == Some(1));
+            if read_topic(&git_dir).map_err(report_error)?.is_none()
+                || is_dirty(&current)
+                || !detached
+            {
+                eprintln!(
+                    "worktree begin: the current slot must be assigned, clean and detached; no work was reset"
+                );
+                return Err(1);
+            }
+            crate::work_interval::begin(&current).map_err(report_error)?;
+            println!(
+                "began a new work interval in `{current_name}`; source, cache and lease unchanged"
+            );
+            Ok(())
         }
         "acquire" => {
             let topic = args.get(1).map(String::as_str);
@@ -793,6 +827,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 if !reset_slot_to(&existing.path, &base(existing, &existing.path)) {
                     return Err(1);
                 }
+                crate::work_interval::begin(&existing.path).map_err(report_error)?;
                 println!("{}", existing.path.display());
                 return Ok(());
             }
@@ -811,6 +846,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 }
                 if reset_slot_to(&slot.path, &base(slot, &slot.path)) {
                     write_topic(&slot.git_dir, topic).map_err(report_error)?;
+                    crate::work_interval::begin(&slot.path).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: assigned `{}` (topic: {})",
                         slot.name,
@@ -854,6 +890,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     .is_ok_and(|s| s.success());
                 if move_ok && reset_slot_to(&slot_path, &base(donor, &slot_path)) {
                     write_topic(&donor.git_dir, topic).map_err(report_error)?;
+                    crate::work_interval::begin(&slot_path).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: promoted `{}` -> `{}` (topic: {})",
                         donor.name,
@@ -882,6 +919,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             }
             let git_dir = worktree_git_dir(&slot_path).map_err(report_error)?;
             write_topic(&git_dir, topic).map_err(report_error)?;
+            crate::work_interval::begin(&slot_path).map_err(report_error)?;
             eprintln!(
                 "worktree acquire: created `{}` (topic: {})",
                 slot_name,
@@ -922,6 +960,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 return Err(1);
             }
             write_topic(&wt.git_dir, None).map_err(report_error)?;
+            crate::work_interval::clear(&wt.path).map_err(report_error)?;
             println!("released `{}` back to idle pool at origin/main", wt.name);
             Ok(())
         }
