@@ -115,11 +115,13 @@ pub(crate) fn prepare(
         ));
     }
     let profile = entry.source().target_slot().owner;
-    let leaves = provider_planning::direct_hosted_primitive_leaves(
-        module,
-        checked.execution().plans(),
-        profile.target_name(),
-    )?;
+    let schemas = selected
+        .plans
+        .iter()
+        .map(|plan| plan.schema.clone())
+        .collect::<Vec<_>>();
+    let leaves =
+        provider_planning::direct_hosted_primitive_leaves(module, &schemas, profile.target_name())?;
     // Checked wrappers carry no compiler execution identity. Their actual
     // canonical candidates are admitted downstream; only the independently
     // checked core primitive supplies a native catalog operation.
