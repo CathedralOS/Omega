@@ -91,3 +91,23 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
         assert!(!artifact.exists());
     }
 }
+
+/// The Console program reaches `read_line(out_line: &mut [u8])`, which lends
+/// a mutable byte window. Its saved artifact must reopen: the window's formal
+/// is the canonical view with mutable access on the parameter, so the reader
+/// does not demand reference outputs a stored descriptor would owe.
+#[test]
+fn a_saved_console_program_reopens_with_its_mutable_byte_window() {
+    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+    let scratch = TemporaryDirectory::create("console-psi-inspection", false).unwrap();
+    let artifact = scratch.path().join("console.psi");
+    let output = inspect(&project, "entry_start", &artifact);
+    assert!(output.status.success(), "{:?}", output);
+    let loaded = omega(&project)
+        .args(["psi", "inspect", "--artifact"])
+        .arg(&artifact)
+        .output()
+        .expect("run artifact inspection");
+    assert!(loaded.status.success(), "{:?}", loaded);
+}

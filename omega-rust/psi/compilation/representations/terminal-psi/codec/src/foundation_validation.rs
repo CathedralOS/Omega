@@ -4689,6 +4689,94 @@ pub(crate) mod reference_outputs {
         }
         Ok(())
     }
+
+    #[cfg(test)]
+    mod tests {
+        use semantic_vocabulary::{BoundaryMachineId, PlaceId, StructuralTypeId};
+        use terminal_psi::{
+            BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
+            BoundaryParameterKind, ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity,
+            StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+            TerminalIdentityIndex,
+        };
+        use terminal_semantics::descriptor_results::provider_outputs_cover_writable_slots;
+
+        fn byte_view(raw: u64, access: Option<StructuralAccess>) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                id: StructuralTypeId::new(raw).unwrap(),
+                identity: TerminalIdentityIndex(raw as u32),
+                owns_linear_claim: false,
+                copyable: false,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                quotient_carrier: None,
+                scalar_restriction: None,
+                requires: Vec::new(),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access,
+                }),
+            }
+        }
+
+        fn lends(structural_type: u64) -> BoundaryMachineDeclaration {
+            BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(1).unwrap(),
+                declaration: None,
+                numeric_intrinsic: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: terminal_psi::BoundaryRequirementKind::Machine,
+                completion: terminal_psi::BoundaryCompletion::NormalReturn,
+                unconditional_termination: false,
+                identity: TerminalIdentityIndex(1),
+                owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
+                attachment: None,
+                parameter_order: vec![BoundaryParameterKind::Structural],
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 0,
+                    structural_type: StructuralTypeId::new(structural_type).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                }],
+                result: BoundaryMachineResult::Unit,
+                requires: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                reference_outputs: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                owning_service: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            }
+        }
+
+        /// `read_line(out_line: &mut [u8])` lends bytes: its formal is the
+        /// canonical view with the access on the parameter, so the callee
+        /// replaces no caller descriptor and owes no reference output. A
+        /// mutable loan of a stored view (`&mut &mut [u8]`) lends a
+        /// descriptor the callee may replace, so the same empty output
+        /// roster is incomplete.
+        #[test]
+        fn only_a_stored_view_loan_owes_reference_output_coverage() {
+            let types = [
+                byte_view(1, None),
+                byte_view(2, Some(StructuralAccess::MutableBorrow)),
+            ];
+            assert!(provider_outputs_cover_writable_slots(&types, &lends(1)));
+            assert!(!provider_outputs_cover_writable_slots(&types, &lends(2)));
+        }
+    }
 }
 pub(crate) mod scalar_applications {
 
