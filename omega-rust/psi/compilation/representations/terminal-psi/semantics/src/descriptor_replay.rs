@@ -790,39 +790,6 @@ pub(crate) mod analysis {
             self.replay.summary(identity, 0)?.result
         }
 
-        pub fn call_result_slots(
-            &mut self,
-            identity: MachineId,
-            position: DescriptorPosition,
-            result: PlaceId,
-        ) -> Result<Vec<DescriptorResultSlot>, &'static str> {
-            self.replay
-                .prepare_states(identity)
-                .ok_or("returned view has no complete caller flow")?;
-            let machine = self
-                .replay
-                .machine(identity)
-                .ok_or("returned view has no caller")?;
-            let call = machine
-                .calls
-                .get(&position)
-                .ok_or("returned view has no exact invocation")?;
-            if call.result.as_ref() != Some(&DescriptorLocation::whole(result)) {
-                return Err("returned view differs from the invocation's result");
-            }
-            let summary = self
-                .replay
-                .cached_invocation_summary(call)
-                .ok_or("returned view has no complete invocation summary")?;
-            if !summary.unknown_results.is_empty() {
-                return Err("returned view has an unestablished result origin");
-            }
-            summary
-                .result
-                .clone()
-                .ok_or("returned view has no normal result slots")
-        }
-
         /// A helper can update referenced storage while leaving its descriptor
         /// unchanged. Every normal return must retain the invocation's original
         /// descriptor; facts about the stored data still need invalidation.

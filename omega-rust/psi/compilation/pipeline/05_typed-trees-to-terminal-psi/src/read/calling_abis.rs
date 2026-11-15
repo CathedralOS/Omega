@@ -40,6 +40,7 @@ fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
         reason: RefusalReason::Unsupported,
         machine: entry,
         concerns: Construct::Machine,
+        source_span: None,
         detail: detail.into(),
     }
 }
@@ -315,12 +316,13 @@ impl Program<'_> {
             _ => (reference, StructuralAccess::Owned),
         };
         let structural_type = self.calling_abi_storage(entry, reference)?;
+        // Callback closure walks the complete direct carrier after the one
+        // ordinary loan shell above. Missing backing must not imply that a
+        // represented parameter has no callback storage to inspect.
+        let callback_backing = self.records.get(structural_type).map(|_| structural_type);
         Ok(CallingAbiParameter {
             structural_type,
-            // This reader registers complete storage declarations. Preserve
-            // that backing so a saved artifact can validate the argument's
-            // shape; omission is reserved for borrowed abstract referents.
-            callback_backing: Some(structural_type),
+            callback_backing,
             access,
         })
     }
@@ -556,6 +558,72 @@ mod descriptor_storage_tests {
                 constraints,
             });
         (typed, address, record, qualified, envelope)
+    }
+
+    #[test]
+    fn calling_parameters_retain_their_complete_direct_callback_backing() {
+        let (mut typed, address, record, qualified, _) = fixture();
+        let borrowed = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: qualified,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let constrained_nested = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: borrowed,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let stored_reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: record,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let nested = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: stored_reference,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let entry = MachineId::new(1).unwrap();
+        let mut program = Program::new(&typed, false);
+        program.begin_declaration_storage(entry, 0).unwrap();
+        let owned = program.calling_abi_parameter(entry, record).unwrap();
+        let loan = program.calling_abi_parameter(entry, borrowed).unwrap();
+        assert_eq!(owned.access, StructuralAccess::Owned);
+        assert_eq!(loan.access, StructuralAccess::SharedBorrow);
+        assert_eq!(loan.structural_type, owned.structural_type);
+        for parameter in [&owned, &loan] {
+            assert_eq!(parameter.callback_backing, Some(parameter.structural_type));
+            assert!(program.records.get(parameter.structural_type).is_some());
+        }
+        let scalar = program.calling_abi_parameter(entry, address).unwrap();
+        assert_eq!(scalar.callback_backing, Some(scalar.structural_type));
+        // Only the ordinary outer loan shell is removed. A stored inner
+        // reference still owes its own referent's domain declaration.
+        assert_eq!(
+            program
+                .calling_abi_parameter(entry, constrained_nested)
+                .unwrap_err(),
+            "type constrained by a domain with no declaration",
+        );
+        let descriptor = program.calling_abi_parameter(entry, nested).unwrap();
+        assert_eq!(
+            descriptor.callback_backing,
+            Some(descriptor.structural_type)
+        );
+        assert_ne!(descriptor.structural_type, owned.structural_type);
+        assert!(
+            matches!(program.records.get(descriptor.structural_type).unwrap().shape,
+            crate::body::StorageShape::Reference { referent, access: StructuralAccess::SharedBorrow }
+                if referent == owned.structural_type)
+        );
     }
 
     #[test]

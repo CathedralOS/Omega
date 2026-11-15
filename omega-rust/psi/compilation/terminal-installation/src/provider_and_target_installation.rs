@@ -458,6 +458,10 @@ pub(crate) mod provider_installation {
                     &supplied.structural_parameters,
                 )
                 || required.result != supplied.result
+                || !terminal_semantics::boundary_result_lifetimes_match(
+                    module, required, module, supplied,
+                )
+                .unwrap_or(false)
                 || required.reference_outputs != supplied.reference_outputs
                 || required.attachment != supplied.attachment
             {
@@ -529,6 +533,7 @@ pub(crate) mod provider_installation {
                 structural_parameters: Vec::new(),
                 result: BoundaryMachineResult::Unit,
                 result_reference_regions: Vec::new(),
+                result_lifetimes: None,
                 requires: Vec::new(),
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
@@ -686,6 +691,16 @@ pub(crate) mod component_provider {
             || receiving.scalar_parameters != supplying.scalar_parameters
         {
             return Err("component import/export checked callable contracts differ".into());
+        }
+        if !terminal_semantics::boundary_result_lifetimes_match(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            supplying,
+        )
+        .map_err(str::to_owned)?
+        {
+            return Err("component import/export declared result lifetimes differ".into());
         }
         let selection = admit_provider_installation(provider, std::slice::from_ref(selected), &[])
             .map_err(|error| format!("component export provider admission: {error:?}"))?;

@@ -19,7 +19,11 @@
 
 use super::prepare;
 use arena::HandleSpan;
-use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+use numerics::integer_carrier::FixedInteger;
+use symbols::{
+    BUILTIN_TYPE_COUNT, BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef,
+    SymbolTableBuilder, builtin_type_symbols,
+};
 use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::deferred_refusals::DeferredRequest;
@@ -241,19 +245,16 @@ fn source_with_child_telescope(
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let top = builder.insert_children(
         root,
-        [
-            (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
-            (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
-            (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+        builtin_type_symbols().into_iter().chain([
             (SymbolKind::Machine, SymbolNameRef::Static("forward")),
             (SymbolKind::Machine, SymbolNameRef::Static(relay_name)),
             (SymbolKind::Machine, SymbolNameRef::Static("sized")),
             (SymbolKind::Machine, SymbolNameRef::Static("main")),
             (SymbolKind::Machine, SymbolNameRef::Static("counted")),
-        ],
+        ]),
     );
-    let [byte, boolean, wide, forward, relay, sized, main, counted] =
-        std::array::from_fn(|position| top.handle_at(position as u32));
+    let [forward, relay, sized, main, counted] =
+        std::array::from_fn(|position| top.handle_at((BUILTIN_TYPE_COUNT + position) as u32));
     let forward = generic(&mut builder, forward);
     let (relay, nested) = if with_nested {
         let children = builder.insert_children(
@@ -340,6 +341,13 @@ fn source_with_child_telescope(
         symbols: builder.finish(),
         ..Default::default()
     };
+
+    let [byte, boolean, wide] = [
+        BuiltinTypeAtom::Integer(FixedInteger::unsigned(8)),
+        BuiltinTypeAtom::Bool,
+        BuiltinTypeAtom::Integer(FixedInteger::unsigned(64)),
+    ]
+    .map(|atom| program.symbols.builtin_atom_symbol(atom).unwrap());
 
     // forward<T>(item: T) -> T { item }
     let (type_parameters, mut state) = signature(&mut program, &forward);

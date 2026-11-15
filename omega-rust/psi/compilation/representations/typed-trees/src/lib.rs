@@ -736,21 +736,14 @@ pub(crate) mod selection_exclusions {
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct AuthoredSelectionExclusions {
         occurrences: Box<[AuthoredDeclarationSelectionOccurrenceId]>,
-        fingerprint: u64,
     }
 
     impl From<Vec<AuthoredDeclarationSelectionOccurrenceId>> for AuthoredSelectionExclusions {
         fn from(mut occurrences: Vec<AuthoredDeclarationSelectionOccurrenceId>) -> Self {
             occurrences.sort_unstable();
             occurrences.dedup();
-            let fingerprint = occurrences
-                .iter()
-                .fold(occurrences.len() as u64, |fingerprint, occurrence| {
-                    fingerprint.rotate_left(7) ^ occurrence.ordinal()
-                });
             Self {
                 occurrences: occurrences.into_boxed_slice(),
-                fingerprint,
             }
         }
     }
@@ -762,10 +755,6 @@ pub(crate) mod selection_exclusions {
 
         pub fn into_occurrences(self) -> Vec<AuthoredDeclarationSelectionOccurrenceId> {
             self.occurrences.into_vec()
-        }
-
-        pub(crate) fn fingerprint(&self) -> u64 {
-            self.fingerprint
         }
     }
 
@@ -780,7 +769,7 @@ pub(crate) mod selection_exclusions {
         use symbols::SymbolHandle;
 
         #[test]
-        fn exclusion_membership_and_fingerprint_are_published_together() {
+        fn exclusion_membership_follows_normalized_occurrences() {
             let mut ledger = AuthoredDeclarationSelections::default();
             let occurrences = (0..4)
                 .map(|_| {
@@ -800,25 +789,22 @@ pub(crate) mod selection_exclusions {
                 occurrences[2],
             ]);
             let expected = [occurrences[0], occurrences[2]];
-            let expected_fingerprint = expected
-                .iter()
-                .fold(expected.len() as u64, |fingerprint, occurrence| {
-                    fingerprint.rotate_left(7) ^ occurrence.ordinal()
-                });
             assert_eq!(exclusions.occurrences.as_ref(), expected.as_slice());
-            assert_eq!(exclusions.fingerprint(), expected_fingerprint);
             assert!(exclusions.contains(occurrences[0]));
             assert!(!exclusions.contains(occurrences[1]));
             assert_eq!(exclusions.clone(), exclusions);
 
             let mut replacement = std::mem::take(&mut exclusions).into_occurrences();
-            assert_eq!(exclusions.fingerprint(), 0);
+            assert!(exclusions.occurrences.is_empty());
             assert!(!exclusions.contains(occurrences[0]));
             replacement[1] = occurrences[3];
             exclusions = replacement.into();
             assert!(exclusions.contains(occurrences[3]));
             assert!(!exclusions.contains(occurrences[2]));
-            assert_ne!(exclusions.fingerprint(), expected_fingerprint);
+            assert_eq!(
+                exclusions.occurrences.as_ref(),
+                &[occurrences[0], occurrences[3]]
+            );
             assert_eq!(
                 AuthoredSelectionExclusions::from(Vec::new()),
                 AuthoredSelectionExclusions::default(),
@@ -1031,7 +1017,7 @@ pub use commitments::{
     MachineSpecialization, StaticRequirementDispatch, TraitImplementationApplication,
 };
 
-use arena::{Arena, Handle, HandleSpan, OwnedIndex, OwnedInterner};
+use arena::{Arena, Handle, HandleSpan, OwnedInterner};
 use diagnostics::PhaseSnapshot;
 use std::ops::{Deref, DerefMut};
 use symbols::{SymbolHandle, SymbolTable};
@@ -1105,7 +1091,6 @@ pub struct TypedTrees {
     pub constant_expression_contexts: Arena<constant_recipes::ConstantExpressionContext>,
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
-    pub callable_identity_memo: OwnedIndex<crate::type_identity::CallableIdentityMemo>,
     pub type_identities: crate::type_identity::TypeIdentityTable,
 }
 
@@ -1379,7 +1364,6 @@ impl TypedTrees {
             constant_expression_contexts: Arena::new(),
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
-            callable_identity_memo: OwnedIndex::default(),
             type_identities: Default::default(),
         }
     }

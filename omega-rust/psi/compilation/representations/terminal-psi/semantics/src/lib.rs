@@ -131,6 +131,9 @@ pub use references::reference_storage_geometry::{
     validate_storage_destination_intervals,
 };
 pub use references::{SelectedReferenceResult, selected_reference_result};
+pub use references::{
+    boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
+};
 pub use scalars::scalar_ordering;
 pub use structural::inline_carriers::{
     InlineCarrierError, inline_carrier_declaration, inline_field_presentation,

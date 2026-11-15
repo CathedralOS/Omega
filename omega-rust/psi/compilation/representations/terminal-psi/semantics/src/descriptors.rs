@@ -2227,11 +2227,11 @@ pub mod descriptor_results {
     };
     pub(crate) use crate::storage::borrowed_storage::Projection;
     pub(crate) mod boundary_calls {
-        use super::plain_owned_shape;
         use super::{
             Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
             TerminalModule,
         };
+        use super::{owned_shared_byte_descriptor_shape, plain_owned_shape};
         use crate::exactly_one::exactly_one;
         use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
         use terminal_psi::{
@@ -2308,7 +2308,9 @@ pub mod descriptor_results {
                         BoundaryCompletionResult::Structural(actual),
                     ) => {
                         expected.structural_type == actual
-                            && plain_owned_shape(types.clone(), actual)
+                            && (plain_owned_shape(types.clone(), actual)
+                                || (declaration.result_lifetimes.is_some()
+                                    && owned_shared_byte_descriptor_shape(types.clone(), actual)))
                     }
                     _ => false,
                 }
@@ -2319,9 +2321,7 @@ pub mod descriptor_results {
                 .iter()
                 .zip(&declaration.structural_parameters)
                 .all(|(argument, parameter)| {
-                    if argument.access != parameter.access
-                        || argument.access == StructuralAccess::Owned
-                    {
+                    if argument.access != parameter.access {
                         return false;
                     }
                     if argument.access == StructuralAccess::SharedBorrow {
@@ -2335,6 +2335,14 @@ pub mod descriptor_results {
                     else {
                         return false;
                     };
+                    if argument.access == StructuralAccess::Owned {
+                        // A moved immutable descriptor aggregate carries its
+                        // loans into the declared result frontier. With no
+                        // retained-borrow outcome, moving its carrier does not
+                        // make those loans escape beyond the result's use.
+                        return declaration.result_lifetimes.is_some()
+                            && owned_shared_byte_descriptor_shape(types.clone(), selected.id);
+                    }
                     if argument.path.is_empty() {
                         match &selected.shape {
                             StructuralTypeShape::ByteSequence(carrier) if carrier.is_borrowed() => {
@@ -12466,7 +12474,7 @@ pub mod descriptor_results {
     pub(crate) mod provider_invocation {
         use super::*;
         use crate::descriptors::descriptor_lifetimes::descriptor_location;
-        use terminal_psi::{BoundaryLifetimeDependency, BoundaryReferenceDestination};
+        use terminal_psi::BoundaryReferenceDestination;
 
         pub fn provider_outputs_cover_writable_slots(
             types: &[StructuralTypeDeclaration],
@@ -12573,47 +12581,15 @@ pub mod descriptor_results {
                 {
                     continue;
                 }
-                let mut lifetime_dependencies = Vec::new();
-                for dependency in &output.dependencies {
-                    let (origin, access) = match dependency {
-                        BoundaryLifetimeDependency::Referent {
-                            argument_index,
-                            access,
-                        } => (
-                            DescriptorStoredOrigin::Parameter {
-                                position: usize::try_from(*argument_index).ok()?,
-                                projection: Projection::new(&[]),
-                            },
-                            *access,
-                        ),
-                        BoundaryLifetimeDependency::Stored {
-                            argument_index,
-                            path,
-                            access,
-                        } => {
-                            let position = usize::try_from(*argument_index).ok()?;
-                            let formal = declaration.structural_parameters.get(position)?;
-                            let source = descriptor_location(
-                                types,
-                                formal.place,
-                                formal.structural_type,
-                                path,
-                                None,
-                            )?;
-                            (
-                                DescriptorStoredOrigin::IncomingSlot {
-                                    position,
-                                    path: source.path,
-                                },
-                                *access,
-                            )
-                        }
-                    };
-                    lifetime_dependencies.push(DescriptorLifetimeDebt { origin, access });
-                }
+                let lifetime_dependencies = crate::references::provider_lifetime_debts(
+                    types,
+                    &declaration.structural_parameters,
+                    &output.dependencies,
+                )
+                .ok()?;
                 let origins = vec![DescriptorStoredOrigin::Provider(DescriptorProviderOrigin {
                     boundary: declaration.id,
-                    output: DescriptorProviderOutput::Parameter(u32::try_from(output_index).ok()?),
+                    output: DescriptorProviderOutput::Stored(u32::try_from(output_index).ok()?),
                     invocations: Vec::new(),
                     projection: Projection::new(&[]),
                     lifetime_dependencies,
@@ -12632,75 +12608,12 @@ pub mod descriptor_results {
                     }
                 }
             }
-            let results = if declaration.result_reference_regions.is_empty() {
-                let mut results = Vec::new();
-                if let Some(result) = result {
-                    let terminal_psi::BoundaryMachineResult::Structural(expected) =
-                        &declaration.result
-                    else {
-                        return None;
-                    };
-                    if result.structural_type != expected.structural_type
-                        || result.multiplicity != expected.multiplicity
-                        || result.qualifications != expected.qualifications
-                        || result.projected_qualifications != expected.projected_qualifications
-                    {
-                        return None;
-                    }
-                    let dependencies = declaration
-                        .structural_parameters
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| parameter.access != StructuralAccess::Owned)
-                        .map(|(position, parameter)| DescriptorLifetimeDebt {
-                            origin: DescriptorStoredOrigin::Parameter {
-                                position,
-                                projection: Projection::new(&[]),
-                            },
-                            access: parameter.access,
-                        })
-                        .collect::<Vec<_>>();
-                    for leaf in
-                        slot_kind.owned_slots(types, result.place, result.structural_type)?
-                    {
-                        let path = crate::descriptor_lifetimes::descriptor_path(
-                            types,
-                            result.structural_type,
-                            &leaf.path,
-                        )?;
-                        let view = crate::runtime_structural_path_tip(
-                            types.iter(),
-                            result.structural_type,
-                            &path,
-                        )
-                        .is_some_and(|tip| tip.shape.is_view_descriptor())
-                            || crate::runtime_structural_field(
-                                types.iter(),
-                                result.structural_type,
-                                &path,
-                            )
-                            .and_then(|field| field.field_type.byte_sequence_carrier())
-                            .is_some_and(|carrier| carrier.is_borrowed());
-                        if !view {
-                            continue;
-                        }
-                        results.push(DescriptorResultSlot {
-                            path: leaf.path.clone(),
-                            origins: vec![DescriptorStoredOrigin::Provider(
-                                DescriptorProviderOrigin {
-                                    boundary: declaration.id,
-                                    output: DescriptorProviderOutput::Result(leaf.path),
-                                    invocations: Vec::new(),
-                                    projection: Projection::new(&[]),
-                                    lifetime_dependencies: dependencies.clone(),
-                                },
-                            )],
-                        });
-                    }
-                }
-                results
-            } else {
+            let results = if !declaration.result_reference_regions.is_empty() {
                 super::public_result_slots(types, slot_kind, declaration, result?.place)?
+            } else if let Some(result) = result {
+                crate::boundary_result_slots(types, declaration, slot_kind, result).ok()?
+            } else {
+                Vec::new()
             };
             let result = (!results.is_empty()).then(|| {
                 crate::descriptor_lifetimes::DescriptorLocation::whole(result.unwrap().place)
@@ -14346,7 +14259,7 @@ pub mod descriptor_results {
                         step.may_escape = true;
                         graph.normal_exits.push(position);
                     }
-                    Terminator::Crash { .. } => {}
+                    Terminator::Crash { .. } | Terminator::EliminateEmpty { .. } => {}
                     Terminator::ExternalCompletion {
                         structural_arguments,
                         ..
@@ -14763,14 +14676,16 @@ pub mod descriptor_results {
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub enum DescriptorProviderOutput {
-        Parameter(u32),
-        Result(Vec<DescriptorPathSegment>),
+        /// An exact row in the boundary's `reference_outputs` table.
+        Stored(u32),
+        /// A canonical borrowed leaf in the declared result frontier.
+        Result(Vec<StructuralPathSegment>),
     }
 
     impl DescriptorProviderOutput {
-        pub fn parameter_index(&self) -> Option<u32> {
+        pub fn stored_output(&self) -> Option<u32> {
             match self {
-                Self::Parameter(index) => Some(*index),
+                Self::Stored(index) => Some(*index),
                 Self::Result(_) => None,
             }
         }

@@ -949,6 +949,7 @@ pub(crate) mod terminator_wire {
 
     wire_enum! {
         TerminatorRow: Terminator, "Terminator" {
+            20 => EliminateEmpty { edge: Id, source: Id, path: Path },
             19 => InvokeNoNormal {
                 edge: Id,
                 static_reach_binding: Optional<U32>,
@@ -1023,6 +1024,42 @@ mod owned_value_tests {
         StructuralMultiplicity, StructuralOperationResult, StructuralPathQualification,
         StructuralPathSegment, StructuralResultClaimBinding, TerminalIdentityIndex,
     };
+
+    #[test]
+    fn empty_observation_wire_retains_exact_source_and_payload_namespace() {
+        use semantic_vocabulary::{EdgeId, StructuralCaseId};
+        use terminal_psi::Terminator;
+        let terminal = Terminator::EliminateEmpty {
+            edge: EdgeId::new(1).unwrap(),
+            source: PlaceId::new(2).unwrap(),
+            path: vec![
+                StructuralPathSegment::Field(TerminalIdentityIndex(4)),
+                StructuralPathSegment::Case(StructuralCaseId::new(3).unwrap()),
+            ],
+        };
+        let mut writer = Writer::default();
+        super::terminator_wire::encode_terminator(&mut writer, &terminal).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(bytes[0], 20);
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            super::terminator_wire::decode_terminator(&mut reader).unwrap(),
+            terminal
+        );
+        assert_eq!(reader.remaining(), 0);
+        let mut changed = terminal;
+        let Terminator::EliminateEmpty { source, .. } = &mut changed else {
+            unreachable!()
+        };
+        *source = PlaceId::new(5).unwrap();
+        let mut writer = Writer::default();
+        super::terminator_wire::encode_terminator(&mut writer, &changed).unwrap();
+        assert_ne!(
+            bytes,
+            writer.finish(),
+            "source identity participates in the artifact's meaning"
+        );
+    }
 
     #[test]
     fn placed_reference_wire_preserves_owner_roles_and_backing_kind() {

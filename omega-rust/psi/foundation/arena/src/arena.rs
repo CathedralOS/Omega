@@ -26,17 +26,17 @@ static NEXT_REVISION_STAMP: AtomicU64 = AtomicU64::new(1);
 /// first query after a mutation draws the next process-wide stamp. Mutation stays a
 /// plain store through `&mut`, and only queries that follow a mutation touch the
 /// shared sequence.
-struct RevisionStamp(AtomicU64);
+pub(super) struct RevisionStamp(AtomicU64);
 
 impl RevisionStamp {
     const UNSTAMPED: u64 = 0;
 
-    const fn unstamped() -> Self {
+    pub(super) const fn unstamped() -> Self {
         Self(AtomicU64::new(Self::UNSTAMPED))
     }
 
     #[inline]
-    fn get(&self) -> u64 {
+    pub(super) fn get(&self) -> u64 {
         let current = self.0.load(Ordering::Acquire);
         if current != Self::UNSTAMPED {
             return current;
@@ -53,13 +53,34 @@ impl RevisionStamp {
     }
 
     #[inline]
-    fn invalidate(&mut self) {
+    pub(super) fn invalidate(&mut self) {
         *self.0.get_mut() = Self::UNSTAMPED;
     }
 
     /// A copy names the same contents, so it keeps the stamp it was copied at.
-    fn copy(&self) -> Self {
+    pub(super) fn copy(&self) -> Self {
         Self(AtomicU64::new(self.0.load(Ordering::Acquire)))
+    }
+}
+
+impl Clone for RevisionStamp {
+    fn clone(&self) -> Self {
+        self.copy()
+    }
+}
+
+// Freshness is derived bookkeeping, not part of an arena's logical value.
+impl PartialEq for RevisionStamp {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for RevisionStamp {}
+
+impl fmt::Debug for RevisionStamp {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("RevisionStamp")
     }
 }
 
@@ -1716,6 +1737,7 @@ pub struct OrderedRootArena<T: Default> {
     handles: Arena<Handle<T>>,
     roots: HandleSpan<Handle<T>>,
     storage: Arena<T>,
+    revision: RevisionStamp, // Covers both the retained values and the selected root roster.
 }
 
 impl<T: Default> OrderedRootArena<T> {
@@ -1724,6 +1746,7 @@ impl<T: Default> OrderedRootArena<T> {
     }
 
     pub fn push(&mut self, value: T) -> Handle<T> {
+        self.revision.invalidate();
         let value = self.storage.append(value);
         self.handles.append_to_span(&mut self.roots, value);
 
@@ -1747,6 +1770,7 @@ impl<T: Default> OrderedRootArena<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.revision.invalidate();
         self.storage.get_mut(handle)
     }
 
@@ -1777,11 +1801,13 @@ impl<T: Default> OrderedRootArena<T> {
             .filter(|handle| keep(self.storage.get(*handle)))
             .collect::<Vec<_>>();
         if retained.len() != self.roots.len() {
+            self.revision.invalidate();
             self.roots = self.handles.insert_many(retained);
         }
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(&mut T)) {
+        self.revision.invalidate();
         let handles = self.handles.span_or_empty(self.roots);
         let storage = &mut self.storage;
 
@@ -1791,6 +1817,7 @@ impl<T: Default> OrderedRootArena<T> {
     }
 
     pub fn find_mut(&mut self, mut matches: impl FnMut(&T) -> bool) -> Option<&mut T> {
+        self.revision.invalidate();
         let handles = self.handles.span_or_empty(self.roots);
         let storage = &mut self.storage;
 
@@ -1805,9 +1832,7 @@ impl<T: Default> OrderedRootArena<T> {
 
     #[inline]
     pub fn revision(&self) -> u64 {
-        self.storage
-            .revision()
-            .wrapping_add(self.handles.revision())
+        self.revision.get()
     }
 }
 
@@ -1817,6 +1842,7 @@ impl<T: Default> Default for OrderedRootArena<T> {
             handles: Arena::new(),
             roots: HandleSpan::empty(),
             storage: Arena::new(),
+            revision: RevisionStamp::unstamped(),
         }
     }
 }
@@ -1833,6 +1859,7 @@ impl<T: Default> Index<usize> for OrderedRootArena<T> {
 
 impl<T: Default> IndexMut<usize> for OrderedRootArena<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.revision.invalidate();
         let handle = self.handles.span_or_empty(self.roots)[index];
 
         self.storage.get_mut(handle)
@@ -1885,6 +1912,7 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
                 handles: Arena::read(input)?,
                 roots: HandleSpan::read(input)?,
                 storage: Arena::read(input)?,
+                revision: RevisionStamp::unstamped(),
             };
             let roots = result
                 .handles
@@ -2815,6 +2843,37 @@ mod tests {
         assert_eq!(roots[1], 30);
         assert!(!roots.contains(removed));
         assert!(roots.revision() > revision);
+    }
+
+    #[test]
+    fn revision_tracks_ordered_root_mutation_and_clone_routes() {
+        let mut roots = OrderedRootArena::<u64>::new();
+        let first = roots.push(10);
+        roots.push(20);
+        let initial = roots.revision();
+        let copy = roots.clone();
+        assert_eq!(copy.revision(), initial);
+        let mut previous = initial;
+        let mut changed = |roots: &OrderedRootArena<u64>| {
+            let current = roots.revision();
+            assert_ne!(current, previous);
+            assert_eq!(roots.revision(), current);
+            previous = current;
+        };
+        *roots.get_mut(first) += 1;
+        changed(&roots);
+        roots[0] += 1;
+        changed(&roots);
+        *roots.find_mut(|value| *value == 20).expect("second root") += 1;
+        changed(&roots);
+        roots.for_each_mut(|value| *value += 1);
+        changed(&roots);
+        roots.retain(|_| false);
+        changed(&roots);
+        assert!(roots.is_empty());
+        assert_eq!(copy.revision(), initial);
+        assert_eq!(copy.get(first), &10);
+        assert_eq!(roots.get(first), &13);
     }
 
     #[test]

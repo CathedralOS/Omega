@@ -1382,6 +1382,13 @@ mod machine {
             operations: &mut Vec<AbstractOperation>,
         ) -> Result<(), LoweringError> {
             match &block.terminator {
+                Terminator::EliminateEmpty { edge, source, path } => {
+                    operations.push(AbstractOperation::EliminateEmpty {
+                        psi_edge: *edge,
+                        source: *source,
+                        path: path.clone(),
+                    });
+                }
                 Terminator::InvokeNoNormal {
                     edge,
                     callee,

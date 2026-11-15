@@ -1364,7 +1364,7 @@ mod stored_calls {
         ) -> Option<target_operations::TargetReferenceOrigin> {
             let (referent, access) = *self
                 .provider_outputs
-                .get(&(provider.boundary, provider.output.parameter_index()?))?;
+                .get(&(provider.boundary, provider.output.stored_output()?))?;
             if provider.invocations.is_empty()
                 || !provider.projection.exact
                 || provider.projection.indirect
@@ -1376,7 +1376,7 @@ mod stored_calls {
             Some(target_operations::TargetReferenceOrigin {
                 base: target_operations::TargetReferenceOriginBase::Provider {
                     boundary: provider.boundary,
-                    output: provider.output.parameter_index()?,
+                    output: provider.output.stored_output()?,
                     invocations: provider
                         .invocations
                         .iter()

@@ -674,26 +674,30 @@ mod tests {
         use typed_trees::deferred_refusals::DeferredRequest;
         let (mut typed, [served, holder]) = unit_machines();
         let state = typed.machine_states(typed.machine_by_symbol(holder).unwrap())[0].symbol;
-        typed.record_deferred_refusal(
-            state,
-            DeferredRequest::ReceiverCallSelection,
-            source::SourceSpan::default(),
-        );
-        let mut program = Program::new(&typed, false);
-        // The twin without a row is read; nothing demanded the holder yet.
-        program.machine(served).expect("a machine with no row");
-        let refusal = program.machine(holder).unwrap_err();
-        assert_eq!(
-            refusal.reason,
-            terminal_check_tables::RefusalReason::Unsupported
-        );
-        assert_eq!(
-            refusal.detail,
-            "declaration holding a call selected by its receiver's type, which no pass serves yet \
-             while reading the signature of `holder`"
-        );
+        let authored = source::SourceSpan::new(source::SourceId(1), source::Span::new(13, 19));
+        for source_span in [None, Some(authored)] {
+            typed.record_deferred_refusal(
+                state,
+                DeferredRequest::ReceiverCallSelection,
+                source_span.unwrap_or_default(),
+            );
+            let mut program = Program::new(&typed, false);
+            // The twin without a row is read; nothing demanded the holder yet.
+            program.machine(served).expect("a machine with no row");
+            let refusal = program.machine(holder).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.source_span, source_span);
+            assert_eq!(
+                refusal.detail,
+                "declaration holding a call selected by its receiver's type, which no pass serves yet \
+                 while reading the signature of `holder`"
+            );
+            typed.deferred_refusals.clear();
+        }
         // The same declaration without the row is read like its twin.
-        typed.deferred_refusals.clear();
         Program::new(&typed, false)
             .machine(holder)
             .expect("the holder once its request is served");
@@ -1285,7 +1289,7 @@ mod tests {
                 .unwrap_err();
             assert!(matches!(
                 refusal.reason,
-                terminal_check_tables::RefusalReason::Violation(_)
+                terminal_check_tables::RefusalReason::Violation
             ));
             assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
         };
@@ -1668,7 +1672,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             uncovered.reason,
-            terminal_check_tables::RefusalReason::Violation(_)
+            terminal_check_tables::RefusalReason::Violation
         ));
         assert!(uncovered.detail.contains("does not cover every value"));
         let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());

@@ -69,6 +69,7 @@ impl Lowering<'_> {
                 reason: terminal_check_tables::RefusalReason::ForeignIdentity,
                 machine: self.id,
                 concerns: Construct::Operation(operation),
+                source_span: None,
                 detail: "an operation has no allocated source coordinate".to_owned(),
             }
         })?;

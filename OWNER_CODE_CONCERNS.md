@@ -73,6 +73,34 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An explicit undeclared lifetime is reported as a byte-view type gap
+- Category: a verdict with nothing behind it
+- Where: [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L115), [static lifetime controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs)
+- Saw: At `7fec0fb9f8b` an ordinary static `keep` with a formal `view: &'storage [u8]`, where only the separate `Session` data declaration binds `'storage`, stops with `type byte view has no complete owned region identity`. The explicit-binder control with the same body is accepted. The failure comes from the byte-view identity fallback, while the lifetime specification says undeclared tags reject.
+- Cost: An author sees an unavailable byte-view type when the written signature breaks a binder rule. Preserve an explicit undeclared tag as a source violation while keeping genuinely incomplete region identities fail-closed.
+- Reported: 2026-11-14, Codex, while restoring the Stage 06 machine lifetime control
+
+### The post-merge sample stops in byte-window formation before either engine runs
+- Category: tests that pin the bug
+- Where: [post-merge runtime step](.github/workflows/post-merge-check.yml#L97), [length sample](samples/cli/facts/length/local/main.omg#L6), [array view reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L180)
+- Saw: The [sample job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661175144) at `d75251ea39f` exits 1 in `mbx xtask sample-gate --filter samples/cli/facts/length/local`. Package checking refuses `&items[0..count]` with `partial array views need their endpoint and window correspondence` while reading `window` in `last_byte`.
+- Cost: The configured post-merge runtime witness never checks the length of a borrowed byte window or reaches native/Psi comparison. Preserve the window and its result oracle when tracing receiver selection and endpoint proof ownership.
+- Reported: 2026-11-14, Codex, while verifying the main compiler and native jobs
+
+### Compiler subject fixtures still expect earlier refusal reasons and outcomes
+- Category: tests that pin the bug
+- Where: [subject fixture assertions](omega-rust/omega/compilation/compiler/tests/lowered_route_subjects.rs#L315)
+- Saw: The [main compiler job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661174957) at `d75251ea39f` reports precise rejections where unused-machine controls expect fallbacks or incompleteness, and appends the declaring body or signature to three old exact diagnostic strings. The unrelated policy-qualification failure in the same log is covered separately by #3313.
+- Cost: Stale expectations stop the suite before it can verify the intended exact source rules. Inspect each changed verdict’s evidence and keep the fixture and its original obligation.
+- Reported: 2026-11-14, Codex, while reviewing the main compiler checks after hosted admission was restored
+
+### An unimported case can turn a deferred name error into a resolver failure
+- Category: knowledge crossing a boundary
+- Where: [global bare case scan](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_expressions.rs#L47)
+- Saw: At `d75251ea39f` the source forest for `machine main() {} machine unused() -> u64 { Missing }` reaches typing and records `UndeclaredValueName` on `unused`. Add an unimported dependency containing `public data Choice { case Missing; }` and resolution of the same client instead fails immediately with `case value Missing requires its carrier-qualified Type::Missing path` (the diagnostic quotes both names).
+- Cost: Whether an unused declaration stops resolution depends on an inaccessible case spelling. Classify the exact authored occurrence through ordinary scoped lookup and preserve the deferred violation on its holder.
+- Reported: 2026-11-14, Codex, while tracing scoped unbound-name verdicts on macOS arm64
+
 ### Runtime array index proofs cannot attach to their canonical operations
 - Category: knowledge crossing a boundary
 - Where: [checked index goals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1770), [seal owner reconstruction](omega-rust/psi/compilation/representations/terminal-psi/codec/src/obligation_evidence.rs#L244)
@@ -80,12 +108,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Checked dynamic reads and writes cannot run through the product path. Stage 06 certifies each runtime path step, while the codec reconstructs only operation-local scalar and byte goals. Reuse each stored path step's exact array extent and obligation in the shared semantic query so several bounds on one operation remain attributable.
 - Reported: 2026-11-14, Codex, while validating mixed policy operands through hosted execution on macOS arm64
 
-### A specialized contract literal loses its const parameter carrier
-- Category: knowledge crossing a boundary
-- Where: [Stage 04 specialization control](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/tests.rs#L987)
-- Saw: At clean `fc1a8259dc0`, a generated machine for `sized<3>` with declared `const N: u64` keeps the numeral `3` in its copied contract, but the literal records signed 16-bit landing where the test expects `u64`.
-- Cost: The test cannot establish that substitution transports the const parameter's receiving type into the copied contract. Trace the original operand and typed binding separately while preserving the parameter, numeral and contract.
-- Reported: 2026-11-14, Codex, while validating the specialization receipt index
+### Instruction selection reconstructs target operands from earlier executable bodies
+- Category: re-deriving
+- Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
+- Saw: At `1897804e0dbd`, ordinary Omega 03 construction receives target operations together with abstract operations and the optimized executable unit. It zips optimized blocks and operation nodes with target rows (`legalization_source.rs:3101`) and reconstructs structural-call indices from optimized definitions, path geometry and accepted obligation facts. Target arguments already retain index operands and strides, but omit the extent and proof facts this reconstruction supplies: the target handoff is incomplete. Descriptor-bearing call results can reconstruct an optimized catalog graph and selected boundary operations to derive origins. These are production construction paths, not only explicit independent validators or shared immutable type-catalog queries; no miscompile or runtime cost was measured in this audit.
+- Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
+- Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
 ### Provider-selection fixtures find no authored selection to test
 - Category: tests that pin the bug
@@ -101,13 +129,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
 - Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### An unavailable declaration loses its retained source span
-- Category: a verdict with nothing behind it
-- Where: [Stage 05 deferred refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L838), [terminal publication](omega-rust/psi/compilation/terminal-production/src/accepted.rs#L560)
-- Saw: With the universe-level admission repair at base `69ec9aa5bd8`, macOS arm64 `omega --check main.omg` exits 1 for `data Held<const Count: u64 in Wrapping> { count: u64; } machine main() { let held: Held<4>; }` using the [hosted trapping fixture Build](tests/fixtures/run/arithmetic/trapping_primitives/build.omg). It correctly refuses the unavailable type expression and names the signature of `main`, but emits no file or line. Stage 05 uses the retained span only when the request is a language violation.
-- Cost: An author cannot locate an unavailable declaration using the CLI's source attribution. Carry the stored span through the shared refusal and publication path while preserving the unavailable outcome.
-- Reported: 2026-11-14, Codex, while restoring checked universe levels at hosted entry
-
 ### Provider-supply controls lose the reasons their runtime module is rejected
 - Category: tests that pin the bug
 - Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)
@@ -122,33 +143,12 @@ framework or a list of features that remain unimplemented.
 - Cost: The test cannot demonstrate that the selected call refuses to use only the private implementation's result origin. Trace the selected declaration and preserve the missing-contract control.
 - Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
 
-### The machine lifetime control loses the reason a data lifetime is unavailable
-- Category: tests that pin the bug
-- Where: [Stage 06 data-name machine lifetime control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs#L253)
-- Saw: At `7f12cb9f722` a machine under `Session` that names its data declaration's lifetime returns `rejected` from the test harness. The test expects the explicit refusal that the byte view has no complete owned region identity.
-- Cost: The control cannot show that the machine rejected the data declaration's lifetime because the machine has no binder for it. Inspect the rejection evidence before updating the expected outcome.
-- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
-
-### Dynamic view results have no retained input-loan contract
-- Category: a verdict with nothing behind it
-- Where: the dynamic-call arm of `reference_call_lifetimes` in [terminal-psi semantics references.rs](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs), consumed by `formed` in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs)
-- Saw: a dynamic call returning a view still returns no input lifetimes from this query. Descriptor flow carries existing view and reference loans, but a plain object lent for the call needs its own retained input loan when the result depends on it. Declared result-lifetime contracts are not yet published for this route; no dynamic-call execution is claimed by the provider-view repair.
-- Cost: [returned views](wiki/spec/language/lifetimes.md#returned-views) require the input to remain borrowed through the result's last use. Apply the dynamic call's complete result-lifetime contract without treating the returned address as contained in an input. Physical `result_reference_regions` cannot substitute for that temporal contract.
-- Reported: 2026-11-14, Claude Code (worker-11); narrowed to the remaining dynamic route after direct provider input-dependency controls passed.
-
 ### The checker ends a reference loan at its last use; the lowering never releases the carrier
 - Category: a verdict with nothing behind it
 - Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); the 05 lowering emits no `ReleaseReference` and places carrier cleanup only at returns (`05_typed-trees-to-terminal-psi/src/lower/places.rs`); interpreter transfer check `owned value cannot transfer while its storage is borrowed` (`terminal-interpreter/src/storage_records_and_arrays.rs`, `stage_owned_value`)
 - Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter. It is not specific to a reference stored in a record: on `372860cf534` the plain local `let lent: &mut Engine = &mut engine; start(lent); transition engine.mode { ... }` traps the same way. The same programs with `Mode [copy]` run (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
 - Cost: an accepted program fails when run. ownership.md, "Borrows and aliases", closes a local's loan "after the last use of that local", so the checker is right and the lowering must release each reference carrier (a local, or the reference field of a record) where its loan closes, on every edge leaving its live range, with 06 checking that release against the same descriptor lifetime
 - Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference; widened 2026-11-15 to plain locals
-
-### The callable-identity memo keys on a lossy whole-program fingerprint
-- Category: a verdict with nothing behind it
-- Where: [structural fingerprint](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs), `tables_fingerprint`/`roots_fingerprint`/`roster_marker` there, [callable memo](omega-rust/psi/compilation/representations/typed-trees/src/type_identity.rs), composite `revision()` sums such as `ExpressionTable::revision`, `StatementTable::revision`, `TypeReferenceTable::revision`, `OrderedRootArena::revision` and `PagedArena::revision`
-- Saw: `Arena::revision()` is now a process-unique stamp of one storage at one mutation epoch, and the call-target and data-member indexes key on exact tuples of stamps and complete rosters. `structural_fingerprint` still sums those stamps, adds rosters through `roster_marker` (start index and count, no generation) and adds bare `Vec` lengths (`machine_specializations`, `wire_schema_plans`, `access_view_plans`, ...), so a same-length `Vec` edit or a roster generation change keeps the key, and two different stamp sets can sum equal. Composite tables sum their component stamps the same way. The memo also reads every table, so a body edit discards signature-only callable identities.
-- Cost: The callable-identity memo can reuse identities after an unstamped edit and recomputes them after irrelevant ones. Key it on the exact inputs callable identity derivation reads (stamps and complete rosters as a tuple, with `Vec`-backed inputs moved to stamped storage or encapsulated mutation), and give composite tables a tuple key rather than a sum. Acceptance warms the memo, makes a same-length edit to each `Vec`-backed input it reads and a roster generation change, and compares with a cold derivation; a statement-body edit must keep the memo.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; narrowed 2026-11-15 by Claude Code after the arena stamp and exact call-target/data-member keys landed
 
 ### An explicit exclusive borrow becomes shared before the checker sees its formation
 - Category: a verdict with nothing behind it
@@ -212,13 +212,6 @@ framework or a list of features that remain unimplemented.
 - Saw: effects.md says a boundary requirement "must likewise write `crashes`". Only the lowered-form checker enforces it, and only at a call. The bundled library now writes the clause on all 400 of its requirements, but 1,745 requirements in 1,062 files under `samples/` and 70 in 40 files under `tests/fixtures/` do not, so the parser cannot refuse the omission until those are migrated, each to the ceiling its providers really have
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
-
-### Build selection calls are found and published by the spelling of their protocol operation
-- Category: one idea built twice
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `terminal-production/src/build_companions.rs` (`binding`, matches the same names again)
-- Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
-- Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
-- Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
 ### Every product gate is refused at a macOS layout alias while building for Linux
 - Category: a verdict with nothing behind it

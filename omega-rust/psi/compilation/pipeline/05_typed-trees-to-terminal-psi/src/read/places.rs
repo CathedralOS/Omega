@@ -1655,8 +1655,9 @@ mod tests {
         let repeated = lifetime_binders(machine(), &tags(&["a", "b", "a"]), nowhere).unwrap_err();
         assert_eq!(
             repeated.reason,
-            terminal_check_tables::RefusalReason::Violation(None)
+            terminal_check_tables::RefusalReason::Violation
         );
+        assert_eq!(repeated.source_span, None);
         assert_eq!(
             repeated.detail,
             "this declaration states the lifetime `'a` twice: duplicate lifetime binders reject"

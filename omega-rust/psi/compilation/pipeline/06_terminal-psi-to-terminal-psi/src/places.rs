@@ -506,6 +506,12 @@ enum Touching<'a> {
     Membership,
     /// It dispatches on a sum; the roster is judged with it.
     Dispatch(&'a [terminal_psi::StructuralCaseSuccessorEdge]),
+    /// It observes an actual value or case payload whose declaration proves
+    /// that no initialized value can inhabit it; no transfer occurs.
+    Empty {
+        source: PlaceId,
+        path: &'a [StructuralPathSegment],
+    },
 }
 
 /// One operation or terminator that reads storage or names a case payload.
@@ -3566,6 +3572,25 @@ impl<'a> Storage<'a> {
                 });
             }
             let (edge, used) = match &block.terminator {
+                Terminator::EliminateEmpty { edge, source, path } => {
+                    let at = Construct::Edge(*edge);
+                    let subject = vec![self.stored_at(*source, path, at)?];
+                    touches.push(Touch {
+                        at,
+                        block: block.id,
+                        up_to: usize::MAX,
+                        named: subject.clone(),
+                        used: subject,
+                        relied: Vec::new(),
+                        how: Touching::Empty {
+                            source: *source,
+                            path,
+                        },
+                        judged: true,
+                        releases: false,
+                    });
+                    continue;
+                }
                 // A dispatch reads its subject, and its roster is judged
                 // with it. It has one edge per case, so it is named by its
                 // block.
@@ -3690,7 +3715,12 @@ impl<'a> Storage<'a> {
     /// a case payload. A refusal returned outright concerns the module (an
     /// identity that does not resolve, storage outside this route); a use
     /// that is not established is that use's verdict.
-    pub(crate) fn uses(&self, tables: &MachineTables) -> Checked<Vec<StorageUse>> {
+    pub(crate) fn uses(
+        &self,
+        tables: &MachineTables,
+        empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
+        empty_types: &terminal_semantics::inhabitation::Inhabitation,
+    ) -> Checked<Vec<StorageUse>> {
         let mut uses = Vec::new();
         for touch in self.touches(tables)? {
             if !touch.judged {
@@ -3707,6 +3737,38 @@ impl<'a> Storage<'a> {
                 )
             };
             let verdict = match (touch.how, touch.used.first()) {
+                (Touching::Empty { source, path }, _) => {
+                    let root_type = self.root_type(source, touch.at)?;
+                    if self
+                        .lowered
+                        .structural_parameters
+                        .iter()
+                        .chain(self.lowered.block_structural_parameters())
+                        .any(|parameter| {
+                            parameter.place == source
+                                && parameter.access
+                                    == terminal_psi::StructuralAccess::WriteOnlyBorrow
+                        })
+                    {
+                        Err(refusal(
+                            RefusalReason::Unestablished,
+                            self.machine,
+                            touch.at,
+                            "an empty observation cannot read write-only storage",
+                        ))
+                    } else if empty_types.declared_path_status(empty_contracts, root_type, path)
+                        != terminal_semantics::inhabitation::Status::ProvedEmpty
+                    {
+                        Err(refusal(
+                            RefusalReason::Unestablished,
+                            self.machine,
+                            touch.at,
+                            "an empty observation has no proof that its actual subject is empty",
+                        ))
+                    } else {
+                        judge()?
+                    }
+                }
                 (Touching::Dispatch(edges), Some(subject)) => {
                     match self.roster(subject, edges, touch.at)? {
                         Ok(()) => judge()?,

@@ -208,6 +208,9 @@ impl Region {
 struct Root {
     structural_type: StructuralTypeId,
     owned: bool,
+    /// Availability applies to copyable values too; only affine custody
+    /// grants moves, restoration debt and scheduled disposal.
+    affine: bool,
     parameter: bool,
     /// A parameter lent with `&mut`: the only storage the machine does not
     /// own that an owned value may be moved out of, leaving a window the
@@ -307,7 +310,9 @@ fn storage_root(used: terminal_psi::StructuralStorageUse<'_>) -> Option<PlaceId>
 fn terminator_roots(terminator: &terminal_psi::Terminator) -> Vec<PlaceId> {
     use terminal_psi::Terminator as T;
     match terminator {
-        T::StructuralCase { source, .. } | T::ReturnStructural { source, .. } => vec![*source],
+        T::StructuralCase { source, .. }
+        | T::EliminateEmpty { source, .. }
+        | T::ReturnStructural { source, .. } => vec![*source],
         T::Jump {
             structural_arguments,
             ..
@@ -641,6 +646,15 @@ fn analyze(
             None,
         )?;
     }
+    // An empty-domain observation needs an actual initialized value even
+    // when it has no scalar leaves. Follow its producers and copies through
+    // the same region transfer, without converting copies into affine moves.
+    let observe_copyable = machine.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            terminal_psi::Terminator::EliminateEmpty { .. }
+        )
+    });
     let mut roots = Vec::with_capacity(machine.structural_places.len());
     let mut copyable_owned_roots = IdSet::new();
     for place in &machine.structural_places {
@@ -768,9 +782,10 @@ fn analyze(
         {
             copyable_owned_roots.insert(place.id);
         }
-        roots.push(tracked.then_some(Root {
+        roots.push((tracked || observe_copyable).then_some(Root {
             structural_type: ty,
             owned,
+            affine: tracked,
             parameter,
             exclusive,
         }));
@@ -799,7 +814,7 @@ fn analyze(
     }
     let mut affine_roots = IdSet::new();
     for (slot, root) in roots.iter().enumerate() {
-        if root.is_some() {
+        if root.as_ref().is_some_and(|root| root.affine) {
             affine_roots.insert(
                 PlaceId::new(slot as u64 + 1).ok_or(Error::malformed("place identity overflow"))?,
             );
@@ -819,7 +834,7 @@ fn analyze(
         .enumerate()
         .filter(|(_, root)| {
             root.as_ref()
-                .is_some_and(|root| root.parameter && root.owned)
+                .is_some_and(|root| root.parameter && root.owned && root.affine)
         })
         .map(|(slot, _)| {
             PlaceId::new(slot as u64 + 1).ok_or(Error::malformed("place identity overflow"))
@@ -1048,7 +1063,7 @@ impl Analysis<'_> {
             if operation.suspension_crossing.is_some()
                 && self.roots.iter().enumerate().any(|(raw, root)| {
                     root.as_ref()
-                        .is_some_and(|root| root.parameter && !root.owned)
+                        .is_some_and(|root| root.parameter && !root.owned && root.affine)
                         && state.regions[raw]
                             .as_ref()
                             .is_some_and(|region| !region.available(&[]))
@@ -1087,6 +1102,19 @@ impl Analysis<'_> {
                     false,
                 )?;
             }
+            Terminator::EliminateEmpty { source, path, .. } => {
+                let observed = crate::inhabitation::observed_storage_path(path);
+                self.argument(
+                    &mut state,
+                    &StructuralArgument {
+                        place: *source,
+                        path: observed.to_vec(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    site,
+                    false,
+                )?;
+            }
             Terminator::ReturnStructural { source, .. } => {
                 self.argument(
                     &mut state,
@@ -1116,6 +1144,7 @@ impl Analysis<'_> {
         if matches!(
             block.terminator,
             Terminator::Crash { .. }
+                | Terminator::EliminateEmpty { .. }
                 | Terminator::InvokeNoNormal { .. }
                 | Terminator::ExternalCompletion { .. }
         ) {
@@ -1189,7 +1218,7 @@ impl Analysis<'_> {
                 for (raw, root) in self.roots.iter().enumerate() {
                     let lent = root
                         .as_ref()
-                        .is_some_and(|root| root.parameter && !root.owned);
+                        .is_some_and(|root| root.parameter && !root.owned && root.affine);
                     if lent
                         && outgoing.regions[raw]
                             .as_ref()
@@ -1218,7 +1247,7 @@ impl Analysis<'_> {
                 for (raw, root) in self.roots.iter().enumerate() {
                     if root
                         .as_ref()
-                        .is_some_and(|root| root.parameter && !root.owned)
+                        .is_some_and(|root| root.parameter && !root.owned && root.affine)
                         && outgoing.regions[raw] != there.regions[raw]
                     {
                         return Err(Error::unsupported(
@@ -1262,6 +1291,22 @@ impl Analysis<'_> {
             }
             retained.reverse();
             outgoing.active = retained;
+            // Explicit retirement still ends a copyable home's availability;
+            // merely copying its value above does not. These supplied actions
+            // confer no affine scheduling authority.
+            if bound_output {
+                for action in supplied {
+                    if self.root(action.place())?.is_some_and(|root| !root.affine)
+                        && matches!(
+                            action,
+                            TerminalAffineCleanupAction::DiscardRoot(_)
+                                | TerminalAffineCleanupAction::RetireHome(_)
+                        )
+                    {
+                        outgoing.regions[index(action.place().get())?] = None;
+                    }
+                }
+            }
             if let Some(target) = target {
                 self.establish_successor(machine, &mut outgoing, target)
                     .map_err(|error| error.at(Site::Edge(edge)))?;
@@ -1317,7 +1362,9 @@ impl Analysis<'_> {
         // No surviving obligation may be overwritten by a destination name.
         // Check the whole telescope before installing any of its values.
         for parameter in &target.structural_parameters {
-            if self.root(parameter.place)?.is_some_and(|root| root.owned)
+            if self
+                .root(parameter.place)?
+                .is_some_and(|root| root.owned && root.affine)
                 && state.regions[index(parameter.place.get())?].is_some()
             {
                 return Err(Error::malformed(
@@ -1336,7 +1383,7 @@ impl Analysis<'_> {
             return Ok(());
         };
         let region = &mut state.regions[index(place.get())?];
-        if root.owned && region.is_none() {
+        if root.owned && root.affine && region.is_none() {
             state.active.push(place);
         }
         *region = Some(Region::new(initialized));
@@ -1998,8 +2045,9 @@ impl Analysis<'_> {
             return Ok(());
         };
         let owned = root.owned;
+        let affine = root.affine;
         let lends_window = root.exclusive;
-        let path = if consume && argument.access == StructuralAccess::Owned {
+        let path = if consume && affine && argument.access == StructuralAccess::Owned {
             self.canonical(argument.place, &argument.path)
         } else {
             self.observed(argument.place, &argument.path)
@@ -2007,7 +2055,7 @@ impl Analysis<'_> {
         }
         .map_err(|error| error.at(site))?;
         self.read(state, argument.place, &path, site)?;
-        if consume && argument.access == StructuralAccess::Owned {
+        if consume && affine && argument.access == StructuralAccess::Owned {
             // ownership.md, "Borrowed-storage invariant windows": "An owned
             // move out of a place reached through `&mut` may temporarily
             // leave that place unestablished ... The move transfers the
@@ -2577,6 +2625,7 @@ mod tests {
             roots: vec![Some(Root {
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 owned: true,
+                affine: true,
                 parameter: false,
                 exclusive: false,
             })],

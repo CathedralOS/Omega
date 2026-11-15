@@ -901,6 +901,12 @@ fn control_provenance(
         });
     }
     Ok(match &block.terminator {
+        SelectedTerminator::EliminateEmpty {
+            instruction: terminal,
+            psi_edge,
+        } if terminal.id == instruction.id => FunctionFragmentControlProvenance::EliminateEmpty {
+            psi_edge: *psi_edge,
+        },
         SelectedTerminator::OperationTrap {
             instruction: terminal,
             operation,
@@ -1510,6 +1516,18 @@ fn check_control_provenance(
             return if terminal.id == instruction.id {
                 require(
                     matches!(actual, Control::OperationTrap { operation: actual } if actual == operation),
+                )
+            } else {
+                require(matches!(actual, Control::None))
+            };
+        }
+        SelectedTerminator::EliminateEmpty {
+            instruction: terminal,
+            psi_edge,
+        } => {
+            return if terminal.id == instruction.id {
+                require(
+                    matches!(actual, Control::EliminateEmpty { psi_edge: edge } if edge == psi_edge),
                 )
             } else {
                 require(matches!(actual, Control::None))

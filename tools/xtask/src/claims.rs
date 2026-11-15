@@ -11,7 +11,9 @@ use crate::repo_root;
 
 const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
 const PROTOCOL: &str = "omega-claims-v1";
-const DEFAULT_LEASE_MINUTES: u64 = 480;
+const LEASE_MINUTES: u64 = 120;
+const WRITE_ATTEMPTS: u32 = 5;
+const TICKETS_FILE: &str = "omega-claim-tickets";
 const NANOSECONDS_PER_SECOND: i128 = 1_000_000_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -177,9 +179,52 @@ fn format_utc(time: SystemTime) -> Result<String, String> {
 
 fn lease_timestamps(now: SystemTime) -> Result<(String, String), String> {
     let expires = now
-        .checked_add(Duration::from_secs(DEFAULT_LEASE_MINUTES * 60))
+        .checked_add(Duration::from_secs(LEASE_MINUTES * 60))
         .ok_or("claim expiry exceeds the system clock range")?;
     Ok((format_utc(now)?, format_utc(expires)?))
+}
+
+// A claim lives at most one lease past its last sign of life: when it was taken
+// or last renewed, whatever expiry it records. Hand-written far-future expiries
+// (2099) kept 66 claims on paths that no longer exist visible for weeks, so a
+// recorded expiry can shorten a claim but never lengthen it. Unknown times still
+// keep a claim visible: only a parsed instant proves that it ended.
+fn claim_expiry(claim: &serde_json::Value) -> Option<i128> {
+    let instant = |field: &str| {
+        claim
+            .get(field)
+            .and_then(serde_json::Value::as_str)
+            .and_then(parse_expiry)
+    };
+    let alive = match (instant("claimed_utc"), instant("renewed_utc")) {
+        (Some(claimed), Some(renewed)) => Some(claimed.max(renewed)),
+        (claimed, renewed) => claimed.or(renewed),
+    };
+    let lease_ceiling =
+        alive.map(|alive| alive + i128::from(LEASE_MINUTES * 60) * NANOSECONDS_PER_SECOND);
+    match (instant("expires_utc"), lease_ceiling) {
+        (Some(recorded), Some(ceiling)) => Some(recorded.min(ceiling)),
+        (recorded, ceiling) => recorded.or(ceiling),
+    }
+}
+
+// Renewal starts a fresh lease from `now`. A claim that has already lapsed is
+// not revived: it may have been taken over, so its agent must claim again.
+fn renew_claim(record: &mut ClaimsRecord, ticket: &str, now: SystemTime) -> Result<bool, String> {
+    let (renewed_utc, expires_utc) = lease_timestamps(now)?;
+    let now = epoch_nanoseconds(now);
+    let Some(claim) = record.claims.iter_mut().find(|claim| {
+        claim.get("ticket").and_then(serde_json::Value::as_str) == Some(ticket)
+            && claim_expiry(claim).is_none_or(|expires| expires > now)
+    }) else {
+        return Ok(false);
+    };
+    if let Some(fields) = claim.as_object_mut() {
+        fields.insert("renewed_utc".to_owned(), renewed_utc.into());
+        fields.insert("expires_utc".to_owned(), expires_utc.into());
+        fields.insert("lease_minutes".to_owned(), LEASE_MINUTES.into());
+    }
+    Ok(true)
 }
 
 fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
@@ -187,13 +232,7 @@ fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> ser
     let claims: Vec<_> = record
         .claims
         .iter()
-        .filter(|claim| {
-            claim
-                .get("expires_utc")
-                .and_then(serde_json::Value::as_str)
-                .and_then(parse_expiry)
-                .is_none_or(|expires| expires > now)
-        })
+        .filter(|claim| claim_expiry(claim).is_none_or(|expires| expires > now))
         .collect();
     serde_json::json!({
         "state": if claims.is_empty() { "available" } else { "claimed" },
@@ -328,6 +367,73 @@ fn commit_and_push(repo: &Path, prev_version: &str, record: &ClaimsRecord) -> Re
     Ok(())
 }
 
+// Every agent writes the same ref, so a write loses to a concurrent one often
+// (about a third of 66 back-to-back releases did). Each attempt reapplies the
+// change to the newest snapshot rather than overwriting it.
+fn update_registry<T>(
+    repo: &Path,
+    mut change: impl FnMut(&mut ClaimsRecord) -> Result<T, u8>,
+) -> Result<T, u8> {
+    let mut attempt = 1;
+    loop {
+        let (version, mut record) = fetch_snapshot(repo)?;
+        let outcome = change(&mut record)?;
+        match commit_and_push(repo, &version, &record) {
+            Ok(()) => return Ok(outcome),
+            Err(_) if attempt < WRITE_ATTEMPTS => {
+                eprintln!(
+                    "claims: retrying against the newer registry ({attempt}/{WRITE_ATTEMPTS})"
+                );
+                attempt += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+// The tickets this worktree holds, so `claims renew` needs no arguments. The
+// file sits in the worktree's own git directory: each worktree renews only its
+// own claims, and nothing is committed.
+fn tickets_file(repo: &Path) -> Option<std::path::PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-path", TICKETS_FILE])
+        .current_dir(repo)
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| repo.join(String::from_utf8_lossy(&output.stdout).trim()))
+}
+
+fn held_tickets(repo: &Path) -> Vec<String> {
+    tickets_file(repo)
+        .and_then(|file| std::fs::read_to_string(file).ok())
+        .map(|text| {
+            text.lines()
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn write_held_tickets(repo: &Path, tickets: &[String]) {
+    let Some(file) = tickets_file(repo) else {
+        eprintln!("claims: cannot locate this worktree's ticket file; renew with --ticket");
+        return;
+    };
+    let text: String = tickets.iter().map(|ticket| format!("{ticket}\n")).collect();
+    if let Err(error) = std::fs::write(&file, text) {
+        eprintln!(
+            "claims: cannot record held tickets in {}: {error}",
+            file.display()
+        );
+    }
+}
+
 fn generate_ticket_id() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -352,6 +458,9 @@ enum Request {
     },
     Release {
         ticket: String,
+    },
+    Renew {
+        tickets: Vec<String>,
     },
     Note {
         ticket: String,
@@ -434,6 +543,17 @@ fn parse(args: &[String]) -> Result<Option<Request>, String> {
             }
             Ok(Some(Request::Release { ticket }))
         }
+        "renew" => {
+            let mut tickets = Vec::new();
+            while let Some(option) = args.next() {
+                match option {
+                    "-h" | "--help" => return Ok(None),
+                    "--ticket" => tickets.push(option_value(&mut args, option)?),
+                    _ => return Err(format!("unknown option `{option}` for `renew`")),
+                }
+            }
+            Ok(Some(Request::Renew { tickets }))
+        }
         "note" => {
             let mut ticket = String::new();
             let mut text = String::new();
@@ -461,15 +581,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     })?;
     let Some(request) = request else {
         println!(
-            "usage: cargo xtask claims <status|claim|release|note> [--board <file>] [--item <id>] [--owner <name>] [--path <paths>] [--ticket <id>] [--text <note>]"
+            "usage: cargo xtask claims <status|claim|release|renew|note> [--board <file>] [--item <id>] [--owner <name>] [--path <paths>] [--ticket <id>] [--text <note>]\n\
+             A claim lasts {LEASE_MINUTES} minutes from when it was taken or last renewed. \
+             `renew` (no --ticket: every claim this worktree took) and `note` extend it."
         );
         return Ok(());
     };
     let repo = repo_root()?;
-    let (version, mut record) = fetch_snapshot(&repo)?;
 
     match request {
         Request::Status => {
+            let (version, record) = fetch_snapshot(&repo)?;
             let out = status_snapshot(&version, &record, SystemTime::now());
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
             Ok(())
@@ -482,21 +604,25 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             note,
         } => {
             let ticket = generate_ticket_id();
-            let (claimed_utc, expires_utc) =
-                lease_timestamps(SystemTime::now()).map_err(clock_error)?;
-            let entry = serde_json::json!({
-                "ticket": ticket,
-                "item": item,
-                "board": board,
-                "owner": owner,
-                "paths": paths,
-                "note": note,
-                "lease_minutes": DEFAULT_LEASE_MINUTES,
-                "claimed_utc": claimed_utc,
-                "expires_utc": expires_utc,
-            });
-            record.claims.push(entry);
-            commit_and_push(&repo, &version, &record)?;
+            update_registry(&repo, |record| {
+                let (claimed_utc, expires_utc) =
+                    lease_timestamps(SystemTime::now()).map_err(clock_error)?;
+                record.claims.push(serde_json::json!({
+                    "ticket": ticket,
+                    "item": item,
+                    "board": board,
+                    "owner": owner,
+                    "paths": paths,
+                    "note": note,
+                    "lease_minutes": LEASE_MINUTES,
+                    "claimed_utc": claimed_utc,
+                    "expires_utc": expires_utc,
+                }));
+                Ok(())
+            })?;
+            let mut held = held_tickets(&repo);
+            held.push(ticket.clone());
+            write_held_tickets(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -509,10 +635,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             Ok(())
         }
         Request::Release { ticket } => {
-            record.claims.retain(|claim| {
-                claim.get("ticket").and_then(|value| value.as_str()) != Some(ticket.as_str())
-            });
-            commit_and_push(&repo, &version, &record)?;
+            update_registry(&repo, |record| {
+                record.claims.retain(|claim| {
+                    claim.get("ticket").and_then(|value| value.as_str()) != Some(ticket.as_str())
+                });
+                Ok(())
+            })?;
+            let mut held = held_tickets(&repo);
+            held.retain(|held| *held != ticket);
+            write_held_tickets(&repo, &held);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -523,17 +654,64 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             );
             Ok(())
         }
+        Request::Renew { tickets } => {
+            let tickets = if tickets.is_empty() {
+                held_tickets(&repo)
+            } else {
+                tickets
+            };
+            if tickets.is_empty() {
+                eprintln!("claims: this worktree holds no claim to renew; pass --ticket <id>");
+                return Err(1);
+            }
+            let renewed = update_registry(&repo, |record| {
+                let now = SystemTime::now();
+                let mut renewed = Vec::new();
+                for ticket in &tickets {
+                    if renew_claim(record, ticket, now).map_err(clock_error)? {
+                        renewed.push(ticket.clone());
+                    }
+                }
+                Ok(renewed)
+            })?;
+            let lapsed: Vec<_> = tickets.iter().filter(|t| !renewed.contains(t)).collect();
+            // A lapsed ticket is gone for good; stop offering it for renewal.
+            let mut held = held_tickets(&repo);
+            held.retain(|held| !lapsed.contains(&held));
+            write_held_tickets(&repo, &held);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "state": if lapsed.is_empty() { "renewed" } else { "partially renewed" },
+                    "renewed": renewed,
+                    "lapsed": lapsed,
+                    "lease_minutes": LEASE_MINUTES,
+                }))
+                .unwrap()
+            );
+            if lapsed.is_empty() {
+                Ok(())
+            } else {
+                eprintln!("claims: lapsed or released tickets cannot be renewed; claim again");
+                Err(1)
+            }
+        }
         Request::Note { ticket, text } => {
-            let created_utc = format_utc(SystemTime::now()).map_err(clock_error)?;
-            record.notes.push(serde_json::json!({
-                "ticket": ticket,
-                "item": "note",
-                "owner": "agent",
-                "text": text,
-                "created_utc": created_utc,
-                "swept_utc": null,
-            }));
-            commit_and_push(&repo, &version, &record)?;
+            update_registry(&repo, |record| {
+                let now = SystemTime::now();
+                let created_utc = format_utc(now).map_err(clock_error)?;
+                // A note is a sign of life: it renews the claim it names.
+                renew_claim(record, &ticket, now).map_err(clock_error)?;
+                record.notes.push(serde_json::json!({
+                    "ticket": ticket,
+                    "item": "note",
+                    "owner": "agent",
+                    "text": text,
+                    "created_utc": created_utc,
+                    "swept_utc": null,
+                }));
+                Ok(())
+            })?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -710,16 +888,55 @@ mod tests {
     }
 
     #[test]
-    fn claim_lease_starts_at_the_supplied_clock_and_lasts_eight_hours() {
+    fn claim_lease_starts_at_the_supplied_clock_and_lasts_two_hours() {
         let now = UNIX_EPOCH + Duration::new(1_794_527_999, 123_456_700);
         let (claimed, expires) = lease_timestamps(now).unwrap();
         assert_eq!(claimed, "2026-11-12T23:59:59.123456700+00:00");
-        assert_eq!(expires, "2026-11-13T07:59:59.123456700+00:00");
+        assert_eq!(expires, "2026-11-13T01:59:59.123456700+00:00");
         assert_eq!(format_utc(now).unwrap(), claimed);
         assert_eq!(parse_expiry(&claimed), Some(epoch_nanoseconds(now)));
         assert_eq!(
             parse_expiry(&expires).unwrap() - epoch_nanoseconds(now),
-            8 * 60 * 60 * NANOSECONDS_PER_SECOND
+            2 * 60 * 60 * NANOSECONDS_PER_SECOND
+        );
+    }
+
+    #[test]
+    fn renewal_restarts_the_lease_and_cannot_revive_a_lapsed_claim() {
+        let hour = Duration::from_secs(3600);
+        let taken = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
+        let (claimed_utc, expires_utc) = lease_timestamps(taken).unwrap();
+        let mut record = ClaimsRecord {
+            claims: vec![
+                json!({"ticket": "live", "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+                json!({"ticket": "lapsed", "claimed_utc": claimed_utc, "expires_utc": expires_utc}),
+            ],
+            ..ClaimsRecord::default()
+        };
+        // An hour and a half in, renew one claim; it then outlives the first
+        // lease and ends two hours after the renewal.
+        let renewal = taken + hour + hour / 2;
+        assert!(renew_claim(&mut record, "live", renewal).unwrap());
+        let later = taken + 3 * hour;
+        let visible = status_snapshot("v", &record, later)["claims"].clone();
+        assert_eq!(visible.as_array().unwrap().len(), 1);
+        assert_eq!(visible[0]["ticket"], "live");
+        assert_eq!(
+            claim_expiry(&record.claims[0]),
+            Some(epoch_nanoseconds(renewal + 2 * hour))
+        );
+        // The unrenewed claim ended at two hours and stays ended.
+        assert!(!renew_claim(&mut record, "lapsed", later).unwrap());
+        assert!(!renew_claim(&mut record, "unknown", later).unwrap());
+        assert_eq!(record.claims[1]["expires_utc"], expires_utc.as_str());
+        // A renewal stamped later than a hand-edited expiry cannot extend it.
+        let mut capped = json!({"ticket": "c", "claimed_utc": claimed_utc,
+            "renewed_utc": format_utc(renewal).unwrap(), "expires_utc": claimed_utc});
+        assert_eq!(claim_expiry(&capped), Some(epoch_nanoseconds(taken)));
+        capped["expires_utc"] = "2099-01-01T00:00:00Z".into();
+        assert_eq!(
+            claim_expiry(&capped),
+            Some(epoch_nanoseconds(renewal + 2 * hour))
         );
     }
 
@@ -804,30 +1021,54 @@ mod tests {
     }
 
     #[test]
-    fn status_keeps_unknown_expiry_and_honors_historical_far_future_expiry() {
-        let claims = vec![
+    fn status_keeps_unknown_expiry_and_caps_far_future_expiry_at_one_lease() {
+        let unknown = vec![
             json!({"ticket": "missing", "legacy_field": [1, 2]}),
             json!({"ticket": "null", "expires_utc": null}),
             json!({"ticket": "number", "expires_utc": 42}),
             json!({"ticket": "malformed", "expires_utc": "2026-02-30T00:00:00Z"}),
-            json!({
-                "ticket": "historical", "lease_minutes": 480,
-                "claimed_utc": "2026-11-07T00:00:00+00:00",
-                "expires_utc": "2099-01-01T00:00:00+00:00",
-                "unknown_field": true
-            }),
         ];
+        let mut claims = unknown.clone();
+        // Taken 2026-11-07 with a 2099 expiry: its lease ended that morning.
+        claims.push(json!({
+            "ticket": "historical", "lease_minutes": 480,
+            "claimed_utc": "2026-11-07T00:00:00+00:00",
+            "expires_utc": "2099-01-01T00:00:00+00:00",
+            "unknown_field": true
+        }));
         let wire = json!({"protocol": PROTOCOL, "claims": claims, "notes": []});
         let record: ClaimsRecord = serde_json::from_value(wire.clone()).unwrap();
         let now = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
         let out = status_snapshot("snapshot", &record, now);
         assert_eq!(out["state"], "claimed");
-        assert_eq!(out["claims"], json!(claims));
+        assert_eq!(out["claims"], json!(unknown));
         assert_eq!(serde_json::to_value(record).unwrap(), wire);
         assert_eq!(
             status_snapshot("empty", &ClaimsRecord::default(), now)["state"],
             "available"
         );
+    }
+
+    #[test]
+    fn a_recorded_expiry_shortens_a_lease_but_never_extends_it() {
+        let (claimed, expires) = lease_timestamps(UNIX_EPOCH + Duration::from_secs(1_000)).unwrap();
+        let lease = i128::from(LEASE_MINUTES * 60) * NANOSECONDS_PER_SECOND;
+        let start = parse_expiry(&claimed).unwrap();
+        for (recorded, ends) in [
+            (expires.as_str(), start + lease),
+            ("2099-01-01T00:00:00Z", start + lease),
+            ("1970-01-01T00:20:00Z", 1_200 * NANOSECONDS_PER_SECOND),
+        ] {
+            let claim = json!({"claimed_utc": claimed, "expires_utc": recorded});
+            assert_eq!(claim_expiry(&claim), Some(ends), "{recorded}");
+        }
+        // Without a recorded expiry the lease still ends; without either the
+        // claim stays visible.
+        assert_eq!(
+            claim_expiry(&json!({"claimed_utc": claimed})),
+            Some(start + lease)
+        );
+        assert_eq!(claim_expiry(&json!({"claimed_utc": "soon"})), None);
     }
 
     #[test]

@@ -3083,7 +3083,7 @@ pub(crate) mod stored_calls {
                     let provider =
                         terminal_semantics::descriptor_results::DescriptorProviderOrigin {
                             boundary: boundary.id,
-                            output: terminal_semantics::descriptor_results::DescriptorProviderOutput::Parameter(u32::try_from(output_index).ok()?),
+                            output: terminal_semantics::descriptor_results::DescriptorProviderOutput::Stored(u32::try_from(output_index).ok()?),
                             invocations: Vec::new(),
                             projection: terminal_semantics::borrowed_storage::Projection::new(&[]),
                             lifetime_dependencies: dependencies,
@@ -3121,7 +3121,7 @@ pub(crate) mod stored_calls {
             .find(|boundary| boundary.id == provider.boundary)?;
         let output = boundary
             .reference_outputs
-            .get(provider.output.parameter_index()? as usize)?;
+            .get(provider.output.stored_output()? as usize)?;
         let root_type = match output.destination {
             terminal_psi::BoundaryReferenceDestination::Parameter(position) => {
                 boundary
@@ -3177,7 +3177,7 @@ pub(crate) mod stored_calls {
             origin: target_operations::TargetReferenceOrigin {
                 base: target_operations::TargetReferenceOriginBase::Provider {
                     boundary: provider.boundary,
-                    output: provider.output.parameter_index()?,
+                    output: provider.output.stored_output()?,
                     invocations: provider
                         .invocations
                         .iter()

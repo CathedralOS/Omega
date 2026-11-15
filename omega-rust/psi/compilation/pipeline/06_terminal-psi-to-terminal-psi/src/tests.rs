@@ -1221,12 +1221,24 @@ fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() 
         reason,
         machine: id(1),
         concerns: Construct::Machine,
+        source_span: None,
         detail: String::from("test"),
     };
-    assert!(matches!(
-        judge(Err(refused(RefusalReason::Unsupported))),
-        Ok(RouteVerdict::FallBack(_))
-    ));
+    let authored = source::SourceSpan::new(source::SourceId(1), source::Span::new(13, 19));
+    for source_span in [None, Some(authored)] {
+        let unsupported = refused(RefusalReason::Unsupported).with_source_span(source_span);
+        assert!(matches!(
+            judge(Err(unsupported.clone())),
+            Ok(RouteVerdict::FallBack(carried)) if carried == unsupported
+        ));
+        let violation = refused(RefusalReason::Violation).with_source_span(source_span);
+        let RouteVerdict::Rejected { violations, .. } = judge(Err(violation)).unwrap() else {
+            panic!("a source rule violation must reject the program");
+        };
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].site, source_span);
+        assert_eq!(violations[0].statement, "test");
+    }
     assert!(judge(Err(refused(RefusalReason::ForeignIdentity))).is_err());
 }
 
@@ -2736,6 +2748,7 @@ fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
         reason: RefusalReason::Unestablished,
         machine: id(1),
         concerns: terminal_check_tables::Construct::Block(id(2)),
+        source_span: None,
         detail: String::from("a dispatch selects no arm for a declared case"),
     };
     let RouteVerdict::Rejected {
@@ -6362,6 +6375,7 @@ mod generic_bodies {
             reason: RefusalReason::Unsupported,
             machine: id(1),
             concerns: Construct::Machine,
+            source_span: None,
             detail: "refinement unavailable".to_owned(),
         };
         let verdicts = crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
