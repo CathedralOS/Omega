@@ -6903,14 +6903,13 @@ pub(crate) mod engine {
 
             // Replacing the reference really changes the later address. A
             // cached query at either cut must not overwrite the other cut.
-            let mut retargeted = graph.clone();
-            retargeted[0]
+            graph[0]
                 .flow
                 .get_mut(&positions[0])
                 .unwrap()
                 .derivations
                 .push((replacement_parameter.clone(), parameter.clone()));
-            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &retargeted);
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
             assert_eq!(
                 analysis.location(id, positions[1], &leaf),
                 Some(replacement_leaf.clone())
@@ -6921,6 +6920,12 @@ pub(crate) mod engine {
                 Some(replacement_leaf)
             );
             drop(analysis);
+            graph[0]
+                .flow
+                .get_mut(&positions[0])
+                .unwrap()
+                .derivations
+                .clear();
 
             let mut limited =
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
