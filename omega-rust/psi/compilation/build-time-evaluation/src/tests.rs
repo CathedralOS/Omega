@@ -1873,3 +1873,54 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
         }
     }
 }
+
+#[test]
+fn deriving_numbered_record_metadata_does_not_request_wire_evaluation() {
+    let (_, _, base, pending) = constant_base(&[
+        ("main.omg", "machine entry() { }"),
+        (
+            "library.omg",
+            r#"
+data Numbered { #0 count: u64; }
+machine read() -> u64 {
+    let item: Numbered = Numbered { count: 9u64 };
+    item.count
+}
+"#,
+        ),
+    ]);
+    let mut program = base.typed().clone();
+    let [schema] = program.wire_schemas() else {
+        panic!("ordinary numbered data derives its schema");
+    };
+    assert!(schema.encoding.is_none());
+    let schema = schema.symbol;
+    pending.evaluate(&mut program).unwrap();
+    crate::PreCheckEvaluation::evaluate_extension_or_defer(Vec::new(), 0, &mut program).unwrap();
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+    let target = || crate::InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    };
+    for (name, expected) in [
+        ("entry", crate::BuildTimeValue::Unit),
+        ("read", crate::BuildTimeValue::Int(9)),
+    ] {
+        let machine = program.realized_machine_named(name).unwrap().symbol;
+        let actual = prepared
+            .entry(machine, machine, &[])
+            .unwrap()
+            .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+            .unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    program.record_wire_schema_plan(schema, [], [], false);
+    let error = crate::PreCheckEvaluation::defer_declared_requests(&mut program).unwrap_err();
+    assert_eq!(
+        error[0].message,
+        "no product route yet: source wire-schema evaluation"
+    );
+}
