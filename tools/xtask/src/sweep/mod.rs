@@ -28,7 +28,19 @@
 //! starts with `invalid` should be rejected; every other program should check.
 //! Rows are written as tab-separated text, or JSON when `--out` ends in
 //! `.json`, and a summary by outcome, stage and cause is printed.
+//!
+//! `--target <name>` checks for that target rather than the host's, and
+//! `--shard K/N` (or `A-B/N`) checks one share of the selection, so one
+//! target's sweep can be split across machines. With `--out`, each program
+//! is journalled as it finishes and the same command resumes an interrupted
+//! run ([`record`]). `merge` joins a run's shards and refuses any set that
+//! is not exactly one row per selected program; `fleet` starts, watches and
+//! collects such a run on several machines ([`fleet`]).
 
+mod fleet;
+mod record;
+
+use record::{Header, Journal, Shard, Status};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
@@ -42,10 +54,13 @@ const FACTS_ROOT: &str = "samples/cli/facts/";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 
 const USAGE: &str = "\
-usage: cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv>
-                          | --changed <rev> [--previous <sweep.tsv>]]
-                         [--filter <fragment>] [--omega <path>] [--jobs <n>]
-                         [--timeout <seconds>] [--out <file.tsv|file.json>] [--list]";
+usage: cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv|sweep.json>
+                          | --changed <rev> [--previous <sweep.tsv|sweep.json>]]
+                         [--filter <fragment>] [--target <name>] [--shard K/N | A-B/N]
+                         [--omega <path>] [--jobs <n>] [--timeout <seconds>]
+                         [--out <file.tsv|file.json>] [--list]
+       cargo xtask sweep merge --out <file.json> <shard.json>...
+       cargo xtask sweep fleet <start|status|collect|restart> ...  (see `sweep fleet --help`)";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Options {
@@ -54,6 +69,8 @@ struct Options {
     changed: Option<String>,
     previous: Option<PathBuf>,
     filter: Option<String>,
+    target: Option<String>,
+    shard: Shard,
     omega: Option<PathBuf>,
     jobs: usize,
     timeout: Duration,
@@ -68,6 +85,8 @@ fn parse(args: &[String]) -> Result<Options, String> {
         changed: None,
         previous: None,
         filter: None,
+        target: None,
+        shard: Shard::WHOLE,
         omega: None,
         jobs: 10,
         timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECONDS),
@@ -87,6 +106,11 @@ fn parse(args: &[String]) -> Result<Options, String> {
             "--changed" => options.changed = Some(value("--changed")?),
             "--previous" => options.previous = Some(PathBuf::from(value("--previous")?)),
             "--filter" => options.filter = Some(value("--filter")?),
+            "--target" => options.target = Some(value("--target")?),
+            "--shard" => {
+                options.shard = Shard::parse(&value("--shard")?)
+                    .map_err(|error| format!("{error}\n{USAGE}"))?;
+            }
             "--omega" => options.omega = Some(PathBuf::from(value("--omega")?)),
             "--jobs" => {
                 options.jobs = value("--jobs")?
@@ -330,13 +354,16 @@ fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
     }
 }
 
-/// `omega --check <program>` with stdin closed, at idle priority where the
-/// host offers one, killed after `timeout`.
-fn check(omega: &Path, root: &Path, program: &str, timeout: Duration) -> Row {
+/// `omega --check [--target <name>] <program>` with stdin closed, at idle
+/// priority where the host offers one, killed after `timeout`.
+fn check(omega: &Path, root: &Path, target: Option<&str>, program: &str, timeout: Duration) -> Row {
     let started = Instant::now();
     let mut command = Command::new(omega);
+    command.arg("--check");
+    if let Some(target) = target {
+        command.arg("--target").arg(target);
+    }
     command
-        .arg("--check")
         .arg(program)
         .current_dir(root)
         .stdin(Stdio::null())
@@ -419,6 +446,22 @@ struct Previous {
 fn read_previous(previous: &Path) -> Result<Vec<Previous>, String> {
     let content =
         fs::read_to_string(previous).map_err(|error| format!("{}: {error}", previous.display()))?;
+    if previous
+        .extension()
+        .is_some_and(|extension| extension == "json")
+    {
+        let (_, rows) = record::parse_output(&content)
+            .map_err(|error| format!("{}: {error}", previous.display()))?;
+        return Ok(rows
+            .into_iter()
+            .map(|row| Previous {
+                program: row.program,
+                outcome: row.outcome.to_owned(),
+                cause: row.cause,
+                detail: row.detail,
+            })
+            .collect());
+    }
     Ok(content
         .lines()
         .filter(|line| !line.starts_with('#') && !line.starts_with("program\t"))
@@ -673,31 +716,34 @@ fn escape_tsv(text: &str) -> String {
     text.replace(['\t', '\n', '\r'], " ")
 }
 
-fn write_rows(path: &Path, commit: &str, rows: &[Row]) -> Result<(), String> {
+/// Writes rows as JSON when `path` ends in `.json`, else as tab-separated
+/// text; both carry the run's header.
+fn render_rows(path: &Path, header: &Header, rows: &[Row]) -> Result<(), String> {
     let text = if path
         .extension()
         .is_some_and(|extension| extension == "json")
     {
-        let rows: Vec<serde_json::Value> = rows
-            .iter()
-            .map(|row| {
-                serde_json::json!({
-                    "program": row.program.trim_end_matches("/main.omg"),
-                    "exit": row.exit,
-                    "ms": row.ms as u64,
-                    "outcome": row.outcome,
-                    "stage": row.stage,
-                    "cause": row.cause,
-                    "detail": row.detail,
-                    "expect": if expects_rejection(&row.program) { "reject" } else { "accept" },
-                })
-            })
-            .collect();
-        serde_json::to_string(&serde_json::json!({ "commit": commit, "programs": rows }))
-            .map_err(|error| error.to_string())?
+        let rows: Vec<serde_json::Value> = rows.iter().map(record::row_json).collect();
+        serde_json::to_string(&serde_json::json!({
+            "commit": header.commit,
+            "run": header,
+            "programs": rows,
+        }))
+        .map_err(|error| error.to_string())?
     } else {
-        let mut text =
-            format!("# commit {commit}\nprogram\texit\tms\toutcome\tstage\tcause\tdetail\n");
+        let mut text = format!(
+            "# commit {} target {} shard {} selection {} ({} programs)\n\
+             program\texit\tms\toutcome\tstage\tcause\tdetail\n",
+            header.commit,
+            if header.target.is_empty() {
+                "host"
+            } else {
+                &header.target
+            },
+            header.shard.label(),
+            header.fingerprint,
+            header.selection,
+        );
         for row in rows {
             text.push_str(&format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
@@ -755,6 +801,11 @@ fn summary(rows: &[Row]) -> String {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
+    match args.first().map(String::as_str) {
+        Some("merge") => return merge_command(&args[1..]),
+        Some("fleet") => return fleet::run(&args[1..]),
+        _ => {}
+    }
     let options = parse(args).map_err(|message| {
         eprintln!("{message}");
         2
@@ -805,45 +856,173 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     if let Some(filter) = &options.filter {
         programs.retain(|program| program.contains(filter.as_str()));
     }
+    let selection = programs.len();
+    let fingerprint = record::fingerprint(programs.iter().map(String::as_str));
+    let programs: Vec<String> = programs
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| options.shard.holds(*index))
+        .map(|(_, program)| program)
+        .collect();
     if options.list {
         for program in &programs {
             println!("{program}");
         }
-        eprintln!("xtask sweep: {} programs selected", programs.len());
+        eprintln!(
+            "xtask sweep: {} programs selected (shard {} of a selection of {selection}, {fingerprint})",
+            programs.len(),
+            options.shard.label()
+        );
         return Ok(());
     }
-    let commit = Command::new("git")
-        .args(["rev-parse", "--short=10", "HEAD"])
-        .current_dir(&root)
-        .output()
-        .ok()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .unwrap_or_default();
-    eprintln!(
-        "xtask sweep: {} programs at {commit}, {} at a time",
-        programs.len(),
-        options.jobs
-    );
+    let header = Header {
+        commit: head_commit(&root).map_err(fail)?,
+        target: options.target.clone().unwrap_or_default(),
+        shard: options.shard,
+        selection,
+        fingerprint,
+        total: programs.len(),
+    };
+    sweep(&options, &root, &omega, &header, &programs).map_err(|message| {
+        if let Some(out) = &options.out {
+            let _ = record::write_status(
+                out,
+                &Status {
+                    state: "failed".to_owned(),
+                    total: header.total,
+                    updated: record::now(),
+                    detail: message.clone(),
+                    ..Status::default()
+                },
+            );
+        }
+        fail(message)
+    })
+}
 
-    let next = AtomicUsize::new(0);
-    let done = AtomicUsize::new(0);
-    let rows = Mutex::new(Vec::with_capacity(programs.len()));
+fn head_commit(root: &Path) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--short=10", "HEAD"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git rev-parse: {error}"))?;
+    let commit = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if !output.status.success() || commit.is_empty() {
+        return Err("git rev-parse HEAD failed".to_owned());
+    }
+    Ok(commit)
+}
+
+/// Checks `programs`, journalling each row when there is an `--out`, and
+/// writes the verified output.
+fn sweep(
+    options: &Options,
+    root: &Path,
+    omega: &Path,
+    header: &Header,
+    programs: &[String],
+) -> Result<(), String> {
+    // Open the journal before checking anything, so an unwritable `--out`
+    // fails in the first second rather than after the last program.
+    let (journal, earlier) = match &options.out {
+        Some(out) => {
+            let (journal, earlier) = Journal::open(out, header)?;
+            (Some(journal), earlier)
+        }
+        None => (None, Vec::new()),
+    };
+    let finished: std::collections::BTreeSet<&str> =
+        earlier.iter().map(|row| row.program.as_str()).collect();
+    let todo: Vec<&String> = programs
+        .iter()
+        .filter(|program| !finished.contains(program.as_str()))
+        .collect();
+    eprintln!(
+        "xtask sweep: {} programs at {}{}, shard {}, {} at a time{}",
+        header.total,
+        header.commit,
+        if header.target.is_empty() {
+            String::new()
+        } else {
+            format!(" for {}", header.target)
+        },
+        header.shard.label(),
+        options.jobs,
+        if earlier.is_empty() {
+            String::new()
+        } else {
+            format!("; resuming, {} already checked", earlier.len())
+        },
+    );
     let started = Instant::now();
+    let status = |done: usize, state: &str| -> Result<(), String> {
+        match &options.out {
+            Some(out) => record::write_status(
+                out,
+                &Status {
+                    state: state.to_owned(),
+                    done,
+                    total: header.total,
+                    elapsed: started.elapsed().as_secs(),
+                    updated: record::now(),
+                    detail: String::new(),
+                },
+            ),
+            None => Ok(()),
+        }
+    };
+    status(earlier.len(), "running")?;
+
+    struct Progress {
+        rows: Vec<Row>,
+        journal: Option<Journal>,
+        error: Option<String>,
+    }
+    let progress = Mutex::new(Progress {
+        rows: earlier,
+        journal,
+        error: None,
+    });
+    let next = AtomicUsize::new(0);
     std::thread::scope(|scope| {
-        for _ in 0..options.jobs.min(programs.len().max(1)) {
+        for _ in 0..options.jobs.min(todo.len().max(1)) {
             scope.spawn(|| {
                 loop {
+                    if progress.lock().expect("progress").error.is_some() {
+                        break;
+                    }
                     let index = next.fetch_add(1, Ordering::SeqCst);
-                    let Some(program) = programs.get(index) else {
+                    let Some(program) = todo.get(index) else {
                         break;
                     };
-                    let row = check(&omega, &root, program, options.timeout);
-                    rows.lock().expect("rows").push(row);
-                    let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
-                    if finished.is_multiple_of(250) || finished == programs.len() {
+                    let row = check(
+                        omega,
+                        root,
+                        options.target.as_deref(),
+                        program,
+                        options.timeout,
+                    );
+                    let mut progress = progress.lock().expect("progress");
+                    let written = match &mut progress.journal {
+                        Some(journal) => journal.append(&row),
+                        None => Ok(()),
+                    };
+                    progress.rows.push(row);
+                    let done = progress.rows.len();
+                    let reported = written.and_then(|()| {
+                        if done.is_multiple_of(10) {
+                            status(done, "running")
+                        } else {
+                            Ok(())
+                        }
+                    });
+                    if let Err(error) = reported {
+                        progress.error.get_or_insert(error);
+                    }
+                    if done.is_multiple_of(250) || done == header.total {
                         eprintln!(
-                            "xtask sweep: {finished}/{} in {}s",
-                            programs.len(),
+                            "xtask sweep: {done}/{} in {}s",
+                            header.total,
                             started.elapsed().as_secs()
                         );
                     }
@@ -851,18 +1030,82 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             });
         }
     });
-    let mut rows = rows.into_inner().expect("rows");
+    let Progress {
+        mut rows,
+        journal,
+        error,
+    } = progress.into_inner().expect("progress");
+    if let Some(error) = error {
+        return Err(error);
+    }
     rows.sort_by(|a, b| a.program.cmp(&b.program));
     if let Some(out) = &options.out {
-        write_rows(out, &commit, &rows).map_err(fail)?;
+        record::write_output(out, header, &rows, render_rows)?;
+        if let Some(journal) = journal {
+            journal.remove()?;
+        }
+        status(rows.len(), "finished")?;
     }
     print!("{}", summary(&rows));
     println!(
-        "\n{} programs in {}s at {commit}",
+        "\n{} programs in {}s at {}",
         rows.len(),
-        started.elapsed().as_secs()
+        started.elapsed().as_secs(),
+        header.commit
+    );
+    if let Some(out) = &options.out {
+        println!("wrote {} rows to {}", rows.len(), out.display());
+    }
+    Ok(())
+}
+
+/// `sweep merge --out <file.json> <shard.json>...`
+fn merge_command(args: &[String]) -> Result<(), u8> {
+    let usage = "usage: cargo xtask sweep merge --out <file.json> <shard.json>...";
+    let mut out = None;
+    let mut inputs = Vec::new();
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--out" => out = args.next().map(PathBuf::from),
+            "-h" | "--help" => {
+                eprintln!("{usage}");
+                return Err(2);
+            }
+            other => inputs.push(PathBuf::from(other)),
+        }
+    }
+    let Some(out) = out.filter(|_| !inputs.is_empty()) else {
+        eprintln!("{usage}");
+        return Err(2);
+    };
+    let fail = |message: String| {
+        eprintln!("xtask sweep merge: {message}");
+        1
+    };
+    let (header, rows) = merge_files(&inputs).map_err(fail)?;
+    record::write_output(&out, &header, &rows, render_rows).map_err(fail)?;
+    print!("{}", summary(&rows));
+    println!(
+        "\nmerged {} shards into {} rows at {}; wrote {}",
+        inputs.len(),
+        rows.len(),
+        header.commit,
+        out.display()
     );
     Ok(())
+}
+
+fn merge_files(inputs: &[PathBuf]) -> Result<(Header, Vec<Row>), String> {
+    let mut parts = Vec::with_capacity(inputs.len());
+    for path in inputs {
+        let text =
+            fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let (header, rows) =
+            record::parse_output(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+        parts.push((path.clone(), header, rows));
+    }
+    record::merge(&parts)
 }
 
 #[cfg(test)]
@@ -1028,7 +1271,15 @@ mod tests {
             "error: project source discovery failed: \n  error: not supported yet: call late-bound selection\n",
         )];
         let path = std::env::temp_dir().join(format!("sweep-{}.tsv", std::process::id()));
-        write_rows(&path, "abc", &rows).unwrap();
+        let header = Header {
+            commit: "abc".to_owned(),
+            target: String::new(),
+            shard: Shard::WHOLE,
+            selection: 1,
+            fingerprint: record::fingerprint(["samples/cli/x/main.omg"]),
+            total: 1,
+        };
+        render_rows(&path, &header, &rows).unwrap();
         let read = read_previous(&path).unwrap();
         let _ = fs::remove_file(&path);
         assert_eq!(read.len(), 1);
