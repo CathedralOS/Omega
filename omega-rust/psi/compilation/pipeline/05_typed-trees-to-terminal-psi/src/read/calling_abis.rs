@@ -40,6 +40,7 @@ fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
         reason: RefusalReason::Unsupported,
         machine: entry,
         concerns: Construct::Machine,
+        source_span: None,
         detail: detail.into(),
     }
 }

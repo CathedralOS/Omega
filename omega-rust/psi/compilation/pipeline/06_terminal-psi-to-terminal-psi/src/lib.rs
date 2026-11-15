@@ -330,6 +330,7 @@ impl Discharge {
                     reason: RefusalReason::Unsupported,
                     machine,
                     concerns: Construct::Obligation(obligation),
+                    source_span: None,
                     detail: format!("evidence encoding {error:?}"),
                 })?;
                 seals.push(seal);
@@ -542,6 +543,7 @@ fn refusal(
         reason,
         machine,
         concerns,
+        source_span: None,
         detail: detail.to_owned(),
     }
 }
@@ -828,6 +830,7 @@ fn machine(
                     reason: RefusalReason::Unestablished,
                     machine: id,
                     concerns: consumption.at,
+                    source_span: None,
                     detail: format!(
                         "zeroed storage of a gated type is used before its requires holds: {}",
                         unproved.detail
@@ -1278,6 +1281,7 @@ fn semantics_refusal(
         reason: RefusalReason::Unsupported,
         machine,
         concerns: Construct::Operation(operation),
+        source_span: None,
         detail: format!("operation semantics {error:?}"),
     }
 }
@@ -1948,6 +1952,7 @@ fn unproved(
         reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
+        source_span: None,
         detail,
     }
 }

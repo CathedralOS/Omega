@@ -841,18 +841,16 @@ impl<'t> Program<'t> {
         };
         // Violations remain errors even when their statement is unreachable;
         // an unsupported preparation request remains an unavailable judgment.
+        let source = SourceOrigin::of(row.source_span);
         let mut refusal = if row.request.is_violation() {
-            crate::reject(
-                id,
-                crate::SourceOrigin::of(row.source_span),
-                row.request.construct(),
-            )
+            crate::reject(id, source, row.request.construct())
         } else {
             refuse(
                 id,
                 Construct::Machine,
                 Unserved::Declaration(row.request.construct()),
             )
+            .with_source_span(source.authored_span())
         };
         if !row.detail.is_empty() {
             refusal.detail.push_str(": ");

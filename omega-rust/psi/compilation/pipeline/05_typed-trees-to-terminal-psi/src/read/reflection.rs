@@ -16,6 +16,7 @@ fn invalid(machine: MachineId, detail: impl Into<String>) -> Refusal {
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns: Construct::Machine,
+        source_span: None,
         detail: detail.into(),
     }
 }

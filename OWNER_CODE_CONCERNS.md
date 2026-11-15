@@ -108,13 +108,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
 - Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### An unavailable declaration loses its retained source span
-- Category: a verdict with nothing behind it
-- Where: [Stage 05 deferred refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L838), [terminal publication](omega-rust/psi/compilation/terminal-production/src/accepted.rs#L560)
-- Saw: With the universe-level admission repair at base `69ec9aa5bd8`, macOS arm64 `omega --check main.omg` exits 1 for `data Held<const Count: u64 in Wrapping> { count: u64; } machine main() { let held: Held<4>; }` using the [hosted trapping fixture Build](tests/fixtures/run/arithmetic/trapping_primitives/build.omg). It correctly refuses the unavailable type expression and names the signature of `main`, but emits no file or line. Stage 05 uses the retained span only when the request is a language violation.
-- Cost: An author cannot locate an unavailable declaration using the CLI's source attribution. Carry the stored span through the shared refusal and publication path while preserving the unavailable outcome.
-- Reported: 2026-11-14, Codex, while restoring checked universe levels at hosted entry
-
 ### Provider-supply controls lose the reasons their runtime module is rejected
 - Category: tests that pin the bug
 - Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)

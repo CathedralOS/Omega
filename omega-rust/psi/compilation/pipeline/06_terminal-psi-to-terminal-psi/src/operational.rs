@@ -260,11 +260,8 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                         Construct::Edge(id) => sources.edges.get(id).copied(),
                         _ => None,
                     })
-                    .and_then(|origin| match origin {
-                        terminal_check_tables::program::SourceOrigin::Authored(span) => Some(span),
-                        terminal_check_tables::program::SourceOrigin::Unpositioned(_) => None,
-                    });
-                refusal(RefusalReason::Violation(span), machine.id, site, detail)
+                    .and_then(terminal_check_tables::program::SourceOrigin::authored_span);
+                refusal(RefusalReason::Violation, machine.id, site, detail).with_source_span(span)
             };
             let flags = envelope(call, &inferred, machine.id, site)?;
             let ack = call.acknowledgement;
@@ -399,7 +396,7 @@ fn crossings_are_stated(
                 .any(|live| live.effective.suspension != language_core::CarrySuspension::Allowed)
             {
                 return Err(refusal(
-                    RefusalReason::Violation(None),
+                    RefusalReason::Violation,
                     machine.id,
                     site,
                     "a value live across this call forbids suspension",

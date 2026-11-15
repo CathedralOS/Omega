@@ -707,6 +707,7 @@ impl Records<'_> {
             reason: RefusalReason::ForeignIdentity,
             machine,
             concerns: Construct::Machine,
+            source_span: None,
             detail: String::from("a scalar place's exact primitive type is not uniquely declared"),
         })
     }
@@ -2449,6 +2450,7 @@ impl<'a> Lowering<'a> {
                         reason: RefusalReason::Unestablished,
                         machine: self.id,
                         concerns: self.current.map_or(Construct::Machine, Construct::Block),
+                        source_span: None,
                         detail: String::from("a dispatch selects no arm for a declared case"),
                     });
                 }

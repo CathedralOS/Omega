@@ -45,6 +45,7 @@ impl Graph {
             reason: RefusalReason::ForeignIdentity,
             machine,
             concerns: Construct::Machine,
+            source_span: None,
             detail: detail.to_owned(),
         };
         let count = lowered.blocks.len();
@@ -131,6 +132,7 @@ impl Graph {
             reason: RefusalReason::ForeignIdentity,
             machine: self.machine,
             concerns,
+            source_span: None,
             detail: String::from("program point is not in this machine"),
         }
     }

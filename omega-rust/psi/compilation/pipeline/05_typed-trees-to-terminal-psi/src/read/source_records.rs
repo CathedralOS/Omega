@@ -639,6 +639,7 @@ fn malformed(machine: MachineId, detail: &'static str) -> Refusal {
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns: Construct::Machine,
+        source_span: None,
         detail: detail.into(),
     }
 }

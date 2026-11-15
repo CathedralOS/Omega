@@ -106,6 +106,7 @@ pub(super) fn rank(
         reason: RefusalReason::Unsupported,
         machine: machine.id,
         concerns: Construct::Block(head.block),
+        source_span: None,
         detail: format!("completion {detail}"),
     };
     let Some(ScalarType::Integer(integer_type)) =
