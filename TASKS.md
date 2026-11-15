@@ -60,6 +60,7 @@ Write each item so any agent can start from it alone: current state, files and e
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers and their declaration/proof-graph family metadata; migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
+  - Give Build-selected executable providers a product route: `samples/cli/facts/length/target_body` checks, then both engines refuse at `executable providers need their canonical row realizations and package permissions`.
 
 - **TARGET-REALIZED-FLOAT-ARITHMETIC.** Realize canonical `f32`/`f64` operations from the selected target's declared table ([design](wiki/drafts/designs/target_realized_float_arithmetic.md)); retire their Build provider selection.
   - Add the checked-machine realization entry kind beside catalog intrinsic and unsupported in `target::CanonicalFloatRealization`; profile remaining `select_provider` cost inside this item.

@@ -136,13 +136,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The diagnostic reports a feature gap for an invalid write and omits the assignment's source position. Preserve legal writes through an existing mutable reference held in an immutable binding.
 - Reported: 2026-11-14, Codex, while checking compiler subject fixture verdicts
 
-### A direct partial view of a fixed byte array never reaches endpoint checking
-- Category: tests that pin the bug
-- Where: [const-length sample](samples/cli/facts/length/const_name/main.omg#L12), [target-body sample](samples/cli/facts/length/target_body/main.omg#L49), [array range reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs)
-- Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives and their authored source twins with bound entries still refuse `&items[0..3]` with `partial array views need their endpoint and window correspondence` on macOS arm64. Here `items` is a fixed `[u8; 4]`. Each sample's dynamic range over an existing view proceeds through ordinary range checking.
-- Cost: A checked direct array window cannot reach its last-byte check. Use the fixed storage's exact extent and projected window when checking a direct range and establishing its loan.
-- Reported: 2026-11-14, Codex, while restoring the post-merge runtime sample
-
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
