@@ -15,6 +15,7 @@ pub(crate) fn check_product_source(
     source: PreparedProductSource,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
+    inspection: Option<&str>,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, CompileFailure> {
     let build_accounting = source.build_accounting.clone();
@@ -123,9 +124,18 @@ pub(crate) fn check_product_source(
     };
 
         let subject = package_inputs.map(PackageCompilationInputs::root);
+        let inspection_root = inspection
+            .map(|name| inspection_root(&typed, subject, name))
+            .transpose()?;
+        if inspection_root.is_some() {
+            // The artifact names the inspected machine. Still check the Build's
+            // bound entries and arrivals, and settle supply from those entries.
+            selected.extend(external_roots.iter().copied());
+        }
         let roster = products::ProductRoster {
             declaration_metadata: Vec::new(),
             entries: external_roots,
+            inspection_root,
             subject,
             selected,
             bindings,
@@ -235,6 +245,43 @@ pub(crate) fn check_product_source(
     let mut spent = build_accounting;
     spent.append(accounting);
     result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))
+}
+
+/// Resolve the exact authored Product path before preparing or judging its body.
+fn inspection_root(
+    typed: &typed_trees::TypedTrees,
+    subject: Option<semantic_vocabulary::PackageKeyIdentity>,
+    path: &str,
+) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
+    let symbols = &typed.symbols;
+    let leaf = path.rsplit("::").next().unwrap_or(path);
+    let mut selected = None;
+    for machine in typed.machines() {
+        let symbol = machine.symbol;
+        if symbols.name(symbol) != leaf
+            || symbols.authored_origin(symbol) != symbol
+            || symbols.display_path(symbol, "::") != path
+            || !typed_trees::source_subjects::contains(
+                typed,
+                symbol,
+                &[subject],
+                source::DependencyScope::Product,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            continue;
+        }
+        if selected.replace(symbol).is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "cannot inspect machine `{path}`: the source name is ambiguous"
+            ))]);
+        }
+    }
+    selected.ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "cannot inspect machine `{path}`: no declaration has that source name"
+        ))]
+    })
 }
 
 pub(super) fn layout_target_scopes(
