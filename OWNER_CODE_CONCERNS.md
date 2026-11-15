@@ -81,11 +81,11 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-15, Codex, while repairing arrival obligations on structural match edges
 
 ### The shared typed-view Build-time control stops before its mutable twin
-- Category: tests that pin the bug
-- Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L253), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L239)
-- Saw: At `6c485f370e4` `echo(items: &[Item]) -> &[Item] { items }` refuses preparing its entry with `call the view's original incoming borrow cannot be identified`, so the test never reaches the returned-backing consumer or the `&mut [Item]` refusal it exists to check.
-- Cost: Nothing checks that a host-supplied shared typed view keeps its backing through a returned view, or that immutable host values cannot supply an exclusive one. Identify the probe caller's actual view argument as the borrow `echo` returns.
-- Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls
+- Category: knowledge crossing a boundary
+- Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L216), [generated caller](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L198)
+- Saw: At `6c485f370e4`, returning the original shared typed view stopped at `call the view's original incoming borrow cannot be identified`. At `ffb2464f7b6` on macOS arm64, #3374's stored-lifetime rule also exposed six fixtures that relied on implicit field lifetimes. Naming the data lifetimes and retaining the exact field owner restored the five owned-sequence, byte-record, and numbered-case controls. The original shared nonempty and empty inputs now type with a distinct outer loan and element byte lifetime. Their generated invocation fails at `source invocation lifetime arguments are not materialized`, before the returned-backing consumer and exclusive twin.
+- Cost: Both entry points need the original checked lifetime binding. The caller currently constructs shared typed argument literals locally, and the admitted host input path accepts only the issued layout context. Use ordinary call lifetime instantiation and the existing checked structural input and descriptor tables to retain the host view's actual immutable backing, including nested byte fields and an empty sequence. The existing borrow lookup must identify that host formal through `echo` and `consume`, and the same admission must still refuse when the host supplies immutable bytes for the exclusive twin.
+- Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls. Updated by Codex after the stored-lifetime migration.
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
