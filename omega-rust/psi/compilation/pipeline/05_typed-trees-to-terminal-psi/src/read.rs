@@ -33,6 +33,7 @@ mod calls;
 mod calls_visibility_tests;
 mod carriers;
 mod casts;
+mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
@@ -139,6 +140,9 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// The machines whose bodies a contract clause is unfolding, innermost
+    /// last (`clause_calls`): a recursive predicate is refused.
+    unfolding_calls: Vec<SymbolHandle>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -372,6 +376,7 @@ impl<'t> Program<'t> {
             boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            unfolding_calls: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,

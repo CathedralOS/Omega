@@ -2650,7 +2650,7 @@ impl<'t> Program<'t> {
     /// Two kinds stay refused by name: an `[erased]` one, which names a
     /// term and has no storage to assign, and one of a type parameter,
     /// whose replaced value no slice disposes of yet.
-    fn formal(
+    pub(super) fn formal(
         &mut self,
         id: MachineId,
         formal: &StateParameter,

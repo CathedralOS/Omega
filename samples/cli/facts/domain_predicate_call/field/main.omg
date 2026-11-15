@@ -19,8 +19,8 @@ data Holder [copy] { kept: bool; }
 
 machine main() crashes Trap {
     let holder: Holder = Holder { kept: true };
-    let direct: bool in Held = holder.kept;
-    transition hold(direct) {
+    let direct: bool in Held = holder.kept as +Held;
+    transition hold(direct as -Held) {
         true -> done()
         _ -> bad()
     }
