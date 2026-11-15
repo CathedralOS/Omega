@@ -73,6 +73,27 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Equality preparation reconstructs resolved types from names
+- Category: re-deriving
+- Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)
+- Saw: Source inspection at `c30b00a0b878` finds `EqualityScope::value_types` storing value/type string pairs. Field comparison converts a resolved type to its name and looks it up again using the containing data's source context. Recursion tracks `Vec<String>`; `Equatable` recognition compares a rendered path and `equals` selection compares row spelling. No runnable misbinding was reproduced.
+- Cost: Equality maintains another model of relationships already resolved upstream. Carry exact value, type/application and requirement-row identities through preparation, keeping names for diagnostics. Check same-leaf imported types, aliased fields and generated/applied types; unrelated declaration order or diagnostic spelling must not change selection. Preserve recursive-equality rejection using the traversed identities.
+- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+
+### Literal declaration validation still judges selected predicates in syntax
+- Category: one idea, several implementations
+- Where: [production constant validation](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L569), [literal predicate discharge](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L3570), [operator applicability](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs#L197), [checked destination handoff](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs#L3704)
+- Saw: At `c30b00a0b878`, complete resolution still sends literal record/case and nested constrained-member predicates through `ProveSyntax`. That path interprets named/indexed domain facts and approximates operator applicability from root spellings and parameter carriers. Computed initializers already defer to checked evaluation; top-level qualified destinations require the exact checked judgment or refuse. This is source inspection, with no divergent acceptance reproduced; the older `const_integer` classifier has no production callers.
+- Cost: Declaration-dependent meaning has another implementation before ordinary checking. Retain selected declarations, scope, substitutions and exact destination/initializer through the existing forward evaluation handoff; keep literal decoding and anonymous primitive normalization. Under **EARLY-TERMINAL-JOBS**, check matching declaration/static-argument/construction outcomes and independence from unrelated incompatible operators, preserving false unused-declaration, overflow, zero-divisor, carrier, arity and uncertain-predicate refusals. Removing this evaluator must not remove those obligations.
+- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+
+### Constant-index finalization searches argument storage to recover its owner
+- Category: re-deriving
+- Where: [receiving parameter search](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L236), [finalization caller](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L5029)
+- Saw: At `c30b00a0b878`, production `finalize_const_argument_selections` calls `carrier::receiving_parameters` with an argument span. It scans child types, constants, parameters, returns, fields, payloads, locals, lexical inputs, generated instances and domain constraints for that span, then recovers the receiving declaration's parameters. Conflicting owners return `None`. This is source inspection; no incorrect finalization or timing was measured.
+- Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
+- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
+
 ### The provider-plan reader refuses valid round-trip plans
 - Category: tests that pin the bug
 - Where: [provider-plan reader and tests](omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan/retained_inputs.rs#L221), [commitment encoder](omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan/digest_encoder.rs)
