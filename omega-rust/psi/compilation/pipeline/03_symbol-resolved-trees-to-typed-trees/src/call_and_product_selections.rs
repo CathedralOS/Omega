@@ -1681,20 +1681,31 @@ pub(crate) mod construction_destinations {
         {
             carrier = *base_type;
         }
-        // Assigning to a binding of reference type writes through the
-        // reference, so the place's own type is not the type the literal is
-        // built at. A view is the exception: `&[u8]` is the value the place
-        // holds (data_and_literals.md, "Quoted bytes": a quoted literal "has
-        // ordinary shared byte-view type `&[u8]`"), so a literal assigned to
-        // a view field lands at the field's declared view type.
-        let receives_its_own_type = match program.type_reference_table.type_reference(carrier) {
-            TypeReferenceNode::Reference { referee, .. } => matches!(
-                program.type_reference_table.type_reference(*referee),
-                TypeReferenceNode::Slice { .. }
-            ),
-            _ => true,
-        };
-        receives_its_own_type.then_some(declared)
+        // A literal written through a reference binding is built at its
+        // referent's type. A projected field instead replaces the value
+        // stored there, including a reference descriptor. Slice views also
+        // retain their descriptor type. This supplies only the constructor's
+        // carrier; the assignment reader still checks write access and the
+        // destination's complete qualification.
+        let binding = matches!(program.expression_table.expression(target),
+            ExpressionNode::Name(path)
+                if program.expression_table.name_path_members(path.members).len() == 1);
+        match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Reference { referee, .. }
+                if binding
+                    && !matches!(
+                        program.type_reference_table.type_reference(
+                            program
+                                .type_reference_table
+                                .unconstrained_type_reference(*referee)
+                        ),
+                        TypeReferenceNode::Slice { .. }
+                    ) =>
+            {
+                Some(*referee)
+            }
+            _ => Some(declared),
+        }
     }
 
     fn collect_call_destinations(
@@ -2027,7 +2038,10 @@ pub(crate) mod construction_destinations {
             use typed_trees::expression::{TableNamePath, TableStructLiteral};
             use typed_trees::machine::{Machine, MachineBodyStatus};
             use typed_trees::statement::{TableAssignment, TableLocalData};
-            use typed_trees::{data::DataDefinition, state::State};
+            use typed_trees::{
+                data::{DataDefinition, DataField, DataMember},
+                state::State,
+            };
 
             let mut symbols = SymbolTableBuilder::default();
             let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -2039,6 +2053,12 @@ pub(crate) mod construction_destinations {
                 ],
             );
             let (data, writer) = (declarations.handle_at(0), declarations.handle_at(1));
+            let field = symbols
+                .insert_children(
+                    data,
+                    [(SymbolKind::Field, SymbolNameRef::Static("reference"))],
+                )
+                .handle_at(0);
             let inner = symbols.insert_children(
                 writer,
                 [
@@ -2052,11 +2072,6 @@ pub(crate) mod construction_destinations {
                 symbols: symbols.finish(),
                 ..Default::default()
             };
-            program.push_data_definition(DataDefinition {
-                symbol: data,
-                name: "Record".into(),
-                ..Default::default()
-            });
             let record = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
@@ -2070,6 +2085,20 @@ pub(crate) mod construction_destinations {
                     access: language_core::ReferenceAccess::Mutable,
                     lifetime: None,
                 });
+            let members = program
+                .data_members
+                .insert_many([DataMember::Field(DataField {
+                    symbol: field,
+                    name: "reference".into(),
+                    type_reference: reference,
+                    ..Default::default()
+                })]);
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                members,
+                ..Default::default()
+            });
             let name = |program: &mut TypedTrees, symbol, spelled: &[&'static str]| {
                 let mut members = Default::default();
                 for member in spelled {
@@ -2123,58 +2152,71 @@ pub(crate) mod construction_destinations {
                 ..Default::default()
             });
 
-            // `owned = Record {}` is built at the type written on `owned`.
-            // Landing gives the literal its own occurrence of that type,
-            // which records the machine that owns its lifetimes
-            // (`land_one`, `fresh_occurrence`), so the two are the same
-            // type under different handles.
-            let mut landed = program.clone();
-            prepare(&mut landed, 0, 0, &[]).unwrap();
-            assert!(landed.deferred_refusals.is_empty());
-            let required = landed
-                .expression_table
-                .construction_required_type_reference(value);
-            assert!(required.is_valid());
-            assert_eq!(
-                landed.type_reference_table.type_reference(required),
-                landed.type_reference_table.type_reference(record)
-            );
-            assert_eq!(
-                landed.type_reference_table.operand_lifetime_owner(required),
-                writer
-            );
-
-            // The twins differ only in the place assigned: a field of the
-            // binding, and a binding of reference type. Neither has a type
-            // typing computes, so the literal stays as written and the
-            // machine, not the program, is refused.
-            for place in [
-                name(&mut program, owned, &["owned", "field"]),
-                name(&mut program, borrowed, &["borrowed"]),
-            ] {
-                let mut unlanded = program.clone();
-                let assignment = unlanded.statement_table.statements(statement_nodes).len() - 1;
-                let handle = statement_nodes.handles().nth(assignment).unwrap();
+            // Both the owned binding and the reference's referent receive a
+            // Record. Landing retains the writer's lifetime scope on the
+            // literal's own type occurrence.
+            for place in [target, name(&mut program, borrowed, &["borrowed"])] {
+                let mut landed = program.clone();
+                let handle = statement_nodes.handles().last().unwrap();
                 let StatementNode::Assignment(assignment) =
-                    unlanded.statement_table.statement_mut(handle)
+                    landed.statement_table.statement_mut(handle)
                 else {
                     panic!("assignment")
                 };
                 assignment.target = place;
-                prepare(&mut unlanded, 0, 0, &[]).unwrap();
+                prepare(&mut landed, 0, 0, &[]).unwrap();
+                assert!(landed.deferred_refusals.is_empty());
+                let required = landed
+                    .expression_table
+                    .construction_required_type_reference(value);
+                assert!(required.is_valid());
                 assert_eq!(
-                    unlanded
-                        .deferred_refusal(writer)
-                        .map(|refusal| refusal.request),
-                    Some(DeferredRequest::AssignmentLiteralDestination)
+                    landed.type_reference_table.type_reference(required),
+                    landed.type_reference_table.type_reference(record)
                 );
-                assert!(
-                    !unlanded
-                        .expression_table
-                        .construction_required_type_reference(value)
-                        .is_valid()
+                assert_eq!(
+                    landed.type_reference_table.operand_lifetime_owner(required),
+                    writer
                 );
             }
+
+            // A field holding a reference receives that descriptor, rather
+            // than a Record written through it. The plain binding above is
+            // the operation that crosses the reference.
+            let field = name(&mut program, owned, &["owned", "reference"]);
+            assert_eq!(
+                assigned_place_type(
+                    &program,
+                    &program.machine_states(&program.machines()[0])[0],
+                    field
+                ),
+                Some(reference)
+            );
+
+            // An unknown field still has no receiving type. Refuse only
+            // the declaration holding that assignment.
+            let place = name(&mut program, owned, &["owned", "field"]);
+            let mut unlanded = program.clone();
+            let handle = statement_nodes.handles().last().unwrap();
+            let StatementNode::Assignment(assignment) =
+                unlanded.statement_table.statement_mut(handle)
+            else {
+                panic!("assignment")
+            };
+            assignment.target = place;
+            prepare(&mut unlanded, 0, 0, &[]).unwrap();
+            assert_eq!(
+                unlanded
+                    .deferred_refusal(writer)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::AssignmentLiteralDestination)
+            );
+            assert!(
+                !unlanded
+                    .expression_table
+                    .construction_required_type_reference(value)
+                    .is_valid()
+            );
         }
 
         #[test]
