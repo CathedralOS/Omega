@@ -724,14 +724,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine pass(main: &mut Main) {
         Console::write_line("PASS: 16 bytes encoded to 29 bits [138, 215, 139, 56] and decoded back (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 
     machine fail(main: &mut Main) {
         Console::write_line("FAIL: Huffman codec verification mismatch (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }

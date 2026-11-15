@@ -15,7 +15,7 @@ use omega_language_std::Console;
 
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {
-    transition { _ -> block read_next_byte(0, 0) }
+    transition { _ -> block read_next_byte(0 as +Wrapping, 0 as +Wrapping) }
 
     machine read_next_byte(sum: i32 in Wrapping, count: i32 in Wrapping) {
         let read_result: ByteRead = block Console::read_byte();

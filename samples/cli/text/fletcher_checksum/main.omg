@@ -38,18 +38,18 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
-    main.adder.bytes[0] = 1;
-    main.adder.bytes[1] = 2;
-    main.adder.bytes[2] = 3;
-    main.adder.bytes[3] = 4;
-    main.adder.bytes[4] = 5;
-    main.adder.bytes[5] = 6;
+    main.adder.bytes[0] = 1 as +Wrapping;
+    main.adder.bytes[1] = 2 as +Wrapping;
+    main.adder.bytes[2] = 3 as +Wrapping;
+    main.adder.bytes[3] = 4 as +Wrapping;
+    main.adder.bytes[4] = 5 as +Wrapping;
+    main.adder.bytes[5] = 6 as +Wrapping;
 
     let s: &[i32 in Wrapping] = &main.adder.bytes[..];
     let checksum: i32 = fletcher(s, 0, 0);
     Console::write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
     Console::write_line("[press Enter to close]");
-    _ = block Console::read_line(&mut main.pause);
+    _ = block Console::read_line(&mut main.pause[..]);
     ProcessExit::exit_process(checksum);
 }
 

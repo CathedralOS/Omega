@@ -50,13 +50,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine ok(main: &mut Main) {
         Console::write_line("PASS: buffer matches '25' (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: formatted text mismatch (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
