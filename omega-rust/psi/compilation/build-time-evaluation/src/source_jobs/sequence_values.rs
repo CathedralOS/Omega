@@ -31,6 +31,12 @@ machine borrow_roundtrip(value: Holder) -> Seen {
 }
 machine zero() -> Holder { let value: Holder; value }
 machine forbidden_index(value: [Item]) -> u64 { value[0].number }
+machine guarded_index(value: [Item]) -> u64 {
+    transition value.len > 0 {
+        true -> value[0].number
+        _ -> 0
+    }
+}
 "#;
 
 fn target() -> InvocationTarget<'static> {
@@ -204,10 +210,40 @@ fn source_sequence_inputs_keep_element_identity_and_literal_indices_need_live_bo
     )
     .and_then(|entry| entry.invoke_recorded(target(), &mut accounting))
     .expect_err("a literal index still needs the same view's live length and bounds judgment");
-    assert!(
-        error.contains("sequence index needs its current length and bounds judgment"),
-        "{error}"
+    assert_eq!(
+        error,
+        "cannot prove operation safety in machine `forbidden_index` state `entry` return value. \
+         (no proof found from the facts available here: the bounds do not decide the comparison)"
     );
+    assert_eq!(
+        accounting.receipts().len(),
+        before,
+        "no execution without a proved bounds judgment"
+    );
+}
+
+#[test]
+fn owned_source_sequence_reads_its_copyable_item_under_its_live_length_guard() {
+    let prepared = prepared();
+    let mut accounting = SourceCompletionAccounting::default();
+    let made = entry(&prepared, "make", &[])
+        .expect("same actual requester and source entry")
+        .invoke_recorded(target(), &mut accounting)
+        .expect("actual complete source value");
+    for (name, number) in [("rows", 11), ("empty", 0)] {
+        let result = entry(
+            &prepared,
+            "guarded_index",
+            &[field(made.value(), name).clone()],
+        )
+        .expect("same checked owned sequence argument")
+        .invoke_recorded(target(), &mut accounting)
+        .expect("the bound is proved from this sequence's length");
+        assert_eq!(result.value(), &BuildTimeValue::Int(number));
+    }
+    accounting
+        .validate_charges()
+        .expect("all actual invocations accounted");
 }
 
 const SHARED: &str = r#"

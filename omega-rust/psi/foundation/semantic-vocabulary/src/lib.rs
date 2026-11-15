@@ -54,6 +54,11 @@ impl From<MachineId> for TargetMachineCallable {
 mod source_review;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 
+mod float_meaning_clauses;
+pub use float_meaning_clauses::{
+    FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
+};
+
 pub(crate) use optimization::codec_bytes;
 
 mod behavior_policy {
@@ -1250,6 +1255,20 @@ mod id_table {
             self.keys().zip(self.values.iter())
         }
 
+        pub fn iter_mut(
+            &mut self,
+        ) -> impl DoubleEndedIterator<Item = (Id, &mut T)> + ExactSizeIterator + '_ {
+            let first = self.first;
+            self.values
+                .iter_mut()
+                .enumerate()
+                .map(move |(offset, value)| {
+                    let identity =
+                        Id::new(first + offset as u64).expect("table identities are nonzero");
+                    (identity, value)
+                })
+        }
+
         pub fn map<U>(&self, mut derive: impl FnMut(Id, &T) -> U) -> IdTable<Id, U> {
             IdTable {
                 first: self.first,
@@ -1361,7 +1380,7 @@ mod id_table {
 
         #[test]
         fn table_holds_one_consecutive_run_in_identity_order() {
-            let table = IdTable::from_rows([(id(4), 'a'), (id(5), 'b'), (id(6), 'c')]).unwrap();
+            let mut table = IdTable::from_rows([(id(4), 'a'), (id(5), 'b'), (id(6), 'c')]).unwrap();
             assert_eq!(table.get(id(3)), None);
             assert_eq!(table.get(id(5)), Some(&'b'));
             assert_eq!(table.get(id(7)), None);
@@ -1369,6 +1388,18 @@ mod id_table {
             assert_eq!(
                 table.map(|_, value| value.to_ascii_uppercase()).get(id(6)),
                 Some(&'C')
+            );
+            for (identity, value) in table.iter_mut().rev() {
+                if identity == id(5) {
+                    *value = 'B';
+                }
+            }
+            assert_eq!(
+                table
+                    .iter()
+                    .map(|(id, value)| (id, *value))
+                    .collect::<Vec<_>>(),
+                [(id(4), 'a'), (id(5), 'B'), (id(6), 'c')]
             );
             assert_eq!(
                 IdTable::from_rows([(id(1), ()), (id(3), ())]),

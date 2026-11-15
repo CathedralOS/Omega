@@ -6,14 +6,77 @@ mod shapes;
 mod target;
 
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
+use crate::record::PackagePolicyServiceMethod;
 use crate::record::public_policy::validation::scope;
+use language_semantics::type_identity::encoding::{CoordinateTag, atom, compound};
 
 impl PackagePolicyCallingPlan {
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
-        self.abi.validate()?;
         if self.abi.requirement_identity != self.requirement.path {
             return Err("calling ABI key changes its source-qualified requirement");
         }
+        self.validate_structure()
+    }
+
+    pub(crate) fn validate_for_service(
+        &self,
+        method: &PackagePolicyServiceMethod,
+    ) -> Result<(), &'static str> {
+        // Earlier policy records have only the declaration path in the key.
+        if self.abi.requirement_identity == self.requirement.path {
+            return self.validate_canonical_structure();
+        }
+        self.validate_structure()?;
+        if !self.abi.operands.is_empty()
+            || !self.static_parameters.is_empty()
+            || !self.boundary_arguments.is_empty()
+            || !self.requirement_arguments.is_empty()
+            || !self.requirement_lifetime_arguments.is_empty()
+            || self.boundary_lifetime_parameter_count != 0
+            || self.application_lifetime_parameter_count != 0
+            || self.requirement_lifetime_parameter_count != 0
+            || !self
+                .boundary_trait
+                .matches_unapplied_trait_declaration(&self.abi.declaring_application)
+        {
+            return Err("calling ABI key changes its closed declaring application");
+        }
+        // Dispatch uses the ordinary type identities in the method census.
+        // The exact-owner semantic signature is checked separately.
+        let parameters = method
+            .signature
+            .parameters
+            .iter()
+            .zip(&method.parameter_type_identities)
+            .map(|(parameter, type_identity)| {
+                compound(
+                    CoordinateTag::Parameter,
+                    [
+                        atom(
+                            CoordinateTag::Mutable,
+                            if parameter.is_mutable { "yes" } else { "no" },
+                        ),
+                        atom(
+                            CoordinateTag::Const,
+                            if parameter.is_const { "yes" } else { "no" },
+                        ),
+                        type_identity.clone(),
+                    ],
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        if !self
+            .requirement
+            .matches_named_callable(&self.abi.requirement_identity, &parameters, "")
+        {
+            return Err("calling ABI key changes its source-qualified requirement");
+        }
+        Ok(())
+    }
+
+    fn validate_structure(&self) -> Result<(), &'static str> {
+        self.abi.validate()?;
         target::validate(self.target)?;
         let application_scope = self
             .boundary_lifetime_parameter_count

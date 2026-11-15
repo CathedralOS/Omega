@@ -574,6 +574,9 @@ pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
     module: &'a terminal_psi::TerminalModule,
+    float_meanings: std::cell::OnceCell<
+        Result<terminal_semantics::float_meaning_sources::Sources, &'static str>,
+    >,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
@@ -624,6 +627,7 @@ impl<'a> Storage<'a> {
             machine,
             lowered,
             module,
+            float_meanings: std::cell::OnceCell::new(),
             types: &module.structural_types,
             graph,
             initial_contents: contents.entry,
@@ -689,6 +693,23 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(storage)
+    }
+
+    fn validate_float_meaning_source(&self, source: &ScalarTerm) -> Result<(), crate::Unbound> {
+        let sources = self
+            .float_meanings
+            .get_or_init(|| {
+                if self.lowered.id != self.machine {
+                    return Err("float meaning source owner differs from the checked machine");
+                }
+                terminal_semantics::float_meaning_sources::Sources::for_machine(self.lowered)
+            })
+            .as_ref()
+            .map_err(|detail| crate::Unbound::Unsupported(detail))?;
+        sources
+            .source(source)
+            .map(|_| ())
+            .map_err(crate::Unbound::Unsupported)
     }
 
     /// Resolve a permission crossing at its actual use. Descriptor identity
@@ -1964,14 +1985,15 @@ impl<'a> Storage<'a> {
                 }
                 if let OperationKind::ByteSequenceSubslice {
                     obligation: owned, ..
+                }
+                | OperationKind::ElementViewSubslice {
+                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
-                        return Err(
-                            self.foreign(concerns, "a byte subslice owns another obligation")
-                        );
+                        return Err(self.foreign(concerns, "a subslice owns another obligation"));
                     }
-                    return self.byte_subslice_goal(operation, types);
+                    return self.subslice_goal(operation, types);
                 }
                 if let OperationKind::ByteSequenceRead {
                     obligation: owned, ..
@@ -1981,9 +2003,6 @@ impl<'a> Storage<'a> {
                 }
                 | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
-                }
-                | OperationKind::ElementViewRead {
-                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
@@ -1991,6 +2010,12 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "a byte operation owns another obligation")
                         );
                     }
+                    return self.collection_index_goal(operation, types);
+                }
+                if matches!(operation.kind, OperationKind::ElementViewRead {
+                    obligation: owned, ..
+                } if owned == obligation)
+                {
                     return self.collection_index_goal(operation, types);
                 }
                 operation.kind.structural_projections()
@@ -2133,34 +2158,36 @@ impl<'a> Storage<'a> {
                 path,
                 ..
             } => {
-                let root = self.root_type(*source, concerns)?;
-                let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
-                    self.declaration(root, concerns)?.shape
+                let root = self.root_type(source.place, concerns)?;
+                let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
+                    terminal_semantics::runtime_structural_path_tip(
+                        self.types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .map(|declaration| &declaration.shape)
                 else {
                     return Err(self.foreign(concerns, "an element read needs a declared view"));
                 };
                 if operation.result.scalar_ref().is_none_or(|result| {
-                    terminal_semantics::element_view_read_scalar(self.types, element, path)
+                    terminal_semantics::element_view_read_scalar(self.types, *element, path)
                         != Some(result.scalar_type)
                 }) {
                     return Err(
                         self.foreign(concerns, "an element read needs a copyable scalar leaf")
                     );
                 }
-                let source = StructuralArgument::whole(
-                    *source,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                );
-                if terminal_semantics::structural_projection_authority(
-                    self.lowered,
-                    self.types,
-                    &source,
-                )
-                .is_none_or(|access| !access.admits_referent(source.access))
+                if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                    || terminal_semantics::structural_projection_authority(
+                        self.lowered,
+                        self.types,
+                        source,
+                    )
+                    .is_none_or(|available| !source.access.admits_referent(available))
                 {
                     return Err(self.foreign(concerns, "an element read needs a readable view"));
                 }
-                (source, *index, *length)
+                (source.clone(), *index, *length)
             }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
@@ -2301,6 +2328,7 @@ impl<'a> Storage<'a> {
                         && matches!(
                             self.operation(row.operation, concerns)?.kind,
                             OperationKind::ByteSequenceSubslice { .. }
+                                | OperationKind::ElementViewSubslice { .. }
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
                                 | OperationKind::EstablishElementView { .. }
                                 | OperationKind::EstablishMutableElementView { .. }
@@ -4424,6 +4452,10 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
 
 impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
     type Error = crate::Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
+
     fn value(
         &mut self,
         id: ValueId,
@@ -4850,6 +4882,10 @@ fn formal_observation_path(
 
 impl crate::Bindings for AtCall<'_, '_> {
     type Error = crate::Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
+
     fn value(
         &mut self,
         id: ValueId,
@@ -4900,6 +4936,10 @@ pub(crate) struct AtJoin<'s, 'a> {
 
 impl crate::Bindings for AtJoin<'_, '_> {
     type Error = crate::Unbound;
+
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.inputs.storage.validate_float_meaning_source(source)
+    }
 
     fn value(
         &mut self,

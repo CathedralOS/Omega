@@ -13,6 +13,7 @@ language-semantics = { path = "../../foundation/language-semantics" }
 language-core = { path = "../../foundation/language-core" }
 typed-trees = { path = "../representations/typed-trees" }
 terminal-psi = { path = "../representations/terminal-psi" }
+terminal-installation = { path = "../terminal-installation" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 diagnostics = { path = "../../foundation/diagnostics" }
 source = { path = "../../foundation/source" }

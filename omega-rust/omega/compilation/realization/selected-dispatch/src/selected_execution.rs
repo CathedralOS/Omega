@@ -44,6 +44,7 @@ impl SelectedExecution {
                         supply.target().unwrap_or("<unscoped>")
                     ))]
                 })?;
+        let plans = planning.resolve_installation_reach(plans)?;
         Ok(Self {
             target_profile,
             plans: Arc::new(plans),

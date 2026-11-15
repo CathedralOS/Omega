@@ -2,7 +2,7 @@
 
 Run focused checks that show the changed behavior works, then land through
 [admission and a squash merge](landing.md). `main` is tested after the merge;
-admission does not run the compiler tests for you.
+admission type-checks the merge tree but does not run the compiler tests for you.
 
 [AGENTS.md](../../AGENTS.md) holds the common workflow; this guide covers test
 choice, run records and platforms. The
@@ -259,8 +259,8 @@ old frozen products. This does not waive reruns of affected code, artifact
 integrity or review the submitted change requires.
 
 Record evidence against the source you tested. The [admission check](landing.md)
-checks rules and formatting; the author runs affected tests and Clippy before
-squash-merging. Review and rerun affected checks
+checks rules and formatting and type-checks the merge tree; the author runs
+affected tests and Clippy before squash-merging. Review and rerun affected checks
 when the author edits source, resolves a conflict or finds a changed semantic
 assumption. Independent-workspace checks are part of the author's focused testing, not
 rerun each time `main` moves. New failures in affected code

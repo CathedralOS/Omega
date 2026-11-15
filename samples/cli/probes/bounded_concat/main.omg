@@ -39,7 +39,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine exercise(main: &mut Main) {
     main.hits = 0;
     main.label = Label { storage: [65u8, 49u8, 0u8, 0u8], used: 2 };
     copy(&mut main.text.storage, "Room ", 0);
@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    exercise(&mut entry_storage);
     transition entry_storage.hits == 1 { true -> {} false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }

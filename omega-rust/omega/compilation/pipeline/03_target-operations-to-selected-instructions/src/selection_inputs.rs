@@ -4924,13 +4924,7 @@ pub(crate) mod storage_origin_input {
                     }]
                 }
             }
-            I::ElementViewRead { source, path, .. } => {
-                vec![StructuralArgument {
-                    place: *source,
-                    path: path.clone(),
-                    access: StructuralAccess::SharedBorrow,
-                }]
-            }
+            I::ElementViewRead { source, .. } => vec![source.clone()],
             I::StructuralByteSequenceFieldRead { source, field, .. } => {
                 vec![field_coordinate(geometry, source, Some(*field))?]
             }

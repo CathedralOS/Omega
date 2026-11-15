@@ -898,6 +898,82 @@ impl SelectedProviderPlanFacts {
             })
     }
 
+    /// Resolve every root dependency against this exact selected installation.
+    /// The portable upper bound and the selected row must describe the same
+    /// requirement. Known services are recovered from this artifact's catalogue.
+    pub fn resolve_root_service_reach(
+        &self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<Vec<semantic_vocabulary::ServiceId>, String> {
+        let reach = &module.root_service_reach;
+        if reach.installation_dependencies.is_empty() {
+            return Ok(reach.concrete.clone());
+        }
+        let service_identity = |service: &terminal_psi::ServiceDeclaration| {
+            module
+                .identities
+                .text(service.identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| format!("root installation reach lost service {:?}", service.id))
+        };
+        let mut services = module
+            .services
+            .iter()
+            .map(|row| Ok((service_identity(row)?, row.id)))
+            .collect::<Result<Vec<_>, String>>()?;
+        services.sort_unstable_by_key(|(identity, _)| *identity);
+        if services.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err("root installation reach has competing service identities".into());
+        }
+        let mut resolved = reach.concrete.clone();
+        for dependency in &reach.installation_dependencies {
+            let requirement = module
+                .identities
+                .text(dependency.requirement_identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or("root installation reach lost its exact requirement")?;
+            let row = self
+                .installation_reach_resolution(requirement)
+                .ok_or_else(|| {
+                    format!("root installation reach has no unique selected row for {requirement}")
+                })?;
+            let mut upper = dependency
+                .upper_bound
+                .iter()
+                .map(|id| {
+                    let position = module
+                        .services
+                        .binary_search_by_key(id, |service| service.id)
+                        .map_err(|_| {
+                            format!("root installation reach names an absent service {id:?}")
+                        })?;
+                    service_identity(&module.services[position])
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            upper.sort_unstable();
+            if !upper
+                .iter()
+                .copied()
+                .eq(row.upper_bound.iter().map(String::as_str))
+            {
+                return Err(format!(
+                    "root installation reach bound differs from selected row for {requirement}"
+                ));
+            }
+            for name in &row.resolved_row {
+                let position = services
+                    .binary_search_by_key(&name.as_str(), |(identity, _)| *identity)
+                    .map_err(|_| {
+                        format!("root installation reach has no declared service `{name}`")
+                    })?;
+                resolved.push(services[position].1);
+            }
+        }
+        resolved.sort_unstable();
+        resolved.dedup();
+        Ok(resolved)
+    }
+
     pub fn resolve_installation_reach_for_plan(
         &self,
         concrete_reach: &[String],

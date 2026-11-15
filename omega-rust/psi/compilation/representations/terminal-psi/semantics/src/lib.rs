@@ -33,6 +33,7 @@ pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
+pub mod float_meaning_sources;
 pub mod inhabitation;
 pub mod normal_completion;
 pub mod numeric_primitives;

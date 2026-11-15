@@ -1057,7 +1057,12 @@ pub(super) fn encode(
                     indices,
                 } => {
                     bytes.push(42);
-                    crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+                    if source.path.is_empty() {
+                        crate::codec_bytes::push_encoded(bytes, source.place.get().to_le_bytes());
+                    } else {
+                        crate::codec_bytes::push_encoded(bytes, 0_u64.to_le_bytes());
+                        super::structural_types::encode_structural_argument(bytes, source);
+                    }
                     crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, length.get().to_le_bytes());
                     crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());

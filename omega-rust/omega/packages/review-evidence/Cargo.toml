@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+build-settings = { path = "../../build-system/build-settings" }
 backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
 build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 layout-plans = { path = "../../../psi/foundation/layout-plans" }

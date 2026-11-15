@@ -2110,26 +2110,6 @@ pub(crate) mod byte_views {
             && super::literals::declaration_producer(function, place).is_some()
     }
 
-    pub(crate) fn element_type(
-        function: &PsiOptimizationFunction,
-        place: semantic_vocabulary::PlaceId,
-        types: &crate::native_geometry::NativeGeometry<'_>,
-    ) -> Option<semantic_vocabulary::StructuralTypeId> {
-        let identity = view_type(function, place, types)?;
-        match terminal_psi::find_structural_type(types, identity)?.shape {
-            terminal_psi::StructuralTypeShape::ElementView { element, .. } => Some(element),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn contains_view(
-        function: &PsiOptimizationFunction,
-        place: semantic_vocabulary::PlaceId,
-        types: &crate::native_geometry::NativeGeometry<'_>,
-    ) -> bool {
-        view_type(function, place, types).is_some()
-    }
-
     pub(crate) fn owned_byte_result(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
@@ -3231,6 +3211,23 @@ pub(crate) mod element_views {
             return None;
         }
         descriptor_source_geometry(root, &source.path, types)
+    }
+
+    pub(crate) fn read_geometry(
+        function: &PsiOptimizationFunction,
+        source: &StructuralArgument,
+        types: &crate::native_geometry::NativeGeometry<'_>,
+    ) -> Option<ReferenceSourceGeometry> {
+        if source.access != StructuralAccess::SharedBorrow {
+            return None;
+        }
+        let geometry = descriptor_geometry(function, source, types)?;
+        (geometry.readable
+            && matches!(
+                terminal_psi::find_structural_type(types, geometry.selected)?.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ))
+        .then_some(geometry)
     }
 
     pub(crate) fn length_geometry(
@@ -8261,7 +8258,7 @@ pub(crate) mod nodes {
                     length,
                     ..
                 } => {
-                    if !super::byte_views::contains_view(optimized, *source, types)
+                    if super::element_views::read_geometry(optimized, source, types).is_none()
                         || function_inputs.value_type(*index)
                             != Some(ScalarType::Integer(u64_type()))
                         || function_inputs.value_type(*length)

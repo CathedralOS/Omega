@@ -11473,7 +11473,10 @@ pub mod descriptor_results {
                         3,
                         bytes,
                         OperationKind::ElementViewRead {
-                            source: PlaceId::new(1).unwrap(),
+                            source: terminal_psi::StructuralArgument::whole(
+                                PlaceId::new(1).unwrap(),
+                                StructuralAccess::SharedBorrow,
+                            ),
                             index: ValueId::new(1).unwrap(),
                             length: ValueId::new(2).unwrap(),
                             obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
@@ -15232,10 +15235,11 @@ pub mod descriptor_results {
                             ..
                         } => {
                             if let Some(result) = result {
-                                let mut selected = vec![StructuralPathSegment::RuntimeIndex {
+                                let mut selected = source.path.clone();
+                                selected.push(StructuralPathSegment::RuntimeIndex {
                                     index: *index,
                                     obligation: *obligation,
-                                }];
+                                });
                                 selected.extend_from_slice(path);
                                 graph.contents_transfers.insert(
                                     position,
@@ -15243,8 +15247,8 @@ pub mod descriptor_results {
                                         &module.structural_types,
                                         slot_kind,
                                         DescriptorContentsOperand {
-                                            root: *source,
-                                            root_type: *graph.place_types.get(source)?,
+                                            root: source.place,
+                                            root_type: *graph.place_types.get(&source.place)?,
                                             path: &selected,
                                             field: None,
                                         },

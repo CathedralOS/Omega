@@ -307,7 +307,7 @@ impl LogicalScope<'_> {
 
     pub(super) fn membership_clause(
         &self,
-        program: &Program<'_>,
+        program: &mut Program<'_>,
         scope: &ClauseScope<'_>,
         fact: &ProofMembershipFact,
     ) -> Checked<(Proposition, crate::ClauseText)> {
@@ -416,7 +416,7 @@ impl LogicalScope<'_> {
 
     pub(super) fn signature(
         self,
-        program: &Program<'_>,
+        program: &mut Program<'_>,
         owner: SymbolHandle,
         contracts: &[&typed_trees::signature::SignatureContract],
     ) -> Checked<(Signature, MachineNames)> {
@@ -1047,7 +1047,7 @@ impl Inputs {
     /// as an independent premise or dropping the generated contract clause.
     fn membership_clause(
         &self,
-        program: &Program<'_>,
+        program: &mut Program<'_>,
         machine: MachineId,
         scope: &ClauseScope<'_>,
         fact: &ProofMembershipFact,
@@ -1380,7 +1380,7 @@ pub(crate) fn projected_arrival(
         observation: ContentPlaceVersion::Entry,
         atoms: &atoms,
     }
-    .signature(&program, required.symbol, &required_contracts)?;
+    .signature(&mut program, required.symbol, &required_contracts)?;
     let (callee_signature, mut callee_names) = LogicalScope {
         inputs: &supplied_inputs,
         members: &member_arena,
@@ -1391,7 +1391,7 @@ pub(crate) fn projected_arrival(
         observation: ContentPlaceVersion::Entry,
         atoms: &atoms,
     }
-    .signature(&program, supplied_owner, &supplied_contracts)?;
+    .signature(&mut program, supplied_owner, &supplied_contracts)?;
     entry_names.machine = required.name.as_str().to_owned();
     entry_names.state = required.name.as_str().to_owned();
     callee_names.machine = machine.name.as_str().to_owned();

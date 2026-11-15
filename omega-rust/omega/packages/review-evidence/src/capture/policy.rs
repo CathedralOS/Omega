@@ -40,7 +40,20 @@ pub(super) fn project(
         checked.sources().exact_toolchain_sources(),
         &origins,
     )?;
-    let providers = declarations.selected_providers(package, target, &origins, &services)?;
+    let accepted_declarations = super::providers::AcceptedDeclarations::new(
+        accepted,
+        &services,
+        checked.execution().plans().plans(),
+    );
+    let native_bindings =
+        declarations.native_binding_policy(package, target, &accepted_declarations)?;
+    let providers = declarations.selected_providers(
+        package,
+        target,
+        &origins,
+        &accepted_declarations,
+        &native_bindings,
+    )?;
     require_supported_inventory(&declarations, package, &providers.slots)?;
     // The owned declaration census above refuses unserved admission claims,
     // including unused private claims. The provider inventory's separate
@@ -50,7 +63,6 @@ pub(super) fn project(
     if !checked.execution().plans().assumed_bindings().is_empty()
         || !config.default_provider_selections.is_empty()
         || !config.assumed_bindings.is_empty()
-        || !config.native_bindings.is_empty()
         || !config.opaque_representation_selections.is_empty()
         || !config.wire_compatibility_demands.is_empty()
         || !config.grants.is_empty()
@@ -135,7 +147,10 @@ pub(super) fn project(
             selected_availability: Vec::new(),
             demands: Vec::new(),
         },
-        native_bindings: Vec::new(),
+        native_bindings: native_bindings
+            .into_iter()
+            .map(|(binding, _)| binding)
+            .collect(),
         external_supplies: Vec::new(),
         dangerous_capabilities: Vec::new(),
         slack_uses: Vec::new(),
@@ -362,7 +377,7 @@ fn require_supported_inventory(
     Ok(())
 }
 
-fn representation_target(
+pub(super) fn representation_target(
     target: TargetProfile,
 ) -> Result<PackageReviewRepresentationTarget, Vec<Diagnostic>> {
     use PackageReviewRepresentationTargetProfile as Profile;

@@ -62,6 +62,15 @@ pub trait ClauseBindings {
         })
     }
 
+    /// Actual call imports must rejoin a projection to the current owner's
+    /// real scalar producer. Declaration-template bindings may explicitly keep
+    /// symbolic sources; an unspecified consumer cannot invent correspondence.
+    fn validate_float_meaning_source(&mut self, _source: &ScalarTerm) -> Result<(), Self::Error> {
+        Err(Self::Error::from(
+            "float meaning projection has no actual owner correspondence",
+        ))
+    }
+
     /// Declaration formation cannot skip a partial term because another
     /// branch already decides its enclosing condition. Ordinary substitution
     /// keeps its existing case-directed projection behavior.
@@ -97,6 +106,13 @@ pub fn substitute_clause<Error: From<&'static str>>(
     bindings: &mut dyn ClauseBindings<Error = Error>,
 ) -> Result<Proposition, Error> {
     Ok(match proposition {
+        Proposition::FloatMeaningEqual(clause) => {
+            let mapped = clause.map_sources(|source| substitute_clause_term(source, bindings))?;
+            for source in mapped.sources() {
+                bindings.validate_float_meaning_source(source)?;
+            }
+            Proposition::FloatMeaningEqual(mapped)
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         // An opaque proposition has no bindable scalar or storage name.
@@ -225,7 +241,8 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
                     path,
                     scalar_type,
                 } => bindings.extent(root, &path, scalar_type)?,
-                ScalarTerm::Integer { .. }
+                ScalarTerm::Application { .. }
+                | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)
                 | ScalarTerm::IeeeFloatLiteral(_) => term,
                 ScalarTerm::StructuralRead { .. } => {
@@ -701,5 +718,189 @@ mod tests {
             substitute_clause(&unbound, &mut Inputs),
             Err("unbound value")
         );
+    }
+}
+
+#[cfg(test)]
+mod meaning_template_tests {
+    use super::*;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Meaning},
+    };
+    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat, StructuralFieldId};
+
+    fn equation(right: ScalarTerm) -> Proposition {
+        let f = IeeeFloatFormat::Binary32;
+        let scalar = ScalarType::IeeeFloat(f);
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "subtract",
+            &[Format, Meaning, Meaning],
+            Meaning,
+        )
+        .unwrap();
+        Proposition::FloatMeaningEqual(
+            FloatMeaningClause::result_equation(
+                value(3),
+                operation.contract_identity(),
+                f,
+                [value(1), right],
+            )
+            .unwrap(),
+        )
+    }
+
+    struct Actuals {
+        wrong_format: bool,
+        missing_result: bool,
+    }
+    impl ClauseBindings for Actuals {
+        type Error = &'static str;
+        fn value(&mut self, id: ValueId, scalar: ScalarType) -> Result<ScalarTerm, Self::Error> {
+            let actual = match id.get() {
+                1 => 2,
+                2 => 1,
+                3 if !self.missing_result => 30,
+                _ => return Err("unmapped formal/result"),
+            };
+            Ok(ScalarTerm::value(
+                ValueId::new(actual).unwrap(),
+                if self.wrong_format {
+                    ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+                } else {
+                    scalar
+                },
+            ))
+        }
+        fn field(
+            &mut self,
+            version: ContentPlaceVersion,
+            _: PlaceId,
+            path: &[CanonicalStructuralPathSegment],
+            scalar: ScalarType,
+        ) -> Result<ScalarTerm, Self::Error> {
+            let ScalarType::IeeeFloat(format) = scalar else {
+                return Err("not a float field");
+            };
+            Ok(ScalarTerm::IeeeFloatField {
+                version,
+                root: PlaceId::new(5).unwrap(),
+                path: path.to_vec(),
+                format,
+            })
+        }
+        fn case(
+            &mut self,
+            _: PlaceId,
+            _: &[CanonicalStructuralPathSegment],
+            _: StructuralCaseId,
+        ) -> Result<bool, Self::Error> {
+            Err("not a case")
+        }
+        fn validate_float_meaning_source(&mut self, _: &ScalarTerm) -> Result<(), Self::Error> {
+            // This test checks template substitution, not concrete projection admission.
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn float_meaning_templates_substitute_actuals_results_and_saved_field_versions() {
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let original = equation(value(2));
+        let mapped = substitute_clause(
+            &original,
+            &mut Actuals {
+                wrong_format: false,
+                missing_result: false,
+            },
+        )
+        .unwrap();
+        let Proposition::FloatMeaningEqual(clause) = mapped else {
+            unreachable!()
+        };
+        let ids = clause
+            .sources()
+            .map(|source| match source {
+                ScalarTerm::Value { id, .. } => id.get(),
+                _ => panic!("an actual/result lost its scalar identity"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ids, vec![30, 2, 1]);
+        assert_eq!(clause.left, semantic_vocabulary::FloatMeaningSlot(0));
+        assert_eq!(clause.right, semantic_vocabulary::FloatMeaningSlot(3));
+        let semantic_vocabulary::FloatMeaningClauseValue::Application {
+            contract,
+            format,
+            operands,
+        } = &clause.values[3]
+        else {
+            panic!("semantic application was lost")
+        };
+        assert_eq!(*format, IeeeFloatFormat::Binary32);
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "subtract",
+            &[Format, Meaning, Meaning],
+            Meaning,
+        )
+        .unwrap();
+        assert_eq!(*contract, operation.contract_identity());
+        assert_eq!(
+            operands,
+            &vec![
+                semantic_vocabulary::FloatMeaningClauseOperand::Format(IeeeFloatFormat::Binary32),
+                semantic_vocabulary::FloatMeaningClauseOperand::Meaning(
+                    semantic_vocabulary::FloatMeaningSlot(1)
+                ),
+                semantic_vocabulary::FloatMeaningClauseOperand::Meaning(
+                    semantic_vocabulary::FloatMeaningSlot(2)
+                ),
+            ]
+        );
+        assert!(
+            substitute_clause(
+                &original,
+                &mut Actuals {
+                    wrong_format: true,
+                    missing_result: false
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            substitute_clause(
+                &original,
+                &mut Actuals {
+                    wrong_format: false,
+                    missing_result: true
+                }
+            )
+            .is_err()
+        );
+        for version in [ContentPlaceVersion::Current, ContentPlaceVersion::Entry] {
+            let field = ScalarTerm::IeeeFloatField {
+                version,
+                root: PlaceId::new(1).unwrap(),
+                path: vec![CanonicalStructuralPathSegment::Field(
+                    StructuralFieldId::new(7).unwrap(),
+                )],
+                format: IeeeFloatFormat::Binary32,
+            };
+            let mapped = substitute_clause(
+                &equation(field),
+                &mut Actuals {
+                    wrong_format: false,
+                    missing_result: false,
+                },
+            )
+            .unwrap();
+            let Proposition::FloatMeaningEqual(clause) = mapped else {
+                unreachable!()
+            };
+            assert!(clause.sources().any(|source| matches!(source, ScalarTerm::IeeeFloatField { version: actual, root, .. } if *actual==version && root.get()==5)));
+        }
     }
 }

@@ -16,9 +16,8 @@ pub(crate) use external_policy::{
     PackagePolicyExternalRequirement,
 };
 
-pub(crate) use external_supply::{
-    PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
-};
+pub(crate) use external_supply::PackageReviewExternalCallableParameter;
+pub use external_supply::PackageReviewForeignLocator;
 
 pub(crate) use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewPropositionParameterSignature,

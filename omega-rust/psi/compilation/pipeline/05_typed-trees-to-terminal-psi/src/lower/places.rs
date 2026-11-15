@@ -688,7 +688,7 @@ fn expression_homes<'b>(
                 expression_homes(element, homes);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -1998,7 +1998,7 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::ByteSubslice { base, start, end } => {
+            ExpressionKind::CollectionSubslice { base, start, end } => {
                 // Capture the descriptor before evaluating either endpoint.
                 // A later call may replace the original descriptor home.
                 let captured = continuing!(self.record(base));
@@ -2038,14 +2038,14 @@ impl<'a> Lowering<'a> {
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(record))?;
                 self.project(exact, Segment::Extent)?;
+                let shape = &self.record_type(record)?.shape;
+                let reads_length = shape
+                    .length_operation()
+                    .ok_or_else(|| self.internal("a range has no readable descriptor"))?;
+                let reads_elements = matches!(shape, StorageShape::ElementView { .. });
                 let measurement = self.operation_identity(expression.source);
-                let Value::Scalar(length) = self.emit(
-                    measurement,
-                    Some(count),
-                    OperationKind::ByteSequenceLength {
-                        source: source.clone(),
-                    },
-                )?
+                let Value::Scalar(length) =
+                    self.emit(measurement, Some(count), reads_length(source.clone()))?
                 else {
                     return Err(self.internal("a range length is not scalar"));
                 };
@@ -2058,17 +2058,25 @@ impl<'a> Lowering<'a> {
                     before,
                     expression.source,
                 );
-                let (root, place) = self.produce(
-                    operation,
-                    record,
+                let end = end.unwrap_or(length);
+                let kind = if reads_elements {
+                    OperationKind::ElementViewSubslice {
+                        source,
+                        start,
+                        end,
+                        length,
+                        obligation,
+                    }
+                } else {
                     OperationKind::ByteSequenceSubslice {
                         source,
                         start,
-                        end: end.unwrap_or(length),
+                        end,
                         length,
                         obligation,
-                    },
-                )?;
+                    }
+                };
+                let (root, place) = self.produce(operation, record, kind)?;
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),
@@ -3303,21 +3311,19 @@ impl<'a> Lowering<'a> {
                     StorageShape::ElementView { .. }
                 )
             {
-                if position != 0 {
-                    return Err(refuse(
-                        self.id,
-                        Construct::Machine,
-                        Unserved::Expression("slice read without a whole descriptor"),
-                    ));
+                let (descriptor, element) = steps.split_at(position);
+                let mut place = self.exact_root(root)?;
+                for step in descriptor {
+                    place = self.step(place, *step)?;
                 }
                 let view = Located {
                     root,
-                    place: self.exact_root(root)?,
-                    path: Vec::new(),
+                    place,
+                    path: descriptor.to_vec(),
                     record: owner,
                     fresh: false,
                 };
-                return self.read_element_view(&view, selector, &steps[1..], scalar_type, source);
+                return self.read_element_view(&view, selector, &element[1..], scalar_type, source);
             }
         }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
@@ -3397,7 +3403,9 @@ impl<'a> Lowering<'a> {
         }
         let (_, _, length) = self.measured_view(at, source)?;
         let operation = self.operation_identity(source);
-        let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
+        let site = ExecutionSite::Operation(operation);
+        let descriptor = self.storage_path(&at.path, site, source)?;
+        let path = self.storage_path(steps, site, source)?;
         let obligation = self.obligation(
             ObligationKind::OperationSafety {
                 site: ExecutionSite::Operation(operation),
@@ -3409,7 +3417,11 @@ impl<'a> Lowering<'a> {
             operation,
             Some(scalar_type),
             OperationKind::ElementViewRead {
-                source: at.root,
+                source: StructuralArgument {
+                    place: at.root,
+                    path: descriptor,
+                    access: StructuralAccess::SharedBorrow,
+                },
                 index,
                 length,
                 obligation,
@@ -3649,7 +3661,7 @@ impl<'a> Lowering<'a> {
     /// satisfies the default domain, the value is zero-constructible.
     /// Otherwise the type is gated: construction or checked qualification
     /// must establish the domain before observation." Every scalar type
-    /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
+    /// this route reads admits zero, including both IEEE float formats. A constrained
     /// scalar type is refused by the reader, so a scalar home owes no
     /// domain clause and is never gated.
     /// The zero value of `record` in a new root: the storage of `let x: T;`.
@@ -3956,9 +3968,18 @@ impl<'a> Lowering<'a> {
                 value: IntegerValue::for_sign(integer.sign(), 0)
                     .map_err(|_| self.internal("zero is not an integer value"))?,
             },
-            ScalarType::IeeeFloat(_) => {
-                return Err(self.internal("a float local reached lowering"));
-            }
+            ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
+                // Both IEEE formats represent positive zero with all bits clear.
+                // Keep the leaf's permanent format, just as literal lowering does.
+                value: match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        semantic_vocabulary::IeeeFloatValue::Binary64(0)
+                    }
+                },
+            },
         };
         let operation = self.operation_identity(source);
         match self.emit(operation, Some(scalar_type), kind)? {

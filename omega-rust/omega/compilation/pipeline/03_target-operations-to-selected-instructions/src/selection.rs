@@ -1685,11 +1685,11 @@ pub(crate) mod parameter_use {
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-                    | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-                    | LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
+                    | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
                         *source == place
                     }
                     LegalizedScalarInstructionKind::EstablishElementView { source, .. }
+                    | LegalizedScalarInstructionKind::ElementViewRead { source, .. }
                     | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => {
                         source.place == place
                     }

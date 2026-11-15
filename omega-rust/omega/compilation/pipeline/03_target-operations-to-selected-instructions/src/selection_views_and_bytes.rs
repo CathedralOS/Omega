@@ -2306,6 +2306,7 @@ pub(crate) mod element_view_write {
 
 pub(crate) mod element_views {
     use crate::SelectedInstructionError;
+    use crate::selection::construction::scalar_graph::structural::descriptor_operands;
     use crate::selection::construction::scalar_graph::structural::invalid;
     use crate::selection::construction::scalar_graph::structural::obligation_provenance;
     use crate::selection::construction::scalar_graph::structural::operation_provenance;
@@ -2317,28 +2318,9 @@ pub(crate) mod element_views {
         LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionProvenance,
         SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
-    use crate::selection::established_view_input::element_view_type;
     use crate::selection::scalar_call_abi::load_transfer;
-    use crate::structural_inputs::structural_reference_input::{align, element_leaf_projection};
+    use crate::structural_inputs::structural_reference_input::element_leaf_geometry;
     use terminal_psi::StructuralTypeShape;
-
-    pub(crate) fn element_stride(
-        function: &crate::native_geometry::NativeFunction<'_>,
-        builder: &Builder<'_>,
-        source: PlaceId,
-    ) -> Option<u32> {
-        if let Some(view) = builder.transport.element_view(source) {
-            return Some(view.element_stride);
-        }
-        let view_type = element_view_type(function, source)?;
-        function.structural.as_ref()?;
-        let declaration = terminal_psi::find_structural_type(function.geometry(), view_type)?;
-        let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
-            return None;
-        };
-        let shape = crate::structural_inputs::shape(*element, function.geometry())?;
-        align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
-    }
 
     pub(crate) fn element_observation(
         function: &crate::native_geometry::NativeFunction<'_>,
@@ -2346,10 +2328,7 @@ pub(crate) mod element_views {
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         match &row.kind {
-            LegalizedScalarInstructionKind::ElementViewRead { source, .. } => {
-                if element_view_type(function, *source).is_none() {
-                    return Err(invalid());
-                }
+            LegalizedScalarInstructionKind::ElementViewRead { .. } => {
                 element_view_read(function, builder, row)
             }
             LegalizedScalarInstructionKind::ElementViewLength {
@@ -2379,7 +2358,7 @@ pub(crate) mod element_views {
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
         let LegalizedScalarInstructionKind::ElementViewRead {
-            source,
+            source: ref descriptor,
             index,
             length,
             obligation,
@@ -2399,26 +2378,33 @@ pub(crate) mod element_views {
         {
             return Err(invalid());
         }
-        let stride = element_stride(function, builder, source).ok_or_else(|| invalid())?;
-        let Some(_) = function.structural.as_ref() else {
+        let source = descriptor.place;
+        let Some((geometry, StructuralTypeShape::ElementView { element, .. })) =
+            descriptor_operands::source_geometry(function, descriptor)
+        else {
             return Err(invalid());
         };
-        let Some(view_type) = element_view_type(function, source) else {
-            return Err(invalid());
+        let stride = if let Some(view) = descriptor
+            .path
+            .is_empty()
+            .then(|| builder.transport.element_view(source))
+            .flatten()
+        {
+            view.element_stride
+        } else {
+            descriptor_operands::element_stride(function, descriptor).ok_or_else(invalid)?
         };
-        let element = terminal_psi::find_structural_type(function.geometry(), view_type)
-            .and_then(|declaration| match declaration.shape {
-                StructuralTypeShape::ElementView { element, .. } => Some(element),
-                _ => None,
-            })
-            .ok_or_else(|| invalid())?;
-        let (byte_offset, byte_count, elements) =
-            element_leaf_projection(element, path, definition.scalar_type, function.geometry())
-                .ok_or_else(|| invalid())?;
-        if !crate::structural_inputs::runtime_indices_match(indices, &elements) {
+        let (byte_offset, byte_count) =
+            element_leaf_geometry(element, path, definition.scalar_type, function.geometry())
+                .ok_or_else(invalid)?;
+        if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
             return Err(invalid());
         }
-        let pointer = element_backing_pointer(builder, row, source)?;
+        let pointer = if descriptor.path.is_empty() {
+            element_backing_pointer(builder, row, source)?
+        } else {
+            descriptor_operands::backing(function, builder, row, descriptor, indices)?
+        };
         let physical_index = scaled_element_index(
             builder,
             source,
@@ -2442,15 +2428,6 @@ pub(crate) mod element_views {
             address,
             obligation_provenance(row, &[index, length], &[obligation]),
         )?;
-        let address =
-            crate::selection::construction::scalar_graph::structural::runtime_address::scale(
-                builder,
-                row,
-                source,
-                byte_offset,
-                address,
-                indices,
-            )?;
         let (address, displacement) =
             crate::selection::construction::scalar_graph::structural::memory_pointer(
                 builder,
@@ -2473,17 +2450,6 @@ pub(crate) mod element_views {
                 accepted_fact,
             },
         )?;
-        if !indices.is_empty() {
-            crate::selection::construction::scalar_graph::structural::runtime_address::footprint(
-                builder,
-                row,
-                source,
-                byte_offset,
-                byte_count,
-                indices,
-                crate::selection::construction::scalar_graph::structural::runtime_address::Written::None,
-            )?;
-        }
         let (kind, constraint) = load_transfer(&builder.constraints.keys, byte_count, displacement)
             .ok_or_else(invalid)?;
         builder.emit(
