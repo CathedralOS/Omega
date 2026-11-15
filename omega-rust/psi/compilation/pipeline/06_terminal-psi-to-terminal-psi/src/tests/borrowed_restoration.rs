@@ -387,6 +387,11 @@ fn an_exclusive_reference_field_opens_the_same_captured_window() {
             "let local: Loan = Loan { item: &mut owner };",
         )
         .replace("move local;", "move local.item;")
-        .replace("local = next;", "local.item = next;");
+        // Assigning the field replaces its descriptor. Transfer that same
+        // permission to a local before repairing through its referent.
+        .replace(
+            "local = next;",
+            "let repair: &mut Item = local.item;\n    repair = next;",
+        );
     execute_restoration(&source);
 }
