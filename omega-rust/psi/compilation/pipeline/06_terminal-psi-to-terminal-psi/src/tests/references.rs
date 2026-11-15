@@ -1449,20 +1449,30 @@ machine build_entry() {{
 }}"
         )
     };
-    let rejected =
-        super::build_purpose::judge_build(&source("    observe(&item);\n    observe(view);"))
-            .unwrap();
-    assert!(
-        matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. } if !conflicts.is_empty()),
-        "a shared loan overlaps the live exclusive formation: {rejected:?}"
-    );
-    let accepted =
-        super::build_purpose::judge_build(&source("    observe(view);\n    observe(&item);"))
-            .unwrap();
-    assert!(
-        matches!(accepted, RouteVerdict::Accepted(_)),
-        "{accepted:?}"
-    );
+    for uses in [
+        "observe(&item); observe(view);",
+        "let child: &Item = &view; observe(&item); observe(child);",
+        "let child: &Item = &view; let leaf: &Item = &child; observe(&item); observe(leaf);",
+    ] {
+        let rejected = super::build_purpose::judge_build(&source(uses)).unwrap();
+        assert!(
+            matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. }
+                if conflicts.iter().any(|row| matches!(row.conflict,
+                    LoanConflict::ExclusiveAndShared | LoanConflict::ObserveWhileExclusive))),
+            "a shared loan overlaps the live exclusive ancestor: {uses}: {rejected:?}"
+        );
+    }
+    for uses in [
+        "observe(view); observe(&item);",
+        "let child: &Item = &view; observe(child); observe(&item);",
+        "let child: &Item = &view; let leaf: &Item = &child; observe(leaf); observe(&item);",
+    ] {
+        let accepted = super::build_purpose::judge_build(&source(uses)).unwrap();
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{uses}: {accepted:?}"
+        );
+    }
 }
 
 const HANDOFF: &str = "
