@@ -482,6 +482,7 @@ impl<'a> Lowering<'a> {
             call_formations: Vec::new(),
             blocks: IdTable::default(),
             operation_locations: IdTable::default(),
+            scalar_constants: std::cell::RefCell::default(),
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
@@ -786,6 +787,7 @@ struct Lowering<'a> {
     /// Coordinates of emitted operations in this in-progress machine. A call
     /// reads exact scalar definitions without rescanning all earlier blocks.
     operation_locations: IdTable<OperationId, Option<(BlockId, usize)>>,
+    scalar_constants: std::cell::RefCell<terminal_semantics::ScalarConstants>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
     /// The program point after the last thing emitted in `current`.

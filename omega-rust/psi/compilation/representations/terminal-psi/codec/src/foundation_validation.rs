@@ -181,9 +181,7 @@ pub(crate) mod call_foundations {
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Option<(ScalarType, IntegerValue)> {
         let expected = sources.scalar_type(value)?;
-        let known = terminal_semantics::scalar_constant_value(value, |value| {
-            scalar_index.constant_origin(value)
-        })?;
+        let known = scalar_index.constant_value(value)?;
         (known.0 == expected).then_some(known)
     }
 
@@ -3340,15 +3338,21 @@ pub(crate) mod machine_foundations {
         validate_parameter_places(machine)?;
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
+        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
         for block in &machine.blocks {
             let mut previous = None;
             for operation in &block.operations {
-                validate_operation_foundation(module, machine, operation, transfers, previous)
-                    .map_err(|error| {
-                        super::operation_foundation_error(
-                            module, machine, block.id, operation, error,
-                        )
-                    })?;
+                validate_operation_foundation(
+                    module,
+                    machine,
+                    operation,
+                    transfers,
+                    previous,
+                    &scalar_index,
+                )
+                .map_err(|error| {
+                    super::operation_foundation_error(module, machine, block.id, operation, error)
+                })?;
                 previous = Some(operation);
             }
         }
@@ -3360,7 +3364,7 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
-        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
+
         let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
@@ -10210,9 +10214,8 @@ pub(crate) mod value_foundations {
         TerminalMachine, TerminalModule, find_structural_case, nonlinear_multiplicity_pair_pattern,
     };
     use terminal_semantics::{
-        canonical_static_projection, contains_access_carrier, machine_scalar_constant_origin,
-        primitive_scalar_memberships, scalar_array_leaf_declaration, scalar_array_leaf_shape,
-        scalar_array_qualifications_hold, scalar_constant_value,
+        canonical_static_projection, contains_access_carrier, primitive_scalar_memberships,
+        scalar_array_leaf_declaration, scalar_array_leaf_shape, scalar_array_qualifications_hold,
         scalar_field_requires_initialization_evidence, structural_claim_paths_may_overlap,
         zeroed_projected_byte_qualifications_hold, zeroed_structural_shape,
     };
@@ -10221,6 +10224,7 @@ pub(crate) mod value_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         operation: &Operation,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
     ) -> Result<(), CodecError> {
         let OperationKind::EstablishScalarArray { elements } = &operation.kind else {
             unreachable!("dispatched validate_establish_scalar_array")
@@ -10238,11 +10242,7 @@ pub(crate) mod value_foundations {
                 result.structural_type,
                 &result.qualifications,
                 elements,
-                |element| {
-                    scalar_constant_value(element, |value| {
-                        machine_scalar_constant_origin(machine, value)
-                    })
-                },
+                |element| scalar_index.constant_value(element),
             )
             || !matches!(
                 machine.structural_place(result.place),
@@ -11811,6 +11811,7 @@ fn validate_operation_foundation(
     operation: &Operation,
     transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
     previous: Option<&Operation>,
+    scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
 ) -> Result<(), CodecError> {
     if operation.required_contract.is_some() && operation.module_invocation().is_none() {
         return malformed(
@@ -12029,7 +12030,12 @@ fn validate_operation_foundation(
             storage_foundations::validate_scalar_structural_field(module, machine, operation)?
         }
         OperationKind::EstablishScalarArray { .. } => {
-            value_foundations::validate_establish_scalar_array(module, machine, operation)?
+            value_foundations::validate_establish_scalar_array(
+                module,
+                machine,
+                operation,
+                scalar_index,
+            )?
         }
         OperationKind::EstablishScalarCase { .. } => {
             value_foundations::validate_establish_scalar_case(module, machine, operation)?
