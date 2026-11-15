@@ -192,13 +192,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a program that never demands the macOS layout is refused for it, against [demand-driven layout formation](wiki/spec/build/configuration.md#multi-target-compilation); may be the same uncalled-library refusal as "A whole-program stage refuses every program for a library construct nobody calls"
 - Reported: 2026-11-15, Claude Code, while removing the product gate's duplicate review pass
 
-### Receiving a selected result loses its missing lifetime evidence reason
-- Category: a verdict with nothing behind it
-- Where: [public result lifetime lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references/selected_results.rs#L50), [descriptor graph invocation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13861)
-- Saw: At `1a5fd676246` the published selected `Chosen::hand` control accepts with one public header and complete lifetime groups. Keep that operation header, its invocation row and the selected method tuple. Remove only the method's `result_lifetimes`. The public semantic query reports `selected reference result has an unresolved declared lifetime frontier`. The receiving judgment still refuses, but reports that descriptor storage flow cannot be reconstructed at the call.
-- Cost: The receiver drops the exact missing public evidence when the descriptor graph takes the query's optional result. Keep the existing failure reason and the actual call site through the receiving judgment.
-- Reported: 2026-11-14, Codex, while auditing the selected reference public contract after #3351
-
 ### A literal argument reaches native retirement without a view carrier
 - Category: knowledge crossing a boundary
 - Where: [native home retirement](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow.rs#L1318), [staged literal call control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/collection_members.rs#L366)
