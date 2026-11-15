@@ -74,12 +74,8 @@ outlier trimming or real-world safety inference.
 
 ## Frozen independent qualification
 
-`validation/reference.py` freezes weighted Kabsch/SVD results, including the
-proper-rotation correction, separately from the quaternion solver. Exact quarter
-turn and translation fixtures also assert their constructed rotation and
-translation before freezing. `validation/reference_boundary.py` freezes rank
-boundary, large-coordinate, tiny-weight and weight-scale cases. Both authoring
-tools refuse to overwrite their oracles. Validators pin both oracle hashes and
+Exact quarter turn and translation fixtures also assert their constructed
+rotation and translation before freezing. Validators pin both oracle hashes and
 every input hash before execution.
 
 The 38 cases cover exact and noisy fits, minimum three-point planar data, a
@@ -111,19 +107,16 @@ sample=samples/cli/independent/rigid_point_registration
 omega packages update --project "$sample" --target linux_x86_64
 omega packages update --resume --project "$sample"
 omega --target linux_x86_64 "$sample/main.omg"
-python3 -B "$sample/validation/validate.py" "$sample/build/omega-program" --output build/w211-native
 omega --check --target linux_x86_64 "$sample/intended_invalid/main.omg"
 ```
 
-The last command must refuse the exact coordinate bounds obligation. For actual
-Terminal stdout, `validation/terminal_validate.py` links the read-only observer
-against the verified producer's build artifacts. Supply `--producer` (directory
-containing omega and deps), `--receipt` (exact compiler-artifact hashes), and
-`--output`. The receipt is produced from the successful Cargo/MBX JSON artifact
-manifest using the repository's existing
-`samples/cli/independent/dose_response_fit/validation/producer_receipt.py`.
-The observer compiles this actual admitted complete project once, then executes
-its retained canonical Terminal artifact with the exact runtime provisions and
+The last command must refuse the exact coordinate bounds obligation. Supply
+`--producer` (directory containing omega and deps), `--receipt` (exact
+compiler-artifact hashes), and `--output`. The receipt is produced from the
+successful Cargo/MBX JSON artifact manifest using the repository's existing
+`samples/cli/independent/dose_response_fit/validation/producer_receipt.py`. The
+observer compiles this actual admitted complete project once, then executes its
+retained canonical Terminal artifact with the exact runtime provisions and
 finite fixture stdin. Each invocation delegates only isolated-domain process
 exit, gets 100 million work units and a 60-second watchdog. Decline, timeout,
 missing capture or exhausted work fails qualification.

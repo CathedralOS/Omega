@@ -4,7 +4,7 @@ data Original { value: u32; }
 data Viewed { value: u32; }
 
 boundary trait SelectedOverwrite {
-    machine overwrite(storage: &write Original) reaches;
+    machine overwrite(storage: &write Original) reaches crashes none;
 }
 WindowsOverwrite satisfies SelectedOverwrite {
     machine overwrite(storage: &write Original) {

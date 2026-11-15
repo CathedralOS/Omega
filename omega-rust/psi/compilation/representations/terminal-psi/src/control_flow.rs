@@ -4,6 +4,21 @@ Executable control-flow graphs (`TerminalMachine`, `Block`, `Operation`, `Operat
 termination ranking witnesses in `TerminalModule`.
 */
 
+/// The instruction or terminator whose execution consumes an obligation.
+/// A block coordinate names its terminator, after its operations and before
+/// choosing an outgoing edge; it never names block entry or one chosen edge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExecutionSite {
+    Block(semantic_vocabulary::BlockId),
+    Operation(semantic_vocabulary::OperationId),
+}
+
+impl From<semantic_vocabulary::OperationId> for ExecutionSite {
+    fn from(operation: semantic_vocabulary::OperationId) -> Self {
+        Self::Operation(operation)
+    }
+}
+
 pub(crate) mod atomic {
 
     use language_core::atomic::AtomicOrderingPlan;

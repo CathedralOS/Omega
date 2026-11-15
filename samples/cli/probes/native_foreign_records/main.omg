@@ -8,14 +8,14 @@ data Comparison { code: i32; }
 data Functions { compare: addr; }
 
 boundary trait Symbols {
-    machine module(name: &[u8; 13]) -> addr reaches;
-    machine symbol(module: addr, name: &[u8; 21]) -> addr reaches;
+    machine module(name: &[u8; 13]) -> addr reaches crashes none;
+    machine symbol(module: addr, name: &[u8; 21]) -> addr reaches crashes none;
 }
 boundary trait Imports {
-    machine compare(left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches;
+    machine compare(left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches crashes none;
 }
 boundary trait Tables {
-    machine compare(table: &Functions, left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches;
+    machine compare(table: &Functions, left: &[u16; 5], left_count: i32, right: &[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches crashes none;
 }
 
 windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {

@@ -2,7 +2,7 @@
 // Place: match join. Both arms of one transition join at the cycle's ordinary caller.
 // Expected exit: 0
 public boundary trait Scheduler {
-    machine advance(value: u64) -> u64 reaches suspends;
+    machine advance(value: u64) -> u64 reaches suspends crashes none;
 }
 InlineScheduler satisfies Scheduler {
     machine advance(value: u64) -> u64 { (value as u64 in Wrapping * 3) as u64 }

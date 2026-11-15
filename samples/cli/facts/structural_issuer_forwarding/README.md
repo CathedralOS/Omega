@@ -29,16 +29,6 @@ Focused controls under `tests/omega/fail/domains/named_issuer_*` challenge
 equal-field reconstruction, independent predicates, a different requirement of
 the same trait, and the issuer body's own call preconditions.
 
-Run with a freshly built compiler on the actual host:
-
-```text
-python3 samples/cli/facts/structural_issuer_forwarding/validate.py --cli target/debug/omega --output build/issuer-row --controls
-```
-
-The validator requires native and Terminal exit 0 for every positive and the
-authored diagnostic for every negative. It retains raw logs and hashes the
-generated native image, canonical Terminal product and companion outputs.
-
 ## Requirements
 
 - Establishment: exact requirement identity authorizes the selected named

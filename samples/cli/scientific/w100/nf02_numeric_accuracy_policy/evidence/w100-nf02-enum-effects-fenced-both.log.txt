@@ -1,2 +1,0 @@
-native compile FAILED:
-  error: terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "computed borrow has no established source", gap: None })

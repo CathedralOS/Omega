@@ -409,10 +409,6 @@
     "io/input.omg": "030d187bed33d95459a67da513b72978e630b4b5ece8704c2b8adb229d28a183",
     "io/report.omg": "195885b6bbd25ad2c2153de7b8d6ad63e257fc500a19a13fd2186bc2b38ee29b",
     "main.omg": "897ce5c23beecfdae42a0b21b95fcac742e4f23f7b75fe5cca858d09c169299e",
-    "validation/build_terminal.py": "bdb3c7b7a7f2fc5ced5375e13206335f0a027bb2e15c65d8b691ad46d2eee543",
-    "validation/freeze.py": "52da3ad32f69bbe3db07f10ad599b5ce4a9f2cc82a6aaec4e7ac82f9193286e1",
-    "validation/reference.py": "81134c12f80026dbec9aba909a01b397e1f075ae383c65302ba82b41c07cb7b5",
-    "validation/terminal.rs": "0b89e74eb6514a2a4789f5d05ad2db29448b417a4480300e5ace9a5ec4861154",
-    "validation/verify.py": "ed1cef8c7a910cf7901dd0c4e2894ab01337259af45b2c457f106c9dbe5048d1"
+    "validation/terminal.rs": "0b89e74eb6514a2a4789f5d05ad2db29448b417a4480300e5ace9a5ec4861154"
   }
 }

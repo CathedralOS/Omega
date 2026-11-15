@@ -21,17 +21,14 @@ reject. The model's population cap is 100000 and its per-replica event cap is
 biological simulation.
 
 The Park–Miller stream is explicit and seeded; the product fits in 64 bits.
-The Omega logarithm range-reduces to [0.5,1), then evaluates 16 odd terms of
-the atanh series. The independent Python reference uses `math.log`, not the
-Omega logarithm. `data/frozen_oracle.json` and `data/FROZEN.sha256` were saved
-before Omega execution. Exact seeded ensemble counters and per-event channel,
-population and rounded time are checked against that reference. The reference
-alone does not establish statistical correctness: the validator also checks
-that mRNA's empirical mean, second raw moment, and four Poisson bins agree with
-the analytic immigration–death law at time 2. The bin interval uses a four-bin
-Hoeffding union bound at total false-rejection probability 1e-4 per ensemble.
-First and second moments use six standard errors from the Poisson law.
-Protein mean is checked against the exact two-stage expectation using six
+The Omega logarithm range-reduces to [0.5,1), then evaluates 16 odd terms of the
+atanh series. The independent Python reference uses `math.log`, not the Omega
+logarithm. `data/frozen_oracle.json` and `data/FROZEN.sha256` were saved before
+Omega execution. Exact seeded ensemble counters and per-event channel,
+population and rounded time are checked against that reference. The bin interval
+uses a four-bin Hoeffding union bound at total false-rejection probability 1e-4
+per ensemble. First and second moments use six standard errors from the Poisson
+law. Protein mean is checked against the exact two-stage expectation using six
 empirical standard errors. These bands are diagnostics with stated sampling
 assumptions; a different RNG seed is tested as an independent sample.
 
@@ -40,16 +37,10 @@ Run on Linux x86-64 after the package's exact review is accepted; set `OMEGA` to
 ```sh
 "$OMEGA" update --project samples/cli/independent/stochastic_gene_kinetics --target linux_x86_64
 "$OMEGA" --check --target linux_x86_64 samples/cli/independent/stochastic_gene_kinetics/main.omg
-python3 samples/cli/independent/stochastic_gene_kinetics/validate.py --cli /absolute/path/to/omega
 ```
 
-The validator builds once, repeats two seeds and runs the resulting native
-binary for twelve inputs, then runs `omega run --both --keep` for each input. It preserves native and
-Terminal stdout, stderr, exit codes and commands under the ignored sample
-`build/validation` directory. The retained Terminal output is independently
-checked against the frozen trajectory and ensemble values, as well as compared
-byte-for-byte to native output.
-Other targets have entry bindings but still require their own provider review
-and native validation.
-EOF is the default sample-gate command, with expected exit 2 and an authored
-output fragment in `main.omg`.
+The retained Terminal output is independently checked against the frozen
+trajectory and ensemble values, as well as compared byte-for-byte to native
+output. Other targets have entry bindings but still require their own provider
+review and native validation. EOF is the default sample-gate command, with
+expected exit 2 and an authored output fragment in `main.omg`.

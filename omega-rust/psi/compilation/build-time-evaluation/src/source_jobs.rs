@@ -95,6 +95,7 @@ pub struct PreparedBuildMachineEntry {
     context_inputs: Vec<crate::BuildTimeValue>,
 }
 impl PreparedBuildMachineEntry {
+    /// The physical callee in the accepted invocation’s source.
     pub const fn symbol(&self) -> SymbolHandle {
         self.symbol
     }
@@ -1196,6 +1197,120 @@ pub(crate) mod tests {
                 .contains("independent issuer target input"),
             "{refusal}"
         );
+    }
+
+    #[test]
+    fn generic_layout_policy_retains_its_declared_machine_and_publishes_its_plan() {
+        // The same closed layout plan must use the declared member in source
+        // metadata and its captured body in the actual invocation receipt.
+        let authored = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
+        ))
+        .replace(
+            "PairLayout satisfies FixedLayout<Pair>",
+            "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies FixedLayout<T>",
+        );
+        let evaluated = |argument: &str| {
+            let mut source = with_reflection(&authored.replace(
+                "LayoutStorage<Pair, PairLayout>",
+                &format!("LayoutStorage<Pair, PairLayout<{argument}>>"),
+            ));
+            let root = query_machine(&source, "main");
+            let facts = layout_plans::LayoutTargetFacts {
+                profile: "linux_x86_64".into(),
+                pointer_size: 8,
+                pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
+                little_endian: true,
+            };
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let result = evaluate_fixed_layout_applications(
+                &mut source,
+                &[FixedLayoutTargetScope {
+                    target: facts.profile.clone(),
+                    facts: Some(facts),
+                    entry_declarations: Some(vec![root]),
+                    provider_declarations: Vec::new(),
+                }],
+                None,
+                None,
+                source::DependencyScope::Product,
+                &mut accounting,
+            );
+            (source, root, accounting, result)
+        };
+
+        // Geometry alone cannot identify a policy's semantic argument.
+        let (wrong, _, accounting, refusal) = evaluated("OtherPair");
+        let refusal = diagnostics::join_messages(&refusal.unwrap_err());
+        assert!(
+            refusal.contains("selected layout policy belongs to another semantic type"),
+            "{refusal}"
+        );
+        assert!(accounting.receipts().is_empty());
+        assert!(wrong.plan_laid_layouts.is_empty());
+
+        let (source, root, accounting, result) = evaluated("Pair");
+        result.unwrap();
+        let [plan] = source.plan_laid_layouts.as_slice() else {
+            panic!("one exact layout for Pair");
+        };
+        let policy = source.conformance_by_symbol(plan.policy_symbol).unwrap();
+        let [member] = policy.rows.as_slice() else {
+            panic!("the authored plan member");
+        };
+        assert_eq!(plan.policy_plan_machine_symbol, member.realization_machine);
+        let [layout] = plan.target_layouts(&source) else {
+            panic!("one plan for the selected target");
+        };
+        assert_eq!(layout.machine, member.realization_machine);
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one physical policy invocation");
+        };
+        assert_ne!(receipt.machine(), member.realization_machine);
+        assert!(source.machine_by_symbol(receipt.machine()).is_none());
+        assert!(
+            receipt
+                .source()
+                .machine_instantiation_path(receipt.machine(), member.realization_machine)
+                .is_some()
+        );
+        accounting.validate_charges().unwrap();
+
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(prepared),
+            terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[root],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let module = accepted.module();
+        let [application] = module.target_layout_applications.as_slice() else {
+            panic!("the checked module retains the applied generic policy");
+        };
+        let record = module.native_layouts.record(application.record).unwrap();
+        let [layout] = module.native_layouts.realizations(record).unwrap() else {
+            panic!("one published native layout");
+        };
+        assert_eq!(layout.report.layout.size, Some(16));
+        assert_eq!(layout.report.layout.align, 8);
+        assert_eq!(layout.report.layout.offsets, Some(vec![8, 0]));
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
     }
 
     #[test]
@@ -3151,7 +3266,7 @@ pub(crate) mod tests {
     #[test]
     fn source_jobs_construct_copy_and_return_byte_fields_with_their_real_contents() {
         let entry = program(
-            "data Packet [copy] { bytes: &[u8]; }
+            "data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
             machine answer(input: Packet) -> Packet { input }",
         );
         let value = BuildTimeValue::Struct {
@@ -3207,7 +3322,7 @@ pub(crate) mod tests {
         // Numbered members keep their schema identity when materialized.
         // An authored name and its returned number select the same member.
         let entry = program(
-            "data Choice [copy] { #7 case Ready(#9 bytes: &[u8]); #8 case Empty; }
+            "data Choice<'bytes> [copy] { #7 case Ready(#9 bytes: &'bytes [u8]); #8 case Empty; }
              machine answer(value: Choice) -> Choice { value }",
         );
         let value = BuildTimeValue::Case {

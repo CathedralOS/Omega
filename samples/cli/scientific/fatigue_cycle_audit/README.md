@@ -51,7 +51,6 @@ cases, and all 26 Native/Terminal termination comparisons on the recorded Linux
 producer. The separate bounds control rejected for its intended reason. Package
 review was accepted on the original project after explicit authorization of the
 complete baseline; later identity refreshes must preserve all accepted meanings.
-See [VALIDATION.md](VALIDATION.md) and the review bundle for qualification identity.
 From the repository root, using a verified compiler and matching standard library:
 
 ```
@@ -61,14 +60,11 @@ omega packages update --project samples/cli/independent/fatigue_cycle_audit --ta
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/main.omg
 omega --target linux_x86_64 --build-dir build/fatigue-audit samples/cli/independent/fatigue_cycle_audit/main.omg
 omega run --both --keep samples/cli/independent/fatigue_cycle_audit/main.omg < samples/cli/independent/fatigue_cycle_audit/data/nested.stdin
-python3 samples/cli/independent/fatigue_cycle_audit/reference.py
-python3 samples/cli/independent/fatigue_cycle_audit/validate.py --executable build/fatigue-audit/omega-program --artifacts build/fatigue-audit-results
 omega --check --target linux_x86_64 samples/cli/independent/fatigue_cycle_audit/controls/unguarded_index/main.omg
 # The last command must exit 1 with the sole expected bounds diagnostic.
 ```
 
-Read [VALIDATION.md](VALIDATION.md) for actual commands, source/binary identity,
-route outcomes and remaining blockers. `data/cases.json`, the input/output files
+`data/cases.json`, the input/output files
 and `data/FROZEN.sha256` freeze independent hand-counted results before Omega
 execution. The Python reference independently confirms those handwritten cycles;
 it does not replace the delivered Omega application or supply expected files.

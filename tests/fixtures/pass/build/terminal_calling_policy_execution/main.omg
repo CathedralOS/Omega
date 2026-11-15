@@ -33,7 +33,7 @@ machine policy_width() -> u64 {
 }
 
 public boundary trait Endpoint {
-    machine upper() -> u64 reaches terminates;
+    machine upper() -> u64 reaches terminates crashes none;
 }
 public Actual satisfies Endpoint {
     machine upper() -> u64 { 7u64 }
@@ -50,20 +50,20 @@ public data PolicyTokenBytes [copy] { value: u64; }
 public PolicyTokenRepresentation satisfies OpaqueRepresentation<PolicyToken, PolicyTokenBytes> {}
 public data PolicyEnvelope { value: PolicyToken; }
 public boundary trait OpaqueRelay: Calling<RetainedCalling> {
-    machine value(left: PolicyToken, right: u64) -> PolicyToken reaches;
+    machine value(left: PolicyToken, right: u64) -> PolicyToken reaches crashes none;
 }
 OpaqueRelayMap satisfies OpaqueRelay {
     machine value(left: PolicyToken, right: u64) -> PolicyToken { left }
 }
 public boundary trait OpaqueEntry: Calling<RetainedCalling> {
-    machine value(left: PolicyEnvelope, right: u64) -> u64 reaches;
+    machine value(left: PolicyEnvelope, right: u64) -> u64 reaches crashes none;
 }
 OpaqueEntryMap satisfies OpaqueEntry {
     machine value(left: PolicyEnvelope, right: u64) -> u64 { right }
 }
 
 public boundary trait LocalEntry: Calling<RetainedCalling> {
-    machine value(left: u64, right: u64) -> u64 reaches;
+    machine value(left: u64, right: u64) -> u64 reaches crashes none;
 }
 LocalMap satisfies LocalEntry { machine value(left: u64, right: u64) -> u64 { right } }
 // This ABI's owned extent is not a dependency of retained_plan's body.
@@ -72,17 +72,17 @@ public const AbiWidth: u64 = abi_width();
 public machine abi_width() -> u64 { 8u64 }
 public data AbiBytes { bytes: [u8; AbiWidth]; }
 public boundary trait ArrayEntry: Calling<RetainedCalling> {
-    machine value(left: AbiBytes, right: u64) -> u64 reaches;
+    machine value(left: AbiBytes, right: u64) -> u64 reaches crashes none;
 }
 ArrayMap satisfies ArrayEntry { machine value(left: AbiBytes, right: u64) -> u64 { right } }
-public boundary trait NoResult { machine value() reaches; }
+public boundary trait NoResult { machine value() reaches crashes none; }
 NoResultMap satisfies NoResult { machine value() {} }
 // This declaration transports a reference, without demanding its pointee's
 // storage in the policy inspection artifact.
 public data PolicyReferent { payload: u64; }
 public data PolicyReference<'view> { value: &'view PolicyReferent; }
 public boundary trait ReferenceEntry: Calling<RetainedCalling> {
-    machine value(left: PolicyReference, right: u64) -> u64 reaches;
+    machine value(left: PolicyReference, right: u64) -> u64 reaches crashes none;
 }
 ReferenceMap satisfies ReferenceEntry {
     machine value(left: PolicyReference, right: u64) -> u64 { right }

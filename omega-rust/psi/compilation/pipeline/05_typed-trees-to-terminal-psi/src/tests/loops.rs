@@ -356,6 +356,24 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
         refused(vec![(nested, plain())]),
         "call recursion outside a terminal position"
     );
+    // A completed match does not turn its scrutinee into a terminal call:
+    // that call must return before the selector can choose an arm.
+    let tested = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![returns(expression(
+            ExpressionKind::Match {
+                capture: None,
+                subject: Box::new(call(1, vec![slot(0, u32_type())], Some(u32_type()))),
+                arms: vec![(Selector::Value(integer(0)), integer(0))],
+                default: Some(Box::new(integer(1))),
+            },
+            Some(u32_type()),
+        ))],
+    };
+    assert_eq!(
+        refused(vec![(tested, plain())]),
+        "call recursion outside a terminal position"
+    );
     let mut ensured = plain();
     ensured.ensures = vec![Proposition::LessOrEqual(zero(), value(2))];
     assert_eq!(

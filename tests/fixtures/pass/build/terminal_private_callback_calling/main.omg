@@ -30,10 +30,10 @@ use omega::language::core::FixedLayout;
 
 public data Payload [copy] { value: u64; }
 public boundary trait FixedCallback: Calling<SlotCalling> {
-    machine call(value: u64) -> u64 reaches;
+    machine call(value: u64) -> u64 reaches crashes none;
 }
 public boundary trait VariableCallback: Calling<SlotCalling> {
-    machine call(value: u64) -> u64 reaches;
+    machine call(value: u64) -> u64 reaches crashes none;
 }
 public FixedSlot satisfies PrivateCallbackSlot<Payload, Fixed, FixedCallback::call> {}
 public VariableSlot satisfies PrivateCallbackSlot<Payload, Variable, VariableCallback::call> {}
@@ -133,12 +133,12 @@ public boundary trait Registrar: Calling<SlotCalling> {
     requires machine Extra31 satisfies FixedCallback::call;
     requires machine Extra32 satisfies FixedCallback::call;
     reaches FixedCallback + VariableCallback
-    invokes FixedCallback invokes VariableCallback;
+    invokes FixedCallback invokes VariableCallback crashes none;
 }
 // A second stored pointer does not authorize a direct write into its pointee.
 // This declaration still has a pointer ABI, but no inline private destinations.
 public boundary trait IndirectRegistrar: Calling<SlotCalling> {
-    machine register(envelope: & &Envelope) -> u64 reaches;
+    machine register(envelope: & &Envelope) -> u64 reaches crashes none;
 }
 machine fixed_callback(value: u64) -> u64 satisfies FixedCallback::call { value ^ 13u64 }
 machine variable_callback(value: u64) -> u64 satisfies VariableCallback::call { value ^ 13u64 }

@@ -24,7 +24,7 @@ public machine coordinates(x: i32, y: i32, width: i32, height: i32, source_width
 }
 
 public boundary trait Coordinate {
-    machine convert(value: i32) -> Coordinates reaches none;
+    machine convert(value: i32) -> Coordinates reaches none crashes none;
 }
 
 public SelectedCoordinate satisfies Coordinate {

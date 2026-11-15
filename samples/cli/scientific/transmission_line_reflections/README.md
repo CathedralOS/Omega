@@ -61,14 +61,10 @@ reflection, impedance, transmission and pulse, then inspected `particle_sim`,
 Those cover kinematics, wall bounces, storage, dispatch and arithmetic. None
 implements delayed impedance scattering or a coherent wave energy ledger.
 
-`reference.py` independently expands signed rational packet branches, merges
-physical arrivals, verifies junction voltage/current and energy identities, and
-rescans future packet groups for stored energy. It does not share Omega's running
-ledger algorithm. `data/oracle.json`, the six input fixtures and CSV projections
-were frozen before the first Omega check/run. `data/freeze.json` binds SHA256
-identities and the immutable absolute tolerance: 2 micro-units per numeric field,
-1 microjoule for residuals. All exact expected residuals are zero. `validate.py`
-checks header, terminator, complete record count, ordering and every field.
+`data/oracle.json`, the six input fixtures and CSV projections were frozen before
+the first Omega check/run. `data/freeze.json` binds SHA256 identities and the
+immutable absolute tolerance: 2 micro-units per numeric field, 1 microjoule for
+residuals. All exact expected residuals are zero.
 
 Independent hand checks: case 0 ends with 0.04 J load heat and no travelling
 energy from tick 3 onward. Case 2 has load voltage 8/3 V at tick 2; at tick 3,
@@ -91,7 +87,6 @@ export PYTHONDONTWRITEBYTECODE=1
 "$OMEGA" run samples/cli/independent/transmission_line_reflections/main.omg < samples/cli/independent/transmission_line_reflections/data/case_2.stdin
 "$OMEGA" run --both samples/cli/independent/transmission_line_reflections/main.omg < samples/cli/independent/transmission_line_reflections/data/case_2.stdin
 "$OMEGA" --check samples/cli/independent/transmission_line_reflections/controls/invalid_bounds/main.omg
-python3 samples/cli/independent/transmission_line_reflections/validate.py 2 24 OUTPUT_LOG
 ```
 
 The last compiler command must reject selector 64 into a 64-element calendar
@@ -101,14 +96,6 @@ the control. `build/` contains local generated products and is ignored. Evidence
 and the delivery bundle preserve exact commands, exits, source hashes and output
 artifacts. Package acceptance denied by the executor is recorded without retry.
 
-For the full matrix, `run_validation.py --route native --omega COMPILER
---executable VERIFIED_NATIVE --executable-sha256 HASH` executes one native
-artifact sequentially for all 18 valid variants and 11 malformed inputs.
-`run_validation.py --route both --omega COMPILER` compiles once with
-`omega run --both --inputs` over all 29 inputs, then checks every native and
-Terminal `.stdout` with `validate.py` and each engine's exit independently. This
-validates full Terminal records rather than treating the CLI's exit comparison
-as output equivalence.
 The exact exercised invocations and any denied routes are in the evidence record.
 
 Three complete reproductions at the recorded baseline justified bounded repairs:

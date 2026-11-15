@@ -19,11 +19,15 @@ public StaticInterruptAcknowledgementRepresentation satisfies
 // invocation must be admitted as a logical denotation; a pure-looking signature
 // alone is insufficient. A true result establishes that exact policy
 // on the current table; publication separately checks materialization and roots.
+// Rejection returns a policy-justified false without publishing or entering Work.
+// The caller chooses whether refusal is fatal; validation permits no crash route
+// and makes no termination promise.
 public boundary trait StaticInterruptTableValidation<Table, machine Valid>
 requires machine Valid(accepted: bool, table: &Table) -> bool reaches none terminates;
 {
     machine validate(table: &Table) -> bool
     reaches none
+    crashes none
     ensures Valid(result, table);
 }
 

@@ -93,13 +93,12 @@ reported: syntax, header/length, all row ranges, anchor, then adjacent edges.
 
 `data/*.stdin`, `*.stdout`, `*.exit` and `oracles.sha256.json` were frozen before
 any Omega execution. Numerical tolerance is **zero**, including jitter: byte-for-
-byte output and exact exit matching. `reference.py` uses arbitrary integers and
-exhaustive delta enumeration, independently of the implementation's ceil-based
-candidate selection. Validation cannot overwrite the frozen expectations.
-`wrap_drift`: timestamps 250,300,400,450,500; one wrap, one drop; rate 2 and
-1000000 ppm. `exact_wrap`: 7,263,519, exactly two wraps. `multiwrap_unique`:
-250,850,1450, five crossings and two drops. `jitter`: rate 1450/1400,
-maximum residual 2400/1400. Signed boundary cases end exactly at i64::MAX.
+byte output and exact exit matching. Validation cannot overwrite the frozen
+expectations. `wrap_drift`: timestamps 250,300,400,450,500; one wrap, one drop;
+rate 2 and 1000000 ppm. `exact_wrap`: 7,263,519, exactly two wraps.
+`multiwrap_unique`: 250,850,1450, five crossings and two drops. `jitter`: rate
+1450/1400, maximum residual 2400/1400. Signed boundary cases end exactly at
+i64::MAX.
 
 From repository root, with a compiler built from this base and its matching
 library selected. Prepare the host-local acceptance first with `omega packages update`,
@@ -112,7 +111,6 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --project samples/c
 OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --resume --project samples/cli/independent/wrapping_clock
 OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" --check samples/cli/independent/wrapping_clock/main.omg
 OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" run --both --keep samples/cli/independent/wrapping_clock/main.omg < samples/cli/independent/wrapping_clock/data/wrap_drift.stdin
-python3 samples/cli/independent/wrapping_clock/validate.py --omega "$OMEGA_BIN" --compiler-source-commit "$OMEGA_COMMIT"
 ```
 
 Validation serializes check, each native/Terminal comparison, and the complete

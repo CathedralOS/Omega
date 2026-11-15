@@ -41,14 +41,13 @@ supply and maintenance totals are each at most 300000; residual absolute values
 are at most 700000. Intermediate diagnostics are below 2000000. These are far
 inside i32. Private domain machinery has no numerics-library imports.
 
-`data/reference.py` independently computes rational results with Python Fraction.
 The checked-in `oracle.json` and byte-exact stdout files were frozen before the
 first Omega check/native/Terminal execution. Tolerance is exactly zero; oracle
 regeneration is an authoring operation, never part of validation. Fixtures cover
 branched diets, a three-node cycle, an infeasible cycle, fractional conversion,
-zero input and all six records at upper intake bounds, plus eleven invalid
-runtime inputs. The separate `controls/invalid_bounds` project intentionally
-indexes a three-element donor table at source 3; only a bounds rejection is valid.
+zero input and all six records at upper intake bounds, plus eleven invalid runtime
+inputs. The separate `controls/invalid_bounds` project intentionally indexes a
+three-element donor table at source 3; only a bounds rejection is valid.
 
 Compared with `samples/cli/systems/bank_ledger`, this workflow has directed
 inter-node transfers, conversion loss and independent per-node budgets rather
@@ -64,10 +63,6 @@ export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 omega packages update --project samples/cli/independent/trophic_energy_reconciliation --target linux_x86_64
 # Inspect build/package-manager/review-linux_x86_64.txt if review is pending.
 # Accept only reviewed decisions, then use update --project <directory> --resume.
-python3 samples/cli/independent/trophic_energy_reconciliation/validate.py --omega /absolute/path/to/omega --route check
-python3 samples/cli/independent/trophic_energy_reconciliation/validate.py --omega /absolute/path/to/omega --route native
-python3 samples/cli/independent/trophic_energy_reconciliation/validate.py --omega /absolute/path/to/omega --route both
-python3 samples/cli/independent/trophic_energy_reconciliation/validate.py --omega /absolute/path/to/omega --route invalid-control
 ```
 
 Validation is serial. `run --both` exercises the produced Terminal artifact and

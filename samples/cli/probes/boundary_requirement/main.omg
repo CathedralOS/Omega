@@ -14,7 +14,7 @@ data ReceiptState {
 
 boundary trait ReceiptSettlement {
     machine settle(receipt: Receipt) -> i32
-    reaches;
+    reaches crashes none;
 }
 
 machine entry_start() crashes Trap {

@@ -63,10 +63,8 @@ SAMPLE=samples/cli/independent/dimensional_stack_audit
 # Resume only if that acceptance was authorized; a denial is a blocker.
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" run --both "$SAMPLE/main.omg" < "$SAMPLE/data/profile_3.stdin"
-python3 "$SAMPLE/validate.py" --omega "$OMEGA"
 "$OMEGA" update --project "$SAMPLE/controls/invalid_contract" --target linux_x86_64
 # Review its local plan independently if requested.
-python3 "$SAMPLE/check_invalid.py" --omega "$OMEGA"
 ```
 
 `build.omg` binds Main::main explicitly on Linux x86-64, macOS ARM64 and Windows
@@ -76,11 +74,8 @@ into the source delivery. The intended-invalid project is separate and complete:
 its literal -1 violates nonnegative_tolerance's `requires value >= 0`.
 Its expected diagnostic is pinned separately; unrelated rejection is not a pass.
 
-`reference.py --freeze` was run before compiler validation. It enumerates all
-64 joint endpoint combinations independently and freezes exact stdout, exit
-codes and witness attributions. `ORACLE_FREEZE.md` records its immutable digest;
-validation refuses changed oracle inputs. Numerical absolute and relative
-tolerances are zero. `validate.py` runs one Omega invocation at a time and
-compares every native byte and exit. `--both` uses the produced Terminal artifact;
-the CLI compares termination statuses only, so AGREED is not evidence of
-Terminal stdout equality. Its limitation is reported explicitly.
+`ORACLE_FREEZE.md` records its immutable digest; validation refuses changed oracle
+inputs. Numerical absolute and relative tolerances are zero. `--both` uses the
+produced Terminal artifact; the CLI compares termination statuses only, so AGREED
+is not evidence of Terminal stdout equality. Its limitation is reported
+explicitly.

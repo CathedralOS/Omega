@@ -60,7 +60,6 @@ omega packages update --resume --project samples/cli/independent/exact_contingen
 omega --check samples/cli/independent/exact_contingency_inference/main.omg
 omega run --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
 omega run --both --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
-python3 samples/cli/independent/exact_contingency_inference/reference.py
 ```
 
 `controls/invalid_contract/main.omg` is a separate complete source whose returned

@@ -202,7 +202,7 @@ pub(crate) mod address_joins {
                 let mut effects = BTreeMap::new();
                 let mut flow = None;
                 if let (Some(graph), Some(analysis)) = (graph, analysis) {
-                    flow = analysis.flow(function.machine);
+                    flow = analysis.flow(function.machine).ok();
                     if let Some(current) =
                         terminal_semantics::descriptor_results::descriptor_machine(
                             graph,
@@ -8915,6 +8915,7 @@ mod replay {
                     source,
                     path,
                     cases,
+                    ..
                 } = &block
                     .nodes
                     .last()
@@ -8951,6 +8952,7 @@ mod replay {
                         source: observed,
                         path: observed_path,
                         cases,
+                        ..
                     } = terminator
                         && *observed == source
                         && observed_path == path

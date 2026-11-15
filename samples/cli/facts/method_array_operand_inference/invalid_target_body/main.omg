@@ -1,7 +1,7 @@
 // Fact: with Count supplied as 3, the omitted element T of Bytes::last is inferred as u8 from the actual &[u8; 3], and the selected implementation's [T; Count] carrier is the caller's copyable [u8; 3].
 // Expected: rejected; the explicit Count 4 contradicts the actual [u8; 3] extent.
 boundary trait Bytes {
-    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0;
+    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0 crashes none;
 }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;

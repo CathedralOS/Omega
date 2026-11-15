@@ -16,7 +16,7 @@ machine observe_flag() -> bool {
 }
 
 boundary trait CaseObservation {
-    machine observe() -> u64 reaches;
+    machine observe() -> u64 reaches crashes none;
 }
 
 WindowsChoiceObservation satisfies CaseObservation {

@@ -1,5 +1,5 @@
 use controller::model;
-// Mirrored input fixtures, independently enumerated in reference.py.
+// Mirrored input fixtures.
 machine load_case(problem: &mut Problem, selector: i32) {
     transition selector {
         0 -> case_0(problem)

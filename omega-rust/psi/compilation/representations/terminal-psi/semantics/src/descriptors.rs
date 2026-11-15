@@ -14577,29 +14577,63 @@ pub mod descriptor_results {
                         }
                         _ if direct_call.is_some() => {
                             let (callee, structural_arguments) = direct_call?;
-                            if let Some(required) = operation.required_contract
-                                && result.is_some_and(|result| {
-                                    terminal_psi::structural_type_contains_reference_by(
-                                        |id| module.structural_type(id),
-                                        result.structural_type,
-                                    )
-                                })
-                            {
-                                let public = crate::selected_reference_result(
-                                    module, machine.id, callee, required,
+                            let returns_reference = result.is_some_and(|result| {
+                                terminal_psi::structural_type_contains_reference_by(
+                                    |id| module.structural_type(id),
+                                    result.structural_type,
                                 )
-                                .inspect_err(|detail| *failure_detail = Some(*detail))
-                                .ok()?;
-                                let mut call = public_invocation(
-                                    operation.id,
-                                    &module.structural_types,
-                                    slot_kind,
-                                    &public,
-                                    vec![callee],
-                                    structural_arguments,
-                                    result,
-                                    &graph.place_types,
-                                )?;
+                            });
+                            // A selected call reads its public requirement;
+                            // a rigid call reaches the bodiless requirement
+                            // itself. Either result is its declared regions,
+                            // and only a selected body supplies stored effects.
+                            let selected = match operation.required_contract {
+                                Some(required) if returns_reference => Some(
+                                    crate::selected_reference_result(
+                                        module, machine.id, callee, required,
+                                    )
+                                    .inspect_err(|detail| *failure_detail = Some(*detail))
+                                    .ok()?,
+                                ),
+                                _ => None,
+                            };
+                            let requirement = if selected.is_none() && returns_reference {
+                                crate::requirement_reference_result(module, callee)
+                                    .inspect_err(|detail| *failure_detail = Some(*detail))
+                                    .ok()?
+                            } else {
+                                None
+                            };
+                            let public_call = match (&selected, &requirement) {
+                                (Some(public), _) => Some((
+                                    public_invocation(
+                                        operation.id,
+                                        &module.structural_types,
+                                        slot_kind,
+                                        public,
+                                        vec![callee],
+                                        structural_arguments,
+                                        result,
+                                        &graph.place_types,
+                                    )?,
+                                    true,
+                                )),
+                                (None, Some(public)) => Some((
+                                    public_invocation(
+                                        operation.id,
+                                        &module.structural_types,
+                                        slot_kind,
+                                        public,
+                                        Vec::new(),
+                                        structural_arguments,
+                                        result,
+                                        &graph.place_types,
+                                    )?,
+                                    false,
+                                )),
+                                (None, None) => None,
+                            };
+                            if let Some((mut call, implemented)) = public_call {
                                 let complete = call.arguments.iter().all(Option::is_some)
                                     && call.argument_contents.iter().all(Option::is_some);
                                 if !complete {
@@ -14627,7 +14661,7 @@ pub mod descriptor_results {
                                     effects_machine, ..
                                 } = &mut call.target
                                 {
-                                    *effects_machine = complete.then_some(callee);
+                                    *effects_machine = (complete && implemented).then_some(callee);
                                 }
                                 graph.calls.insert(position, call);
                             } else {
@@ -16098,7 +16132,17 @@ pub mod descriptor_results {
         },
     }
 
+    pub const INEXACT_REFERENCE_BACKING: &str =
+        "reference use without exact live backing correspondence";
+
     impl DescriptorGraphError {
+        pub const fn detail(self) -> Option<&'static str> {
+            match self {
+                Self::IncompleteMachine { detail, .. } => detail,
+                Self::MissingOrAmbiguousMachine(_) => None,
+            }
+        }
+
         pub const fn machine(self) -> MachineId {
             match self {
                 Self::MissingOrAmbiguousMachine(machine)

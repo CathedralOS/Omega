@@ -616,6 +616,9 @@ pub enum AbstractOperation {
         when_false: AbstractSuccessor,
     },
     StructuralCase {
+        /// The checked pre-dispatch read, preserved when a CFG rewrite moves
+        /// this terminator into another block. This is not a successor edge.
+        psi_block: BlockId,
         source: PlaceId,
         path: Vec<StructuralPathSegment>,
         cases: Vec<AbstractStructuralCaseSuccessor>,

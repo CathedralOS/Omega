@@ -48,19 +48,15 @@ actual pending authority decision before accepting it:
 ```sh
 omega packages update --project samples/cli/independent/molecular_pair_distribution --target linux_x86_64
 omega run --keep samples/cli/independent/molecular_pair_distribution/main.omg < samples/cli/independent/molecular_pair_distribution/input.txt
-python3 samples/cli/independent/molecular_pair_distribution/validate.py --executable /absolute/native/path
-python3 samples/cli/independent/molecular_pair_distribution/validate.py --captures /absolute/terminal/captures
 ```
 
-`reference.py --freeze` was run before application execution. It canonicalizes
-coordinates and enumerates 27 images independently using high-precision Decimal
-squared distances. Separate Decimal shell integration uses a 100-digit pi;
-its results and stdin hashes are pinned in `data/FROZEN.sha256`. Validation
-reads these files without regenerating or altering expectations. The matrix
-covers exact edges, box wrapping, translated/permuted inputs, coincident pairs,
-independent snapshots, capacity maxima, precision adversaries and input refusals.
-Both native and captured Terminal values must meet the same numeric oracle;
-CLI exit comparison alone is insufficient.
+Separate Decimal shell integration uses a 100-digit pi; its results and stdin
+hashes are pinned in `data/FROZEN.sha256`. Validation reads these files without
+regenerating or altering expectations. The matrix covers exact edges, box
+wrapping, translated/permuted inputs, coincident pairs, independent snapshots,
+capacity maxima, precision adversaries and input refusals. Both native and
+captured Terminal values must meet the same numeric oracle; CLI exit comparison
+alone is insufficient.
 
 `validation/terminal_sdk.rs` is a host sponsor using the normal accepted native
 product and its retained Terminal artifact and runtime provisions. Each case
@@ -72,5 +68,3 @@ Application numerics remain in Omega. Capture manifests name all frozen cases.
 
 `controls/unchecked_snapshot` is a separate source-invalid application: its
 snapshot-derived access has no bounds proof. It must reject for that reason.
-See [qualification](evidence/qualification.md) for producer identities, actual
-measurements, independent review and landing status.

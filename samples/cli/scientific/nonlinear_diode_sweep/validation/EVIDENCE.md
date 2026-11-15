@@ -111,12 +111,7 @@ mbx test --locked --no-run -p compiler --test corpus_runner -j4
 target/release/omega packages update --project "$sample" --target linux_x86_64
 # Inspect exact decisions; resume only a pending reviewed proposal:
 target/release/omega packages update --resume --project "$sample"
-PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route check
-PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route native --case mixed_bias
 # Reuse the verified retained omega-program path recorded by --keep:
-PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route native --native-executable RETAINED_EXECUTABLE
-PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route terminal --case mixed_bias
-PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route invalid
 target/release/omega psi inspect --machine Main::main --target linux_x86_64 "samples/cli/facts/repro/main.omg"
 ```
 

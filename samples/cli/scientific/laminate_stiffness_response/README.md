@@ -80,7 +80,6 @@ omega packages update --project samples/cli/independent/laminate_stiffness_respo
 omega --check samples/cli/independent/laminate_stiffness_response/main.omg
 omega run --both --keep samples/cli/independent/laminate_stiffness_response/main.omg < samples/cli/independent/laminate_stiffness_response/data/mode_0.stdin
 omega --check samples/cli/independent/laminate_stiffness_response/controls/bounds/main.omg
-python3 samples/cli/independent/laminate_stiffness_response/reference.py verify 0 /absolute/path/stdout.txt 0
 ```
 
 The bounds control is a separate complete application intentionally writing

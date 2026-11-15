@@ -10,9 +10,8 @@ Analytic circular/eccentric Kepler trajectories and SciPy 1.17.0 DOP853
 (`rtol=2.3e-14`, `atol=2e-15`) agreed within 1.106e-12 before sample execution.
 The original freeze was preserved; separately frozen additions cover a drift
 segment crossing the collision threshold with both endpoints outside, decimal
-fraction limits, and exact stdin read limits. No Verlet implementation is used
-as an oracle. `check_output.py` checks every checkpoint, independently recomputes
-energy and angular momentum, and checks exits, diagnostics and periapsis times.
+fraction limits, and exact stdin read limits. No Verlet implementation is used as
+an oracle.
 
 | Measurement | Observed |
 | --- | --- |

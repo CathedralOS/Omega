@@ -93,6 +93,23 @@ pub struct TargetInstallationCall {
     pub argument: TargetStructuralArgument,
 }
 
+/// One input operation's identity and execution obligations, without its old body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetInstructionSource {
+    pub operation: OperationId,
+    pub result: Option<optimization_unit::ValueDefinition>,
+    pub metadata: crate::TargetOperationMetadata,
+}
+
+/// A target instruction owns both its operation and the obligations it carries.
+/// Only compiler-introduced cleanup calls have no authored instruction source;
+/// their exact cleanup owner remains in the call itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetInstruction {
+    pub source: Option<TargetInstructionSource>,
+    pub kind: TargetUnitOperation,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
     InstallStaticInterrupt {
@@ -404,6 +421,8 @@ pub enum TargetUnitOperation {
         field: StructuralFieldId,
         destination_storage: crate::TargetStructuralArgumentSource,
         field_byte_offset: u32,
+        /// Exact physical write envelope, not the semantic register width.
+        field_byte_size: u32,
         source: TargetUnitScalarArgumentSource,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
@@ -435,12 +454,14 @@ pub enum TargetUnitOperation {
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         correspondence: abstract_operations::AccessReferenceBacking,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     EstablishReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         storage: Option<terminal_psi::ReferenceStorageView>,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     ReleaseReference {
         psi_operation: OperationId,

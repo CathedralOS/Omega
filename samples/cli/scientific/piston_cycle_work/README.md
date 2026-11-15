@@ -9,12 +9,10 @@ zero work; they do not simulate heat transfer or infer temperature.
 `domain/model.omg` owns stage validation, pressure and analytic integration.
 `data/fixtures.omg` owns the declared inventory. `domain/report.omg` prints
 computed six-place numbers. `main.omg` owns input, stage execution, continuity,
-pressure-volume histories and cycle work accounting.
-`validation/terminal.rs` uses the existing compiler/package-manager API to run
-the produced Terminal artifact and capture its actual output. The private
-`build_terminal.py` links it against the single verified compiler build; the
-harness does not compute reference physics or manufacture compiler artifacts. There are no numerics or
-worker dependencies. The existing dual-float, particle-simulation, temperature
+pressure-volume histories and cycle work accounting. `validation/terminal.rs`
+uses the existing compiler/package-manager API to run the produced Terminal
+artifact and capture its actual output. There are no numerics or worker
+dependencies. The existing dual-float, particle-simulation, temperature
 conversion and heat-grid samples share scalar arithmetic or state traversal,
 but none integrates a pressure path or verifies a closed thermodynamic cycle.
 
@@ -48,16 +46,11 @@ work equals the signed component sum. Open stages report `open_stage` explicitly
 Continuity and accounting use absolute tolerance 1e-9. Output uses 2e-6 absolute
 tolerance because it is rounded to six decimal places.
 
-The independent rational reference uses `P=P0*(V0/V)^n` and
-`W=(P1*V1-P0*V0)/(1-n)`. For holds it uses W=0. `validation/oracle.py` freezes
-these results into `expected.json`; this file is produced before any Omega run.
-`validation/verify.py LOG_DIRECTORY ROUTE` checks every numerical row, stage
-work, component balance, exit, closure and invalid-input diagnostic. It never
-learns expected values from application output. The separately frozen
-`input_cases.tsv` exercises each digit with LF-plus-EOF and digit-plus-EOF,
-plus five invalid input records including an extra byte after LF. The intended-invalid control is
-a complete separate source project delivering nominal `Pressure` to a `Volume` parameter;
-only the documented type-mismatch diagnostic is acceptable.
+The independent rational reference uses `P=P0*(V0/V)^n` and `W=(P1*V1-P0*V0)/(1-n)`. For holds it
+uses W=0. The separately frozen `input_cases.tsv` exercises each digit with LF-plus-EOF and
+digit-plus-EOF, plus five invalid input records including an extra byte after LF. The
+intended-invalid control is a complete separate source project delivering nominal `Pressure` to a
+`Volume` parameter; only the documented type-mismatch diagnostic is acceptable.
 
 Commands are run from the repository root with `OMEGA_LIBRARY_ROOT` selecting
 this checkout's `source/library`. See `validation/RESULTS.md` for binary identity,

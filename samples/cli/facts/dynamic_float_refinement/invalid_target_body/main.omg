@@ -8,7 +8,7 @@ Quarter satisfies Fraction {
     machine get() -> f64 ensures result >= 0.75 && result <= 0.75 { 0.75 }
 }
 boundary trait FloatInvocation {
-    machine invoke(selected: dyn Fraction) -> f64 reaches;
+    machine invoke(selected: dyn Fraction) -> f64 reaches crashes none;
 }
 SelectedFloatInvocation satisfies FloatInvocation {
     machine invoke(selected: dyn Fraction) -> f64 { Fraction::get(selected) }

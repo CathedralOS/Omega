@@ -3,8 +3,8 @@
 public data Word [copy] { value: i64; }
 public data Division [copy] { quotient: Word; remainder: Word; }
 public boundary trait IntegerDivision {
- machine divide(numerator: i64, denominator: i64) -> Division reaches;
- machine verify(first: Division, copied: Division) -> bool reaches;
+ machine divide(numerator: i64, denominator: i64) -> Division reaches crashes none;
+ machine verify(first: Division, copied: Division) -> bool reaches crashes none;
 }
 
 machine consume(first: Division, copied: Division) -> bool reaches IntegerDivision {
@@ -16,7 +16,7 @@ machine consume(first: Division, copied: Division) -> bool reaches IntegerDivisi
 }
 machine receive(value: Division) -> bool reaches IntegerDivision { consume(value, value) }
 public boundary trait Observation {
- machine observe() -> bool reaches IntegerDivision;
+ machine observe() -> bool reaches IntegerDivision crashes none;
 }
 ObservationBody satisfies Observation {
  machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::divide(-70000000000, 3)) }

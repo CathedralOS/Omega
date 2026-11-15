@@ -102,7 +102,7 @@ machine finish(view: &mut Access<RegPlacement, Registers>, code: u8) requires co
     machine bad() { crash Trap; }
 }
 boundary trait TransmitCode {
-    machine value() -> u8 reaches ensures result == 9u8;
+    machine value() -> u8 reaches ensures result == 9u8 crashes none;
 }
 MacosTransmitCode satisfies TransmitCode {
     machine value() -> u8 ensures result == 9u8 { 9u8 }

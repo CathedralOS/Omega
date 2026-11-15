@@ -1,1 +1,0 @@
-error: machine `unchanged` state `update` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)

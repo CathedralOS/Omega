@@ -73,13 +73,26 @@ pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidat
                     operation: None,
                     detail: "reference disposition lost its prepared descriptor graph".into(),
                 })?;
-            machine_candidates(module, machine, prepared, &mut analysis).map_err(|detail| {
-                Error {
+            let flow = analysis.flow(machine.id).map_err(|error| Error {
+                machine: error.machine(),
+                operation: error.operation(module),
+                detail: error.detail().map_or_else(
+                    || {
+                        format!(
+                            "reference disposition flow is incomplete for {:?}",
+                            machine.id
+                        )
+                    },
+                    str::to_owned,
+                ),
+            })?;
+            machine_candidates(module, machine, prepared, &flow, &mut analysis).map_err(
+                |detail| Error {
                     machine: machine.id,
                     operation: None,
                     detail,
-                }
-            })?
+                },
+            )?
         };
         let owner = result.push(candidates);
         if owner != machine.id {
@@ -97,14 +110,9 @@ fn machine_candidates(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     prepared: &crate::descriptor_results::DescriptorMachine,
+    flow: &BTreeMap<DescriptorPosition, crate::descriptor_lifetimes::DescriptorFlowStep>,
     analysis: &mut DescriptorAnalysis<'_>,
 ) -> Result<Candidates, String> {
-    let flow = analysis.flow(machine.id).ok_or_else(|| {
-        format!(
-            "reference disposition flow is incomplete for {:?}",
-            machine.id
-        )
-    })?;
     let mut dead = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut live = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
     let mut lifetimes = Vec::new();
@@ -124,7 +132,7 @@ fn machine_candidates(
             .ok_or("incoming reference disposition has no finite owned slot inventory")?;
         for slot in slots {
             lifetimes.push(crate::descriptor_lifetimes::descriptor_entry_lifetime(
-                &flow,
+                flow,
                 (machine.entry, 0),
                 &slot,
             ));
@@ -164,7 +172,7 @@ fn machine_candidates(
                     add_dependencies(
                         module,
                         prepared,
-                        &flow,
+                        flow,
                         birth,
                         &lifetime,
                         source,
@@ -174,14 +182,14 @@ fn machine_candidates(
                 }
             }
             for slot in slots {
-                let lifetime = descriptor_location_lifetime(&flow, birth, &slot);
+                let lifetime = descriptor_location_lifetime(flow, birth, &slot);
                 if let terminal_psi::OperationKind::EstablishReference { source, .. } =
                     &operation.kind
                 {
                     add_dependencies(
                         module,
                         prepared,
-                        &flow,
+                        flow,
                         birth,
                         &lifetime,
                         source,

@@ -1,3 +1,0 @@
-cwd=/workspace/Omega/.codex/worktrees/nf03
-OMEGA_LIBRARY_ROOT=/workspace/Omega/.codex/worktrees/nf03/source/library target/release/omega --check --target linux_x86_64 /tmp/nf03-named-module-baseline/main.omg
-Execution outside sandbox filesystem remapping; no custody guards modified.

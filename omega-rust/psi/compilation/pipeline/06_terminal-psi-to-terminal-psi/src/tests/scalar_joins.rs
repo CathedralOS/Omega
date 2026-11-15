@@ -52,3 +52,130 @@ fn overwriting_the_join_result_does_not_retain_its_previous_arithmetic_bound() {
         );
     assert_join_subtraction_refused(&source);
 }
+
+/// `choose` returns `body`, under `requires true` so no caller's actual can
+/// fix `x`, and promises `result <= bound`.
+fn masked_choice(body: &str, bound: u64) -> RouteVerdict {
+    let source = format!(
+        "machine choose(x: u64, flag: bool) -> u64\nrequires true\n\
+         ensures result <= {bound}u64\n{{\n{body}\n}}\n\
+         machine build_entry() crashes Trap {{ let chosen: u64 = choose(build_x(), true); }}\n\
+         machine build_x() -> u64 {{ 466u64 }}\n"
+    );
+    judge_build(&source).unwrap()
+}
+
+/// The false promise stays unproved. Whether that is a rejection or an
+/// `Incomplete` verdict is the goal-form reading of `prove/reach.rs`, which
+/// a mask outside a join reaches as an operation the rules do not bound.
+fn assert_ensures_unproved(verdict: RouteVerdict) {
+    let unproved = match verdict {
+        RouteVerdict::Rejected { unproved, .. } => unproved,
+        RouteVerdict::Incomplete(undecided) => undecided,
+        other => panic!("{other:?}"),
+    };
+    assert!(
+        unproved.iter().any(|row| row
+            .statement
+            .contains("ensures contract for exit from choose")),
+        "{unproved:?}"
+    );
+}
+
+#[test]
+fn a_match_arms_masked_narrowing_keeps_its_bound_across_the_join() {
+    // Each arm's bound comes from its own result equations (the mask, then
+    // the casts); the join parameter only has those arms as unfolded
+    // alternatives, so the arms' ranges must cross the join with them.
+    let arms = |mask: u64, other: &str| {
+        format!("match flag {{ true -> (x & {mask}u64) as u8 as u64, false -> {other}, }}")
+    };
+    for other in ["(x & 15u64) as u8 as u64", "x & 15u64", "3u64"] {
+        let verdict = masked_choice(&arms(32, other), 32);
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{other}: {verdict:?}"
+        );
+        // `x & 32` may be 32 itself.
+        assert_ensures_unproved(masked_choice(&arms(32, other), 31));
+    }
+    // The mask alone, without casts, crosses the same way.
+    let verdict = masked_choice("match flag { true -> x & 32u64, false -> x & 15u64, }", 32);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    assert_ensures_unproved(masked_choice(
+        "match flag { true -> x & 32u64, false -> x & 48u64, }",
+        32,
+    ));
+}
+
+#[test]
+fn a_returned_masked_narrowing_is_summarized_by_its_bound() {
+    // The summary's equation `result == (x & 32) as u8 as u64` casts a
+    // term that is not a value, which has no canonical formation condition;
+    // it is left out and the returned range is still proposed and proved.
+    let verdict = masked_choice("(x & 32u64) as u8 as u64", 32);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    assert_ensures_unproved(masked_choice("(x & 32u64) as u8 as u64", 31));
+}
+
+#[test]
+fn a_padding_match_keeps_its_strict_bound() {
+    // Test the library's exact arithmetic. Zero and the calculated padding
+    // must each be strictly below the same alignment.
+    const SOURCE: &str = r#"
+machine c_abi_padding(offset: u64, alignment: u64) -> u64
+reaches none terminates
+requires alignment >= 1 && alignment <= 16
+ensures result < alignment
+{
+    let remainder: u64 = offset % alignment;
+    match remainder == 0 { true -> 0u64, _ -> alignment - remainder }
+}
+"#;
+    let verdict = super::entryless::judged(SOURCE, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+
+    // Returning alignment itself on the zero arm breaks the strict bound.
+    let source = SOURCE.replace("true -> 0u64", "true -> alignment");
+    let verdict = super::entryless::judged(&source, false);
+    let RouteVerdict::Rejected { unproved, .. } = verdict else {
+        panic!("{verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|row| {
+            matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+                && row.statement.contains("exit from c_abi_padding")
+        }),
+        "{unproved:?}"
+    );
+}
+
+#[test]
+fn a_join_keeps_the_strict_progress_of_an_addition() {
+    const SOURCE: &str = r#"
+machine choose(base: u64, increase: u64, fallback: u64, add: bool) -> u64
+requires base <= 16 && increase >= 1 && increase <= 16 && fallback > base
+ensures result > base
+{ match add { true -> base + increase, _ -> fallback } }
+"#;
+    let verdict = super::entryless::judged(SOURCE, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    assert_ensures_unproved(super::entryless::judged(
+        &SOURCE.replace("_ -> fallback", "_ -> base"),
+        false,
+    ));
+}
+
+#[test]
+fn a_nonzero_computed_signed_difference_can_still_be_negative() {
+    const SOURCE: &str = r#"
+machine choose(offset: i64, limit: i64) -> i64
+requires offset >= -4 && offset <= 4 && limit >= 1 && limit <= 16
+ensures result < limit
+{
+    let delta: i64 = offset + 1;
+    match delta == 0 { true -> 0i64, _ -> limit - delta }
+}
+"#;
+    assert_ensures_unproved(super::entryless::judged(SOURCE, false));
+}

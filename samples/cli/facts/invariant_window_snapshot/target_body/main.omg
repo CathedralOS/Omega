@@ -15,7 +15,7 @@ public boundary trait SnapshotConsumer {
     machine consume(value: i32) -> i32
     requires value == -1
     ensures result == value
-    reaches;
+    reaches crashes none;
 }
 SelectedSnapshot satisfies SnapshotConsumer {
     machine consume(value: i32) -> i32 ensures result == value { value }

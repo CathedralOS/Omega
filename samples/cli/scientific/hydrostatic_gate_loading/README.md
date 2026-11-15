@@ -72,21 +72,16 @@ own build file; a rejection for package policy, syntax, or provider absence
 would not count. Runtime-invalid inputs exercise the valid application's parser
 and validator, independently of this static negative control.
 
-`validation/reference.py` generated the fixtures and expected outputs **before
-Omega execution**. Its exact rational Simpson integration of degree ≤3
-integrands is independent of the application's local polynomial coefficients.
 Analytic rectangle and triangular-width force/moment anchors also constrain the
 reference, as do subdivision and vertical-translation identities. Frozen
 `data/oracle.json` contains exact fractions; `data/tolerances.json` fixes absolute
 micro-unit and relative tolerances. `data/frozen.sha256.json` authenticates the
 frozen data. Do not regenerate it to accommodate a compiler result.
 
-`validation/verify.py CASE OUTPUT EXIT` checks an artifact against its frozen
-oracle, exact geometry/record identities, force/area/moment conservation, and
-center/moment consistency. Cases cover dry, partial, at-node, fully wetted,
-above-top, triangular, irregular, elevated, zero-width, millimetre and maximum
-profiles, plus subdivision/translation variants. Nineteen malformed fixtures
-must produce the same exact error artifact and exit 64.
+Cases cover dry, partial, at-node, fully wetted, above-top, triangular,
+irregular, elevated, zero-width, millimetre and maximum profiles, plus
+subdivision/translation variants. Nineteen malformed fixtures must produce the
+same exact error artifact and exit 64.
 
 ## Overlap review
 

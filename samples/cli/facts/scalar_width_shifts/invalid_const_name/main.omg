@@ -1,8 +1,10 @@
 // A bounded shift count shift < 4 on a Wrapping u32 value preserves in-width shift validity and recovers the original scalar across all nine places.
-// Place: const name (invalid twin). Plain u32 value shifted by named constant without in Wrapping may overflow.
+// Place: const name (invalid twin). Plain u32 value shifted by named constant without in Wrapping may overflow: the helper states `requires true`, so it must handle every `u32` (an omitted `requires` would be inferred from the caller).
 const SHIFT: u32 = 1;
 
-machine shift_round_trip(val: u32) -> u32 {
+machine shift_round_trip(val: u32) -> u32
+requires true
+{
     let shifted: u32 = val << SHIFT;
     shifted >> SHIFT
 }

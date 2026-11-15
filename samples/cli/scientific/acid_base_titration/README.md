@@ -43,7 +43,6 @@ Run from the repository root with a recorded optimized compiler:
 ```
 omega packages update --project samples/cli/independent/acid_base_titration --target linux_x86_64
 omega run samples/cli/independent/acid_base_titration/main.omg < samples/cli/independent/acid_base_titration/data/curve.txt
-python3 samples/cli/independent/acid_base_titration/validation/validate.py --omega /absolute/path/to/omega
 ```
 
 Normal package review remains required; accepting package source declarations
@@ -66,8 +65,5 @@ The supplemental `endpoint_oracle.json` additionally freezes equivalent decimal
 endpoint spellings and the long integer coefficient case uncovered by review.
 The separate `../invalid_acid_base_titration` project must reject reading species index 3 from length 3.
 
-`terminal_validate.py` compiles an output observer against exact recorded producer
-libraries. It consumes the actual admitted application's retained canonical
-Terminal artifact and provisions via shipped APIs and validates captured stdout
-against the same oracle and refusals. Work and wall-clock sponsor bounds are
-explicit. Native/Terminal exit parity alone is not numerical qualification.
+Work and wall-clock sponsor bounds are explicit. Native/Terminal exit parity alone
+is not numerical qualification.

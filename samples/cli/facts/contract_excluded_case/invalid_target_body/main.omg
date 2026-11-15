@@ -18,7 +18,7 @@ machine extract_flag<T>(v: Value<T>) -> T requires T == bool {
     }
 }
 boundary trait Consume {
-    machine consume(number: Value<i32>, other_number: Value<i32>, flag: Value<bool>, other_flag: Value<bool>) -> bool reaches;
+    machine consume(number: Value<i32>, other_number: Value<i32>, flag: Value<bool>, other_flag: Value<bool>) -> bool reaches crashes none;
 }
 Selected satisfies Consume {
     machine consume(number: Value<i32>, other_number: Value<i32>, flag: Value<bool>, other_flag: Value<bool>) -> bool {

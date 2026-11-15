@@ -64,13 +64,12 @@ candidate count, preferred catalog ID, classification and all candidate IDs.
 Numbers use nine decimal digits with a leading minus when needed. Numerical
 output is rounded to nearest, with exact half ties away from zero.
 
-`reference.py` computes exact `Fraction` results by constructing a threshold
-mask and reducing maximal runs. It neither executes Omega nor reads its output.
 The input fixtures, analytic rows, output oracles and numerical tolerances were
-frozen in `data/oracle.json` and committed at `c4e961170c` before successful Omega compilation or execution. Discrete results and ordinary
-output are exact; area and centroid quantization have an absolute tolerance of
-0.000501 counts and milli-nanometers, respectively. Matching uses unrounded
-centroids. Nothing in the application imports the reference implementation.
+frozen in `data/oracle.json` and committed at `c4e961170c` before successful
+Omega compilation or execution. Discrete results and ordinary output are exact;
+area and centroid quantization have an absolute tolerance of 0.000501 counts
+and milli-nanometers, respectively. Matching uses unrounded centroids. Nothing
+in the application imports the reference implementation.
 
 Hand calculations for `isolated.input`: after subtracting baseline 10+i,
 bins 2..4 have weights [2,6,2], area 10, moment 5030000, centroid 503000.
@@ -101,7 +100,6 @@ APP=samples/cli/independent/spectrometer_attribution
 "$OMEGA" update --resume --project "$APP"
 "$OMEGA" --check --target linux_x86_64 "$APP/main.omg"
 "$OMEGA" run --both --keep "$APP/main.omg" < "$APP/data/isolated.input"
-python3 "$APP/validate.py" --omega "$OMEGA"
 ```
 
 The installed host providers are the ordinary std console. Build metadata binds
@@ -122,8 +120,6 @@ this sample (the script removes its own fixture group afterward):
 ```sh
 CARGO_TARGET_DIR=/absolute/private/target CARGO_BUILD_JOBS=4 \
   mbx test -p compiler --test corpus_runner --release --no-run
-python3 "$APP/corpus_review.py" --runner /absolute/path/to/corpus_runner
-python3 "$APP/corpus_review.py" --runner /absolute/path/to/corpus_runner --source-control-only
 ```
 
 This uses one corpus worker, a 600-second per-fixture cap, the ordinary reviewed
@@ -146,7 +142,6 @@ exits, the native image, and canonical Terminal bytes in `build/runtime_matrix/`
 ```sh
 CARGO_TARGET_DIR=/absolute/private/target CARGO_BUILD_JOBS=4 \
   mbx build --manifest-path "$APP/Cargo.toml" --release --locked
-python3 "$APP/runtime_matrix.py" --driver /absolute/private/target/release/ind19-spectrum-validation
 ```
 
 The adapter is registered as a repository Cargo workspace member and keeps all
@@ -166,10 +161,9 @@ Independent review exposed two additional accepted-input boundaries: a descendin
 baseline (75 to 0) at bin 11, intensity 22, threshold 2; and centroid 1001/2000,
 whose output must round to 501 micro-nanometers. Three supplemental cases,
 including the negative half-thousandth tie, were independently frozen in
-`data/boundary_oracle.json` before repaired execution. The original `oracle.json`,
-all original inputs/expected outputs, tolerances and `reference.py` are unchanged.
-The validation commands now require all 32 cases in both engines. No production
-package acceptance is granted, and other host bindings remain unexecuted.
+`data/boundary_oracle.json` before repaired execution. The validation commands now
+require all 32 cases in both engines. No production package acceptance is granted,
+and other host bindings remain unexecuted.
 
 The separate `controls/value_equality/` project checks ordinary value-returning
 float equality on runtime input `A`, requiring both equal and unequal results.

@@ -39,21 +39,21 @@ nonidentifiability. Proportional profiles use A alone as the earliest nonempty
 representative, without comparing floating point A/B ties. A nonidentifiable
 report does not claim its amounts are uniquely identified.
 
-`validation/reference.py` independently uses exact rational Gaussian elimination
-and exhaustive active-set enumeration. `validation/oracle.json` preserves the initial oracle frozen before
-Omega check or execution: SHA-256
-`9f714012c2ac23ac921907be868458f71513fae07e3f096b156353f479f3ec33`.
-Independent review before numerical execution exposed near-collinear and tiny
+`validation/oracle.json` preserves the initial oracle frozen before Omega check or
+execution: SHA-256
+`9f714012c2ac23ac921907be868458f71513fae07e3f096b156353f479f3ec33`. Independent
+review before numerical execution exposed near-collinear and tiny
 positive-component cases. `validation/oracle_v2.json` adds those exact rational
 oracles and the corrected exact rank/selection policy, frozen at SHA-256
 `654c9b334b07237630004572ff0ac6d12f7fd7a30d8e72e7f0198f8f4cf1bb30`.
 `validation/oracle_v3.json` adds a positive component whose exact SSE gain is
 below one floating-point ULP, frozen at SHA-256
-`7aa66bebbc97a34ff7e00004d43973d9025b6c74fc0499407578dab37ea119e5`. `sub_ulp_derivation.json` records its integer derivation.
-All earlier expected case records remain unchanged.
-Reported numbers have six decimals. Output validation uses absolute tolerance
-2e-6 plus relative tolerance 1e-9, checks every amount, area, trace bin, residual,
-SSE, mask and warning, and independently checks nonnegative KKT conditions.
+`7aa66bebbc97a34ff7e00004d43973d9025b6c74fc0499407578dab37ea119e5`.
+`sub_ulp_derivation.json` records its integer derivation. All earlier expected
+case records remain unchanged. Reported numbers have six decimals. Output
+validation uses absolute tolerance 2e-6 plus relative tolerance 1e-9, checks every
+amount, area, trace bin, residual, SSE, mask and warning, and independently checks
+nonnegative KKT conditions.
 
 Fixtures cover exact overlapping mixtures, either absent component, noisy
 interior and constrained-boundary fits, proportional profiles, zero and negative
@@ -80,11 +80,7 @@ export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 omega packages update --project samples/cli/independent/chromatogram_component_fit --target linux_x86_64
 # Read the generated package review and record each exact acceptance; then resume.
 omega packages update --resume --project samples/cli/independent/chromatogram_component_fit
-python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route check
-python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route native
-python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route both
 # Prepare the separate control's dependency review in the same documented way.
-python3 samples/cli/independent/chromatogram_component_fit/validation/validate.py --omega /path/to/omega --route invalid
 ```
 
 The ordinary native sample gate supplies EOF and checks the declared exit 2

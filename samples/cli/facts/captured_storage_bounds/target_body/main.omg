@@ -44,7 +44,7 @@ machine intact(counter: &Counter, origin: u32, marker: u32) -> bool {
 }
 
 public boundary trait CounterSource {
-    machine produce(origin: u32) -> Counter reaches;
+    machine produce(origin: u32) -> Counter reaches crashes none;
 }
 SelectedCounter satisfies CounterSource {
     machine produce(origin: u32) -> Counter {

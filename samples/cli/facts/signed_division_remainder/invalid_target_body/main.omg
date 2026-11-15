@@ -4,7 +4,7 @@
 
 boundary trait SelectedComputation {
     machine compute_target(dividend: i64, divisor: i64) -> u8 reaches
-        requires dividend >= 0i64 && divisor == 5i64;
+        requires dividend >= 0i64 && divisor == 5i64 crashes none;
 }
 
 X86Computation satisfies SelectedComputation {

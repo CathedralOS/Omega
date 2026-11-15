@@ -5,7 +5,7 @@ boundary trait CallbackApply {
     machine apply<machine Selected>(value: u64) -> u64
         requires machine Selected(input: u64) -> u64
             requires input <= 64 ensures result <= 64 && result >= input;
-        reaches requires value <= 64 ensures result <= 64;
+        reaches requires value <= 64 ensures result <= 64 crashes none;
 }
 SharedApply satisfies CallbackApply {
     machine apply<machine Action>(value: u64) -> u64
@@ -15,7 +15,7 @@ SharedApply satisfies CallbackApply {
     { Action(value) }
 }
 boundary trait BoundedSubtract {
-    machine subtract(value: u64) -> u64 reaches requires value <= 64;
+    machine subtract(value: u64) -> u64 reaches requires value <= 64 crashes none;
 }
 SharedSubtract satisfies BoundedSubtract {
     machine subtract(value: u64) -> u64 requires value <= 64 { 64u64 - value }
