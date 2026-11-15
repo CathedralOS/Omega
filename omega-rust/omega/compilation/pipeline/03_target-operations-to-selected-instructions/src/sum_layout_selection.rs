@@ -363,6 +363,130 @@ fn stored_sum_rows_select_the_same_instructions_as_main() {
     assert_eq!(dump, expected, "selected opcodes, offsets, tags, and sizes");
 }
 
+#[test]
+fn retained_scalar_store_geometry_is_checked_against_its_source() {
+    let mut names = TerminalIdentityTableBuilder::default();
+    let field = StructuralFieldId::new(1).unwrap();
+    let field_name = names.intern("value");
+    let mut cell = reference_type(1, names.intern("Cell"), ty(1));
+    cell.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, field_name, u64_type())],
+    };
+    let mut parameter = parameter(ty(1));
+    parameter.access = StructuralAccess::MutableBorrow;
+    let source = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: ValueId::new(1).unwrap(),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(43),
+    };
+    let operation = AbstractOperation::StructuralScalarFieldStore {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+            parameter.clone(),
+        ),
+        path: Vec::new(),
+        field,
+        value: AbstractResult {
+            value: source.source_value(),
+            scalar_type: source.scalar_type(),
+        },
+        range_obligation: None,
+    };
+    let function = function_with_body(
+        vec![parameter.clone()],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: source.source_value(),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(43),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![cell], function);
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let row = TargetUnitOperation::StructuralScalarFieldStore {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
+        path: Vec::new(),
+        field,
+        destination_storage: target_operations::TargetStructuralArgumentSource::Placement(
+            target.functions[0].graph.parameters[0].placement.clone(),
+        ),
+        field_byte_offset: 0,
+        field_byte_size: 8,
+        source,
+        indices: Vec::new(),
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(row.clone());
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((source.source_value(), source));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained scalar store matches its source");
+    for mutation in 0..4 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::StructuralScalarFieldStore {
+            field_byte_offset,
+            field_byte_size,
+            source: value,
+            path,
+            ..
+        } = &mut forged
+        else {
+            panic!("store");
+        };
+        match mutation {
+            0 => *field_byte_offset = 1,
+            1 => *field_byte_size = 4,
+            2 => {
+                let TargetUnitScalarArgumentSource::IntegerImmediate { value, .. } = value else {
+                    panic!("integer source");
+                };
+                *value = IntegerValue::Unsigned(47);
+            }
+            _ => path.push(StructuralPathSegment::FixedIndex(0)),
+        }
+        assert!(audit(&forged).is_err(), "tampered scalar store {mutation}");
+    }
+}
+
 fn tag_only() -> String {
     let mut names = TerminalIdentityTableBuilder::default();
     let sum = sum_type(1, names.intern("TagOnly"), &mut names, &[]);
