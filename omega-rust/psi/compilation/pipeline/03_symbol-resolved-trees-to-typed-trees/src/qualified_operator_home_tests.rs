@@ -6,7 +6,7 @@ fn typed(units: &[(&str, &str)]) -> typed_trees::TypedTrees {
     checked(units).unwrap()
 }
 
-fn checked(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees, String> {
+pub(crate) fn checked(units: &[(&str, &str)]) -> Result<typed_trees::TypedTrees, String> {
     packages(
         &units
             .iter()

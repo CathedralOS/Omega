@@ -1725,6 +1725,44 @@ pub(crate) mod construction_destinations {
             }
     }
 
+    /// An array literal's receiving carrier and element type. This is the
+    /// common type-formation question for a possible call and a selected
+    /// constructor destination; it does not land elements or prove domains.
+    pub(crate) fn array_literal_destination(
+        program: &TypedTrees,
+        value: ExpressionHandle,
+        mut destination: TypeReferenceHandle,
+    ) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
+        if !program.expression_table.expression_is_valid(value)
+            || !matches!(
+                program.expression_table.expression(value),
+                ExpressionNode::ArrayLiteral(_)
+            )
+        {
+            return None;
+        }
+        for _ in 0..program.type_reference_table.type_reference_count() {
+            if !program
+                .type_reference_table
+                .contains_type_reference(destination)
+            {
+                return None;
+            }
+            match program.type_reference_table.type_reference(destination) {
+                TypeReferenceNode::Constrained { base_type, .. } => destination = *base_type,
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => {
+                    return program
+                        .type_reference_table
+                        .contains_type_reference(*element_type)
+                        .then_some((destination, *element_type));
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     fn land_one(
         program: &mut TypedTrees,
         value: ExpressionHandle,
@@ -1918,17 +1956,14 @@ pub(crate) mod construction_destinations {
             }
             return Ok(landed);
         }
-        if let (
-            ExpressionNode::ArrayLiteral(elements),
-            TypeReferenceNode::FixedArray { element_type, .. },
-        ) = (
-            program.expression_table.expression(value),
-            program.type_reference_table.type_reference(carrier),
-        ) {
+        if let Some((_, element_type)) = array_literal_destination(program, value, carrier) {
+            let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
+            else {
+                unreachable!("array destination belongs to its literal")
+            };
             let elements = expression_table(program)
                 .expression_handles(*elements)
                 .to_vec();
-            let element_type = *element_type;
             let mut landed = true;
             for element in elements {
                 landed &= land_one(

@@ -552,6 +552,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallStorage {
+    pub target_is_static: bool,
     pub receiver_root_symbol: SymbolHandle,
     pub receiver: HandleSpan<DiagnosticName>,
     pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,

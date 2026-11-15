@@ -1294,7 +1294,7 @@ pub(crate) mod expression {
                             {
                                 crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
-                                    self.target_trees,
+                                    &mut self.target_trees.type_reference_table,
                                     target_type,
                                     Some(cast.domain),
                                 );

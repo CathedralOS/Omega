@@ -846,7 +846,19 @@ pub(crate) fn defer_unbound_calls(
             .into_iter()
             .map(|(declaration, request, source_span, bare)| {
                 let undeclared = request == DeferredRequest::UnresolvedCallTarget
-                    && bare.is_some_and(|name| undeclared.binary_search(&name).is_ok());
+                    && bare.is_some_and(|name| {
+                        // Global absence is already established above. An
+                        // unserved contract scope cannot hide such a name;
+                        // a known exact family only corrects qualified spelling.
+                        undeclared.binary_search(&name).is_ok()
+                            && crate::constructor_applications::source_call_candidates(
+                                program,
+                                declaration,
+                                name,
+                                source_span,
+                            )
+                            .is_none_or(|family| family.is_empty())
+                    });
                 let request = if undeclared {
                     DeferredRequest::UndeclaredCallName
                 } else {

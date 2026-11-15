@@ -573,12 +573,13 @@ pub(crate) mod alias_uses {
 pub(crate) mod arithmetic_results {
     use numerics::arithmetic::ArithmeticDomain;
     use symbols::BuiltinTypeAtom;
-    use typed_trees::TypedTrees;
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+    use typed_trees::types::{
+        TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+    };
 
     pub(crate) fn retain_arithmetic_result_type(
         source_symbols: &symbols::SymbolTable,
-        program: &mut TypedTrees,
+        types: &mut TypeReferenceTable,
         reference: TypeReferenceHandle,
         cast_domain: Option<ArithmeticDomain>,
     ) {
@@ -586,22 +587,16 @@ pub(crate) mod arithmetic_results {
         let mut domain = None;
         let mut visited = Vec::new();
         let carrier = loop {
-            if !program
-                .type_reference_table
-                .contains_type_reference(current)
-                || visited.contains(&current)
-            {
+            if !types.contains_type_reference(current) || visited.contains(&current) {
                 return;
             }
             visited.push(current);
-            match program.type_reference_table.type_reference(current) {
+            match types.type_reference(current) {
                 TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
                 } => {
-                    let Some(constraints) =
-                        program.type_reference_table.constraint_span(*constraints)
-                    else {
+                    let Some(constraints) = types.constraint_span(*constraints) else {
                         return;
                     };
                     for constraint in constraints {
@@ -628,39 +623,31 @@ pub(crate) mod arithmetic_results {
             && cast_policy != ArithmeticDomain::Exact
             && domain.is_none()
             && reference != current
-            && program
-                .type_reference_table
+            && types
                 .find_policy_qualified_type_reference(reference, cast_policy)
                 .is_none()
         {
-            let constraints = program
-                .type_reference_table
-                .insert_constraints([TypeConstraintNode::ArithmeticDomain(cast_policy)]);
-            program
-                .type_reference_table
-                .insert(TypeReferenceNode::Constrained {
-                    base_type: reference,
-                    constraints,
-                });
+            let constraints =
+                types.insert_constraints([TypeConstraintNode::ArithmeticDomain(cast_policy)]);
+            types.insert(TypeReferenceNode::Constrained {
+                base_type: reference,
+                constraints,
+            });
         }
         let domain = cast_domain.unwrap_or(domain.unwrap_or(ArithmeticDomain::Exact));
-        if program
-            .type_reference_table
+        if types
             .find_arithmetic_result_type_reference(carrier, domain)
             .is_some()
         {
             return;
         }
         if domain != ArithmeticDomain::Exact {
-            let constraints = program
-                .type_reference_table
-                .insert_constraints([TypeConstraintNode::ArithmeticDomain(domain)]);
-            program
-                .type_reference_table
-                .insert(TypeReferenceNode::Constrained {
-                    base_type: current,
-                    constraints,
-                });
+            let constraints =
+                types.insert_constraints([TypeConstraintNode::ArithmeticDomain(domain)]);
+            types.insert(TypeReferenceNode::Constrained {
+                base_type: current,
+                constraints,
+            });
         }
     }
 }
@@ -674,7 +661,12 @@ pub(crate) mod computed_results {
         reference: TypeReferenceHandle,
         cast_domain: Option<numerics::arithmetic::ArithmeticDomain>,
     ) {
-        super::retain_arithmetic_result_type(source_symbols, program, reference, cast_domain);
+        super::retain_arithmetic_result_type(
+            source_symbols,
+            &mut program.type_reference_table,
+            reference,
+            cast_domain,
+        );
         program
             .type_reference_table
             .retain_collection_result_types(source_symbols, reference);

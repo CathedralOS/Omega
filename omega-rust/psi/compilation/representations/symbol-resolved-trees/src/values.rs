@@ -1423,6 +1423,7 @@ pub mod expression {
                 };
                 let source = program.expression_table_mut().insert(ExpressionNode::Call(
                     TableCallExpression {
+                        target_is_static: false,
                         authored_call_binding: None,
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: original,
@@ -1683,6 +1684,7 @@ pub mod expression {
                             })
                             .collect();
                         self.insert(ExpressionNode::Call(TableCallExpression {
+                            target_is_static: call.target_is_static,
                             authored_call_binding: call.authored_call_binding,
                             receiver,
                             target_symbol: call.target_symbol,
@@ -2605,6 +2607,7 @@ pub mod expression {
             );
             let arguments = table.insert_expression_handles([array, cast]);
             let call = table.insert(ExpressionNode::Call(TableCallExpression {
+                target_is_static: true,
                 authored_call_binding: None,
                 receiver,
                 target_symbol: SymbolHandle::from_arena_index(7),
@@ -2759,7 +2762,7 @@ expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occur
 expression #32 = Boolean(true) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #33 = Unary(TableUnaryExpression { operator: LogicalNot, operand: #32 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #34 = Cast(TableCastExpression { value: #33, target_type: #5, target_label: #11+1, domain: Exact, semantic_domain: #12+1, semantic_domain_arguments: #0@0+0, semantic_domain_symbol: #6, form: Value }) at 7:40..45 exposure None partition Some(CompilerDerivedSelectionPartition(9)) occurrences #0@0+0
-expression #35 = Call(TableCallExpression { authored_call_binding: None, receiver: #28, target_symbol: #7, target: "measure", requirement_application: #0@0, machine_arguments: [], arguments: #5+2, evidence_arguments: ["witness"], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }) at 7:30..35 exposure Some(PublicInterface) partition None occurrences #6+2
+expression #35 = Call(TableCallExpression { target_is_static: true, authored_call_binding: None, receiver: #28, target_symbol: #7, target: "measure", requirement_application: #0@0, machine_arguments: [], arguments: #5+2, evidence_arguments: ["witness"], operational_acknowledgement: CallOperationalAcknowledgement { origin: Source, acknowledges_suspend: false, acknowledges_block: false } }) at 7:30..35 exposure Some(PublicInterface) partition None occurrences #6+2
 expression #36 = Integer(IntegerLiteral { text: "0", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #37 = Range(TableRangeExpression { start: #36, end: #0@0, end_inclusive: false }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -3570,6 +3573,9 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableCallExpression {
+        /// Keep static qualification until lexical binding can distinguish a
+        /// namespace from a parameter or local with the same name.
+        pub target_is_static: bool,
         pub authored_call_binding:
             Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
         pub receiver: ExpressionHandle,

@@ -142,7 +142,7 @@ mod routing {
         assign_expression_span_symbols, assign_statement_expression_symbols,
     };
     use crate::symbols::scope::MachineScope;
-    use crate::symbols::scoped_paths::resolve_state_scoped_members;
+    use crate::symbols::scoped_paths::resolve_lexical_members;
     use crate::symbols::targets::{
         assign_call_machine_argument_symbols, assign_transition_target_symbols,
         resolve_call_target_symbol,
@@ -279,35 +279,28 @@ mod routing {
                 );
                 if !call.receiver.is_empty() {
                     let members = statement_path_members.span_or_empty(call.receiver);
-                    let (root, _) = resolve_state_scoped_members(
-                        symbols,
-                        machine.symbol,
-                        state_symbol,
-                        members.get(..1).unwrap_or_default(),
-                        None,
-                    );
+                    let (root, symbol) =
+                        resolve_lexical_members(symbols, machine, parameters, members);
                     call.receiver_root_symbol = root;
-                    let (_, symbol) = resolve_state_scoped_members(
-                        symbols,
-                        machine.symbol,
-                        state_symbol,
-                        members,
-                        None,
-                    );
-                    if symbol.is_valid() {
-                        call.receiver_symbol = symbol;
-                    }
+                    call.receiver_symbol = symbol;
                 }
 
-                call.target_symbol = resolve_call_target_symbol(
-                    machine,
-                    parameters,
-                    !call.receiver.is_empty(),
-                    call.receiver_symbol,
-                    &call.target,
-                    child_type_references,
+                call.target_symbol = crate::symbols::targets::normalize_statement_module_call(
                     symbols,
-                );
+                    statement_path_members,
+                    call,
+                )
+                .unwrap_or_else(|| {
+                    resolve_call_target_symbol(
+                        machine,
+                        parameters,
+                        !call.receiver.is_empty(),
+                        call.receiver_symbol,
+                        &call.target,
+                        child_type_references,
+                        symbols,
+                    )
+                });
                 crate::symbols::expressions::assign_static_arguments_type_symbols(
                     symbols,
                     machine,

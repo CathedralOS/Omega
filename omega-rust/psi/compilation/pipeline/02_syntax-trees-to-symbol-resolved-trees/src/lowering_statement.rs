@@ -1161,19 +1161,6 @@ mod statement_nodes {
             }
             StatementNode::Call(call) => {
                 let receiver = lower_statement_path_members(lowerer, syntax_trees, call.receiver);
-                if call.target_is_static && !receiver.is_empty() {
-                    let mut path = lowerer
-                        .symbol_resolved_trees
-                        .tables
-                        .declarations
-                        .statement_path_members
-                        .span_or_empty(receiver)
-                        .to_vec();
-                    path.push(lower_name(syntax_trees, &call.target));
-                    lowerer
-                        .pending_static_module_statement_calls
-                        .push((call.target.source_span(), path));
-                }
                 let arguments = lower_statement_expressions(lowerer, syntax_trees, call.arguments)?;
                 let mut hoisted = Vec::new();
                 for offset in 0..arguments.count() {
@@ -1190,6 +1177,7 @@ mod statement_nodes {
                     target_symbol: SymbolHandle::invalid(),
                     target: lower_name(syntax_trees, &call.target),
                     storage: CallStorage {
+                        target_is_static: call.target_is_static,
                         receiver_root_symbol: SymbolHandle::invalid(),
                         receiver,
                         machine_arguments: call
@@ -1528,6 +1516,7 @@ mod statement_nodes {
         };
         let source_span = call.target.source_span();
         let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
+            target_is_static: call.target_is_static,
             authored_call_binding: None,
             receiver,
             target_symbol: call.target_symbol,
