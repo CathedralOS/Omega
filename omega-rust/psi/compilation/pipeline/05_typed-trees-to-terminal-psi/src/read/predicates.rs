@@ -27,20 +27,16 @@ plain carrier.
 On a data carrier (`domain Player::Alive requires self.health > 0`) the
 clauses name fields beneath `self`, so a field `player: Player in Alive`
 owes `self.player.health > 0` as a clause of its owner, kept by the owner's
-windows like any other. A formal of a data type in such a domain reads its
-predicates as entry clauses over the formal's own storage, exactly as
-`requires path[4095] == 0` written on the machine would be
-(`of_formal_storage`). That holds only while the body cannot write the
-formal, so a reassignable or mutably borrowed one is refused by name. A data
-result in such a domain has no owner whose clauses it joins, and its
-predicates would need a window of their own, so it is refused
-(`signature_predicates`), as are a cast that adds such a domain
-(`read::casts`), a case payload, an array element and a partial write
-inside such a value (`read::authority`).
+windows like any other. A formal or result states the same predicates in its
+ordinary callable contract at its exact storage root. A borrowed formal also
+owes them on normal handback. A cast that adds such a domain (`read::casts`),
+a case payload, an array element and a partial write inside such a value
+(`read::authority`) retain their independent establishment restrictions.
 */
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, MachineId, Proposition, ScalarTerm, ScalarType, ValueId,
+    CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
+    ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
@@ -143,116 +139,84 @@ impl Program<'_> {
             if self.predicates(id, qualification)?.is_empty() {
                 continue;
             }
-            let ValueType::Scalar(scalar_type, _) = slot.value_type else {
-                // A record or array formal: the domain's predicates are entry
-                // clauses over the formal's own storage, exactly as
-                // `requires path[4095] == 0` written against it would be.
-                // The formal must keep the value it arrived with: a body
-                // that rebinds it, or writes through a mutable borrow, could
-                // leave the domain before the formal is handed back, and
-                // that needs a check this route does not make yet.
-                if slot.assignable {
-                    return unserved(
-                        "reassignable formal of a data type in a domain with predicates",
-                    );
+            let clauses = if slot.borrowed.is_some()
+                || matches!(slot.value_type, ValueType::Record(..))
+            {
+                if slot.erased {
+                    return unserved("erased formal in a domain with predicates");
                 }
-                if slot
-                    .borrowed
-                    .is_some_and(|access| access != language_core::ReferenceAccess::Shared)
-                {
-                    return unserved(
-                        "mutably borrowed formal of a data type in a domain with predicates",
-                    );
+                let root = super::contracts::formal_place(id, entry.slots, position)?;
+                // A borrowed input must hand back storage satisfying its declared
+                // predicates. Its return clause observes completion contents,
+                // using the same binding as an authored postcondition.
+                if slot.borrowed.is_some() {
+                    for (clause, expression) in
+                        self.storage_predicates(id, exit, slot.value_type, root, &[])?
+                    {
+                        added
+                            .ensures
+                            .push((clause, self.subject_text(exit.slots, position, expression)));
+                    }
                 }
-                added.requires.extend(self.of_formal_storage(
+                self.storage_predicates(id, entry, slot.value_type, root, &[])?
+            } else {
+                let ValueType::Scalar(scalar_type, _) = slot.value_type else {
+                    return unserved("formal of a rigid type in a domain with predicates");
+                };
+                let Some(value) = entry.values.get(position).copied().flatten() else {
+                    return unserved("erased formal in a domain with predicates");
+                };
+                self.of_value(
                     id,
                     entry,
-                    position,
                     qualification,
-                )?);
-                continue;
+                    &ScalarTerm::Value {
+                        id: value,
+                        scalar_type,
+                    },
+                )?
             };
-            // A borrowed formal's clause is about what its referent holds,
-            // at entry and again at every handback; only the first has a
-            // contract to join yet.
-            if slot.borrowed.is_some() {
-                return unserved("borrowed formal in a domain with predicates");
-            }
-            let Some(value) = entry.values.get(position).copied().flatten() else {
-                return unserved("erased formal in a domain with predicates");
-            };
-            let subject = ScalarTerm::Value {
-                id: value,
-                scalar_type,
-            };
-            for (clause, expression) in self.of_value(id, entry, qualification, &subject)? {
-                // The text names the formal where the domain wrote `self`.
-                let text = self.subject_text(entry.slots, position, expression);
-                added.requires.push((clause, text));
+            for (clause, expression) in clauses {
+                added
+                    .requires
+                    .push((clause, self.subject_text(entry.slots, position, expression)));
             }
         }
-        // A record result's predicates would be guarantees over the fields
-        // of the returned value; nothing states them yet, so such a result
-        // is refused rather than promised nothing.
-        if let Some((value_type, _)) = result
-            && !matches!(value_type, ValueType::Scalar(..))
-            && !self.predicates(id, value_type.qualification())?.is_empty()
-        {
-            return unserved("result of a data type in a domain with predicates");
-        }
-        if let Some((ValueType::Scalar(scalar_type, qualification), value)) = result {
-            let subject = ScalarTerm::Value {
-                id: value,
-                scalar_type,
+        if let Some((value_type, value)) = result {
+            let clauses = match value_type {
+                ValueType::Scalar(scalar_type, qualification) => {
+                    let exit = ClauseScope {
+                        result: ResultTerm::Absent("result in a domain predicate"),
+                        ..*exit
+                    };
+                    self.of_value(
+                        id,
+                        &exit,
+                        qualification,
+                        &ScalarTerm::Value {
+                            id: value,
+                            scalar_type,
+                        },
+                    )?
+                }
+                ValueType::Record(..) => {
+                    let ResultTerm::Structural(root, declared) = exit.result else {
+                        return unserved("domain-qualified result without its structural root");
+                    };
+                    if declared != value_type {
+                        return unserved("domain-qualified result has another declared type");
+                    }
+                    self.storage_predicates(id, exit, value_type, root, &[])?
+                }
+                ValueType::Rigid(_) => Vec::new(),
             };
-            // A domain's clause names the value through its own `self`, not
-            // through the surrounding callable's reserved result.
-            let exit = ClauseScope {
-                result: ResultTerm::Absent("result in a domain predicate"),
-                ..*exit
-            };
-            for (clause, expression) in self.of_value(id, &exit, qualification, &subject)? {
+            for (clause, expression) in clauses {
                 added
                     .ensures
                     .push((clause, self.clause_text(&[], expression)));
             }
         }
         Ok(added)
-    }
-
-    /// The predicates of `qualification` about the record or array formal at
-    /// `position`, read in `scope` as clauses written against that formal:
-    /// the domain's `self` names the formal, so `self[4095] == 0` is read
-    /// exactly as an authored `requires path[4095] == 0`, through the same
-    /// formal-field projection.
-    fn of_formal_storage(
-        &self,
-        id: MachineId,
-        scope: &ClauseScope<'_>,
-        position: usize,
-        qualification: Qualification,
-    ) -> Checked<Vec<(Proposition, ClauseText)>> {
-        let mut clauses = Vec::new();
-        for predicate in self.predicates(id, qualification)? {
-            if !predicate.subject.is_valid() {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Spelling("domain predicate without a subject symbol"),
-                ));
-            }
-            let mut slots = scope.slots.to_vec();
-            slots[position].symbol = predicate.subject;
-            let reading = ClauseScope {
-                slots: &slots,
-                ..*scope
-            };
-            clauses.push((
-                self.clause(id, &reading, predicate.expression)?,
-                self.subject_text(scope.slots, position, predicate.expression),
-            ));
-        }
-        Ok(clauses)
     }
 
     /// A domain clause's text with the formal at `position` where the
@@ -411,6 +375,58 @@ impl Program<'_> {
         }
     }
 
+    /// A domain's `self` is its plain carrier at the exact declared storage
+    /// root. Fields, invocation inputs and results share this binding; their
+    /// surrounding contract selects entry or completion observations.
+    fn storage_predicates(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        value_type: ValueType,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Checked<Vec<(Proposition, ExpressionHandle)>> {
+        let predicates = self.predicates(id, value_type.qualification())?;
+        if predicates.is_empty() {
+            return Ok(Vec::new());
+        }
+        let Some(plain @ (ValueType::Scalar(..) | ValueType::Record(..))) =
+            value_type.qualified(Qualification::NONE)
+        else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("storage of a rigid type in a domain with predicates"),
+            ));
+        };
+        let mut clauses = Vec::with_capacity(predicates.len());
+        for predicate in predicates {
+            if !predicate.subject.is_valid() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("domain predicate without a subject symbol"),
+                ));
+            }
+            let scope = ClauseScope {
+                result: ResultTerm::Absent("result in a domain predicate"),
+                subject: Some(DataSubject {
+                    value_type: plain,
+                    symbol: predicate.subject,
+                    root,
+                    path,
+                    bare_fields: false,
+                }),
+                ..*scope
+            };
+            clauses.push((
+                self.clause(id, &scope, predicate.expression)?,
+                predicate.expression,
+            ));
+        }
+        Ok(clauses)
+    }
+
     /// Instantiate domain clauses at a field path under `self`. An empty
     /// path gives the declaration's own predicate over its plain carrier.
     pub(crate) fn field_predicates(
@@ -419,7 +435,6 @@ impl Program<'_> {
         path: &[CanonicalStructuralPathSegment],
         value_type: ValueType,
     ) -> Checked<Vec<Proposition>> {
-        let qualification = value_type.qualification();
         // A byte view's domains are its primitive byte predicates, which
         // the lowered form carries on the field's own type
         // (`StructuralFieldType::PredicateByteSequence`) and the checker
@@ -433,46 +448,31 @@ impl Program<'_> {
         {
             return Ok(Vec::new());
         }
-        let predicates = self.predicates(id, qualification)?;
-        if predicates.is_empty() {
-            return Ok(Vec::new());
-        }
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Declaration(what)));
-        // `self` is the field at the carrier the domain is declared on: a
-        // scalar's clause names it, a record's names fields beneath it
-        // (`self.health`), each a field of the owner one step deeper.
-        let Some(plain @ (ValueType::Scalar(..) | ValueType::Record(..))) =
-            value_type.qualified(Qualification::NONE)
-        else {
-            return unserved("field of a type parameter in a domain with predicates");
-        };
         let Some(root) = crate::body::self_place() else {
-            return unserved("self place identity");
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("self place identity"),
+            ));
         };
-        let mut clauses = Vec::with_capacity(predicates.len());
-        for predicate in predicates {
-            let scope = ClauseScope {
-                slots: &[],
-                values: &[],
-                bound: &[],
-                owner: SymbolHandle::invalid(),
-                result: ResultTerm::Absent("result in a domain predicate"),
-                formal_fields: false,
-                logical: None,
-                mathematical: MathematicalTerms::Refused(
-                    "mathematical comparison in a domain predicate",
-                ),
-                subject: Some(DataSubject {
-                    value_type: plain,
-                    symbol: predicate.subject,
-                    root,
-                    path,
-                    bare_fields: false,
-                }),
-            };
-            clauses.push(self.clause(id, &scope, predicate.expression)?);
-        }
-        Ok(clauses)
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a domain predicate"),
+            formal_fields: false,
+            logical: None,
+            mathematical: MathematicalTerms::Refused(
+                "mathematical comparison in a domain predicate",
+            ),
+            subject: None,
+        };
+        Ok(self
+            .storage_predicates(id, &scope, value_type, root, path)?
+            .into_iter()
+            .map(|(clause, _)| clause)
+            .collect())
     }
 }
 
