@@ -1821,6 +1821,11 @@ pub(crate) mod component_contents {
             let contents = match contents.contents {
                 value @ (TerminalStorageContents::Scalar { .. }
                 | TerminalStorageContents::Bytes(_)) => value,
+                TerminalStorageContents::Elements { .. } => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "component contents cannot manufacture immutable sequence backing",
+                    ));
+                }
                 TerminalStorageContents::Case(case) => {
                     let source = self.source_types.declaration(&source_type)?;
                     let source = terminal_psi::find_structural_case(

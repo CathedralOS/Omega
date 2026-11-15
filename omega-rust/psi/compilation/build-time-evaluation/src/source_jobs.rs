@@ -93,7 +93,7 @@ pub struct PreparedBuildMachineEntry {
     source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
     accepted: Arc<terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
-    context_inputs: Vec<crate::BuildTimeValue>,
+    input_values: Vec<crate::BuildTimeValue>,
 }
 impl PreparedBuildMachineEntry {
     /// The physical callee in the accepted invocation’s source.
@@ -208,11 +208,11 @@ impl PreparedBuildMachineEntry {
         {
             return Err("target-independent evaluation cannot carry target observations".into());
         }
-        for value in &self.context_inputs {
-            let crate::BuildTimeValue::LayoutTarget(facts) = value else {
-                return Err("source invocation lost its issued context argument".into());
-            };
-            if target.name != Some(facts.profile.as_str()) || target.layout_target != Some(facts) {
+        for value in &self.input_values {
+            if let crate::BuildTimeValue::LayoutTarget(facts) = value
+                && (target.name != Some(facts.profile.as_str())
+                    || target.layout_target != Some(facts))
+            {
                 return Err(
                     "issued layout context differs from the actual invocation target".into(),
                 );
@@ -310,9 +310,9 @@ impl PreparedBuildMachineEntry {
             .entry()
             .map_err(|error| format!("source invocation entry: {error:?}"))?;
         if !entry.scalar_parameters.is_empty()
-            || entry.structural_parameters.len() != self.context_inputs.len()
+            || entry.structural_parameters.len() != self.input_values.len()
         {
-            return Err("source invocation retained unmatched compiler context parameters".into());
+            return Err("source invocation retained unmatched host input parameters".into());
         }
         let inputs = entry
             .structural_parameters
@@ -322,19 +322,29 @@ impl PreparedBuildMachineEntry {
                 let declaration = program
                     .module()
                     .structural_type(parameter.structural_type)
-                    .ok_or("issued context lost its canonical declaration")?;
-                if declaration.shape != terminal_psi::StructuralTypeShape::Opaque
-                    || parameter.access != terminal_psi::StructuralAccess::Owned
+                    .ok_or("source input lost its canonical declaration")?;
+                let issued = matches!(
+                    self.input_values[position],
+                    crate::BuildTimeValue::LayoutTarget(_)
+                );
+                if (issued
+                    && (declaration.shape != terminal_psi::StructuralTypeShape::Opaque
+                        || parameter.access != terminal_psi::StructuralAccess::Owned))
+                    || !matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::Owned
+                            | terminal_psi::StructuralAccess::SharedBorrow
+                    )
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !parameter.additional_input_qualifications.is_empty()
                 {
-                    return Err("issued context changed its opaque input contract");
+                    return Err("source input changed its checked input contract");
                 }
                 let identity = u64::try_from(position)
                     .ok()
                     .and_then(|position| position.checked_add(1))
-                    .ok_or("issued context input identity exceeds its host namespace")?;
+                    .ok_or("source input identity exceeds its host namespace")?;
                 Ok(terminal_interpreter::TerminalStructuralValue::minted(
                     identity,
                     parameter.structural_type,
@@ -342,7 +352,23 @@ impl PreparedBuildMachineEntry {
                 ))
             })
             .collect::<Result<Vec<_>, &str>>()?;
-        let opaque_inputs = inputs.iter().zip(&self.context_inputs).collect::<Vec<_>>();
+        let contents = entry
+            .structural_parameters
+            .iter()
+            .zip(&self.input_values)
+            .enumerate()
+            .filter(|(_, (_, value))| !matches!(value, crate::BuildTimeValue::LayoutTarget(_)))
+            .map(|(position, (parameter, value))| {
+                crate::terminal_values::input_contents(
+                    &program,
+                    u32::try_from(position)
+                        .map_err(|_| "source input exceeds its argument namespace")?,
+                    parameter.structural_type,
+                    value,
+                )
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let opaque_inputs = inputs.iter().zip(&self.input_values).collect::<Vec<_>>();
         let result_type = entry
             .result
             .structural()
@@ -354,6 +380,7 @@ impl PreparedBuildMachineEntry {
                 installation: Some(&installation),
                 structural_inputs: terminal_interpreter::TerminalStructuralInputs {
                     arguments: &inputs,
+                    contents: &contents,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -435,7 +462,7 @@ impl PreparedBuildMachineProgram {
             source,
             caller,
             call,
-            context_inputs,
+            input_values,
         } = invocation::prepare_value_invocation(
             &self.source,
             requester,
@@ -587,7 +614,7 @@ impl PreparedBuildMachineProgram {
             source_consent: self.source_consent.clone(),
             accepted: Arc::new(accepted),
             arguments: arguments.to_vec(),
-            context_inputs,
+            input_values,
         })
     }
 
