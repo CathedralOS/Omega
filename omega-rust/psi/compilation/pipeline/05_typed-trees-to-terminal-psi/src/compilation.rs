@@ -116,7 +116,7 @@ pub fn prepare_compilation(
                     (
                         row.declaring_trait,
                         row.requirement,
-                        Vec::new(),
+                        row.value_arguments,
                         row.implementation,
                         None,
                     )
@@ -213,7 +213,7 @@ pub fn prepare_compilation(
                 let row = (
                     row.declaring_trait,
                     row.requirement,
-                    Vec::new(),
+                    row.value_arguments,
                     row.implementation,
                     None,
                 );

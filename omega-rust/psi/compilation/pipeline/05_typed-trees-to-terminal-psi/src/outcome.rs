@@ -13,8 +13,8 @@ checked bodies may omit any of the three to request inference"); an authored
 `crashes none` publishes none and refuses a body with a crash route ("promises
 the empty value and rejects any body or selection that violates it"). Inference
 here is structural: each cause the body may crash with, from a `crash`
-statement or from a callee's published route, is published with the
-alternative `Truth`. That is the widest route of that cause, so it never
+statement, a Trapping operation or a callee's published route, is published
+with the alternative `Truth`. That is the widest route of that cause, so it never
 hides a crash a caller must cover; a narrower guard needs proof and belongs to
 the checker.
 
@@ -147,7 +147,7 @@ struct Reached {
     operational: [bool; 2],
     completes_normally: bool,
     /// Every cause a path of the body may crash with, from a `crash`
-    /// statement or from a callee that may.
+    /// statement, a Trapping operation or a callee that may.
     causes: BTreeSet<CrashCause>,
     /// What the body's calls contribute on each ceiling axis, by `Axis`.
     contributed: [Contributed; 2],
@@ -556,8 +556,21 @@ impl<'b> Walk<'b> {
                 }
                 Ok(true)
             }
-            ExpressionKind::Strict { left, right, .. } => {
-                Ok(self.expression(machine, left)? && self.expression(machine, right)?)
+            // A Trapping operation is its own `Trap` site (numeric_values.md,
+            // "Policy operators": it "contributes that route to its
+            // machine's crash contract like any other Trapping operation").
+            ExpressionKind::Strict {
+                policy,
+                left,
+                right,
+                ..
+            } => {
+                let completes =
+                    self.expression(machine, left)? && self.expression(machine, right)?;
+                if *policy == Some(crate::body::Policy::Trapping) {
+                    self.causes.insert(CrashCause::Trap);
+                }
+                Ok(completes)
             }
             // The right operand may be skipped, so the expression completes
             // whenever its left operand does; the right operand's causes are

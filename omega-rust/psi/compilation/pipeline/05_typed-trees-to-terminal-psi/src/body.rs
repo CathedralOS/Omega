@@ -163,14 +163,31 @@ impl DomainSet {
     }
 }
 
-/// An arithmetic policy a type can carry. `Exact` is no policy; `Trapping`
-/// is refused by the reader.
+/// An arithmetic policy a type can carry, or a suffixed operator selects for
+/// one operation. `Exact` is no policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Policy {
     /// Overflow reduces modulo the carrier.
     Wrapping,
     /// Overflow clamps to the carrier's bounds.
     Saturating,
+    /// The operation is its own `Trap` site under the primitive's exact
+    /// crash predicate, and on normal return computes the exact result
+    /// (numeric_values.md, "Overflow policies").
+    Trapping,
+}
+
+impl Policy {
+    /// The policy a written arithmetic domain names; `Exact` names none.
+    pub const fn of_domain(domain: numerics::arithmetic::ArithmeticDomain) -> Option<Self> {
+        use numerics::arithmetic::ArithmeticDomain;
+        match domain {
+            ArithmeticDomain::Exact => None,
+            ArithmeticDomain::Wrapping => Some(Self::Wrapping),
+            ArithmeticDomain::Saturating => Some(Self::Saturating),
+            ArithmeticDomain::Trapping => Some(Self::Trapping),
+        }
+    }
 }
 
 impl From<ScalarType> for ValueType {
@@ -1014,9 +1031,11 @@ pub enum ExpressionKind {
         arms: Vec<(Selector, Expression)>,
         default: Option<Box<Expression>>,
     },
-    /// Both operands, left then right, then the operation.
+    /// Both operands, left then right, then the operation under its selected
+    /// policy. A suffix selects a policy even when the result is bare.
     Strict {
         operation: Strict,
+        policy: Option<Policy>,
         left: Box<Expression>,
         right: Box<Expression>,
     },

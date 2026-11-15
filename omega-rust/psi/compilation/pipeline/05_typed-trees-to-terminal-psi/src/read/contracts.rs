@@ -319,7 +319,7 @@ impl Program<'_> {
                 return unserved("case test of something that is not a sum");
             };
             let case = self.case_position(id, sum, case)?;
-            let case = self.data_type(id, sum)?.cases()[case].id;
+            let case = self.data_type(id, sum.record())?.cases()[case].id;
             return Ok(Proposition::StructuralCaseMembership {
                 subject: StructuralCaseSubject::new(root, path),
                 case,
@@ -678,7 +678,10 @@ impl Program<'_> {
                 else {
                     return unserved("extent without an exact formal descriptor");
                 };
-                let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
+                let Some(record) = self
+                    .opened(id, Some(receiver), Access::Read)?
+                    .map(super::authority::Opened::record)
+                else {
                     return unserved("extent of non-collection storage");
                 };
                 if !matches!(
@@ -1327,7 +1330,7 @@ impl Program<'_> {
                         return Ok(None);
                     };
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((root, Vec::new(), ValueType::record(record))));
+                    return Ok(Some((root, Vec::new(), ValueType::record(record.record()))));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
@@ -1336,13 +1339,14 @@ impl Program<'_> {
                         subject.value_type,
                     )));
                 }
-                // A field named bare is that field of `self`.
-                let ValueType::Record(record, _, _) = subject.value_type else {
-                    return Ok(None);
-                };
+                // A field named bare is that field of `self`, read inside
+                // `self`'s value as a member of it is.
                 if !subject.bare_fields {
                     return Ok(None);
                 }
+                let Some(record) = self.opened(id, Some(subject.value_type), Access::Read)? else {
+                    return Ok(None);
+                };
                 (subject.root, subject.path.to_vec(), record, path.symbol)
             }
             ExpressionNode::Member(member) => {
@@ -1425,7 +1429,7 @@ impl Program<'_> {
             | ExpressionNode::ZeroValue(_) => return Ok(None),
         };
         let mut path = base;
-        let data = self.data_type(id, record)?;
+        let data = self.data_type(id, record.record())?;
         let value_type = match self.member_of(id, record, symbol)? {
             Member::Field(field) => {
                 path.push(CanonicalStructuralPathSegment::Field(

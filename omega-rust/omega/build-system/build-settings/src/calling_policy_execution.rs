@@ -61,10 +61,8 @@ pub fn evaluate_terminal_calling_policy(
     if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
     }
-    let selected = terminal_installation::admit_target_machine_selections(
-        artifact.view(),
-        target.target_name(),
-    );
+    let selected =
+        terminal_installation::terminal_target_context(artifact.view(), target.target_name());
     let facts = target
         .layout_target_facts()
         .ok_or("calling policy target has no layout facts")?;

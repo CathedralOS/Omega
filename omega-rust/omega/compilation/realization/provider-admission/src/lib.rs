@@ -41,6 +41,5 @@ mod admission_source;
 mod lowering_facts;
 pub use admission_source::{
     AdmissionSource, AdmittedInstalledEntryExecution, AdmittedProgramEntryCall, ComponentCallFacts,
-    selected_calling_boundary,
 };
 pub use lowering_facts::{AdmittedInstalledInterruptCohort, AdmittedNativeCallbackCohort};

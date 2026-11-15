@@ -445,7 +445,7 @@ pub(crate) mod entry_returns {
                         .checked_add(1)?
                         .checked_add(u64::try_from(source.sources.len()).ok()?)
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let lease = self
                 .account
                 .as_ref()
@@ -986,7 +986,7 @@ pub(crate) mod placed {
                 let [source, profile_argument] = structural_arguments.as_slice() else {
                     return Err(malformed());
                 };
-                let result = operation.result.structural().ok_or_else(malformed)?;
+                let result = operation.result.structural().ok_or(malformed())?;
                 if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!())
                     || profile_argument.access != StructuralAccess::SharedBorrow
                     || !completion_receipts.is_empty()
@@ -1027,7 +1027,7 @@ pub(crate) mod placed {
                 let backing = self
                     .resolve_reference_call_arguments(std::slice::from_ref(source))?
                     .pop()
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let profile = self.resolve_live_projection(
                     profile_argument.place,
                     &profile_argument.path,
@@ -1240,7 +1240,7 @@ pub(crate) mod placed {
                     let (actual_machine, values) = if *depth == self.call_stack.len() {
                         (self.current_machine, &self.structural_values)
                     } else {
-                        let frame = self.call_stack.get(*depth).ok_or_else(malformed)?;
+                        let frame = self.call_stack.get(*depth).ok_or(malformed())?;
                         (frame.current_machine, &frame.structural_values)
                     };
                     if actual_machine != *machine || values.get(place) != Some(allocation) {
@@ -1274,7 +1274,7 @@ pub(crate) mod placed {
                 let establishment = establishments
                     .iter()
                     .find(|loan| loan.input == *recipe.input())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if establishment.referent.structural_type != recipe.schema()
                     || !establishment.referent.path.is_empty()
                     || !establishment.referent.qualifications.is_empty()
@@ -1313,7 +1313,7 @@ pub(crate) mod placed {
                 let occurrence = self
                     .access_view_occurrences
                     .get_mut(recipe.input())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let parameter = terminal_semantics::access_view_input_parameter(
                     &self.program.catalogs,
                     recipe.input(),
@@ -1367,7 +1367,7 @@ pub(crate) mod placed {
                                 StructuralRuntimePlace::from(&original.allocation),
                                 field.field,
                             ))
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .read()?;
                         let bits = match value {
                             crate::TerminalScalarValue::Boolean(value) => u128::from(value),
@@ -1384,10 +1384,10 @@ pub(crate) mod placed {
                         let end = field
                             .byte_offset
                             .checked_add(field.byte_width)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         bytes
                             .get_mut(field.byte_offset..end)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .copy_from_slice(&bits.to_le_bytes()[..field.byte_width]);
                     }
                     Ok((original.recipe.input().position, bytes))
@@ -1420,19 +1420,19 @@ pub(crate) mod placed {
                 types.values(),
                 allocation.structural_type,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let region = terminal_semantics::reference_storage_region(
                 types.values(),
                 allocation.structural_type,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let tip = terminal_semantics::runtime_structural_path_tip(
                 types.values(),
                 allocation.structural_type,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             if tip.id != correspondence.schema
                 || region.scalar.is_some()
                 || region.byte_length != correspondence.source_byte_length
@@ -1475,7 +1475,7 @@ pub(crate) mod placed {
             };
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                 let Some(scalar) = field.field_type.scalar_type() else {
-                    let root = field.field_type.as_structural().ok_or_else(malformed)?;
+                    let root = field.field_type.as_structural().ok_or(malformed())?;
                     let (scalar, count) = terminal_semantics::scalar_array_leaf_shape(
                         self.structural_types().values(),
                         root,
@@ -1516,7 +1516,7 @@ pub(crate) mod placed {
                                 root,
                                 ordinal,
                             )
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                         );
                         let value = self.read_primitive_home(home, &path, scalar)?;
                         if !crate::engine::scalar_operations::terminal_scalar_belongs_to_type(value)
@@ -1532,7 +1532,7 @@ pub(crate) mod placed {
                         StructuralRuntimePlace::from(&source),
                         field.id,
                     ))
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .read()?;
                 if value.scalar_type() != scalar || !value.satisfies_field(&field.field_type) {
                     return Err(malformed());
@@ -1633,11 +1633,11 @@ pub(crate) mod placed {
             operation: &Operation,
             source: &StructuralArgument,
         ) -> Result<(), TerminalInterpretError> {
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             let backing = self
                 .resolve_reference_call_arguments(std::slice::from_ref(source))?
                 .pop()
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
@@ -1706,13 +1706,13 @@ pub(crate) mod placed {
                     .access_view_plans
                     .iter()
                     .find(|plan| plan.carrier == captured.carrier())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let (field, relative) = if let Some(slot) = captured.selected_field {
                     (
                         plan.fields
                             .iter()
                             .find(|field| field.access_slot == slot)
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                         prefix,
                     )
                 } else {
@@ -1725,7 +1725,7 @@ pub(crate) mod placed {
                         plan.fields
                             .iter()
                             .find(|field| field.view_field == *identity)
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                         relative,
                     )
                 };
@@ -1736,7 +1736,7 @@ pub(crate) mod placed {
                     field.accessor,
                     &projection,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if presentation.structural_type != selected.id {
                     return Err(malformed());
                 }
@@ -1862,7 +1862,7 @@ pub(crate) mod placed {
                         .fields
                         .iter()
                         .find(|source| source.access_slot == field.access_slot)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let selected_projection = if ram.projection.is_empty() {
                         terminal_semantics::ReferenceStorageProjection {
                             byte_offset: source.byte_offset,
@@ -1880,7 +1880,7 @@ pub(crate) mod placed {
                     };
                     let width = u64::from(source.transfer_width_bits)
                         .checked_div(8)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if width == 0
                         || source.transfer_width_bits % 8 != 0
                         || selected_projection
@@ -1902,7 +1902,7 @@ pub(crate) mod placed {
                     let source_field = fields
                         .iter()
                         .find(|field| field.id == source.source_field)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let storage = if !ram.projection.is_empty() {
                         let AccessRamHome::Frame {
                             depth,
@@ -2071,7 +2071,7 @@ impl TerminalExecution<'_> {
         let authority = self.storage_carrier_access(place, structural_type, path)?;
         (authority != StructuralAccess::WriteOnlyBorrow)
             .then_some(authority)
-            .ok_or_else(malformed)
+            .ok_or(malformed())
     }
 
     pub(crate) fn storage_carrier_access(
@@ -2212,7 +2212,7 @@ impl TerminalExecution<'_> {
                 return (parameter.multiplicity != StructuralMultiplicity::Linear
                     && access_covers(parameter.access, requested))
                 .then_some(())
-                .ok_or_else(malformed);
+                .ok_or(malformed());
             }
             if parameter.multiplicity == StructuralMultiplicity::Unrestricted
                 && requested == StructuralAccess::SharedBorrow
@@ -2344,7 +2344,7 @@ impl TerminalExecution<'_> {
                     identity_cursor,
                     &mut RuntimeRows::new(self.account.as_ref()),
                 )?
-                .ok_or_else(malformed)?,
+                .ok_or(malformed())?,
             )
         } else {
             None
@@ -2396,7 +2396,7 @@ impl TerminalExecution<'_> {
                 .capture_primitive_loan(&parameter, source, identity_cursor)
                 .map_err(|error| error.in_reference_formation("capture scalar backing"))?;
             if let Some(storage) = storage {
-                let stored_scalar = storage.stored_scalar.ok_or_else(malformed)?;
+                let stored_scalar = storage.stored_scalar.ok_or(malformed())?;
                 let crate::boundary::values::TerminalScalarValue::Integer {
                     scalar_type: offset_type,
                     value: semantic_vocabulary::IntegerValue::Unsigned(byte_offset),
@@ -2450,7 +2450,7 @@ impl TerminalExecution<'_> {
                         .array_loan
                         .map(|loan| -> Result<_, TerminalInterpretError> {
                             let attenuated =
-                                loan.subslice(0, loan.len(), access).ok_or_else(malformed)?;
+                                loan.subslice(0, loan.len(), access).ok_or(malformed())?;
                             Ok((backing.clone(), attenuated))
                         })
                         .transpose()?;
@@ -2491,12 +2491,12 @@ impl TerminalExecution<'_> {
                 .and_then(|region| region.array);
                 let mut backing_source = source.clone();
                 if array_window.is_some() {
-                    backing_source.path.pop().ok_or_else(malformed)?;
+                    backing_source.path.pop().ok_or(malformed())?;
                 }
                 let original_type = tip
                     .or(inline_byte)
                     .or_else(|| array_window.map(|window| window.declaration))
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let compatible = if array_window.is_some() {
                     terminal_semantics::reference_storage_region_source_compatible(
                         self.structural_types().values(),
@@ -2600,7 +2600,7 @@ impl TerminalExecution<'_> {
                 let array_offset = array_window.map_or(0, |window| window.byte_offset);
                 let byte_offset = relative_offset
                     .checked_add(usize::try_from(array_offset).map_err(|_| malformed())?)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let captured = self.reference_byte_region(&projected)?;
                 let resident_array = if captured.is_none()
                     && let Some(loan) = byte_loan.as_ref().filter(|loan| {
@@ -2643,7 +2643,7 @@ impl TerminalExecution<'_> {
                     }
                     let mut region =
                         AggregateViewRegion::whole(&self.structural_types(), referent_type)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                     region.byte_offset = u64::try_from(byte_offset).map_err(|_| malformed())?;
                     if let Some(AggregateViewTip::Aggregate { view, backing }) = projected_view {
                         if backing != projected.structural_type
@@ -2661,7 +2661,7 @@ impl TerminalExecution<'_> {
                         region.byte_offset = view
                             .byte_offset
                             .checked_add(region.byte_offset)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                     }
                     aggregate_view = Some(region);
                     region_referent = Some(projected);
@@ -2684,7 +2684,7 @@ impl TerminalExecution<'_> {
                             },
                         )
                     } else {
-                        let mut loan = byte_loan.ok_or_else(malformed)?;
+                        let mut loan = byte_loan.ok_or(malformed())?;
                         self.position_reference_storage(&mut loan, byte_offset, byte_length)
                             .map_err(|error| {
                                 error.in_reference_formation("position aggregate byte region")
@@ -2708,12 +2708,12 @@ impl TerminalExecution<'_> {
         let mut referent = match &primitive_loan {
             Some(loan) => loan.referent.clone(),
             None if collection_loan.is_some() => {
-                collection_loan.as_ref().ok_or_else(malformed)?.0.clone()
+                collection_loan.as_ref().ok_or(malformed())?.0.clone()
             }
             None if byte_owner_loan.is_some() => {
-                byte_owner_loan.as_ref().ok_or_else(malformed)?.0.clone()
+                byte_owner_loan.as_ref().ok_or(malformed())?.0.clone()
             }
-            None if region_referent.is_some() => region_referent.ok_or_else(malformed)?,
+            None if region_referent.is_some() => region_referent.ok_or(malformed())?,
             None => {
                 let (view, captured) = self
                     .resolve_live_access_projection(source)
@@ -3108,8 +3108,8 @@ impl TerminalExecution<'_> {
         let offset = usize::try_from(*index)
             .ok()
             .and_then(|index| index.checked_add(byte_offset))
-            .ok_or_else(malformed)?;
-        let mut region = AggregateViewRegion::whole(&types, referent_type).ok_or_else(malformed)?;
+            .ok_or(malformed())?;
+        let mut region = AggregateViewRegion::whole(&types, referent_type).ok_or(malformed())?;
         region.byte_offset = u64::try_from(offset).map_err(|_| malformed())?;
         let mut selected = StructuralRuntimePlace::from(&backing);
         selected
@@ -3146,7 +3146,7 @@ impl TerminalExecution<'_> {
         source: &StructuralArgument,
         storage: Option<terminal_psi::ReferenceStorageView>,
     ) -> Result<(), TerminalInterpretError> {
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
         // Formation owns the new permission's lifecycle. Shared type copy
         // permission governs later copies; use the same creation contract
         // as the producer and receiving semantics for this actual operation.
@@ -3155,7 +3155,7 @@ impl TerminalExecution<'_> {
             terminal_semantics::OperationSemanticTag::for_operation(&operation.kind),
         )
         .and_then(|row| row.schema().required_result_multiplicity())
-        .ok_or_else(malformed)?;
+        .ok_or(malformed())?;
         if result.multiplicity != declared
             || !result.qualifications.is_empty()
             || !result.claims.is_empty()
@@ -3574,7 +3574,7 @@ impl TerminalExecution<'_> {
                 .and_then(|backing| backing.array_loan.clone())
                 .or_else(|| self.element_view_values.get(&place).cloned()),
         )?
-        .ok_or_else(malformed)
+        .ok_or(malformed())
     }
 
     pub(crate) fn resolve_reference_view_path(
@@ -3634,7 +3634,7 @@ impl TerminalExecution<'_> {
                 .or_else(|| self.element_view_values.get(&place).cloned()),
         )?
         .map(|projection| projection.value)
-        .ok_or_else(malformed)
+        .ok_or(malformed())
     }
 
     fn resolve_reference_view_path_with_leaf_type(
@@ -3699,7 +3699,7 @@ impl TerminalExecution<'_> {
                 {
                     Some(
                         AggregateViewRegion::whole(&types, value.structural_type)
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                     )
                 }
                 None => None,
@@ -3710,7 +3710,7 @@ impl TerminalExecution<'_> {
                 Some(view) => {
                     let (path, view_tip) =
                         translate_aggregate_view_path(&types, view, value.structural_type, prefix)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                     translated = path;
                     tip = Some(view_tip);
                     translated.as_slice()
@@ -3741,7 +3741,7 @@ impl TerminalExecution<'_> {
                 AggregateViewTip::Scalar { .. } | AggregateViewTip::ScalarRegion { .. },
             ) = tip
             {
-                let view = active_view.ok_or_else(malformed)?;
+                let view = active_view.ok_or(malformed())?;
                 let projection_home = match collection_home {
                     Some((loan, selected)) => loan.captured_storage_home(&types, selected)?,
                     None => match supplying_array.as_ref() {
@@ -3834,10 +3834,7 @@ impl TerminalExecution<'_> {
                             else {
                                 return Err(malformed());
                             };
-                            Some(
-                                AggregateViewRegion::whole(&types, element)
-                                    .ok_or_else(malformed)?,
-                            )
+                            Some(AggregateViewRegion::whole(&types, element).ok_or(malformed())?)
                         }
                         None => None,
                         Some(
@@ -3870,7 +3867,7 @@ impl TerminalExecution<'_> {
                 let captured = self
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&value))
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 primitive_storage = captured
                     .primitive_loan
                     .as_ref()
@@ -4062,13 +4059,13 @@ impl TerminalExecution<'_> {
                     let parameter = parameters
                         .iter()
                         .find(|parameter| parameter.place == source.place)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if !access_covers(parameter.access, source.access)
                         || !access_covers(source.access, access)
                     {
                         return Err(malformed());
                     }
-                    let owner = arguments.get(&parameter.place).ok_or_else(malformed)?;
+                    let owner = arguments.get(&parameter.place).ok_or(malformed())?;
                     let binding = terminal_semantics::bind_reference_origin(
                         self.structural_types().values(),
                         owner.structural_type,
@@ -4339,7 +4336,7 @@ impl TerminalExecution<'_> {
                     *carrier_type,
                     path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if endpoint != referent_type {
                     return Err(malformed());
                 }

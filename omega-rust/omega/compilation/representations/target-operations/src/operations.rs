@@ -36,13 +36,6 @@ pub enum NativeCallOrigin {
         completion_claim_sources: Vec<CompletionClaimSource>,
         completion_receipts: Vec<CompletionReceipt>,
     },
-    TargetFamily {
-        boundary: BoundaryMachineId,
-        member: MachineId,
-        target: String,
-        completion_claim_sources: Vec<CompletionClaimSource>,
-        completion_receipts: Vec<CompletionReceipt>,
-    },
     InstalledProvider {
         boundary: BoundaryMachineId,
         provider: ProviderCandidateConformance,

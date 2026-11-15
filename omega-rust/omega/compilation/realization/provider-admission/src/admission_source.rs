@@ -18,7 +18,7 @@ use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
 use effects::provider_plan::ProviderPlanDigest;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_installation::{AdmittedComponentProvider, AdmittedTargetMachineSelections};
+use terminal_installation::{AdmittedComponentProvider, TerminalTargetContext};
 use terminal_psi::TerminalModule;
 
 use crate::{
@@ -30,7 +30,7 @@ use crate::{
 pub struct AdmissionSource<'a> {
     pub plan: &'a AbstractOperationPlan,
     pub closed_module: &'a terminal_codec::ClosedTerminalModule,
-    pub target_machine_selections: Option<&'a AdmittedTargetMachineSelections>,
+    pub target_context: Option<&'a TerminalTargetContext>,
     pub program_entry: Option<AdmittedProgramEntryCall>,
     pub private_entry_ram: &'a [terminal_installation::CheckedPrivateEntryRamRecipe],
 }
@@ -48,8 +48,8 @@ impl<'a> AdmissionSource<'a> {
         self.closed_module
     }
 
-    pub const fn target_machine_selections(&self) -> Option<&'a AdmittedTargetMachineSelections> {
-        self.target_machine_selections
+    pub const fn target_context(&self) -> Option<&'a TerminalTargetContext> {
+        self.target_context
     }
 
     pub const fn selected_program_entry_call(&self) -> Option<&AdmittedProgramEntryCall> {
@@ -62,38 +62,12 @@ impl<'a> AdmissionSource<'a> {
         self.private_entry_ram
     }
 
-    pub fn target_family_member(
-        &self,
-        boundary: BoundaryMachineId,
-    ) -> Result<Option<terminal_psi::TargetMachineCallable>, String> {
-        terminal_installation::admitted_boundary_member(
-            self.module(),
-            self.target_machine_selections,
-            boundary,
-        )
-    }
-
     pub fn selected_calling_abi_identity(
         &self,
         boundary: BoundaryMachineId,
     ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
-        let declaration =
-            selected_calling_boundary(self.module(), self.target_machine_selections, boundary)?;
+        let declaration = boundary;
         self.module().calling_abi_identity(declaration)
-    }
-}
-
-pub fn selected_calling_boundary(
-    module: &terminal_psi::TerminalModule,
-    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
-    boundary: semantic_vocabulary::BoundaryMachineId,
-) -> Result<semantic_vocabulary::BoundaryMachineId, String> {
-    match terminal_installation::admitted_boundary_member(module, targets, boundary)? {
-        Some(terminal_psi::TargetMachineCallable::Boundary(member)) => Ok(member),
-        Some(terminal_psi::TargetMachineCallable::Machine(_)) => {
-            Err("checked target-family member has no external calling declaration".into())
-        }
-        None => Ok(boundary),
     }
 }
 

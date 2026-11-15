@@ -135,7 +135,7 @@ pub(crate) mod byte_sequences {
                     Self::Immutable(bytes) => bytes.descriptor_home(),
                     binding => binding.descriptor_home(),
                 }
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if crate::boundary::values::StructuralRuntimePlace::from(home) != *source {
                     return Err(malformed());
                 }
@@ -212,7 +212,7 @@ pub(crate) mod byte_sequences {
             ) -> Result<(), TerminalInterpretError> {
                 self.validate_mutable_referent(
                     execution,
-                    self.descriptor_home().ok_or_else(malformed)?,
+                    self.descriptor_home().ok_or(malformed())?,
                 )
             }
 
@@ -397,7 +397,7 @@ pub(crate) mod byte_sequences {
                     } => self.stored_byte_array_read_view(
                         array,
                         usize::try_from(*offset).map_err(|_| malformed())?,
-                        usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
+                        usize::try_from(offset.checked_add(*length).ok_or(malformed())?)
                             .map_err(|_| malformed())?,
                     ),
                     ByteSequenceBinding::MutableField { field, .. } => {
@@ -427,7 +427,7 @@ pub(crate) mod byte_sequences {
                     }
                     _ => self.byte_descriptor_length(
                         binding,
-                        binding.descriptor_home().ok_or_else(malformed)?,
+                        binding.descriptor_home().ok_or(malformed())?,
                     ),
                 }
             }
@@ -442,7 +442,7 @@ pub(crate) mod byte_sequences {
                 }
                 self.reborrow_byte_sequence_binding(
                     binding,
-                    binding.descriptor_home().ok_or_else(malformed)?,
+                    binding.descriptor_home().ok_or(malformed())?,
                     StructuralAccess::SharedBorrow,
                 )?
                 .snapshot(self)
@@ -579,12 +579,12 @@ pub(crate) mod byte_sequences {
                         ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
                         binding => binding.descriptor_home(),
                     }
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     return matches(binding, home)
                         .then(|| capture(binding))
                         .map(ByteDescriptorSource::Stored)
                         .map(Some)
-                        .ok_or_else(malformed);
+                        .ok_or(malformed());
                 }
                 if argument.path.is_empty()
                     && let Some(binding) = self.byte_sequence_values.get(&argument.place)
@@ -596,7 +596,7 @@ pub(crate) mod byte_sequences {
                         .map(|_| capture(binding))
                         .map(ByteDescriptorSource::Stored)
                         .map(Some)
-                        .ok_or_else(malformed);
+                        .ok_or(malformed());
                 }
                 if let Some(binding) = self.captured_byte_owner_binding(selected) {
                     if matches!(
@@ -630,7 +630,7 @@ pub(crate) mod byte_sequences {
                         &crate::boundary::values::StructuralRuntimePlace::from(&parent),
                         case,
                     )?;
-                    let field = live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
+                    let field = live_field_by_identity(fields, *identity).ok_or(malformed())?;
                     if field.field_type.byte_sequence_carrier().is_some() {
                         let (cell, _) =
                             self.readable_byte_field(argument.place, prefix, field.id)?;
@@ -670,7 +670,7 @@ pub(crate) mod byte_sequences {
                     })
                     .map(ByteDescriptorSource::Stored)
                     .map(Some)
-                    .ok_or_else(malformed)
+                    .ok_or(malformed())
             }
 
             pub(crate) fn byte_descriptor_length(
@@ -1000,7 +1000,7 @@ pub(crate) mod byte_sequences {
                         .stored_byte_array_snapshot(
                             array,
                             usize::try_from(*offset).map_err(|_| malformed())?,
-                            usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
+                            usize::try_from(offset.checked_add(*length).ok_or(malformed())?)
                                 .map_err(|_| malformed())?,
                         )?
                         .with_original_array(
@@ -1079,13 +1079,13 @@ pub(crate) mod byte_sequences {
                 let (machine, values) = if *depth == self.call_stack.len() {
                     (self.current_machine, &self.byte_sequence_values)
                 } else {
-                    let frame = self.call_stack.get(*depth).ok_or_else(malformed)?;
+                    let frame = self.call_stack.get(*depth).ok_or(malformed())?;
                     (frame.current_machine, &frame.byte_sequence_values)
                 };
                 if machine != *expected_machine {
                     return Err(malformed());
                 }
-                values.get(place).ok_or_else(malformed)?.immutable()
+                values.get(place).ok_or(malformed())?.immutable()
             }
 
             pub(crate) fn byte_owner_bytes_mut(
@@ -1114,7 +1114,7 @@ pub(crate) mod byte_sequences {
                         &self.structural_values,
                     )
                 } else {
-                    let frame = self.call_stack.get(*depth).ok_or_else(malformed)?;
+                    let frame = self.call_stack.get(*depth).ok_or(malformed())?;
                     (
                         frame.current_machine,
                         &frame.byte_sequence_values,
@@ -1153,7 +1153,7 @@ pub(crate) mod byte_sequences {
                 operation: &Operation,
             ) -> Result<OperationFlow, TerminalInterpretError> {
                 operation_kind!(operation => EstablishByteSequenceConcatenation { left, right, .. });
-                let result = operation.result.structural().ok_or_else(malformed)?;
+                let result = operation.result.structural().ok_or(malformed())?;
                 let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
                     capacity,
                 }) = self.structural_declaration(result.structural_type)?.shape
@@ -1162,7 +1162,7 @@ pub(crate) mod byte_sequences {
                 };
                 let left = self.byte_sequence_operand_view(left)?;
                 let right = self.byte_sequence_operand_view(right)?;
-                let length = left.len().checked_add(right.len()).ok_or_else(malformed)?;
+                let length = left.len().checked_add(right.len()).ok_or(malformed())?;
                 if u64::try_from(length).map_err(|_| malformed())? > capacity {
                     return Err(malformed());
                 }
@@ -1384,7 +1384,7 @@ pub(crate) mod byte_sequences {
                 let TerminalScalarValue::Integer {
                     scalar_type,
                     value: IntegerValue::Unsigned(length),
-                } = self.values.get(length).ok_or_else(malformed)?
+                } = self.values.get(length).ok_or(malformed())?
                 else {
                     return Err(malformed());
                 };
@@ -1557,7 +1557,7 @@ pub(crate) mod byte_sequences {
                     if let Some(parameter) = machine.structural_parameter(root) {
                         (parameter.access, true)
                     } else {
-                        let declaration = machine.structural_place(root).ok_or_else(malformed)?;
+                        let declaration = machine.structural_place(root).ok_or(malformed())?;
                         let semantic_vocabulary::StructuralPlaceKind::OperationResult {
                             structural_type,
                             ..
@@ -1626,11 +1626,11 @@ pub(crate) mod byte_sequences {
                     &StructuralRuntimePlace::from(&parent),
                     selected_case,
                 )?;
-                let field_declaration = live_field_by_id(fields, field).ok_or_else(malformed)?;
+                let field_declaration = live_field_by_id(fields, field).ok_or(malformed())?;
                 let carrier = field_declaration
                     .field_type
                     .byte_sequence_carrier()
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 Ok((
                     StructuralByteSequenceRuntimeField {
                         parent: StructuralRuntimePlace::from(&parent),
@@ -1665,7 +1665,7 @@ pub(crate) mod byte_sequences {
                     root,
                     &source.path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if !matches!(selected.shape, StructuralTypeShape::FixedArray { .. })
                     || terminal_semantics::fixed_byte_extent(types.values(), selected.id).is_none()
                 {
@@ -1882,13 +1882,13 @@ pub(crate) mod byte_sequences {
             pub fn read(&self, byte_index: usize) -> Result<u8, TerminalInterpretError> {
                 match self.storage {
                     ByteStorage::Contiguous(bytes) => {
-                        bytes.get(byte_index).copied().ok_or_else(malformed)
+                        bytes.get(byte_index).copied().ok_or(malformed())
                     }
                     ByteStorage::Representation { reader, view } => {
                         reader.read_representation_byte(view, byte_index)
                     }
                     ByteStorage::Cells(values) => {
-                        let value = values.get(byte_index).ok_or_else(malformed)?.read()?;
+                        let value = values.get(byte_index).ok_or(malformed())?.read()?;
                         crate::boundary::structural_inputs::byte_arrays::storage::scalar_byte(
                             &value,
                         )
@@ -2088,7 +2088,7 @@ pub(crate) mod byte_sequences {
                 let mut storage = Self::zeroed(length, account)?;
                 let mut values = values.into_iter();
                 for byte in &mut storage.bytes {
-                    *byte = values.next().ok_or_else(malformed)??;
+                    *byte = values.next().ok_or(malformed())??;
                 }
                 if values.next().is_some() {
                     return Err(malformed());
@@ -2267,7 +2267,7 @@ pub(crate) mod byte_sequences {
                 let TerminalScalarValue::Integer {
                     value: IntegerValue::Unsigned(length),
                     ..
-                } = self.values.get(length).ok_or_else(malformed)?
+                } = self.values.get(length).ok_or(malformed())?
                 else {
                     return Err(malformed());
                 };
@@ -2320,7 +2320,7 @@ pub(crate) mod byte_sequences {
                     result.structural_type,
                     result.multiplicity,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let mutable = access == StructuralAccess::MutableBorrow;
                 self.validate_descriptor_borrow(source, access)?;
                 let source_value =
@@ -2451,7 +2451,7 @@ pub(crate) mod byte_sequences {
                             }
                             let narrowed = view
                                 .subslice(window.start, window.end, access)
-                                .ok_or_else(malformed)?;
+                                .ok_or(malformed())?;
                             ByteSequenceBinding::Representation(std::sync::Arc::new(
                                 narrowed.with_descriptor_home(destination.clone()),
                             ))
@@ -2465,7 +2465,7 @@ pub(crate) mod byte_sequences {
                             ByteSequenceBinding::Immutable(
                                 bytes
                                     .subslice(window.start, window.end)
-                                    .ok_or_else(malformed)?,
+                                    .ok_or(malformed())?,
                             )
                         }
                         ByteSequenceBinding::MutableArray {
@@ -2482,8 +2482,8 @@ pub(crate) mod byte_sequences {
                             if end > *length {
                                 return Err(malformed());
                             }
-                            let start = offset.checked_add(start).ok_or_else(malformed)?;
-                            let end = offset.checked_add(end).ok_or_else(malformed)?;
+                            let start = offset.checked_add(start).ok_or(malformed())?;
+                            let end = offset.checked_add(end).ok_or(malformed())?;
                             if usize::try_from(end).map_err(|_| malformed())?
                                 > self.stored_byte_array_length(array)?
                             {
@@ -2587,8 +2587,8 @@ pub(crate) mod byte_sequences {
                 }
                 let (structural_type, qualifications, projected_qualifications) =
                     if let Some((producer, structural_type)) = result {
-                        let operation = machine.operation(producer).ok_or_else(malformed)?;
-                        let result = operation.result.structural().ok_or_else(malformed)?;
+                        let operation = machine.operation(producer).ok_or(malformed())?;
+                        let result = operation.result.structural().ok_or(malformed())?;
                         if result_access(self.structural_types().values(), result)
                             != Some(StructuralAccess::MutableBorrow)
                             || result.place != place
@@ -2608,8 +2608,7 @@ pub(crate) mod byte_sequences {
                             &result.projected_qualifications,
                         )
                     } else {
-                        let parameter =
-                            machine.structural_parameter(place).ok_or_else(malformed)?;
+                        let parameter = machine.structural_parameter(place).ok_or(malformed())?;
                         if parameter.access != StructuralAccess::MutableBorrow
                             || (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                                 && !view_descriptor_parameter(
@@ -2658,7 +2657,7 @@ pub(crate) mod byte_sequences {
                 } = binding
                 {
                     let length = byte_array_length(&self.structural_types(), *array_type)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if self.stored_byte_array_length(array)? as u128 != u128::from(length) {
                         return Err(malformed());
                     }
@@ -2707,13 +2706,11 @@ pub(crate) mod byte_sequences {
                             parameter.multiplicity,
                         )
                     } else {
-                        let declaration = machine.structural_place(place).ok_or_else(malformed)?;
-                        let (producer, structural_type) = declaration
-                            .kind
-                            .as_operation_result()
-                            .ok_or_else(malformed)?;
-                        let operation = machine.operation(producer).ok_or_else(malformed)?;
-                        let result = operation.result.structural().ok_or_else(malformed)?;
+                        let declaration = machine.structural_place(place).ok_or(malformed())?;
+                        let (producer, structural_type) =
+                            declaration.kind.as_operation_result().ok_or(malformed())?;
+                        let operation = machine.operation(producer).ok_or(malformed())?;
+                        let result = operation.result.structural().ok_or(malformed())?;
                         if !matches!(
                             operation.kind,
                             OperationKind::EstablishByteSequenceConcatenation { .. }
@@ -2798,7 +2795,7 @@ pub(crate) mod byte_sequences {
             ) -> Result<u8, TerminalInterpretError> {
                 match self.byte_sequence_values.require(&source)? {
                     ByteSequenceBinding::Immutable(view) => {
-                        view.get(index).copied().ok_or_else(malformed)
+                        view.get(index).copied().ok_or(malformed())
                     }
                     binding @ ByteSequenceBinding::Representation(_) => {
                         self.byte_descriptor_length(binding, self.structural_value(source)?)?;
@@ -2816,7 +2813,7 @@ pub(crate) mod byte_sequences {
                                 let index = usize::try_from(offset)
                                     .ok()
                                     .and_then(|offset| offset.checked_add(index))
-                                    .ok_or_else(malformed)?;
+                                    .ok_or(malformed())?;
                                 self.stored_byte_array_read(&backing, index)
                             }
                             MutableByteSequenceStorage::Field(field) => self
@@ -2825,12 +2822,12 @@ pub(crate) mod byte_sequences {
                                 .immutable()?
                                 .get(index)
                                 .copied()
-                                .ok_or_else(malformed),
+                                .ok_or(malformed()),
                             MutableByteSequenceStorage::Owned(home) => self
                                 .byte_owner_bytes(&home)?
                                 .get(index)
                                 .copied()
-                                .ok_or_else(malformed),
+                                .ok_or(malformed()),
                         }
                     }
                 }
@@ -2873,19 +2870,19 @@ pub(crate) mod byte_sequences {
                         Some(
                             self.structural_byte_sequence_fields
                                 .get_mut(&field)
-                                .ok_or_else(malformed)?
+                                .ok_or(malformed())?
                                 .immutable_mut()?,
                         ),
                         byte_index,
                     ),
                     MutableByteSequenceStorage::Array { backing, offset } => {
                         let index =
-                            usize::try_from(offset.checked_add(byte_index).ok_or_else(malformed)?)
+                            usize::try_from(offset.checked_add(byte_index).ok_or(malformed())?)
                                 .map_err(|_| malformed())?;
                         return self.stored_byte_array_write(&backing, index, byte);
                     }
                 };
-                bytes.ok_or_else(malformed)?.replace_byte(
+                bytes.ok_or(malformed())?.replace_byte(
                     usize::try_from(backing_index).map_err(|_| malformed())?,
                     byte,
                 )?;
@@ -3080,13 +3077,13 @@ pub(crate) mod byte_sequences {
                 .window
                 .start
                 .checked_add(byte_index)
-                .ok_or_else(crate::boundary::errors::malformed)?;
+                .ok_or(crate::boundary::errors::malformed())?;
             if let Some(bytes) = Arc::get_mut(&mut self.backing) {
                 *bytes
                     .storage
                     .bytes_mut()
                     .get_mut(storage_index)
-                    .ok_or_else(crate::boundary::errors::malformed)? = value;
+                    .ok_or(crate::boundary::errors::malformed())? = value;
             } else {
                 let mut storage = storage::ByteSequenceStorage::copy(
                     self.bytes(),
@@ -3142,7 +3139,7 @@ pub(crate) mod element_views {
             ) -> Result<Self, TerminalInterpretError> {
                 let bytes = length
                     .checked_mul(std::mem::size_of::<TerminalStructuralValue>())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let payload_bytes = u64::try_from(bytes).map_err(|_| malformed())?;
                 let lease = account
                     .map(|account| account.reserve_storage(0, payload_bytes))
@@ -3157,7 +3154,7 @@ pub(crate) mod element_views {
                 })?;
                 let mut values = values.into_iter();
                 for _ in 0..length {
-                    let value = values.next().ok_or_else(malformed)??;
+                    let value = values.next().ok_or(malformed())??;
                     if !value.path.is_empty()
                         || !value.qualifications.is_empty()
                         || !value.projected_qualifications.is_empty()
@@ -3366,7 +3363,7 @@ pub(crate) mod element_views {
                             self.window
                                 .start
                                 .checked_add(element_index)
-                                .ok_or_else(malformed)?,
+                                .ok_or(malformed())?,
                             suffix,
                         )?,
                     })
@@ -3430,13 +3427,9 @@ pub(crate) mod element_views {
                 if position >= self.len() {
                     return Err(malformed());
                 }
-                let selected = self
-                    .window
-                    .start
-                    .checked_add(position)
-                    .ok_or_else(malformed)?;
+                let selected = self.window.start.checked_add(position).ok_or(malformed())?;
                 return Ok((
-                    elements.element(selected).ok_or_else(malformed)?.clone(),
+                    elements.element(selected).ok_or(malformed())?.clone(),
                     suffix.to_vec(),
                 ));
             }
@@ -3452,7 +3445,7 @@ pub(crate) mod element_views {
                 return Err(malformed());
             }
             if path.is_empty() {
-                let home = self.descriptor_home.as_ref().ok_or_else(malformed)?;
+                let home = self.descriptor_home.as_ref().ok_or(malformed())?;
                 let (_, length) = literal_fixed_array(types, collection.structural_type)?;
                 if home.structural_type != collection.structural_type
                     || self.window.start != 0
@@ -3470,7 +3463,7 @@ pub(crate) mod element_views {
             if index >= self.len() {
                 return Err(malformed());
             }
-            let selected = self.window.start.checked_add(index).ok_or_else(malformed)?;
+            let selected = self.window.start.checked_add(index).ok_or(malformed())?;
             let mut path = Vec::with_capacity(path.len());
             path.push(StructuralPathSegment::FixedIndex(
                 u64::try_from(selected).map_err(|_| malformed())?,
@@ -3489,7 +3482,7 @@ pub(crate) mod element_views {
             source: &crate::boundary::values::StructuralRuntimePlace,
             destination: &crate::boundary::values::StructuralRuntimePlace,
         ) -> Result<Self, TerminalInterpretError> {
-            let mut descriptor = self.descriptor_home.clone().ok_or_else(malformed)?;
+            let mut descriptor = self.descriptor_home.clone().ok_or(malformed())?;
             if crate::boundary::values::StructuralRuntimePlace::from(&descriptor) != *source {
                 return Err(malformed());
             }
@@ -3777,24 +3770,24 @@ pub(crate) mod element_views {
                 .window
                 .start
                 .checked_add(element_index)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if let ElementViewBacking::ImmutableSequence(elements) = &self.backing {
                 if writing || self.access != StructuralAccess::SharedBorrow {
                     return Err(malformed());
                 }
-                let element = elements.element(position).ok_or_else(malformed)?;
+                let element = elements.element(position).ok_or(malformed())?;
                 let scalar = terminal_semantics::primitive_read_projection_type(
                     execution.structural_types().values(),
                     element.structural_type,
                     suffix,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let path = terminal_semantics::canonical_primitive_read_path(
                     execution.structural_types().values(),
                     element.structural_type,
                     suffix,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 return execution.primitive_view_access(element, &path, scalar, true);
             }
             if let Some(home) = &self.home {
@@ -3817,7 +3810,7 @@ pub(crate) mod element_views {
                     collection.structural_type,
                     &selected,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 execution.resident_element_storage(collection, position, suffix, scalar, !writing)
             }
         }
@@ -3924,7 +3917,7 @@ pub(crate) mod element_views {
                         })
                     })
                 })
-                .ok_or_else(malformed)
+                .ok_or(malformed())
         }
 
         pub(crate) fn retire_unrestricted_views(&mut self) {
@@ -4066,8 +4059,7 @@ pub(crate) mod element_views {
             };
             let source = &backing_source;
             let root_type = self.live_structural_type(source.place)?;
-            let declared_source = match &machine.operation(operation.id).ok_or_else(malformed)?.kind
-            {
+            let declared_source = match &machine.operation(operation.id).ok_or(malformed())?.kind {
                 OperationKind::EstablishElementView { source, .. }
                 | OperationKind::EstablishMutableElementView { source, .. } => source,
                 _ => return Err(malformed()),
@@ -4099,7 +4091,7 @@ pub(crate) mod element_views {
                     region,
                     access,
                 )
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 else {
                     return Err(malformed());
                 };
@@ -4112,7 +4104,7 @@ pub(crate) mod element_views {
                         )?;
                         let view = self.element_view_argument(source, &selected)?;
                         view.subslice(0, view.len(), StructuralAccess::SharedBorrow)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                     }
                     terminal_semantics::CollectionExtent::Fixed(length) => {
                         let CollectionStorage {
@@ -4236,7 +4228,7 @@ pub(crate) mod element_views {
                     path: Vec::new(),
                 };
                 if descriptor.is_borrowed_byte_view() {
-                    let collection = collection.ok_or_else(malformed)?;
+                    let collection = collection.ok_or(malformed())?;
                     let bound = match collection.extent {
                         terminal_semantics::CollectionExtent::Fixed(length) => length,
                         terminal_semantics::CollectionExtent::LiveLength { capacity } => capacity,
@@ -4344,7 +4336,7 @@ pub(crate) mod element_views {
                 let resolved =
                     self.resolve_live_projection(source.place, &source.path, source.access)?;
                 let view = self.element_view_argument(source, &resolved)?;
-                Some(view.subslice(0, view.len(), access).ok_or_else(malformed)?)
+                Some(view.subslice(0, view.len(), access).ok_or(malformed())?)
             } else {
                 None
             };
@@ -4360,7 +4352,7 @@ pub(crate) mod element_views {
                         let binding = self.byte_descriptor_binding(source, &selected)?;
                         self.byte_descriptor_length(&binding, &selected)?
                     } else {
-                        u64::try_from(borrowed_view.as_ref().ok_or_else(malformed)?.len())
+                        u64::try_from(borrowed_view.as_ref().ok_or(malformed())?.len())
                             .map_err(|_| malformed())?
                     }
                 }
@@ -4434,7 +4426,7 @@ pub(crate) mod element_views {
                     };
                     let view = if let Some(window) = &selected_window {
                         view.subslice(window.start, window.end, access)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                     } else {
                         view
                     };
@@ -4520,7 +4512,7 @@ pub(crate) mod element_views {
                         StructuralAccess::MutableBorrow
                     },
                 )?
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if let Some(storage) = selected.primitive_storage {
                 let StructuralTypeShape::PrimitiveScalar(logical) = self
                     .structural_declaration(selected.value.structural_type)?
@@ -4539,7 +4531,7 @@ pub(crate) mod element_views {
                 collection.structural_type,
                 &path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             self.primitive_view_access(collection, canonical.as_slice(), scalar, shared)
         }
 
@@ -4577,11 +4569,11 @@ pub(crate) mod element_views {
             selected_path.extend_from_slice(prefix);
             let (parent, view) = self
                 .resolve_reference_view_path(
-                    collection.ok_or_else(malformed)?,
+                    collection.ok_or(malformed())?,
                     &selected_path,
                     access,
                 )?
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let Some(observed) =
                 self.scalar_field_at_carrier(parent, view, field_path, scalar_type)?
             else {
@@ -4614,7 +4606,7 @@ pub(crate) mod element_views {
                     .get(&field)
                     .map(crate::storage::scalar_storage::ScalarCell::read)
                     .transpose()?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if value.scalar_type() != stored_type {
                     return Err(malformed());
                 }
@@ -4651,7 +4643,7 @@ pub(crate) mod element_views {
             let ElementViewBacking::Structural { collection } = &view.backing else {
                 return Err(malformed());
             };
-            let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
+            let position = view.window.start.checked_add(index).ok_or(malformed())?;
             if let Some((field, stored_type)) = self.element_scalar_field(
                 Some(collection),
                 position,
@@ -4665,7 +4657,7 @@ pub(crate) mod element_views {
                 let stored = self
                     .structural_scalar_fields
                     .get_mut(&field)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if stored.scalar_type() != scalar.scalar_type() {
                     return Err(malformed());
                 }
@@ -4756,7 +4748,7 @@ pub(crate) mod element_views {
             operation: &Operation,
         ) -> Result<OperationFlow, TerminalInterpretError> {
             operation_kind!(operation => ElementViewLength { source });
-            let result = operation.result.scalar().ok_or_else(malformed)?;
+            let result = operation.result.scalar().ok_or(malformed())?;
             let integer_type =
                 IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
             if result.scalar_type != ScalarType::Integer(integer_type) {
@@ -4834,7 +4826,7 @@ pub(crate) mod element_views {
             operation: &Operation,
         ) -> Result<OperationFlow, TerminalInterpretError> {
             operation_kind!(operation => ElementViewRead { source, index, length, path, .. });
-            let result = operation.result.scalar().ok_or_else(malformed)?;
+            let result = operation.result.scalar().ok_or(malformed())?;
             let index = count(index, &self.values)?;
             let length = count(length, &self.values)?;
             let view = crate::engine::custody::verified_structural_place(
@@ -4854,7 +4846,7 @@ pub(crate) mod element_views {
             operation: &Operation,
         ) -> Result<(), TerminalInterpretError> {
             operation_kind!(operation => ElementViewSubslice { source, start, end, length, .. });
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             let start = count(start, &self.values)?;
             let end = count(end, &self.values)?;
             let length = count(length, &self.values)?;
@@ -4930,7 +4922,7 @@ pub(crate) mod element_views {
             destination.projected_qualifications = result.projected_qualifications.clone();
             let window = view
                 .subslice(start, end, access)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .with_descriptor_home(destination.clone());
             self.local_structural_identities
                 .commit_cursor(identity_cursor);
@@ -5016,13 +5008,13 @@ pub(crate) mod element_views {
                     .leaves
                     .iter()
                     .find(|leaf| leaf.path == path && leaf.scalar_type == expected)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let element = view
                     .window
                     .start
                     .checked_add(index)
                     .filter(|index| *index < self.length)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let stride = usize::try_from(self.layout.size).map_err(|_| malformed())?;
                 let offset = usize::try_from(leaf.offset).map_err(|_| malformed())?;
                 let width = scalar_width(closed_expected)?;
@@ -5033,7 +5025,7 @@ pub(crate) mod element_views {
                     .checked_mul(stride)
                     .and_then(|offset| self.start.checked_add(offset))
                     .and_then(|position| position.checked_add(offset))
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 Ok((position, leaf))
             }
         }
@@ -5052,12 +5044,12 @@ pub(crate) mod element_views {
                     collection,
                 )
                 .and_then(|extent| usize::try_from(extent).ok())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let layout = terminal_semantics::representation_element_layout(
                     self.structural_types().values(),
                     element,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let stride = usize::try_from(layout.size).map_err(|_| malformed())?;
                 if start > end
                     || end > extent
@@ -5151,7 +5143,7 @@ pub(crate) mod element_views {
                 )?;
                 let mut bits = 0_u64;
                 for byte_index in 0..scalar_width(self.closed_scalar(expected)?)? {
-                    let index = position.checked_add(byte_index).ok_or_else(malformed)?;
+                    let index = position.checked_add(byte_index).ok_or(malformed())?;
                     let byte = self.representation_storage_byte(&representation.storage, index)?;
                     bits |= u64::from(byte) << (byte_index * 8);
                 }
@@ -5166,11 +5158,9 @@ pub(crate) mod element_views {
                 match storage {
                     ByteStorage::Array { storage, offset } => self.stored_byte_array_read(
                         storage,
-                        offset.checked_add(index).ok_or_else(malformed)?,
+                        offset.checked_add(index).ok_or(malformed())?,
                     ),
-                    ByteStorage::Immutable(bytes) => {
-                        bytes.get(index).copied().ok_or_else(malformed)
-                    }
+                    ByteStorage::Immutable(bytes) => bytes.get(index).copied().ok_or(malformed()),
                     ByteStorage::Typed { source, layout } => {
                         let stride = usize::try_from(layout.size).map_err(|_| malformed())?;
                         if stride == 0 {
@@ -5212,7 +5202,7 @@ pub(crate) mod element_views {
                 }
                 let ratio = usize::try_from(source_layout.size / target_layout.size)
                     .map_err(|_| malformed())?;
-                let length = source.len().checked_mul(ratio).ok_or_else(malformed)?;
+                let length = source.len().checked_mul(ratio).ok_or(malformed())?;
                 Ok(RepresentationView {
                     storage: ByteStorage::Typed {
                         source: source.detached_descriptor(),
@@ -5247,7 +5237,7 @@ pub(crate) mod element_views {
                 let ByteStorage::Array { storage, offset } = &representation.storage else {
                     return Err(malformed());
                 };
-                let position = offset.checked_add(position).ok_or_else(malformed)?;
+                let position = offset.checked_add(position).ok_or(malformed())?;
                 let width = scalar_width(self.closed_scalar(scalar.scalar_type())?)?;
                 let extent = self.stored_byte_array_length(storage)?;
                 if position.checked_add(width).is_none_or(|end| end > extent) {
@@ -5314,7 +5304,7 @@ pub(crate) mod element_views {
                 scalar,
                 ScalarViewValue::Integer(IntegerValue::Unsigned(u128::from(bits))),
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             match (scalar, viewed) {
                 (ScalarType::Integer(scalar_type), ScalarViewValue::Integer(value)) => {
                     Ok(TerminalScalarValue::Integer { scalar_type, value })
@@ -5340,7 +5330,7 @@ pub(crate) mod element_views {
                 bit_carrier(closed_scalar)?,
                 value,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let ScalarViewValue::Integer(IntegerValue::Unsigned(bits)) = viewed else {
                 return Err(malformed());
             };
@@ -5501,7 +5491,7 @@ pub(crate) mod element_views {
                 if index >= view.len() {
                     return Err(malformed());
                 }
-                let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
+                let position = view.window.start.checked_add(index).ok_or(malformed())?;
                 let mut matching = self
                     .relation
                     .source_layout
@@ -5530,7 +5520,7 @@ pub(crate) mod element_views {
                 .or_else(|| {
                     ScalarRepresentationViewPair::classify(value.scalar_type(), target)?.view(input)
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             match (target, output) {
                 (ScalarType::Boolean, ScalarViewValue::Boolean(value)) => {
                     Ok(TerminalScalarValue::Boolean(value))
@@ -5558,7 +5548,7 @@ pub(crate) mod element_views {
                     target_element,
                     source.access,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let CollectionStorage {
                     collection, home, ..
                 } = self.element_collection_storage(source)?;
@@ -5592,7 +5582,7 @@ pub(crate) mod element_views {
                         .get(&field)
                         .map(crate::storage::scalar_storage::ScalarCell::read)
                         .transpose()?
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if value.scalar_type() != stored_type {
                         return Err(malformed());
                     }
@@ -5610,7 +5600,7 @@ pub(crate) mod element_views {
                         self.read_primitive_home(home.storage, &source_path, source.scalar_type)?
                     } else {
                         let (storage, logical, shared) = self.resident_element_storage(
-                            typed.collection.as_ref().ok_or_else(malformed)?,
+                            typed.collection.as_ref().ok_or(malformed())?,
                             position,
                             &source.path,
                             source.scalar_type,
@@ -5670,7 +5660,7 @@ pub(crate) mod element_views {
                     let stored = self
                         .structural_scalar_fields
                         .get_mut(&field)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if !checked_value(stored.read()?, source) {
                         return Err(malformed());
                     }
@@ -5682,7 +5672,7 @@ pub(crate) mod element_views {
                         self.store_primitive_home(home.storage, &source_path, value)
                     } else {
                         let (storage, logical, _) = self.resident_element_storage(
-                            typed.collection.as_ref().ok_or_else(malformed)?,
+                            typed.collection.as_ref().ok_or(malformed())?,
                             position,
                             &source.path,
                             source.scalar_type,

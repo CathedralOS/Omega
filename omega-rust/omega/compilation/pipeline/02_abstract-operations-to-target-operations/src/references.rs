@@ -1594,8 +1594,7 @@ mod stored_calls {
                         |machine, operation| {
                             functions
                                 .get(&machine)?
-                                .operations
-                                .iter()
+                                .operations()
                                 .find(|candidate| candidate.psi_operation() == Some(operation))
                         },
                     )

@@ -47,7 +47,7 @@ pub(super) fn prepare(
 
     let calls = super::super::selected_synchronous_call_graph(
         artifact.view(),
-        input.target_machine_selections(),
+        input.target_context(),
         input
             .selected_program_entry_call()
             .map(|entry| (entry.boundary(), entry.entry())),
@@ -62,7 +62,7 @@ pub(super) fn prepare(
         )?;
         Some(super::super::selected_synchronous_call_graph(
             artifact.view(),
-            input.target_machine_selections(),
+            input.target_context(),
             context.entry_bridge(),
             context.providers(),
             request.profile,
@@ -209,7 +209,6 @@ pub(super) fn prepare(
             registration,
             request.profile,
             request.installed_calling,
-            input.target_machine_selections(),
         )?;
         let table_type = declaration.structural_parameters[0].structural_type;
         let context_type = declaration.structural_parameters[5].structural_type;

@@ -3,8 +3,8 @@
 # builds and a semantic-free Python decoder: the Psi gates under tests/psi/
 # build their own harness packages around source/psi, and the product gates
 # under tests/product/ build their actual production application roots.
-# `gate.sh <name> <package-directory> <decoder.py>` reviews the package,
-# builds its program natively once and runs the decoder's cases against that
+# `gate.sh <name> <package-directory> <decoder.py>` builds the package's
+# program natively once, unlocked, and runs the decoder's cases against that
 # artifact.
 set -eu
 
@@ -29,26 +29,19 @@ if [ ! -x "$omega_cli" ]; then
     exit 1
 fi
 
-# The program entry needs this checkout's accepted lock. The lock and review
-# state are host-local and ignored; accepting every pending decision records
-# project acceptance for the measurement, not that an audit occurred
-# (mbx xtask sample-gate follows the same rule). Each run starts from
-# no accepted state, so a lock or review left by another checkout or
-# compiler can neither block the run nor stand in for its review.
-# Exit 3 reports pending review decisions, which the next step accepts.
+# The gate compiles its package once, with no lock. An unlocked project
+# compiles natively through the same package route and every language,
+# proof, representation and native check
+# (wiki/spec/packages/acceptance.md#ordinary-compilation); what it lacks is
+# accepted state: semantic bindings, restricted-build grants and receiver
+# permissions, none of which a gate Build asks for. Reviewing first with
+# `omega packages update` and accepting every decision unread compiled the
+# whole package graph a second time, and validated every unused std and psi
+# declaration, without auditing anything. A lock or review state left by
+# another checkout or compiler is removed so it can neither block the build
+# nor stand in for a review.
 rm -f "${gate:?}/omega.lock" "${gate:?}/omega.admissions"
 rm -rf "${gate:?}/build/package-manager"
-review_status=0
-"$omega_cli" packages update --project "$gate" --target "$target" || review_status=$?
-if [ "$review_status" -ne 0 ] && [ "$review_status" -ne 3 ]; then
-    exit "$review_status"
-fi
-review="$gate/build/package-manager/review-$target.txt"
-if [ -f "$review" ] && grep -Eq '^decision row [0-9a-f]+ pending$' "$review"; then
-    sed -E 's/^(decision row [0-9a-f]+) pending$/\1 accept/' "$review" > "$review.accepted"
-    mv "$review.accepted" "$review"
-    "$omega_cli" packages update --project "$gate" --resume
-fi
 
 gate_outputs="$gate/build/product-gates"
 mkdir -p "$gate_outputs"

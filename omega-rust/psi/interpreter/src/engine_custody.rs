@@ -75,9 +75,7 @@ pub(crate) mod field_stores {
                 parameter.access == StructuralAccess::Owned
                     && parameter.multiplicity == StructuralMultiplicity::Affine
             } else {
-                let declaration = machine
-                    .structural_place(destination)
-                    .ok_or_else(malformed)?;
+                let declaration = machine.structural_place(destination).ok_or(malformed())?;
                 let StructuralPlaceKind::OperationResult {
                     producer,
                     structural_type,
@@ -88,7 +86,7 @@ pub(crate) mod field_stores {
                 let result = machine
                     .operation(producer)
                     .and_then(|operation| operation.result.structural())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if result.place != destination || result.structural_type != structural_type {
                     return Err(malformed());
                 }
@@ -313,7 +311,7 @@ pub(crate) mod windows {
             let path = hole
                 .path
                 .strip_prefix(value.path.as_slice())
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .to_vec();
             Ok(Some(StructuralArgument {
                 place: root,
@@ -573,7 +571,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
         let machine = self.program.machine(self.current_machine)?;
         let root_type = machine
             .structural_place_type(argument.place)
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
         if machine
             .structural_parameter(argument.place)
             .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
@@ -1850,8 +1848,8 @@ pub(crate) fn split_affine_frontier_at_projection(
             selected
         }
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-            let active_case = case_membership(&current).ok_or_else(malformed)?;
-            let selected_case = find_structural_case(cases, active_case).ok_or_else(malformed)?;
+            let active_case = case_membership(&current).ok_or(malformed())?;
+            let selected_case = find_structural_case(cases, active_case).ok_or(malformed())?;
             let mut selected = None;
             for (case, fields) in declaration
                 .shape
@@ -2117,7 +2115,7 @@ pub(crate) fn resolve_single_structural_argument(
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
     resolve_structural_arguments(structural_types, values, std::slice::from_ref(argument))?
         .pop()
-        .ok_or_else(malformed)
+        .ok_or(malformed())
 }
 
 pub(crate) fn project_structural_value(

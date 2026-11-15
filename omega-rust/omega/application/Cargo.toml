@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+execution-admission = { path = "../../psi/foundation/execution-admission" }
 orchestration = { path = "../build-system/orchestration" }
 terminal-runtime = { path = "../interpreter/terminal-runtime" }
 mimalloc = { version = "0.1", default-features = false }

@@ -53,8 +53,8 @@ pub use calls::{
     MixedStructuralScalarFunctionAbi, NativeCallTarget, ScalarAbiValue, ScalarFunctionAbi,
     TargetAccessCallAssociation, TargetAccessCallBinding, TargetAccessInterpretation,
     TargetAccessViewInput, TargetBoundaryResult, TargetCallResult, TargetNativeCallbackArgument,
-    TargetOperationPlanWithAccessViewInputs, TargetStructuralResultContract,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, selector_carrier_type,
+    TargetStructuralResultContract, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    selector_carrier_type,
 };
 pub mod control_flow;
 pub use control_flow::{

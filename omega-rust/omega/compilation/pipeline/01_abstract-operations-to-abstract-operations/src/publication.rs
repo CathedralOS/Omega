@@ -14,7 +14,6 @@ pub(crate) mod error {
         FunctionRosterMismatch,
         InvalidFunctionParameter { machine: MachineId, position: usize },
         InvalidBlockParameter { machine: MachineId, position: usize },
-        OperationOffsetOverflow(MachineId),
         PsiSelectionProjectionMismatch,
         PrePhysicalManifest(PrePhysicalOptimizationManifestError),
     }
@@ -26,7 +25,7 @@ pub(crate) mod error {
 }
 pub(crate) mod source {
     pub(crate) mod function {
-        use abstract_operations::{AbstractBlockEntry, AbstractFunction};
+        use abstract_operations::{AbstractBlock, AbstractFunction};
         use optimization_unit::{PsiOptimizationFunction, ValueDefinitionSite};
 
         use super::project_parameter;
@@ -55,9 +54,7 @@ pub(crate) mod source {
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let mut operation_offset = 0usize;
-            let mut block_entries = Vec::with_capacity(unit.blocks.len());
-            let mut operations = Vec::new();
+            let mut blocks = Vec::with_capacity(unit.blocks.len());
             for block in &unit.blocks {
                 let parameters = block
                     .parameters
@@ -82,16 +79,16 @@ pub(crate) mod source {
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                block_entries.push(AbstractBlockEntry {
+                blocks.push(AbstractBlock {
                     structural_parameters: block.structural_parameters.clone(),
                     block: block.id,
                     parameters,
-                    operation_offset,
+                    operations: block
+                        .nodes
+                        .iter()
+                        .map(|node| node.operation.clone())
+                        .collect(),
                 });
-                operation_offset = operation_offset.checked_add(block.nodes.len()).ok_or(
-                    OptimizedAbstractProjectionError::OperationOffsetOverflow(unit.machine),
-                )?;
-                operations.extend(block.nodes.iter().map(|node| node.operation.clone()));
             }
             Ok(AbstractFunction {
                 machine: unit.machine,
@@ -104,8 +101,7 @@ pub(crate) mod source {
                 entry_claims: unit.entry_claim_declarations.clone(),
                 block_entry_claims: unit.block_entry_claims.clone(),
                 published_service_ceiling: unit.published_service_ceiling.clone(),
-                block_entries,
-                operations,
+                blocks,
             })
         }
     }

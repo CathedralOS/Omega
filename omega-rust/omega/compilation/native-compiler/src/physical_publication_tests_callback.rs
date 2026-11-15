@@ -19,7 +19,7 @@ use effects::provider_plan::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport, ProviderBinding,
-    ProviderPlan, ProviderPlanRow, ServiceCallingApplication, ServiceCallingPlan, ServiceMethod,
+    ProviderPlanRow, ServiceCallingApplication, ServiceCallingPlan, ServiceMethod,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use terminal_codec::CanonicalTerminalArtifact;
@@ -27,8 +27,7 @@ use terminal_psi::{
     BoundaryMachineResult, CallingAbiDeclaration, CallingAbiStorage, CallingCallbackBinder,
     CallingDirectCallback, CallingSignatureDeclaration, CallingSignatureTelescope,
     CheckedMachineDeclaration, NominalDeclarationIdentity, OperationKind, OperationResult,
-    TargetMachineCallable, TerminalCallbackApplication, TerminalIdentityTableBuilder,
-    TerminalMachineResult, Terminator,
+    TargetMachineCallable, TerminalCallbackApplication, TerminalMachineResult, Terminator,
 };
 
 const REGISTRAR: &str = "PhysicalFixture::register";
@@ -148,8 +147,7 @@ fn calling_application(requirement_identity: &str, callback: bool) -> BoundaryCa
 
 fn build_fixture() -> Fixture {
     let mut module = super::constant_artifact(true).semantic_module().clone();
-    let mut identities = TerminalIdentityTableBuilder::default();
-    identities.intern("PhysicalFixture::value");
+    let mut identities = module.identities.clone().into_builder();
     let registrar_name = identities.intern(REGISTRAR);
     let callback_name = identities.intern("PhysicalFixture::callback");
     let entry_name = identities.intern(ENTRY);
@@ -200,10 +198,8 @@ fn build_fixture() -> Fixture {
     module
         .boundary_machines
         .extend([value_boundary, entry_boundary]);
-    module.target_machine_families[0].canonical =
-        TargetMachineCallable::Boundary(BoundaryMachineId::new(2).unwrap());
-    module.target_machine_families[0].members[0].callable =
-        TargetMachineCallable::Machine(MachineId::new(3).unwrap());
+    module.provider_candidates[0].boundary = BoundaryMachineId::new(2).unwrap();
+    module.provider_candidates[0].candidate = MachineId::new(3).unwrap();
     module
         .callback_applications
         .push(TerminalCallbackApplication {
@@ -289,13 +285,10 @@ fn build_fixture() -> Fixture {
         terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
     let artifact =
         Arc::new(CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap());
-    let mut plan = ProviderPlan {
-        name: "physical-registrar".into(),
-        provider_type: "PhysicalProvider".into(),
-        target: "windows_x86_64".into(),
-        ..ProviderPlan::default()
-    };
-    plan.provider_application = plan.identities.intern("PhysicalProvider");
+    // Both operations belong to one slot, so its selected record contains the
+    // registrar import beside the checked value implementation.
+    let mut plan = super::checked_value_plan();
+    plan.name = "physical-registrar-and-value".into();
     let surface = Arc::make_mut(&mut plan.schema.declaration);
     surface.trait_name = surface.identities.intern("PhysicalFixture");
     surface.methods.push(ServiceMethod {
@@ -321,7 +314,13 @@ fn build_fixture() -> Fixture {
     plan.schema
         .calling_applications
         .push(ServiceCallingApplication {
-            requirement: plan.schema.declaration.methods[0].requirement_identity,
+            requirement: plan
+                .schema
+                .declaration
+                .methods
+                .last()
+                .unwrap()
+                .requirement_identity,
             abi: registrar.abi.clone(),
             plan: ServiceCallingPlan {
                 report_fingerprint: registrar.report_fingerprint,
@@ -331,6 +330,7 @@ fn build_fixture() -> Fixture {
                 ),
             },
         });
+    let provider_type = plan.provider_type.clone();
     let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
     let identity =
         function_identity::MachineFunctionIdentity::callback_thunk(artifact.view().identity(), 0)
@@ -372,7 +372,7 @@ fn build_fixture() -> Fixture {
             trait_name: "PhysicalFixture".into(),
             method: "register".into(),
             requirement_identity: REGISTRAR.into(),
-            provider_type: "PhysicalProvider".into(),
+            provider_type,
             calling_applications: vec![registrar.clone()],
             binding: ExternalBindingKind::Import { locator },
         }],
@@ -398,6 +398,11 @@ fn check_callback_publication(retain_body_source: bool) {
         admit_prepared_native_realization,
     };
     let fixture = build_fixture();
+    let adapters =
+        terminal_psi_to_abstract_operations::provider_admission::retain_selected_provider_adapters(
+            &fixture.selected,
+        )
+        .unwrap();
     let artifact = &fixture.artifact;
     let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
         artifact.manifest().semantic(),
@@ -431,7 +436,7 @@ fn check_callback_publication(retain_body_source: bool) {
             program_provider_context: None,
             installation_assumptions: &[],
             selected_provider_plans: &fixture.selected,
-            checked_adapters: &[],
+            checked_adapters: &adapters,
             external_binding_rows: &fixture.external,
             settlements: &settlements,
             compiler_builtins: &[],

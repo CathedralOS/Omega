@@ -1,3 +1,5 @@
+pub(crate) mod representation_geometry;
+
 /*
 Semantic judgments for structural reference origins, placed loan regions, reborrow custody, and
 reference access capabilities.
@@ -1918,7 +1920,7 @@ pub(crate) mod reference_origins {
             let mut exact = Vec::new();
             for step in steps {
                 match step {
-                    DescriptorContentsStep::Address(segment) => exact.push(segment.clone()),
+                    DescriptorContentsStep::Address(segment) => exact.push(*segment),
                     DescriptorContentsStep::AnyElement { element } => {
                         let collection = descriptor_location_type(types, root, &exact)
                             .ok_or("returned view contents have no typed collection")?;
@@ -3214,6 +3216,119 @@ pub(crate) mod reference_storage_geometry {
                 self.carriers,
                 &mut self.extents,
             )
+        }
+
+        pub fn source_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+        ) -> bool {
+            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                crate::structural_shape(self.types.clone(), reference)
+            else {
+                return false;
+            };
+            let Some(source_shape) = crate::structural_shape(self.types.clone(), source) else {
+                return false;
+            };
+            let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+            if !integer.is_address() && integer.bits() == Some(8)
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+            let Some(target) = crate::structural_shape(self.types.clone(), *referent) else {
+                return false;
+            };
+            match (stored, target) {
+                (Some(stored), StructuralTypeShape::PrimitiveScalar(logical)) => {
+                    let StructuralTypeShape::PrimitiveScalar(source) = source_shape else {
+                        return false;
+                    };
+                    (byte_endpoint
+                        || source == logical
+                        || crate::scalar_reference_view_is_total(*source, *logical))
+                        && crate::reference_storage_view_is_compatible(stored, *logical)
+                }
+                (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
+                    crate::references::reference_views::plain_storage(
+                        self.types.clone(),
+                        *referent,
+                        &mut Vec::new(),
+                    ) && (byte_endpoint
+                        || crate::references::reference_views::plain_storage(
+                            self.types.clone(),
+                            source,
+                            &mut Vec::new(),
+                        ) && self.layout(source).ok().is_some_and(|layout| {
+                            let target_layout = self.layout(*referent).ok();
+                            Some(layout) == target_layout
+                                || crate::references::reference_views::storage_scalars_satisfy(
+                                    self.types.clone(),
+                                    *referent,
+                                    &mut Vec::new(),
+                                    &crate::references::reference_views::is_byte_scalar,
+                                ) && target_layout.is_some_and(|target| {
+                                    layout.0 == target.0
+                                        && target.1 != 0
+                                        && layout.1 % target.1 == 0
+                                })
+                        }))
+                }
+                _ => false,
+            }
+        }
+
+        pub fn view_source_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            path: &[StructuralPathSegment],
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+        ) -> bool {
+            if matches!(path.last(), Some(StructuralPathSegment::FixedRange { .. })) {
+                return self.region_source_compatible(source, path, reference, stored);
+            }
+            let Some(region) = self.region(source, path) else {
+                return false;
+            };
+            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                crate::structural_shape(self.types.clone(), reference)
+            else {
+                return false;
+            };
+            let Ok((target_size, target_align)) = self.layout(*referent) else {
+                return false;
+            };
+            let Ok((_, source_align)) = self.layout(source) else {
+                return false;
+            };
+            let width = match stored {
+                Some(stored) => {
+                    if region
+                        .scalar
+                        .is_none_or(|scalar| scalar.stored_scalar != stored)
+                    {
+                        return false;
+                    }
+                    match crate::reference_storage_byte_width(stored) {
+                        Some(width) => u64::from(width),
+                        None => return false,
+                    }
+                }
+                None => target_size,
+            };
+            if region.byte_length != width
+                || target_align == 0
+                || !source_align.is_multiple_of(target_align)
+                || !region.byte_offset.is_multiple_of(target_align)
+            {
+                return false;
+            }
+            let tip = crate::runtime_structural_path_tip(self.types.clone(), source, path)
+                .map(|row| row.id)
+                .or_else(|| {
+                    crate::primitive_projection_declaration(self.types.clone(), source, path)
+                });
+            tip.is_some_and(|tip| self.source_compatible(tip, reference, stored))
         }
 
         pub fn region_source_compatible(
@@ -4738,7 +4853,6 @@ pub(crate) mod reference_views {
 
     use crate::descriptors::descriptor_results::descriptor_value_access;
     use crate::exactly_one::exactly_one;
-    use crate::reference_storage_layout;
     use crate::runtime_structural_path_tip;
     use semantic_vocabulary::IntegerSign;
     use semantic_vocabulary::{ScalarType, StructuralTypeId};
@@ -5296,54 +5410,10 @@ pub(crate) mod reference_views {
         reference: StructuralTypeId,
         stored: Option<ScalarType>,
     ) -> bool {
-        let Some(StructuralTypeShape::Reference { referent, .. }) =
-            crate::structural_shape(types.clone(), reference)
-        else {
-            return false;
-        };
-        let Some(source_shape) = crate::structural_shape(types.clone(), source) else {
-            return false;
-        };
-        let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-            if !integer.is_address() && integer.bits() == Some(8)
-                && integer.sign() == IntegerSign::Unsigned);
-        let Some(target) = crate::structural_shape(types.clone(), *referent) else {
-            return false;
-        };
-        match (stored, target) {
-            (Some(stored), StructuralTypeShape::PrimitiveScalar(logical)) => {
-                let StructuralTypeShape::PrimitiveScalar(source) = source_shape else {
-                    return false;
-                };
-                (byte_endpoint
-                    || source == logical
-                    || scalar_reference_view_is_total(*source, *logical))
-                    && reference_storage_view_is_compatible(stored, *logical)
-            }
-            (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
-                plain_storage(types.clone(), *referent, &mut Vec::new())
-                    && (byte_endpoint
-                        || plain_storage(types.clone(), source, &mut Vec::new())
-                            && reference_storage_layout(types.clone(), source).is_some_and(
-                                |layout| {
-                                    let target_layout =
-                                        reference_storage_layout(types.clone(), *referent);
-                                    Some(layout) == target_layout
-                                        || storage_scalars_satisfy(
-                                            types.clone(),
-                                            *referent,
-                                            &mut Vec::new(),
-                                            &is_byte_scalar,
-                                        ) && target_layout.is_some_and(|target| {
-                                            layout.0 == target.0
-                                                && target.1 != 0
-                                                && layout.1 % target.1 == 0
-                                        })
-                                },
-                            ))
-            }
-            _ => false,
-        }
+        crate::ReferenceStorageGeometry::new(types, |application| {
+            Err(crate::StorageGeometryError::UnresolvedExtent(application))
+        })
+        .source_compatible(source, reference, stored)
     }
 
     pub(crate) fn plain_storage<'types>(
@@ -5356,12 +5426,12 @@ pub(crate) mod reference_views {
         })
     }
 
-    fn is_byte_scalar(scalar: ScalarType) -> bool {
+    pub(super) fn is_byte_scalar(scalar: ScalarType) -> bool {
         matches!(scalar, ScalarType::Integer(integer) if !integer.is_address()
             && integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned)
     }
 
-    fn storage_scalars_satisfy<'types>(
+    pub(super) fn storage_scalars_satisfy<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
         active: &mut Vec<StructuralTypeId>,

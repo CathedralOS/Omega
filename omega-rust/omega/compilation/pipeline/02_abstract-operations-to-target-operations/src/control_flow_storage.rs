@@ -312,8 +312,7 @@ pub(crate) mod aggregate_results {
                 (home.structural_type(), home.multiplicity())
             } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
                 let mut producers = function
-                    .operations
-                    .iter()
+                    .operations()
                     .filter(|operation| operation.psi_operation() == Some(*producer));
                 let operation = producers
                     .next()
@@ -1013,7 +1012,7 @@ pub(crate) mod borrowed_windows {
         terminal_semantics::structural_window_origins(
             function.structural_parameters.iter().chain(
                 function
-                    .block_entries
+                    .blocks
                     .iter()
                     .flat_map(|block| &block.structural_parameters),
             ),
@@ -1185,7 +1184,7 @@ pub(crate) mod byte_concatenation {
                     )?;
                     if source.access != StructuralAccess::SharedBorrow
                         || authority.access == StructuralAccess::WriteOnlyBorrow
-                        || !function.operations.iter().any(|candidate| {
+                        || !function.operations().any(|candidate| {
                             matches!(candidate,
                         AbstractOperation::StructuralByteSequenceFieldLength {
                             source: measured, path, field: measured_field, result, ..
@@ -1605,7 +1604,7 @@ pub(crate) mod byte_write {
             path,
             *field,
         )?;
-        if !function.operations.iter().any(|operation| matches!(operation,
+        if !function.operations().any(|operation| matches!(operation,
         AbstractOperation::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
         if source == destination && terminal_semantics::structural_paths_select_same_location(measured_path, path) && measured_field == field && result.value == *length))
     { return Err(LoweringError::unsupported_control_flow(function.machine)); }
@@ -1931,14 +1930,14 @@ pub(crate) mod leaf_copy {
                 source,
                 root_type,
                 result,
-                function.operations.iter(),
+                function.operations(),
             );
         let occurrence_access = match path {
             abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => function
                 .arrival_parameter(source)
                 .map(|parameter| parameter.access)
                 .or_else(|| {
-                    function.operations.iter().find_map(|operation| {
+                    function.operations().find_map(|operation| {
                         let declaration = operation.structural_storage()?;
                         (declaration.place == source).then(|| {
                             terminal_semantics::descriptor_results::descriptor_value_access(
@@ -2692,7 +2691,7 @@ pub(crate) mod observations {
                 )?;
                 if source.access != terminal_psi::StructuralAccess::SharedBorrow
                     || authority.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-                    || !function.operations.iter().any(|candidate| {
+                    || !function.operations().any(|candidate| {
                         matches!(candidate,
                     AbstractOperation::StructuralByteSequenceFieldLength {
                         source: measured, path, field: measured_field, result, ..
@@ -2997,7 +2996,7 @@ pub(crate) mod primitive_storage {
                 )?;
                 if argument.access == StructuralAccess::WriteOnlyBorrow
                 || result.scalar_type != unsigned(function, 8)?
-                || !function.operations.iter().any(|operation| matches!(operation,
+                || !function.operations().any(|operation| matches!(operation,
                     AbstractOperation::StructuralByteSequenceFieldLength { source: measured, path: measured_path, field: measured_field, result: measured_result, .. }
                     if measured == source && terminal_semantics::structural_paths_select_same_location(measured_path, path) && measured_field == field && measured_result.value == *length))
             {
