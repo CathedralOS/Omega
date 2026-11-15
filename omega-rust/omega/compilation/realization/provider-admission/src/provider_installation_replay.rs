@@ -110,8 +110,15 @@ pub(super) fn replay_installed_provider_calls(
                     || declaration.identity != provider.requirement_identity
                     || declaration.completion
                         != semantic_vocabulary::BoundaryCompletion::External(*kind)
-                    || !declaration.result.is_unit()
-                    || candidate.result != terminal_psi::TerminalMachineResult::Unit
+                    || !declaration.result.accepts_provider_result(
+                        &candidate.result,
+                        declaration.identity,
+                        declaration
+                            .declaration
+                            .as_ref()
+                            .map(|callable| callable.source.semantic_declaration),
+                        &module.structural_domains,
+                    )
                     || declaration.scalar_parameters.len() != arguments.len()
                     || declaration.structural_parameters.len() != structural_arguments.len()
                     || candidate.parameters.len() != arguments.len()

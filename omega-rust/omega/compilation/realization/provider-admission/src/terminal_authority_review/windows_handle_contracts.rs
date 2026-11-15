@@ -350,7 +350,8 @@ fn process_exit_signature(declaration: &BoundaryMachineDeclaration) -> bool {
         && declaration.scalar_parameters.len() == 1
         && integer_matches(declaration.scalar_parameters[0], IntegerSign::Signed, 32)
         && declaration.structural_parameters.is_empty()
-        && declaration.result.is_unit()
+        // External completion has no physical result. The checked declaration
+        // retains its empty semantic carrier; admission owns that type proof.
         && matches!(
             declaration.completion,
             terminal_psi::BoundaryCompletion::External(

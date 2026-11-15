@@ -5,6 +5,7 @@
 // (`omega::language::core::process_exit`); this module contributes the named
 // implementation each target selects by default. Each selected target
 // contributes its irreducible native exit leaf and its provider default.
+use omega::language::core::Never;
 use omega::language::core::ProcessExit;
 
 // Namespace of the exact native exit leaves. This data declaration is not a
@@ -17,7 +18,10 @@ public data ProcessExitNativeProvider { }
 // canonical requirement preserves the terminal outcome and the exact i32
 // status; it does not grant the caller exit authority.
 public NativeProcessExit satisfies ProcessExit {
-    machine exit_process(return_code: i32) reaches ProcessExit {
+    machine exit_process(return_code: i32) -> Never
+    reaches ProcessExit
+    crashes none
+    terminates {
         ProcessExitNativeProvider::exit_process(return_code);
     }
 }

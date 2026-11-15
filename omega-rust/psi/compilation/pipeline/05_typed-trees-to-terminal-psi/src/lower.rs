@@ -267,6 +267,25 @@ pub(crate) fn boundary(
             )
         }
     };
+    let completion = signatures.completion(id, caller)?;
+    // The terminal identity does not make an ordinary result empty. Retain the
+    // declared Never carrier and prove its default domain before publishing;
+    // the legacy Unit adapter remains a separate, already admitted surface.
+    if matches!(
+        completion,
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) && !match &result {
+        terminal_psi::BoundaryMachineResult::Unit => true,
+        terminal_psi::BoundaryMachineResult::Structural(result) => {
+            records.inhabitation.status(result.structural_type)
+                == terminal_semantics::inhabitation::Status::ProvedEmpty
+        }
+        terminal_psi::BoundaryMachineResult::Scalar(_) => false,
+    } {
+        return Err(unavailable(
+            "external completion has no empty declared result",
+        ));
+    }
     Ok(terminal_psi::BoundaryMachineDeclaration {
         id,
         identity: metadata.1.source.callable,
@@ -275,7 +294,7 @@ pub(crate) fn boundary(
         numeric_intrinsic: None,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
         kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
-        completion: signatures.completion(id, caller)?,
+        completion,
         unconditional_termination: signature.termination != crate::Termination::Silent,
         attachment: None,
         parameter_order: formals.order,

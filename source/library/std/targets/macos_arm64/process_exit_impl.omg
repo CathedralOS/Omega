@@ -4,9 +4,11 @@
 // symbol, normalized signature, package custody, and selected target; the
 // canonical requirement identity lives in
 // `omega::language::core::process_exit`.
+use omega::language::core::Never;
 use omega::language::core::ProcessExit;
-macos_arm64 boundary machine ProcessExitNativeProvider::exit_process(return_code: i32)
-    satisfies ProcessExit::exit_process;
+macos_arm64 boundary machine ProcessExitNativeProvider::exit_process(return_code: i32) -> Never
+    satisfies ProcessExit::exit_process
+    terminates;
 
 macos_arm64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
     ProcessExitNativeProvider::select_provider<ProcessExit, NativeProcessExit>(defaults);

@@ -123,6 +123,60 @@ fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
 }
 
 #[test]
+fn canonical_process_exit_publishes_never_without_a_receiving_value() {
+    let accepted = accepted(
+        "use omega::language::core::Never; \
+         use omega::language::core::ProcessExit; \
+         public machine finish(status: i32) -> Never \
+         reaches ProcessExit crashes none terminates { \
+             ProcessExit::exit_process(status); \
+         } \
+         machine main() reaches ProcessExit crashes none terminates { \
+             let unreachable_value: u32 = finish(0); \
+         }",
+    );
+    check_no_normal(&accepted);
+    let module = &accepted.elaboration.module;
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    let [boundary] = module.boundary_machines.as_slice() else {
+        panic!("the exact canonical boundary is retained");
+    };
+    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+        panic!("the declared result is ordinary core Never, not Unit");
+    };
+    assert_eq!(query.status(result.structural_type), Status::ProvedEmpty);
+    assert!(boundary.unconditional_termination);
+    assert_eq!(
+        boundary.completion,
+        semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        ),
+    );
+    assert!(module.operations().all(|operation| !matches!(
+        operation.kind,
+        terminal_psi::OperationKind::BoundaryCall { .. },
+    )));
+
+    // Keeping terminal identity cannot authenticate a substituted inhabited
+    // result. Receiving reconstructs the type proof rather than trusting it.
+    let mut inhabited = module.clone();
+    inhabited
+        .structural_types
+        .iter_mut()
+        .find(|ty| ty.id == result.structural_type)
+        .unwrap()
+        .requires
+        .clear();
+    let error = terminal_codec::ClosedTerminalModule::new(inhabited)
+        .expect_err("an inhabited result cannot justify external completion");
+    assert!(
+        format!("{error:?}").contains("canonical process-exit signature"),
+        "{error:?}",
+    );
+}
+
+#[test]
 fn a_first_empty_match_arm_does_not_choose_the_common_or_inferred_type() {
     for matched in [
         "match fatal { true -> halt() false -> value }",
