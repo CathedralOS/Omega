@@ -782,6 +782,77 @@ machine entry() crashes none {
     };
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert_eq!(refused.detail, "an invocation row names another callee");
+
+    let mut missing_lifetimes = prepare();
+    let TerminalCompilation::Prepared(prepared) = &mut missing_lifetimes else {
+        panic!("the selected program prepares");
+    };
+    let module = &mut prepared.closure.as_mut().unwrap().module;
+    let (caller, operation, callee, required) = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine.operations().find_map(|operation| {
+                let callee = operation.kind.declared_invocation()?.callee;
+                let semantic_vocabulary::TargetMachineCallable::Machine(target) = callee else {
+                    return None;
+                };
+                Some((
+                    machine.id,
+                    operation.id,
+                    target,
+                    operation.required_contract?,
+                ))
+            })
+        })
+        .expect("the selected call has its exact public header and callee");
+    assert!(
+        terminal_semantics::selected_reference_result(module, caller, callee, required).is_ok()
+    );
+    let mut erased = 0;
+    for method in module
+        .closed_conformance_applications
+        .iter_mut()
+        .flat_map(|application| &mut application.static_applications)
+        .filter(|method| {
+            method.callable == semantic_vocabulary::TargetMachineCallable::Machine(callee)
+        })
+    {
+        erased += usize::from(method.result_lifetimes.take().is_some());
+    }
+    assert_eq!(
+        erased, 1,
+        "erase only the selected method's lifetime groups"
+    );
+    let reason = "selected reference result has an unresolved declared lifetime frontier";
+    assert_eq!(
+        terminal_semantics::selected_reference_result(module, caller, callee, required).err(),
+        Some(reason),
+    );
+    let Err(graph_refusal) =
+        terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+            module,
+            [caller],
+            &[],
+        )
+    else {
+        panic!("the descriptor graph must refuse the missing lifetimes");
+    };
+    assert_eq!(graph_refusal.machine(), caller);
+    assert_eq!(graph_refusal.operation(module), Some(operation));
+    let detail = graph_refusal.in_module(module);
+    assert!(detail.starts_with(reason), "{detail}");
+    let rejected = crate::judge_compilation(missing_lifetimes).remove(0);
+    let Ok(RouteVerdict::FallBack(refused)) = rejected else {
+        panic!("missing lifetime evidence must refuse the selected call: {rejected:?}");
+    };
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(refused.machine, caller);
+    assert_eq!(
+        refused.concerns,
+        terminal_check_tables::Construct::Operation(operation)
+    );
+    assert_eq!(refused.detail, detail);
 }
 
 #[test]

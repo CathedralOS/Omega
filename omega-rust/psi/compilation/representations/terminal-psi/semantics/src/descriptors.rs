@@ -12702,6 +12702,7 @@ pub mod descriptor_results {
             // Setup has no operation; keep it machine-scoped rather than
             // attributing it to a previously visited body or instruction.
             let mut position = None;
+            let mut detail = None;
             adapt_flow(
                 module,
                 machine,
@@ -12709,10 +12710,12 @@ pub mod descriptor_results {
                 selected_calls,
                 selector_graph,
                 &mut position,
+                &mut detail,
             )
             .ok_or(super::DescriptorGraphError::IncompleteMachine {
                 machine: machine.id,
                 position,
+                detail,
             })
         }
 
@@ -12723,6 +12726,7 @@ pub mod descriptor_results {
             selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
             selector_graph: Option<&[DescriptorMachine]>,
             failure_position: &mut Option<DescriptorPosition>,
+            failure_detail: &mut Option<&'static str>,
         ) -> Option<DescriptorMachine> {
             let scalar_expressions =
                 super::payload_predicates::TerminalScalarExpressions::new(machine);
@@ -13897,6 +13901,7 @@ pub mod descriptor_results {
                                 let public = crate::selected_reference_result(
                                     module, machine.id, callee, required,
                                 )
+                                .inspect_err(|detail| *failure_detail = Some(*detail))
                                 .ok()?;
                                 let mut call = public_invocation(
                                     operation.id,
@@ -15360,6 +15365,7 @@ pub mod descriptor_results {
         IncompleteMachine {
             machine: MachineId,
             position: Option<DescriptorPosition>,
+            detail: Option<&'static str>,
         },
     }
 
@@ -15384,6 +15390,7 @@ pub mod descriptor_results {
             let Self::IncompleteMachine {
                 machine,
                 position: Some((block, index)),
+                ..
             } = self
             else {
                 return None;
@@ -15425,11 +15432,14 @@ pub mod descriptor_results {
                     formatter,
                     "descriptor storage closure has no unique machine {machine:?}"
                 ),
-                Self::IncompleteMachine { machine, position } => {
-                    write!(
-                        formatter,
-                        "descriptor storage flow cannot be reconstructed for machine {machine:?}"
-                    )?;
+                Self::IncompleteMachine {
+                    machine,
+                    position,
+                    detail,
+                } => {
+                    let detail =
+                        detail.unwrap_or("descriptor storage flow cannot be reconstructed");
+                    write!(formatter, "{detail} for machine {machine:?}")?;
                     if let Some((block, index)) = position {
                         write!(formatter, " at block {block:?}, position {index}")?;
                     }
