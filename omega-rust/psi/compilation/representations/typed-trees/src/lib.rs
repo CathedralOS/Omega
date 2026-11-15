@@ -1203,7 +1203,7 @@ impl PartialEq for ProgramIdentity {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 #[record(write_scope = crate::type_identity::write_under_own_numbering)]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
@@ -1250,6 +1250,85 @@ pub struct TypedTrees {
     pub constant_recipe_closure: constant_recipes::ConstantRecipeClosure,
     pub callable_identities: OwnedInterner<crate::type_identity::CallableIdentityTable>,
     pub type_identities: crate::type_identity::TypeIdentityTable,
+}
+
+impl Clone for TypedTrees {
+    fn clone(&self) -> Self {
+        self.clone_with_symbols(self.symbols.clone())
+    }
+}
+
+impl TypedTrees {
+    /// Install the continuation's symbols without copying the old symbol table
+    /// that they replace. Other storage follows its owner's clone contract.
+    /// The caller must establish the replacement's source authority first.
+    pub fn with_replaced_symbols(
+        mut self: std::sync::Arc<Self>,
+        symbols: SymbolTable,
+    ) -> std::sync::Arc<Self> {
+        if let Some(program) = std::sync::Arc::get_mut(&mut self) {
+            program.symbols = symbols;
+            return self;
+        }
+        let program = match std::sync::Arc::try_unwrap(self) {
+            Ok(mut program) => {
+                program.symbols = symbols;
+                program
+            }
+            Err(program) => program.clone_with_symbols(symbols),
+        };
+        std::sync::Arc::new(program)
+    }
+
+    fn clone_with_symbols(&self, symbols: SymbolTable) -> Self {
+        macro_rules! clone_storage {
+            ($($field:ident),+ $(,)?) => {{
+                let Self { identity, symbols: _, $($field,)+ } = self;
+                Self { identity: *identity, symbols, $($field: $field.clone(),)+ }
+            }};
+        }
+        clone_storage!(
+            product_declaration_frontier,
+            excluded_authored_selection_occurrences,
+            roots,
+            tables,
+            service_reaches,
+            service_reach_rows,
+            authored_service_reach_rows,
+            semantic_domains,
+            applied_domain_applications,
+            applied_data_cleanup_selections,
+            external_bindings,
+            plan_laid_layouts,
+            plan_laid_target_layouts,
+            plan_laid_schema_fields,
+            plan_laid_retired_field_identities,
+            access_view_plans,
+            access_lifecycle_plans,
+            access_policy_invocations,
+            access_borrow_factories,
+            wire_placements,
+            wire_encode_obligations,
+            wire_schema_plans,
+            machine_specializations,
+            captured_machine_applications,
+            captured_machine_states,
+            trait_implementation_applications,
+            data_implementation_applications,
+            target_machine_families,
+            deferred_refusals,
+            evidence_forwardings,
+            proof_output_calls,
+            declaration_indexes,
+            ranking_expression_custody,
+            pending_const_range_endpoints,
+            constant_recipes,
+            constant_expression_contexts,
+            constant_recipe_closure,
+            callable_identities,
+            type_identities,
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -1730,4 +1809,64 @@ pub mod source_subjects;
 
 pub mod typed_trees {
     pub use crate::*;
+}
+
+#[cfg(test)]
+mod continuation_storage_tests {
+    use super::TypedTrees;
+    use crate::expression::ExpressionNode;
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+
+    fn symbols(name: &str) -> SymbolTable {
+        let mut builder = SymbolTableBuilder::new();
+        builder.insert_root(SymbolKind::Machine, SymbolNameRef::Borrowed(name));
+        builder.finish()
+    }
+
+    #[test]
+    fn shared_continuation_moves_replacement_symbols_and_preserves_the_predecessor() {
+        let mut original = TypedTrees {
+            symbols: symbols("old"),
+            ..Default::default()
+        };
+        let expression = original
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let original = Arc::new(original);
+        let predecessor = Arc::clone(&original);
+        let replacement = symbols("new");
+        let replacement_rows = replacement.names().storage_slice().as_ptr();
+        let successor = original.with_replaced_symbols(replacement);
+        assert_eq!(
+            successor.symbols.names().storage_slice().as_ptr(),
+            replacement_rows
+        );
+        assert_eq!(predecessor.symbols.name(predecessor.symbols.root()), "old");
+        assert_eq!(successor.symbols.name(successor.symbols.root()), "new");
+        assert_eq!(
+            successor.expression_table.expression(expression),
+            &ExpressionNode::Boolean(true)
+        );
+        assert_eq!(
+            predecessor.expression_table.expression(expression),
+            &ExpressionNode::Boolean(true)
+        );
+        assert!(!Arc::ptr_eq(&predecessor, &successor));
+    }
+
+    #[test]
+    fn owned_continuation_keeps_its_allocation_and_disassociates_weak_predecessors() {
+        let original = Arc::new(TypedTrees::default());
+        let storage = Arc::as_ptr(&original);
+        let successor = original.with_replaced_symbols(symbols("owned"));
+        assert_eq!(Arc::as_ptr(&successor), storage);
+        let weak = Arc::downgrade(&successor);
+        let successor = successor.with_replaced_symbols(symbols("weak"));
+        assert!(weak.upgrade().is_none());
+        assert_eq!(successor.symbols.name(successor.symbols.root()), "weak");
+        let ordinary_clone = successor.as_ref().clone();
+        assert_eq!(ordinary_clone.symbols, successor.symbols);
+        assert_eq!(ordinary_clone.tables, successor.tables);
+    }
 }
