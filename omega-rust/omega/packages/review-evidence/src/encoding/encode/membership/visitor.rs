@@ -63,7 +63,7 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
 
     // A declaration's binder scope belongs only to this type traversal.
     // Embedded runtime identities explicitly enter with no declared scope.
-    pub(super) fn runtime(
+    pub(super) fn canonical_type(
         &mut self,
         identity: &str,
         lifetimes: Option<usize>,

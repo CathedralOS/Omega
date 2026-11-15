@@ -307,6 +307,12 @@ fn declared_type_regions_keep_their_own_bounded_scope() {
             visitor(roomy(), false).declared_type_identity(&identity, 1),
             Err(Error::UnknownPackage { package: owner() })
         );
+        let value_type = identity.replace(&format!(",{region}"), "");
+        let nested_value = format!("named(name({}))", escaped(&callable(&value_type)));
+        assert_eq!(
+            visitor(roomy(), true).declared_type_identity(&nested_value, 1),
+            Ok(())
+        );
         let nested = format!("named(name({}))", escaped(&callable(&identity)));
         assert_eq!(
             visitor(roomy(), true).declared_type_identity(&nested, 1),

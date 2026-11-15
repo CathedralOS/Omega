@@ -419,7 +419,7 @@ mod grammar {
 
     // Schema regions describe a declaration's binder, never a live value's
     // lifetime. Ordinary identity consumers still refuse them through the
-    // default visitor; the signature reader must explicitly request them.
+    // default visitor; a declaration reader must explicitly request them.
     pub(super) fn declared_region(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,

@@ -56,14 +56,14 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
             return Err(Error::InvalidPolicy);
         }
         if !identity.as_bytes().first().is_some_and(u8::is_ascii_digit) {
-            return self.runtime(identity, lifetimes);
+            return self.canonical_type(identity, lifetimes);
         }
         self.nested(|visitor| {
             let mut fields = Fields(identity);
             if fields.next()? != "signature-type" {
                 return Err(Error::MalformedIdentity);
             }
-            visitor.runtime(fields.next()?, None)?;
+            visitor.canonical_type(fields.next()?, None)?;
             visitor.topology(fields.next()?)?;
             fields.finish()
         })

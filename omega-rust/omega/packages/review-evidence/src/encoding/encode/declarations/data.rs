@@ -2,10 +2,8 @@
 
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
-use crate::record::{
-    PackageReviewDataField, PackageReviewDataMember, PackageReviewDataProperties,
-    PackageReviewTypeIdentity,
-};
+use super::super::type_identity_in_scope;
+use crate::record::{PackageReviewDataField, PackageReviewDataMember, PackageReviewDataProperties};
 use language_semantics::CarrySuspension;
 
 pub(crate) fn encode_data_properties(
@@ -103,24 +101,8 @@ pub(crate) fn encode_data_field(
     encoder.field("name", |encoder| encoder.string(&field.name))?;
     encoder.field_by("relevance", field.relevance, encode_relevance)?;
     encoder.field("type_identity", |encoder| {
-        encode_type_identity_in_scope(encoder, &field.type_identity, Some(lifetimes))
+        type_identity_in_scope(encoder, &field.type_identity, Some(lifetimes))
     })
-}
-
-pub(crate) fn encode_type_identity(
-    encoder: &mut Encoder,
-    identity: &PackageReviewTypeIdentity,
-) -> Result<(), PackageReviewEncodingError> {
-    encode_type_identity_in_scope(encoder, identity, None)
-}
-
-fn encode_type_identity_in_scope(
-    encoder: &mut Encoder,
-    identity: &PackageReviewTypeIdentity,
-    lifetimes: Option<usize>,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.observe_type_identity(&identity.canonical, lifetimes)?;
-    encoder.field("canonical", |encoder| encoder.string(&identity.canonical))
 }
 
 pub(crate) fn encode_relevance(encoder: &mut Encoder, relevance: language_core::BindingRelevance) {
