@@ -2997,7 +2997,8 @@ pub(crate) mod contents_queries {
             }
             let relative = match account {
                 Some((root, _, _)) if root.root == selected.root => {
-                    Some(selected.path.strip_prefix(root.path.as_slice())?)
+                    selected.path.strip_prefix(root.path.as_slice())?;
+                    Some(root.path.len())
                 }
                 Some(_) => return None,
                 None => None,
@@ -3005,9 +3006,11 @@ pub(crate) mod contents_queries {
             // Enumeration has an actual alternative's account, whereas a
             // written fixed index must be valid in every possible return.
             let resolved = match (account, relative) {
-                (Some((_, ty, slots)), Some(path)) => {
-                    DescriptorResultSlot::element_path(self.types, (ty, slots), path)?
-                }
+                (Some((_, ty, slots)), Some(offset)) => DescriptorResultSlot::element_path(
+                    self.types,
+                    (ty, slots),
+                    &selected.path[offset..],
+                )?,
                 _ => self.resolved_location(machine, state, &selected, depth)?,
             };
             if matches!(
@@ -3024,7 +3027,8 @@ pub(crate) mod contents_queries {
                 };
                 let mut targets = BTreeSet::new();
                 let origins = match (account, relative) {
-                    (Some((_, _, slots)), Some(path)) => {
+                    (Some((_, _, slots)), Some(offset)) => {
+                        let path = &selected.path[offset..];
                         let origins =
                             DescriptorResultSlot::matching(slots, path)?.origins_at(path)?;
                         self.account_value(machine, state, &origins, depth)?
@@ -3091,7 +3095,8 @@ pub(crate) mod contents_queries {
                     element: actual, ..
                 } if actual == *element => {
                     let mut origins = BTreeSet::new();
-                    if let (Some((_, _, slots)), Some(path)) = (account, relative) {
+                    if let (Some((_, _, slots)), Some(offset)) = (account, relative) {
+                        let path = &selected.path[offset..];
                         for origin in
                             DescriptorResultSlot::matching(slots, path)?.origins_at(path)?
                         {
