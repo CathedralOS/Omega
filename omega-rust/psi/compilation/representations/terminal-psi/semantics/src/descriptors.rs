@@ -6998,7 +6998,7 @@ pub mod descriptor_results {
                 let mut value_types = Vec::new();
                 for observation in &contract.scalar_observations {
                     if let Some(value) = &observation.value {
-                        collect_value_types(value, &mut value_types, 0);
+                        collect_value_types(value, &mut value_types);
                     }
                 }
                 for premise in requirements.iter() {
@@ -7038,7 +7038,7 @@ pub mod descriptor_results {
                     };
                     equations.push(Proposition::Equal(observed, value.clone()));
                 }
-                visit_proposition_terms(&predicate.proposition, &mut |term| {
+                predicate.proposition.visit_scalar_terms(|term| {
                     if let Some(value) =
                         observed_byte_predicate(types, contract, predicate.subject, term)
                     {
@@ -7063,86 +7063,23 @@ pub mod descriptor_results {
             contract.qualifications.dedup();
         }
 
-        fn collect_value_types(
-            term: &ScalarTerm,
-            output: &mut Vec<(ValueId, ScalarType)>,
-            depth: usize,
-        ) {
-            visit_scalar_terms(
-                term,
-                &mut |term| {
-                    if let ScalarTerm::Value { id, scalar_type } = term {
-                        output.push((*id, *scalar_type));
-                    }
-                },
-                depth,
-            );
-        }
-
-        fn visit_scalar_terms(
-            term: &ScalarTerm,
-            visit: &mut impl FnMut(&ScalarTerm),
-            depth: usize,
-        ) {
-            if depth > 64 {
-                return;
-            }
-            visit(term);
-            for operand in term.operands() {
-                visit_scalar_terms(operand, visit, depth + 1);
-            }
-        }
-
-        fn collect_proposition_types(
-            proposition: &Proposition,
-            output: &mut Vec<(ValueId, ScalarType)>,
-        ) {
-            visit_proposition_terms(proposition, &mut |term| {
+        fn collect_value_types(term: &ScalarTerm, output: &mut Vec<(ValueId, ScalarType)>) {
+            term.visit_terms(|term| {
                 if let ScalarTerm::Value { id, scalar_type } = term {
                     output.push((*id, *scalar_type));
                 }
             });
         }
 
-        fn visit_proposition_terms(proposition: &Proposition, visit: &mut impl FnMut(&ScalarTerm)) {
-            use semantic_vocabulary::IntegerMathTerm;
-            enum Pending<'a> {
-                Proposition(&'a Proposition),
-                Math(&'a IntegerMathTerm),
-            }
-            let mut pending = vec![Pending::Proposition(proposition)];
-            while let Some(item) = pending.pop() {
-                match item {
-                    Pending::Proposition(proposition) => match proposition {
-                        semantic_vocabulary::scalar_comparison_operands!(left, right) => {
-                            visit_scalar_terms(left, visit, 0);
-                            visit_scalar_terms(right, visit, 0);
-                        }
-                        semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
-                            pending.push(Pending::Math(left));
-                            pending.push(Pending::Math(right));
-                        }
-                        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                            pending.extend(children.iter().map(Pending::Proposition))
-                        }
-                        Proposition::Implication {
-                            premise,
-                            conclusion,
-                        } => {
-                            pending.push(Pending::Proposition(premise));
-                            pending.push(Pending::Proposition(conclusion));
-                        }
-                        _ => {}
-                    },
-                    Pending::Math(term) => match term {
-                        IntegerMathTerm::Embed(term) => visit_scalar_terms(term, visit, 0),
-                        IntegerMathTerm::MathValue { source_type, value } => visit(
-                            &ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
-                        ),
-                        _ => pending.extend(term.operands().into_iter().map(Pending::Math)),
-                    },
+        fn collect_proposition_types(
+            proposition: &Proposition,
+            output: &mut Vec<(ValueId, ScalarType)>,
+        ) {
+            proposition.visit_scalar_terms(|term| {
+                if let ScalarTerm::Value { id, scalar_type } = term {
+                    output.push((*id, *scalar_type));
                 }
-            }
+            });
         }
 
         fn observed_byte_predicate(

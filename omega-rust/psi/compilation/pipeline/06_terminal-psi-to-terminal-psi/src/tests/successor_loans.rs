@@ -210,22 +210,25 @@ machine entry(first: bool) -> bool {
     // The same cleanup is valid on the false path, but would invalidate
     // the view before inspect on the continuing path.
     when_true.cleanup_actions = when_false.cleanup_actions.clone();
-    let tables = input.tables.machines.get_mut(identity).unwrap();
-    let prepared = crate::prepare(&input.module, &input.domains, identity, tables).unwrap();
-    let references = prepared.references(&input.module.structural_types);
-    let machine = input.module.machine(identity).unwrap();
+    let mut scope = crate::prepare_replay(&mut input).unwrap();
+    let (formed, domains, checking, _, _) = scope.checking();
+    let module = formed.source();
+    let tables = checking.machines.get_mut(identity).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let references = prepared.references(&module.structural_types);
+    let machine = module.machine(identity).unwrap();
     let storage = crate::places::Storage::new(
         identity,
         machine,
-        &input.module,
-        &input.domains,
+        module,
+        domains,
         &prepared.graph,
         tables,
         &prepared.types,
         &references,
     )
     .unwrap();
-    let (_, conflicts) = storage.loans(&input.module, tables).unwrap();
+    let (_, conflicts) = storage.loans(module, tables).unwrap();
     assert!(
         conflicts
             .iter()

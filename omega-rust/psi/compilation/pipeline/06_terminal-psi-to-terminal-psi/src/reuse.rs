@@ -40,27 +40,23 @@ use crate::{Discharge, Discharged, Evidence, Hypotheses, refusal};
 /// Re-verifies saved evidence for `obligation` of `machine`: the goal and
 /// hypotheses are this consumer's own, the certificate is the saved one.
 pub fn reverify(
-    elaboration: &mut Elaboration,
+    scope: &mut crate::ReplayScope<'_>,
     machine: MachineId,
     obligation: ObligationId,
     saved: &CertificateEnvelope,
 ) -> Checked<Evidence> {
-    crate::minted::width_questions_are_minted(elaboration)?;
-    let module = &elaboration.module;
-    let domains = &elaboration.domains;
-    let tables = elaboration
-        .tables
-        .machines
-        .get_mut(machine)
-        .ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                machine,
-                Construct::Machine,
-                "no such machine",
-            )
-        })?;
-    let prepared = crate::prepare(module, domains, machine, tables)?;
+    crate::minted::width_questions_are_minted(scope.source())?;
+    let (formed, domains, checking, _, _) = scope.checking();
+    let module = formed.source();
+    let tables = checking.machines.get_mut(machine).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            "no such machine",
+        )
+    })?;
+    let prepared = crate::prepare(formed, domains, machine, tables)?;
     let row = *terminal_check_tables::row(
         &tables.obligations,
         obligation,
@@ -117,13 +113,14 @@ pub fn reverify(
 /// callee value other than a formal (a local, a constant's result) cannot be
 /// moved to the caller and is refused.
 pub fn reverify_at_call(
-    elaboration: &Elaboration,
+    scope: &crate::ReplayScope<'_>,
     discharge: &Discharge,
     caller: MachineId,
     invocation: InvocationId,
     clause: u32,
     saved: &CertificateEnvelope,
 ) -> Checked<AcceptedFact> {
+    let elaboration = scope.source();
     crate::minted::width_questions_are_minted(elaboration)?;
     let concerns = Construct::Invocation(invocation);
     let refuse = |reason, detail| refusal(reason, caller, concerns, detail);
@@ -740,30 +737,27 @@ impl Carried<'_> {
 /// A proof with no matching premise refuses before kernel entry, and every
 /// reconstructed candidate still reaches the consumer's actual kernel goal.
 pub fn reverify_specialization(
-    generic: &Elaboration,
+    generic_scope: &crate::ReplayScope<'_>,
     found: &Discharge,
     template: MachineId,
-    consumer: &mut Elaboration,
+    consumer_scope: &mut crate::ReplayScope<'_>,
     specialization: MachineId,
     selections: &[Selection<'_>],
 ) -> Checked<Vec<(ObligationId, Checked<Evidence>)>> {
+    let generic = generic_scope.source();
     crate::minted::width_questions_are_minted(generic)?;
-    crate::minted::width_questions_are_minted(consumer)?;
-    let module = &consumer.module;
-    let domains = &consumer.domains;
-    let tables = consumer
-        .tables
-        .machines
-        .get_mut(specialization)
-        .ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                specialization,
-                Construct::Machine,
-                "no such machine",
-            )
-        })?;
-    let prepared = crate::prepare(module, domains, specialization, tables)?;
+    crate::minted::width_questions_are_minted(consumer_scope.source())?;
+    let (formed, domains, checking, _, _) = consumer_scope.checking();
+    let module = formed.source();
+    let tables = checking.machines.get_mut(specialization).ok_or_else(|| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            specialization,
+            Construct::Machine,
+            "no such machine",
+        )
+    })?;
+    let prepared = crate::prepare(formed, domains, specialization, tables)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let references = prepared.references(&module.structural_types);

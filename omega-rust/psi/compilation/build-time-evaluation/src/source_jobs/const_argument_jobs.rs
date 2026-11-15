@@ -236,11 +236,7 @@ pub fn evaluate(
                 .type_owners(job.argument)
                 .filter(|owner| owner.is_valid())
                 .map(|owner| program.refusal_declaration(owner))
-                .find(|owner| {
-                    demanded
-                        .binary_search_by_key(&key(*owner), |symbol| key(*symbol))
-                        .is_ok()
-                })?;
+                .find(|owner| demanded.contains(*owner))?;
             Some(Job { owner, ..job })
         })
         .collect::<Vec<_>>();

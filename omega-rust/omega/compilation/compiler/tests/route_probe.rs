@@ -358,8 +358,7 @@ machine main() { }",
                 "requires right > 0 ensures result == left /% right",
                 "left /% right",
             ),
-            "contract policy operator in a clause term that owes a condition before it is total \
-             while reading the signature of `spare`",
+            "accepted",
         ),
         (
             "requires_policy_qualified_operand",

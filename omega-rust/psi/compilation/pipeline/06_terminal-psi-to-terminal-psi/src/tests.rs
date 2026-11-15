@@ -38,6 +38,7 @@ mod case_payloads;
 mod ceilings;
 mod collection_members;
 mod compiler_primitive_headers;
+mod contract_formation;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
@@ -5898,7 +5899,7 @@ mod reuse {
     // certificate, and the kernel decides it. No search runs on reuse.
     use super::*;
     use crate::prove::SEARCHES;
-    use crate::{reverify, reverify_at_call};
+    use crate::{prepare_replay, reverify, reverify_at_call};
 
     fn searches() -> usize {
         SEARCHES.with(std::cell::Cell::get)
@@ -5927,8 +5928,9 @@ mod reuse {
         // hypotheses, and no prover is started.
         let (obligation, certificate) = saved(vec![add(10)], 1, safety);
         let mut consumer = lower(vec![add(10)]).unwrap();
+        let mut replay = prepare_replay(&mut consumer).unwrap();
         let before = searches();
-        let evidence = reverify(&mut consumer, id(1), obligation, &certificate).unwrap();
+        let evidence = reverify(&mut replay, id(1), obligation, &certificate).unwrap();
         assert_eq!(searches(), before, "reuse started a prover");
         assert!(matches!(
             evidence.fact.route,
@@ -5944,7 +5946,15 @@ mod reuse {
         let program = |bound| vec![guaranteeing(vec![at_most(1, 5)], at_most(1, bound))];
         let (obligation, certificate) = saved(program(10), 1, guarantee);
         let mut consumer = lower(program(9)).unwrap();
-        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+        assert!(
+            reverify(
+                &mut prepare_replay(&mut consumer).unwrap(),
+                id(1),
+                obligation,
+                &certificate
+            )
+            .is_err()
+        );
         // The new program's own goal is provable; only the stale proof fails.
         let (_, result) = run(program(9));
         let verdicts = &result.machines.get(id(1)).unwrap().verdicts;
@@ -5957,7 +5967,15 @@ mod reuse {
         // consumer has no such hypothesis and the kernel refuses the citation.
         let (obligation, certificate) = saved(vec![add(10)], 1, safety);
         let mut consumer = lower(vec![add_of_formals(vec![at_most(2, 100)])]).unwrap();
-        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+        assert!(
+            reverify(
+                &mut prepare_replay(&mut consumer).unwrap(),
+                id(1),
+                obligation,
+                &certificate
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -5985,7 +6003,15 @@ mod reuse {
         assert_eq!(safeties.len(), 2);
         let first = certificate(safeties[0].1).certificate.clone();
         let mut consumer = lower(program()).unwrap();
-        assert!(reverify(&mut consumer, id(1), safeties[1].0, &first).is_err());
+        assert!(
+            reverify(
+                &mut prepare_replay(&mut consumer).unwrap(),
+                id(1),
+                safeties[1].0,
+                &first
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -6006,9 +6032,25 @@ mod reuse {
         };
         let (obligation, certificate) = saved(program(100), 2, safety);
         let mut looser = lower(program(100)).unwrap();
-        assert!(reverify(&mut looser, id(3), obligation, &certificate).is_err());
+        assert!(
+            reverify(
+                &mut prepare_replay(&mut looser).unwrap(),
+                id(3),
+                obligation,
+                &certificate
+            )
+            .is_err()
+        );
         let mut same = lower(program(10)).unwrap();
-        assert!(reverify(&mut same, id(3), obligation, &certificate).is_ok());
+        assert!(
+            reverify(
+                &mut prepare_replay(&mut same).unwrap(),
+                id(3),
+                obligation,
+                &certificate
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -6036,18 +6078,19 @@ mod reuse {
                 ],
             )
         };
-        let (elaboration, result) = run(vec![caller, clamp]);
+        let (mut elaboration, result) = run(vec![caller, clamp]);
         let (_, proved) = verdicts(&elaboration, &result, 2, guarantee)[0];
         let saved = certificate(proved).certificate.clone();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let calls: Vec<_> = tables.invocations.keys().collect();
         assert_eq!(calls.len(), 3);
+        let replay = prepare_replay(&mut elaboration).unwrap();
         let before = searches();
         for call in &calls[..2] {
-            reverify_at_call(&elaboration, &result, id(1), *call, 0, &saved).unwrap();
+            reverify_at_call(&replay, &result, id(1), *call, 0, &saved).unwrap();
         }
         assert_eq!(searches(), before, "reuse started a prover");
-        let refused = reverify_at_call(&elaboration, &result, id(1), calls[2], 0, &saved);
+        let refused = reverify_at_call(&replay, &result, id(1), calls[2], 0, &saved);
         assert_eq!(
             refused.unwrap_err().reason,
             RefusalReason::Unproved(UnprovedCause::NoDerivation)
@@ -6134,8 +6177,9 @@ mod reuse {
         let started = Instant::now();
         for _ in 0..ROUNDS {
             let mut elaboration = lower(program()).unwrap();
+            let mut replay = prepare_replay(&mut elaboration).unwrap();
             for (machine, obligation, certificate) in &saved {
-                reverify(&mut elaboration, *machine, *obligation, certificate).unwrap();
+                reverify(&mut replay, *machine, *obligation, certificate).unwrap();
             }
         }
         let reusing = started.elapsed();
@@ -6397,15 +6441,17 @@ mod generic_bodies {
         Vec<(ObligationId, Checked<Evidence>)>,
         usize,
     ) {
-        let (form, found) = checked_once(bound);
+        let (mut form, found) = checked_once(bound);
         let (witnessed, refinement) = run(vec![witness(), refines]);
         let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
+        let generic = crate::prepare_replay(&mut form).unwrap();
+        let mut replay = crate::prepare_replay(&mut consumer).unwrap();
         let before = searches();
         let verdicts = reverify_specialization(
-            &form,
+            &generic,
             &found,
             id(1),
-            &mut consumer,
+            &mut replay,
             id(1),
             &[Selection {
                 requirement: id(2),

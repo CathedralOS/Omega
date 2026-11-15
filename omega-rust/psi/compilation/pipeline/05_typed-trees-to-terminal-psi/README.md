@@ -418,7 +418,12 @@ and `*` cannot overflow
 such a clause computes nothing in a carrier and owes no formation condition,
 which is what sets it apart from carrier arithmetic in a clause
 (`requires a + b <= 99`, which "discharge[s] representability before
-formation" and is refused until a slice states that obligation).
+formation"). The reader retains the selected operation as a canonical scalar
+term. Stage 06 proves its formation using independent, already-formed clauses
+before the containing condition can contribute facts. The same rule applies
+to fields, nested terms, result contracts and domains. Wrapping and saturating
+division still require a nonzero divisor; trapping arithmetic is refused in
+clauses because its operation may crash.
 
 A comparison is mathematical when an `embed` stands on either side beneath
 binary operators only (`mathematical`). `embed` is the builtin by the symbol
@@ -444,8 +449,7 @@ arguments.
 
 | Construct | Refusal detail |
 | --- | --- |
-| carrier arithmetic in a clause term, `requires a + b <= 99` | `contract carrier arithmetic in a clause term` |
-| a suffixed operator in a clause term, `a +% b` | `contract policy operator in a clause term` |
+| trapping arithmetic in a clause term, `a +! b` | `a trapping operator ... in a contract clause: an operation that can crash forms no proof term` |
 | a cast, or a call other than `embed`, in a clause term | `contract cast in a clause term`, `contract call in a clause term` |
 | `embed` that is not a side of a comparison or beneath its arithmetic, `embed(embed(a))` | `contract embed outside a mathematical comparison` |
 | `embed` of a Boolean, or with other than one argument | `contract embed of a value that is not an integer`, `contract embed of other than one value` |
@@ -789,7 +793,7 @@ the slice that serves it:
 | Construct | Refusal detail |
 | --- | --- |
 | a `requires` on a case | `type data requires` |
-| a data `requires` clause that calls a machine, compares Booleans with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
+| a data `requires` clause that calls a machine, compares Booleans with `!=`, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract term other than a field of the value or a literal` |
 | a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
