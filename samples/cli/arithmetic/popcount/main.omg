@@ -21,7 +21,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
 
     transition {
-        _ -> block step(3735928559, 0) // 0xDEADBEEF
+        _ -> block step(3735928559 as +Wrapping, 0 as +Wrapping) // 0xDEADBEEF
     }
 
     // Loop head: stop once every bit has been shifted out.

@@ -19,7 +19,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
 
     transition {
-        _ -> block step(1, 1, 0)
+        _ -> block step(1 as +Wrapping, 1 as +Wrapping, 0 as +Wrapping)
     }
 
     machine step(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {

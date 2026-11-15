@@ -16,7 +16,7 @@ data Main {
 machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("euclid_gcd: Euclid's algorithm on (48, 36) via the remainder loop");
     transition {
-        _ -> block step(context, 48, 36)
+        _ -> block step(context, 48 as +Wrapping, 36 as +Wrapping)
     }
 
     // Retain the sample's Wrapping arithmetic domain on the explicit operands.

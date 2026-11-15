@@ -14,7 +14,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("collatz_sequence: count hailstone steps from 27 down to 1");
 
     transition {
-        _ -> block step(27, 0)
+        _ -> block step(27 as +Wrapping, 0 as +Wrapping)
     }
 
     // One hailstone step, or stop once the sequence has collapsed to 1.

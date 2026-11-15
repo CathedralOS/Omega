@@ -20,7 +20,7 @@ terminates by n
 }
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {
-    let result: u64 = fact(5, 1);
+    let result: u64 = fact(5, 1 as +Wrapping);
     let code: i32 = narrow_u64_to_i32_trapping(result);
     ProcessExit::exit_process(code);
 }
