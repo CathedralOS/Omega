@@ -1276,6 +1276,37 @@ fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes
 }
 
 #[test]
+fn constant_evaluation_keeps_the_callee_cast_location() {
+    let callee = "
+        domain u64::Delivered requires self >= 42u64 && self <= 42u64;
+        machine make() -> u64 {
+            let value: u64 in Delivered = 41u64 as +Delivered;
+            value as -Delivered
+        }
+    ";
+    let (_, ids, base, pending) = constant_base(&[
+        ("main.omg", "const SAVED: u64 = make();"),
+        ("callee.omg", callee),
+    ]);
+    let errors = pending
+        .evaluate_requested_constants(&mut base.typed().clone())
+        .err()
+        .expect("the constant initializer calls a machine with a false cast");
+    let [error] = errors.as_slice() else {
+        panic!("expected the cast refusal, got {errors:?}");
+    };
+    assert!(
+        error.message.starts_with(
+            "constant `SAVED` evaluation: cannot prove the value of this cast is in the domain it adds in machine `make` state `entry` local `value`: domain `u64::Delivered` requires `self >= 42 && self <= 42`"
+        ),
+        "{error}"
+    );
+    let cast = error.source_span.expect("the refusal retains the cast");
+    assert_eq!(cast.source_id, ids[1]);
+    assert_eq!(cast.span.start, callee.find("+Delivered").unwrap());
+}
+
+#[test]
 fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
     let (_, _, base, pending) = constant_base(&[(
         "main.omg",
@@ -1292,7 +1323,13 @@ fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
         .expect("no caller chose this target body");
     let error = diagnostics::join_messages(&errors);
     assert!(error.contains("target"), "{error}");
-    assert!(program.const_declarations()[0].evaluated_value.is_none());
+    let declaration = &program.const_declarations()[0];
+    let declaration_span = program
+        .symbols
+        .symbol_source_span(declaration.symbol)
+        .unwrap();
+    assert_eq!(errors[0].source_span, Some(declaration_span));
+    assert!(declaration.evaluated_value.is_none());
 }
 
 #[test]

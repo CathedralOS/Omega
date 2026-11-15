@@ -94,13 +94,6 @@ framework or a list of unimplemented features.
 - Cost: The field placement cannot check either the authored byte offsets or the invalid 41 cast. Make the existing affine projection check recognize the field's exact selected storage path. Once the negative reaches the cast, verify and refresh its `expected.txt` and `sample.json`, which still use the earlier range wording.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
 
-### A failed constant cast loses its original location
-- Category: knowledge crossing a boundary
-- Where: [failing cast in make](samples/cli/facts/fixed_layout_storage/invalid_const_name/main.omg#L24), [constant error wrapper](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L699)
-- Saw: On clean `15145194c7d` on macOS arm64, `--check` reports the `Delivered` cast in `make` for `invalid_const_name` but prints `source-unit 241, bytes 1336..1341`, the span of the `SAVED` identifier at 28:7. The `invalid_call_result` control reports the same failure at its authored cast at 24:25.
-- Cost: Reading the diagnostic takes the user to the constant name without locating the failing operation. Keep the checked error's original location alongside the constant declaration context.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
-
 ### Package review refuses the fixed-layout target-body boundary
 - Category: knowledge crossing a boundary
 - Where: [Delivery boundary](samples/cli/facts/fixed_layout_storage/target_body/main.omg#L28), [review capture](omega-rust/omega/packages/review-evidence/src/capture/policy.rs#L209)
