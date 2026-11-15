@@ -80,13 +80,6 @@ framework or a list of unimplemented features.
 - Cost: The existing two-endpoint subslice rule cannot receive this typed array's backing and element extent. Carry the shared array loan into the existing element-window operation, keeping the actual range and distinct ordered bounds.
 - Reported: 2026-11-15, Codex, while checking typed slice fields through a runtime-selected array element.
 
-### A target-computed array extent lacks its selected provider during evaluation
-- Category: knowledge crossing a boundary
-- Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [closed computation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs), [invocation admission](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs)
-- Saw: A direct array field whose length calls a target-independent helper runs in native and Psi and reopens. On `f8e3039998f`, the unchanged target-layout sample advances to `limit()` at line 8, column 26 and refuses with “source invocation requires selected target, scalar or external authority that is not supplied”. Its Build selects different `Answer` implementations for Linux and macOS.
-- Cost: The early checked computation has no selected provider. Carry the symbolic extent into the existing checked scalar application and target-closure path so the request retains its exact selected realization, result and proof. Keep the original layout query, bound and invalid twin.
-- Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory. Narrowed after the target-independent field extent ran and reopened.
-
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
 - Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
@@ -108,13 +101,6 @@ framework or a list of unimplemented features.
 - Saw: On `f8687f1fcd3`, `apply<picked>(7u64)` refuses at static binding for `machine apply<const Callback: machine(value: u64) -> u64>(value: u64) -> u64 { Callback(value) }`. Wiring the existing binder judgment and specialization receipt in a local prototype let native and Psi exit 0. It rejected a callback requiring `value <= 8u64` and a generic body claiming a result absent from its binder. The saved runtime artifact could not reopen: `checked specialization has no retained application`. The producer only materializes type and scalar telescopes. The retained reader rejects a structural binder in the reach dependency even though omission on that binder means open reach. Changing the body to `transition { true -> Callback(value) }` also exposed a named call that bypasses static-call preparation. The kept [package review witness](tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg#L62) on `8329cdc221e` stops at line 62, column 37 because no pass specializes the call's static arguments. Its policy oracle requires `StepContract::step` to recover the original static `Count` binder.
 - Cost: Route ordinary callable arguments and named transition calls through the existing binder check and exact source application. Generalize the retained reach dependency to preserve the originating open or finite bound across production and readback. An empty finite bound cannot stand for omitted reach.
 - Reported: 2026-11-15, Codex, macOS arm64, while carrying the static callback witness into a saved Psi artifact.
-
-### A folded layout constant loses the selected provider commitment
-- Category: knowledge crossing a boundary
-- Where: [historical layout control](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [constant evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs), [folded-constant closure](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module.rs#L17)
-- Saw: `runtime_constant_layout_contract_exit` now evaluates the named byte count and checks the direct and Boolean-composed layout requirements in the selected target. It exits 0 in native and Psi on macOS arm64, and the retained artifact reopens. The unchanged `false_constant_layout_contract` still refuses at the false target predicate. The historical selected provider remains blocked by [the target-computed array extent](#a-target-computed-array-extent-lacks-its-selected-provider-during-evaluation). The folded-constant rows have readers and no source producer.
-- Cost: When the historical extent can evaluate, folding must retain the exact source-selected provider in the existing folded-constant closure. Preserve the wrong-target, absent/repeated plan, equal-result substitution and cast refusals.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles. Narrowed after the ground layout contracts ran.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
