@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Named mathematical terms reject total wrapping operators before formation
+- Category: branch per shape
+- Where: [policy-specific binary expression lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [total arithmetic in proof terms](wiki/spec/proofs/contracts.md#total-arithmetic)
+- Saw: With compiler source `16c9a2cd0431` on macOS arm64, a Linux x86-64 check refuses an unused `let reflexive(value: u32): core::Strict<0> = value +% 1u32 == 1u32;` in the [existing predicate fixture](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate). Typing says suffixed operators are supported only in executable machines and their contracts. Replacing only that declaration with a machine precondition over the same `value: u32` and the same `+%` comparison compiles 237 files. The named declaration never reaches canonical term formation.
+- Cost: Totality depends on where the term is written before the shared checker can look at its operands. Admit the same wrapping expression under its exact mathematical input and retain the shared definedness obligation for a division. A trapping term must still refuse.
+- Reported: 2026-11-15, Codex, while comparing overflow controls for the unused mathematical predicate.
+
 ### The private-operator twin in `lowered_route_qualified` expects wording typing no longer prints
 - Category: tests that pin the bug
 - Where: `omega-rust/omega/compilation/compiler/tests/support/qualified_operator_homes.rs:133`
