@@ -485,7 +485,8 @@ impl Program<'_> {
             if data.generic_instance.is_some() {
                 return Err(unserved("nominal cleanup on an applied data type"));
             }
-            self.pending_cleanup.push((record, selection.executable));
+            let executable = self.ordinary_application_target(id, selection.application)?;
+            self.pending_cleanup.push((record, executable));
         }
         Ok(ValueType::record(record))
     }

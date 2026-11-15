@@ -23,9 +23,18 @@ machine caller(counter: &mut Counter) {{
 const DECOMPOSE: &str =
     "let { dropped, valid, value as _ } = move resource; dropped.value = valid;";
 
+fn judged(text: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("ordinary typed preparation must preserve this source program");
+    super::entryless::judged_typed_result(&typed, false)
+}
+
 fn accepted() -> terminal_check_tables::program::Elaboration {
     let text = program(1, "Resource", DECOMPOSE, "");
-    match super::entryless::judged(&text, false) {
+    match judged(&text).expect("owned cleanup source must finish preparation") {
         RouteVerdict::Accepted(accepted) => accepted.elaboration,
         other => panic!("actual owned consumer must be admitted: {other:?}"),
     }
@@ -79,7 +88,8 @@ fn owned_cleanup_requires_are_proved_at_the_exact_action() {
         }
     }
     assert_eq!(found, 1);
-    let negative = super::entryless::judged(&program(0, "Resource", DECOMPOSE, ""), false);
+    let negative = judged(&program(0, "Resource", DECOMPOSE, ""))
+        .expect("the invalid value must reach its actual call requirement");
     assert!(
         matches!(negative, RouteVerdict::Rejected { ref unproved, .. } if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { clause: 0, .. }))),
         "{negative:?}"
@@ -154,8 +164,7 @@ fn undecomposed_recursive_or_abnormal_consumers_never_gain_a_disposition() {
             "abnormal completion",
         ),
     ] {
-        let typed = super::boundary_calls::typed(&program(1, receiver, body, effects));
-        let result = super::entryless::judged_typed_result(&typed, false);
+        let result = judged(&program(1, receiver, body, effects));
         let refusal = match result {
             Err(crate::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal,

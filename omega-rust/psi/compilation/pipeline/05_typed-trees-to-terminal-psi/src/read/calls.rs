@@ -292,6 +292,35 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    /// Read the exact executable selected by an ordinary retained application.
+    /// Unspent static arguments stay subject to the ordinary call floor.
+    pub(super) fn ordinary_application_target(
+        &self,
+        id: MachineId,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) -> Checked<SymbolHandle> {
+        let table = &self.typed.expression_table;
+        if !table.static_machine_application_is_valid(application) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("selected ordinary application is absent"),
+            ));
+        }
+        let registered = table
+            .static_machine_application(application)
+            .registration_operation;
+        let target = self.entered_machine(registered).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("selected ordinary application has no machine body"),
+            )
+        })?;
+        self.applies_nothing(id, registered, application, &[])?;
+        Ok(target)
+    }
+
     /// Whether every generic parameter of `declared`, a machine or its entry
     /// state, is an implementation, value or type parameter. Only such a
     /// declaration's generated machines are read. Each is a closed machine:
