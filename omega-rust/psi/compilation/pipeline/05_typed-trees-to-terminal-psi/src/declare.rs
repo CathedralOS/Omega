@@ -18,9 +18,10 @@ exactly as a record type's is (`RecordType::identity`). Nothing here or in
 the checker compares those texts, and none is formed from a name.
 
 The contract commitment is a digest of the contract the lowered form
-publishes for the machine: its callable identity, each formal's complete declared type and
-binding mode, its complete result type (including lifetime relations), the `requires` and `ensures` propositions and
-crash routes of its `MachineContract`, and what its header says about
+publishes for the machine: its callable identity, each formal's complete declared
+type and binding mode, its complete result type (including lifetime relations),
+the `requires` and `ensures` propositions and crash routes of its
+`MachineContract`, and what its header says about
 termination. Consumers compare this commitment only under its domain and
 encoding; a digest from another contract representation is not interchangeable.
 

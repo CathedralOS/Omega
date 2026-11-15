@@ -406,7 +406,13 @@ pub(crate) mod callable_identity {
             // Only the callable's own lifetimes participate in output
             // elision; enclosing lifetimes remain distinct captured regions.
             elision.enter_result(declared, outer);
-            let result = declared_type(result)?;
+            // An omitted result is the signature's Unit result, represented
+            // by the zero handle. A nonzero stale handle remains unavailable.
+            let result = if result.is_valid() {
+                declared_type(result)?
+            } else {
+                normalize_type_reference(self, result, &context)
+            };
             (!invalid.get()).then_some((parameters, result, elision.minted()))
         }
 
@@ -1906,6 +1912,7 @@ pub(crate) mod identity_context {
     #[derive(Clone, Copy)]
     enum ElidedPosition {
         Fresh,
+        FirstResult,
         Only(usize),
         Ambiguous,
     }
@@ -1929,7 +1936,7 @@ pub(crate) mod identity_context {
         /// ambiguous when it has several.
         pub(crate) fn enter_result(&self, declared: usize, only: usize) {
             self.position.set(match declared + self.minted.get() {
-                0 => ElidedPosition::Fresh,
+                0 => ElidedPosition::FirstResult,
                 1 => ElidedPosition::Only(only),
                 _ => ElidedPosition::Ambiguous,
             });
@@ -1939,10 +1946,15 @@ pub(crate) mod identity_context {
         /// ambiguous and needs an explicit relation.
         fn region(&self) -> Option<usize> {
             match self.position.get() {
-                ElidedPosition::Fresh => {
+                ElidedPosition::Fresh | ElidedPosition::FirstResult => {
                     let ordinal = self.next.get();
                     self.next.set(ordinal + 1);
                     self.minted.set(self.minted.get() + 1);
+                    // With no inputs the first result occurrence introduces
+                    // one caller-chosen lifetime; later occurrences reuse it.
+                    if matches!(self.position.get(), ElidedPosition::FirstResult) {
+                        self.position.set(ElidedPosition::Only(ordinal));
+                    }
                     Some(ordinal)
                 }
                 ElidedPosition::Only(ordinal) => Some(ordinal),
@@ -2313,6 +2325,24 @@ pub(crate) mod identity_context {
         compound(NameForm::Nominal, [owner.encode(), atom(Label::Path, path)])
     }
 
+    fn elided_signature_lifetime_count(
+        program: &TypedTrees,
+        symbol: SymbolHandle,
+        context: &TypeIdentityContext<'_>,
+    ) -> usize {
+        if context.signature_elision.is_none() {
+            return 0;
+        }
+        if let Some(declaration) = program.unique_data_definition_by_symbol(symbol) {
+            return declaration.lifetime_parameters.len();
+        }
+        if program.data_definition_by_symbol(symbol).is_some() {
+            // An ambiguous declaration cannot supply a guessed empty arity.
+            let _ = substitution::rejected(context);
+        }
+        0
+    }
+
     fn generic_type_identity(
         program: &TypedTrees,
         symbol: SymbolHandle,
@@ -2335,24 +2365,32 @@ pub(crate) mod identity_context {
                 ))],
             );
         }
+        let regions = if context.invalid_application.is_some() && !context.declared_carrier {
+            if lifetimes.is_empty() {
+                (0..elided_signature_lifetime_count(program, symbol, context))
+                    .map(|_| {
+                        context
+                            .signature_elision
+                            .and_then(SignatureElision::region)
+                            .map_or_else(|| substitution::rejected(context), schema_region)
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                lifetimes
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, lifetime)| {
+                        context.lifetime_slot(program, lifetime, regions.get(ordinal).copied())
+                    })
+                    .collect()
+            }
+        } else {
+            Vec::new()
+        };
         Composite::new(
             TypeForm::Generic,
             std::iter::once(atom(Label::Name, &context.name(program, symbol, name)))
-                .chain(
-                    context
-                        .invalid_application
-                        .filter(|_| !context.declared_carrier)
-                        .into_iter()
-                        .flat_map(|_| {
-                            lifetimes.iter().enumerate().map(|(ordinal, lifetime)| {
-                                context.lifetime_slot(
-                                    program,
-                                    lifetime,
-                                    regions.get(ordinal).copied(),
-                                )
-                            })
-                        }),
-                )
+                .chain(regions)
                 .map(IdentityPart::Text)
                 .chain(arguments),
         )
@@ -2421,7 +2459,8 @@ pub(crate) mod identity_context {
             symbol = program.implementation_value_head(symbol);
         }
         if arguments.is_empty()
-            && (lifetimes.is_empty()
+            && ((lifetimes.is_empty()
+                && elided_signature_lifetime_count(program, symbol, context) == 0)
                 || context.invalid_application.is_none()
                 || context.declared_carrier)
         {
@@ -2725,52 +2764,54 @@ pub(crate) mod identity_context {
                 referee,
                 access,
                 lifetime,
-            } => Composite::new(
-                match access {
-                    language_core::ReferenceAccess::Shared => TypeForm::Reference,
-                    language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
-                    language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
-                },
-                std::iter::once(IdentityPart::Identity(normalize_type_identity(
-                    program, *referee, context,
-                )))
-                .chain(
-                    context
-                        .invalid_application
-                        .filter(|_| !context.declared_carrier)
-                        .map(|_| {
-                            lifetime.as_ref().map_or_else(
-                                || {
-                                    if let Some(ordinal) =
-                                        context.signature_elision.and_then(SignatureElision::region)
-                                    {
-                                        return schema_region(ordinal);
-                                    }
-                                    if context.qualification
-                                        == TypeIdentityQualification::PackageQualified
-                                        && let Some(elided) = context.encountered_elided_regions
-                                    {
-                                        elided.set(true);
-                                    }
-                                    bare(RegionForm::Elided)
-                                },
-                                |lifetime| {
-                                    context.lifetime_slot(
-                                        program,
-                                        lifetime,
-                                        program
-                                            .type_reference_table
-                                            .operand_lifetimes(type_reference)
-                                            .first()
-                                            .copied(),
-                                    )
-                                },
-                            )
-                        })
-                        .map(IdentityPart::Text),
-                ),
-            )
-            .intern(program),
+            } => {
+                // Stage 05 reads the outer reference before its referent.
+                // Reserve that binder before nested nominal elision mints any.
+                let region = context
+                    .invalid_application
+                    .filter(|_| !context.declared_carrier)
+                    .map(|_| {
+                        lifetime.as_ref().map_or_else(
+                            || {
+                                if let Some(ordinal) =
+                                    context.signature_elision.and_then(SignatureElision::region)
+                                {
+                                    return schema_region(ordinal);
+                                }
+                                if context.qualification
+                                    == TypeIdentityQualification::PackageQualified
+                                    && let Some(elided) = context.encountered_elided_regions
+                                {
+                                    elided.set(true);
+                                }
+                                bare(RegionForm::Elided)
+                            },
+                            |lifetime| {
+                                context.lifetime_slot(
+                                    program,
+                                    lifetime,
+                                    program
+                                        .type_reference_table
+                                        .operand_lifetimes(type_reference)
+                                        .first()
+                                        .copied(),
+                                )
+                            },
+                        )
+                    });
+                Composite::new(
+                    match access {
+                        language_core::ReferenceAccess::Shared => TypeForm::Reference,
+                        language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
+                        language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
+                    },
+                    std::iter::once(IdentityPart::Identity(normalize_type_identity(
+                        program, *referee, context,
+                    )))
+                    .chain(region.map(IdentityPart::Text)),
+                )
+                .intern(program)
+            }
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
@@ -2850,6 +2891,20 @@ pub(crate) mod identity_context {
                 if context.signature_owners.is_some() && !symbol.is_valid() =>
             {
                 text_identity(program, substitution::rejected(context))
+            }
+            TypeReferenceNode::Named { symbol, name }
+                if elided_signature_lifetime_count(program, *symbol, context) != 0 =>
+            {
+                generic_reference_identity(
+                    program,
+                    *symbol,
+                    name,
+                    &[],
+                    &[],
+                    arena::HandleSpan::empty(),
+                    context,
+                )
+                .intern(program)
             }
             TypeReferenceNode::Named { symbol, name } => Composite::new(
                 TypeForm::Named,
