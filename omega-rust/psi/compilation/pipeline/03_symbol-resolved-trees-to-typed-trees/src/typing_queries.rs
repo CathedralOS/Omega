@@ -257,7 +257,26 @@ pub(crate) fn declared_callable_value_type(
         .trait_machine_signature(owner)
         .map(|(_, signature)| signature);
     if states.is_none() && state.is_none() && signature.is_none() {
-        return Err(crate::unavailable_judgment("contract callable declaration"));
+        // A data declaration's own `requires` names its fields bare
+        // (`requires (root as -Handle) != 0`), each a value of the type the
+        // declaration gives it.
+        let Some(definition) = program.unique_data_definition_by_symbol(owner) else {
+            return Err(crate::unavailable_judgment("contract callable declaration"));
+        };
+        return declared_projection_type(program, target, |path| {
+            if path.static_application.is_valid() || path.reserved_result_of.is_valid() {
+                return Err(crate::unavailable_judgment("data clause value"));
+            }
+            let field = path
+                .resolved_symbol()
+                .and_then(|binder| program.data_field(definition, binder))
+                .ok_or_else(|| crate::unavailable_judgment("data clause field"))?;
+            program
+                .type_reference_table
+                .contains_type_reference(field.type_reference)
+                .then_some(field.type_reference)
+                .ok_or_else(|| crate::unavailable_judgment("data clause field declared type"))
+        });
     }
     declared_projection_type(program, target, |path| {
         if path.static_application.is_valid() {
