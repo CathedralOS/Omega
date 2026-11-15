@@ -4755,7 +4755,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 274;
+pub(crate) const FORMAT_MARKER: u16 = 275;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

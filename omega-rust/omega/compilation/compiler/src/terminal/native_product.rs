@@ -142,10 +142,13 @@ pub(crate) fn prepare(
         ));
     }
     let profile = entry.source().target_slot().owner;
-    let schemas = provider_planning::hosted_primitive_schemas(module)
+    let schemas = provider_planning::compiler_primitive_schemas(module)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let leaves =
-        provider_planning::direct_hosted_primitive_leaves(module, &schemas, profile.target_name())?;
+    let leaves = provider_planning::direct_compiler_primitive_leaves(
+        module,
+        &schemas,
+        profile.target_name(),
+    )?;
     let policy = current_terminal_authority_policy();
     let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permission_rows = Vec::new();

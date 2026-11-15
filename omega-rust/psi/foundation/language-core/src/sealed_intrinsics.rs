@@ -594,6 +594,12 @@ impl SealedIntrinsicCatalog {
     }
 }
 
+/// Exact source bytes whose canonical declarations own float operation contracts.
+/// A matching name outside these bytes grants no numeric primitive custody.
+pub fn float_operations_source() -> (&'static str, &'static [u8]) {
+    ("float_operations.omg", CORE_FLOAT_OPERATIONS)
+}
+
 /// Exact source coordinates for the hosted primitive and its public contract.
 /// Consumers still authenticate source custody and the complete signature.
 pub fn hosted_process_exit_sources() -> [(&'static str, &'static str, &'static [u8]); 3] {

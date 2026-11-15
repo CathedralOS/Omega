@@ -35,6 +35,7 @@ mod descriptor_replay;
 pub mod descriptors;
 pub mod inhabitation;
 pub mod normal_completion;
+pub mod numeric_primitives;
 pub mod plain_affine;
 pub mod reference_ends;
 pub mod references;
@@ -368,7 +369,8 @@ pub(crate) mod semantic_rows {
             goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerLiteral, Denotation::IntegerConstant)),
         BooleanConstant => ("schema:operation:boolean-constant", LeafDenotation,
             goal_free_scalar_leaf(ResultShape::Boolean, Operands::BooleanLiteral, Denotation::BooleanConstant)),
-        IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation, None),
+        IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredFloat, Operands::FloatLiteral, Denotation::FloatConstant)),
         IeeeFloatCompare => ("schema:operation:ieee-float-compare", LeafDenotation, None),
         ScalarRepresentationView => ("schema:operation:scalar-representation-view", LeafDenotation, None),
         NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),

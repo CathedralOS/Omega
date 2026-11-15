@@ -108,8 +108,11 @@ pub(crate) fn selection_for_operands(
     let Some(machine) = program
         .machine_by_symbol(selected.operator.symbol)
         .filter(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && machine.conformance_bounds.is_empty()
+            matches!(
+                machine.supply_mode,
+                language_semantics::MachineSupplyMode::CheckedBody
+                    | language_semantics::MachineSupplyMode::TopLevelRequirement
+            ) && machine.conformance_bounds.is_empty()
         })
     else {
         return Ok(None);

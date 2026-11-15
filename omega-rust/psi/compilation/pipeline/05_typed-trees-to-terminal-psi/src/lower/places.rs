@@ -593,6 +593,7 @@ fn expression_homes<'b>(
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
@@ -1920,6 +1921,7 @@ impl<'a> Lowering<'a> {
                 }))
             }
             ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }

@@ -119,7 +119,7 @@ pub(crate) struct Program<'t> {
     /// the same formal/contract reader as body-backed machine declarations.
     pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
     pub boundary_signatures: IdTable<BoundaryMachineId, Signature>,
-    boundary_services: IdTable<BoundaryMachineId, semantic_vocabulary::ServiceId>,
+    boundary_services: IdTable<BoundaryMachineId, Option<semantic_vocabulary::ServiceId>>,
     /// How each requirement's invocation ends, as the typed trees state it
     /// (`Signatures::completions`).
     pub boundary_completions: IdTable<BoundaryMachineId, semantic_vocabulary::BoundaryCompletion>,

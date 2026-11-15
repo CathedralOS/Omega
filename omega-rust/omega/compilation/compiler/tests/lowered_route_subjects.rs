@@ -60,7 +60,7 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     ),
     (
         "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture",
-        Expected::FallsBack,
+        Expected::Rejected,
     ),
     (
         "tests/fixtures/fail/contracts/adapter_input_membership_is_not_result",
@@ -72,7 +72,7 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     ),
     (
         "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
-        Expected::FallsBack,
+        Expected::Rejected,
     ),
     (
         "tests/fixtures/fail/termination/computed_rank_no_decrease",

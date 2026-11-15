@@ -992,6 +992,8 @@ pub enum ExpressionKind {
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<typed_trees::expression::CompletedValueCapture>),
     Integer(IntegerValue),
+    /// Exact IEEE representation after one rounding at the landing boundary.
+    Float(semantic_vocabulary::IeeeFloatValue),
     Boolean(bool),
     /// Actual immutable octets established at this expression's operation.
     ByteLiteral(Vec<u8>),
