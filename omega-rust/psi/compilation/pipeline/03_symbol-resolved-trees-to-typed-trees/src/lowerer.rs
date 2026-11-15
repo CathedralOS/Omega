@@ -2075,7 +2075,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         proof_output_calls,
         declaration_indexes: _,
         callable_identities: _,
-        callable_identity_memo: _,
         ranking_expression_custody,
         pending_const_range_endpoints: _,
         constant_recipes: _,
