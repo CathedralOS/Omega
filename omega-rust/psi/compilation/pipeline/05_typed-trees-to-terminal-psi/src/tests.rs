@@ -77,6 +77,7 @@ fn strict(
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },
