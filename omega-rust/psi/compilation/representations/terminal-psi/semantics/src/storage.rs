@@ -4110,7 +4110,7 @@ pub(crate) mod storage_dependencies {
                     format!("malformed declaration-ID storage projection at {root:?}: {path:?}")
                 })?;
             }
-            StructuralStorageUse::ObservedField { root, path } => {
+            StructuralStorageUse::ObservedField { root, path, .. } => {
                 let carrier = place_type(root)?;
                 roots.insert(carrier);
                 let observed = match declarations.get(&carrier).map(|row| &row.shape) {

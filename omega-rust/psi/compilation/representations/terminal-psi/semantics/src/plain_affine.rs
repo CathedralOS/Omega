@@ -2072,7 +2072,7 @@ impl Analysis<'_> {
                 self.read(state, projection.root, &path, site)
             }
             StructuralStorageUse::Canonical { root, path }
-            | StructuralStorageUse::ObservedField { root, path } => {
+            | StructuralStorageUse::ObservedField { root, path, .. } => {
                 self.read(state, root, path, site)
             }
             StructuralStorageUse::Type(_) => Ok(()),

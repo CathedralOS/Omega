@@ -14157,8 +14157,7 @@ pub mod descriptor_results {
                                 projection.root,
                                 location(projection.root, projection.path, projection.field),
                             ),
-                            StructuralStorageUse::Canonical { root, path }
-                            | StructuralStorageUse::ObservedField { root, path } => (
+                            StructuralStorageUse::Canonical { root, path } => (
                                 root,
                                 crate::descriptor_lifetimes::canonical_descriptor_location(
                                     &module.structural_types,
@@ -14167,6 +14166,23 @@ pub mod descriptor_results {
                                     path,
                                 ),
                             ),
+                            StructuralStorageUse::ObservedField { root, path, field } => {
+                                let mut selected = path.to_vec();
+                                selected.push(
+                                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                        field,
+                                    ),
+                                );
+                                (
+                                    root,
+                                    crate::descriptor_lifetimes::canonical_descriptor_location(
+                                        &module.structural_types,
+                                        root,
+                                        *graph.place_types.get(&root)?,
+                                        &selected,
+                                    ),
+                                )
+                            }
                             StructuralStorageUse::Type(_) => continue,
                         };
                         if let Some(selected) = selected {

@@ -1902,6 +1902,7 @@ pub mod values {
             ObservedField {
                 root: PlaceId,
                 path: &'a [semantic_vocabulary::CanonicalStructuralPathSegment],
+                field: StructuralFieldId,
             },
             Element {
                 descriptor: OperationProjection<'a>,
@@ -2433,12 +2434,21 @@ pub mod values {
                             Some(Read),
                         );
                     }
-                    Self::BooleanStructuralField { source, path, .. }
-                    | Self::ScalarStructuralField { source, path, .. } => {
+                    Self::BooleanStructuralField {
+                        source,
+                        path,
+                        field,
+                    }
+                    | Self::ScalarStructuralField {
+                        source,
+                        path,
+                        field,
+                    } => {
                         push(
                             StructuralStorageUse::ObservedField {
                                 root: *source,
                                 path,
+                                field: *field,
                             },
                             Some(Read),
                         );
@@ -2647,6 +2657,16 @@ pub mod values {
                 assert_eq!(projection.root, place(1));
                 assert_eq!(projection.field, Some(field));
                 assert_eq!(uses[0].1, Some(Read));
+                let scalar = OperationKind::ScalarStructuralField {
+                    source: place(1),
+                    path: Vec::new(),
+                    field,
+                };
+                let uses = scalar.storage_uses();
+                assert!(
+                    matches!(uses[0].0, StructuralStorageUse::ObservedField { field: actual, .. } if actual == field)
+                );
+                assert_eq!(uses[0].1, Some(Read));
                 let source = StructuralArgument {
                     place: place(1),
                     path: vec![StructuralPathSegment::Referent],
@@ -2669,21 +2689,21 @@ pub mod values {
                 for (event, expected) in [
                     (
                         AtomicAccessEvent::Load {
-                            ordering: MemoryOrdering::Relaxed,
+                            ordering: MemoryOrdering::NoOrdering,
                         },
                         Read,
                     ),
                     (
                         AtomicAccessEvent::Store {
                             value: ValueId::new(1).unwrap(),
-                            ordering: MemoryOrdering::Relaxed,
+                            ordering: MemoryOrdering::NoOrdering,
                         },
                         Write,
                     ),
                     (
                         AtomicAccessEvent::Swap {
                             value: ValueId::new(1).unwrap(),
-                            ordering: MemoryOrdering::Relaxed,
+                            ordering: MemoryOrdering::NoOrdering,
                         },
                         CompoundMutation,
                     ),
