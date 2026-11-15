@@ -2178,8 +2178,7 @@ impl<'a> Prover<'a> {
                     };
                     if let ScalarTerm::Value { id, .. } = root
                         && let Some(Some(definition)) = self.definitions.get(*id)
-                        && let ProofRule::SemanticAxiom { index } =
-                            self.equations[*definition].1.rule
+                        && let Some(index) = self.facts[self.equations[*definition]].axiom
                     {
                         witness.definition_axioms.push(index);
                         witness.literal_axioms.push(None);
@@ -2224,7 +2223,7 @@ impl<'a> Prover<'a> {
                     let image = node(
                         conclusion,
                         ProofRule::IntegerAffineBound {
-                            root_bound: Box::new(fact.proof.clone()),
+                            root_bound: Box::new(fact.proof(&self.facts)),
                             witness,
                         },
                     );
