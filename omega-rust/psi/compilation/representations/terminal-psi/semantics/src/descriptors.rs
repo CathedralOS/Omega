@@ -11504,7 +11504,7 @@ pub mod descriptor_results {
                 else {
                     unreachable!()
                 };
-                *source = result.place;
+                *source = PlaceId::new(5).unwrap();
                 let mut pack = moved.machines[0].clone();
                 pack.id = reader_id;
                 pack.contract.id = ContractId::new(2).unwrap();
