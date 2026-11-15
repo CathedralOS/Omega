@@ -99,7 +99,6 @@ Every shipped instrument shares these; deviation needs a reason:
 | Pre-landing test selection | `tools/test_affected.py` (`jev` block) | "did I run the checks that catch this?" |
 | Post-landing attribution | `tools/triage_advisor.py` | "which commit/layer broke this?" |
 | Golden pinning | `tools/corpus_gate.py --jev` | "is this diff safe to `--record`?" |
-| Wave launch fences | `tools/swarm/launch.py` (`jev_fence` hint) | "does the fence cover the real edit surface?" |
 | Doc claim audit | `tools/spec_drift_advisor.py` | "does this claim still match reality?" |
 | Window blame ranking | `tools/jev_attribute.py` | "which commit in the window carries this failure's evidence?" |
 | Failure attribution | `tools/test_affected.py --base X --attribute LOG` | "is this red mine, baseline, or environmental?" |
