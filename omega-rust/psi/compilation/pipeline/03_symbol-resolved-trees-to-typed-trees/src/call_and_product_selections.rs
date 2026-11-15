@@ -418,6 +418,10 @@ pub(crate) mod call_results {
         }
     }
 
+    /// The type a receiver's members come from. A transparent alias
+    /// (`CLayout<Record>`) names the same type as its substituted expansion
+    /// (generics.md, "Transparent type aliases"), so its fields are the
+    /// expansion's fields.
     pub(crate) fn peel<'program>(
         program: &'program resolved::SymbolResolvedTrees,
         mut reference: &'program TypeReference,
@@ -430,6 +434,7 @@ pub(crate) mod call_results {
                 TypeReference::Constrained(reference) => {
                     program.child_type_reference(reference.base_type)
                 }
+                TypeReference::AliasUse { expansion, .. } => expansion,
                 _ => return reference,
             };
         }
