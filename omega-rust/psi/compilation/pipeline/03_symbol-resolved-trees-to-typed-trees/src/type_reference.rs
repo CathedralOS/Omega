@@ -811,6 +811,7 @@ pub(crate) mod const_arguments {
                     (bound.trait_symbol, bound.arguments.clone(), owner)
                 }));
             }
+            let mut owners = None;
             for (declaration, arguments, owner) in applications {
                 if let Some(sort) = program.symbols.universe_sort_for_symbol(declaration) {
                     // `core::Type<u>` and `core::Strict<u>` apply one universe
@@ -835,9 +836,23 @@ pub(crate) mod const_arguments {
                     .filter(|parameters| parameters.len() == arguments.len())
                 else {
                     if has_closed_demand {
-                        return Err(crate::unavailable_judgment(
-                            "closed const argument declaration custody",
-                        ));
+                        let demanded = arguments
+                            .iter()
+                            .copied()
+                            .filter(|argument| {
+                                argument.arena_index() as usize > frontier
+                                    && needs_admission(program, *argument)
+                            })
+                            .collect::<Vec<_>>();
+                        defer_to_holders(
+                            program,
+                            &mut owners,
+                            owner,
+                            &demanded,
+                            crate::unavailable_judgment(
+                                "closed const argument declaration custody",
+                            ),
+                        )?;
                     }
                     continue;
                 };
@@ -871,10 +886,16 @@ pub(crate) mod const_arguments {
                             // A record or case value: whether it is a value
                             // of the declared data type is typing's question,
                             // and the check that answered it is not rebuilt.
-                            return Err(Diagnostic::error(
-                                "no product route yet: a record or case const argument is not \
-                                 typed against its declared data type",
-                            ));
+                            defer_to_holders(
+                                program,
+                                &mut owners,
+                                owner,
+                                &[argument],
+                                Diagnostic::error(
+                                    "no product route yet: a record or case const argument is \
+                                     not typed against its declared data type",
+                                ),
+                            )?;
                         }
                         continue;
                     };
@@ -899,6 +920,64 @@ pub(crate) mod const_arguments {
                         },
                     );
                 }
+            }
+            Ok(())
+        }
+
+        /// Records a const argument typing does not admit on the
+        /// declarations that hold it. This pass sees the program with every
+        /// bundled library, so an application in a declaration nobody demands
+        /// must not stop the program: the argument stays as written, and its
+        /// declaration is refused where a reader demands it. The holders are
+        /// the retained owners of the application and the argument and every
+        /// declaration the argument is written in; an argument no declaration holds has no
+        /// reader to raise it and refuses here with `unheld`.
+        fn defer_to_holders(
+            program: &mut TypedTrees,
+            owners: &mut Option<typed_trees::references::ProgramOperandOwners>,
+            owner: symbols::SymbolHandle,
+            arguments: &[typed_trees::types::TypeReferenceHandle],
+            unheld: Diagnostic,
+        ) -> Result<(), Diagnostic> {
+            let owners = owners.get_or_insert_with(|| {
+                typed_trees::references::collect_program_operand_owners(program)
+            });
+            let mut holders = arguments
+                .iter()
+                .flat_map(|argument| {
+                    owners.type_owners(*argument).chain([program
+                        .type_reference_table
+                        .operand_lifetime_owner(*argument)])
+                })
+                .chain([owner])
+                .filter(|holder| holder.is_valid())
+                .collect::<Vec<_>>();
+            holders.sort_unstable_by_key(|holder| (holder.arena_index(), holder.generation()));
+            holders.dedup();
+            let source_span = arguments
+                .iter()
+                .find_map(
+                    |argument| match program.type_reference_table.type_reference(*argument) {
+                        TypeReferenceNode::ConstExpression(expression) => {
+                            program.expression_table.try_source_span(*expression)
+                        }
+                        _ => None,
+                    },
+                )
+                .unwrap_or_default();
+            if holders.is_empty() {
+                return Err(if source_span == source::SourceSpan::default() {
+                    unheld
+                } else {
+                    unheld.with_source_span(source_span)
+                });
+            }
+            for holder in holders {
+                program.record_deferred_refusal(
+                    holder,
+                    typed_trees::deferred_refusals::DeferredRequest::ConstArgumentAdmission,
+                    source_span,
+                );
             }
             Ok(())
         }
@@ -1474,17 +1553,17 @@ pub(crate) mod const_arguments {
                             supplier,
                         )
                         .unwrap();
-                    let outcome = normalize(&mut program, 0);
-                    if header_count == 1 {
-                        outcome.unwrap();
-                    } else {
-                        // With no header or two, typing cannot say which
-                        // parameter the argument answers.
-                        assert_eq!(
-                            outcome.unwrap_err().message,
-                            "typing could not complete the check (closed const argument declaration custody)"
-                        );
-                    }
+                    normalize(&mut program, 0).unwrap();
+                    // With no header or two, typing cannot say which
+                    // parameter the argument answers. The supplier that
+                    // holds the application is refused where it is
+                    // demanded, and no other program is stopped.
+                    assert_eq!(
+                        program.deferred_refusal(supplier).map(|row| row.request),
+                        (header_count != 1).then_some(
+                            typed_trees::deferred_refusals::DeferredRequest::ConstArgumentAdmission
+                        )
+                    );
                     if header_count == 1 && !argument_scope {
                         // The `u64` literal has the declared type: it takes
                         // its canonical spelling.
