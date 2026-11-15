@@ -2330,6 +2330,19 @@ impl Analysis<'_> {
             Op::StructuralByteViewFieldStore { source, .. } => {
                 self.read(state, *source, &[], site)?;
             }
+            Op::ElementViewRead { source, .. } => {
+                // The slice elements live in the backing. This observation needs
+                // the initialized descriptor at the same place as its length.
+                self.storage_use(
+                    state,
+                    terminal_psi::OperationProjection {
+                        root: source.place,
+                        path: &source.path,
+                    }
+                    .into(),
+                    site,
+                )?;
+            }
             kind => {
                 for used in kind.storage_uses() {
                     self.storage_use(state, used, site)?;

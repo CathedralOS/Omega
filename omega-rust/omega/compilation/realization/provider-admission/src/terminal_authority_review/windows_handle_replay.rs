@@ -1963,14 +1963,14 @@ impl CanonicalHandleState {
                     path,
                     ..
                 } => {
-                    let mut selected = Vec::with_capacity(path.len() + 1);
+                    let mut selected = source.path.clone();
                     selected.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
                         index: *index,
                         obligation: *obligation,
                     });
                     selected.extend_from_slice(path);
                     Some(geometry.scalar_selection(
-                        *source,
+                        source.place,
                         &selected,
                         &self.references,
                         result.scalar_type,

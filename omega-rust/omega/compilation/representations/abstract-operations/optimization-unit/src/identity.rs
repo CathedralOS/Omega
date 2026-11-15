@@ -4110,7 +4110,12 @@ pub(crate) mod operation_encoding {
                     bytes.u8(87);
                     bytes.id(*psi_operation);
                     encode_abstract_result(bytes, *result);
-                    bytes.id(*source);
+                    if source.path.is_empty() {
+                        bytes.id(source.place);
+                    } else {
+                        bytes.u64(0);
+                        encode_structural_argument(bytes, source);
+                    }
                     bytes.id(*index);
                     bytes.id(*length);
                     bytes.id(*obligation);

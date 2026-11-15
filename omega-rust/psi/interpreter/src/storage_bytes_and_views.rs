@@ -4892,10 +4892,13 @@ pub(crate) mod element_views {
             let result = operation.result.scalar().ok_or(malformed())?;
             let index = count(index, &self.values)?;
             let length = count(length, &self.values)?;
-            let view = crate::engine::custody::verified_structural_place(
-                &self.element_view_values,
-                *source,
+            self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
+            let value = self.resolve_live_projection(
+                source.place,
+                &source.path,
+                StructuralAccess::SharedBorrow,
             )?;
+            let view = self.element_view_argument(source, &value)?;
             if view.len() != length || index >= length {
                 return Err(malformed());
             }

@@ -20925,16 +20925,18 @@ mod source {
         #[test]
         fn ieee_element_read_coverage_requires_a_unique_exact_result() {
             use semantic_vocabulary::{
-                IeeeFloatFormat, IntegerValue, ObligationId, PlaceId, ScalarType, StructuralTypeId,
+                IeeeFloatFormat, IntegerValue, ObligationId, PlaceId, ScalarType,
             };
             use target_operations::{
-                TargetElementView, TargetIntegerExpression, TargetScalarExpression,
-                TargetUnitScalarHomeRequirement,
+                TargetIntegerExpression, TargetScalarExpression, TargetUnitScalarHomeRequirement,
             };
 
             let operation = OperationId::new(1).unwrap();
             let result = ValueId::new(3).unwrap();
-            let source = PlaceId::new(1).unwrap();
+            let source = terminal_psi::StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                terminal_psi::StructuralAccess::SharedBorrow,
+            );
             let index = ValueId::new(1).unwrap();
             let length = ValueId::new(2).unwrap();
             let obligation = ObligationId::new(1).unwrap();
@@ -20945,7 +20947,7 @@ mod source {
                     value: result,
                     scalar_type,
                 },
-                source,
+                source: source.clone(),
                 index,
                 length,
                 obligation,
@@ -20962,12 +20964,8 @@ mod source {
                     format,
                     psi_operation: identity,
                     source_value: retained_result,
-                    source,
-                    view: Box::new(TargetElementView::Result {
-                        psi_operation: OperationId::new(2).unwrap(),
-                        place: source,
-                        structural_type: StructuralTypeId::new(1).unwrap(),
-                    }),
+                    source: source.clone(),
+                    indices: Vec::new(),
                     index: Box::new(TargetIntegerExpression::Immediate {
                         source_value: index,
                         value: IntegerValue::Unsigned(0),

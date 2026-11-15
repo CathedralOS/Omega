@@ -3323,14 +3323,15 @@ pub(crate) mod machine_foundations {
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
         for block in &machine.blocks {
+            let mut previous = None;
             for operation in &block.operations {
-                validate_operation_foundation(module, machine, operation, transfers).map_err(
-                    |error| {
+                validate_operation_foundation(module, machine, operation, transfers, previous)
+                    .map_err(|error| {
                         super::operation_foundation_error(
                             module, machine, block.id, operation, error,
                         )
-                    },
-                )?;
+                    })?;
+                previous = Some(operation);
             }
         }
         for invocation in machine.module_invocations() {
@@ -3341,8 +3342,8 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
-        let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
+        let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
                 module,
@@ -6335,13 +6336,37 @@ pub(crate) mod storage_foundations {
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            previous: Option<&Operation>,
         ) -> Result<(), CodecError> {
-            let OperationKind::ElementViewRead { source, path, .. } = &operation.kind else {
+            let OperationKind::ElementViewRead {
+                source,
+                path,
+                length,
+                ..
+            } = &operation.kind
+            else {
                 unreachable!("dispatched validate_element_view_read")
             };
-            let Some(source_type) = place_structural_type(machine, *source) else {
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return malformed("element-view read requires shared observation access");
+            }
+            let Some(root) = place_structural_type(machine, source.place) else {
                 return malformed("element-view read has an undeclared source place");
             };
+            let source_type = validate_structural_path(module, root, &source.path)?;
+            if !previous.is_some_and(|measurement| {
+                measurement
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == *length)
+                    && matches!(
+                        &measurement.kind,
+                        OperationKind::ElementViewLength { source: observed }
+                            if terminal_semantics::same_descriptor_coordinate(observed, source)
+                    )
+            }) {
+                return malformed("element-view read length does not measure its exact descriptor");
+            }
             let Some(element) = module.structural_types.iter().find_map(|row| {
                 match (row.id == source_type, &row.shape) {
                     (true, StructuralTypeShape::ElementView { element, .. }) => Some(*element),
@@ -11620,6 +11645,7 @@ fn validate_operation_foundation(
     machine: &TerminalMachine,
     operation: &Operation,
     transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
+    previous: Option<&Operation>,
 ) -> Result<(), CodecError> {
     if operation.required_contract.is_some() && operation.module_invocation().is_none() {
         return malformed(
@@ -11761,7 +11787,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_element_view_length(module, machine, operation)?
         }
         OperationKind::ElementViewRead { .. } => {
-            storage_foundations::validate_element_view_read(module, machine, operation)?
+            storage_foundations::validate_element_view_read(module, machine, operation, previous)?
         }
         OperationKind::ElementViewSubslice { .. } => {
             storage_foundations::validate_element_view_subslice(module, machine, operation)?

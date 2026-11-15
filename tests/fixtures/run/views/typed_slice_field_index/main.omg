@@ -1,0 +1,13 @@
+data Windows<'left, 'right> { peer: &'right [u32]; observed: &'left [u32]; }
+machine pick(windows: &Windows) -> u32 {
+    transition windows.observed.len >= 1 { true -> windows.observed[0] _ -> 0 }
+}
+machine main() crashes Trap {
+    let numbers: [u32; 1] = [11u32];
+    let peer: [u32; 1] = [29u32];
+    let windows: Windows = Windows { peer: &peer[..], observed: &numbers[..] };
+    let value: u32 = pick(&windows);
+    transition value == 11 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

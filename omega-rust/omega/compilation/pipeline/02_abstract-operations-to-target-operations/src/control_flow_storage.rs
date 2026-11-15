@@ -1304,7 +1304,10 @@ pub(crate) mod byte_write {
                 _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
             };
         if source == destination
-            || live.lengths.get(length) != Some(source)
+            || !live
+                .lengths
+                .get(length)
+                .is_some_and(|observed| observed.place == *source && observed.path.is_empty())
             || !(function.arrival_parameter(*source).is_some() || live.views.contains_key(source))
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1639,7 +1642,10 @@ pub(crate) mod byte_write {
         else {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         };
-        if live.lengths.get(length) != Some(destination)
+        if !live
+            .lengths
+            .get(length)
+            .is_some_and(|observed| observed.place == *destination && observed.path.is_empty())
             || !(prepared.parameter(*destination).is_some()
                 || live.block_views.contains(destination)
                 || live.views.contains_key(destination)
@@ -2328,7 +2334,7 @@ pub(crate) mod observations {
                 source,
             } => {
                 if source.path.is_empty() {
-                    live.lengths.insert(result.value, source.place);
+                    live.lengths.insert(result.value, source.clone());
                 }
                 let expression =
                     removed_scalar_expression(&mut values, function.machine, result.value)?;
@@ -2339,9 +2345,7 @@ pub(crate) mod observations {
                 result,
                 source,
             } => {
-                if source.path.is_empty() {
-                    live.lengths.insert(result.value, source.place);
-                }
+                live.lengths.insert(result.value, source.clone());
                 let expression =
                     removed_scalar_expression(&mut values, function.machine, result.value)?;
                 (*psi_operation, result.value, result.scalar_type, expression)
@@ -2362,7 +2366,6 @@ pub(crate) mod observations {
                     operation,
                     function,
                     structural_types,
-                    &prepared.parameters,
                     live.element_view_backings(),
                     &values,
                     &live.lengths,

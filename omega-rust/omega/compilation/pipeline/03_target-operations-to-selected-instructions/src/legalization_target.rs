@@ -2634,6 +2634,35 @@ pub(crate) mod expressions {
             home == expected && definitions.next().is_none()
         }
 
+        fn element_read_geometry(
+            &self,
+            source: &terminal_psi::StructuralArgument,
+            indices: &[target_operations::TargetStructuralRuntimeIndex],
+            path: &[terminal_psi::StructuralPathSegment],
+            scalar_type: ScalarType,
+            element_byte_offset: u32,
+        ) -> bool {
+            use crate::legalization::scalar_graph_input::element_views::read_geometry;
+            use crate::structural_inputs::structural_reference_input::element_leaf_projection;
+
+            let Some(geometry) = read_geometry(self.optimized, source, self.types) else {
+                return false;
+            };
+            let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
+                terminal_psi::find_structural_type(self.types, geometry.selected)
+                    .map(|declaration| &declaration.shape)
+            else {
+                return false;
+            };
+            super::unit::runtime_indices_rejoin(
+                indices,
+                &geometry.elements,
+                self.available
+                    .unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY),
+            ) && element_leaf_projection(*element, path, scalar_type, self.types)
+                .is_some_and(|(offset, _, steps)| offset == element_byte_offset && steps.is_empty())
+        }
+
         pub(crate) fn float_element_read(
             &self,
             expression: &target_operations::TargetScalarExpression,
@@ -2644,7 +2673,7 @@ pub(crate) mod expressions {
                 psi_operation,
                 source_value,
                 source,
-                view,
+                indices,
                 index,
                 length,
                 obligation,
@@ -2655,7 +2684,6 @@ pub(crate) mod expressions {
                 return false;
             };
             *source_value == value
-                && self.element_view(view, *source, &[])
                 && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::ElementViewRead {
                         psi_operation: operation, result, source: expected,
@@ -2666,10 +2694,7 @@ pub(crate) mod expressions {
                         && expected == source && path == expected_path
                         && length == expected_length && obligation == expected_obligation
                         && self.integer_source(index, *expected_index, &[])
-                        && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
-                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                                element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)))
+                        && self.element_read_geometry(source, indices, path, result.scalar_type, *element_byte_offset)))
         }
 
         pub(crate) fn expression(
@@ -2711,17 +2736,13 @@ pub(crate) mod expressions {
                             AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                             if operation == psi_operation && result.value == resolved && expected == source))
                 }
-                Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation, path, element_byte_offset } => {
+                Expression::ElementViewRead { psi_operation, source_value, source, indices, index, length, obligation, path, element_byte_offset } => {
                     *source_value == resolved
-                        && self.element_view(view, *source, aliases)
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                             if operation == psi_operation && result.value == resolved && expected == source
                             && path == expected_path
-                            && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
-                                .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                                    element, path, result.scalar_type, self.types))
-                                .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
+                            && self.element_read_geometry(source, indices, path, result.scalar_type, *element_byte_offset)
                             && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
                 }
                 Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
@@ -2836,7 +2857,7 @@ pub(crate) mod expressions {
                 psi_operation,
                 source_value,
                 source,
-                view,
+                indices,
                 index,
                 length,
                 obligation,
@@ -2846,16 +2867,12 @@ pub(crate) mod expressions {
             {
                 let resolved = resolve(value, aliases);
                 return *source_value == resolved
-                    && self.element_view(view, *source, aliases)
                     && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                         if operation == psi_operation && result.value == resolved && expected == source
                         && result.scalar_type == ScalarType::Boolean
                         && path == expected_path
-                        && crate::legalization::scalar_graph_input::byte_views::element_type(self.optimized, *source, self.types)
-                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
-                                element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
+                        && self.element_read_geometry(source, indices, path, result.scalar_type, *element_byte_offset)
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)));
             }
             if let Boolean::BlockParameter(parameter) = expression {
