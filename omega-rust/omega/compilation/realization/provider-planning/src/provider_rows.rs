@@ -142,14 +142,33 @@ impl DirectBoundaryInput {
 /// Realize the checked core primitive at its own callable coordinate, retaining
 /// the canonical requirement's complete schema as its semantic owner.
 /// No source callback or provider-name classification supplies execution here.
+/// Only requested declarations acquire a target realization; unused library
+/// declarations remain available for source checking without being deployed.
 pub fn direct_compiler_primitive_leaves(
     module: &terminal_psi::TerminalModule,
     schemas: &[effects::provider_plan::ServiceSchema],
     target: &str,
+    requested: impl IntoIterator<Item = semantic_vocabulary::BoundaryMachineId>,
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let fail = |reason: &str| vec![Diagnostic::error(reason)];
     if target.is_empty() {
         return Err(fail("hosted primitive requires one explicit native target"));
+    }
+    let mut requested = requested.into_iter().collect::<Vec<_>>();
+    requested.sort_unstable();
+    if requested.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(fail("requested primitive declaration is repeated"));
+    }
+    let mut boundaries = Vec::with_capacity(requested.len());
+    for boundary in &module.boundary_machines {
+        if requested.binary_search(&boundary.id).is_ok() {
+            boundaries.push(boundary);
+        }
+    }
+    if boundaries.len() != requested.len() {
+        return Err(fail(
+            "requested primitive has no declaration in this module",
+        ));
     }
     let text = |identity| {
         module
@@ -159,7 +178,7 @@ pub fn direct_compiler_primitive_leaves(
             .ok_or_else(|| fail("hosted primitive lost its exact declaration identity"))
     };
     let mut leaves = Vec::new();
-    for boundary in &module.boundary_machines {
+    for boundary in boundaries {
         let Some(declaration) = &boundary.declaration else {
             continue;
         };

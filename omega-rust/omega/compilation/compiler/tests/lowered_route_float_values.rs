@@ -76,8 +76,14 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                 }
             }
             let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64").unwrap();
+            let leaves = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
             assert_eq!(leaves.len(), 12);
+            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
+            let first = module.boundary_machines[0].id;
+            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
+            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
+            let unsupported = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
+            assert!(format!("{unsupported:?}").contains("the target declares no floating-point realization table"), "{unsupported:?}");
             let selection = effects::SelectedProviderPlanFacts::default()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
             let executions = selection.plans().iter().map(|plan| {
@@ -557,6 +563,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 module,
                 &schemas,
                 "macos_arm64",
+                module.boundary_machines.iter().map(|boundary| boundary.id),
             )
             .unwrap();
             let leaf = leaves

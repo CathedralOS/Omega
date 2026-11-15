@@ -40,6 +40,8 @@ pub(super) struct ReviewedProviders {
     pub callables: Vec<PackagePolicyCallable>,
     pub plans: Vec<PackagePolicyProviderPlan>,
     pub public_traits: Vec<PackagePolicyTraitShape>,
+    pub applications: Vec<crate::record::PackagePolicyBoundaryApplicationRealization>,
+    pub semantic_dependencies: Vec<crate::record::PackagePolicySemanticDependency>,
     boundaries: Vec<BoundaryMachineId>,
     services: Vec<ServiceId>,
 }
@@ -137,6 +139,8 @@ impl PackageReviewInput<'_> {
             callables: Vec::new(),
             plans: Vec::new(),
             public_traits: Vec::new(),
+            applications: Vec::new(),
+            semantic_dependencies: Vec::new(),
             boundaries: Vec::new(),
             services: Vec::new(),
         };
@@ -208,6 +212,27 @@ impl PackageReviewInput<'_> {
         }) {
             return Err(unavailable("the exact Build provider selection custody"));
         }
+        // Canonical numeric declarations obtain execution from the target,
+        // independently of the Build's authored provider selections.
+        let mut numeric_applications = Vec::new();
+        let roots = accepted
+            .entry()
+            .into_iter()
+            .chain(provider_rows.iter().flat_map(|row| {
+                row.candidates
+                    .iter()
+                    .map(|candidate| candidate.conformance.candidate)
+            }));
+        for numeric in super::numeric::project(self, accepted, target, roots)? {
+            review.boundaries.push(numeric.boundary);
+            review.semantic_dependencies.push(numeric.dependency);
+            if let Some((plan, application)) = numeric.realization {
+                review.plans.push(plan);
+                numeric_applications.push(application);
+            }
+        }
+        review.semantic_dependencies.sort_unstable();
+        review.semantic_dependencies.dedup();
         self.project_remaining_requirements(
             package,
             declarations,
@@ -244,6 +269,13 @@ impl PackageReviewInput<'_> {
         review
             .plans
             .sort_by(PackagePolicyProviderPlan::compare_canonical);
+        review.applications = numeric_applications
+            .into_iter()
+            .map(|application| application.finish(&review.plans))
+            .collect::<Result<Vec<_>, _>>()?;
+        review
+            .applications
+            .sort_by(|left, right| left.application_key().cmp(&right.application_key()));
         Ok(review)
     }
 
@@ -779,12 +811,12 @@ impl PackageReviewInput<'_> {
         }
         let callable =
             self.checked_requirement(signature, boundary, requirement.clone(), declarations)?;
-        let selected = PackagePolicyServiceMethod {
-            completion: method.completion,
-            name: method.name.clone(),
-            requirement_owner: requirement_owner.clone(),
+        let selected = service_method_policy(
+            method,
+            schema,
             requirement,
-            signature: PackagePolicyServiceSignature {
+            requirement_owner.clone(),
+            PackagePolicyServiceSignature {
                 schema_arguments: Vec::new(),
                 schema_lifetime_parameter_count: 0,
                 schema_lifetime_arguments: Vec::new(),
@@ -796,32 +828,12 @@ impl PackageReviewInput<'_> {
                 parameters: callable.parameters.clone(),
                 result: callable.return_type.clone(),
             },
-            authority: PackagePolicyServiceAuthority {
+            PackagePolicyServiceAuthority {
                 service_reach: authority,
                 synchronous_invocations: Vec::new(),
                 progress_premises: Vec::new(),
             },
-            parameter_count: method.parameter_count,
-            parameter_type_identities: method
-                .parameter_type_identities
-                .iter()
-                .map(|identity| schema.identity_text(*identity).to_owned())
-                .collect(),
-            entry_claims: Vec::new(),
-            has_result: method.has_result,
-            result_type_identity: method
-                .has_result
-                .then(|| schema.identity_text(method.result_type_identity).to_owned()),
-            result_claims: Vec::new(),
-            service_reach: method.service_reach.clone(),
-            synchronous_invocations: Vec::new(),
-            may_suspend: method.may_suspend,
-            may_block: method.may_block,
-            terminates_guarantee: method.terminates_guarantee,
-            termination_premises: Vec::new(),
-            identities: schema.declaration.identities.clone(),
-            calling: Vec::new(),
-        };
+        );
         Ok((selected, callable))
     }
 
@@ -1016,5 +1028,45 @@ fn service_requirement(callable: &PackagePolicyCallable) -> PackagePolicyTraitRe
         termination: callable.checked_termination.clone(),
         returned_borrow_origins: Vec::new(),
         parameter_qualification_preconditions: Vec::new(),
+    }
+}
+
+/// Project the complete schema once the caller has joined its declaration and
+/// authority. Authored providers and target primitives retain the same fields.
+pub(super) fn service_method_policy(
+    method: &ServiceMethod,
+    schema: &ServiceSchema,
+    requirement: PackageReviewNominalIdentity,
+    requirement_owner: PackageReviewNominalIdentity,
+    signature: PackagePolicyServiceSignature,
+    authority: PackagePolicyServiceAuthority,
+) -> PackagePolicyServiceMethod {
+    PackagePolicyServiceMethod {
+        completion: method.completion,
+        name: method.name.clone(),
+        requirement_owner,
+        requirement,
+        signature,
+        authority,
+        parameter_count: method.parameter_count,
+        parameter_type_identities: method
+            .parameter_type_identities
+            .iter()
+            .map(|identity| schema.identity_text(*identity).to_owned())
+            .collect(),
+        entry_claims: method.entry_claims.clone(),
+        has_result: method.has_result,
+        result_type_identity: method
+            .has_result
+            .then(|| schema.identity_text(method.result_type_identity).to_owned()),
+        result_claims: method.result_claims.clone(),
+        service_reach: method.service_reach.clone(),
+        synchronous_invocations: method.synchronous_invocations.clone(),
+        may_suspend: method.may_suspend,
+        may_block: method.may_block,
+        terminates_guarantee: method.terminates_guarantee,
+        termination_premises: method.termination_premises.clone(),
+        identities: schema.declaration.identities.clone(),
+        calling: Vec::new(),
     }
 }

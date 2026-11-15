@@ -122,12 +122,6 @@ framework or a list of unimplemented features.
 - Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
 - Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
 
-### Float fixtures stop before target and requirement policy checks
-- Category: tests that pin the bug
-- Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
-- Saw: On `8329cdc221e`, the two conversion fixtures stop at `coordinates::entry::rx` with “call receiver, requirement or coercion call”. The separate kept `Float::add` case stops in `carry` with “numeric primitive has no canonical result contract yet”.
-- Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
-- Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
 
 ### Static callable specialization needs a portable receipt for open structural reach
 - Category: knowledge crossing a boundary

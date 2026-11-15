@@ -148,6 +148,7 @@ pub(crate) fn prepare(
         module,
         &schemas,
         profile.target_name(),
+        module.boundary_machines.iter().map(|boundary| boundary.id),
     )?;
     let policy = current_terminal_authority_policy();
     let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();

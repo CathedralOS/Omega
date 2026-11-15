@@ -154,10 +154,10 @@ pub(super) fn project(
         external_supplies: Vec::new(),
         dangerous_capabilities: Vec::new(),
         slack_uses: Vec::new(),
-        semantic_dependencies: Vec::new(),
+        semantic_dependencies: providers.semantic_dependencies,
         boundary_applications: PackagePolicyBoundaryApplications {
             demands: Vec::new(),
-            realizations: Vec::new(),
+            realizations: providers.applications,
         },
         assumed_bindings: Vec::new(),
         service_audits: Vec::new(),
