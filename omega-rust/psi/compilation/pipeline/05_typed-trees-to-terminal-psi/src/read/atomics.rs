@@ -183,14 +183,92 @@ impl Program<'_> {
         let (place, scalar) = self.atomic_place(machine, slots, atomic.value, true, false)?;
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic {
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
                 place: Box::new(place),
                 event: AtomicAccessEvent::Load { ordering },
                 operands: Vec::new(),
-            },
+            }),
             result: Some(ValueType::plain(scalar)),
             source,
         })
+    }
+
+    pub(super) fn atomic_fence(
+        &self,
+        id: MachineId,
+        target: symbols::SymbolHandle,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
+        use terminal_psi::FenceOrdering;
+
+        let Some(machine) = self.typed.machine_by_symbol(target) else {
+            return Ok(None);
+        };
+        if self
+            .typed
+            .symbols
+            .sealed_declaration(target, machine.name.as_str())
+            != Some(SealedIntrinsic::CompilerPrimitive(
+                CompilerPrimitive::AtomicFence,
+            ))
+        {
+            return Ok(None);
+        }
+        let reject_ordering = || {
+            reject(
+                id,
+                source,
+                "an atomic fence needs a known case of FenceOrdering",
+            )
+        };
+        let (_, entry) = self.declaration(id, target)?;
+        let [parameter] = self.typed.state_parameters(entry) else {
+            return Err(reject_ordering());
+        };
+        let [argument] = arguments else {
+            return Err(reject_ordering());
+        };
+        let definition = self
+            .typed
+            .closed_data_definition(parameter.type_reference)
+            .ok_or_else(reject_ordering)?;
+        let case_symbol = match self.node(id, *argument)? {
+            ExpressionNode::Name(path) => path.symbol,
+            ExpressionNode::StructLiteral(literal)
+                if literal.type_symbol == definition.symbol
+                    && self
+                        .typed
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .is_empty() =>
+            {
+                literal.case_symbol.ok_or_else(reject_ordering)?
+            }
+            _ => return Err(reject_ordering()),
+        };
+        let case = self
+            .typed
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| member.as_variant())
+            .find(|case| {
+                case.symbol == case_symbol && self.typed.data_payload_fields(case).is_empty()
+            })
+            .ok_or_else(reject_ordering)?;
+        let ordering = match case.name.as_str() {
+            "Receive" => FenceOrdering::Receive,
+            "Publish" => FenceOrdering::Publish,
+            "ReceivePublish" => FenceOrdering::ReceivePublish,
+            _ => return Err(reject_ordering()),
+        };
+        Ok(Some(Expression {
+            call_context: None,
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Fence(ordering)),
+            result: None,
+            source,
+        }))
     }
 
     pub(super) fn atomic_store(
@@ -223,11 +301,11 @@ impl Program<'_> {
         Ok(Statement::Evaluate {
             expression: Expression {
                 call_context: None,
-                kind: ExpressionKind::Atomic {
+                kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
                     place: Box::new(place),
                     event: AtomicAccessEvent::Store { value: 0, ordering },
                     operands: vec![operand],
-                },
+                }),
                 result: None,
                 source,
             },
@@ -347,11 +425,11 @@ impl Program<'_> {
         let operand = self.atomic_operand(machine, slots, operand, scalar)?;
         let value = Expression {
             call_context: None,
-            kind: ExpressionKind::Atomic {
+            kind: ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
                 place: Box::new(place),
                 event,
                 operands: vec![operand],
-            },
+            }),
             result: Some(declared),
             source,
         };

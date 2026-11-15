@@ -309,7 +309,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "atomic.omg",
-        "Atomic::fence",
+        "fence",
         bundled!("core/atomic.omg"),
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
     ),

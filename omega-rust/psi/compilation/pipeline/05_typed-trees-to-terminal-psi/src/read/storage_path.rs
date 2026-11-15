@@ -30,7 +30,7 @@ pub(super) fn walk<'a, E>(
                 Some(subject) => place = subject,
                 None => return Ok(place),
             },
-            ExpressionKind::Atomic { .. }
+            ExpressionKind::Atomic(_)
             | ExpressionKind::Slot(_)
             | ExpressionKind::Borrow { .. }
             | ExpressionKind::Integer(_)

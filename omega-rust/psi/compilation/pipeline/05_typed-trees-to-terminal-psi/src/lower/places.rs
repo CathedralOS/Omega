@@ -586,11 +586,8 @@ fn expression_homes<'b>(
     homes: &mut Vec<(ValueType, Option<&'b String>)>,
 ) {
     match &expression.kind {
-        ExpressionKind::Atomic {
-            place, operands, ..
-        } => {
-            expression_homes(place, homes);
-            for operand in operands {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
                 expression_homes(operand, homes);
             }
         }
@@ -1564,7 +1561,7 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
-            ExpressionKind::Atomic { .. } => {
+            ExpressionKind::Atomic(_) => {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
             }
             ExpressionKind::SavedSubject(capture) => {
