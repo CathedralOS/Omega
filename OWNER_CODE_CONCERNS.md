@@ -80,6 +80,13 @@ framework or a list of unimplemented features.
 - Cost: This fixture no longer checks whether each body yields the same diagnostic alone and in a group, or whether the direct reader stops at the first. Use a body form that still produces the intended refusal and keep the ordering and identity assertions.
 - Reported: 2026-11-15, Codex, while running the Stage06 suite for typed slice indexing.
 
+### The float equality refusal test never selects its IEEE comparison
+- Category: tests that pin the bug
+- Where: [float clause test](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/floats.rs#L99), [contract comparison reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/contracts.rs)
+- Saw: With only the Stage06 fixture constructors repaired on `696be2f33d1`, `what_is_not_computed_with_a_float_is_refused_by_name` reaches “contract IEEE comparison without its selected declaration” for `need(value: f32) requires value == value`. Its oracle still expects the pre-#3544 blanket comparison refusal. The test never reaches the original question of whether an unconstrained float can be assumed equal to itself.
+- Cost: The regression no longer exercises IEEE equality for a value that may be NaN. Select the checked comparison through the ordinary source route and preserve the negative proof that a caller cannot assume the equality without evidence.
+- Reported: 2026-11-15, Codex, when the lowered checker suite resumed after the record-layout fixture repair.
+
 ### A computed array extent blocks a layout constant before target evaluation
 - Category: knowledge crossing a boundary
 - Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [deferred type references](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L158), [checked const arguments](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs#L216)

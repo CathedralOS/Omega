@@ -431,10 +431,25 @@ pub(crate) fn normalize(
     query: &PureTerminalEvaluationReceipt,
     plan: &PureTerminalEvaluationReceipt,
 ) -> Result<AccessPlan, String> {
-    plan.validate_charge()?;
     if plan.admission().target() != query.admission().target() {
         return Err("semantic plan and query belong to different invocation targets".into());
     }
+    let (graph, owner) = query_schema(query)?;
+    let revision =
+        typed_trees::reflection::construction::declaration_source_revision(query.source(), owner)?;
+    normalize_for_schema(plan, graph, materialized(query)?, &revision)
+}
+
+/// The query or domain request owner supplies the schema it actually passed.
+/// Reuse that completed graph and the invocation's own bound argument/result;
+/// normalization does not reconstruct source or grant operation authority.
+pub(super) fn normalize_for_schema(
+    plan: &PureTerminalEvaluationReceipt,
+    graph: SemanticSchemaGraph,
+    schema_value: &BuildTimeValue,
+    revision: &[u8],
+) -> Result<AccessPlan, String> {
+    plan.validate_charge()?;
     let source = plan.source();
     // The accepted caller declares the actual completed output. Describing
     // that output does not choose a public requirement or authorize its body.
@@ -479,15 +494,11 @@ pub(crate) fn normalize(
     }
     let supplied_schema =
         supplied_schema.ok_or("access-plan call has no unique actual TypeSchema argument")?;
-    if supplied_schema != materialized(query)? {
+    if supplied_schema != schema_value {
         return Err(
             "access-plan checked arguments do not contain the actual schema query value".into(),
         );
     }
-    let (graph, owner) = query_schema(query)?;
-    let revision =
-        typed_trees::reflection::construction::declaration_source_revision(query.source(), owner)?;
-    let schema_value = materialized(query)?;
     let mut members = graph.governed_fields()?;
     members.sort_unstable_by(|left, right| left.1.member_identity.cmp(&right.1.member_identity));
     if members
@@ -510,8 +521,8 @@ pub(crate) fn normalize(
             "reach",
         ],
     )?;
-    if field(fields, "schema")? != materialized(query)? {
-        return Err("returned semantic plan describes another complete schema value".into());
+    if field(fields, "schema")? != schema_value {
+        return Err("returned semantic plan describes another schema value".into());
     }
     let (choice, payload) = case(field(fields, "issuance")?)?;
     let issuance = match choice {
@@ -534,7 +545,7 @@ pub(crate) fn normalize(
                     region(
                         schema_value,
                         &graph,
-                        &revision,
+                        revision,
                         &members,
                         field(row, "region")?,
                     )?,
@@ -550,7 +561,7 @@ pub(crate) fn normalize(
         .map(|value| {
             let row = record(value, &["field", "access"])?;
             Ok((
-                described_field(&graph, &revision, &members, field(row, "field")?)?,
+                described_field(&graph, revision, &members, field(row, "field")?)?,
                 observation(field(row, "access")?)?,
             ))
         })
