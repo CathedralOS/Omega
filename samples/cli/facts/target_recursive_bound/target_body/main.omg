@@ -8,7 +8,7 @@ boundary trait Countdown {
     blocks
     terminates
     requires remaining <= 4 && value <= 60
-    ensures result <= 60;
+    ensures result <= 60 crashes none;
 }
 
 CountdownCode satisfies Countdown {
@@ -34,7 +34,7 @@ boundary trait Evaluation {
     reaches
     invokes Countdown
     blocks
-    terminates;
+    terminates crashes none;
 }
 
 EvaluationCode satisfies Evaluation {

@@ -19,12 +19,10 @@ exact selected declaration's proved type. This admits the existing mathematical
 allowing a qualification to prove itself. False predicates and forged issuer
 qualifications still reject, including unused constants.
 
-The source corpus mirrors all nine positive programs and their rejection twins
-under `tests/omega/{pass,fail}/facts/domain_geometry_through_*`. Additional constant
-controls cover selected module identity, qualified aliases and payloadless cases.
-Foreign target bodies are source-checked. The recorded native rows and the
-host-bound runs below cover `macos_arm64` and `macos_x86_64`; no runtime
-observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet.
+Additional constant controls cover selected module identity, qualified aliases and
+payloadless cases. Foreign target bodies are source-checked. The recorded native
+rows and the host-bound runs below cover `macos_arm64` and `macos_x86_64`; no
+runtime observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -40,10 +38,6 @@ observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet.
 | target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) |
 
 ## Verification
-
-Recorded native rows: `tests/omega/corpus_native_macos_arm64.txt` carries
-`pass/facts/domain_geometry_through_*_exit built ... exit:0` for all nine places,
-which is the authored result on a host that executes `macos_arm64`.
 
 Verified on Intel macOS (`macos_x86_64`) with a compiler built from
 `6e8f4d98f4ad813beba1d27d890b395df6adbede`, `opt_level` 1, binary digest
@@ -61,10 +55,6 @@ is declared only for targets `linux_arm64`, `linux_x86_64`, `macos_arm64`,
 The scratch copy exists only because the authored places bind the four hosted
 targets: an unmodified `omega run --both` selects `macos_x86_64` and refuses
 `selected target macos_x86_64 has no bound required root slot` before execution.
-Nothing is recorded in `corpus_native_macos_x86_64.txt` for that reason, and
-`corpus_gate.py --native` on this host realizes these fixtures for their first
-declared target (`macos_arm64`) without executing it, so the authored `exit: 0`
-oracle is enforced there rather than blessed.
 
 A supplied `--target` performs compile-publication only. `omega run --both
 --target <name>` neither interprets nor executes — `ExecutionOutcome::TargetOnly`
@@ -118,7 +108,6 @@ The real `Extent` split now passes address formation but still rejects child
 `Granted` construction and untransferred parent custody. It remains the customer
 after this numeric repair; neither domain geometry nor this sample creates a
 storage grant.
-
 
 ## Build-owned target-body migration
 

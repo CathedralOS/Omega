@@ -736,17 +736,24 @@ impl<'t> Program<'t> {
             return false;
         };
         if !membership.domain_symbol.is_valid()
-            || !membership.domain_arguments.is_empty()
             || !typed.expression_table.expression_is_valid(membership.value)
-            || typed
+        {
+            return false;
+        }
+        let identity = if membership.semantic_domain.is_valid() {
+            membership.semantic_domain
+        } else {
+            let Some(declaration) = typed
                 .domain_definition(membership.domain_symbol)
-                .is_none_or(|domain| {
-                    // An unapplied authored membership keeps its selected
-                    // symbol even when it has no interned instance ID. An
-                    // instance ID that is present must agree with that symbol.
-                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
-                        && domain.semantic_id != membership.semantic_domain
-                })
+                .filter(|declaration| typed.domain_type_parameters(declaration).is_empty())
+            else {
+                return false;
+            };
+            declaration.semantic_id
+        };
+        if typed
+            .domain_arguments_for_instance(membership.domain_symbol, identity)
+            .is_none()
         {
             return false;
         }
@@ -782,7 +789,7 @@ impl<'t> Program<'t> {
                             matches!(constraint, TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && domain.symbol == membership.domain_symbol
-                                && domain.arguments.is_empty())
+                                && domain.semantic_id == identity)
                         })
                     {
                         return true;
@@ -2887,6 +2894,16 @@ impl<'t> Program<'t> {
                     position += 1;
                     continue;
                 }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
+                {
+                    let (slot, statement) =
+                        self.atomic_binding(id, &slots, local, statements.get(position + 1))?;
+                    slots.push(slot);
+                    slot_names.push(local.name.as_str().to_owned());
+                    position += 1;
+                    statement
+                }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
                         self.read_failure_at(refusal, local.symbol, "the local binding")
@@ -3198,6 +3215,14 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            spans(place, binder, out);
+            for operand in operands {
+                spans(operand, binder, out);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
@@ -3379,6 +3404,14 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
 
 fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression_slot_uses(place, uses);
+            for operand in operands {
+                expression_slot_uses(operand, uses);
+            }
+        }
         ExpressionKind::Slot(slot) => {
             if let Some(count) = uses.get_mut(*slot) {
                 *count += 1;

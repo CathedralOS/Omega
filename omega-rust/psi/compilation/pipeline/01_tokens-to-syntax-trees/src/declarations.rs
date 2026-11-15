@@ -2888,6 +2888,16 @@ pub(crate) mod trait_definition {
                 signature.name.as_str(syntax_trees),
             )));
             }
+            // effects.md: every boundary-trait machine requirement "must
+            // likewise write `crashes`". It has no body to infer routes from,
+            // so an omitted clause would publish nothing a caller can use.
+            if is_boundary && !clauses.writes_crash_clause {
+                return Err(rest.error_here(format!(
+                "boundary-trait machine requirement `{}::{}` must declare its crash ceiling; write `crashes none` when it has no crash route",
+                name.as_str(syntax_trees),
+                signature.name.as_str(syntax_trees),
+            )));
+            }
             if clauses.service_reach_is_installation_bound && (!is_boundary || is_default) {
                 return Err(rest.error_here(
                     "`reaches <= Bound` is permitted only on a bodyless boundary-trait requirement",

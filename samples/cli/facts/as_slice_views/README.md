@@ -24,7 +24,6 @@ twin changes the backing array extent and matching transport contracts to 3,
 retaining the operation and its requirement of 4. The twin must fail at that call.
 The root application and nine place projects all verify that extent.
 
-
 | Place | Positive | Invalid twin | Control twin | Fact transport |
 | --- | --- | --- | --- | --- |
 | root | [source](main.omg) | — | — | whole-array shared view in root main |
@@ -40,9 +39,6 @@ The root application and nine place projects all verify that extent.
 
 Each executable positive expects exit 0 and traps if its measured extent differs
 from 4. Cross-target checking is distinct from matching-host execution.
-The mirrored corpus pairs are
-`tests/omega/pass/facts/as_slice_views_through_<place>_exit/` and
-`tests/omega/fail/facts/as_slice_views_through_<place>_short_extent/`.
 
 ## Requirements and Evidence
 
@@ -75,24 +71,6 @@ this worktree at the same base; host `macos_arm64`.
 
 - Root plus nine places, scratch copies, `omega run --both`: ten
   `native exit 0` rows, each with `interp exit: 0`, zero traps.
-- `python3 tools/sample_native_gate.py --facts --filter
-  cli/facts/as_slice_views,cli/facts/borrowed_projection_cleanup --cli
-  <omega> --jobs 2`: 20/20 samples meet their documented oracle (10 here:
-  root + nine places), 27/27 intended-invalid controls match their authored
-  rejection (18 here: the nine `invalid/` twins and the nine
-  `controls/short_extent/` twins).
-- `python3 tools/corpus_gate.py --filter as_slice_views_through_` (jobs=4):
-  18 fixtures — nine `checked`, nine `rejected` at the pinned fragment
-  `cannot prove requires contract for call require_four`; 0 rejected without
-  their expected fragment, 0 fail fixtures that did not reject, 0 lost
-  successes, 0 structural moves against `tests/omega/corpus_outcomes.txt`
-  (the timed-slower rows are jobs=4/host-load noise the gate labels as such).
-
-```sh
-python3 tools/sample_native_gate.py --filter cli/facts/as_slice_views --cli <omega> --jobs 2
-python3 tools/corpus_gate.py --filter as_slice_views_through_
-python3 tools/corpus_gate.py --native --filter as_slice_views_through_
-```
 
 ## Build-owned target-body migration
 

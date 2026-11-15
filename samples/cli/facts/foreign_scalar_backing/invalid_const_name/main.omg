@@ -5,14 +5,14 @@ const INITIAL: Cell = Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 
 data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
 data Envelope [copy] { cell: Cell; }
 public boundary trait Words {
-    machine write(descriptor: i32, word: &u32, count: u64) -> i64 reaches;
+    machine write(descriptor: i32, word: &u32, count: u64) -> i64 reaches crashes none;
 }
 public boundary trait WindowsWords {
-    machine write(descriptor: i32, word: &u32, count: u32) -> i32 reaches;
+    machine write(descriptor: i32, word: &u32, count: u32) -> i32 reaches crashes none;
 }
 // This witness exports exact bytes; MSVCRT stdout must not translate LF.
 public boundary trait WindowsDescriptorMode {
-    machine set_mode(descriptor: i32, mode: i32) -> i32 reaches;
+    machine set_mode(descriptor: i32, mode: i32) -> i32 reaches crashes none;
 }
 machine demand(result: bool) crashes Trap {
     transition result { true -> done() false -> bad() }

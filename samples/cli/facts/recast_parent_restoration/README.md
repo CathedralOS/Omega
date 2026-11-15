@@ -40,8 +40,6 @@ restricted field `start`**, with **normal-return guarantees do not preserve the
 field's standing predicate**. Unrelated formation refusals do not count.
 
 Every positive declares exit 0 and all four hosted `ProgramEntry` bindings.
-Exact sources, Builds and oracles are pinned under
-`tests/omega/{pass,fail}/facts/recast_parent_restoration_through_<place>_*`.
 Other-host execution remains unverified.
 
 ## Composition and authority controls
@@ -126,7 +124,6 @@ This closes this checked normal-call production of the row. Broader scalar-range
 migration, other representation/origin requirements, common-field case rosters
 and recursive/reference predicate inventories remain open under the parent task.
 GUI qualification stays pending.
-
 
 After the actual golden conflict and affected incoming custody/layout changes,
 a fresh optimized integrated producer at `0a3a759c64e3ba71d5b04863d6e2e7a2fa9e8ff7`

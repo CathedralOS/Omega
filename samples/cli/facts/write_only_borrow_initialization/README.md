@@ -56,19 +56,8 @@ Every twin strictly rejects during proof checking with `may overflow `u64``.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/write_only_borrow_initialization --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `macos_arm64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow `u64``).
-
-## Pinned Fixtures
-
-The row is pinned by `tests/omega/pass/facts/write_only_borrow_initialization_through_<place>_exit` and `tests/omega/fail/facts/write_only_borrow_initialization_unproved_<place>` fixtures.
-The nine positive places are pinned under `tests/omega/pass/facts/`, each binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and recording native exit 0.
-The nine reject twins are pinned under `tests/omega/fail/facts/`, each rejecting with the exact arithmetic overflow diagnostic.
 
 ## Requirements and Evidence
 

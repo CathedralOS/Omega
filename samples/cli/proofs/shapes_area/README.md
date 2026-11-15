@@ -16,7 +16,4 @@ Area calculation:
 - `halve(6, 1)` = 3             (triangle base=6 height=1, integer b×h÷2)
 - Total: 27 + 40 + 3 = **70**
 
-**Known workaround:** an internal `let` in a callee followed by a call with
-more args triggers a frame-slot collision (see
-`tests/omega/pending/calls/value_call_internal_let_slot_clobbers_prior_result`).
 The circle computation is done in the caller to avoid it.

@@ -218,6 +218,23 @@ fn adopt(root: &Path, directory: &Path) -> Result<WorkInterval, String> {
                 source: entry.source.clone(),
                 started_epoch: entry.epoch,
             });
+        } else if entry.message.starts_with("cherry-pick:") {
+            // A helper checkpoint appends to the same owned work just as a
+            // local commit does. The reflog label alone is not evidence: its
+            // new commit must have exactly the previous source as its parent.
+            let lineage = git(
+                root,
+                &["rev-list", "--parents", "-n", "1", &entry.source, "--"],
+            )?;
+            if !lineage
+                .split_whitespace()
+                .eq([entry.source.as_str(), entry.old.as_str()])
+            {
+                return Err(format!(
+                    "unverifiable cherry-pick checkpoint `{}`; use `worktree begin` for a new outcome",
+                    entry.message
+                ));
+            }
         } else if !entry.message.starts_with("commit")
             && !entry.message.starts_with("rebase")
             && !(entry.message.starts_with("reset:") && entry.source == entry.old)

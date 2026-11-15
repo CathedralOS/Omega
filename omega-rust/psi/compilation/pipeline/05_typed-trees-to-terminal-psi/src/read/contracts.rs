@@ -1373,7 +1373,7 @@ impl Program<'_> {
                 let Some(array) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(unavailable("index of something that is not an array"));
                 };
-                let (element, terminal_semantics::CollectionExtent::Fixed(length)) =
+                let (element, qualification, terminal_semantics::CollectionExtent::Fixed(length)) =
                     self.array_element(id, array)?
                 else {
                     return Err(unavailable("indexed clause without a fixed array extent"));
@@ -1400,7 +1400,7 @@ impl Program<'_> {
                 // Keep the checked index in the same typed path as fields
                 // and cases. Storage substitution must follow this exact leaf.
                 path.push(CanonicalStructuralPathSegment::FixedIndex(position));
-                let value_type = self.storage_value_type(id, element)?;
+                let value_type = self.storage_value_type(id, element, qualification)?;
                 return Ok(Some((root, path, value_type)));
             }
             ExpressionNode::TypeExpression(_)

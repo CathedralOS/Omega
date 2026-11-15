@@ -68,12 +68,6 @@ recorded in [the hosted gate](https://github.com/CathedralOS/Omega/actions/runs/
 and Linux ARM64 in [its matching-host gate](https://github.com/CathedralOS/Omega/actions/runs/40254749833).
 The macOS ARM64 qualification uses the same source revision and oracles.
 
-`tools/ci/compiler_retained_foreign.py` prepares and self-tests the matching C
-library, checks the nine intended rejects and pinned positives through the
-corpus, then executes fresh copies of all nine authored places and three
-composition controls through the actual CLI. It requires both engine exits;
-a successful compile or a declined Terminal invocation fails that gate.
-
 | Place | Positive | Invalid twin |
 | --- | --- | --- |
 | local | [source](local/main.omg) | [write](invalid_local/main.omg) |
@@ -86,23 +80,19 @@ a successful compile or a declined Terminal invocation fails that gate.
 | another machine | [source](other_machine/main.omg) | [write](invalid_other_machine/main.omg) |
 | target body | [source](target_body/main.omg) | [write](invalid_target_body/main.omg) |
 
-The matching nine positives and negatives are pinned under
-`tests/omega/{pass,fail}/facts/foreign_retained_shared_borrow_*`.
 The [shared-alias control](controls/shared_aliases/main.omg) gives C two shared
-loans to the same original pointer in one invocation. The
-[enclosing-allocation control](controls/enclosing_allocation/main.omg) first
-borrows a nested Buffer while preserving the original parent's geometry. The
-[whole-move control](controls/resident_whole_move/main.omg) completes a first
-registration, moves the realized Buffer through a call and record field, then
-registers it again. It retains the allocation seal through the ordinary owned
-storage transaction; a scalar resident alone cannot authorize a new root.
+loans to the same original pointer in one invocation. The [enclosing-allocation
+control](controls/enclosing_allocation/main.omg) first borrows a nested Buffer
+while preserving the original parent's geometry. The [whole-move
+control](controls/resident_whole_move/main.omg) completes a first registration,
+moves the realized Buffer through a call and record field, then registers it
+again. It retains the allocation seal through the ordinary owned storage
+transaction; a scalar resident alone cannot authorize a new root.
 
 The [wrapper-redemption control](controls/wrapper_redemption/main.omg) keeps
 Pending debt in one returned field while attempting to publish owned Buffer
-backing in another. Preserving a loan-bearing sibling cannot turn that loan
-into ownership. The generic owned-sibling declaration under
-`tests/omega/pass/core/content_owned_sibling_in_loan_carrier` pins the converse:
-a disjoint borrowed field does not take away an actual owned content source.
+backing in another. Preserving a loan-bearing sibling cannot turn that loan into
+ownership.
 
 The [persistent-slot control](controls/persistent_retention/main.omg) replaces
 caller-owned storage through an ordinary helper, completes the old registration,

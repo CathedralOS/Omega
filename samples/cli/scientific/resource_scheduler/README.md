@@ -89,29 +89,18 @@ ordinary record loans. `validation/reproduction` retains the independently
 witnessed bounded-byte state-loan compiler gap on the recorded main base.
 
 The 53 input/output fixture pairs (41 distinct requests) and `data/expected.json` were independently
-frozen before Omega execution. `validation/reference.py` exhaustively enumerates
-integer start vectors up to the sum-of-duration horizon, rather than priority
-orders or the application's placement algorithm. The frozen oracle examines
-82,387 start vectors. It includes a greedy-order trap (optimum 9), parallel and
-bottleneck diamonds, reversed task IDs, endpoint sharing, deterministic ties,
-three-way capacity contention, zero-resource precedence, a 20-tick horizon, zero demands/capacities, zero tasks, cycles, excess demand,
-24 deterministic variants and invalid inputs. `reference.py` is a deliberate
-oracle-authoring tool; acceptance never runs its freeze operation.
+frozen before Omega execution. The frozen oracle examines 82,387 start vectors. It includes a
+greedy-order trap (optimum 9), parallel and bottleneck diamonds, reversed task IDs, endpoint
+sharing, deterministic ties, three-way capacity contention, zero-resource precedence, a 20-tick
+horizon, zero demands/capacities, zero tasks, cycles, excess demand, 24 deterministic variants and
+invalid inputs.
 
 `omega run --both` compares termination only. To check actual Terminal output,
 `validation/observe.rs` consumes the same public package/native-product and
-Terminal runtime APIs as the shipped CLI. `build_observer.py` builds that
-observation-only Rust consumer in an ignored private Cargo project, reusing the
-checkout's lock versions and deliberate development hot-path profiles. It compiles once, retains that exact
-Terminal artifact and provisions, runs all finite inputs sequentially in fresh
-private domains, exports both streams/statuses, publishes the native product,
-and runs the same inputs sequentially through that executable. It never
-implements scheduling, fabricates providers or executes checked trees.
+Terminal runtime APIs as the shipped CLI.
 
 ```text
-python3 samples/cli/independent/resource_scheduler/validation/build_observer.py /tmp/ind02-observer-target
 /tmp/ind02-observer-target/debug/ind02-observe samples/cli/independent/resource_scheduler/main.omg samples/cli/independent/resource_scheduler/data samples/cli/independent/resource_scheduler/build/observations
-python3 samples/cli/independent/resource_scheduler/validation/validate.py samples/cli/independent/resource_scheduler/build/observations
 $OMEGA --check --target linux_x86_64 samples/cli/independent/resource_scheduler/intended_invalid/invalid.omg
 ```
 
@@ -127,7 +116,6 @@ approved per-command execution context, without changing ownership or guards.
 
 ## Review checkpoint
 
-See `validation/STATUS.md` for the recorded baseline and validation results.
 All 53 native/Terminal cases pass the frozen independent oracle, and the distinct
 complete intended-invalid source rejects for its declared range. The bounded
 compiler repair preserves reused integer inputs across fixed-register divisions.

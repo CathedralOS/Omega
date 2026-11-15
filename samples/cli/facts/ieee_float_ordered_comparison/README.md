@@ -67,19 +67,17 @@ omega --check samples/cli/facts/ieee_float_ordered_comparison/<place>/invalid/ma
 
 ## Pinned fixtures
 
-All 18 positive and reject places are pinned as byte-identical copies in the compiler corpus under `tests/omega/{pass,fail}/facts/`:
-
-| Place | Positive fixture (`expected_native_exit.txt` = `0`) | Reject twin fixture (`expected.txt`) |
-| --- | --- | --- |
-| local | [`pass/facts/ieee_float_ordered_comparison_through_local_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_local_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_local_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_local_rejected/main.omg) |
-| field | [`pass/facts/ieee_float_ordered_comparison_through_field_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_field_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_field_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_field_rejected/main.omg) |
-| parameter | [`pass/facts/ieee_float_ordered_comparison_through_parameter_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_parameter_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_parameter_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_parameter_rejected/main.omg) |
-| call result | [`pass/facts/ieee_float_ordered_comparison_through_call_result_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_call_result_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_call_result_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_call_result_rejected/main.omg) |
-| match join | [`pass/facts/ieee_float_ordered_comparison_through_match_join_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_match_join_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_match_join_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_match_join_rejected/main.omg) |
-| const name | [`pass/facts/ieee_float_ordered_comparison_through_const_name_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_const_name_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_const_name_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_const_name_rejected/main.omg) |
-| a nested machine | [`pass/facts/ieee_float_ordered_comparison_through_other_state_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_state_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_state_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_state_rejected/main.omg) |
-| another machine | [`pass/facts/ieee_float_ordered_comparison_through_other_machine_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_machine_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_machine_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_machine_rejected/main.omg) |
-| another target body | [`pass/facts/ieee_float_ordered_comparison_through_target_body_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_target_body_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_target_body_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_target_body_rejected/main.omg) |
+| Place |
+| --- |
+| local |
+| field |
+| parameter |
+| call result |
+| match join |
+| const name |
+| a nested machine |
+| another machine |
+| another target body |
 
 ## Measured discrimination
 
@@ -119,8 +117,9 @@ This row establishes that an IEEE `f64` ordered comparison guard establishing `r
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** The backend selects IEEE 754 ordered comparison instructions: on `x86_64`, `ucomisd` with parity flag check (`jp`/`jbe`) ensuring unordered/NaN results branch to rejection, and scalar move instructions (`movsd`); on `arm64`, `fcmp` setting condition codes (checked via `b.ls`/`b.hi` respecting unordered/NaN) and `fmov`. Register homes in floating-point register groups (`xmm`/`v`) and stack frames with appropriate alignment are assigned.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Relocation fixups resolve symbolic displacements and float literal byte-pool references, basic blocks and branch offsets reflow across entry and return epilogues, transitive machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and native executable binaries (PE/ELF/Mach-O) are emitted, passing native execution and Terminal Psi agreement (`omega run --both`, exit 0) across all hosted targets.
 
-The row is verified by `samples/cli/facts/ieee_float_ordered_comparison` and pinned under `tests/omega/{pass,fail}/facts/ieee_float_ordered_comparison_through_*`, where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `cannot prove requires contract for call verify_window`.
-What remains open: Dynamic NaN-tag payload preservation across foreign FFI boundary crossings and non-standard denormalized subnormal arithmetic flush-to-zero hardware modes.
+What remains open: Dynamic NaN-tag payload preservation across foreign FFI
+boundary crossings and non-standard denormalized subnormal arithmetic
+flush-to-zero hardware modes.
 
 ## Build-owned target-body migration
 

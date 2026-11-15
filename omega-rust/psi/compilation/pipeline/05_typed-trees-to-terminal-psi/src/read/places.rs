@@ -465,12 +465,10 @@ impl Program<'_> {
         // A payload's clause holds only of a value in its case, and no
         // clause here is conditional on the case yet.
         for value_type in payloads {
-            if value_type.qualification().domains.members().any(|domain| {
-                typed
-                    .domain_definition(domain)
-                    .is_some_and(super::authority::has_predicates)
-            }) {
-                return Err(unserved("case payload in a domain with predicates"));
+            for domain in value_type.qualification().domains.members() {
+                if super::authority::has_predicates(self.domain_theory(id, domain)?) {
+                    return Err(unserved("case payload in a domain with predicates"));
+                }
             }
         }
         self.records

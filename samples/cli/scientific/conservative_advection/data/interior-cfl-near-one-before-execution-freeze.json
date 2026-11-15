@@ -2,7 +2,6 @@
   "utc": "2026-10-15T03:25:18.204129+00:00",
   "source_revision": "eeb2c0f75d3a33c7eae97977c687e8df6e0c1c4b",
   "role": "independent analytic binomial oracle frozen BEFORE any execution of these four lexical-valid finite cases; original42+2 unchanged",
-  "generator": "samples/cli/independent/conservative_advection/reference.py",
   "generator_sha256": "d5c2cfb2ed7520b2ec3fd22798db0c15e83aa6fc2beba52ccf922af88137e47d",
   "cases": [
     {

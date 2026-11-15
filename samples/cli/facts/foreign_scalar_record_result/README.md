@@ -13,13 +13,12 @@ use with `holds no value`. Thus the static obligation is copy custody, not a
 post-hoc equality guard or an invented opaque-provider guarantee.
 
 The nine places are [local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [other machine](other_machine/main.omg),
-and [target body](target_body/main.omg). Every place has `invalid/main.omg`;
-matching copies are pinned under `tests/omega/{pass,fail}/facts/foreign_scalar_record_result_through_*`.
-The root repeats the local witness. The const place names the C construction
-inputs: a real foreign operation is not a constant initializer.
+[parameter](parameter/main.omg), [call result](call_result/main.omg), [match
+join](match_join/main.omg), [const name](const_name/main.omg), [nested
+machine](other_state/main.omg), [other machine](other_machine/main.omg), and
+[target body](target_body/main.omg). The root repeats the local witness. The
+const place names the C construction inputs: a real foreign operation is not a
+constant initializer.
 
 The existing `providers/foreign_multiregister_result_exit` exposes the baseline:
 C returns the correct native fields, while Terminal declines the absent trusted
@@ -129,5 +128,4 @@ Applicable requirement layers:
 ```sh
 omega run --both samples/cli/facts/foreign_scalar_record_result/local/main.omg
 omega --check samples/cli/facts/foreign_scalar_record_result/invalid_local/main.omg
-python3 tools/ci/compiler_foreign_records.py
 ```

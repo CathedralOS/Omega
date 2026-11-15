@@ -56,30 +56,12 @@ omega --check samples/cli/facts/mixed_width_record_padding_geometry/<place>/inva
 
 ### Pinned fixtures
 
-The row is pinned under `tests/omega/pass/facts/mixed_width_record_padding_geometry_through_<place>_exit`
-(nine positives with `expected_native_exit.txt`) and
-`tests/omega/fail/facts/mixed_width_record_padding_geometry_unproved_<place>`
-(nine reject twins with `expected.txt`), where `<place>` is `local`, `field`,
-`parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-`other_machine`, or `target_body`. Each pass/twin pair differs only in the
-construct's own input: the twin's `Padded` omits `tag: u8`.
-
-```sh
-python3 tools/corpus_gate.py --native --filter facts/mixed_width_record_padding_geometry
-python3 tools/corpus_gate.py --filter facts/mixed_width_record_padding_geometry
-```
-
 The native leg reports `clean` with 9 `built` rows at `exit:0`; the check leg
 reports `clean` with 9 `checked` and 9 `rejected`, 0 rejected without their
 expected fragment.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omegauild\omega-latest.exe --filter cli/facts/mixed_width_record_padding_geometry --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`exact arithmetic may overflow`).
 

@@ -24,6 +24,101 @@ pub(crate) fn prepare(
     let owners = typed_trees::references::collect_program_operand_owners(program);
     for expression in expressions {
         infer(program, expression, &mut Vec::new())?;
+        let needs_owner = match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(_) | ExpressionNode::Call(_) => true,
+            ExpressionNode::Indexed(indexed) => {
+                program.expression_table.range_node(indexed.index).is_some()
+            }
+            _ => false,
+        };
+        if !needs_owner {
+            continue;
+        }
+        let mut callers = owners.expression_owners(expression);
+        let Some(caller) = callers.next() else {
+            continue;
+        };
+        if !caller.is_valid() || callers.any(|other| other != caller) {
+            continue;
+        }
+        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
+            let collection = indexed.collection;
+            // A bare range observes the actual collection's elements,
+            // not one element. Retain its shared view before ordinary callers
+            // and borrow formations ask for its type. A selected user operator
+            // must supply its own result instead of acquiring a builtin type.
+            let Some(collection) =
+                crate::typing_queries::declared_expression_type(program, caller, collection)
+            else {
+                continue;
+            };
+            let Some(count) = builtin(program, BuiltinTypeAtom::U64) else {
+                continue;
+            };
+            let operands = [Some(collection), Some(count), Some(count)];
+            if !typed_trees::operator::resolve_indexed_spelling_for_operands(
+                program,
+                language_core::OperatorSpelling::Range,
+                &operands,
+                program.expression_table.source_span(expression),
+            )
+            .is_empty()
+                || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    caller,
+                    expression,
+                    language_core::OperatorSpelling::Range,
+                    &operands,
+                )
+            {
+                continue;
+            }
+            let Ok(element_type) =
+                crate::typing_queries::collection_element_type(program, collection)
+            else {
+                continue;
+            };
+            let slice = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Slice { element_type });
+            let view = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: slice,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(view, caller)
+                .map_err(Diagnostic::error)?;
+            program
+                .expression_table
+                .set_constructed_value_type_reference(expression, view);
+            continue;
+        }
+        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+            let (target, access) = (borrow.target, borrow.access);
+            // The destination may attenuate this reference. Retain the type
+            // of the written formation first, so lowering can form its actual
+            // parent loan before lending a weaker child to that destination.
+            let referent =
+                match crate::typing_queries::declared_expression_type(program, caller, target) {
+                    Some(reference) => Some(reference),
+                    None => infer(program, target, &mut Vec::new())?,
+                };
+            if let Some(referent) = referent {
+                let reference = reference_formation_type(program, referent, access);
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(reference, caller)
+                    .map_err(Diagnostic::error)?;
+                program
+                    .expression_table
+                    .set_constructed_value_type_reference(expression, reference);
+            }
+            continue;
+        }
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             continue;
         };
@@ -42,13 +137,6 @@ pub(crate) fn prepare(
                 .expression_handles(call.arguments)
                 .to_vec(),
         };
-        let mut callers = owners.expression_owners(expression);
-        let Some(caller) = callers.next() else {
-            continue;
-        };
-        if !caller.is_valid() || callers.any(|other| other != caller) {
-            continue;
-        }
         let application = infer_call(source, program, &mut input, caller)?;
         if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
             call.target_symbol = input.target;
@@ -448,6 +536,31 @@ fn builtin(program: &mut TypedTrees, atom: BuiltinTypeAtom) -> Option<TypeRefere
     )
 }
 
+/// Borrowing an existing reference lends its referent again. Range views use
+/// that same formation, preserving their element type and the written access.
+fn reference_formation_type(
+    program: &mut TypedTrees,
+    mut referee: TypeReferenceHandle,
+    access: language_core::ReferenceAccess,
+) -> TypeReferenceHandle {
+    let bare = program
+        .type_reference_table
+        .unconstrained_type_reference(referee);
+    if let TypeReferenceNode::Reference {
+        referee: backing, ..
+    } = program.type_reference_table.type_reference(bare)
+    {
+        referee = *backing;
+    }
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime: None,
+        })
+}
+
 fn infer(
     program: &mut TypedTrees,
     value: ExpressionHandle,
@@ -560,15 +673,8 @@ fn infer(
                 None
             }
         }
-        ExpressionNode::Borrow(borrow) => infer(program, borrow.target, active)?.map(|referee| {
-            program
-                .type_reference_table
-                .insert(TypeReferenceNode::Reference {
-                    referee,
-                    access: borrow.access,
-                    lifetime: None,
-                })
-        }),
+        ExpressionNode::Borrow(borrow) => infer(program, borrow.target, active)?
+            .map(|referee| reference_formation_type(program, referee, borrow.access)),
         ExpressionNode::ArrayLiteral(_) => infer_array(program, value, None, active)?,
         ExpressionNode::String(bytes) => {
             builtin(program, BuiltinTypeAtom::U8).map(|element_type| {
@@ -1017,6 +1123,82 @@ mod tests {
     // These are real source calls, including their original selection rows.
     // The same declared argument types must choose the same public header in
     // value, discarded-result and terminal positions, without a body guess.
+    #[test]
+    fn ranges_retain_view_types_before_calls_and_exclusive_formations() {
+        let program = checked(&[
+            (
+                "kit.omg",
+                "module kit; public machine pick(value: u8) {} \
+                 public machine pick(value: &[u8]) {}",
+            ),
+            (
+                "client.omg",
+                "machine ordinary(bytes: &mut [u8; 3]) { kit::pick(bytes[..]); } \
+                 machine exclusive(bytes: &mut [u8; 3]) { sink(&mut bytes[..]); } \
+                 machine sink(value: &mut [u8]) {}",
+            ),
+        ])
+        .expect("the source retains its range and written borrow");
+        let view_access = |reference| {
+            let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = program.type_reference_table.type_reference(reference)
+            else {
+                panic!("the actual range result is a view")
+            };
+            let TypeReferenceNode::Slice { element_type } =
+                program.type_reference_table.type_reference(*referee)
+            else {
+                panic!("the view observes the actual element slice")
+            };
+            let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(*element_type)
+            else {
+                panic!("the byte element keeps its declared carrier")
+            };
+            assert_eq!(
+                program.symbols.builtin_type_atom(*symbol),
+                Some(BuiltinTypeAtom::U8)
+            );
+            *access
+        };
+        let mut ranges = 0;
+        let mut formations = 0;
+        for (expression, node) in program.expression_table.expression_entries() {
+            let expected = match node {
+                ExpressionNode::Indexed(indexed)
+                    if program.expression_table.range_node(indexed.index).is_some() =>
+                {
+                    ranges += 1;
+                    language_core::ReferenceAccess::Shared
+                }
+                ExpressionNode::Borrow(_) => {
+                    formations += 1;
+                    language_core::ReferenceAccess::Mutable
+                }
+                _ => continue,
+            };
+            assert_eq!(
+                view_access(
+                    program
+                        .expression_table
+                        .constructed_value_type_reference(expression)
+                ),
+                expected
+            );
+        }
+        assert_eq!((ranges, formations), (2, 1));
+        let (target, _) = owned_call(&program, "ordinary");
+        let callee = program
+            .machine_by_symbol(target)
+            .expect("the selected view overload");
+        let state = program.machine_states(callee).first().unwrap();
+        assert_eq!(
+            view_access(program.state_parameters(state)[0].type_reference),
+            language_core::ReferenceAccess::Shared
+        );
+    }
+
     #[test]
     fn closed_call_families_bind_complete_operands_in_every_call_position() {
         let library = r#"

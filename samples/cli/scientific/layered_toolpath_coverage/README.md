@@ -39,14 +39,11 @@ No in-progress numerics library or other worker output is imported.
 
 ## Frozen acceptance
 
-`ORACLE.json` and `data/*.out` were frozen before the first compiler check.
-All geometry, lengths, counts and output bytes use exact integer equality;
+`ORACLE.json` and `data/*.out` were frozen before the first compiler check. All
+geometry, lengths, counts and output bytes use exact integer equality;
 numerical tolerance is **zero**. The oracle manifest SHA-256 is
-`d4f566be2f960fa708f16d9cd039950c65c4c890969d258e3245ddd8d1950a6e`.
-`reference.py` constructs independent rectangle sets, subtracts holes, unions
-islands, groups mathematical intervals, and enumerates emitted D records again
-when validating. It is an oracle and validator; execution is the Omega program.
-Do not re-freeze expectations to make a failed execution pass.
+`d4f566be2f960fa708f16d9cd039950c65c4c890969d258e3245ddd8d1950a6e`. Do not
+re-freeze expectations to make a failed execution pass.
 
 Nine fixtures exercise rectangles, holes, disconnected islands, three differing
 layers, vertical orientation, stride-two undercoverage, empty regions, a unit
@@ -74,8 +71,6 @@ omega packages update --project samples/cli/independent/layered_toolpath_coverag
 omega packages update --project samples/cli/independent/layered_toolpath_coverage --resume
 omega --check samples/cli/independent/layered_toolpath_coverage/main.omg
 omega run samples/cli/independent/layered_toolpath_coverage/main.omg < samples/cli/independent/layered_toolpath_coverage/data/hole.in
-python3 samples/cli/independent/layered_toolpath_coverage/reference.py --cli /absolute/path/to/omega
-python3 samples/cli/independent/layered_toolpath_coverage/reference.py --cli /absolute/path/to/omega --both
 omega --check samples/cli/independent/layered_toolpath_coverage/controls/out_of_bounds/main.omg
 ```
 
@@ -85,11 +80,9 @@ Console supports Terminal comparison on this Linux host; compare stdout against
 the frozen oracle separately because CLI comparison itself compares termination.
 Review and custody denials must be reported without bypass or acceptance retries.
 
-See `VALIDATION.md` for actual routes, identities and any remaining blockers.
-Linux x86_64 validation passed all 19 native inputs with exact output checks,
-Terminal termination comparisons, and the separate intended bounds rejection.
-The witnessed native allocator gap required a bounded, independently reviewed
-fixed-use operand transport repair; its complete runtime regression and focused
-compiler controls are described in that record.
-After independent review and integrated validation, publication uses `tools/landing.py`
-and the shared main-only queue. There are no remote worker branches.
+See `VALIDATION.md` for actual routes, identities and any remaining blockers. Linux
+x86_64 validation passed all 19 native inputs with exact output checks, Terminal
+termination comparisons, and the separate intended bounds rejection. The witnessed
+native allocator gap required a bounded, independently reviewed fixed-use operand
+transport repair; its complete runtime regression and focused compiler controls are
+described in that record. There are no remote worker branches.

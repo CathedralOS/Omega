@@ -133,12 +133,10 @@ received its canonical artifact in 45,752 steps (181.737ms). Its artifact was
 transport place or a new claimed baseline repair. Its corpus fixtures are
 `source_indexed_family_forwarded_parameter_{exit,rejected}`.
 
-The paired corpus fixtures are
-`tests/omega/{pass,fail}/facts/source_indexed_family_through_<place>_{exit,rejected}`.
-Fresh main producer `d4457c97387` rejects all nine positives for the same
-missing retained constructor child. The original `591336bdc9e` observations and
-one corrected state-transition spelling remain historical preparation evidence.
-The current public capture preserves all nine positive/twin pairs unchanged.
+Fresh main producer `d4457c97387` rejects all nine positives for the same missing
+retained constructor child. The original `591336bdc9e` observations and one corrected
+state-transition spelling remain historical preparation evidence. The current public
+capture preserves all nine positive/twin pairs unchanged.
 
 Applicable requirement obligations for this row:
 

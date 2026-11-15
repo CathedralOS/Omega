@@ -43,8 +43,7 @@ and must correlate the actual returned address with an admitted captured endpoin
   access and parent custody after host completion and through ordinary calls.
   A distinct invocation's selector cannot borrow this invocation's storage.
 - Composition: all nine places transport the same returned loan and consume the
-  same provider write and guest write obligations. The paired source fixtures
-  live under `tests/omega/{pass,fail}/facts/foreign_reference_result_through_*`.
+  same provider write and guest write obligations.
 - Soundness boundaries: each one-token shared-input control must reject before
   effects. Host admission, exact capture identity, access attenuation, typed
   endpoint bounds and source-region checks remain independent obligations.

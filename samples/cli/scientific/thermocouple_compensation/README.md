@@ -49,15 +49,13 @@ None accepts piecewise calibration, cold-junction observations, clips and enumer
 inversion brackets, or distinguishes absent and ambiguous roots. This workflow
 combines these new operations and runtime validation rather than renaming a kernel.
 
-`reference.py` independently evaluates expanded polynomials with 70-digit Decimal
-arithmetic and solves quadratic roots analytically. `expected.json` and its fixture
-hashes were frozen before the first Omega check or run. Tolerances are 2 milli-C
-for temperature/error, 2 nV for compensated voltage, and 1 nV for residual; statuses,
-bracket counts and process exits are exact. The maximum numerical bisection
-interval error is 300/2^40 C; output truncation dominates the report tolerance.
-The oracle contains 23 cases including compensation changes, both endpoints,
-segment boundary deduplication, decreasing curves, clipped/invalid brackets,
-ambiguous roots, invalid calibration and malformed/over-budget input.
+`expected.json` and its fixture hashes were frozen before the first Omega check or
+run. Tolerances are 2 milli-C for temperature/error, 2 nV for compensated voltage,
+and 1 nV for residual; statuses, bracket counts and process exits are exact. The
+maximum numerical bisection interval error is 300/2^40 C; output truncation dominates
+the report tolerance. The oracle contains 23 cases including compensation changes,
+both endpoints, segment boundary deduplication, decreasing curves, clipped/invalid
+brackets, ambiguous roots, invalid calibration and malformed/over-budget input.
 
 From the repository root, with a compiler built from the same revision/library:
 
@@ -85,14 +83,6 @@ accepted entry review. Native/Terminal evidence and exact commands belong in
 The serial validator records exact commands, exit status, elapsed time and captured
 output under `build/validation/`. It consumes the frozen fixture hashes and refuses
 a rewritten oracle. It never updates package acceptance. After authorized review:
-
-```sh
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route check
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route native
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route both --cases curved_hot,hot_boundary,decreasing_unique,ambiguous,reversed_bracket,malformed
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route invalid
-python3 "$PROJECT/validate.py" --omega "$OMEGA" --route terminal
-```
 
 The `--both` comparison establishes Terminal/native process-exit agreement. The
 independent numeric/output oracle checks the captured native reports separately;

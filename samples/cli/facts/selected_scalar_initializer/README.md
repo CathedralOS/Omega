@@ -64,7 +64,6 @@ Every twin rejects with:
 
 - **Parent outcome:** `TERMINAL-SLICE-VIEW-VOCABULARY` (`TASKS.md`).
 - **Requirement established:** Construction of nonempty restricted scalar arrays and primitive locals when zero does not satisfy their declared predicate; establishing a closed non-interval disjunctive initializer domain (`Selected: value == 1 || value == 38`) through the full source-to-Terminal-to-native execution path with differential agreement between native and Terminal Psi execution across all hosted targets.
-- **Pinned fixtures:** `tests/omega/pass/facts/selected_scalar_initializer_through_*` and `tests/omega/fail/facts/selected_scalar_initializer_through_*`.
 - **Authority:** [Domains](wiki/spec/language/domains.md) and [Default domains and zero initialization](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization).
 
 Full 8-layer specification and lowering evidence:
@@ -84,12 +83,12 @@ Remaining parent acceptance under `TERMINAL-SLICE-VIEW-VOCABULARY`: non-interval
 
 ## Run records
 
-| Check | Command | Result |
-| --- | --- | --- |
-| native golden | `python3 tools/corpus_gate.py --native --record --filter facts/selected_scalar_initializer` | 9 rows `built ... exit:0` |
-| engine agreement | `python3 tools/corpus_gate.py --both --record --filter facts/selected_scalar_initializer` | 9 rows `interpreter-exit:0 interpreter:agrees` |
-| check leg | `python3 tools/corpus_gate.py --filter facts/selected_scalar_initializer` | 18 fixtures: 9 `checked`, 9 `rejected`, 0 structural moves |
-| sample gate | `python3 tools/sample_native_gate.py --filter cli/facts/selected_scalar_initializer --facts` | 10/10 meet the oracle; 9/9 controls match |
+| Check | Result |
+| --- | --- |
+| native golden | 9 rows `built ... exit:0` |
+| engine agreement | 9 rows `interpreter-exit:0 interpreter:agrees` |
+| check leg | 18 fixtures: 9 `checked`, 9 `rejected`, 0 structural moves |
+| sample gate | 10/10 meet the oracle; 9/9 controls match |
 
 Producer: the checkout's `omega` at opt-level 1 (`omega --build-profile` reports `opt_level: 1`), revision `f98259e86dd2` for the native rows and `67b7c6dfba3` for the agreement rows, host macOS ARM64.
 

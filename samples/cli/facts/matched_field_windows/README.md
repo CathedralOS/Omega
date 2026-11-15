@@ -68,21 +68,8 @@ hands `open_end` the coordinate 3 while that machine requires `end == 2`.
 The target-body twin breaks every one of the four target bodies, so it rejects
 on every host rather than only where a body is realized.
 
-`tests/omega/fail/slices/matched_open_window_end` is the related wildcard-arm
-control: an arm that does not learn the coordinate cannot prove the open end.
-
 ## Pinned Fixtures
 
-The positive side is `tests/omega/pass/facts/matched_field_windows_through_<place>_exit`,
-one fixture per place, each a byte-copy of that place's `main.omg` with
-`expected_native_exit.txt` of 0. The negative side is
-`tests/omega/fail/facts/matched_field_windows_through_<place>_rejected`, each
-with the pinned `expected.txt` fragment above.
-
-`tests/omega/corpus_outcomes.txt` records all nine positives as `checked` and
-all nine twins as `rejected` with their fragment matched.
-`corpus_native_macos_arm64.txt` records `exit:0` for all nine positives, and
-`corpus_both_macos_arm64.txt` records `interpreter-exit:0 interpreter:agrees`.
 All three were measured on a fresh producer built from the rebased candidate.
 
 ## Requirements and Evidence
@@ -90,15 +77,13 @@ All three were measured on a fresh producer built from the rebased candidate.
 - **Establishment:** Matching `which` against `0` refines the arm's static value of `which` to `0`, so the subslice expression `items[0..which + 2]` has statically refined bounds `0..2` and establishes slice length `2` matching the other arm (`items[2..4]`). The construct satisfies the enclosing machine's contract (`ensures result.len == 2`) at introduction without requiring any caller post-hoc equality guard (`transition ... == 2`).
 - **Identity and lifetime:** The borrowed mutable slice window `&mut [u8]` (and `&mut [i64]` generally) preserves its exact backing storage identity (`bytes`) and published length `2` across the match arm join and return loan. Writing through `write_pair(window)` directly mutates the backing array in place (`bytes[0] = 9; bytes[1] = 8; bytes[2] = 3`), demonstrating that mutable subslice projection maintains loan identity and exclusive mutable access without aliasing or unexpected copy.
 - **Composition:** The pattern-refined window coordinate composes across all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into `write_pair(window)`, which requires `window.len >= 2`. Each positive place `<place>/main.omg` vs. its reject twin `<place>/invalid/main.omg` differs only in the construct's own arm range (`items[2..3]` vs `items[2..4]`) or coordinate contract (`end == 2`), confirming clean compositional modularity without caller guard divergence.
-- **Soundness boundaries:** All 9 reject twins under `<place>/invalid/main.omg` (and `tests/omega/fail/slices/matched_open_window_end`) reject during compile-time proof checking whenever an arm's slice length disagrees (`cannot prove ensures contract ... result.len == 2`) or the coordinate precondition is violated (`violates required fact \`end == 2\``). Exclusive mutable borrow rules, loan scopes, and slice safety invariants are preserved throughout; an unproved or mismatched slice length cannot escape to runtime.
+- Exclusive mutable borrow rules, loan scopes, and slice safety invariants are
+  preserved throughout; an unproved or mismatched slice length cannot escape to
+  runtime.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Pattern-refined subslice construction lowers without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing static length proofs while retaining runtime pointer+length view carriers, borrow restoration windows (`reborrow restored call uses`), match joins, and state transitions. All 10 positive entries execute in the Terminal Psi interpreter (`omega run --both`), agreeing with native execution.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Backing array `[u8; 4]` and mutable slice view descriptors (`(ptr, len)`) validate target layout geometry (two-word fat pointers of 16 bytes with 8-byte alignment). `CallPlan` and `StatePlan` lower two-word slice view returns and parameters across target ABI register and stack slots according to target calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for subslice base-pointer offset arithmetic (`base + start * elem_size`, here `start * 1` for `u8` and `start * 8` for 64-bit carriers) and slice length calculation (`end - start = 2`). The backend assigns register homes and disjoint stack-frame activation storage for the backing array and slice descriptor, maintaining worst-case stack bounds and inserting standard entry prologues and epilogues.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for the array backing storage, match dispatch and basic blocks lay out with short/near branch relaxation and offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across `windows_x86_64` and `macos_arm64`.
-
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/matched_field_windows --jobs 4
-```
 
 ## Build-owned target-body migration
 

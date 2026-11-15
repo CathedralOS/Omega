@@ -62,14 +62,13 @@ producer `cf36a5e96fcb69e7fc28963e0d56fe48b915b828`, SHA-256
   parents before exiting 0. Other-host native execution remains unverified.
 
 The optimized repair producer, SHA-256
-`b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57`,
-executes all nine canonical positives with native/Terminal exits 0/0 and rejects
-all nine twins at their consuming obligation. Sources and oracles remained
-unchanged throughout each capture. Matching pins live under
-`tests/omega/{pass,fail}/facts/invariant_window_snapshot_through_*`.
-The PR and claim retain raw observations, exact source hashes, producer inputs,
-profiles and independent review. Existing literal-bound, predicate-helper and
-mutable-recast programs still execute in both engines.
+`b62468e369d389a0f36a8eb67fb1c2f05c05fecabaad3cd57520c0d1949bcb57`, executes all
+nine canonical positives with native/Terminal exits 0/0 and rejects all nine
+twins at their consuming obligation. Sources and oracles remained unchanged
+throughout each capture. The PR and claim retain raw observations, exact source
+hashes, producer inputs, profiles and independent review. Existing
+literal-bound, predicate-helper and mutable-recast programs still execute in
+both engines.
 
 The parent remains open for scalar-recast source-domain restoration: assigning
 `0xFFFFFFFFu32` through `&mut pair.start as &mut u32` without restoring the parent

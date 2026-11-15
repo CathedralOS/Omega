@@ -28,11 +28,9 @@ all three modes; the consensus term bridges the reconvergent-path gap.
 `model/netlist.omg` owns gate data, topology and Boolean evaluation. `main.omg`
 owns input handling, validation, initialization, the private event calendar,
 waveform emission and pulse observation. `data/*.input` are deterministic input
-fixtures; `data/*.expected` are frozen exact stdout artifacts. `reference.py`
-independently uses a heap and event generations, instead of the Omega calendar
-and due-slot cancellation. Its truth oracle selects b or c directly by a.
-Running it again compares to existing oracles and refuses any change.
-The independent frozen wave digests are 58289, 52296 and 13462.
+fixtures; `data/*.expected` are frozen exact stdout artifacts. Running it again
+compares to existing oracles and refuses any change. The independent frozen
+wave digests are 58289, 52296 and 13462.
 
 From the repository root, using a verified compiler binary:
 
@@ -44,8 +42,6 @@ $OMEGA update --resume --project samples/cli/independent/logic_hazard_timing
 $OMEGA --check samples/cli/independent/logic_hazard_timing/main.omg
 printf 0 | $OMEGA run samples/cli/independent/logic_hazard_timing/main.omg
 printf 2 | $OMEGA run --both samples/cli/independent/logic_hazard_timing/main.omg
-python3 samples/cli/independent/logic_hazard_timing/reference.py
-python3 samples/cli/independent/logic_hazard_timing/validate.py --omega "$OMEGA"
 ```
 
 Check `../invalid_logic_hazard_timing/main.omg` directly; checking reports the obligation before
@@ -53,12 +49,9 @@ requiring an accepted deployable entry. Its complete separate entrypoint calls `
 positive-delay precondition. Validation requires that intended diagnostic;
 unrelated compilation refusal is not accepted as evidence.
 
-The validator runs one Omega operation at a time, checks exact native stdout,
-requires native/Terminal exit agreement and saves stdout, stderr, commands,
-exit statuses, source/binary hashes, base, host and resource settings under
-`build/validation/`. `--both` compares termination only in the current CLI;
-the application checks its trace digest inside both runtimes. This digest is a
-bounded regression check, not a collision-free equivalence proof.
+`--both` compares termination only in the current CLI; the application checks
+its trace digest inside both runtimes. This digest is a bounded regression
+check, not a collision-free equivalence proof.
 
 Model limits: integer synthetic ticks, ideal two-valued gates, bounded DAG and
 finite events, initial equilibrium, positive delays <=8, fixed falling-input

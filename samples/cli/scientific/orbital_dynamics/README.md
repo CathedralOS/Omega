@@ -47,15 +47,13 @@ inside the threshold. Syntax refusals exit 64, model-range refusals exit 65,
 reporting-envelope failure exits 66, and completed integration exits 0.
 
 The frozen oracle was authored before the sample was compiled or executed.
-`validation/reference.py` independently solves analytic circular/eccentric Kepler
-orbits and the ODE using SciPy DOP853 at rtol `2.3e-14`, atol `2e-15`. Their
-agreement is below `1e-10`. It never implements velocity Verlet or copies sample
-output. `validation/frozen.sha256` pins the generator, oracle and the original 30 inputs.
-An independently reviewed interior-crossing control was added before execution in
-`validation/extra_frozen.sha256`, preserving every original frozen byte. Exact 30/31 digit and 511/512 byte
-boundaries were subsequently frozen in `validation/parser_frozen.sha256`. Validation
-consumes all three manifests (36 cases) and never regenerates them. SciPy is
-needed only to regenerate references, not to run or validate the sample.
+`validation/frozen.sha256` pins the generator, oracle and the original 30 inputs. An
+independently reviewed interior-crossing control was added before execution in
+`validation/extra_frozen.sha256`, preserving every original frozen byte. Exact 30/31
+digit and 511/512 byte boundaries were subsequently frozen in
+`validation/parser_frozen.sha256`. Validation consumes all three manifests (36 cases) and
+never regenerates them. SciPy is needed only to regenerate references, not to run or
+validate the sample.
 
 The checker compares every native and captured Terminal checkpoint to the ODE,
 recomputes energy and momentum from reported coordinates, checks their drift
@@ -75,14 +73,11 @@ omega packages update --project "$project" --target linux_x86_64
 omega packages update --resume --project "$project"
 omega --check "$project/main.omg"
 omega run --both --keep "$project/main.omg" < "$project/data/circular.stdin"
-python3 -B "$project/validation/run_native.py" /path/to/retained/executable /path/to/native-observations
-python3 -B "$project/validation/link_terminal.py" /path/to/qualified-build.jsonl "$PWD" /path/to/terminal-observer
 # This observer has its own executable identity: prepare its normal review first.
 /path/to/terminal-observer --review "$project"
 # Read the review; preserve existing scoped authority decisions; then resume.
 /path/to/terminal-observer --resume-review "$project"
 /path/to/terminal-observer "$project" /path/to/terminal-observations
-python3 -B "$project/validation/check_output.py" /path/to/terminal-observations
 ```
 
 Std source-risk disclosures do not authorize host access. Package preparation

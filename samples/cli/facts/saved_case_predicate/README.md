@@ -34,13 +34,10 @@ before the read do not invalidate its new tag; later disjoint writes preserve
 it, and the twins replace that exact storage and lose payload authority.
 Shared storage stability admits only an authenticated invocation referent.
 
-The [write-before-read program](writes_before_read/main.omg) and its
-[replacement twin](writes_before_read/invalid/main.omg) are another production
-of this same observation requirement. They return and test a reference after
-writing Full through it. The further trailing-write fixture under
-`tests/omega/fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected/`
-replaces the case inside the saved initializer after its tag read; the completed
-Boolean cannot restore the retired payload fact.
+The [write-before-read program](writes_before_read/main.omg) and its [replacement
+twin](writes_before_read/invalid/main.omg) are another production of this same
+observation requirement. They return and test a reference after writing Full through
+it.
 
 The requirement evidence is bounded to this operation:
 
@@ -63,9 +60,16 @@ The requirement evidence is bounded to this operation:
   execution. Other hosted bindings and target bodies are checked; Windows and
   Linux execution remain unverified on this machine.
 
-The [inferred application](inferred/main.omg) and its [stale-write twin](inferred/invalid/main.omg) exercise another production of the same fact: the ordinary borrow arguments determine `Value` before the equation is discharged, keeping the callee's invocation lifetime out of the caller's static argument scope. Declaration-order, reference-access, pointee, undeclared-region and wrong-return-source controls live beside generic fixtures under `tests/omega/`.
+The [inferred application](inferred/main.omg) and its [stale-write
+twin](inferred/invalid/main.omg) exercise another production of the same fact:
+the ordinary borrow arguments determine `Value` before the equation is
+discharged, keeping the callee's invocation lifetime out of the caller's static
+argument scope.
 
-The nine places and inferred application are pinned under `tests/omega/{pass,fail}/facts/saved_case_predicate*`. On macOS ARM64, optimized producer source `914d1adfdf4` executes the nine places with native and Terminal exit 0; their nine twins reject selected-case access. The authored four-target Build rows and target bodies remain checked. Windows and Linux execution require matching hosts.
+On macOS ARM64, optimized producer source `914d1adfdf4` executes the nine places
+with native and Terminal exit 0; their nine twins reject selected-case access.
+The authored four-target Build rows and target bodies remain checked. Windows
+and Linux execution require matching hosts.
 
 The parent remains open for its remaining saved numeric/byte observations and single-evaluation pattern destructuring acceptance. This row closes the generic/reference case-observation requirement only.
 

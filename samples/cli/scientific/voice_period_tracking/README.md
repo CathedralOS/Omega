@@ -53,13 +53,12 @@ tracking state. Every accepted sample is initialized before being read.
 
 ## Frozen independent expectations
 
-`reference.py --freeze` was run before any Omega check or execution. The oracle
-uses Python arbitrary integers, full pair enumeration and `Fraction`, independent
-of the Omega streaming sum and cross-product selection. `data/oracle.json` freezes
-all input and expected-output SHA-256 values; tolerance is **zero**, including
-pitch flooring, sums, counts, ties, track changes and segment endpoints. Validation
-never updates the oracle. The initial manifest hash is
-`91a5c1f72a4a241e26a7ab3524df2d3db6a43279bfa4a35293000cca544c1a30`.
+The oracle uses Python arbitrary integers, full pair enumeration and `Fraction`,
+independent of the Omega streaming sum and cross-product selection.
+`data/oracle.json` freezes all input and expected-output SHA-256 values; tolerance
+is **zero**, including pitch flooring, sums, counts, ties, track changes and
+segment endpoints. Validation never updates the oracle. The initial manifest hash
+is `91a5c1f72a4a241e26a7ab3524df2d3db6a43279bfa4a35293000cca544c1a30`.
 
 Nine cases cover constructed periods 2, 4, 5 and 7; harmonic ambiguity; silence;
 changing periods both between and within windows; amplitude-shape variants; minimum
@@ -78,8 +77,6 @@ omega packages update --project samples/cli/independent/voice_period_tracking --
 omega packages update --resume --project samples/cli/independent/voice_period_tracking
 omega --check samples/cli/independent/voice_period_tracking/main.omg
 omega run --keep samples/cli/independent/voice_period_tracking/main.omg < samples/cli/independent/voice_period_tracking/data/trajectory.input
-python3 samples/cli/independent/voice_period_tracking/reference.py --omega /absolute/path/to/omega
-python3 samples/cli/independent/voice_period_tracking/reference.py --omega /absolute/path/to/omega --both
 omega --check samples/cli/independent/voice_period_tracking/controls/type_valid/main.omg
 omega --check samples/cli/independent/voice_period_tracking/controls/type_mismatch/main.omg
 ```

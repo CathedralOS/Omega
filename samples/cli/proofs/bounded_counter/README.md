@@ -9,8 +9,4 @@ omega --target windows_x86_64 --build-dir build samples/cli/proofs/bounded_count
 ./build/omega-program.exe   # exit 70
 ```
 
-Companion to `samples/cli/games/vending_machine` (the case-payload showcase). This one
-deliberately drives state with scalar arguments rather than threading a
-by-value case parameter into a self-writing sub-machine — that combination is
-a known native miscompile tracked by
-`tests/omega/pending/calls/by_value_case_param_self_write_lost`.
+Companion to `samples/cli/games/vending_machine` (the case-payload showcase).

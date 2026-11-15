@@ -6,20 +6,20 @@
 public boundary trait Console {
     machine write_byte(byte: i32)
     reaches Console
-    terminates;
+    terminates crashes none;
 }
 
 boundary trait PosixConsoleIo {
     machine write(descriptor: i32, buffer: &mut i32, count: u64) -> i64
     reaches Console
-    terminates;
+    terminates crashes none;
 }
 
 // All bound targets are little-endian: the low byte is the first byte.
 boundary trait WindowsConsoleIo {
     machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
     reaches Console
-    terminates;
+    terminates crashes none;
 }
 
 data Room dropped by drop_room { count: u32 in Wrapping; }

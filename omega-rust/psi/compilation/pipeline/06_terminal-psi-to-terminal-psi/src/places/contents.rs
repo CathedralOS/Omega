@@ -72,6 +72,10 @@ impl Storage<'_> {
                     matches!(self.declaration(formal.structural_type, concerns)?.shape,
                     StructuralTypeShape::PrimitiveScalar(declared) if declared == actual)
                 }
+                Shape::Atomic(actual) => {
+                    self.declaration(formal.structural_type, concerns)?.shape
+                        == StructuralTypeShape::AtomicCell(actual)
+                }
                 Shape::View | Shape::Payload(_) => false,
             };
             if !matches_type {

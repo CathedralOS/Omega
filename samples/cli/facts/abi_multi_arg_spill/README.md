@@ -108,39 +108,18 @@ The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
 route and the batch route. Each mirror is byte-identical to its per-place twin.
 
-### Acceptance Gate
-
-```sh
-python3 tools/sample_native_gate.py --filter cli/facts/abi_multi_arg_spill
-python3 tools/corpus_gate.py --native --filter facts/abi_multi_arg_spill
-```
-
-`sample_native_gate.py` scores each sample on the targets it authors. `corpus_gate.py`
-scores the pinned fixtures directly: nine `built ... exit:0` rows for the positives
-in `tests/omega/corpus_native_macos_arm64.txt` and nine `rejected ... expected`
-rows for the twins in `tests/omega/corpus_outcomes.txt`.
-
 ## Pinned Fixtures
 
-The nine positive places are pinned as
-`tests/omega/pass/facts/abi_multi_arg_spill_through_<place>_exit/`, each
-byte-identical to its sample place and carrying
-`expected_native_exit.txt` with `0`. The nine reject twins are pinned as
-`tests/omega/fail/facts/abi_multi_arg_spill_through_<place>_rejected/`, each
-byte-identical to its `<place>/invalid/main.omg`, binding `ProgramEntry` for
-all four hosted targets, carrying `expected.txt` with the
-`may overflow \`u64\`` fragment, and rejecting with the exact-subtraction
-diagnostic; their `rejected ... expected` rows are recorded in
-`tests/omega/corpus_outcomes.txt` at `@114906953e11+wt`. The places and twins
-were measured with the wave's shared opt-level-1 producer at `9ff26a870215`:
-the root and all nine places report `native exit 0` and `interp exit: 0`, and
-all nine twins refuse with their own `checked compilation failed for package
-\`abi_multi_arg_spill_<place>_invalid\`` diagnostic carrying the
-`may overflow \`u64\`` fragment. The corpus legs then re-measured the row on
-the rebased checkout at `114906953e11`: the check leg is clean over 36
-fixtures (18 `checked` positives, 18 `rejected ... expected` twins), the
-native leg executed all nine `_exit` fixtures at exit 0, and the Terminal leg
-recorded `exit:0 interpreter-exit:0 interpreter:agrees` for each of them.
+The places and twins were measured with the wave's shared opt-level-1
+producer at `9ff26a870215`: the root and all nine places report `native exit
+0` and `interp exit: 0`, and all nine twins refuse with their own `checked
+compilation failed for package \`abi_multi_arg_spill_<place>_invalid\``
+diagnostic carrying the `may overflow \`u64\`` fragment. The corpus legs then
+re-measured the row on the rebased checkout at `114906953e11`: the check leg
+is clean over 36 fixtures (18 `checked` positives, 18 `rejected ... expected`
+twins), the native leg executed all nine `_exit` fixtures at exit 0, and the
+Terminal leg recorded `exit:0 interpreter-exit:0 interpreter:agrees` for each
+of them.
 
 ## Requirements and Evidence
 

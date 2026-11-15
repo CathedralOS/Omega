@@ -677,7 +677,14 @@ mod tests {
                     .domains
                     .members()
                     .collect::<Vec<_>>(),
-                [domain]
+                [crate::body::DomainInstance {
+                    declaration: domain,
+                    identity: program
+                        .typed()
+                        .domain_definition(domain)
+                        .unwrap()
+                        .semantic_id,
+                }]
             );
         }
         let mutable = program

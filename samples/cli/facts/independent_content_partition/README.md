@@ -25,15 +25,12 @@ source. Earlier requirements and observations below belong to their recorded
 source revisions and do not establish acceptance of this explicit-identity
 source.
 
-Each place issues a 48-unit region at 10, partitions 16 units, and observes
-children (10, 16) and (26, 32). Both selector values execute. The nine places
-are local, field, parameter, call result, match join, const name, a nested machine,
-another machine, and another target body. Run
-`omega run --both samples/cli/facts/independent_content_partition/<place>/main.omg`.
-Each `invalid/main.omg` removes only the second owner's conservation equation.
-The corresponding corpus fixtures are pinned as
-`tests/omega/pass/facts/independent_content_partition_through_<place>_exit` and
-`tests/omega/fail/facts/independent_content_partition_through_<place>_rejected`.
+Each place issues a 48-unit region at 10, partitions 16 units, and observes children
+(10, 16) and (26, 32). Both selector values execute. The nine places are local,
+field, parameter, call result, match join, const name, a nested machine, another
+machine, and another target body. Run `omega run --both
+samples/cli/facts/independent_content_partition/<place>/main.omg`. Each
+`invalid/main.omg` removes only the second owner's conservation equation.
 
 ## Requirements and evidence
 
@@ -75,10 +72,7 @@ A provider with no owned content inputs can return independently established
 claims. Those fields do not partition caller content, so the bodyless
 requirement needs no invented input conservation equation. This does not grant
 issuance: checked providers still establish each returned field's qualification
-and custody. The factory compositions under `tests/omega/pass/core/` cover both
-an ordinary checked call and a selected boundary provider, each returning two
-privately issued fields. They supplement the original split row; they do not
-replace its operation, bound, or reject twins.
+and custody.
 
 Opaque native supply is checked separately against the retained signature.
 Each routed output needs its own consumed qualification or its exact authorized

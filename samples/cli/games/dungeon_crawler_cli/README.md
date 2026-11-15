@@ -81,10 +81,6 @@ The existing sample gate reads the standalone `Expected exit` and
 oracle requires the generated room description, not just exit 0: native lookup
 previously lost the description while the process still exited successfully.
 
-```sh
-python3 tools/sample_native_gate.py --filter cli/games/dungeon_crawler_cli --jobs 1 --timeout 7200
-```
-
 The timeout is a runner budget, not a language limit; the current qualified
 commands complete in under thirty seconds after package preparation. This gate does not replace the separate
 `help`/`exit` input acceptance above.

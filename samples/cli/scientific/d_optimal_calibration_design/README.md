@@ -47,40 +47,22 @@ omega packages update --project samples/cli/independent/d_optimal_calibration_de
 # Inspect any pending review; accept only the authorized exact inventory, then resume.
 omega packages update --resume --project samples/cli/independent/d_optimal_calibration_design
 omega run --both --keep samples/cli/independent/d_optimal_calibration_design/main.omg < samples/cli/independent/d_optimal_calibration_design/input.txt
-python samples/cli/independent/d_optimal_calibration_design/validate.py --omega /absolute/path/to/omega
 ```
 
-`reference.py` freezes independent Python-integer combination enumeration,
-permutation-expanded determinants and `Fraction` Gauss–Jordan inverses before
-sample execution. `validate.py` checks the frozen digest, exact indices, all
-information entries and determinant, and exact rational covariance/variance
-values (stronger than 1e-8 absolute/relative accuracy). It separately validates
-native stdout and the retained `terminal.stdout` produced by `run --both --keep`;
-exit agreement alone is insufficient. The 46 frozen inputs cover unequal
-precision, nontrivial ties, repeated settings, singular candidate populations,
-minimum and maximum bounds, asymmetric predictions, and runtime refusals.
-`controls/candidate_bound` must reject index 12 of a 12-element source array for
-its authored bounds diagnostic. Native executables can be supplied with
-`--native` for inexpensive repeated numerical validation.
+The 46 frozen inputs cover unequal precision, nontrivial ties, repeated settings,
+singular candidate populations, minimum and maximum bounds, asymmetric
+predictions, and runtime refusals. `controls/candidate_bound` must reject index
+12 of a 12-element source array for its authored bounds diagnostic. Native
+executables can be supplied with `--native` for inexpensive repeated numerical
+validation.
 
 For a fast native iteration after retaining a produced executable, run:
-
-```
-python samples/cli/independent/d_optimal_calibration_design/validate.py --omega /absolute/path/to/omega --native /absolute/path/to/omega-program --native-only
-```
 
 Native-only and native/Terminal runs retain separate result directories. Full
 qualification still requires captured Terminal values; the native iteration path
 does not replace that gate.
 
-Repeated full requalification can use one admitted Terminal artifact. This optional
-linker currently requires mbx build receipts and its output layout; the public CLI
-validation route above also works with a compiler built by ordinary Cargo:
-
-```
-python tools/link_terminal_sponsor.py --omega /absolute/path/to/omega --source samples/cli/independent/d_optimal_calibration_design/validation/terminal_capture.rs --output samples/cli/independent/d_optimal_calibration_design/build/terminal-sponsor
-python samples/cli/independent/d_optimal_calibration_design/validate.py --omega /absolute/path/to/omega --native /absolute/path/to/omega-program --sponsor samples/cli/independent/d_optimal_calibration_design/build/terminal-sponsor
-```
+Repeated full requalification can use one admitted Terminal artifact.
 
 Retain `omega-program` from the public CLI's `--keep` directory. The sponsor
 links the verified compiler's exact dependency units, performs normal accepted

@@ -13,7 +13,7 @@ ensures result <= 60
     { value }
 }
 machine total(counter: Counter) -> u8 { counter.value + 195 }
-boundary trait Choose { machine make(choice: Choice) -> Counter reaches; }
+boundary trait Choose { machine make(choice: Choice) -> Counter reaches crashes none; }
 HostedChoose satisfies Choose {
     machine make(choice: Choice) -> Counter {
         let selected: u8 = select(choice.left, choice.right);

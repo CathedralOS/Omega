@@ -436,6 +436,7 @@ impl SourceCompilation {
     pub(super) fn select(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
+        inspection: Option<&str>,
         frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
         let spent = self.source.source_completion_accounting().clone();
@@ -447,6 +448,7 @@ impl SourceCompilation {
             self.target,
             self.inputs.as_ref(),
             &self.rollback,
+            inspection,
             frontier,
         ))
     }
@@ -460,7 +462,7 @@ impl SourceCompilation {
             returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;
         let prepared = self.source.complete(returned, None, None)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
-        check_product_source(source, self.inputs.as_ref(), &self.rollback, None)
+        check_product_source(source, self.inputs.as_ref(), &self.rollback, None, None)
     }
 }
 
@@ -542,15 +544,16 @@ pub(super) fn select_completed_build(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
+    inspection: Option<&str>,
     frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
 ) -> SelectedCompileOutcome {
     let independent_components = prepared
         .built
         .computed_build_config
         .independent_components();
-    match complete_prepared_build(prepared, package_inputs)
-        .and_then(|source| check_product_source(source, package_inputs, rollback, frontier))
-    {
+    match complete_prepared_build(prepared, package_inputs).and_then(|source| {
+        check_product_source(source, package_inputs, rollback, inspection, frontier)
+    }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
             crate::checked::PreparedProductTarget::capture(

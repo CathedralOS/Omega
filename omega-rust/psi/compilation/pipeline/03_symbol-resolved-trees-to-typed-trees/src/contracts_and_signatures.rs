@@ -249,8 +249,8 @@ pub(crate) mod contracts {
             /// constrains; one no declaration owns has no reader to raise it
             /// and refuses here.
             pub(crate) fn normalize(
-                _source: &symbol_resolved_trees::SymbolResolvedTrees,
                 program: &mut TypedTrees,
+                owners: &typed_trees::references::ProgramOperandOwners,
             ) -> Result<(), Diagnostic> {
                 let unselected = program
                     .proof_facts
@@ -268,7 +268,6 @@ pub(crate) mod contracts {
                 if unselected.is_empty() {
                     return Ok(());
                 }
-                let owners = typed_trees::references::collect_program_operand_owners(program);
                 let mut rows = Vec::new();
                 for (handle, value) in unselected {
                     let source_span = program
@@ -379,7 +378,8 @@ pub(crate) mod contracts {
                 #[test]
                 fn an_unselected_membership_refuses_only_the_declaration_holding_it() {
                     let (mut program, [holder, bystander]) = unselected_membership(true);
-                    normalize(&Default::default(), &mut program).unwrap();
+                    let owners = typed_trees::references::collect_program_operand_owners(&program);
+                    normalize(&mut program, &owners).unwrap();
                     assert_eq!(
                         program.deferred_refusal(holder).map(|row| row.request),
                         Some(DeferredRequest::ContractMembershipSelection)
@@ -390,7 +390,8 @@ pub(crate) mod contracts {
                 #[test]
                 fn an_unselected_membership_no_declaration_holds_still_refuses() {
                     let (mut program, [holder, bystander]) = unselected_membership(false);
-                    let error = normalize(&Default::default(), &mut program).unwrap_err();
+                    let owners = typed_trees::references::collect_program_operand_owners(&program);
+                    let error = normalize(&mut program, &owners).unwrap_err();
                     assert!(
                         error
                             .message
@@ -565,15 +566,43 @@ pub(crate) mod contracts {
             Ok(())
         }
 
+        pub(crate) fn has_pending_memberships(program: &typed::TypedTrees) -> bool {
+            program.proof_facts.iter().any(|(_, fact)| {
+                let Some(membership) = fact.as_membership() else {
+                    return false;
+                };
+                if !membership.domain_symbol.is_valid() {
+                    return membership.authored_domain_selection.is_some();
+                }
+                program
+                    .domain_arguments_for_instance(
+                        membership.domain_symbol,
+                        membership.semantic_domain,
+                    )
+                    .is_none()
+            })
+        }
+
         pub(crate) fn intern_proof_membership_instances(
             program: &mut typed::TypedTrees,
+            owners: &typed::references::ProgramOperandOwners,
         ) -> Result<(), Diagnostic> {
+            let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
             let mut instances = Vec::new();
             for (handle, fact) in program.proof_facts.iter() {
                 let Some(membership) = fact.as_membership() else {
                     continue;
                 };
-                if membership.domain_arguments.is_empty() || !membership.domain_symbol.is_valid() {
+                if !membership.domain_symbol.is_valid() {
+                    continue;
+                }
+                if program
+                    .domain_arguments_for_instance(
+                        membership.domain_symbol,
+                        membership.semantic_domain,
+                    )
+                    .is_some()
+                {
                     continue;
                 }
                 let Some(domain) = program.domain_definition(membership.domain_symbol) else {
@@ -582,20 +611,105 @@ pub(crate) mod contracts {
                 let source_span = program.proof_fact_source_span(handle);
                 check_membership_argument_count(program, domain, membership.domain_arguments.len())
                     .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
+                if program.domain_type_parameters(domain).is_empty() {
+                    instances.push((
+                        handle,
+                        membership.domain_symbol,
+                        None,
+                        Vec::new(),
+                        domain.semantic_id,
+                    ));
+                    continue;
+                }
                 let arguments = program
                     .type_reference_table
-                    .type_reference_handles(membership.domain_arguments);
-                let identity = typed::domain::indexed_domain_instance_name(
-                    program,
-                    domain,
-                    typed::domain::index_parameters(program, domain),
-                    arguments,
-                )
-                .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
-                instances.push((handle, identity));
+                    .type_reference_handles(membership.domain_arguments)
+                    .to_vec();
+                let mut carrier = None;
+                let mut missing = false;
+                let holders = owners
+                    .expression_owners(membership.value)
+                    .collect::<Vec<_>>();
+                for owner in &holders {
+                    let Some(found) = types.get(program, *owner, membership.value) else {
+                        missing = true;
+                        continue;
+                    };
+                    let found = program
+                        .type_reference_table
+                        .unconstrained_type_reference(found);
+                    if carrier.is_some_and(|earlier| {
+                        program.package_qualified_type_identity(earlier)
+                            != program.package_qualified_type_identity(found)
+                    }) {
+                        return Err(with_optional_source_span(
+                            Diagnostic::error(
+                                "domain membership has conflicting declared carrier contexts",
+                            ),
+                            source_span,
+                        ));
+                    }
+                    carrier = Some(found);
+                }
+                if missing || carrier.is_none() {
+                    // A missing receiving type is pending work on its actual
+                    // declaration, not permission to guess the family's carrier.
+                    instances.push((
+                        handle,
+                        membership.domain_symbol,
+                        None,
+                        arguments,
+                        language_semantics::SemanticDomainId::NULL,
+                    ));
+                } else {
+                    instances.push((
+                        handle,
+                        membership.domain_symbol,
+                        carrier,
+                        arguments,
+                        language_semantics::SemanticDomainId::NULL,
+                    ));
+                }
             }
-            for (handle, identity) in instances {
-                let semantic_domain = program.semantic_domains.intern(&identity);
+            for (handle, declaration, carrier, arguments, original) in instances {
+                let semantic_domain = if let Some(carrier) = carrier {
+                    program
+                        .retain_domain_application(declaration, carrier, &arguments)
+                        .map_err(|diagnostic| {
+                            with_optional_source_span(
+                                diagnostic,
+                                program.proof_fact_source_span(handle),
+                            )
+                        })?
+                } else if original.is_valid() {
+                    original
+                } else {
+                    let typed::domain::ProofFact::Membership(membership) =
+                        program.proof_facts.get(handle)
+                    else {
+                        return Err(Diagnostic::error("domain membership changed its fact kind"));
+                    };
+                    let holders = owners
+                        .expression_owners(membership.value)
+                        .collect::<Vec<_>>();
+                    let source_span = program.proof_fact_source_span(handle).unwrap_or_default();
+                    if holders.is_empty() {
+                        return Err(with_optional_source_span(
+                            Diagnostic::error(
+                                "no product route yet: domain membership has no declared carrier owner",
+                            ),
+                            Some(source_span),
+                        ));
+                    }
+                    for owner in holders {
+                        program.record_deferred_refusal(
+                            owner,
+                            typed::deferred_refusals::DeferredRequest::ContractMembershipSelection,
+                            source_span,
+                        );
+                    }
+                    continue;
+                };
                 if let typed::domain::ProofFact::Membership(membership) =
                     program.proof_facts.get_mut(handle)
                 {

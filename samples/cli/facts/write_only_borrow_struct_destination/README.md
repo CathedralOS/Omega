@@ -20,15 +20,6 @@ Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Another machine forwards the initialized destination slot before exact subtraction. |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Target-scoped machine bodies initialize and consume the write-only borrow destination across all hosted targets. |
 
-## Pinned Fixtures
-
-The nine positive places and their nine reject twins are pinned as corpus fixtures and golden rows:
-
-- `tests/omega/pass/facts/write_only_borrow_struct_destination_through_<place>_exit` (`build.omg`, `main.omg`, `expected_native_exit.txt`)
-- `tests/omega/fail/facts/write_only_borrow_struct_destination_through_<place>_rejected` (`build.omg`, `main.omg`, `expected.txt`)
-- Check-side golden rows in `tests/omega/corpus_outcomes.txt` (`checked` for all 9 positive places and `rejected` with the decision-17 diagnostic for all 9 reject twins)
-- Native execution golden rows in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0` across all 9 positive places)
-
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
@@ -100,8 +91,6 @@ exact arithmetic in machine ... may overflow `u64`: the operands are not provabl
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning maps destination record homes into target layout plans, lowering `&write DestinationSlot` into direct pointer passing across ABI register conventions (RCX on `windows_x86_64`, RDI on `linux_x86_64`, X0 on `macos_arm64` and `linux_arm64`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation realizes the indirect 64-bit store and subsequent frame reload, maintaining disjoint stack activation storage and bounded stack frames without live-across-call spill corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Native image emission links entry symbols and branch displacements into complete PE/ELF/Mach-O binaries that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins are pinned under `tests/omega/{pass,fail}/facts/` and pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
-
 ## Build-owned target selection migration
 
 This authored-source migration belongs to `BUILD-OWNED-TARGET-SELECTION`.

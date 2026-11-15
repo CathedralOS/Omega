@@ -10,15 +10,13 @@ contributes `first`; the other alternative contributes `second` from a completed
 without publishing a duplicate capture or dropping an unselected sibling.
 
 The [root](main.omg) is the original failed program. The nine places are
-[local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
-and [target body](target_body/main.omg). Each has an `invalid/main.omg` twin
-that adds exactly one consuming `fold(result)` before the original consumer.
-The duplicate affine use must reject for use after transfer. Positive and
-negative sources are pinned under `tests/omega/{pass,fail}/facts/` with the
-`match_projected_product_custody_through_` prefix.
+[local](local/main.omg), [field](field/main.omg), [parameter](parameter/main.omg),
+[call result](call_result/main.omg), [match join](match_join/main.omg), [const
+name](const_name/main.omg), [nested machine](other_state/main.omg), [another
+machine](other_machine/main.omg), and [target body](target_body/main.omg). Each
+has an `invalid/main.omg` twin that adds exactly one consuming `fold(result)`
+before the original consumer. The duplicate affine use must reject for use after
+transfer.
 
 The [record-arm composition](controls/record_arm/main.omg) transports the same
 projected sources through branch-local record construction. The

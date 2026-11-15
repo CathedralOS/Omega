@@ -27,8 +27,7 @@ for windows_x86_64, linux_x86_64, macos_arm64 and linux_arm64. The local twin
 explicitly erases Marked before comparison, selecting builtin equality; the
 other twins change only the selected body's result to true. All reject the
 same `hold` obligation, with `cannot prove requires contract for call hold`
-and `direct == false`. Fixtures are byte-identical under
-`tests/omega/{pass,fail}/facts/body_bearing_comparison_through_<place>_*`.
+and `direct == false`.
 
 The same field production must retain qualifications at every producer, rather
 than repairing one constructor spelling:
@@ -49,15 +48,13 @@ facts fixture also declares `expected_terminal_inspections.txt` with `main`,
 so the corpus route checks source production, canonical encoding and decoding.
 
 Establishment and soundness follow [domains](../../../../wiki/spec/language/domains.md),
-[scalar qualifications](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications)
-and [structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
-The checker admits predicate-free, route-free Marked; receiving lowering creates
-a fresh qualified SSA value from the completed operand through the ordinary
-qualification edge. It preserves stronger source memberships and cannot mint
-predicate or issuer evidence, replace unrelated sets, replay effects or erase
-an existing qualification implicitly. The zero/predicate, issuer and mutable
-reference-erasure controls in `tests/omega/fail/domains/scalar_field_*` retain
-their intended refusals.
+[scalar
+qualifications](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications)
+and [structural access](../../../../wiki/spec/terminal-psi/structural_access.md). The
+checker admits predicate-free, route-free Marked; receiving lowering creates a fresh
+qualified SSA value from the completed operand through the ordinary qualification edge.
+It preserves stronger source memberships and cannot mint predicate or issuer evidence,
+replace unrelated sets, replay effects or erase an existing qualification implicitly.
 
 Identity and composition follow [fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md).
 A completed reference-free initializer installs its current value after its
@@ -92,7 +89,6 @@ omega run --both --keep samples/cli/facts/body_bearing_comparison/<place>/main.o
 omega --check samples/cli/facts/body_bearing_comparison/<place>/invalid/main.omg
 omega psi inspect --machine main --output field.psi samples/cli/facts/body_bearing_comparison/field/main.omg
 omega psi inspect --artifact field.psi
-python tools/corpus_gate.py --runner <qualified-runner> --filter facts/body_bearing_comparison
 ```
 
 The owning claim retains exact producer hashes, source/oracle identities,
@@ -114,16 +110,11 @@ constants and the task's other formation/operator acceptance remain on the board
 ### Unit-body call arrival
 
 Baseline producer `6392eabaed29b422eb2b0fbb9fbaef8ad8b10fbffca2dae531589c5e28c7fd79`
-(opt-level 1, clean `88aae78d8e3`, Windows x86-64) ran seven places with native
-exit 0 and Terminal exit 0. `parameter` and `const_name` refused after checking
-with `Lowering(InvalidUnitMachinePlan … completed call scalar operands disagree
-with the target signature)`, as did `tests/omega/run/domains/vacuous_tag_call_arguments`.
-Both places hand a bare literal or constant to a `f64 in Marked` formal from the
-entry machine. A call inside a scalar computation already gives such an actual to
-its formal through the ordinary qualification edge; a call from a Unit body
-compared the two types exactly and never minted the edge. A one-line probe
-reproduced it (`let r: u64 = tag(9);` with `a: u64 in Km`), and so did passing a
-`u64 in Km` local to a bare formal.
+(opt-level 1, clean `88aae78d8e3`, Windows x86-64) ran seven places with native exit 0
+and Terminal exit 0. A call inside a scalar computation already gives such an actual to
+its formal through the ordinary qualification edge; a call from a Unit body compared the
+two types exactly and never minted the edge. A one-line probe reproduced it (`let r: u64
+= tag(9);` with `a: u64 in Km`), and so did passing a `u64 in Km` local to a bare formal.
 
 Unit-body call arguments now take the callee's scalar formals from the prepared
 qualification namespace and sequence each actual through the same edge. Only
@@ -136,10 +127,7 @@ fixtures on the head of CathedralOS/Omega#1063 observed, on both `linux_x86_64`
 and `windows_x86_64` runners, nine `checked` positives and nine twins rejected
 with their expected fragments (0 wrong-reason rejections), `parameter` and
 `const_name` moving from `rejected` to `checked`, and all nine positives built
-and executed with exit 0. A scratch copy of the vacuous-tag probes, including
-the `tests/omega/run/domains/vacuous_tag_call_arguments` source, observed eight
-of eight built with exit 0 on both runners; a tagged local passed to a bare
-formal from the entry machine runs as well.
+and executed with exit 0.
 
 ## Build-owned target-body migration
 

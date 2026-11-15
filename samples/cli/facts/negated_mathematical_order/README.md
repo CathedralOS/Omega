@@ -18,8 +18,6 @@ input from `3` to `6` (the named constant in `const_name`).
 | other_machine | [source](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | target_body | [source](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-The same authored sources and oracles are pinned under
-`tests/omega/{pass,fail}/facts/negated_mathematical_order_through_*`.
 All positives declare the four hosted entries. Actual execution evidence is
 Linux x86-64; no foreign native host is claimed.
 

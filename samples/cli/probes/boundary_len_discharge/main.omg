@@ -14,7 +14,7 @@
 public boundary trait ByteHost {
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches ByteHost
     requires
-        count <= buffer.len;
+        count <= buffer.len crashes none;
 }
 
 data Main {

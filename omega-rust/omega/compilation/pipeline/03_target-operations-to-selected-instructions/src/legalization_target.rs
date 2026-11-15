@@ -362,8 +362,7 @@ pub(crate) mod control_flow {
                 .iter()
                 .find_map(|block| {
                     block
-                        .operations
-                        .iter()
+                        .operations()
                         .position(|operation| match operation {
                             TargetUnitOperation::Call { psi_operation, .. }
                             | TargetUnitOperation::NormalizedForeignCall {
@@ -384,6 +383,7 @@ pub(crate) mod control_flow {
             sources.extend(
                 call_block.operations[..call_position]
                     .iter()
+                    .map(|instruction| &instruction.kind)
                     .filter_map(definition),
             );
             elements
@@ -536,20 +536,16 @@ pub(crate) mod control_flow {
                             operation: false,
                         },
                     }));
-                    rows.extend(
-                        candidate
-                            .operations
-                            .iter()
-                            .filter_map(definition)
-                            .map(|row| InputRow {
-                                row,
-                                scope: SourceScope::Block {
-                                    block: candidate.block,
-                                    interval,
-                                    operation: true,
-                                },
-                            }),
-                    );
+                    rows.extend(candidate.operations().filter_map(definition).map(|row| {
+                        InputRow {
+                            row,
+                            scope: SourceScope::Block {
+                                block: candidate.block,
+                                interval,
+                                operation: true,
+                            },
+                        }
+                    }));
                 }
                 let mut by_value: Vec<_> = (0..rows.len()).collect();
                 by_value.sort_by_key(|position| rows[*position].row.0);
@@ -954,30 +950,28 @@ pub(crate) mod control_flow {
             }
             match &source.origin {
                 target_operations::TargetStructuralHomeOrigin::OperationResult { .. } => {
-                    let mut producers =
-                        graph.blocks.iter().flat_map(|candidate| {
-                            candidate.operations.iter().filter_map(move |operation| {
-                                let (producer, result) = operation.structural_result()?;
-                                if result.place != expected_source {
-                                    return None;
-                                }
-                                let expected =
-                                    result_home(optimized, expected_source, plan).ok()?;
-                                if !matches!(&expected.origin,
+                    let mut producers = graph.blocks.iter().flat_map(|candidate| {
+                        candidate.operations.iter().filter_map(move |operation| {
+                            let (producer, result) = operation.kind.structural_result()?;
+                            if result.place != expected_source {
+                                return None;
+                            }
+                            let expected = result_home(optimized, expected_source, plan).ok()?;
+                            if !matches!(&expected.origin,
                                 target_operations::TargetStructuralHomeOrigin::OperationResult {
                                     operation, result: declaration,
                                 } if *operation == producer && declaration == result)
-                                {
-                                    return None;
-                                }
-                                if operation.structural_result_home().is_some_and(
-                                    |(identity, home)| identity != producer || home != &expected,
-                                ) {
-                                    return None;
-                                }
-                                Some((candidate.block, expected))
-                            })
-                        });
+                            {
+                                return None;
+                            }
+                            if operation.kind.structural_result_home().is_some_and(
+                                |(identity, home)| identity != producer || home != &expected,
+                            ) {
+                                return None;
+                            }
+                            Some((candidate.block, expected))
+                        })
+                    });
                     let Some((producer_block, home)) = producers.next() else {
                         return false;
                     };
@@ -1076,6 +1070,8 @@ pub(crate) mod control_flow {
             cases: &[TargetControlCaseSuccessor],
             expected_source: PlaceId,
             expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
+            indices: &[target_operations::TargetStructuralRuntimeIndex],
+            scalar_sources: &sources::AvailableSources<'_>,
         ) -> bool {
             let available = match source {
                 TargetStructuralCaseSource::Home(home) => {
@@ -1121,7 +1117,7 @@ pub(crate) mod control_flow {
             if !available {
                 return false;
             }
-            let Ok((selected, expected_offset, _, expected_layout)) = dispatch_projection(
+            let Ok((selected, expected_offset, _, expected_layout, elements)) = dispatch_projection(
                 optimized,
                 expected_source,
                 path,
@@ -1131,7 +1127,10 @@ pub(crate) mod control_flow {
             ) else {
                 return false;
             };
-            if expected_offset != byte_offset || expected_layout != *layout {
+            if expected_offset != byte_offset
+                || expected_layout != *layout
+                || !super::super::unit::runtime_indices_rejoin(indices, &elements, scalar_sources)
+            {
                 return false;
             }
             let Some(declaration) =
@@ -1231,6 +1230,57 @@ pub(crate) mod control_flow {
         }
     }
 
+    pub(crate) fn validate_instruction_metadata(
+        instruction: &target_operations::TargetInstruction,
+        node: &optimization_unit::OptimizationNode,
+    ) -> Result<(), LegalizationError> {
+        let invalid = |reason| LegalizationError::InstructionMetadata {
+            machine: None,
+            operation: node.operation.psi_operation(),
+            reason,
+        };
+        let source = instruction
+            .source
+            .as_ref()
+            .ok_or_else(|| invalid("instruction lost its source annotations"))?;
+        let result = match node.definitions.as_slice() {
+            [] => None,
+            [result] => Some(*result),
+            _ => {
+                return Err(invalid(
+                    "source instruction has multiple scalar definitions",
+                ));
+            }
+        };
+        for (matches, reason) in [
+            (
+                Some(source.operation) == node.operation.psi_operation(),
+                "instruction operation identity differs",
+            ),
+            (
+                source.result == result,
+                "instruction scalar definition differs",
+            ),
+            (
+                source.metadata.work == node.work,
+                "instruction work charge differs",
+            ),
+            (
+                source.metadata.effect == node.effect,
+                "instruction effect order differs",
+            ),
+            (
+                source.metadata.ownership == node.ownership,
+                "instruction custody events differ",
+            ),
+        ] {
+            if !matches {
+                return Err(invalid(reason));
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate(
         function: &TargetFunction,
         graph: &TargetControlGraph,
@@ -1311,10 +1361,34 @@ pub(crate) mod control_flow {
         let block_entries = block_entry_states(optimized, descriptor_inputs)?;
         let source_inputs = sources::SourceInputs::new(graph, optimized);
         for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
+            let terminal = source.nodes.last().ok_or(LegalizationError::custody())?;
+            if block.terminator_metadata.work != terminal.work
+                || block.terminator_metadata.effect != terminal.effect
+                || block.terminator_metadata.ownership != terminal.ownership
+                || crate::legalization_control::project(
+                    function.machine,
+                    block,
+                    function
+                        .structural_contract
+                        .as_ref()
+                        .map(|contract| contract.parameters.as_slice())
+                        .unwrap_or(&[]),
+                    &unit.accepted_obligation_facts,
+                )? != crate::legalization_source::scalar_graph::terminator::audit_project(
+                    terminal,
+                    function_inputs,
+                    plan,
+                    native,
+                    unit,
+                    &block.terminator,
+                )?
+            {
+                return Err(LegalizationError::custody());
+            }
             let body_len = block
                 .operations
                 .iter()
-                .position(|row| matches!(row, TargetUnitOperation::CleanupCall { .. }))
+                .position(|row| matches!(&row.kind, TargetUnitOperation::CleanupCall { .. }))
                 .unwrap_or(block.operations.len());
             let (body, cleanup_calls) = block.operations.split_at(body_len);
 
@@ -1333,20 +1407,20 @@ pub(crate) mod control_flow {
             {
                 return Err(LegalizationError::custody());
             }
-            let source_nodes: Vec<_> = source.nodes.iter().collect();
             let mut available = source_inputs.available(block.block);
             let mut custody = block_entries
                 .get(&block.block)
                 .cloned()
                 .ok_or(LegalizationError::custody())?;
-            for (node_index, (operation, node)) in body.iter().zip(&source_nodes).enumerate() {
+            for (node_index, (operation, node)) in body.iter().zip(&source.nodes).enumerate() {
                 custody.set_position(block.block, node_index)?;
-                if matches!(operation, TargetUnitOperation::Return { .. }) {
+                validate_instruction_metadata(operation, node)?;
+                if matches!(&operation.kind, TargetUnitOperation::Return { .. }) {
                     return Err(LegalizationError::custody());
                 }
                 super::unit::validate_operation(
                     function,
-                    operation,
+                    &operation.kind,
                     &node.operation,
                     &graph.scalar_parameters,
                     &graph.parameters,
@@ -1436,8 +1510,11 @@ pub(crate) mod control_flow {
                                     semantic.place == *expected_source
                                 && semantic.access == terminal_psi::StructuralAccess::Owned
                                 && optimized.result.structural().is_some_and(|result| {
-                                    result.structural_type == semantic.structural_type
-                                        && result.multiplicity == semantic.multiplicity
+                                    plan.geometry().declaration(semantic.structural_type).is_ok_and(|source| {
+                                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                                            result, source, semantic.multiplicity,
+                                        )
+                                    })
                                 })
                                 }) && parameter.place == *expected_source
                                     && graph
@@ -1685,7 +1762,9 @@ pub(crate) mod control_flow {
                 }
                 (
                     TargetControlTerminator::StructuralCase {
+                        psi_block,
                         source,
+                        indices,
                         path,
                         byte_offset,
                         layout,
@@ -1694,12 +1773,13 @@ pub(crate) mod control_flow {
                         region_byte_size,
                     },
                     AbstractOperation::StructuralCase {
+                        psi_block: expected_block,
                         source: expected_source,
                         path: expected_path,
                         cases: expected_cases,
                     },
                 ) => {
-                    path == expected_path
+                    psi_block == expected_block && path == expected_path
                         && structural_cases::matches(
                             graph,
                             optimized,
@@ -1714,6 +1794,8 @@ pub(crate) mod control_flow {
                             cases,
                             *expected_source,
                             expected_cases,
+                            indices,
+                            &available,
                         )
                 }
                 (
@@ -1968,6 +2050,7 @@ pub(crate) mod element_view {
                     region,
                     element_stride,
                     source: established_source,
+                    source_argument,
                 } => {
                     let Some((argument, expected_region)) =
                         self.optimized.block_nodes().find_map(|node| {
@@ -1997,6 +2080,9 @@ pub(crate) mod element_view {
                     else {
                         return Err("view result does not match an exact declared establishment");
                     };
+                    if source_argument != argument {
+                        return Err("view source argument differs from its establishment");
+                    }
                     let backing = match established_source {
                         TargetStructuralArgumentSource::Placement(placement) => {
                             self.optimized
@@ -2480,13 +2566,7 @@ pub(crate) mod expressions {
             value: ValueId,
             aliases: &[(ValueId, ValueId)],
         ) -> bool {
-            matches!(
-                expression,
-                Expression::Immediate { .. }
-                    | Expression::Parameter { .. }
-                    | Expression::ScalarHome(_)
-                    | Expression::BlockParameter(_)
-            ) && self.expression(expression, value, aliases)
+            expression.operand_value().is_some() && self.expression(expression, value, aliases)
         }
 
         pub(crate) fn boolean_source(
@@ -6023,6 +6103,7 @@ pub(crate) mod unit {
                     result_home,
                     source,
                     correspondence,
+                    indices,
                 },
                 AbstractOperation::EstablishAccessReference {
                     psi_operation: expected_operation,
@@ -6038,13 +6119,17 @@ pub(crate) mod unit {
                         optimized,
                         result.place,
                         plan,
-                    )? => {}
+                    )? =>
+            {
+                validate_reference_indices(indices, source, optimized, unit, sources)?;
+            }
             (
                 TargetUnitOperation::EstablishReference {
                     psi_operation,
                     result_home,
                     source,
                     storage,
+                    indices,
                 },
                 AbstractOperation::EstablishReference {
                     psi_operation: expected_operation,
@@ -6060,7 +6145,10 @@ pub(crate) mod unit {
                         optimized,
                         result.place,
                         plan,
-                    )? => {}
+                    )? =>
+            {
+                validate_reference_indices(indices, source, optimized, unit, sources)?;
+            }
             (
                 TargetUnitOperation::ReleaseReference {
                     psi_operation,
@@ -6744,6 +6832,7 @@ pub(crate) mod unit {
                     field,
                     destination_storage,
                     field_byte_offset,
+                    field_byte_size,
                     source,
                     indices,
                 },
@@ -6839,7 +6928,7 @@ pub(crate) mod unit {
                     }
                     _ => false,
                 };
-                let (offset, _, elements) =
+                let (offset, byte_size, elements) =
                     crate::structural_inputs::structural_reference_input::store(
                         expected_destination.structural_type(),
                         &expected_path,
@@ -6854,6 +6943,7 @@ pub(crate) mod unit {
                     || field != expected_field
                     || !storage_matches
                     || *field_byte_offset != offset
+                    || *field_byte_size != byte_size
                     || !runtime_indices_rejoin(indices, &elements, sources)
                     || !sources
                         .matching(value.value)
@@ -6932,6 +7022,35 @@ pub(crate) mod unit {
                         optimized, cleanup,
                     )) => {}
             _ => return Err(LegalizationError::custody()),
+        }
+        Ok(())
+    }
+
+    fn validate_reference_indices(
+        indices: &[target_operations::TargetStructuralRuntimeIndex],
+        source: &terminal_psi::StructuralArgument,
+        optimized: &optimization_unit::PsiOptimizationFunction,
+        unit: &crate::native_geometry::NativeUnit<'_>,
+        sources: &crate::legalization_target::control_flow::sources::AvailableSources<'_>,
+    ) -> Result<(), LegalizationError> {
+        let root = crate::legalization::scalar_graph_input::primitive_locals::read_root_type(
+            optimized,
+            source.place,
+        )
+        .ok_or(LegalizationError::custody())?;
+        let path = source
+            .path
+            .strip_suffix(&[terminal_psi::StructuralPathSegment::Referent])
+            .unwrap_or(&source.path);
+        let geometry =
+            crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+                root,
+                path,
+                unit.geometry(),
+            )
+            .ok_or(LegalizationError::custody())?;
+        if !runtime_indices_rejoin(indices, &geometry.elements, sources) {
+            return Err(LegalizationError::custody());
         }
         Ok(())
     }

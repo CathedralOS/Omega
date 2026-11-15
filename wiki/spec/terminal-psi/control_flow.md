@@ -49,6 +49,15 @@ carrier or prevent forwarding a surviving root loan. Every enclosing `Case`
 segment still requires unchanged active-case evidence at that exact root and
 path; byte layout alone does not grant payload access.
 
+An indexed discriminator's bounds belong to that terminator's execution site:
+after its block's operations and before choosing an outgoing case edge. Each
+runtime selector retains its own bound against the array or live view its prefix
+selects, including the lower bound for a signed selector. Evidence attachment
+and native realization preserve that original checked site when control-flow
+rewrites move the terminator into another block. Neither block entry nor one
+chosen edge can stand in for the shared read. This coordinate adds no separate
+work charge, ownership event, or enduring case fact about indexed storage.
+
 `EliminateEmpty` observes a live, readable structural source at an exact path
 whose declared value domain is proved empty. A final `Case` segment denotes
 that selected case's payload namespace, rather than a separately stored value.
@@ -89,9 +98,15 @@ block, scalar predicate, and one obligation for every actual incoming edge.
 There is one row per block; multiple assertions form a conjunction. Predicate
 scope contains immutable scalar machine formals, destination scalar parameters,
 and scalar storage observations rooted at machine structural parameters or that
-destination's own structural parameters. An operation-created place, another
-block's local, a branch-local value, a result pseudo-value, or an opaque or
-structural predicate cannot gain scope through an assertion. Storage observations
+destination's own structural parameters. A predicate the checker infers also
+has in scope each block parameter whose binding dominates the destination and
+each integer operation result whose definition does. Every arrival passes that
+definition, so the value is one value on every arrival and at the join, as a
+formal is. A guard over a call result therefore crosses the join that `&&`
+lowers to. An operation-created place, another
+block's local that does not dominate the destination, a branch-local value, a
+result pseudo-value, or an opaque or structural predicate cannot gain scope
+through an assertion. Storage observations
 denote current contents and remain subject to exact write invalidation; they
 are not immutable invocation-entry snapshots.
 The machine entry cannot carry a row: invocation supplies the machine's declared

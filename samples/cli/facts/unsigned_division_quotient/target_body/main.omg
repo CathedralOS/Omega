@@ -3,7 +3,7 @@
 // Expected exit: 0
 
 boundary trait SelectedComputation {
-    machine verify_target() -> i32 reaches;
+    machine verify_target() -> i32 reaches crashes none;
 }
 
 X86Computation satisfies SelectedComputation {

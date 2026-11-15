@@ -23,12 +23,9 @@ and preserve original referents across [structural projections](../../../../wiki
 
 ## Witnesses and refusal controls
 
-Each place retains the sentence above, the one-byte bound and byte observation.
-Its reject twin changes only the constructed view to an empty slice: the
-operation must fail its own bound or receiving contract, not a caller equality
-guard. Each pair is pinned under [pass fixtures](../../../../tests/omega/pass/facts/)
-and [fail fixtures](../../../../tests/omega/fail/facts/) as
-`stored_exclusive_byte_view_through_<place>_{exit,rejected}`.
+Each place retains the sentence above, the one-byte bound and byte observation. Its
+reject twin changes only the constructed view to an empty slice: the operation must
+fail its own bound or receiving contract, not a caller equality guard.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -63,11 +60,8 @@ observation. After ordinary project preparation, run each positive with
   selected arrivals, state edges and target-scoped bodies carry the same fact.
   [Owned-record contracts](controls/owned_record/main.omg) retain projected
   metadata without granting borrowed referent-content observation authority.
-  The [nested identity relay](../../../../tests/omega/pass/borrows/opaque_incoming_nested_projected_record_result_exit/main.omg)
-  retains the caller's still-live descriptor fact without a redundant length
-  postcondition. Its [empty-view twin](../../../../tests/omega/fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected/main.omg)
-  breaks that fact at formation. Complete empty effects preserve these facts
-  under [call contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity);
+  Complete empty effects preserve these facts under [call
+  contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity);
   neither callee-entry assumptions nor address geometry establish them.
 - **Soundness boundaries:** exclusive and write-only carriers cannot become
   copyable because their referents are copyable. Their
@@ -197,23 +191,19 @@ observations above remain attached to their historical producer. Windows
 observations do not establish other hosts' native execution or authorize the
 unrelated pending production-package decisions.
 
-
 ## Inner reborrows bounded by the incoming wrapper
 
 The same one-byte/19 fact now crosses the nine `reborrowed_reference` places:
 [local](local/reborrowed_reference/main.omg),
 [field](field/reborrowed_reference/main.omg),
-[parameter](parameter/reborrowed_reference/main.omg),
-[call result](call_result/reborrowed_reference/main.omg),
-[match join](match_join/reborrowed_reference/main.omg),
-[const name](const_name/reborrowed_reference/main.omg),
-[nested machine](other_state/reborrowed_reference/main.omg),
-[another machine](other_machine/reborrowed_reference/main.omg), and
-[another target body](target_body/reborrowed_reference/main.omg).
-Each has an `invalid/main.omg` twin changing only the initial window to empty.
-Pins are `tests/omega/{pass,fail}/facts/stored_exclusive_byte_view_reborrowed_reference_through_<place>_*`.
-This discharges **STATE-LOCAL-VALUE-FRONTIER**'s incoming-carrier inner-reborrow
-requirement; other runtime/case construction and replacement remain open.
+[parameter](parameter/reborrowed_reference/main.omg), [call
+result](call_result/reborrowed_reference/main.omg), [match
+join](match_join/reborrowed_reference/main.omg), [const
+name](const_name/reborrowed_reference/main.omg), [nested
+machine](other_state/reborrowed_reference/main.omg), [another
+machine](other_machine/reborrowed_reference/main.omg), and [another target
+body](target_body/reborrowed_reference/main.omg). Each has an `invalid/main.omg`
+twin changing only the initial window to empty.
 
 `capture` receives an outer `&'use mut Wrapper`, traverses its stored mutable
 `Bundle` reference and fixed array, and returns a fresh `&'use mut [u8]` child.

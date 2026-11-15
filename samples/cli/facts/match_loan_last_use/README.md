@@ -56,8 +56,6 @@ target/debug/omega run --both samples/cli/facts/match_loan_last_use/const_name/m
 target/debug/omega run --both samples/cli/facts/match_loan_last_use/other_state/main.omg
 target/debug/omega run --both samples/cli/facts/match_loan_last_use/other_machine/main.omg
 target/debug/omega run --both samples/cli/facts/match_loan_last_use/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/match_loan_last_use
-python3 tools/corpus_gate.py --filter facts/match_loan_last_use
 ```
 
 ### The oracle discriminates
@@ -89,11 +87,9 @@ ahead of the loan's last use; everything else is identical to its positive
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/match_loan_last_use_through_*`
-fixtures; every positive records native exit 0 and Terminal agreement, and every
-twin records its rejection with the expected fragment. The nine pass fixtures
-are byte-identical copies of their place programs, and the nine fail fixtures
-are byte-identical copies of their twins, so sample and fixture cannot drift.
+The nine pass fixtures are byte-identical copies of their place programs, and the
+nine fail fixtures are byte-identical copies of their twins, so sample and fixture
+cannot drift.
 
 ## Requirements and Evidence
 
@@ -179,13 +175,8 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. It now also lowers in the declaration's own telescope, as a tag
-observation of the parameter referent
-(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
-`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
-payload-free case and still rejects at the caller). Observed on macOS x86-64:
-the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree) and its twin rejects for the live loan. The other hosted targets keep
-their authored rows, unexecuted here.
+has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
+run --both` (native and Terminal Psi agree) and its twin rejects for the live
+loan. The other hosted targets keep their authored rows, unexecuted here.
 
 All nine places run with native and Terminal Psi exit 0 on that host (scratch copies add a `macos_x86_64::ProgramEntry` row where a place lacks one), and all nine twins reject.

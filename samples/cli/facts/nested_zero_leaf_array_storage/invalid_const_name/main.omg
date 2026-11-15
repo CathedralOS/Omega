@@ -3,8 +3,8 @@
 public const EXTENT: u64 = 512;
 public data Packet [copy] { before: u64; empty: [[[u8; 0]; EXTENT]; EXTENT]; after: u64; }
 public boundary trait ZeroLeafProvider {
- machine make() -> Packet reaches;
- machine shift(packet: Packet) -> Packet reaches;
+ machine make() -> Packet reaches crashes none;
+ machine shift(packet: Packet) -> Packet reaches crashes none;
 }
 
 machine empty_row(row: &[u8; 0]) -> bool {

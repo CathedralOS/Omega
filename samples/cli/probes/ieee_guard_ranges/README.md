@@ -12,4 +12,3 @@ NaN exclusion is independent of an ordered interval. A false ordered comparison
 does not establish it; a later true ordered comparison or reflexive equality
 can. Guard effects must preserve the value being transferred.
 
-The matching invalid controls live under `tests/omega/fail/float/guarded_range_*`.

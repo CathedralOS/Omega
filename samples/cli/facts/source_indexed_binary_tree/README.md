@@ -47,11 +47,9 @@ The root and empty-child witness also have constructor-input twins. All positive
 Build files bind the four hosted targets and declare exit 0. Entry bindings alone
 do not establish execution on four host architectures.
 
-The nine paired fixtures are
-`tests/omega/{pass,fail}/facts/source_indexed_binary_tree_through_<place>_{exit,rejected}`.
-The root and parameter pass fixtures request `main mathematical-actuals` through
-the ordinary corpus inspection path: source-formed carrier keys and source formal
-rosters precede canonical serialization and actual independent receiving.
+The root and parameter pass fixtures request `main mathematical-actuals` through the
+ordinary corpus inspection path: source-formed carrier keys and source formal rosters
+precede canonical serialization and actual independent receiving.
 
 The completed Linux x86-64 capture with optimized producer
 `92056ecd9701e193d25984955d0205ae70c50b78` ran all eleven public positives

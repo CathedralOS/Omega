@@ -47,17 +47,14 @@ gates; `systems/wire_protocol` encodes packets. This sample adds a command
 interpreter with retained abort leases, competing actors, recovery, simulated
 deadlines, immediate lid-open aborts and exact per-command reporting.
 
-`fixtures/*.txt` are immutable input bytes; `.stdout` and `.exit` are the
-independently frozen expected results. `reference.py` uses a transition table
-rather than the Omega state graph. It verifies its calculations against those
-files by default; `--freeze` is an explicit authoring action, never validation.
-The manifest was frozen before the first Omega execution. All arithmetic is
-integer and all comparisons are exact: tolerance **0**. Nine fixtures cover
-nominal, cancellation, repeated commands, timeout, conflict/interlocks, ../invalid_laboratory_protocol
-runtime input, final unterminated input, hostile framing and budget exhaustion.
-The separate `../invalid_laboratory_protocol/` directory is a complete intended-invalid application
-that attempts actor 2's release of actor 1's lease without proving the declared
-precondition. Runtime input rejection is distinct from this source rejection.
+`fixtures/*.txt` are immutable input bytes; `.stdout` and `.exit` are the independently frozen
+expected results. The manifest was frozen before the first Omega execution. All arithmetic is
+integer and all comparisons are exact: tolerance **0**. Nine fixtures cover nominal, cancellation,
+repeated commands, timeout, conflict/interlocks, ../invalid_laboratory_protocol runtime input,
+final unterminated input, hostile framing and budget exhaustion. The separate
+`../invalid_laboratory_protocol/` directory is a complete intended-invalid application that
+attempts actor 2's release of actor 1's lease without proving the declared precondition. Runtime
+input rejection is distinct from this source rejection.
 
 From the repository root, with a compiler built from this base and its matching
 library selected:
@@ -70,8 +67,6 @@ $OMEGA update --project samples/cli/independent/laboratory_protocol --target lin
 $OMEGA update --resume --project samples/cli/independent/laboratory_protocol
 $OMEGA --check --target linux_x86_64 samples/cli/independent/laboratory_protocol/main.omg
 $OMEGA run --both --keep samples/cli/independent/laboratory_protocol/main.omg < samples/cli/independent/laboratory_protocol/fixtures/nominal.txt
-python3 samples/cli/independent/laboratory_protocol/reference.py
-python3 samples/cli/independent/laboratory_protocol/validate.py --omega "$OMEGA"
 ```
 
 The public `run --both` route replays the same finite stdin for Terminal and

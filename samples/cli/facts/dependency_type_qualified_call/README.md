@@ -2,7 +2,13 @@
 
 A call spelled through a dependency's package alias selects the data type's machine, proves its `left.value > 0` premise on the exact operand, and records its `ensures` sum for the caller.
 
-Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The requirement this row establishes is the named route to a declared operation across packages: a consumer reaches a dependency's `machine + Wrapped::add` (or plain `Wrapped::describe`) as `lib::ops::Wrapped::add(&left, &right)`, with the callee's `requires` premise proved on the exact operands and its `ensures` result recorded for the caller. The private-helper witnesses of the item (`tests/omega/pass/expressions/declared_operator_private_helper_exit`) reach the sum through the operator only, because the named route was refused until this row. The row does not close the item ([What remains open](#what-remains-open)).
+Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The requirement this row
+establishes is the named route to a declared operation across packages: a
+consumer reaches a dependency's `machine + Wrapped::add` (or plain
+`Wrapped::describe`) as `lib::ops::Wrapped::add(&left, &right)`, with the
+callee's `requires` premise proved on the exact operands and its `ensures`
+result recorded for the caller. The row does not close the item ([What remains
+open](#what-remains-open)).
 
 Every place copies that sentence and the same operation. `describe(left: &Wrapped, right: &Wrapped)` in the dependency carries `requires left.value > 0` and `ensures result == (left.value as u64) + (right.value as u64)`; the caller's `hold(total)` carries `requires total == 260` and is proved from the recorded result alone. A runtime conjunct `total == 260` follows `hold`, so a wrong callee, operand order or sum takes `bad()` (`crash Trap`). The reject twin changes only the operands, `left` from 250 to 0 and `right` from 10 to 260, so the sum stays 260, the premise is the only thing broken, and nothing reaches `bad()`. Only the transport of the two operands changes between places.
 
@@ -49,8 +55,6 @@ Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64
 ```sh
 omega run --both samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
 omega --check samples/cli/facts/dependency_type_qualified_call/<place>/invalid/main.omg < /dev/null
-python tools/sample_native_gate.py --cli <omega> --facts --filter cli/facts/dependency_type_qualified_call
-python tools/corpus_gate.py --both --filter dependency_type_qualified_call
 ```
 
 Measured on Windows x86-64 with an optimized producer built from `2f167b2a795` plus this change (`opt_level: 1`):
@@ -68,10 +72,6 @@ The program reaches `done()` only through `hold(total) && total == 260`. `hold`'
 Each place and production has an `invalid/` twin whose `sample.json` carries `"role": "intended-invalid"` and `rejection_contains`: `["cannot prove requires contract for call", "left.value > 0"]`, or `["selects private machine", "ops::Wrapped::describe"]` for `private_helper`. In every twin except `private_helper` the only input that changes is the pair of operand values, 250 and 10 against 0 and 260. The `lib/` package is byte-identical to the positive's. In `private_helper` only `lib/ops.omg` differs, by the removed `public`.
 
 The base producer rejects every twin, but with the reference-slot diagnostic. The twins pin that the resolved callee's contract and visibility are enforced on the path the repair opened.
-
-## Pinned fixtures
-
-The row is pinned by 24 fixtures: `tests/omega/pass/facts/dependency_type_qualified_call_through_<place>_exit` and `tests/omega/fail/facts/dependency_type_qualified_call_through_<place>_rejected` for the nine places, and `tests/omega/{pass,fail}/facts/dependency_type_qualified_call_{operator_token,by_value,private_helper}_{exit,rejected}` for the three productions. Each pass fixture is a byte-identical copy of its positive with the application renamed to the fixture, its `lib/` package and `expected_native_exit.txt` of `0`. Each fail fixture is a byte-identical copy of its twin with an `expected.txt` carrying the twin's fragments.
 
 ## Requirements and Evidence
 

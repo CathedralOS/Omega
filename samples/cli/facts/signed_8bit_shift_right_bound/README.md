@@ -23,20 +23,11 @@ Every positive place and the root `main.omg` bind `ProgramEntry` for
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_8bit_shift_right_bound_through_<place>_exit`
-and `tests/omega/fail/facts/signed_8bit_shift_right_bound_through_<place>_rejected` for the nine
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
-`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
-of its place twin's `main.omg`/`build.omg`/`expected.txt`. Positive versus twin `git diff` changes only
-the fact's own domain — the input bound (`val >= 100i8 && val <= 100i8` becomes `val <= 104i8`), the
-probe argument (`100i8` becomes `104i8`), the const value (`VAL = 100i8` becomes `104i8`) or the four
-target-body `let val: i8 = 100i8` initializers — plus the header comments naming the place, the invalid
-intent and the expected diagnostic.
-
-Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (omega sha256
-`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
-`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+Positive versus twin `git diff` changes only the fact's own domain — the input bound (`val >=
+100i8 && val <= 100i8` becomes `val <= 104i8`), the probe argument (`100i8` becomes `104i8`), the
+const value (`VAL = 100i8` becomes `104i8`) or the four target-body `let val: i8 = 100i8`
+initializers — plus the header comments naming the place, the invalid intent and the expected
+diagnostic.
 
 - `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
@@ -44,14 +35,7 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8
   `cannot prove requires contract ...` / `cannot prove ensures contract ...` fragment, and the corpus
   check leg agrees — 9 of 9 twins `rejected` with `expected_satisfied`, `0 rejected without
   their expected fragment`, `0 fail fixtures did not reject`.
-- The three corpus legs were recorded with the fixture changes untracked in a working tree whose HEAD
-  is the published `644a492d2c3b`, so every row is stamped `@644a492d2c3b+wt`:
-  `tests/omega/corpus_outcomes.txt` gained 36 rows (18 `checked` carrying `check-target:macos_arm64`
-  and 18 `rejected` with 24 diagnostic continuation lines);
-  `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
-  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
-  interpreter:agrees` rows. Every golden diff is a pure addition — 60/0, 18/0 and 18/0 lines, 0
-  `timeout` rows.
+- Every golden diff is a pure addition — 60/0, 18/0 and 18/0 lines, 0 `timeout` rows.
 
 ## Requirements and Evidence
 

@@ -55,10 +55,8 @@ so the array index access is no longer proved in bounds. Every twin rejects at c
 `cannot prove index ... is within length 2`. Check a twin with `omega --check <place>/invalid/main.omg`;
 `sample_native_gate --facts` reports 9/9 intended-invalid controls matching their authored rejection.
 
-The row is pinned by `tests/omega/{pass,fail}/facts/fixed_array_value_through_*` fixtures; every
-positive records native exit 0. `corpus_gate --filter facts/fixed_array_value` is clean:
-18 fixtures — 9 checked, 9 rejected — with 0 rejected without their expected fragment and 0 fail
-fixtures failing to reject.
+`corpus_gate --filter facts/fixed_array_value` is clean: 18 fixtures — 9 checked, 9 rejected
+— with 0 rejected without their expected fragment and 0 fail fixtures failing to reject.
 
 ## Build-owned target-body migration
 

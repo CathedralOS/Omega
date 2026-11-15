@@ -1753,3 +1753,91 @@ machine main() {}
     );
     session.close().unwrap();
 }
+
+#[test]
+fn accepted_package_review_keeps_public_contracts_without_reopening_source() {
+    use review_evidence::record::PackagePolicyBaseline;
+    use review_evidence::{PackageReviewInput, project_package_review};
+    // Public helpers must retain their guarantees even when the entry never
+    // calls them. Review borrows the complete accepted package, not its entry's
+    // reachable implementation alone.
+    const SOURCE: &str = r#"
+public machine identity(value: u64) -> u64
+ensures result == value
+{ value }
+public machine quiet() {}
+public data Pair { changed: u64; untouched: u64; }
+public machine update(marker: u64, value: &mut Pair) { value.changed = marker; }
+machine main() {}
+"#;
+    let (workspace, mut session, checked) =
+        captured_review_compilation(SOURCE, REVIEW_BUILD_SOURCE);
+    let checked = checked.unwrap_or_else(|errors| panic!("public judgment: {errors:?}"));
+    let package = checked.sources().package_identity().unwrap();
+    let target = checked.execution().target_profile().unwrap();
+    let input = PackageReviewInput::supplied(&checked, &checked).unwrap();
+    assert!(std::ptr::eq(
+        input.module().unwrap(),
+        checked.terminal_publication().accepted().unwrap().module()
+    ));
+    std::fs::remove_file(workspace.path().join("project/main.omg")).unwrap();
+    std::fs::remove_file(workspace.path().join("project/build.omg")).unwrap();
+    let reviewed = project_package_review(&checked, package, target, usize::MAX)
+        .unwrap_or_else(|error| panic!("public review: {error:?}"));
+    let publics: Vec<_> = reviewed
+        .policy
+        .callables()
+        .callables()
+        .iter()
+        .filter(|row| format!("{:?}", row.role()) == "Public")
+        .collect();
+    assert_eq!(publics.len(), 3);
+    let identity = publics
+        .iter()
+        .find(|row| row.identity().path().ends_with("identity"))
+        .unwrap();
+    assert_eq!(format!("{:?}", identity.supply()), "CheckedBody");
+    assert_eq!(identity.parameters().len(), 1);
+    assert_eq!(identity.contracts().len(), 1);
+    assert_eq!(format!("{:?}", identity.contracts()[0].kind()), "Ensures");
+    assert_eq!(
+        identity.checked_service_reach().realized(),
+        Some([].as_slice())
+    );
+    assert_eq!(
+        identity.declared_synchronous_invocations(),
+        Some([].as_slice())
+    );
+    assert_eq!(identity.declared_may_suspend(), Some(false));
+    assert_eq!(identity.declared_may_block(), Some(false));
+    let update = publics
+        .iter()
+        .find(|row| row.identity().path().ends_with("update"))
+        .unwrap();
+    let frame = format!("{:?}", update.mutation());
+    assert!(frame.contains("parameter1:1"), "{frame}");
+    assert!(
+        frame.contains("changed") && !frame.contains("untouched"),
+        "{frame}"
+    );
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    assert_eq!(
+        PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap(),
+        reviewed.policy
+    );
+    session.close().unwrap();
+
+    let wrong = SOURCE.replace("{ value }", "{ 37u64 }");
+    let (_workspace, mut session, checked) =
+        captured_review_compilation(&wrong, REVIEW_BUILD_SOURCE);
+    let errors = match checked {
+        Ok(_) => panic!("a false public guarantee cannot reach review"),
+        Err(errors) => errors,
+    };
+    let messages = diagnostics::join_messages(&errors);
+    assert!(
+        messages.contains("ensures") || messages.contains("guarantee"),
+        "{messages}"
+    );
+    session.close().unwrap();
+}

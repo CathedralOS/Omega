@@ -79,28 +79,30 @@ impl SymbolMembership {
 /// an unselected source leaves even when a kept declaration refers to it; the
 /// caller decides what a program that still names one means (source
 /// activation rejects that selection).
-pub fn project_source_declarations(
-    original: &TypedTrees,
-    sources: &source::SourceMap,
-) -> TypedTrees {
+///
+/// The projection consumes `program` and narrows it in place. A caller that
+/// owns the only copy (a selected-source continuation after its bodies were
+/// typed) therefore pays for no second copy of the typed storage; a caller
+/// that must keep the unnarrowed program clones it first.
+pub fn project_source_declarations(program: TypedTrees, sources: &source::SourceMap) -> TypedTrees {
     let mut instances = SymbolMembership::from_symbols(
-        original
+        program
             .data_definitions()
             .iter()
             .filter(|data| data.generic_instance.is_some())
             .map(|data| data.symbol),
     );
-    for machine in original.machines() {
+    for machine in program.machines() {
         if machine.generic_data_template.is_valid() {
             instances.insert(machine.symbol);
         }
     }
-    for specialization in &original.machine_specializations {
+    for specialization in &program.machine_specializations {
         instances.insert(specialization.instance);
     }
     let derived = |mut symbol: SymbolHandle| {
         while symbol.is_valid() {
-            let declaration = original.symbols.get(symbol);
+            let declaration = program.symbols.get(symbol);
             if instances.contains(symbol) || declaration.generated_from.is_valid() {
                 return true;
             }
@@ -108,61 +110,67 @@ pub fn project_source_declarations(
         }
         false
     };
-    let generated_methods = original
+    // The projection never changes the symbol table, so whether a symbol is a
+    // selected root or an admitted reference is decided once, before the
+    // program is narrowed in place.
+    let mut selected_roots = SymbolMembership::default();
+    let mut admitted_references = SymbolMembership::default();
+    for (symbol, _) in program.symbols.symbols().nodes().iter() {
+        let span = program.symbols.symbol_provenance_source_span(symbol);
+        let is_derived = derived(symbol);
+        if !is_derived && span.is_none_or(|span| sources.source_is_selected(span.source_id)) {
+            selected_roots.insert(symbol);
+        }
+        if is_derived || span.is_none() {
+            admitted_references.insert(symbol);
+        }
+    }
+    let generated_methods = program
         .machines()
         .iter()
         .filter(|machine| machine.generic_data_template.is_valid())
         .map(|machine| (machine.attached_data_symbol, machine.symbol))
         .collect::<Vec<_>>();
-    let mut program = project_declarations(
-        original,
-        |symbol| {
-            !derived(symbol)
-                && original
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .is_none_or(|span| sources.source_is_selected(span.source_id))
-        },
-        |symbol| {
-            derived(symbol)
-                || original
-                    .symbols
-                    .symbol_provenance_source_span(symbol)
-                    .is_none()
-        },
-        &generated_methods,
-    );
     // An authored selection written in a source that left, and that no kept
     // declaration reaches, is not this program's to check.
+    let departed_selections = program
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            let span = selection.source_span();
+            (span.span.start != span.span.end && !sources.source_is_selected(span.source_id))
+                .then_some(selection.occurrence_id())
+        })
+        .collect::<Vec<_>>();
+    // An invalid handle has no provenance, so it counts as both a selected root
+    // and an admitted reference.
+    let mut program = project_declarations(
+        program,
+        |symbol| !symbol.is_valid() || selected_roots.contains(symbol),
+        |symbol| !symbol.is_valid() || admitted_references.contains(symbol),
+        &generated_methods,
+    );
     let references = collect_program_references(&program);
     let mut excluded =
         std::mem::take(&mut program.excluded_authored_selection_occurrences).into_occurrences();
-    excluded.extend(
-        original
-            .authored_declaration_selections()
-            .iter()
-            .filter_map(|selection| {
-                let span = selection.source_span();
-                (span.span.start != span.span.end
-                    && !sources.source_is_selected(span.source_id)
-                    && !references
-                        .authored_selection_occurrences
-                        .contains(&selection.occurrence_id()))
-                .then_some(selection.occurrence_id())
-            }),
-    );
+    excluded.extend(departed_selections.into_iter().filter(|occurrence| {
+        !references
+            .authored_selection_occurrences
+            .contains(occurrence)
+    }));
     excluded.sort_unstable();
     excluded.dedup();
     let is_excluded = |occurrence: &AuthoredDeclarationSelectionOccurrenceId| {
         excluded.binary_search(occurrence).is_ok()
     };
-    let expressions = &original.expression_table;
-    program.expression_table.retain_expression_roots(|handle| {
-        references.expressions.contains(&handle)
-            || expressions
-                .authored_selection_occurrences(handle)
-                .any(|occurrence| !is_excluded(&occurrence))
-    });
+    program
+        .expression_table
+        .retain_expression_roots(|expressions, handle| {
+            references.expressions.contains(&handle)
+                || expressions
+                    .authored_selection_occurrences(handle)
+                    .any(|occurrence| !is_excluded(&occurrence))
+        });
     program.excluded_authored_selection_occurrences = excluded.into();
     program
 }
@@ -174,14 +182,21 @@ pub fn project_source_declarations(
 /// pair in `declaration_children` keeps the declaration once its owner is
 /// kept. A constant whose evaluation entry is kept stays with that entry.
 /// Side tables lose the rows owned by a removed declaration.
+///
+/// The declaration tables only grow while the kept set is found: projected
+/// roots are appended as new rows and the original roots keep naming the
+/// original rows. Restoring the original roots therefore shows the program as
+/// it was before projection until the side tables are narrowed, which happens
+/// only once the kept set is final.
 fn project_declarations(
-    original: &TypedTrees,
+    mut program: TypedTrees,
     selected_root: impl Fn(SymbolHandle) -> bool,
     retain_reference: impl Fn(SymbolHandle) -> bool,
     declaration_children: &[(SymbolHandle, SymbolHandle)],
 ) -> TypedTrees {
-    let mut program = original.clone();
     program.identity = Default::default();
+    let original_roots = program.roots.clone();
+    let mut projected_roots = original_roots.clone();
 
     let mut synthesized = SymbolMembership::default();
     let mut removed_declarations = SymbolMembership::default();
@@ -190,7 +205,7 @@ fn project_declarations(
         removed_declarations.clear();
         macro_rules! project_roots {
             ($field:ident, $table:ident) => {{
-                let declarations = original.tables.$table.span_or_empty(original.roots.$field);
+                let declarations = program.tables.$table.span_or_empty(original_roots.$field);
                 for declaration in declarations {
                     if !selected(declaration.symbol) {
                         removed_declarations.insert(declaration.symbol);
@@ -201,7 +216,7 @@ fn project_declarations(
                     .filter(|declaration| selected(declaration.symbol))
                     .cloned()
                     .collect::<Vec<_>>();
-                program.roots.$field = program.tables.$table.insert_many(roots);
+                projected_roots.$field = program.tables.$table.insert_many(roots);
             }};
         }
         project_roots!(const_declarations, const_declarations);
@@ -216,28 +231,28 @@ fn project_declarations(
         project_roots!(traits, traits);
         project_roots!(conformances, conformances);
         project_roots!(wire_schemas, wire_schemas);
-        let machines = original
+        let machines = program
             .machines()
             .iter()
             .filter(|machine| selected(machine.symbol))
             .cloned()
             .collect::<Vec<_>>();
-        program.roots.machines = program.tables.machines.insert_many(machines);
+        projected_roots.machines = program.tables.machines.insert_many(machines);
 
-        let references = collect_selected_program_references(
-            original,
-            &DeclarationSelection::from_program(&program),
-        );
+        let original = std::mem::replace(&mut program.roots, projected_roots.clone());
+        let selection = DeclarationSelection::from_program(&program);
+        program.roots = original;
+        let references = collect_selected_program_references(&program, &selection);
         let before = synthesized.len();
         for mut symbol in references.symbols {
             while symbol.is_valid() && retain_reference(symbol) {
                 synthesized.insert(symbol);
-                symbol = original.symbols.get(symbol).parent;
+                symbol = program.symbols.get(symbol).parent;
             }
         }
         for symbol in references.descriptor_symbols {
             if symbol.is_valid()
-                && original.symbols.get(symbol).kind == symbols::SymbolKind::TypeAlias
+                && program.symbols.get(symbol).kind == symbols::SymbolKind::TypeAlias
             {
                 synthesized.insert(symbol);
             }
@@ -247,15 +262,15 @@ fn project_declarations(
                 synthesized.insert(child);
             }
         }
-        for declaration in original.const_declarations() {
-            if !original
+        for declaration in program.const_declarations() {
+            if !program
                 .tables
                 .machines
                 .is_valid(declaration.evaluation_entry)
             {
                 continue;
             }
-            let entry = original
+            let entry = program
                 .tables
                 .machines
                 .get(declaration.evaluation_entry)
@@ -268,24 +283,31 @@ fn project_declarations(
             break;
         }
     }
+    // Read the unnarrowed program before its side tables lose any row.
+    let original_references = collect_program_references(&program);
+    let original_machines = program
+        .machines()
+        .iter()
+        .map(|machine| machine.symbol)
+        .collect::<Vec<_>>();
+    program.roots = projected_roots;
+
     let retained =
         SymbolMembership::from_symbols(program.machines().iter().map(|machine| machine.symbol));
     let removed = SymbolMembership::from_symbols(
-        original
-            .machines()
+        original_machines
             .iter()
-            .map(|machine| machine.symbol)
+            .copied()
             .filter(|symbol| !retained.contains(*symbol)),
     );
-    for machine in original.machines() {
-        if removed.contains(machine.symbol) {
-            removed_declarations.insert(machine.symbol);
+    for &machine in &original_machines {
+        if removed.contains(machine) {
+            removed_declarations.insert(machine);
         }
     }
     remove_machine_rows(&mut program, &removed);
     remove_declaration_rows(&mut program, &removed_declarations);
 
-    let original_references = collect_program_references(original);
     let selected_references = collect_program_references(&program);
     let mut excluded =
         std::mem::take(&mut program.excluded_authored_selection_occurrences).into_occurrences();
@@ -307,14 +329,15 @@ fn project_declarations(
     };
     // An expression no declaration owns can still carry an authored selection
     // that must be checked; it stays unless that selection was excluded.
-    let expressions = &original.expression_table;
-    program.expression_table.retain_expression_roots(|handle| {
-        selected_references.expressions.contains(&handle)
-            || (!original_references.expressions.contains(&handle)
-                && expressions
-                    .authored_selection_occurrences(handle)
-                    .any(|occurrence| !is_excluded(&occurrence)))
-    });
+    program
+        .expression_table
+        .retain_expression_roots(|expressions, handle| {
+            selected_references.expressions.contains(&handle)
+                || (!original_references.expressions.contains(&handle)
+                    && expressions
+                        .authored_selection_occurrences(handle)
+                        .any(|occurrence| !is_excluded(&occurrence)))
+        });
     program.excluded_authored_selection_occurrences = excluded.into();
     program.target_machine_families.retain_mut(|family| {
         family

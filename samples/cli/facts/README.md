@@ -1,6 +1,9 @@
 # Fact samples
 
-This directory contains retained fact samples and is subject to the repository's [freeze](../../../AGENTS.md#no-omg-file-bloat). The former `tests/omega/` corpus is retired ([tests/README.md](../../../tests/README.md#the-former-corpus)). Follow the current repository testing instructions when repairing a sample. Shared dependency packages are described below.
+This directory contains retained fact samples and is subject to the repository's
+[freeze](../../../AGENTS.md#no-omg-file-bloat). Follow the current repository
+testing instructions when repairing a sample. Shared dependency packages are
+described below.
 
 ## Dependency packages
 

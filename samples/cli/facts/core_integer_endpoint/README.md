@@ -50,6 +50,5 @@ retain symbolic type equality rather than inventing a runtime comparison.
 The initial fixed-base producer refused the absent module and the general
 refinement probes. Current integer execution evidence, exact producer inputs,
 raw streams and intended diagnostics are retained under the owning claim.
-The nine positives and twins are pinned as `core_integer_endpoint_through_*`
-in `tests/omega/{pass,fail}/facts`. Floating metadata, bit wrappers and their
-representation row remain separate open acceptance of the same parent task.
+Floating metadata, bit wrappers and their representation row remain separate
+open acceptance of the same parent task.

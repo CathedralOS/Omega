@@ -82,9 +82,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         for domain in value_type.qualification().domains.members() {
-            let Some(definition) = self.typed.domain_definition(domain) else {
-                return unserved("use of a value in a domain with no declaration");
-            };
+            let definition = self.domain_theory(id, domain)?;
             if definition.access_policy.is_some() {
                 return unserved(match access {
                     Access::Read => "read inside a value governed by an access policy",
@@ -173,9 +171,11 @@ impl Program<'_> {
                 StorageShape::Record(fields) => {
                     pending.extend(fields.iter().map(|field| field.value_type))
                 }
-                StorageShape::FixedArray { element, .. } => {
-                    pending.push(ValueType::record(*element))
-                }
+                StorageShape::FixedArray {
+                    element,
+                    qualification,
+                    ..
+                } => pending.push(self.storage_value_type(id, *element, *qualification)?),
                 StorageShape::PrimitiveScalar { .. } => {}
                 _ => {
                     return Err(refuse(
@@ -212,14 +212,12 @@ impl Program<'_> {
                 // zero satisfies them and keeps the window when it does not.
                 // A zeroed local that is itself the qualified scalar has no
                 // such owner.
-                let free = self
-                    .typed
-                    .domain_definition(domain)
-                    .is_some_and(|definition| {
-                        (contained || !has_predicates(definition))
-                            && definition.issuance()
-                                == typed_trees::domain::DomainIssuance::Unrestricted
-                    });
+                let free = {
+                    let definition = self.domain_theory(id, domain)?;
+                    (contained || !has_predicates(definition))
+                        && definition.issuance()
+                            == typed_trees::domain::DomainIssuance::Unrestricted
+                };
                 if !free {
                     return unserved("zero-established value in a domain that must be established");
                 }
@@ -243,8 +241,15 @@ impl Program<'_> {
                         .into_iter()
                         .flat_map(|case| case.fields.iter().map(|field| (field.value_type, false))),
                 ),
-                StorageShape::FixedArray { element, .. } => {
-                    pending.push((ValueType::record(*element), false));
+                StorageShape::FixedArray {
+                    element,
+                    qualification,
+                    ..
+                } => {
+                    pending.push((
+                        self.storage_value_type(id, *element, *qualification)?,
+                        false,
+                    ));
                 }
                 // The canonical zero producer establishes an actual empty
                 // immutable sequence; no element is constructed or borrowed.
@@ -258,7 +263,9 @@ impl Program<'_> {
                 StorageShape::Reference { .. } => {
                     return unserved("zero-established reference without backing");
                 }
-                StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
+                StorageShape::AtomicCell(_)
+                | StorageShape::ByteSequence(_)
+                | StorageShape::PrimitiveScalar { .. } => {}
             }
         }
         Ok(())
@@ -267,7 +274,7 @@ impl Program<'_> {
 
 /// Whether membership in the domain is more than its name: it states
 /// predicates of its own.
-pub(super) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
+pub(crate) fn has_predicates(definition: &typed_trees::domain::DomainDefinition) -> bool {
     definition.predicate_presence != language_semantics::DomainPredicatePresence::Absent
         || !definition.facts.is_empty()
 }

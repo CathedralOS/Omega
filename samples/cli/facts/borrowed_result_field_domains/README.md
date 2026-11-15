@@ -8,13 +8,11 @@ The nine places are [local](local/main.omg), [field](field/main.omg), [parameter
 
 The producer owes its field-domain roster as well as exact descriptor/caller backing and lifetime. A conservative array footprint is not the selected element's logical value. Returning, storing or joining the descriptor must retain the field promise, while later overlapping writes must invalidate observations. No receiving annotation, physical overlap, nominal type equality, or caller equality guard establishes the promised field domain.
 
-Producer `d58b8ab0f8fed8e2cd06c6fe4197fd20013334e2` executes all nine
-original positives with native and Terminal exit 0 on Linux x64, Linux ARM64,
-macOS ARM64 and Windows x64. All nine invalid twins reject the broken `choose`
-result. The [PR 1880 validation records](https://github.com/CathedralOS/Omega/pull/1880)
-identify each host run. Matching fixtures remain under
-`tests/omega/{pass,fail}/facts/borrowed_result_field_domains_<place>`.
-The sibling-write productions below have their own witness scope and records.
+Producer `d58b8ab0f8fed8e2cd06c6fe4197fd20013334e2` executes all nine original positives
+with native and Terminal exit 0 on Linux x64, Linux ARM64, macOS ARM64 and Windows x64.
+All nine invalid twins reject the broken `choose` result. The [PR 1880 validation
+records](https://github.com/CathedralOS/Omega/pull/1880) identify each host run. The
+sibling-write productions below have their own witness scope and records.
 
 The callee establishes each field promise; the completed descriptor carries it independently of a conservative alias footprint. Captured copies and joins consume each actual producer on every alternative. Promise dependencies use the existing storage-write history; a write of 255 through the returned reference rejects the later `inspect` obligation, while a write to an unrelated local preserves it. Root/descriptor lifetimes and issuer authority remain independently checked.
 

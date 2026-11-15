@@ -46,18 +46,15 @@ canonical rendering, and `main.omg` owns admission and visible dispatch.
 ## Independent expectations
 
 `expected/FROZEN.json` records input and expected-output SHA-256 values frozen
-before the first Omega application execution. `reference.py` checks those hashes
-and enumerates fronts independently by mapping `(cost, days, gain)` to the
-all-minimized vector `(cost, days, -gain)`. It never authors or runs Omega source.
-The baseline front is **102,103,110,111**; reversing rows preserves this front
-while changing the retained input-position provenance. IDs 110 and 111 tie.
-The tighter front is **101,105**; with all constraints relaxed it is
-**102,103,106,107,108,110,111**. The zero-risk variant has an empty front.
-Separate fixtures cover no rows, one row, equality boundaries, selected ties,
-zero cost/gain, maximum 999 values, CRLF/tabs and EOF without a final newline.
-Runtime-invalid fixtures challenge count, missing fields, overflow, digit count,
-lexical form, negative values, zero identities/provenance/duration, duplicate IDs,
-risk range and trailing garbage.
+before the first Omega application execution. The baseline front is
+**102,103,110,111**; reversing rows preserves this front while changing the
+retained input-position provenance. IDs 110 and 111 tie. The tighter front is
+**101,105**; with all constraints relaxed it is **102,103,106,107,108,110,111**.
+The zero-risk variant has an empty front. Separate fixtures cover no rows, one
+row, equality boundaries, selected ties, zero cost/gain, maximum 999 values,
+CRLF/tabs and EOF without a final newline. Runtime-invalid fixtures challenge
+count, missing fields, overflow, digit count, lexical form, negative values, zero
+identities/provenance/duration, duplicate IDs, risk range and trailing garbage.
 
 `../invalid_pareto_experiment_selection_source/` is a separate complete intended-invalid source project. It
 attempts exact unsigned `0 - 1`; validation requires its proof rejection,
@@ -76,8 +73,6 @@ omega packages update --resume --project samples/cli/independent/pareto_experime
 omega --check samples/cli/independent/pareto_experiment_selection/main.omg
 omega run --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/baseline.stdin
 omega run --both --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/reordered.stdin
-python3 samples/cli/independent/pareto_experiment_selection/reference.py
-python3 samples/cli/independent/pareto_experiment_selection/validate.py --omega /absolute/path/to/omega
 omega --check samples/cli/independent/pareto_experiment_selection/invalid_source/main.omg
 ```
 
@@ -99,11 +94,10 @@ mbx build --release --manifest-path samples/cli/independent/pareto_experiment_se
 samples/cli/independent/pareto_experiment_selection/build/rust-validation/release/ind11-terminal-validation --evidence "$PWD/samples/cli/independent/pareto_experiment_selection"
 ```
 
-Use `cargo` if `mbx` is unavailable. Run one Rust build and one Omega execution
-at a time. The harness's explicit target is `linux_x86_64` and its sponsor work
-is 10,000,000 per input. Exhaustion, declined imports, crashes or partial output
-fail validation. Native output is separately checked through `validate.py --native`
-using the executable produced by the ordinary Omega compile command.
+Use `cargo` if `mbx` is unavailable. Run one Rust build and one Omega execution at
+a time. The harness's explicit target is `linux_x86_64` and its sponsor work is
+10,000,000 per input. Exhaustion, declined imports, crashes or partial output fail
+validation.
 
 Existing `insertion_sort`/`bubble_sort` only sort fixed scalar arrays;
 `binary_search_viz` searches an ordered scalar collection; `bank_ledger` accumulates

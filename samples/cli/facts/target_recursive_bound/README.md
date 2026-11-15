@@ -17,16 +17,9 @@ bodies were identical. The target-body place also selects an ordinary
 
 Each positive binds all four hosted `ProgramEntry` targets and has exit 0 as its
 oracle. Each `invalid/` twin changes only the supplied bound from 60 to 61 and
-must reject the required `value <= 60` fact. The pass/fail copies under
-`tests/omega/pass/facts/target_recursive_bound_through_<place>_exit` and
-`tests/omega/fail/facts/target_recursive_bound_through_<place>_rejected` pin
-the same row, byte-identical to the place programs.
+must reject the required `value <= 60` fact.
 
 ## Historical target-family run record
-
-Host macOS arm64 (Jarod's Mac mini), worktree base `9d9ba4fb625`, shared
-generation producer `build/swarm/factsr1/producers/gen-9d9ba4fb625` (omega
-sha256 `5a2fde4a3a91`, corpus_runner sha256 `98a455599b4d`, opt_level 1):
 
 - All nine positives, `omega run --both <place>/main.omg`: `native exit 0` and
   `interp exit: 0`.
@@ -76,11 +69,9 @@ and [call markers](../../../../wiki/spec/language/effects.md#call-site-acknowled
 
 Run a positive with `omega run --both <place>/main.omg`; both engines must exit
 0. Run its twin with `omega --check <place>/invalid/main.omg`; it must reject the
-authored precondition. Focused corpus checks use
-`python3 tools/corpus_gate.py --both --filter facts/target_recursive_bound`.
-Host/producer-bound observations belong in the qualification and claim records.
-Windows native execution remains deferred to a Windows host, not inferred from
-these commands on macOS.
+authored precondition. Host/producer-bound observations belong in the
+qualification and claim records. Windows native execution remains deferred to a
+Windows host, not inferred from these commands on macOS.
 
 ## Current source contract
 

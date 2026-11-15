@@ -227,17 +227,11 @@ pub(crate) mod domain_constraints {
                     domain_constraint.arguments.len()
                 )));
             }
-            let instance_name = typed_trees::domain::indexed_domain_instance_name(
-                program,
-                domain,
-                index_parameters,
+            let semantic_id = program.retain_domain_application(
+                domain.symbol,
+                carrier,
                 &domain_constraint.arguments,
             )?;
-            let semantic_id = if domain_constraint.arguments.is_empty() {
-                domain.semantic_id
-            } else {
-                program.semantic_domains.intern(&instance_name)
-            };
             let semantic_roles = language_semantics::DomainSemanticRoles {
                 denotation_dimension: domain
                     .semantic_roles
@@ -871,28 +865,27 @@ pub(crate) mod const_arguments {
                     let TypeParameterKind::Const { type_reference } = parameter.kind else {
                         continue;
                     };
-                    let TypeReferenceNode::ConstExpression(expression) =
-                        *program.type_reference_table.type_reference(argument)
-                    else {
-                        if needs_admission(program, argument) {
-                            // A record or case value: whether it is a value
-                            // of the declared data type is typing's question,
-                            // and the check that answered it is not rebuilt.
-                            defer_to_holders(
-                                program,
-                                &mut owners,
-                                owner,
-                                &[argument],
-                                Diagnostic::error(
-                                    "no product route yet: a record or case const argument is \
-                                     not typed against its declared data type",
-                                ),
-                            )?;
+                    let needs_admission = needs_admission(program, argument);
+                    match program.type_reference_table.type_reference(argument) {
+                        TypeReferenceNode::ConstExpression(_) if needs_admission => {}
+                        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {}
+                        _ => {
+                            if needs_admission {
+                                // The structured argument still needs typing
+                                // against the declared data carrier.
+                                defer_to_holders(
+                                    program,
+                                    &mut owners,
+                                    owner,
+                                    &[argument],
+                                    Diagnostic::error(
+                                        "no product route yet: a record or case const argument is \
+                                         not typed against its declared data type",
+                                    ),
+                                )?;
+                            }
+                            continue;
                         }
-                        continue;
-                    };
-                    if !needs_admission(program, argument) {
-                        continue;
                     }
                     let Some(carrier) =
                         builtin_carrier(program, type_reference, &parameters, &arguments)
@@ -900,7 +893,7 @@ pub(crate) mod const_arguments {
                         continue;
                     };
                     let Some(spelling) =
-                        literal_in_carrier(program, declaration, parameter, expression, carrier)?
+                        argument_in_carrier(program, declaration, parameter, argument, carrier)?
                     else {
                         continue;
                     };
@@ -1014,28 +1007,21 @@ pub(crate) mod const_arguments {
             })
         }
 
-        /// The canonical spelling of a literal argument that has the
-        /// parameter's declared type, an error when the literal has another
-        /// type or lies outside the carrier, and `None` when the argument is
-        /// not a literal.
-        ///
-        /// Resolution folds a closed scalar argument to its literal, so a
-        /// remaining operator, name or call is work for an evaluator and is
-        /// left as written for it
-        /// (`build_time_evaluation::evaluate_const_arguments`). A call of a
-        /// machine that returns another builtin scalar is the one error
-        /// found before evaluation. numeric_values.md: an anonymous literal
-        /// lands in the expected carrier when its exact value is in range,
-        /// and a typed literal keeps the carrier it names.
-        fn literal_in_carrier(
+        /// Normalize the known value of a scalar const argument in its
+        /// declared carrier. Leave calls and other unevaluated work for
+        /// source evaluation. An anonymous integer lands here, while a
+        /// typed operand keeps the exact carrier it already has.
+        fn argument_in_carrier(
             program: &TypedTrees,
             declaration: symbols::SymbolHandle,
             parameter: &typed_trees::data::TypeParameter,
-            expression: typed_trees::expression::ExpressionHandle,
+            argument: typed_trees::types::TypeReferenceHandle,
             carrier: Carrier,
         ) -> Result<Option<String>, Diagnostic> {
-            use typed_trees::expression::ExpressionNode;
-            let refuse = |found: String| {
+            use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+            use typed_trees::types::PrimitiveType;
+
+            let refuse = |source_span, found: String| {
                 let expected = match carrier {
                     Carrier::Integer(landed) => landed.name(),
                     Carrier::Boolean => "bool".to_owned(),
@@ -1045,10 +1031,65 @@ pub(crate) mod const_arguments {
                     parameter.name.as_str(),
                     program.symbols.name(declaration),
                 ))
-                .with_source_span(program.expression_table.source_span(expression))
+                .with_source_span(source_span)
             };
-            match (program.expression_table.expression(expression), &carrier) {
-                (ExpressionNode::Integer(literal), Carrier::Integer(landed)) => {
+            let expression = match *program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::ConstExpression(expression) => expression,
+                TypeReferenceNode::Named { symbol, .. } => {
+                    if !program
+                        .const_declaration_by_symbol(symbol)
+                        .is_some_and(|constant| {
+                            constant
+                                .evaluated_value
+                                .as_ref()
+                                .is_some_and(|value| value.encoding().is_some())
+                        })
+                    {
+                        return Ok(None);
+                    }
+                    let span = program
+                        .type_reference_table
+                        .constant_origins(argument)
+                        .map_err(Diagnostic::error)?
+                        .iter()
+                        .find(|origin| origin.declaration == symbol)
+                        .map_or_else(source::SourceSpan::default, |origin| origin.reference);
+                    let selected = StaticMachineArgument {
+                        symbol,
+                        ..Default::default()
+                    };
+                    let primitive = match carrier {
+                        Carrier::Integer(landed) => PrimitiveType::Integer(landed.value_carrier()),
+                        Carrier::Boolean => PrimitiveType::Bool,
+                    };
+                    return program
+                        .prepare_callable_scalar_argument(primitive, &selected)
+                        .map(|checked| match checked {
+                            ExpressionNode::Integer(value) => {
+                                value.value_bignum().map(|value| value.to_string())
+                            }
+                            ExpressionNode::Boolean(value) => Some(value.to_string()),
+                            _ => {
+                                unreachable!("scalar argument preparation returns a scalar literal")
+                            }
+                        })
+                        .map_err(|reason| {
+                            refuse(
+                                span,
+                                format!("constant `{}` ({reason})", program.symbols.name(symbol)),
+                            )
+                        });
+                }
+                _ => return Ok(None),
+            };
+            let refuse = |found| refuse(program.expression_table.source_span(expression), found);
+            let literal = program.static_const_literal_from_type_reference(argument);
+            match (
+                literal.as_ref(),
+                program.expression_table.expression(expression),
+                &carrier,
+            ) {
+                (Some(literal), _, Carrier::Integer(landed)) => {
                     if let Some(landing) = literal.landing() {
                         if landing.landed_type != *landed {
                             return Err(refuse(format!(
@@ -1080,11 +1121,11 @@ pub(crate) mod const_arguments {
                         ))),
                     }
                 }
-                (ExpressionNode::Boolean(value), Carrier::Boolean) => Ok(Some(value.to_string())),
-                (ExpressionNode::Integer(_), Carrier::Boolean) => {
-                    Err(refuse("an integer literal".to_owned()))
+                (None, ExpressionNode::Boolean(value), Carrier::Boolean) => {
+                    Ok(Some(value.to_string()))
                 }
-                (ExpressionNode::Boolean(_), Carrier::Integer(_)) => {
+                (Some(_), _, Carrier::Boolean) => Err(refuse("an integer literal".to_owned())),
+                (None, ExpressionNode::Boolean(_), Carrier::Integer(_)) => {
                     Err(refuse("a Boolean literal".to_owned()))
                 }
                 // `Buffer<capacity()>`: the evaluator gives the call its
@@ -1096,7 +1137,7 @@ pub(crate) mod const_arguments {
                 // another builtin scalar computes no value of this carrier,
                 // whatever the number is, so the argument is wrong as
                 // written. A result of any other type is not judged here.
-                (ExpressionNode::Call(call), _) => {
+                (None, ExpressionNode::Call(call), _) => {
                     let result = program
                         .machine_by_symbol(call.target_symbol)
                         .or_else(|| program.machine_holding_state(call.target_symbol))

@@ -26,22 +26,19 @@ Run each place with `omega run <place>/main.omg`.
 
 ## Pinned fixtures
 
-The sample folder and its fixture family do not share a name. Each place is
-pinned under `tests/omega/` as
-`checked_asm_register_contract_bound_through_<place>_{exit,rejected}`, following
-the sibling `dyn_dispatch_selector_payload_bound_*` and `length_*` rows:
+The sample folder and its fixture family do not share a name.
 
-| Place | Positive fixture | Reject twin fixture |
-| --- | --- | --- |
-| local | [pass/facts/checked_asm_register_contract_bound_through_local_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_local_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_local_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_local_rejected/main.omg) |
-| field | [pass/facts/checked_asm_register_contract_bound_through_field_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_field_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_field_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_field_rejected/main.omg) |
-| parameter | [pass/facts/checked_asm_register_contract_bound_through_parameter_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_parameter_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_parameter_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_parameter_rejected/main.omg) |
-| call result | [pass/facts/checked_asm_register_contract_bound_through_call_result_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_call_result_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_call_result_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_call_result_rejected/main.omg) |
-| match join | [pass/facts/checked_asm_register_contract_bound_through_match_join_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_match_join_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_match_join_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_match_join_rejected/main.omg) |
-| const name | [pass/facts/checked_asm_register_contract_bound_through_const_name_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_const_name_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_const_name_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_const_name_rejected/main.omg) |
-| a nested machine | [pass/facts/checked_asm_register_contract_bound_through_other_state_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_other_state_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_other_state_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_other_state_rejected/main.omg) |
-| another machine | [pass/facts/checked_asm_register_contract_bound_through_other_machine_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_other_machine_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_other_machine_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_other_machine_rejected/main.omg) |
-| another target body | [pass/facts/checked_asm_register_contract_bound_through_target_body_exit](../../../../tests/omega/pass/facts/checked_asm_register_contract_bound_through_target_body_exit/main.omg) | [fail/facts/checked_asm_register_contract_bound_through_target_body_rejected](../../../../tests/omega/fail/facts/checked_asm_register_contract_bound_through_target_body_rejected/main.omg) |
+| Place |
+| --- |
+| local |
+| field |
+| parameter |
+| call result |
+| match join |
+| const name |
+| a nested machine |
+| another machine |
+| another target body |
 
 Each pass fixture copies its place's `main.omg` byte for byte, declares
 `Expected exit: 0`, binds `ProgramEntry` for all four hosted targets, and

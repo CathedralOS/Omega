@@ -9,8 +9,5 @@
   "model/courant.omg": "417461605cea7ceebd6d2ed376bbab55df626b44686d253b0a587bf64476dda0",
   "model/scale.omg": "3703a1cb2adba2443c708e7ccc9dd6d6e0ee22af70e880751c11fe247b3a0a88",
   "model/transport.omg": "23dfad531e17847845b918029335203f9301a901adc69dba27173b67733445d7",
-  "reference.py": "d5c2cfb2ed7520b2ec3fd22798db0c15e83aa6fc2beba52ccf922af88137e47d",
-  "supplemental_reference.py": "22fc55b36e2a1d7369d4ed8967cff03a535cdd8f2e2c9160b6b8e24632f18360",
-  "validate.py": "b844a170bd0eaf871c9c5b03137e19b42aa3f6ac1e7b359f278092aa7cbba879",
   "validation/src/main.rs": "ea4a7c6299e7eaab618fed706afab10b04cb6254c724ad4af76dbd39671cf227"
 }

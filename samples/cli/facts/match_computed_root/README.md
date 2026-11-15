@@ -81,10 +81,9 @@ four hosted targets and declares `Expected exit: 0`.
 | another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the references to `apply` |
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects an ordinary provider that calls `apply` |
 
-The existing corpus mirrors are `tests/omega/{pass,fail}/facts/match_computed_root_through_*`.
-Their main files match the corresponding sample. Every twin retains the same
-loan diagnostic. The target fixture also asks the CLI to show the compiled `main` program and
-read its saved form again, so the emitted counter effect can be checked.
+Every twin retains the same loan diagnostic. The target fixture also asks the CLI to show the
+compiled `main` program and read its saved form again, so the emitted counter effect can be
+checked.
 
 ## Requirements and remaining acceptance
 

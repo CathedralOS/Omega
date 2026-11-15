@@ -51,8 +51,8 @@ machine observe<Reader satisfies TryFrom<FirstFrame, u8, Failure>>(source: First
 }
 
 boundary trait FrameDelivery {
-    machine frame() -> FirstFrame reaches terminates;
-    machine marker() -> u64 reaches terminates;
+    machine frame() -> FirstFrame reaches terminates crashes none;
+    machine marker() -> u64 reaches terminates crashes none;
 }
 FirstDelivery satisfies FrameDelivery {
     machine frame() -> FirstFrame { FirstFrame { tag: 165u8, bits: 212u8 } }

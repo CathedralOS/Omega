@@ -61,19 +61,10 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --filter cli/facts/fixed_array_eight_elem_index_bound
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 18/18 intended-invalid controls match their authored rejection (`cannot prove index`).
 
 ## Pinned Fixtures
-
-The row is pinned under:
-- `tests/omega/pass/facts/fixed_array_eight_elem_index_bound_through_<place>_exit/`
-- `tests/omega/fail/facts/fixed_array_eight_elem_index_bound_through_<place>_rejected/`
 
 The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 

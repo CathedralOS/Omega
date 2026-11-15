@@ -26,12 +26,10 @@ The broader saved-observation work under `STATE-LOCAL-VALUE-FRONTIER` stays open
 | another machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | selected implementation | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Every twin changes only the producing read from `item.kept` to `item.other`.
-The declared result contract remains unchanged and must refuse. Caller guards,
-the marker helper and target selection cannot establish that missing guarantee.
-The named-constant place retains `KEPT = 7.0` throughout its original contracts.
-All eighteen Main and Build pairs match their pins under
-`tests/omega/{pass,fail}/facts/float_result_equality_through_*`.
+Every twin changes only the producing read from `item.kept` to `item.other`. The
+declared result contract remains unchanged and must refuse. Caller guards, the
+marker helper and target selection cannot establish that missing guarantee. The
+named-constant place retains `KEPT = 7.0` throughout its original contracts.
 
 The match transport executes both Boolean choices. It carries the returned float
 with route 17 or 23 in an ordinary record, then checks each route independently.
@@ -98,15 +96,14 @@ The Linux corpus job remains failed because an additional existing operator
 control stops at an earlier diagnostic. The separate ordinary replay completed
 the projects and root that this failed job did not reach.
 
-A separate [wrong-entry control](target_body/invalid_entry/main.omg) supplies
-`item.kept = 1.0` to the unchanged public requirement `item.kept == 7.0`. It is
-pinned at `tests/omega/fail/facts/float_result_equality_selected_entry_field_rejected`.
-[Source checking](https://github.com/CathedralOS/Omega/actions/runs/41773603050)
-and [the ordinary project](https://github.com/CathedralOS/Omega/actions/runs/41774499444)
-reject at that requirement using source `fa1d3b675c49`. The latter replay also
-runs the root after adding this child project, with both exits zero. Its compiler
-and runner digests equal the measured `37bbc58593ae` binaries; their actual
-build and source records remain separate.
+A separate [wrong-entry control](target_body/invalid_entry/main.omg) supplies `item.kept
+= 1.0` to the unchanged public requirement `item.kept == 7.0`. [Source
+checking](https://github.com/CathedralOS/Omega/actions/runs/41773603050) and [the
+ordinary project](https://github.com/CathedralOS/Omega/actions/runs/41774499444) reject
+at that requirement using source `fa1d3b675c49`. The latter replay also runs the root
+after adding this child project, with both exits zero. Its compiler and runner digests
+equal the measured `37bbc58593ae` binaries; their actual build and source records remain
+separate.
 
 Two unchanged supplemental fixtures remain unverified for their intended checks:
 `fail/float/guarded_range_requires_ieee_comparison` stops at a dispatch-storage

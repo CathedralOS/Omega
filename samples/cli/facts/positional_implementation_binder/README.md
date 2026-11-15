@@ -57,12 +57,6 @@ for the root and all nine places. All nine `<place>/invalid` twins reject.
 The diagnostic fragment is `` `Other` implements `Loose<>`, which neither is
 nor inherits `Reading` ``. Windows, macOS, and QEMU were not run.
 
-The nine positive and nine reject mirrors are byte-identical to the place
-programs and their Build pairs:
-
-- `tests/omega/pass/facts/positional_implementation_binder_through_<place>_exit`
-- `tests/omega/fail/facts/positional_implementation_binder_through_<place>_rejected`
-
 This row removes product-producer parity for positional trait implementation
 binders and their ordered mixed telescopes. It does not close the parent.
 Const-expression closure and package projection outside the reference

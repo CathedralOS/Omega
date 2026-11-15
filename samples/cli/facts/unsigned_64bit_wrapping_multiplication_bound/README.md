@@ -23,27 +23,7 @@ Only the transport mechanism of the bounded wrapping product changes across the 
 
 All 18 positive and reject places are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_local_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_field_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_parameter_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_match_join_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_state_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_machine_exit/`
-  - `tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_target_body_exit/`
 - **Fail fixtures (`expected.txt`):**
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_local_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_field_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_parameter_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_match_join_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_const_name_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_state_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/unsigned_64bit_wrapping_multiplication_bound_through_target_body_rejected/`
-
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit `0` in `tests/omega/corpus_native_windows_x86_64.txt` and `checked` in `tests/omega/corpus_outcomes.txt`.
 
 ## Execution
 
@@ -117,7 +97,6 @@ omega --check samples/cli/facts/unsigned_64bit_wrapping_multiplication_bound/<pl
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/unsigned_64bit_wrapping_multiplication_bound --jobs 4`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract`).
 - Discrimination: 1-token perturbation (`headroom == 80u64` -> `headroom == 81u64`) causes execution to trap through `crash Trap;` (`native exit -1073741795` and `interp crash: Trap (host presentation agrees)`), demonstrating strict oracle discrimination.
 - What remains open: 8-bit, 16-bit, and 32-bit wrapping multiplication bounds, signed wrapping multiplication interval arithmetic, and non-trivial modular wrapping where overflow wraps around $2^{64}$.
 

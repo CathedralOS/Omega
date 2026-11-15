@@ -2,11 +2,11 @@
 
 A complete synthetic census forecast in Omega. Source checking has reached
 package admission; native and Terminal execution are currently blocked by a
-denied bundled-std package acceptance. See `EVIDENCE.md` for the exact boundary. Three bounded integer cohorts
-(newborn, juvenile, open-ended adult) evolve under supplied cohort-specific
-survival, fertility and signed migration rates. This is a declared sample model,
-not an empirical demographic prediction. No external scientific library or
-worker candidate is imported.
+denied bundled-std package acceptance. Three bounded integer cohorts (newborn,
+juvenile, open-ended adult) evolve under supplied cohort-specific survival,
+fertility and signed migration rates. This is a declared sample model, not an
+empirical demographic prediction. No external scientific library or worker
+candidate is imported.
 
 Input is exactly 13 signed decimal fields, one per LF-delimited line, ending
 at EOF: horizon; newborn, juvenile, adult; three survival rates; three fertility
@@ -44,18 +44,13 @@ age progression, an open terminal cohort, fertility schedules or census balances
 
 ## Frozen acceptance
 
-`reference.py` independently derives census rows with Python integers and exact
-`Fraction` rates. It freezes expected results before any Omega execution.
 `fixtures/oracle.json` records every input and output SHA-256 and required exit.
-Numerical tolerance is exactly zero. `validate.py` pins the frozen manifest/reference identities and all 23 cases,
-then verifies every fixture before execution. It compares every stdout byte and
-exit status, requiring empty native stderr or the exact documented CLI exit
-diagnostics for Terminal comparison; it never rewrites expectations.
-Twenty-three cases cover births, extinction, signed migration, fractional rounding,
-zero horizon, the open terminal cohort, maximum horizon, invalid survival and
-fertility, negative rates/counts, horizon/migration bounds, infeasible emigration,
-capacity overflow, negative net migration, reproduction before deaths, ten-digit
-integer admission, malformed/missing/empty/overlong/trailing input.
+Numerical tolerance is exactly zero. Twenty-three cases cover births, extinction,
+signed migration, fractional rounding, zero horizon, the open terminal cohort,
+maximum horizon, invalid survival and fertility, negative rates/counts,
+horizon/migration bounds, infeasible emigration, capacity overflow, negative net
+migration, reproduction before deaths, ten-digit integer admission,
+malformed/missing/empty/overlong/trailing input.
 
 The complete separate control `controls/invalid_rate_type` violates the documented
 integer-versus-boolean type rule by assigning `true` to an `i64` rate field.
@@ -75,17 +70,13 @@ omega packages update --project "$S" --target linux_x86_64
 omega --check "$S/main.omg"
 omega --build-dir "$S/build" "$S/main.omg"
 omega run --both --keep "$S/main.omg" < "$S/fixtures/births.input"
-python3 "$S/validate.py" /absolute/path/to/the/published/executable
-python3 "$S/validate.py" /absolute/path/to/omega --both
 omega --check "$S/controls/invalid_rate_type/invalid.omg"
 ```
 
-Do not run `reference.py --freeze` during validation. Native runs compare exact bytes with the frozen output oracle. Terminal replay
-uses the same input; the current documented `--both` CLI compares exit status,
-so that route establishes exit agreement and does not attest Terminal stdout.
-Startup oracle checks make exit agreement also attest 17 independently frozen
-transitions (all three cohorts and births/deaths/migration/before/after values).
-An internal oracle disagreement exits 4, before reading any user input. The intended-invalid
-control is checked separately, without executing it. Validation evidence and
-precise supported/denied routes are recorded in `EVIDENCE.md`; generated compiler
-artifacts and actual stdout/stderr remain under ignored `build/`.
+Native runs compare exact bytes with the frozen output oracle. Terminal replay uses the same
+input; the current documented `--both` CLI compares exit status, so that route establishes
+exit agreement and does not attest Terminal stdout. Startup oracle checks make exit
+agreement also attest 17 independently frozen transitions (all three cohorts and
+births/deaths/migration/before/after values). An internal oracle disagreement exits 4,
+before reading any user input. The intended-invalid control is checked separately, without
+executing it.

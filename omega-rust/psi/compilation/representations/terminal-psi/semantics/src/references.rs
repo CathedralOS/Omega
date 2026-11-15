@@ -6,13 +6,16 @@ reference access capabilities.
 */
 
 mod boundary_results;
-mod selected_results;
+mod declared_results;
 pub(crate) use boundary_results::provider_lifetime_debts;
 pub use boundary_results::{
     boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
 };
-pub(crate) use selected_results::validate_result_lifetime_groups;
-pub use selected_results::{SelectedReferenceResult, selected_reference_result};
+pub(crate) use declared_results::validate_result_lifetime_groups;
+pub use declared_results::{
+    DeclaredReferenceResult, declared_lifetime_path_is_static, public_reference_result,
+    requirement_reference_result, selected_reference_result,
+};
 
 pub(crate) mod reference_completion {
 
@@ -722,38 +725,52 @@ pub(crate) mod reference_completion {
                 {
                     return Err("returned reference call changes its declared result carrier");
                 }
-                let slots = analysis.result_slots(callee.id).ok_or(
-                    "returned reference callee has no complete actual source correspondence",
-                )?;
-                let actual = if returns_reference {
-                    super::reference_origins::reference_result_sources(
-                        &module.structural_types,
-                        &callee.structural_parameters,
-                        signature,
-                        &slots,
-                    )?
+                // A rigid call reaches a bodiless requirement: its declared
+                // lifetimes are the only origins, and no body can narrow them.
+                // It binds through the same public account a selected call reads.
+                if let Some(requirement) = super::requirement_reference_result(module, callee.id)? {
+                    (
+                        callee.structural_parameters.as_slice(),
+                        Vec::new(),
+                        Vec::new(),
+                        Some(requirement),
+                    )
                 } else {
-                    Vec::new()
-                };
-                if actual != signature.reference_sources {
-                    return Err("returned reference header differs from its actual body origins");
+                    let slots = analysis.result_slots(callee.id).ok_or(
+                        "returned reference callee has no complete actual source correspondence",
+                    )?;
+                    let actual = if returns_reference {
+                        super::reference_origins::reference_result_sources(
+                            &module.structural_types,
+                            &callee.structural_parameters,
+                            signature,
+                            &slots,
+                        )?
+                    } else {
+                        Vec::new()
+                    };
+                    if actual != signature.reference_sources {
+                        return Err(
+                            "returned reference header differs from its actual body origins",
+                        );
+                    }
+                    let public = call
+                        .required_contract
+                        .filter(|_| returns_reference)
+                        .map(|required| {
+                            super::selected_reference_result(module, caller.id, callee.id, required)
+                        })
+                        .transpose()?;
+                    if let Some(public) = &public {
+                        public.validate_actual_sources(&callee.structural_parameters, &actual)?;
+                    }
+                    (
+                        callee.structural_parameters.as_slice(),
+                        slots,
+                        actual,
+                        public,
+                    )
                 }
-                let public = call
-                    .required_contract
-                    .filter(|_| returns_reference)
-                    .map(|required| {
-                        super::selected_reference_result(module, caller.id, callee.id, required)
-                    })
-                    .transpose()?;
-                if let Some(public) = &public {
-                    public.validate_actual_sources(&callee.structural_parameters, &actual)?;
-                }
-                (
-                    callee.structural_parameters.as_slice(),
-                    slots,
-                    actual,
-                    public,
-                )
             }
         };
         let parameters = public.as_ref().map_or(declared_parameters, |public| {
@@ -797,9 +814,11 @@ pub(crate) mod reference_completion {
             block,
             u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
         );
-        let flow = analysis
-            .flow(caller.id)
-            .ok_or("returned reference caller has no complete descriptor flow")?;
+        let flow = analysis.flow(caller.id).map_err(|error| {
+            error
+                .detail()
+                .unwrap_or("returned reference caller has no complete descriptor flow")
+        })?;
         let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
             (0..parameters.len()).map(|_| None).collect();
         for (mapping_index, binding) in bindings.into_iter().enumerate() {
@@ -1509,17 +1528,12 @@ pub(crate) mod reference_origins {
                     .module
                     .machine(*callee)
                     .ok_or("reference call has no callee")?;
-                let public = operation
-                    .required_contract
-                    .map(|required| {
-                        crate::selected_reference_result(
-                            self.module,
-                            caller.id,
-                            callee.id,
-                            required,
-                        )
-                    })
-                    .transpose()?;
+                let public = crate::public_reference_result(
+                    self.module,
+                    caller.id,
+                    callee.id,
+                    operation.required_contract,
+                )?;
                 let contract = public
                     .as_ref()
                     .map_or(&callee.contract, |public| public.contract());
@@ -2152,26 +2166,37 @@ pub(crate) mod reference_origins {
                 }
                 let mut sources = Vec::with_capacity(slot.origins.len());
                 for origin in &slot.origins {
-                    match origin {
+                    // A result known only within a declared input region,
+                    // such as a selected or rigid requirement call's, keeps
+                    // that whole region (lifetimes.md, "Returned views").
+                    // Unresolved indirection or a runtime window has no
+                    // static region to publish.
+                    let extent = match origin {
                         DescriptorStoredOrigin::Parameter { projection, .. }
                         | DescriptorStoredOrigin::IncomingContents { projection, .. }
-                            if !projection.exact
-                                || projection.indirect
-                                || projection.window.is_some() =>
+                            if projection.indirect || projection.window.is_some() =>
                         {
                             return Err(
-                                "reference result needs an exact retained input projection",
+                                "reference result needs a static retained input projection",
                             );
+                        }
+                        DescriptorStoredOrigin::Parameter { projection, .. }
+                        | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if !projection.exact =>
+                        {
+                            ReferenceOriginExtent::WithinRegion
                         }
                         DescriptorStoredOrigin::Parameter { .. }
                         | DescriptorStoredOrigin::IncomingSlot { .. }
-                        | DescriptorStoredOrigin::IncomingContents { .. } => {}
+                        | DescriptorStoredOrigin::IncomingContents { .. } => {
+                            ReferenceOriginExtent::Projected
+                        }
                         _ => {
                             return Err(
                                 "reference result backing needs its actual admitted producer",
                             );
                         }
-                    }
+                    };
                     let (position, mut path) =
                         descriptor_input_origin_path(types, parameters, origin)?;
                     if path.iter().any(|step| {
@@ -2252,7 +2277,7 @@ pub(crate) mod reference_origins {
                     let source = ReferenceOriginSource {
                         place: parameter.place,
                         path,
-                        extent: ReferenceOriginExtent::Projected,
+                        extent,
                         access,
                     };
                     sources.push(terminal_psi::StructuralReferenceOrigin::Parameter(source));

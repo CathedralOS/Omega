@@ -885,9 +885,16 @@ pub(crate) mod aggregate_result_input {
             .iter()
             .find(|parameter| parameter.semantic.place == *place)?;
         let semantic = &parameter.semantic;
+        let structural_type = source
+            .geometry()
+            .declaration(semantic.structural_type)
+            .ok()?;
         if semantic.access != terminal_psi::StructuralAccess::Owned
-            || semantic.structural_type != declared.structural_type
-            || semantic.multiplicity != declared.multiplicity
+            || !terminal_semantics::normal_completion::structural_return_carrier_matches(
+                declared,
+                structural_type,
+                semantic.multiplicity,
+            )
         {
             return None;
         }
@@ -1141,7 +1148,12 @@ pub(crate) mod aggregate_result_input {
                 return None;
             }
         };
-        if structural_type != declared.structural_type || multiplicity != declared.multiplicity {
+        let structural_type = source.geometry().declaration(structural_type).ok()?;
+        if !terminal_semantics::normal_completion::structural_return_carrier_matches(
+            declared,
+            structural_type,
+            multiplicity,
+        ) {
             return None;
         }
         let placement = source.call_plan.result.as_ref()?;

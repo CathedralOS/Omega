@@ -51,12 +51,10 @@ classifications also erase to their original Integer/Boolean tags.
 | another machine | [source](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | selected implementation | [source](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Each twin removes only `hi <= Bound` from the default interval predicate.
-The public consumer cannot promise the missing ceiling for every admitted
-input. Exact pins live under
-`tests/omega/{pass,fail}/facts/case_dependent_default_domain_through_<place>_{exit,rejected}`.
-All four hosted entries are authored; the selected-implementation place binds
-four ordinary named implementations through its entry roots.
+Each twin removes only `hi <= Bound` from the default interval predicate. The public consumer
+cannot promise the missing ceiling for every admitted input. All four hosted entries are
+authored; the selected-implementation place binds four ordinary named implementations through
+its entry roots.
 
 ## Requirements and evidence
 

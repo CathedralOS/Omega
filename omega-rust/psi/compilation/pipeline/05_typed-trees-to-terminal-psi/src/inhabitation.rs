@@ -63,11 +63,13 @@ impl TypeContracts for SourceContracts<'_> {
             StorageShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
+                ..
             } if *length > 0 => visit(None, *element),
             // A descriptor carries no owned referent value. In particular,
             // neither an empty referent nor an empty view proves that the
             // descriptor itself is uninhabited.
-            StorageShape::Opaque
+            StorageShape::AtomicCell(_)
+            | StorageShape::Opaque
             | StorageShape::ByteSequence(_)
             | StorageShape::Reference { .. }
             | StorageShape::ElementView { .. }

@@ -27,20 +27,8 @@ same raw carrier; it must reject missing `Claim::Issued` provenance.
 
 ## Pinned Fixtures
 
-The row is pinned by 18 fixtures: nine
-`tests/omega/pass/facts/linear_routed_label_through_<place>_exit` fixtures, each
-a byte-identical copy of its place program and `build.omg` (`ProgramEntry` for
-all four hosted targets, `Expected exit: 0`), and nine
-`tests/omega/fail/facts/linear_routed_label_through_<place>_rejected` twins,
-each a byte-identical copy of its `invalid/` program pinning the diagnostic
-`construction value is not proven in domain Claim::Issued`. Recorded rows: 18 `checked` with
-`check-target:macos_arm64` and 18 `rejected` with `expected` in
-[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt), 9
-`built exit:0 interpreter-exit:0 interpreter:agrees` in
-[`corpus_both_macos_arm64.txt`](../../../../tests/omega/corpus_both_macos_arm64.txt).
-The tenant of record is **DOMAIN-ISSUER-ROUTES** (`TASKS.md`): preserve the
-selected-domain qualification rule and the exact claim transport that
-`facts/linear_routed_label` pins.
+The tenant of record is **DOMAIN-ISSUER-ROUTES** (`TASKS.md`): preserve the selected-domain
+qualification rule and the exact claim transport that `facts/linear_routed_label` pins.
 
 ## Requirements exercised
 

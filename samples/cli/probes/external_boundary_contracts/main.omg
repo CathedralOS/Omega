@@ -4,9 +4,9 @@
 // The three libc abs calls must return 41, 39 and 37, including state forwarding.
 
 public boundary trait Magnitude {
-    machine absolute(value: i32) -> i32 reaches requires value > -2147483648;
-    machine ordinary(value: i32) -> i32 reaches requires value > -2147483648;
-    machine exported(value: i32) -> i32 reaches requires value > -2147483648;
+    machine absolute(value: i32) -> i32 reaches requires value > -2147483648 crashes none;
+    machine ordinary(value: i32) -> i32 reaches requires value > -2147483648 crashes none;
+    machine exported(value: i32) -> i32 reaches requires value > -2147483648 crashes none;
 }
 data Main { operand: i32; }
 machine Main::main(main: &mut Main) reaches Magnitude crashes Trap {

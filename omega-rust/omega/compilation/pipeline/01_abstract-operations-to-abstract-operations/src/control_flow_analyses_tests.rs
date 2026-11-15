@@ -139,6 +139,7 @@ fn case_plan() -> AbstractOperationPlan {
                             value: false,
                         },
                         O::StructuralCase {
+                            psi_block: block(1),
                             source: place(1),
                             path: Vec::new(),
                             cases: vec![first, case(2, 2, 3)],
@@ -150,6 +151,7 @@ fn case_plan() -> AbstractOperationPlan {
                     structural_parameters: vec![parameter(2)],
                     parameters: Vec::new(),
                     operations: vec![O::StructuralCase {
+                        psi_block: block(2),
                         source: place(2),
                         path: Vec::new(),
                         cases: vec![case(3, 1, 4), case(4, 2, 4)],
@@ -287,6 +289,122 @@ fn optimized_publication_keeps_block_ownership_after_node_removal() {
     assert_eq!(function.blocks[1..], source.functions[0].blocks[1..]);
     assert_eq!(function.operations().count(), 6);
     assert_eq!(control_flow(&unit(&published)), control_flow(&optimized));
+}
+
+#[test]
+fn block_merging_preserves_the_indexed_discriminators_checked_site() {
+    use crate::rules::control_flow_cleanup::AdjacentBlockMergeRule;
+    use optimization_unit::{
+        AcceptedObligationFact, attach_accepted_obligation_facts, attach_ownership_frontier_facts,
+    };
+    use optimization_unit_semantics::{
+        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
+        validate_psi_optimization_unit_with_admitted_cycle_machines,
+        validate_psi_rewrite_candidate,
+    };
+    use semantic_vocabulary::{IntegerSign, IntegerType, ObligationId};
+    use terminal_psi::StructuralPathSegment;
+
+    let mut plan = case_plan();
+    let mut array = plan.structural_types[0].clone();
+    array.id = StructuralTypeId::new(2).unwrap();
+    let StructuralTypeShape::Sum { cases } = &array.shape else {
+        unreachable!()
+    };
+    array.identity = cases[0].identity;
+    array.shape = StructuralTypeShape::FixedArray {
+        element: StructuralTypeId::new(1).unwrap(),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    plan.structural_types = vec![plan.structural_types[0].clone(), array].into();
+    let function = &mut plan.functions[0];
+    function.parameters[0].scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    function.structural_parameters[0].structural_type = StructuralTypeId::new(2).unwrap();
+    let mut dispatch = function.blocks[0].clone();
+    dispatch.block = block(2);
+    let O::StructuralCase {
+        psi_block,
+        path,
+        cases,
+        ..
+    } = &mut dispatch.operations[2]
+    else {
+        unreachable!()
+    };
+    *psi_block = block(2);
+    path.push(StructuralPathSegment::RuntimeIndex {
+        index: ValueId::new(1).unwrap(),
+        obligation: ObligationId::new(1).unwrap(),
+    });
+    cases[0].target = block(3);
+    cases[1].target = block(4);
+    cases[0].structural_bindings.clear();
+    let returning = |id, value| AbstractBlock {
+        block: block(id),
+        parameters: vec![],
+        structural_parameters: vec![],
+        operations: vec![O::Return {
+            psi_edge: EdgeId::new(id + 1).unwrap(),
+            result: ValueId::new(3).unwrap(),
+            value: ValueId::new(value).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            cleanup_actions: vec![],
+        }],
+    };
+    function.blocks = vec![
+        AbstractBlock {
+            block: block(1),
+            parameters: vec![],
+            structural_parameters: vec![],
+            operations: vec![O::Jump {
+                psi_edge: EdgeId::new(100).unwrap(),
+                target: block(2),
+                bindings: vec![],
+                structural_bindings: vec![],
+                cleanup_actions: vec![],
+            }],
+        },
+        dispatch,
+        returning(3, 2),
+        returning(4, 4),
+    ];
+    let seed = unit(&plan);
+    let fact = AcceptedObligationFact::new(
+        seed.psi,
+        [0; 32],
+        seed.entry,
+        terminal_psi::ExecutionSite::Block(block(2)),
+        ObligationId::new(1).unwrap(),
+        vec![],
+    );
+    let fact_identity = fact.identity;
+    let input = attach_accepted_obligation_facts(seed, vec![fact]).unwrap();
+    let frontiers =
+        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&input, &[]).unwrap();
+    let input = attach_ownership_frontier_facts(input, frontiers).unwrap();
+    let mut analyses = AnalysisRevision::bind(&input).unwrap();
+    let candidates = AdjacentBlockMergeRule
+        .propose(
+            &input,
+            analyses
+                .require_all(AdjacentBlockMergeRule::contract().required_analyses())
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(candidates.len(), 1);
+    let mut output = validate_psi_rewrite_candidate(&input, &candidates[0])
+        .unwrap()
+        .into_unit();
+    let node = output.functions[0].blocks[0].nodes.last_mut().unwrap();
+    let O::StructuralCase { psi_block, .. } = &mut node.operation else {
+        panic!("merged dispatch")
+    };
+    assert_eq!(*psi_block, block(2));
+    assert_eq!(output.accepted_obligation_facts[0].identity, fact_identity);
+    *psi_block = block(1);
+    output.identity = optimization_unit::recompute_psi_optimization_unit_identity(&output);
+    assert!(matches!(validate_psi_optimization_unit_with_admitted_cycle_machines(&output, &[]), Err(optimization_unit_semantics::OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)));
 }
 
 #[test]

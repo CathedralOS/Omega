@@ -11,7 +11,7 @@ requires bytes.len == 1
 boundary trait Observe {
     machine observe(windows: [&[u8]; 2]) -> bool
     reaches
-    requires windows[0].len == 1 && windows[1].len == 1;
+    requires windows[0].len == 1 && windows[1].len == 1 crashes none;
 }
 
 LinuxX8664Observer satisfies Observe {

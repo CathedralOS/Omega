@@ -97,4 +97,3 @@ remaining parser/IR/codec/runtime family paths. This row does not close it.
 | Other machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | Target body | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Matching pins remain under `tests/omega/{pass,fail}/facts/target_family_open_const/<place>/`.

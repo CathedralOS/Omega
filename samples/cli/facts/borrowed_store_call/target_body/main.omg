@@ -18,7 +18,7 @@ machine valid(value: &Subject) -> bool {
         value.items[0u64] == 31u8 && value.items[1u64] == 47u8
     }
 }
-boundary trait Inspect { machine update<'input>(value: &mut Subject<'input>, bytes: &'input [u8; 2]) reaches; }
+boundary trait Inspect { machine update<'input>(value: &mut Subject<'input>, bytes: &'input [u8; 2]) reaches crashes none; }
 WindowsInspect satisfies Inspect { machine update<'input>(value: &mut Subject<'input>, bytes: &'input [u8; 2]) { forward(value, bytes); } }
 LinuxX86Inspect satisfies Inspect { machine update<'input>(value: &mut Subject<'input>, bytes: &'input [u8; 2]) { forward(value, bytes); } }
 MacInspect satisfies Inspect { machine update<'input>(value: &mut Subject<'input>, bytes: &'input [u8; 2]) { forward(value, bytes); } }

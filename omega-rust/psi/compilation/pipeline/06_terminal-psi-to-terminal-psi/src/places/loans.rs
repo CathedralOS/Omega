@@ -848,6 +848,9 @@ impl Storage<'_> {
                     super::Shape::Scalar(scalar) => {
                         expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
                     }
+                    super::Shape::Atomic(cell) => {
+                        expected.shape == StructuralTypeShape::AtomicCell(cell)
+                    }
                     super::Shape::Typed(actual) => actual == referent,
                     super::Shape::View | super::Shape::Payload(_) => false,
                 }
@@ -1047,6 +1050,10 @@ impl Storage<'_> {
                         return Ok(Some((concerns, LoanConflict::ObserveWhileExclusive)));
                     }
                 }
+                let atomic_change = matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::AtomicAccess { .. }
+                );
                 for effect in self.operation_changes(operation)? {
                     let (place, backing) = match effect {
                         super::StorageEffect::Payload(place) => {
@@ -1066,11 +1073,15 @@ impl Storage<'_> {
                     if competing_borrows(
                         loan.access,
                         &loan.lineage,
-                        ReferenceAccess::Mutable,
+                        if atomic_change {
+                            ReferenceAccess::Shared
+                        } else {
+                            ReferenceAccess::Mutable
+                        },
                         &backing,
                     )
                     .is_some()
-                        && (!loan.access.is_exclusive()
+                        && ((!atomic_change && !loan.access.is_exclusive())
                             || !self.authorized_reference(loan, &place, at, formed)?)
                     {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
@@ -1341,6 +1352,78 @@ impl Storage<'_> {
         ))
     }
 
+    /// A descriptor's last direct use does not restore its loan while a child
+    /// still uses that authority. Close liveness over the authenticated forest,
+    /// without making child descriptors names for their parent's permission.
+    fn retain_ancestors(&self, formed: &mut [Formed]) -> Checked<()> {
+        let mut positions = formed
+            .iter()
+            .enumerate()
+            .map(|(position, loan)| (loan.obligation, position))
+            .collect::<Vec<_>>();
+        positions.sort_unstable_by_key(|(identity, _)| *identity);
+        let mut parents = Vec::with_capacity(formed.len());
+        let mut children = vec![0usize; formed.len()];
+        for loan in formed.iter() {
+            let parent = match loan.lender {
+                Lender::Loan(identity) => {
+                    let position = positions
+                        .binary_search_by_key(&identity, |(identity, _)| *identity)
+                        .map_err(|_| {
+                            self.foreign(
+                                Construct::Obligation(loan.obligation),
+                                "loan ancestry names no actual parent occurrence",
+                            )
+                        })?;
+                    let parent = positions[position].1;
+                    children[parent] += 1;
+                    Some(parent)
+                }
+                Lender::Owner | Lender::Incoming | Lender::Provider => None,
+            };
+            parents.push(parent);
+        }
+        let mut pending = children
+            .iter()
+            .enumerate()
+            .filter_map(|(position, count)| (*count == 0).then_some(position))
+            .collect::<Vec<_>>();
+        let mut closed = 0;
+        while let Some(child) = pending.pop() {
+            closed += 1;
+            let Some(parent) = parents[child] else {
+                continue;
+            };
+            let (owner, descendant) = if parent < child {
+                let (before, after) = formed.split_at_mut(child);
+                (&mut before[parent], &after[0])
+            } else {
+                let (before, after) = formed.split_at_mut(parent);
+                (&mut after[0], &before[child])
+            };
+            if let Some(lifetime) = &descendant.lifetime {
+                let retained = owner.lifetime.as_mut().ok_or_else(|| {
+                    self.foreign(
+                        Construct::Obligation(owner.obligation),
+                        "a retained child has no retained parent occurrence",
+                    )
+                })?;
+                retained.live.extend(lifetime.live.iter().copied());
+            }
+            children[parent] -= 1;
+            if children[parent] == 0 {
+                pending.push(parent);
+            }
+        }
+        if closed != formed.len() {
+            return Err(self.foreign(
+                Construct::Machine,
+                "loan ancestry does not reach an original lender",
+            ));
+        }
+        Ok(())
+    }
+
     /// The loans a call with no normal return carries into its transfer are
     /// exactly the obligations its edge consumes, each once, and the edge
     /// disposes of nothing else. ownership.md: "every incoming owned
@@ -1401,10 +1484,15 @@ impl Storage<'_> {
                 self.references
                     .borrow_mut()
                     .flow(self.machine)
-                    .ok_or_else(|| {
+                    .map_err(|error| {
                         self.unsupported(
-                            Construct::Machine,
-                            "persistent loans have no complete descriptor flow",
+                            error
+                                .operation(module)
+                                .map(Construct::Operation)
+                                .unwrap_or(Construct::Machine),
+                            error
+                                .detail()
+                                .unwrap_or("persistent loans have no complete descriptor flow"),
                         )
                     })?,
             )
@@ -1754,10 +1842,11 @@ impl Storage<'_> {
         tables: &MachineTables,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(module)?;
-        let formed = self.formed(module, tables)?;
+        let mut formed = self.formed(module, tables)?;
         self.parents(module, &formed)?;
         self.successor_borrows(&formed)?;
         self.reference_completions(module, &formed)?;
+        self.retain_ancestors(&mut formed)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {

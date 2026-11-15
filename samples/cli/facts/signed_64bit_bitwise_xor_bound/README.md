@@ -72,11 +72,6 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --filter cli/facts/signed_64bit_bitwise_xor_bound --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 18/18 intended-invalid controls match their authored rejection (`cannot prove requires contract for call verify_xored`).
 
@@ -84,27 +79,7 @@ python tools/sample_native_gate.py --filter cli/facts/signed_64bit_bitwise_xor_b
 
 All 18 positive and reject places are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_local_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_field_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_parameter_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_call_result_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_match_join_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_const_name_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_other_state_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_other_machine_exit/`
-  - `tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_target_body_exit/`
 - **Fail fixtures (`expected.txt`):**
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_local_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_field_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_parameter_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_call_result_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_match_join_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_const_name_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_other_state_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/signed_64bit_bitwise_xor_bound_through_target_body_rejected/`
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).

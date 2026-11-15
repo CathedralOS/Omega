@@ -59,7 +59,7 @@ families are not introduced. Parameterized NaN constructors are convenience
 code whose need may change with future unsigned narrow payload types.
 
 `CORE-INTEGER-FLOAT-APIS` in [TASKS.md](../../TASKS.md) retains library/compiler
-acceptance, nine-place facts and reject controls, including old-spelling
+acceptance, facts and reject controls, including old-spelling
 removal. Existing numeric examples using primitive-member limits are migration
 inputs, not an implemented alternate API.
 
@@ -152,6 +152,16 @@ The consuming root can make an exact boundary identity mandatory in review
 with `Build::audit_service<Trait>(builder)`. Only executed registrations through
 its original delegated Build count. Dependency registrations do not set the
 consumer's policy, and changes to that policy change accepted review meaning.
+
+## Static interrupt-table validation
+
+A kernel supplies the table validator invoked by `X86StaticInterruptScope::run`
+before publication. The validator publishes `crashes none` and returns a Boolean
+satisfying its table policy. A policy-justified `false` refuses publication and
+returns to the caller, which decides whether refusal is fatal. The
+[validation contract](../../wiki/spec/build/hardware_materialization.md#interrupt-table-validation)
+leaves the scope's separate trap routes and validation's termination contract
+unchanged.
 
 ## C record storage
 

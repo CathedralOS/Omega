@@ -75,9 +75,10 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 }
 
 pub use body::{
-    Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
-    StorageShape, Strict, Target, Termination, ValueType, self_place,
+    Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainInstance,
+    DomainSet, Expression, ExpressionKind, Policy, Qualification, RecordField, RecordType,
+    Selector, Signature, Statement, StorageShape, Strict, Target, Termination, ValueType,
+    self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
@@ -636,6 +637,7 @@ fn finish_reading<'source>(
         bodies.push(body);
     }
     program.finish_declarations(diagnostic)?;
+    let components = components::components(&bodies, &mut program.signatures)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
@@ -658,6 +660,7 @@ fn finish_reading<'source>(
         &program.requirements,
         program.publication,
         Some(&program),
+        components,
     )?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
@@ -694,6 +697,11 @@ fn finish_reading<'source>(
                 })?);
         }
     }
+    reference_results::publish_requirements(
+        &mut elaboration.module,
+        &program,
+        &program.requirements,
+    )?;
     reference_results::publish(&mut elaboration, &program.selections)?;
     finish_storage(diagnostic, &mut elaboration)?;
     elaboration.machines = program.symbols;
@@ -753,13 +761,17 @@ pub fn lower_generic(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
+    // This model-level entrance borrows its caller's headers. Source preparation
+    // above already owns and completes the same signature table in place.
+    let mut signatures = signatures.clone();
+    let components = components::components(bodies, &mut signatures)?;
     lower_generic_for(
         Some(entry),
         bodies,
         body::Signatures {
             declarations: &IdTable::default(),
             declaration_aliases: None,
-            machines: signatures,
+            machines: &signatures,
             boundaries: &IdTable::default(),
             completions: &IdTable::default(),
         },
@@ -767,6 +779,7 @@ pub fn lower_generic(
         requirements,
         terminal_codec::TerminalPublication::Portable,
         None,
+        components,
     )
     .map(|prepared| prepared.program)
 }
@@ -779,6 +792,7 @@ fn lower_generic_for<'source>(
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
     declarations: Option<&read::Program<'source>>,
+    components: components::Components,
 ) -> Checked<PreparedProgram<'source>> {
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     for requirement in requirements {
@@ -795,7 +809,6 @@ fn lower_generic_for<'source>(
     for (machine, body) in bodies.iter() {
         operational::positions(machine, body)?;
     }
-    let components = components::components(bodies, signatures.machines)?;
     // One source owner fixes the local inference boundary. Result clauses
     // retain their private publication restriction; local non-return does not
     // become a public clause and can use every eligible body in that unit.
@@ -839,7 +852,6 @@ fn lower_generic_for<'source>(
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
-        source.publish_structural_domains(diagnostic, &mut module)?;
         source.publish_services(diagnostic, &mut module)?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
@@ -984,6 +996,11 @@ fn lower_generic_for<'source>(
     }
     module.identities = qualifications.identities.build();
     module.scalar_qualifications = qualifications.catalog;
+    module.structural_domains = qualifications.structural;
+    qualifications
+        .structural_changes
+        .sort_unstable_by_key(|change| (change.machine, change.edge, change.argument_ordinal));
+    module.structural_qualification_changes = qualifications.structural_changes;
     let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
@@ -1240,6 +1257,8 @@ mod publication_scope_tests {
             ranking: None,
         });
         let lower = |publication| {
+            let mut signatures = signatures.clone();
+            let components = components::components(&bodies, &mut signatures).unwrap();
             lower_generic_for(
                 Some(entry),
                 &bodies,
@@ -1254,6 +1273,7 @@ mod publication_scope_tests {
                 &[],
                 publication,
                 None,
+                components,
             )
             .unwrap()
             .program

@@ -55,15 +55,14 @@ partition coverage, `resin = injected`, and `injected <= budget` before reportin
 
 ## Independent expected artifacts
 
-`validation/reference.py` uses sets and an explicit adjacency graph, rather
-than the application's shifted bitmasks. Expected maps and region/volume
-reports in `data/*.expected` were frozen before any Omega check or execution.
-`validation/frozen.json` records the selected fixtures, batches, exhaustive
-counts and tolerance. `validation/oracle.sha256` pins the reference and freeze.
-The tolerance is **zero**: every tick, mask, count and byte must match exactly.
-The reference parser is only a fixture reader; it is not an oracle for every
-possible input spelling. Runtime grammar rejection is checked separately against
-the declared input contract and the twelve authored invalid inputs.
+Expected maps and region/volume reports in `data/*.expected` were frozen before
+any Omega check or execution. `validation/frozen.json` records the selected
+fixtures, batches, exhaustive counts and tolerance. `validation/oracle.sha256`
+pins the reference and freeze. The tolerance is **zero**: every tick, mask,
+count and byte must match exactly. The reference parser is only a fixture
+reader; it is not an oracle for every possible input spelling. Runtime grammar
+rejection is checked separately against the declared input contract and the
+twelve authored invalid inputs.
 
 The independent flood check enumerates all simple paths for every air/vent
 assignment on an embedded 2×2 (256 combinations). Native validation enumerates
@@ -98,17 +97,13 @@ omega packages update --project samples/cli/independent/mold_front_vent_analysis
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega run --both --keep samples/cli/independent/mold_front_vent_analysis/main.omg < samples/cli/independent/mold_front_vent_analysis/data/merging.in
-python3 samples/cli/independent/mold_front_vent_analysis/validation/validate.py /absolute/path/to/published/mold_front_vent_analysis
-python3 samples/cli/independent/mold_front_vent_analysis/validation/validate.py --omega /absolute/path/to/omega
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/controls/out_of_bounds/main.omg
 ```
 
 Use the corresponding built executable on Windows and `python` if that is the
 Python 3 command. Build metadata binds Linux x86-64/ARM64, macOS x86-64/ARM64 and
 Windows x86-64, while execution evidence covers only the measured host. A single
-`omega run --both` compares process termination only. `validate.py --omega`
-instead compiles once with `omega run --both --inputs` and compares every
-case's native and Terminal stdout, stderr and exit against the oracle.
+`omega run --both` compares process termination only.
 
 The separate intended-invalid control must reject for `cannot prove index` at
 `arrival[16]`, with no unrelated errors. Its bounds rule is documented in
@@ -116,8 +111,6 @@ The separate intended-invalid control must reject for `cannot prove index` at
 It is deliberately a complete compile-only source with its own build metadata,
 so it can validate bounds independently of the application's console dependency.
 
-`validation/EVIDENCE.md` records actual commands, compiler/binary/base identity,
-resources, results and any denied or unsupported routes. Local generated output
-stays under ignored `build/`. The clean candidate and separate review bundle
-preserve source, frozen oracles and execution evidence without checking generated
-compiler artifacts into the sample.
+Local generated output stays under ignored `build/`. The clean candidate and
+separate review bundle preserve source, frozen oracles and execution evidence
+without checking generated compiler artifacts into the sample.

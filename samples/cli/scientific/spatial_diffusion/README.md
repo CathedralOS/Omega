@@ -54,7 +54,6 @@ omega packages update --project samples/cli/independent/spatial_diffusion --targ
 # Inspect the exact pending package proposal and source-only risks before accepting.
 # Resume the reviewed exact proposal through the normal package workflow.
 printf 0 | omega run samples/cli/independent/spatial_diffusion/main.omg
-python3 samples/cli/independent/spatial_diffusion/validate.py --omega /absolute/path/to/omega
 ```
 
 The build only declares an application, std path dependency, and Linux entry.
@@ -66,18 +65,14 @@ Terminal numerical validation is separate from CLI exit-code comparison:
 
 ```sh
 CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release --locked -p sci04-terminal-validation -- --evidence /absolute/path/to/spatial_diffusion
-python3 samples/cli/independent/spatial_diffusion/validate.py --captured samples/cli/independent/spatial_diffusion/build/validation/terminal
 ```
 
 The Rust harness is a root workspace member sharing the CLI dependency resolution.
-It uses the normal native report's retained Terminal artifact and
-admitted provisions, gives each case an isolated domain with finite stdin, and
-captures actual stdout, stderr and completion. Every capture is compared
-against the frozen oracle's exit for that case and must leave stderr empty
-before the numbers are checked. After a normal `omega run --keep` compile, `validate.py --native-binary` can
-reuse that exact retained executable for the full input matrix. This avoids
-recompiling identical Omega source for each request; every input still runs in
-a fresh OS process and is checked against the frozen oracle.
+It uses the normal native report's retained Terminal artifact and admitted
+provisions, gives each case an isolated domain with finite stdin, and captures
+actual stdout, stderr and completion. Every capture is compared against the frozen
+oracle's exit for that case and must leave stderr empty before the numbers are
+checked.
 
 The Python validator checks every
 cell against the frozen dense oracle, checks reports, reconstructs residuals

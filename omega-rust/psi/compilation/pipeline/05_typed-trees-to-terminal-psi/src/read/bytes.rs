@@ -156,7 +156,7 @@ pub(super) fn primitive_byte_domain(
 pub(super) struct SourceByteView {
     pub(super) carrier: ByteSequenceCarrier,
     pub(super) identity: String,
-    pub(super) domains: Vec<SymbolHandle>,
+    pub(super) domains: Vec<crate::body::DomainInstance>,
 }
 
 /// The type beneath the domains displayed on a view's referent, and those
@@ -179,7 +179,7 @@ fn byte_view_domains(
     typed: &typed_trees::TypedTrees,
     mut referee: TypeReferenceHandle,
     machine: MachineId,
-) -> Checked<(TypeReferenceHandle, Vec<SymbolHandle>)> {
+) -> Checked<(TypeReferenceHandle, Vec<crate::body::DomainInstance>)> {
     use typed_trees::byte_predicates::{ByteSequencePredicate, domain_byte_predicate};
     use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
     let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
@@ -204,9 +204,10 @@ fn byte_view_domains(
                     "byte view constrained by other than a declared domain",
                 ));
             }
-            let primitive = typed
-                .domain_definition(domain.symbol)
-                .is_some_and(|definition| primitive_byte_domain(typed, definition, machine));
+            let definition = typed
+                .domain_definition_for_instance(domain.symbol, domain.semantic_id)
+                .ok_or_else(|| fail("byte view lost its exact domain application"))?;
+            let primitive = primitive_byte_domain(typed, definition, machine);
             match domain_byte_predicate(typed, domain.symbol).filter(|_| primitive) {
                 Some(ByteSequencePredicate::NonEmpty) => {
                     return Err(fail("byte view in a domain the empty view is not in"));
@@ -218,10 +219,14 @@ fn byte_view_domains(
                     ));
                 }
             }
-            if domains.contains(&domain.symbol) {
+            let instance = crate::body::DomainInstance {
+                declaration: domain.symbol,
+                identity: domain.semantic_id,
+            };
+            if domains.contains(&instance) {
                 return Err(fail("byte view constrained by one domain twice"));
             }
-            domains.push(domain.symbol);
+            domains.push(instance);
         }
         referee = *base_type;
         if !table.contains_type_reference(referee) {
@@ -753,16 +758,18 @@ impl Program<'_> {
             return Ok(predicates);
         }
         for domain in qualification.domains.members() {
-            let predicate = typed_trees::byte_predicates::domain_byte_predicate(self.typed, domain)
-                .ok_or_else(|| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Type(
-                            "byte view in a domain that is not a primitive byte predicate",
-                        ),
-                    )
-                })?;
+            self.domain_theory(machine, domain)?;
+            let predicate =
+                typed_trees::byte_predicates::domain_byte_predicate(self.typed, domain.declaration)
+                    .ok_or_else(|| {
+                        refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Type(
+                                "byte view in a domain that is not a primitive byte predicate",
+                            ),
+                        )
+                    })?;
             predicates.insert(predicate);
         }
         Ok(predicates)

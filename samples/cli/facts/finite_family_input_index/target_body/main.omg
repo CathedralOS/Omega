@@ -53,7 +53,7 @@ machine check(item: Indexed<16>) crashes Trap {
 boundary trait InputIndexRelay {
     machine relay(selected: dyn Family, width: u32, observations: &mut [u32; 5]) -> Indexed<16>
     requires width == 16 || width == 32
-    reaches;
+    reaches crashes none;
 }
 
 PortableInputIndexRelay satisfies InputIndexRelay {

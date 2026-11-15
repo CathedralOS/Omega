@@ -31,18 +31,15 @@ result and checks both paths. The const place names the original construction
 inputs; it does not evaluate a foreign call as a constant initializer.
 
 Each place and the root has an `../invalid_nested/main.omg` that removes only the outer
-`Division`'s `[copy]` property. `Word` remains copyable. The repeated whole-value
-use in `receive` must reject with `holds no value`; the input pairs, nested
-layout, operation, comparisons and branch markers are unchanged. The nine
-positive/twin pairs are copied exactly into
-`tests/omega/{pass,fail}/facts/foreign_nested_scalar_record_result_through_*`.
-Every positive declares `Expected exit: 0` and all four hosted `ProgramEntry`
-bindings. Each package's Build activation binds `IntegerDivision::divide` and
-`IntegerDivision::verify` to the four fixture locators, so no place declares a
-per-symbol binding helper or a bodyless realizing `boundary machine`. The
-target-body place selects one `Observation` implementation with four Build rows
-because its four target-prefixed bodies were identical. Terminal helpers use
-nested `machine` declarations and explicit arguments.
+`Division`'s `[copy]` property. `Word` remains copyable. The repeated whole-value use
+in `receive` must reject with `holds no value`; the input pairs, nested layout,
+operation, comparisons and branch markers are unchanged. Every positive declares
+`Expected exit: 0` and all four hosted `ProgramEntry` bindings. Each package's Build
+activation binds `IntegerDivision::divide` and `IntegerDivision::verify` to the four
+fixture locators, so no place declares a per-symbol binding helper or a bodyless
+realizing `boundary machine`. The target-body place selects one `Observation`
+implementation with four Build rows because its four target-prefixed bodies were
+identical. Terminal helpers use nested `machine` declarations and explicit arguments.
 
 ## Real portable provider
 
@@ -118,20 +115,13 @@ Publication uses ordinary fresh placed storage after validating the complete
 ordered scalar roster and every typed containing path. It grants no reference,
 descendant qualification, content or claim authority from equal bytes.
 
-The original [run record](qualification.json) establishes macOS ARM64 only.
-The [matching-host record](hosted_qualification.json) now establishes this same
-root and nine-place row on all four hosted targets: optimized producer
-`33901569f34af6ba272ab5994871921aa6a6072e` on Windows x86-64 and both Linux
-hosts, and `e8927c1e8e2d76304342c9cd995646d3f8c3691c` on macOS ARM64.
-Each host records ten public native/Terminal zero agreements, ten canonical
-reloads, nine pinned corpus agreements and nine intended copy-removal rejects.
 The root also passes two inputs through one compilation, retaining its exact
-canonical artifact and native identity before publication.
-Raw compiler profiles, C provider identities, frozen inputs, engine outputs,
-canonical artifacts and qualification are retained in
-`build/foreign-frontier-evidence` and `build/owned-host-evidence`.
-Both records describe the original `via` sources and their producers; they are
-not runs of the Build-bound sources above.
+canonical artifact and native identity before publication. Raw compiler
+profiles, C provider identities, frozen inputs, engine outputs, canonical
+artifacts and qualification are retained in `build/foreign-frontier-evidence`
+and `build/owned-host-evidence`. Both records describe the original `via`
+sources and their producers; they are not runs of the Build-bound sources
+above.
 
 The flat record row's earlier observations do not establish recursive owned
 result publication. [Fixed-array descendants](../arrays/README.md) have their own

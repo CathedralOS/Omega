@@ -40,13 +40,10 @@ Zero total variance produces zero explained fractions.
 The implementation uses 40 cyclic Jacobi sweeps of the symmetric matrix and
 checks the maximum entry residual relative to the leading eigenvalue and the
 maximum entry orthogonality error against `1e-8`. Zero eigenvalues are valid.
-Signs and rotations within a repeated eigenspace are not unique.
-`validation/verify.py` additionally requires spectral-norm residual and
-orthogonality errors at most `1e-8`, and compares each repeated-eigenvalue
-subspace projector against the independent oracle. Scores are checked against
-centered data times the actual emitted basis; reconstruction is checked in
-original measurement units. These checks run on captured numerical output,
-independently of exit parity.
+Signs and rotations within a repeated eigenspace are not unique. Scores are
+checked against centered data times the actual emitted basis; reconstruction
+is checked in original measurement units. These checks run on captured
+numerical output, independently of exit parity.
 
 From the repository root, use the compiler from a recorded build:
 
@@ -61,14 +58,12 @@ risk disclosures do not grant host access, and no validation script edits those
 gates. Use the platform-approved host command route when cloud filesystem UID
 mapping prevents Omega from establishing cache custody; retain the checks.
 
-`validation/frozen.json` and `FROZEN.sha256` were produced before sample execution
-by `validation/oracle.py`, which centers measurements and calls NumPy SVD rather
-than reimplementing Jacobi. The frozen cases cover both modes, translation,
-column permutation, rank deficiency, zero covariance, repeated eigenvalues,
-minimum/maximum dimensions and small/large measurement scales. Refusal streams
-cover malformed/nonfinite data, dimensions, byte/token limits and constants.
-The separate `controls/feature_bound` source must reject a fifth feature index
-with its authored diagnostic and never enter execution.
+The frozen cases cover both modes, translation, column permutation, rank
+deficiency, zero covariance, repeated eigenvalues, minimum/maximum dimensions and
+small/large measurement scales. Refusal streams cover malformed/nonfinite data,
+dimensions, byte/token limits and constants. The separate `controls/feature_bound`
+source must reject a fifth feature index with its authored diagnostic and never
+enter execution.
 
 The Terminal sponsor uses the public package preparation, compilation,
 publication and runtime APIs with the exact retained Terminal artifact and
@@ -78,11 +73,8 @@ application numerics exist. Link it to the exact successful CLI build artifacts:
 
 ```sh
 mbx build --release -p omega --message-format=json > build/pca-build.jsonl
-python3 samples/cli/independent/principal_component_analysis/validation/link_terminal.py build/pca-build.jsonl . build/pca-terminal
 # CASE_NAMES lists frozen case names, one per line.
 build/pca-terminal samples/cli/independent/principal_component_analysis CASE_NAMES build/pca-capture
-python3 samples/cli/independent/principal_component_analysis/validation/verify.py --native "$(cat build/pca-capture/native.path)" --output build/pca-native-results
-python3 samples/cli/independent/principal_component_analysis/validation/verify.py --terminal build/pca-capture --output build/pca-terminal-results
 ```
 
 Python 3 with NumPy is required for the numerical verifier. Python, rustc and

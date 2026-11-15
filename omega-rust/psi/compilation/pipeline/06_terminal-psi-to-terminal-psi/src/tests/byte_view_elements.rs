@@ -467,6 +467,60 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
 }
 
 #[test]
+fn an_exclusive_array_view_lends_shared_access_after_its_cohort_ends() {
+    let source = |uses: &str| {
+        format!(
+            r#"
+            machine demand(bytes: &[u8]) requires bytes.len == 3 {{}}
+            machine use_byte(byte: u8) {{}}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                let view: &[u8] = &bytes[..];
+                {uses}
+                use_byte(bytes[0]);
+            }}
+        "#
+        )
+    };
+    for uses in [
+        "demand(view); demand(&mut bytes[..]);",
+        "demand(&bytes[..]); demand(view);",
+        "demand(view); let writable: &mut [u8] = &mut bytes[..]; demand(writable);",
+    ] {
+        assert_eq!(verdict(&source(uses)), "accepted", "{uses}");
+    }
+    let rejected = judge_build(&source("demand(&mut bytes[..]); demand(view);")).unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. }
+            if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ExclusiveAndShared)),
+        "the written exclusive array formation overlaps the live shared view: {rejected:?}"
+    );
+    let immutable =
+        source("demand(view); demand(&mut bytes[..]);").replace("let mut bytes", "let bytes");
+    assert_eq!(
+        verdict(&immutable),
+        "expression mutable array view without exclusive backing access while reading the body of \
+         `build_entry`"
+    );
+    let shared_source = judge_build(
+        r#"
+        machine demand(bytes: &mut [u8]) requires bytes.len == 3 {}
+        machine build_entry() {
+            let mut bytes: [u8; 3] = [17, 42, 99];
+            demand(&bytes[..]);
+        }
+    "#,
+    )
+    .unwrap();
+    assert!(
+        matches!(shared_source, RouteVerdict::Rejected { ref violations, .. }
+            if violations.iter().any(|row| row.message().contains(
+                "the explicit array view lends only immutable access"))),
+        "a shared formation cannot grant exclusive access: {shared_source:?}"
+    );
+}
+
+#[test]
 fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
     for access in ["&", "&mut"] {
         let program = format!(

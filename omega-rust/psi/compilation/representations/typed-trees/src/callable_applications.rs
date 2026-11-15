@@ -1275,6 +1275,7 @@ pub(crate) mod data_cleanup_scopes {
                 lifetime_declaration: declaration,
                 lifetimes: Vec::new(),
                 elided_lifetimes: Vec::new(),
+                invocation_elision: None,
                 types: substitutions,
                 static_arguments: Vec::new(),
                 static_argument_owner: SymbolHandle::invalid(),
@@ -1305,55 +1306,162 @@ pub(crate) mod domain_scopes {
 
     impl CallableApplication {
         pub(crate) fn domain_identity(
+            &mut self,
             program: &mut TypedTrees,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
             original: language_semantics::SemanticDomainId,
         ) -> Result<language_semantics::SemanticDomainId, &'static str> {
-            if arguments.is_empty() || !declaration.is_valid() {
+            if !declaration.is_valid() {
                 return Ok(original);
             }
-            let Some(domain) = program.domain_definition(declaration) else {
-                return Ok(original);
+            let domain = program
+                .domain_definition(declaration)
+                .ok_or("applied domain lost its declaration")?;
+            if program.domain_type_parameters(domain).is_empty() {
+                if !arguments.is_empty() {
+                    return Err("unindexed domain received index arguments");
+                }
+                return Ok(domain.semantic_id);
+            }
+            // A fixed carrier's entire telescope is already explicit in
+            // this packet. Only a carrier-generic family needs the retained
+            // implicit carrier coordinate from its source application.
+            if !domain::has_generic_carrier(program, domain) {
+                return program
+                    .retain_domain_arguments(declaration, arguments)
+                    .map_err(|_| "copied domain indices have no canonical instance identity");
+            }
+            let retained = program
+                .domain_arguments_for_instance(declaration, original)
+                .ok_or("applied domain lost its complete carrier/index coordinate")?
+                .to_vec();
+            let complete = retained
+                .into_iter()
+                .map(|argument| self.type_reference(program, argument))
+                .collect::<Result<Vec<_>, _>>()?;
+            if arguments.len()
+                != domain::index_parameters(
+                    program,
+                    program
+                        .domain_definition(declaration)
+                        .ok_or("applied domain lost its declaration")?,
+                )
+                .len()
+            {
+                return Err("applied domain has an incomplete explicit index telescope");
             };
-            let identity = domain::indexed_domain_instance_name(
-                program,
-                domain,
-                domain::index_parameters(program, domain),
-                arguments,
-            )
-            .map_err(|_| "applied domain arguments have no canonical instance identity")?;
-            Ok(program.semantic_domains.intern(&identity))
+            program
+                .retain_domain_arguments(declaration, &complete)
+                .map_err(|_| "copied domain arguments have no canonical instance identity")
         }
     }
 
     impl TypedTrees {
-        pub fn prepare_closed_domain_application(
+        /// Retains a domain's complete declaration application while the
+        /// producer still knows the carrier. This captures meaning, not proof.
+        pub fn retain_domain_application(
+            &mut self,
+            declaration: SymbolHandle,
+            carrier: types::TypeReferenceHandle,
+            arguments: &[types::TypeReferenceHandle],
+        ) -> Result<language_semantics::SemanticDomainId, diagnostics::Diagnostic> {
+            let definition = self.domain_definition(declaration).ok_or_else(|| {
+                diagnostics::Diagnostic::error("domain application lost its declaration")
+            })?;
+            if arguments.len() != domain::index_parameters(self, definition).len() {
+                return Err(diagnostics::Diagnostic::error(
+                    "domain application has an incomplete index telescope",
+                ));
+            }
+            if !self.contains_type_reference(carrier) {
+                return Err(diagnostics::Diagnostic::error(
+                    "domain application lost its exact carrier",
+                ));
+            }
+            let mut complete = Vec::with_capacity(self.domain_type_parameters(definition).len());
+            if domain::has_generic_carrier(self, definition) {
+                complete.push(
+                    self.type_reference_table
+                        .unconstrained_type_reference(carrier),
+                );
+            }
+            complete.extend_from_slice(arguments);
+            self.retain_domain_arguments(declaration, &complete)
+        }
+
+        fn retain_domain_arguments(
             &mut self,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
-            closed_arguments: &[types::TypeReferenceHandle],
-            identity: language_semantics::SemanticDomainId,
-        ) -> Result<bool, &'static str> {
-            if self.applied_domain_applications.iter().any(|application| {
-                application.declaration == declaration && application.theory.semantic_id == identity
-            }) {
-                return Ok(false);
+        ) -> Result<language_semantics::SemanticDomainId, diagnostics::Diagnostic> {
+            let definition = self.domain_definition(declaration).ok_or_else(|| {
+                diagnostics::Diagnostic::error("domain application lost its declaration")
+            })?;
+            let parameters = self.domain_type_parameters(definition);
+            let identity =
+                domain::indexed_domain_instance_name(self, definition, parameters, arguments)?;
+            if parameters.is_empty() {
+                return Ok(definition.semantic_id);
             }
+            let identity = self.semantic_domains.intern(&identity);
+            if self.domain_application(declaration, identity).is_none() {
+                let is_closed = arguments
+                    .iter()
+                    .all(|argument| domain::index_argument_is_closed(self, *argument));
+                self.applied_domain_applications
+                    .insert(domain::AppliedDomainApplication {
+                        declaration,
+                        identity,
+                        arguments: arguments.to_vec(),
+                        is_closed,
+                        theory: None,
+                    });
+            }
+            Ok(identity)
+        }
+
+        /// Applies every retained coordinate after callable specialization.
+        /// Copied facts may retain further applications; the same queue serves
+        /// them before the program is frozen for the lowered checker.
+        pub fn prepare_domain_applications(&mut self) {
+            let mut position = 0;
+            while position < self.applied_domain_applications.len() {
+                if self
+                    .applied_domain_applications
+                    .get(position)
+                    .is_some_and(|row| row.theory.is_none())
+                    && let Err(reason) = self.prepare_domain_application(position)
+                {
+                    self.applied_domain_applications
+                        .set_theory(position, Err(reason.to_owned()));
+                }
+                position += 1;
+            }
+        }
+
+        fn prepare_domain_application(&mut self, position: usize) -> Result<(), &'static str> {
+            let retained = self
+                .applied_domain_applications
+                .get(position)
+                .ok_or("domain application has no retained coordinate")?;
+            let declaration = retained.declaration;
+            let identity = retained.identity;
+            let arguments = retained.arguments.clone();
             let mut theory = self
                 .domain_definition(declaration)
                 .ok_or("applied domain lost its declaration")?
                 .clone();
-            if domain::has_generic_carrier(self, &theory) {
-                return Err("applied domain requires its exact generic carrier coordinate");
+            if !domain::has_direct_index_telescope(self, &theory) {
+                return Err("domain index declaration is not its direct parameter telescope");
             }
             let parameters = self.domain_type_parameters(&theory).to_vec();
-            if parameters.len() != arguments.len() || parameters.len() != closed_arguments.len() {
-                return Err("applied domain has an incomplete explicit index telescope");
+            if parameters.len() != arguments.len() {
+                return Err("applied domain has an incomplete declaration telescope");
             }
             let substitutions = parameters
                 .iter()
-                .zip(closed_arguments)
+                .zip(&arguments)
                 .map(|(parameter, argument)| (parameter.symbol, *argument))
                 .collect::<Vec<_>>();
             let source_subject = theory.subject_symbol;
@@ -1374,6 +1482,7 @@ pub(crate) mod domain_scopes {
                 lifetime_declaration: declaration,
                 lifetimes: Vec::new(),
                 elided_lifetimes: Vec::new(),
+                invocation_elision: None,
                 types: substitutions,
                 static_arguments: Vec::new(),
                 static_argument_owner: SymbolHandle::invalid(),
@@ -1405,12 +1514,8 @@ pub(crate) mod domain_scopes {
                     Some(self.apply_cleanup_selection(&mut application, selection, declaration)?);
             }
             self.applied_domain_applications
-                .push(domain::AppliedDomainApplication {
-                    declaration,
-                    arguments: arguments.to_vec(),
-                    theory,
-                });
-            Ok(true)
+                .set_theory(position, Ok(theory));
+            Ok(())
         }
 
         pub(crate) fn apply_cleanup_selection(
@@ -1460,6 +1565,91 @@ pub(crate) mod domain_scopes {
         use crate::name::Identifier;
         use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn domain_application_lookup_is_exact_and_rebuilt_from_stored_rows() {
+            use compiler_storage::{RecordLimits, decode, encode};
+            use language_semantics::SemanticDomainId;
+
+            let mut applications = domain::AppliedDomainApplications::default();
+            for (declaration, identity) in [
+                (SymbolHandle::from_parts(7, 2), SemanticDomainId(42)),
+                (SymbolHandle::from_parts(7, 3), SemanticDomainId(42)),
+                (SymbolHandle::from_parts(7, 2), SemanticDomainId(41)),
+            ] {
+                assert!(applications.insert(domain::AppliedDomainApplication {
+                    declaration,
+                    identity,
+                    arguments: Vec::new(),
+                    is_closed: true,
+                    theory: Some(Err(format!("refusal for {}", identity.0))),
+                }));
+            }
+            let rows = applications.iter().cloned().collect::<Vec<_>>();
+            assert!(!applications.insert(rows[0].clone()));
+            let bytes = encode(&applications, RecordLimits::default()).unwrap();
+            let restored: domain::AppliedDomainApplications =
+                decode(&bytes, RecordLimits::default()).unwrap();
+            assert_eq!(restored.iter().cloned().collect::<Vec<_>>(), rows);
+            for row in restored.iter() {
+                assert_eq!(restored.find(row.declaration, row.identity), Some(row));
+            }
+            assert!(
+                restored
+                    .find(rows[0].declaration, SemanticDomainId(40))
+                    .is_none()
+            );
+            let malformed = encode(
+                &vec![rows[0].clone(), rows[0].clone()],
+                RecordLimits::default(),
+            )
+            .unwrap();
+            let error =
+                decode::<domain::AppliedDomainApplications>(&malformed, RecordLimits::default())
+                    .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("duplicate exact domain application"),
+                "{error}"
+            );
+        }
+
+        #[test]
+        fn a_generic_domain_carrier_is_its_binder_not_a_matching_diagnostic_name() {
+            let mut symbols = SymbolTableBuilder::new();
+            let nominal = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("T"));
+            let binder =
+                symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Binder"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let parameters = program.data_type_parameters.insert_many([TypeParameter {
+                symbol: binder,
+                name: Identifier::generated("T"),
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            }]);
+            let mut definition = domain::DomainDefinition {
+                type_parameters: parameters,
+                ..Default::default()
+            };
+            for (symbol, expected) in [
+                (binder, true),
+                (nominal, false),
+                (SymbolHandle::invalid(), false),
+            ] {
+                definition.target_type =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol,
+                            name: Identifier::generated("T"),
+                        });
+                assert_eq!(domain::has_generic_carrier(&program, &definition), expected);
+            }
+        }
 
         #[test]
         fn applied_domain_carrier_matches_its_exact_argument_telescope() {
@@ -1562,13 +1752,9 @@ pub(crate) mod domain_scopes {
                 semantic_id: declaration_id,
                 ..Default::default()
             });
-            let original = CallableApplication::domain_identity(
-                &mut program,
-                domain_symbol,
-                &[operand],
-                declaration_id,
-            )
-            .unwrap();
+            let original = program
+                .retain_domain_application(domain_symbol, carrier, &[operand])
+                .unwrap();
             let constraints =
                 program
                     .type_reference_table
@@ -1605,13 +1791,9 @@ pub(crate) mod domain_scopes {
                 panic!("lost domain instance");
             };
             let applied = applied.clone();
-            let expected = CallableApplication::domain_identity(
-                &mut program,
-                domain_symbol,
-                &[carrier],
-                declaration_id,
-            )
-            .unwrap();
+            let expected = program
+                .retain_domain_application(domain_symbol, carrier, &[carrier])
+                .unwrap();
             assert_ne!(original, expected);
             assert_eq!(applied.arguments, [carrier]);
             assert_eq!(applied.semantic_id, expected);
@@ -3834,9 +4016,29 @@ pub(crate) mod payloads {
                     {
                         return Ok(*argument);
                     }
-                    types::TypeReferenceNode::Named {
-                        symbol: self.symbol(symbol),
-                        name,
+                    let count = program
+                        .unique_data_definition_by_symbol(symbol)
+                        .map_or(0, |data| data.lifetime_parameters.len());
+                    if self.invocation_elision.is_some() && count != 0 {
+                        let regions = (0..count)
+                            .map(|_| self.invocation_region(program))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        applied_owner = regions[0].region.declaration;
+                        applied_lifetimes.extend(regions.iter().map(|region| region.region));
+                        types::TypeReferenceNode::Generic {
+                            base_symbol: self.symbol(symbol),
+                            base_name: name,
+                            lifetime_arguments: regions
+                                .into_iter()
+                                .map(|region| region.name)
+                                .collect(),
+                            arguments: Default::default(),
+                        }
+                    } else {
+                        types::TypeReferenceNode::Named {
+                            symbol: self.symbol(symbol),
+                            name,
+                        }
                     }
                 }
                 types::TypeReferenceNode::Reference {
@@ -3844,11 +4046,17 @@ pub(crate) mod payloads {
                     access,
                     lifetime,
                 } => {
-                    let lifetime = lifetime
-                        .as_ref()
-                        .filter(|lifetime| !self.elides_lifetime(program, original, 0, lifetime))
-                        .map(|lifetime| self.scoped_lifetime(program, original, 0, lifetime))
-                        .transpose()?;
+                    // Reserve the outer slot before traversing its referent,
+                    // exactly as signature identity and stage 05 read inputs.
+                    let lifetime = if lifetime.is_none() && self.invocation_elision.is_some() {
+                        Some(self.invocation_region(program)?)
+                    } else {
+                        lifetime
+                            .as_ref()
+                            .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
+                            .map(|lifetime| self.scoped_lifetime(program, original, 0, lifetime))
+                            .transpose()?
+                    };
                     if let Some(lifetime) = &lifetime {
                         applied_lifetimes.push(lifetime.region);
                         if lifetime.region.declaration.is_valid() {
@@ -3879,12 +4087,13 @@ pub(crate) mod payloads {
                                     .into_iter()
                                     .map(|argument| self.type_reference(program, argument))
                                     .collect::<Result<Vec<_>, _>>()?;
-                                domain.semantic_id = Self::domain_identity(
-                                    program,
-                                    domain.symbol,
-                                    &domain.arguments,
-                                    domain.semantic_id,
-                                )?;
+                                if domain.subject == types::DomainConstraintSubject::Declared
+                                    && program.domain_definition(domain.symbol).is_some()
+                                {
+                                    domain.semantic_id = program.retain_domain_application(
+                                        domain.symbol, base_type, &domain.arguments,
+                                    ).map_err(|_| "copied qualification lost its complete domain application")?;
+                                }
                                 domain.semantic_roles.denotation_dimension = domain
                                     .semantic_roles
                                     .denotation_dimension
@@ -3991,102 +4200,110 @@ pub(crate) mod payloads {
                     lifetime_arguments,
                     arguments,
                 } => {
-                    let inferred = lifetime_arguments
-                        .iter()
-                        .enumerate()
-                        .filter(|(slot, lifetime)| {
-                            self.elides_lifetime(program, original, *slot, lifetime)
-                        })
-                        .count();
-                    if inferred != 0 {
-                        if inferred != lifetime_arguments.len() {
-                            return Err(
-                                "a nominal actual cannot elide only part of its lifetime tuple",
-                            );
-                        }
-                        // A closed nominal occurrence can use ordinary omitted
-                        // lifetime arguments. Keep its exact applied declaration
-                        // rather than replacing its regions with universal binders.
-                        let arguments = self.type_arguments(program, arguments)?;
-                        let reference = program.type_reference_table.insert(
-                            types::TypeReferenceNode::Generic {
-                                base_symbol: self.symbol(base_symbol),
-                                base_name: base_name.clone(),
-                                lifetime_arguments,
-                                arguments,
-                            },
-                        );
-                        let declaration = program
-                            .closed_data_definition(reference)
-                            .ok_or("an inferred nominal actual has no exact closed declaration")?
-                            .symbol;
-                        types::TypeReferenceNode::Named {
-                            symbol: declaration,
-                            name: base_name,
-                        }
-                    } else {
-                        let nominal_owner = self.symbol(base_symbol);
-                        if !applied_owner.is_valid()
-                            && !lifetime_arguments.is_empty()
-                            && lifetime_arguments.iter().all(|lifetime| {
-                                !self
-                                    .lifetimes
-                                    .iter()
-                                    .any(|binding| binding.parameter == *lifetime)
-                                    && crate::type_identity::lifetime_parameter_identity(
-                                        program,
-                                        self.region_scope,
-                                        lifetime.as_str(),
-                                    )
-                                    .is_some()
-                            })
-                        {
-                            applied_owner = self.region_scope;
-                        }
-                        let lifetimes = lifetime_arguments
-                            .iter()
-                            .enumerate()
-                            .map(|(slot, lifetime)| {
-                                self.scoped_lifetime(program, original, slot, lifetime)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        for lifetime in &lifetimes {
-                            if lifetime.region.declaration.is_valid()
-                                && crate::type_identity::lifetime_parameter_name(
+                    let nominal_owner = self.symbol(base_symbol);
+                    if !applied_owner.is_valid()
+                        && !lifetime_arguments.is_empty()
+                        && lifetime_arguments.iter().all(|lifetime| {
+                            !self
+                                .lifetimes
+                                .iter()
+                                .any(|binding| binding.parameter == *lifetime)
+                                && crate::type_identity::lifetime_parameter_identity(
                                     program,
-                                    lifetime.region,
-                                ) != Some(&lifetime.name)
+                                    self.region_scope,
+                                    lifetime.as_str(),
+                                )
+                                .is_some()
+                        })
+                    {
+                        applied_owner = self.region_scope;
+                    }
+                    if !applied_owner.is_valid()
+                        && lifetime_arguments
+                            .iter()
+                            .any(|lifetime| self.elided_lifetimes.contains(lifetime))
+                    {
+                        applied_owner = self.region_scope;
+                    }
+                    let lifetimes = if lifetime_arguments.is_empty()
+                        && self.invocation_elision.is_some()
+                    {
+                        let count = program
+                            .unique_data_definition_by_symbol(base_symbol)
+                            .map_or(0, |data| data.lifetime_parameters.len());
+                        let regions = (0..count)
+                            .map(|_| self.invocation_region(program))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        if let Some(first) = regions.first() {
+                            applied_owner = first.region.declaration;
+                        }
+                        regions
+                    } else {
+                        lifetime_arguments
+                    .iter()
+                    .enumerate()
+                    .map(|(slot, lifetime)| {
+                        if self.elided_lifetimes.contains(lifetime) {
+                            if crate::type_identity::lifetime_parameter_identity(
+                                program,
+                                applied_owner,
+                                lifetime.as_str(),
+                            )
+                            .is_none()
                             {
                                 return Err(
-                                    "applied nominal region lost its exact declaration ordinal",
+                                    "elided nominal result lost its supplying lifetime telescope",
                                 );
                             }
+                            return Ok(super::ScopedCallableLifetime {
+                                name: lifetime.clone(),
+                                region: Default::default(),
+                                origin: super::CallableLifetimeOrigin::Lexical,
+                            });
                         }
-                        if let Some((environment, _)) = &self.trait_region_application {
-                            let supplier = environment.argument_owner();
-                            if lifetimes.iter().all(|lifetime| {
-                                lifetime.origin == CallableLifetimeOrigin::Captured
-                                    && crate::type_identity::lifetime_parameter_identity(
-                                        program,
-                                        supplier,
-                                        lifetime.name.as_str(),
-                                    ) == Some(lifetime.region)
-                            }) {
-                                applied_owner = supplier;
-                            } else if !applied_owner.is_valid() {
-                                applied_owner = self.region_scope;
-                            }
+                        if self.invocation_elision.is_some() && program.type_reference_table.operand_lifetimes(original).get(slot).is_some_and(|region| !region.declaration.is_valid()) {
+                            return self.invocation_region(program);
                         }
-                        applied_lifetimes.extend(lifetimes.iter().map(|lifetime| lifetime.region));
-                        types::TypeReferenceNode::Generic {
-                            base_symbol: nominal_owner,
-                            base_name,
-                            lifetime_arguments: lifetimes
-                                .into_iter()
-                                .map(|lifetime| lifetime.name)
-                                .collect(),
-                            arguments: self.type_arguments(program, arguments)?,
+                        self.scoped_lifetime(program, original, slot, lifetime)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+                    };
+                    for lifetime in &lifetimes {
+                        if lifetime.region.declaration.is_valid()
+                            && crate::type_identity::lifetime_parameter_name(
+                                program,
+                                lifetime.region,
+                            ) != Some(&lifetime.name)
+                        {
+                            return Err(
+                                "applied nominal region lost its exact declaration ordinal",
+                            );
                         }
+                    }
+                    if let Some((environment, _)) = &self.trait_region_application {
+                        let supplier = environment.argument_owner();
+                        if lifetimes.iter().all(|lifetime| {
+                            lifetime.origin == CallableLifetimeOrigin::Captured
+                                && crate::type_identity::lifetime_parameter_identity(
+                                    program,
+                                    supplier,
+                                    lifetime.name.as_str(),
+                                ) == Some(lifetime.region)
+                        }) {
+                            applied_owner = supplier;
+                        } else if !applied_owner.is_valid() {
+                            applied_owner = self.region_scope;
+                        }
+                    }
+                    applied_lifetimes.extend(lifetimes.iter().map(|lifetime| lifetime.region));
+                    types::TypeReferenceNode::Generic {
+                        base_symbol: nominal_owner,
+                        base_name,
+                        lifetime_arguments: lifetimes
+                            .into_iter()
+                            .map(|lifetime| lifetime.name)
+                            .collect(),
+                        arguments: self.type_arguments(program, arguments)?,
                     }
                 }
                 types::TypeReferenceNode::ConstExpression(expression) => {
@@ -4354,7 +4571,7 @@ pub(crate) mod payloads {
                             .type_reference_table
                             .type_reference_handles(cast.semantic_domain_arguments)
                             .to_vec();
-                        cast.semantic_domain_id = Self::domain_identity(
+                        cast.semantic_domain_id = self.domain_identity(
                             program,
                             cast.semantic_domain_symbol,
                             &arguments,
@@ -4532,136 +4749,6 @@ pub(crate) mod payloads {
                 }
             }
             Ok(())
-        }
-    }
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::{data::DataDefinition, machine::Machine, name::Identifier};
-        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-
-        #[test]
-        fn inferred_actual_lifetimes_preserve_nominal_and_foreign_owners() {
-            let mut symbols = SymbolTableBuilder::default();
-            let payload = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Payload"));
-            let selected =
-                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("selected"));
-            let foreign =
-                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("foreign"));
-            let mut program = TypedTrees {
-                symbols: symbols.finish(),
-                ..Default::default()
-            };
-            program.push_data_definition(DataDefinition {
-                symbol: payload,
-                name: Identifier::generated("Payload"),
-                lifetime_parameters: vec![Identifier::generated("stored")],
-                ..Default::default()
-            });
-            for owner in [selected, foreign] {
-                program.push_machine(Machine {
-                    symbol: owner,
-                    lifetime_parameters: vec![Identifier::generated("text")],
-                    ..Default::default()
-                });
-            }
-            for (owner, resolved) in [selected, foreign]
-                .into_iter()
-                .flat_map(|owner| [(owner, false), (owner, true)])
-            {
-                let reference =
-                    program
-                        .type_reference_table
-                        .insert(types::TypeReferenceNode::Generic {
-                            base_symbol: payload,
-                            base_name: Identifier::generated("Payload"),
-                            lifetime_arguments: vec![Identifier::generated("text")],
-                            arguments: Default::default(),
-                        });
-                program
-                    .type_reference_table
-                    .retain_operand_lifetime_owner(reference, owner)
-                    .unwrap();
-                assert_eq!(
-                    program
-                        .instantiate_callable_type(reference, &[], &[], selected)
-                        .unwrap(),
-                    reference,
-                    "an unchanged occurrence retains its source application and identity"
-                );
-                if resolved {
-                    program
-                        .type_reference_table
-                        .retain_operand_lifetimes(
-                            reference,
-                            [crate::type_identity::LifetimeParameterIdentity {
-                                declaration: owner,
-                                ordinal: 0,
-                            }],
-                        )
-                        .unwrap();
-                }
-                let actual = program
-                    .instantiate_callable_type(
-                        reference,
-                        &[],
-                        &[(Identifier::generated("text"), None)],
-                        selected,
-                    )
-                    .unwrap();
-                if owner == selected {
-                    assert!(matches!(program.type_reference_node(actual),
-                        types::TypeReferenceNode::Named { symbol, .. } if *symbol == payload));
-                } else {
-                    assert!(matches!(program.type_reference_node(actual),
-                        types::TypeReferenceNode::Generic { base_symbol, lifetime_arguments, .. }
-                        if *base_symbol == payload && lifetime_arguments.len() == 1 && lifetime_arguments[0].as_str() == "text"));
-                    assert_eq!(
-                        program.type_reference_table.operand_lifetime_owner(actual),
-                        foreign
-                    );
-                    if resolved {
-                        assert_eq!(
-                            program.type_reference_table.operand_lifetimes(actual)[0].declaration,
-                            foreign
-                        );
-                    } else {
-                        assert!(
-                            !program
-                                .type_reference_table
-                                .has_resolved_operand_lifetimes(actual)
-                        );
-                        assert_eq!(
-                            crate::type_identity::lifetime_parameter_identity(
-                                &program,
-                                program.type_reference_table.operand_lifetime_owner(actual),
-                                "text",
-                            )
-                            .unwrap()
-                            .declaration,
-                            foreign,
-                            "an unresolved name still resolves in its original lexical owner"
-                        );
-                    }
-                }
-                assert!(
-                    matches!(program.type_reference_node(reference),
-                    types::TypeReferenceNode::Generic { lifetime_arguments, .. }
-                    if lifetime_arguments.len() == 1 && lifetime_arguments[0].as_str() == "text"),
-                    "forming an actual cannot alter the declared promise"
-                );
-                assert!(
-                    program
-                        .instantiate_callable_type(
-                            reference,
-                            &[],
-                            &[(Identifier::generated("missing"), None)],
-                            selected,
-                        )
-                        .is_err(),
-                    "an undeclared region cannot become an inference variable"
-                );
-            }
         }
     }
 }
@@ -7230,7 +7317,7 @@ pub(crate) mod signatures {
                             .type_reference_table
                             .type_reference_handles(membership.domain_arguments)
                             .to_vec();
-                        membership.semantic_domain = Self::domain_identity(
+                        membership.semantic_domain = self.domain_identity(
                             program,
                             membership.domain_symbol,
                             &arguments,
@@ -8751,6 +8838,11 @@ pub(crate) struct CallableApplication {
     lifetime_declaration: SymbolHandle,
     lifetimes: Vec<CallableLifetimeBinding>,
     elided_lifetimes: Vec<crate::name::Identifier>,
+    invocation_elision: Option<(
+        SymbolHandle,
+        usize,
+        crate::type_identity::identity_context::SignatureElision,
+    )>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
     static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
     static_argument_owner: SymbolHandle,
@@ -8785,39 +8877,41 @@ struct ScopedCallableLifetime {
 }
 
 impl CallableApplication {
-    fn elides_lifetime(
+    fn invocation_region(
         &self,
-        program: &TypedTrees,
-        reference: types::TypeReferenceHandle,
-        slot: usize,
-        name: &crate::name::Identifier,
-    ) -> bool {
-        if !self.elided_lifetimes.contains(name) {
-            return false;
+        program: &mut TypedTrees,
+    ) -> Result<ScopedCallableLifetime, &'static str> {
+        let (owner, position, elision) = self
+            .invocation_elision
+            .as_ref()
+            .ok_or("invocation has no elision scope")?;
+        let ordinal = elision
+            .region()
+            .ok_or("invocation result has ambiguous lifetime elision")?;
+        let machine = program
+            .machines_mut()
+            .get_mut(*position)
+            .filter(|machine| machine.symbol == *owner)
+            .ok_or("invocation lost its unique lifetime declaration")?;
+        if machine.lifetime_parameters.len() == ordinal {
+            machine
+                .lifetime_parameters
+                .push(crate::name::Identifier::generated(format!(
+                    "@invocation-region-{ordinal}"
+                )));
         }
-        let owner = program
-            .type_reference_table
-            .operand_lifetime_owner(reference);
-        let region = program
-            .type_reference_table
-            .operand_lifetimes(reference)
-            .get(slot)
-            .copied()
-            .filter(|region| region.declaration.is_valid())
-            .or_else(|| {
-                lifetime_parameter_identity(
-                    program,
-                    if owner.is_valid() {
-                        owner
-                    } else {
-                        self.region_scope
-                    },
-                    name.as_str(),
-                )
-            });
-        region.is_some_and(|region| {
-            region.declaration == program.lifetime_declaration_owner(self.region_scope)
-                && crate::type_identity::lifetime_parameter_name(program, region) == Some(name)
+        let name = machine
+            .lifetime_parameters
+            .get(ordinal)
+            .cloned()
+            .ok_or("invocation elision skipped a declaration ordinal")?;
+        Ok(ScopedCallableLifetime {
+            name,
+            region: crate::type_identity::LifetimeParameterIdentity {
+                declaration: *owner,
+                ordinal,
+            },
+            origin: CallableLifetimeOrigin::Lexical,
         })
     }
 
@@ -9120,40 +9214,17 @@ impl TypedTrees {
         Ok(())
     }
 
-    /// Construct an actual type occurrence without changing the declaration's
-    /// lifetime promises. An omitted invocation lifetime is inferred from the
-    /// actual value and its use by the ordinary call checker.
-    pub fn instantiate_callable_type(
+    pub fn apply_callable_result_type(
         &mut self,
         original: types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
         lifetimes: &[(crate::name::Identifier, Option<crate::name::Identifier>)],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
-        // A no-op must retain the occurrence's existing application records;
-        // rebuilding its spelling alone can lose the selected query operand.
-        if original.is_valid() && !self.type_reference_table.contains_type_reference(original) {
-            return Err("an actual type has no retained source occurrence");
-        }
-        if substitutions.is_empty() && lifetimes.is_empty() {
-            return Ok(original);
-        }
         let mut application = CallableApplication {
             region_scope: declaration,
-            types: substitutions.to_vec(),
             ..CallableApplication::default()
         };
         for (parameter, argument) in lifetimes {
-            let owner = self.lifetime_declaration_owner(declaration);
-            if !crate::type_identity::lifetime_parameter_identity(
-                self,
-                declaration,
-                parameter.as_str(),
-            )
-            .is_some_and(|region| region.declaration == owner)
-            {
-                return Err("callable lifetime argument has no exact declaration binder");
-            }
             if let Some(argument) = argument {
                 application.lifetimes.push(CallableLifetimeBinding {
                     parameter: parameter.clone(),
@@ -9187,6 +9258,136 @@ impl TypedTrees {
                     origin: CallableLifetimeOrigin::Lexical,
                 })
                 .collect(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// Close the whole invocation signature in input order. Elided inputs
+    /// introduce private caller binders once; the result uses the same policy
+    /// as callable schemas, before any recursive value construction occurs.
+    pub fn instantiate_invocation_signature(
+        &mut self,
+        parameters: &[types::TypeReferenceHandle],
+        result: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        declaration: crate::callable_signature_shapes::CallableDeclaration<'_>,
+        caller: &mut crate::machine::Machine,
+    ) -> Result<(Vec<types::TypeReferenceHandle>, types::TypeReferenceHandle), &'static str> {
+        let declared = declaration.lifetime_parameters(self)?.to_vec();
+        if declared != caller.lifetime_parameters {
+            return Err("generated caller has a different lifetime telescope");
+        }
+        let positions = self.machine_positions_for_symbol(caller.symbol);
+        let [position] = positions.as_slice() else {
+            return Err("invocation lost its unique caller");
+        };
+        let mut application = CallableApplication {
+            region_scope: declaration.symbol(),
+            types: substitutions.to_vec(),
+            lifetimes: declared
+                .iter()
+                .enumerate()
+                .map(|(ordinal, name)| CallableLifetimeBinding {
+                    parameter: name.clone(),
+                    argument: name.clone(),
+                    region: crate::type_identity::LifetimeParameterIdentity {
+                        declaration: caller.symbol,
+                        ordinal,
+                    },
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+                .collect(),
+            invocation_elision: Some((
+                caller.symbol,
+                *position as usize,
+                crate::type_identity::identity_context::SignatureElision::inputs(declared.len()),
+            )),
+            ..Default::default()
+        };
+        let parameters = parameters
+            .iter()
+            .map(|reference| application.type_reference(self, *reference))
+            .collect::<Result<Vec<_>, _>>()?;
+        application
+            .invocation_elision
+            .as_ref()
+            .unwrap()
+            .2
+            .enter_result(declared.len(), 0);
+        let result = application.type_reference(self, result)?;
+        caller.lifetime_parameters = self
+            .machine_by_symbol(caller.symbol)
+            .ok_or("invocation lost its current caller")?
+            .lifetime_parameters
+            .clone();
+        Ok((parameters, result))
+    }
+
+    /// A selected member's lifetime parameters belong to its enclosing data
+    /// application. Apply that tuple before using the member in another scope;
+    /// an omitted tuple keeps ordinary lifetime elision.
+    pub fn instantiate_data_member_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        application: types::TypeReferenceHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let definition = self
+            .closed_data_definition(application)
+            .ok_or("input member lost its closed data application")?;
+        let declaration = definition.symbol;
+        let parameters = definition.lifetime_parameters.clone();
+        let application = self
+            .type_reference_table
+            .unconstrained_type_reference(application);
+        let supplied = match self.type_reference_node(application) {
+            types::TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } => lifetime_arguments.clone(),
+            types::TypeReferenceNode::Named { .. } => Vec::new(),
+            _ => return Err("input member has no nominal enclosing application"),
+        };
+        if supplied.is_empty() {
+            return self.apply_callable_result_type(
+                original,
+                &parameters
+                    .into_iter()
+                    .map(|parameter| (parameter, None))
+                    .collect::<Vec<_>>(),
+                declaration,
+            );
+        }
+        if supplied.len() != parameters.len() {
+            return Err("input member lost its complete enclosing lifetime tuple");
+        }
+        let owner = self
+            .type_reference_table
+            .operand_lifetime_owner(application);
+        let retained = self.type_reference_table.operand_lifetimes(application);
+        let lifetimes = parameters
+            .into_iter()
+            .zip(supplied)
+            .enumerate()
+            .map(|(slot, (parameter, argument))| {
+                let region = match retained.get(slot).copied() {
+                    Some(region) if region.declaration.is_valid() => Some(region),
+                    Some(_) => {
+                        return Err("input member lifetime still has an unmaterialized elision");
+                    }
+                    None => lifetime_parameter_identity(self, owner, argument.as_str()),
+                }
+                .ok_or("input member lifetime lost its actual supplying declaration")?;
+                Ok(CallableLifetimeBinding {
+                    parameter,
+                    argument,
+                    region,
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        CallableApplication {
+            region_scope: declaration,
+            lifetimes,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

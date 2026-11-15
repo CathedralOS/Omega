@@ -4,7 +4,7 @@
 boundary trait Choosing {
     machine choose<Value, machine Callback>(value: &Value, number: u64) -> bool reaches
     requires machine Callback(argument: &Value, count: u64) -> bool requires count <= 512;
-    requires number <= 64;
+    requires number <= 64 crashes none;
 }
 
 ArmChoice satisfies Choosing {
@@ -56,7 +56,7 @@ machine run_case(item_code: u64, expected: bool) reaches Choosing, DirectRouting
     machine bad() crashes Trap { crash Trap; }
 }
 
-boundary trait DirectRouting { machine direct(item: &Item) -> bool reaches Choosing; }
+boundary trait DirectRouting { machine direct(item: &Item) -> bool reaches Choosing crashes none; }
 DirectCode satisfies DirectRouting {
     machine direct(item: &Item) -> bool reaches Choosing { Choosing::choose<Item, matches>(item, 42) }
 }

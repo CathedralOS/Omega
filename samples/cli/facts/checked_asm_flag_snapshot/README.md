@@ -46,16 +46,13 @@ Windows x86-64 ProgramEntry: an ARM entry binding would demand an instruction
 catalog the realized target cannot supply, so these programs are not
 host-runnable on ARM machines.
 
-Each positive is pinned under `tests/omega/pass/facts/checked_asm_flag_snapshot*`.
-The [root invalid twin](invalid/main.omg) changes only the required bit from
-64 to 0. The [parameter twin](invalid_parameter/main.omg) changes only the
-actual's bit; the [field twin](invalid_field/main.omg) changes only its label
-requirement. Separate fail fixtures preserve rejection after a direct field
-overwrite, a scalar-leaf alias write and a whole-record reborrow write. An
-opaque environmental snapshot without arithmetic production cannot establish
-the bit. Omitted `rflags` and omitted `r10` controls each remove one clobber
-without changing the instructions or values. General bitwise/shift/cast proof
-formation controls live under `tests/omega/{pass,fail}/arithmetic/checked_flag_proof_*`.
+The [root invalid twin](invalid/main.omg) changes only the required bit from 64 to 0.
+The [parameter twin](invalid_parameter/main.omg) changes only the actual's bit; the
+[field twin](invalid_field/main.omg) changes only its label requirement. Separate fail
+fixtures preserve rejection after a direct field overwrite, a scalar-leaf alias write
+and a whole-record reborrow write. An opaque environmental snapshot without arithmetic
+production cannot establish the bit. Omitted `rflags` and omitted `r10` controls each
+remove one clobber without changing the instructions or values.
 
 ## End-to-end contract
 
@@ -112,11 +109,6 @@ are inputs to the exact-candidate gates. Final qualification is recorded
 separately in `build/slot7/qualification.json`; the observations above remain
 development evidence.
 
-The former rejecting `asm/scratch_hardware_flag_mix` source is unchanged under
-`tests/omega/pass/asm/`. Its guard deliberately takes `Trap`: the development
-run observed native signal 4 and Terminal typed `Trap` agreement, with CLI
-exit 255. Its corpus oracle is `trap`, not an ordinary numeric success.
-
 This instruction cohort applies to x86 target bodies. The Build entries bind
 x86-64 targets only; only Linux x86-64 executed here.
 Windows x86-64 execution and other hosts remain unmeasured. Flag restoration,
@@ -129,7 +121,7 @@ scope. This mechanism does not close the entire checked-assembly requirement.
 [Mixed functions](stack_functions/main.omg) places an ordinary return, a
 structured PUSHFQ snapshot and directed floating-point division in one object.
 Its [invalid twin](stack_functions/invalid/main.omg) omits only the snapshot's
-required r15 clobber. Both are pinned under `tests/omega/{pass,fail}/facts`.
+required r15 clobber.
 
 Selected instruction IDs restart in each function. Temporary storage joins the
 complete selected function/block/instruction roster, including terminators, to

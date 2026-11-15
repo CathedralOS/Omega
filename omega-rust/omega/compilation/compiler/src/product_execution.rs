@@ -3,9 +3,8 @@ We plan each requested compilation stop (`Check`, `Terminal`, `Native`,
 `Inspection`, or `Component`) and finish its product.
 
 The compiler owns batch ordering and shared Terminal production. A `Check` or
-`Inspection` stop joins the shared portable Terminal batch
-(`TerminalProductUse::Declarations` / `Inspection`): the accepted program is
-produced once, its target-local scalar conditions and task activations are
+`Inspection` stop joins the shared portable Terminal batch: each accepted
+source selection is produced once, its target-local scalar conditions and task activations are
 checked against the target's settled provider plans, and permission and trust
 admission run on the sealed `CheckedCompilation`, so planning alone never
 grants authority to publish.
@@ -40,6 +39,13 @@ pub enum CompilationProduct {
 }
 
 impl CompilationProduct {
+    pub(crate) fn inspection_name(&self) -> Option<&str> {
+        match self {
+            Self::Inspection(name) => Some(name),
+            _ => None,
+        }
+    }
+
     pub fn optimization_rollback(&self) -> crate::OptimizationRollback {
         match self {
             Self::Terminal(rollback) => rollback.clone(),
@@ -293,7 +299,7 @@ impl CheckingCompilation {
     }
 
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
-        TerminalProductRequest::declarations(&mut self.realization.custody, &self.selections)
+        TerminalProductRequest::new(&mut self.realization.custody, &self.selections)
     }
 
     pub(crate) fn finish(
@@ -461,9 +467,9 @@ impl ProductRequest {
             }
         };
         let requested = match product {
-            CompilationProduct::Inspection(machine) => {
+            CompilationProduct::Inspection(_) => {
                 return Ok(TerminalCompilation::Inspection(
-                    inspection::InspectionCompilation::new(realization, machine),
+                    inspection::InspectionCompilation::new(realization),
                 ));
             }
             CompilationProduct::Check => ProductReportRequest::Check,

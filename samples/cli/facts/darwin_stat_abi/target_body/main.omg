@@ -10,10 +10,10 @@ use omega::language::core::widen_u32_to_u64;
 use omega_language_std::targets::macos_arm64::filesystem_abi;
 
 public boundary trait StatExchange {
-    machine fill(value: &mut DarwinStat) reaches;
-    machine check(value: &DarwinStat) -> u64 reaches;
-    machine extent() -> u64 reaches;
-    machine alignment() -> u64 reaches;
+    machine fill(value: &mut DarwinStat) reaches crashes none;
+    machine check(value: &DarwinStat) -> u64 reaches crashes none;
+    machine extent() -> u64 reaches crashes none;
+    machine alignment() -> u64 reaches crashes none;
 }
 OtherPolicy satisfies FixedLayout<DarwinStatRecord> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
@@ -52,8 +52,8 @@ machine observe(value: DarwinStat) -> bool reaches StatExchange {
     value.dev == -2147483647i32 && value.mode == 33188u16 && value.nlink == 3u16 && value.ino == 4294967298u64 && value.uid == 123u32 && value.gid == 456u32 && value.rdev == -123456789i32 && value.atime.seconds == -17i64 && value.atime.nanoseconds == 123456789i64 && value.mtime.seconds == 42i64 && value.mtime.nanoseconds == 987654321i64 && value.ctime.seconds == -9i64 && value.ctime.nanoseconds == 111111111i64 && value.btime.seconds == 77i64 && value.btime.nanoseconds == 222222222i64 && value.size == 8589934593i64 && value.blocks == 123456i64 && value.blksize == 4096i32 && value.flags == 2147483649u32 && value.generation == 2882400001u32 && value.reserved == -314159i32 && value.spare[0] == -4294967297i64 && value.spare[1] == 68719476737i64 && StatExchange::check(&value) == 0u64 && StatExchange::extent() == size_of<DarwinStat>() && StatExchange::alignment() == align_of<DarwinStat>() && size_of<DarwinStat>() == 144u64 && align_of<DarwinStat>() == 8u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(value.dev)) == 2147483649u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(value.rdev)) == 4171510507u64
 }
 public boundary trait StatDelivery {
-    machine value() -> DarwinStat reaches StatExchange;
-    machine marker() -> u64 reaches;
+    machine value() -> DarwinStat reaches StatExchange crashes none;
+    machine marker() -> u64 reaches crashes none;
 }
 FirstDelivery satisfies StatDelivery {
     machine value() -> DarwinStat reaches StatExchange { receive() }

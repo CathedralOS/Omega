@@ -84,13 +84,6 @@ arm. Integrated validation must justify the actual outcome from the complete
 authority and frontier obligations. Equal geometry supplies no authority;
 different roots alone neither authorize nor forbid a combination.
 
-## Pinned fixtures
-
-Pass fixtures `tests/omega/pass/facts/content_reunion_through_<place>_exit`
-copy the place program and record native exit 0. Fail fixtures
-`tests/omega/fail/facts/content_reunion_through_<place>_rejected` copy the
-twin. Each invalid sample carries `sample.json` with the same fragments.
-
 ## Requirements and evidence
 
 - **Owning contract:** [content custody](../../../../wiki/spec/resources/content_custody.md)
@@ -113,9 +106,7 @@ twin. Each invalid sample carries `sample.json` with the same fragments.
    state, a forwarding machine, and four target bodies. Each twin differs
    only by partitioning `issue()` and dropping the input root.
 4. **Soundness boundaries:** all nine twins reject during checking. Equal
-   intervals do not grant the input's ownership. Overlap, gaps, mutation, and
-   mixed-origin controls under `tests/omega/fail/core/content_reunion_*`
-   remain separate from this row.
+   intervals do not grant the input's ownership.
 5. **Checked-to-Terminal Psi lowering:** the positive places lower the
    reunion, the domain obligation, and the exit choice into Terminal Psi.
    `omega run --both` agrees on interpreter exit 0 and native exit 0.

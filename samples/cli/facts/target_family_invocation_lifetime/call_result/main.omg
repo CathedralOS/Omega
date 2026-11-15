@@ -6,7 +6,7 @@ machine pick<'call, Context>(context: Context, item: &'call u64) -> &'call u64 {
 boundary trait SelectedApply {
  machine apply<'item, Context, machine Selected>(context: Context, item: &'item u64) -> &'item u64
 requires machine Selected<'fresh>(environment: Context, value: &'fresh u64) -> &'fresh u64;
- reaches;
+ reaches crashes none;
 }
 LinuxArm64Apply satisfies SelectedApply {
  machine apply<'item, Context, machine Selected>(context: Context, item: &'item u64) -> &'item u64

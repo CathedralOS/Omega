@@ -1,7 +1,0 @@
-{
-  "source/library/numerics/numeric/numeric_accuracy_policy.omg": "f5ff964fb5d6d0e2ca93608be0c83469a84c5e176ea82f6f6aed08f2e74c49eb",
-  "samples/cli/scientific/w100/nf02_numeric_accuracy_policy/EXPECTATIONS.txt": "1436c7a2d4548ab869006677fba76decba17456d4a523d5c81b2e1897280599e",
-  "samples/cli/scientific/w100/nf02_numeric_accuracy_policy/classification/main.omg": "e103d445e14aa8901d9218a8067fd515222276a0bb5a15f1bba37ff6087aa333",
-  "samples/cli/scientific/w100/nf02_numeric_accuracy_policy/error_budget/main.omg": "792da11285d878499893abff4f3e93ead39b2db887c1d1a6c62eed703f21a8c4",
-  "revision": "cab58211668083d7f5e0a048ba687bbc81da6923"
-}

@@ -34,11 +34,3 @@ histograms and moments. Application source was recovered from literals and
 explicitly recorded text edits; complete historical archive identity has not
 been established. No old package decisions or lock files are transferred.
 
-For qualification, compile the accepted application once through the ordinary
-native route, then supply that exact executable to
-`validate.py --route native --executable PATH`. `validate.py --route terminal
---omega PATH` compiles once with `omega run --both --inputs data` and checks
-both engines' actual stdout, stderr, and exit for the same 19 inputs. Run the separate refusal with
-`validate.py --route ../invalid_weighted_lattice --omega PATH`. The validator checks every frozen
-file, exact stream, exit, case count, and intended diagnostic; it never accepts
-package decisions or regenerates expected results.

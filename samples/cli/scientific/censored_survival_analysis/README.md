@@ -32,16 +32,13 @@ placeholder. No p-value or asymptotic significance claim is made.
 
 The median threshold uses an exact four-limb product fraction (bounded by 32!),
 so rounding near one half cannot change its status. The solver rescans risk sets
-at distinct times, so record order cannot affect counts. `validation/reference.py` freezes exact Fraction product-limit tables
-and independently enumerates all equally likely event subsets at each event
-time for log-rank expectation/variance. Frozen inputs, expectations and roster
-are authenticated by `oracle-freeze.sha256`; do not regenerate to accommodate
-execution results. Additional review challenges are frozen independently in
-`extra-freeze.sha256`; `all_cases.txt` joins the 44 unique cases. Run `python -B validation/validate.py --native IMAGE --captures DIR`,
-or `python -B validation/validate.py --terminal SPONSOR --captures DIR`. Both verify exact counts/statuses and
-absolute numerical error at most 1e-9. The Terminal sponsor retains and executes
-the accepted native product's exact Terminal artifact and runtime provisions,
-and captures its actual stdout/stderr; exit parity alone is insufficient.
+at distinct times, so record order cannot affect counts. Frozen inputs,
+expectations and roster are authenticated by `oracle-freeze.sha256`; do not
+regenerate to accommodate execution results. Additional review challenges are
+frozen independently in `extra-freeze.sha256`; `all_cases.txt` joins the 44
+unique cases. The Terminal sponsor retains and executes the accepted native
+product's exact Terminal artifact and runtime provisions, and captures its
+actual stdout/stderr; exit parity alone is insufficient.
 
 The separate `controls/intended_invalid` project must reject negative, past-end,
 and unproved dynamic array access. It is never accepted or run. This source control complements
@@ -51,6 +48,5 @@ all valid dynamic indexing obligations.
 Qualification uses 25 valid cases and 19 runtime refusals, with 985 numerical
 fields per execution route. Native and actual captured Terminal outputs meet
 1e-9 absolute tolerance; the measured maximum is 6.4e-11. Exact row counts and
-statuses are checked separately. The sample gate also discovers and verifies
-the three source-invalid indexing diagnostics. See `validation/QUALIFICATION.md`
-for producer and evidence provenance.
+statuses are checked separately. The sample gate also discovers and verifies the
+three source-invalid indexing diagnostics.

@@ -38,7 +38,7 @@ ensures result >= 100
 boundary trait SelectedRead {
     machine read(packet: Packet, width: u32) -> u64 reaches
     requires width == 16 || width == 32
-    ensures result >= 100;
+    ensures result >= 100 crashes none;
 }
 HostedRead satisfies SelectedRead {
     machine read(packet: Packet, width: u32) -> u64

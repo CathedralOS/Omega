@@ -33,9 +33,7 @@ every corresponding positive must accept to distinguish this from the old
 homonym mismatch.
 
 Every positive declares `Expected exit: 0` and all four hosted `ProgramEntry`
-bindings. Byte-identical source/Build mirrors live under
-`tests/omega/pass/facts/lexical_generic_bound_through_<place>_exit` and
-`tests/omega/fail/facts/lexical_generic_bound_through_<place>_rejected`.
+bindings.
 
 ## Requirements and evidence
 

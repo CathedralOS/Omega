@@ -86,6 +86,80 @@ const GENERIC_DOMAIN: &str = "module units; public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
 
 #[test]
+fn a_carrier_generic_domain_retains_each_exact_application() {
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    let program = typed(&[
+        ("units.omg", GENERIC_DOMAIN),
+        (
+            "client.omg",
+            "use units; machine first(value: u32 in Distance) -> u32 in Distance { value } machine second(value: u64 in Distance) -> u64 in Distance { value } machine repeated(value: u32 in Distance) -> u32 in Distance { value }",
+        ),
+    ]);
+    let applied = |name| {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        let state = program.machine_states(machine).first().unwrap();
+        let reference = program.state_parameters(state)[0].type_reference;
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            panic!("the formal keeps its qualification");
+        };
+        let [TypeConstraintNode::Domain(domain)] =
+            program.type_reference_table.constraints(*constraints)
+        else {
+            panic!("one selected domain application");
+        };
+        (*base_type, domain)
+    };
+    let (first_carrier, first) = applied("first");
+    let (second_carrier, second) = applied("second");
+    let (_, repeated) = applied("repeated");
+    assert_eq!(
+        first.symbol, second.symbol,
+        "one declaration owns the family"
+    );
+    assert_ne!(
+        first.semantic_id, second.semantic_id,
+        "membership cannot cross carriers"
+    );
+    assert_eq!(
+        first.semantic_id, repeated.semantic_id,
+        "the same application is shared"
+    );
+    for (carrier, constraint) in [(first_carrier, first), (second_carrier, second)] {
+        let arguments = program
+            .domain_arguments_for_instance(constraint.symbol, constraint.semantic_id)
+            .expect("typing retains the whole declaration application");
+        let [applied_carrier] = arguments else {
+            panic!("the generic carrier is the family's only coordinate");
+        };
+        assert_eq!(
+            program.package_qualified_type_identity(*applied_carrier),
+            program.package_qualified_type_identity(carrier),
+        );
+        assert!(
+            program
+                .domain_definition_for_instance(constraint.symbol, constraint.semantic_id)
+                .is_none(),
+            "typing records no applied theory or checking verdict"
+        );
+    }
+    assert_eq!(
+        program
+            .domain_type_parameters(&program.domain_definitions()[0])
+            .len(),
+        1,
+        "applying a family does not rewrite its declaration"
+    );
+}
+
+#[test]
 fn a_generic_operator_retains_its_inferred_application_as_an_ordinary_call() {
     use typed_trees::expression::ExpressionNode;
     let program = typed(&[

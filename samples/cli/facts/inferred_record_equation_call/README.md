@@ -24,9 +24,8 @@ x86-64 only; foreign target declarations are not foreign-host execution.
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) |
 
 Each twin (including [root invalid](invalid/main.omg)) fixes `Setting` explicitly
-to `EIGHT` against the unchanged `Token<SEVEN>` actual. It must reject with
-`has conflicting constructor constants`. The corresponding pass/fail fixtures are
-under `tests/omega/{pass,fail}/facts/inferred_record_equation_call`.
+to `EIGHT` against the unchanged `Token<SEVEN>` actual. It must reject with `has
+conflicting constructor constants`.
 
 ## Requirement and execution path
 

@@ -76,21 +76,20 @@ statistics. Neither parses circuit parameters, solves piecewise equilibria, trac
 feedback, classifies overload or measures recovery. Repository searches found no
 other amplifier workflow. This application is not a renamed existing sample.
 
-`reference.py` uses exact rational affine maps and independently enumerated equilibria.
-The authored fixture inventory and numerical tolerances were frozen before the
-first Omega check/native/Terminal execution in `data/oracle-freeze.json`. Do not run
-`freeze` to bless an execution mismatch. The verifier checks the reference and fixture
-hashes. There are thirteen valid and fourteen invalid input cases, including negative
-feedback, both rail recoveries, damped alternation, positive feedback reaching the
-upper rail, unstable timestep, asymmetric rails, rail equality, continuum and
-zero-denominator drift and positive/negative near-singular algebraic candidates. The
-original 24-case freeze remains unchanged; `data/edge-oracle-freeze.json` separately
-freezes the two near-singular cases and the 64-update parameter-endpoint case
-before their execution. Expected files are reference products, never captured
-Omega output. `controls/invalid_bounds` is a separate complete intended-invalid
-application: its two-slot history is written at index two. It must reject for
-`cannot prove index`; package-review failure, type failure or another reason is
-not acceptance of that control.
+The authored fixture inventory and numerical tolerances were frozen before the first
+Omega check/native/Terminal execution in `data/oracle-freeze.json`. Do not run `freeze`
+to bless an execution mismatch. The verifier checks the reference and fixture hashes.
+There are thirteen valid and fourteen invalid input cases, including negative feedback,
+both rail recoveries, damped alternation, positive feedback reaching the upper rail,
+unstable timestep, asymmetric rails, rail equality, continuum and zero-denominator
+drift and positive/negative near-singular algebraic candidates. The original 24-case
+freeze remains unchanged; `data/edge-oracle-freeze.json` separately freezes the two
+near-singular cases and the 64-update parameter-endpoint case before their execution.
+Expected files are reference products, never captured Omega output.
+`controls/invalid_bounds` is a separate complete intended-invalid application: its
+two-slot history is written at index two. It must reject for `cannot prove index`;
+package-review failure, type failure or another reason is not acceptance of that
+control.
 
 Run from the repository root with one compiler/build/execution at a time:
 
@@ -115,14 +114,11 @@ project compilation operation, executes its produced admitted Terminal artifact 
 finite fixture input and captures stdout/stderr/status, then publishes that same
 native artifact. It uses neither a tree interpreter nor a synthetic exit. The normal
 CLI `--both` compares exit alone; this driver supplies the separate Terminal trace
-oracle. `validation/run.py` executes the published native image serially and checks
-both streams against the unchanged frozen oracle. Build/link commands and observed
-results are recorded in `VALIDATION.md` once executed. Generated artifacts belong
-under ignored `build/`; a transfer bundle carries evidence separately.
+oracle. Generated artifacts belong under ignored `build/`; a transfer bundle carries
+evidence separately.
 
 Observed execution status: all 27 fixtures pass on both native and Terminal,
 including 14 invalid runtime inputs. The separate complete bounds control rejects
 only for its intended index proof failure. Package acceptance was explicitly
 authorized and succeeded on the original project; the current-main compiler
-refresh introduced zero new capability decisions. See [VALIDATION.md](VALIDATION.md)
-for exact identities, commands, tolerances and transfer evidence.
+refresh introduced zero new capability decisions.

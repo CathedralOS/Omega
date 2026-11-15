@@ -31,8 +31,7 @@ observe execution; they do not establish the calls' static obligations.
 
 Each twin changes only `selected_width`: it sends the ordinary runtime argument
 directly to the const-only method. The membership premise, implementations,
-transport and result checks remain. All nine pairs have identical Main and Build
-copies under `tests/omega/{pass,fail}/facts/finite_family_const_roster/`.
+transport and result checks remain.
 
 The target example forwards through `FamilyForward`. Four explicit Build
 choices select `HostedFamily`. Every positive binds all four hosted entries and
@@ -40,20 +39,10 @@ expects exit 0.
 
 ## Focused controls
 
-- The [forwarding program](../../../../tests/omega/pass/traits/finite_family_const_forwarding/main.omg)
-  uses computed const arguments, correlated parameter pairs and a public
-  forwarding machine. Its [twin](../../../../tests/omega/fail/traits/finite_family_const_forwarding/main.omg)
-  removes only that machine's width requirement. The ordinary call-precondition
-  proof must fail.
-- The [missing-row control](../../../../tests/omega/fail/traits/finite_family_const_missing_row/main.omg)
-  declares both runtime widths but removes width 32 from the const-only family.
-  Main calls only width 16. The complete declared family still requires the
+- The ordinary call-precondition proof must fail.
+- Main calls only width 16. The complete declared family still requires the
   missing row.
-- The [uncalled-row program](../../../../tests/omega/pass/traits/finite_family_uncalled_target/main.omg)
-  calls only width 16 while retaining both declared rows. Its
-  [missing-provider control](../../../../tests/omega/fail/traits/finite_family_uncalled_target_missing_supply/main.omg)
-  has identical Main source and removes only the four provider choices.
-  Unconfigured source is valid; target checking must report missing
+- Unconfigured source is valid; target checking must report missing
   `WideRowTarget::preserve` before either engine runs. The target call graph
   follows actual calls in every retained family body, including the uncalled
   wider row. Advertising an invocation ceiling alone does not create this edge.

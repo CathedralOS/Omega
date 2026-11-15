@@ -14,7 +14,6 @@ runtime equality oracle. Each `invalid/` changes only the declared clobbers:
 rax on x86, x0 on AArch64. Both are invented changes for this catalog sequence,
 so every twin must reject for the exact clobber-union obligation. The sequence,
 bound, scalar guarantees and consuming operation are otherwise byte-identical.
-Pins are `tests/omega/{pass,fail}/facts/checked_asm_fence_contracts_through_*`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -28,7 +27,6 @@ Pins are `tests/omega/{pass,fail}/facts/checked_asm_fence_contracts_through_*`.
 | other_state | [source](other_state/main.omg) | [invented clobber](invalid_other_state/main.omg) |
 | other_machine | [source](other_machine/main.omg) | [invented clobber](invalid_other_machine/main.omg) |
 | target_body | [source](target_body/main.omg) | [invented clobber](invalid_target_body/main.omg) |
-
 
 - Establishment: the caller proves input == 37; entry and exit assertions are
   goals. Each catalog operation preserves that exact value and changes no

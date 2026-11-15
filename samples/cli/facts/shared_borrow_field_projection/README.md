@@ -60,26 +60,15 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\cargo-target\debug\omega-latest.exe --filter cli/facts/shared_borrow_field_projection --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 18/18 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
 ## Pinned Fixtures
 
-Each of the nine places is pinned twice in the compiler corpus:
-- **Positive native-exit fixtures:** `tests/omega/pass/facts/shared_borrow_field_projection_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`), binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and recorded in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0`), `tests/omega/corpus_native_macos_arm64.txt` (`built ... exit:0`), and `tests/omega/corpus_outcomes.txt` (`checked`).
-- **Reject twin fixtures:** `tests/omega/fail/facts/shared_borrow_field_projection_through_<place>_rejected/` (`build.omg`, `main.omg`, `expected.txt`), recorded in `tests/omega/corpus_outcomes.txt` (`rejected`).
-
 Both host-pinned native goldens are the measurement:
 
 ```sh
-python3 tools/corpus_gate.py --native --filter facts/shared_borrow_field_projection
 # clean — 9 fixtures ({'built': 9}) ... executed 9 (exit codes {'0': 9})
-python3 tools/corpus_gate.py --filter facts/shared_borrow_field_projection
 # clean — 18 fixtures ({'checked': 9, 'rejected': 9}), 0 rejected without their expected fragment
 ```
 

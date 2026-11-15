@@ -8,7 +8,11 @@ Before repair, the minimal three-case wildcard structural return refuses Termina
 
 Run each positive with omega run --both main.omg. All nine positives execute with exit 0 in both engines on macOS arm64; all nine invalid controls reject for the unchanged subtraction's arithmetic safety obligation. The public CLI also runs the nine sample programs and rejects their twins. Windows native execution of the original filesystem customer is separately deferred to a Windows host.
 
-Establishment and soundness use the declared case payload bound; identity, lifetime and composition preserve that same bound to subtraction. Psi lowering preserves the one authored call, per-case ingress and selected cleanup. Omega settlement/layout/ABI, instruction/frame realization, and native encoding are exercised by each positive's actual native/Terminal execution agreement. The owning fixtures are tests/omega/{pass,fail}/facts/wildcard_structural_return_through_*.
+Establishment and soundness use the declared case payload bound; identity,
+lifetime and composition preserve that same bound to subtraction. Psi lowering
+preserves the one authored call, per-case ingress and selected cleanup. Omega
+settlement/layout/ABI, instruction/frame realization, and native encoding are
+exercised by each positive's actual native/Terminal execution agreement.
 
 ## Build-owned target-body migration
 

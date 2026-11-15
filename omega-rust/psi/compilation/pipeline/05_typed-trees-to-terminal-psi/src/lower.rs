@@ -335,6 +335,7 @@ fn contract_header(
         parameter_order: formals.order,
         structural_parameters: formals.records,
         result,
+        result_lifetimes: None,
         declared_service_reach: match &signature.reaches {
             crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
             crate::Ceiling::Inferred => None,
@@ -526,6 +527,13 @@ impl Lowering<'_> {
                 if block.is_none() && place.get() != formals.records.len() as u64 + 1 {
                     return Err(self.internal("place formals are not the first places"));
                 }
+                // The referent's domains are the formal's: a scalar referent
+                // keeps them on its primitive home type instead.
+                let (qualifications, projected_qualifications) = if scalar {
+                    (Vec::new(), Vec::new())
+                } else {
+                    self.memberships(referent, value_type.qualification())?
+                };
                 formals.records.push(StructuralParameterDeclaration {
                     place,
                     position: lane,
@@ -533,8 +541,8 @@ impl Lowering<'_> {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: places::borrowed_access(borrowed.access)
                         .ok_or_else(|| self.internal("a write-only borrowed formal"))?,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     additional_input_qualifications: Vec::new(),
                 });
                 formals.order.push(BoundaryParameterKind::Structural);
@@ -585,7 +593,7 @@ impl Lowering<'_> {
                 }
                 // A record formal is a root place the machine owns for the
                 // activation; what it holds at entry is entry content.
-                ValueType::Record(record, _, _) => {
+                ValueType::Record(record, qualification, _) => {
                     let lane = self.position(formals.records.len())?;
                     let kind =
                         block.map_or(StructuralPlaceKind::Parameter { position: lane }, |block| {
@@ -600,14 +608,16 @@ impl Lowering<'_> {
                     if block.is_none() && place.get() != formals.records.len() as u64 + 1 {
                         return Err(self.internal("place formals are not the first places"));
                     }
+                    let (qualifications, projected_qualifications) =
+                        self.memberships(record, qualification)?;
                     formals.records.push(StructuralParameterDeclaration {
                         place,
                         position: lane,
                         structural_type: record,
                         multiplicity: self.records.multiplicity(record, self.id)?,
                         access: StructuralAccess::Owned,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
+                        qualifications,
+                        projected_qualifications,
                         additional_input_qualifications: Vec::new(),
                     });
                     formals.order.push(BoundaryParameterKind::Structural);
@@ -653,14 +663,16 @@ impl Lowering<'_> {
                 self.qualify(value, value_type.qualification())?;
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
-            Some(ValueType::Record(record, _, _)) => {
+            Some(ValueType::Record(record, qualification, _)) => {
                 let (place, _) = self.root(StructuralPlaceKind::Result, record)?;
+                let (qualifications, projected_qualifications) =
+                    self.memberships(record, qualification)?;
                 TerminalMachineResult::Structural(StructuralResultDeclaration {
                     place,
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     reference_sources: Vec::new(),
                 })
             }

@@ -10,7 +10,7 @@ public machine marker() -> i32 {
 // These private leaves are unused. Review must disclose both under their
 // authored target, without selecting either as an executable provider.
 boundary trait Wait {
-    machine poll(descriptors: u64, count: u32, timeout: i32) reaches;
+    machine poll(descriptors: u64, count: u32, timeout: i32) reaches crashes none;
 }
 data WaitLeaf {}
 

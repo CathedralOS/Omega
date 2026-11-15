@@ -9,7 +9,7 @@ ensures result == 0u32
 { float::to_bits(value) - 0xFF80_0123u32 }
 
 boundary trait FloatProbe {
-    machine probe() -> u32 reaches ensures result == 0u32;
+    machine probe() -> u32 reaches ensures result == 0u32 crashes none;
 }
 
 WindowsFloatProbe satisfies FloatProbe {

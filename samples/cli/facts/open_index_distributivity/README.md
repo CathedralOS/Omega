@@ -75,8 +75,6 @@ Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64
 ```sh
 omega run --both samples/cli/facts/open_index_distributivity/<place>/main.omg < /dev/null
 omega --check samples/cli/facts/open_index_distributivity/<place>/invalid/main.omg < /dev/null
-python tools/sample_native_gate.py --cli <omega> --facts --filter cli/facts/open_index_distributivity
-python tools/corpus_gate.py --both --filter open_index_distributivity
 ```
 
 Measured on Windows x86-64 with an optimized producer built from `af2cbd5e683` (`opt_level: 1`), base `6e9573fc181` plus this change; the base observations below are from the producer at `05a6f6af37e`, where the defect was first recorded:
@@ -92,10 +90,6 @@ Measured on Windows x86-64 with an optimized producer built from `af2cbd5e683` (
 ## Reject twins
 
 Each twin's `sample.json` carries `"role": "intended-invalid"` and `rejection_contains`. The nine place twins pin `Indexed<A * (B + C)>==Indexed<A * B + A * C>` and `` `multiply` of `IndexSemiring` licenses no law ``. The commutative-semiring twin pins the two forms and `` `multiply` of `IndexSemiring` licenses associativity, distributivity over `add` ``. `foreign_addition` pins `` `multiply` of `IndexProduct` licenses distributivity over `add` `` with `` `add` of `IndexSum` licenses no law ``. `mutual_distributivity` pins `distributivity over` in both directions. `missing_law_member` and `unproved_law` pin the conformance diagnostics, ``closed conformance `Canonical satisfies IndexSemiring` is incomplete`` and ``which the requirement does not imply``; those two reject at base as well, because they exercise the existing conformance checks the license depends on, not this repair.
-
-## Pinned fixtures
-
-The row is pinned by 26 fixtures: `tests/omega/pass/facts/open_index_distributivity_through_<place>_exit` and `tests/omega/fail/facts/open_index_distributivity_through_<place>_rejected` for the nine places, `open_index_distributivity_commutative_semiring_{exit,rejected}`, and `open_index_distributivity_{conditional_law,repeated_operand_law,foreign_addition,mutual_distributivity,missing_law_member,unproved_law}_rejected`. Each pass fixture is a byte-identical copy of its positive with the application renamed to the fixture, plus `expected_native_exit.txt` and `expected_interpreter_exit.txt` of `0`. Each fail fixture is a byte-identical copy of its twin or control with an `expected.txt` carrying its fragments.
 
 ## Requirements and Evidence
 

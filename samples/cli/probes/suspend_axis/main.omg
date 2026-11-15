@@ -23,7 +23,7 @@ data Message<'view> {
 }
 
 public boundary trait Scheduler {
-    machine park() reaches suspends;
+    machine park() reaches suspends crashes none;
 }
 
 data InlineScheduler {}
