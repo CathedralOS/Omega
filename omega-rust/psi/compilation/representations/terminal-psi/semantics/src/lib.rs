@@ -622,14 +622,15 @@ pub use structural::partial_affine::{
     partial_affine_residuals, partial_affine_residuals_in_regions, structural_region_is_vacant,
 };
 pub use structural::primitive_place::{
-    Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
-    byte_carrier_geometry_matches, canonical_inline_region, canonical_primitive_path,
-    canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
-    inline_backing_container, primitive_place_type, primitive_projection_declaration,
-    primitive_projection_restriction, primitive_projection_type, primitive_read_field,
-    primitive_read_projection_type, primitive_read_requirement, projection_stays_in_inline_storage,
+    Position, RuntimeIndexGoalError, StructuralStorageSelection,
+    borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
+    canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
+    canonical_static_projection, fixed_array_place_shape, inline_backing_container,
+    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
+    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
+    primitive_read_requirement, projection_stays_in_inline_storage,
     projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
-    runtime_structural_path_tip, stored_descriptor_paths,
+    runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,

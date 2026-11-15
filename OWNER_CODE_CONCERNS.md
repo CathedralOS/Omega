@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An indexed dispatch discriminator has no canonical seal owner
+- Category: knowledge crossing a boundary
+- Where: [terminator path ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L2384), [native proof provenance](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs#L20)
+- Saw: A hosted machine matching a case of `table.choices[index]` in a two-element array with `requires index < 2` reaches `UnownedSeal` on clean `8db72a0c99` and the operation-owner repair `de996b3d9aa`. Its twin changes only the contract to `index < 3` and both versions refuse at `cannot prove storage index bounds` on the match.
+- Cost: Stage 06 proves the indexed discriminator at its block terminator, before a case chooses an outgoing edge. Canonical receiving provenance names operations and edges. Preserve the existing pre-dispatch execution site through evidence attachment and realization so a chosen edge cannot stand in for the shared read.
+- Reported: 2026-11-14, Codex, while repairing ordinary indexed operation evidence on macOS arm64
+
 ### An explicit undeclared lifetime is reported as a byte-view type gap
 - Category: a verdict with nothing behind it
 - Where: [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L115), [static lifetime controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs)
@@ -121,13 +128,6 @@ framework or a list of features that remain unimplemented.
 - Saw: At `d75251ea39f` the source forest for `machine main() {} machine unused() -> u64 { Missing }` reaches typing and records `UndeclaredValueName` on `unused`. Add an unimported dependency containing `public data Choice { case Missing; }` and resolution of the same client instead fails immediately with `case value Missing requires its carrier-qualified Type::Missing path` (the diagnostic quotes both names).
 - Cost: Whether an unused declaration stops resolution depends on an inaccessible case spelling. Classify the exact authored occurrence through ordinary scoped lookup and preserve the deferred violation on its holder.
 - Reported: 2026-11-14, Codex, while tracing scoped unbound-name verdicts on macOS arm64
-
-### Runtime array index proofs cannot attach to their canonical operations
-- Category: knowledge crossing a boundary
-- Where: [checked index goals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1770), [seal owner reconstruction](omega-rust/psi/compilation/representations/terminal-psi/codec/src/obligation_evidence.rs#L244)
-- Saw: The [lent indexed record control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs#L64) publishes its checked invocation. With a hosted entry, the scalar-policy fix at `3fe15f1a32c` and the provisional universe admission repair, both `omega run --both` and Psi-only execution refuse the in-bounds program at `UnownedSeal`. Bare element types with an explicit saturating add reach the same error. The out-of-bounds twin still rejects each unsafe access.
-- Cost: Checked dynamic reads and writes cannot run through the product path. Stage 06 certifies each runtime path step, while the codec reconstructs only operation-local scalar and byte goals. Reuse each stored path step's exact array extent and obligation in the shared semantic query so several bounds on one operation remain attributable.
-- Reported: 2026-11-14, Codex, while validating mixed policy operands through hosted execution on macOS arm64
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
