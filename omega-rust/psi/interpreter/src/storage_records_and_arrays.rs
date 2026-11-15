@@ -1356,6 +1356,17 @@ pub(crate) mod record {
                 Ok(())
             }
 
+            pub(crate) fn stage_element_view(
+                &mut self,
+                destination: StructuralRuntimePlace,
+                view: crate::storage::element_views::ElementView,
+            ) -> Result<(), TerminalInterpretError> {
+                if self.views.insert(destination, view)?.is_some() {
+                    return Err(malformed());
+                }
+                Ok(())
+            }
+
             pub(crate) fn stage_reference(
                 &mut self,
                 destination: StructuralRuntimePlace,
@@ -4316,6 +4327,12 @@ pub(crate) mod structural_storage {
             /// Plain immutable contents; the receiving declaration still owns
             /// the view's access and predicates. This supplies no qualification.
             Bytes(std::sync::Arc<[u8]>),
+            /// Complete immutable backing, including a descriptor for an empty
+            /// roster. Element contents use canonical FixedIndex prefixes.
+            Elements {
+                length: usize,
+                values: std::sync::Arc<[TerminalBoundaryStorageValue]>,
+            },
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4436,6 +4453,16 @@ pub(crate) mod structural_storage {
             access: StructuralAccess,
             replacement: Option<&[TerminalBoundaryStorageValue]>,
         ) -> Result<StorageDescription, TerminalInterpretError> {
+            describe_at(execution, referent, access, replacement, &[])
+        }
+
+        pub(crate) fn describe_at(
+            execution: &TerminalExecution,
+            referent: &TerminalStructuralValue,
+            access: StructuralAccess,
+            replacement: Option<&[TerminalBoundaryStorageValue]>,
+            prefix: &[Path],
+        ) -> Result<StorageDescription, TerminalInterpretError> {
             let mut leaves = StorageDescription::default();
             collect(
                 execution,
@@ -4444,7 +4471,7 @@ pub(crate) mod structural_storage {
                 access,
                 replacement,
                 None,
-                &mut Vec::new(),
+                &mut prefix.to_vec(),
                 &mut leaves,
             )?;
             Ok(leaves)

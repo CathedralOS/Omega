@@ -1275,6 +1275,7 @@ pub(crate) mod data_cleanup_scopes {
                 lifetime_declaration: declaration,
                 lifetimes: Vec::new(),
                 elided_lifetimes: Vec::new(),
+                invocation_elision: None,
                 types: substitutions,
                 static_arguments: Vec::new(),
                 static_argument_owner: SymbolHandle::invalid(),
@@ -1481,6 +1482,7 @@ pub(crate) mod domain_scopes {
                 lifetime_declaration: declaration,
                 lifetimes: Vec::new(),
                 elided_lifetimes: Vec::new(),
+                invocation_elision: None,
                 types: substitutions,
                 static_arguments: Vec::new(),
                 static_argument_owner: SymbolHandle::invalid(),
@@ -4014,9 +4016,29 @@ pub(crate) mod payloads {
                     {
                         return Ok(*argument);
                     }
-                    types::TypeReferenceNode::Named {
-                        symbol: self.symbol(symbol),
-                        name,
+                    let count = program
+                        .unique_data_definition_by_symbol(symbol)
+                        .map_or(0, |data| data.lifetime_parameters.len());
+                    if self.invocation_elision.is_some() && count != 0 {
+                        let regions = (0..count)
+                            .map(|_| self.invocation_region(program))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        applied_owner = regions[0].region.declaration;
+                        applied_lifetimes.extend(regions.iter().map(|region| region.region));
+                        types::TypeReferenceNode::Generic {
+                            base_symbol: self.symbol(symbol),
+                            base_name: name,
+                            lifetime_arguments: regions
+                                .into_iter()
+                                .map(|region| region.name)
+                                .collect(),
+                            arguments: Default::default(),
+                        }
+                    } else {
+                        types::TypeReferenceNode::Named {
+                            symbol: self.symbol(symbol),
+                            name,
+                        }
                     }
                 }
                 types::TypeReferenceNode::Reference {
@@ -4024,11 +4046,17 @@ pub(crate) mod payloads {
                     access,
                     lifetime,
                 } => {
-                    let lifetime = lifetime
-                        .as_ref()
-                        .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
-                        .map(|lifetime| self.scoped_lifetime(program, original, 0, lifetime))
-                        .transpose()?;
+                    // Reserve the outer slot before traversing its referent,
+                    // exactly as signature identity and stage 05 read inputs.
+                    let lifetime = if lifetime.is_none() && self.invocation_elision.is_some() {
+                        Some(self.invocation_region(program)?)
+                    } else {
+                        lifetime
+                            .as_ref()
+                            .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
+                            .map(|lifetime| self.scoped_lifetime(program, original, 0, lifetime))
+                            .transpose()?
+                    };
                     if let Some(lifetime) = &lifetime {
                         applied_lifetimes.push(lifetime.region);
                         if lifetime.region.declaration.is_valid() {
@@ -4197,7 +4225,21 @@ pub(crate) mod payloads {
                     {
                         applied_owner = self.region_scope;
                     }
-                    let lifetimes = lifetime_arguments
+                    let lifetimes = if lifetime_arguments.is_empty()
+                        && self.invocation_elision.is_some()
+                    {
+                        let count = program
+                            .unique_data_definition_by_symbol(base_symbol)
+                            .map_or(0, |data| data.lifetime_parameters.len());
+                        let regions = (0..count)
+                            .map(|_| self.invocation_region(program))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        if let Some(first) = regions.first() {
+                            applied_owner = first.region.declaration;
+                        }
+                        regions
+                    } else {
+                        lifetime_arguments
                     .iter()
                     .enumerate()
                     .map(|(slot, lifetime)| {
@@ -4219,9 +4261,13 @@ pub(crate) mod payloads {
                                 origin: super::CallableLifetimeOrigin::Lexical,
                             });
                         }
+                        if self.invocation_elision.is_some() && program.type_reference_table.operand_lifetimes(original).get(slot).is_some_and(|region| !region.declaration.is_valid()) {
+                            return self.invocation_region(program);
+                        }
                         self.scoped_lifetime(program, original, slot, lifetime)
                     })
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .collect::<Result<Vec<_>, _>>()?
+                    };
                     for lifetime in &lifetimes {
                         if lifetime.region.declaration.is_valid()
                             && crate::type_identity::lifetime_parameter_name(
@@ -8792,6 +8838,11 @@ pub(crate) struct CallableApplication {
     lifetime_declaration: SymbolHandle,
     lifetimes: Vec<CallableLifetimeBinding>,
     elided_lifetimes: Vec<crate::name::Identifier>,
+    invocation_elision: Option<(
+        SymbolHandle,
+        usize,
+        crate::type_identity::identity_context::SignatureElision,
+    )>,
     types: Vec<(SymbolHandle, types::TypeReferenceHandle)>,
     static_arguments: Vec<(SymbolHandle, crate::expression::StaticMachineArgument)>,
     static_argument_owner: SymbolHandle,
@@ -8826,6 +8877,44 @@ struct ScopedCallableLifetime {
 }
 
 impl CallableApplication {
+    fn invocation_region(
+        &self,
+        program: &mut TypedTrees,
+    ) -> Result<ScopedCallableLifetime, &'static str> {
+        let (owner, position, elision) = self
+            .invocation_elision
+            .as_ref()
+            .ok_or("invocation has no elision scope")?;
+        let ordinal = elision
+            .region()
+            .ok_or("invocation result has ambiguous lifetime elision")?;
+        let machine = program
+            .machines_mut()
+            .get_mut(*position)
+            .filter(|machine| machine.symbol == *owner)
+            .ok_or("invocation lost its unique lifetime declaration")?;
+        if machine.lifetime_parameters.len() == ordinal {
+            machine
+                .lifetime_parameters
+                .push(crate::name::Identifier::generated(format!(
+                    "@invocation-region-{ordinal}"
+                )));
+        }
+        let name = machine
+            .lifetime_parameters
+            .get(ordinal)
+            .cloned()
+            .ok_or("invocation elision skipped a declaration ordinal")?;
+        Ok(ScopedCallableLifetime {
+            name,
+            region: crate::type_identity::LifetimeParameterIdentity {
+                declaration: *owner,
+                ordinal,
+            },
+            origin: CallableLifetimeOrigin::Lexical,
+        })
+    }
+
     fn scoped_lifetime(
         &self,
         program: &TypedTrees,
@@ -9169,6 +9258,136 @@ impl TypedTrees {
                     origin: CallableLifetimeOrigin::Lexical,
                 })
                 .collect(),
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// Close the whole invocation signature in input order. Elided inputs
+    /// introduce private caller binders once; the result uses the same policy
+    /// as callable schemas, before any recursive value construction occurs.
+    pub fn instantiate_invocation_signature(
+        &mut self,
+        parameters: &[types::TypeReferenceHandle],
+        result: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        declaration: crate::callable_signature_shapes::CallableDeclaration<'_>,
+        caller: &mut crate::machine::Machine,
+    ) -> Result<(Vec<types::TypeReferenceHandle>, types::TypeReferenceHandle), &'static str> {
+        let declared = declaration.lifetime_parameters(self)?.to_vec();
+        if declared != caller.lifetime_parameters {
+            return Err("generated caller has a different lifetime telescope");
+        }
+        let positions = self.machine_positions_for_symbol(caller.symbol);
+        let [position] = positions.as_slice() else {
+            return Err("invocation lost its unique caller");
+        };
+        let mut application = CallableApplication {
+            region_scope: declaration.symbol(),
+            types: substitutions.to_vec(),
+            lifetimes: declared
+                .iter()
+                .enumerate()
+                .map(|(ordinal, name)| CallableLifetimeBinding {
+                    parameter: name.clone(),
+                    argument: name.clone(),
+                    region: crate::type_identity::LifetimeParameterIdentity {
+                        declaration: caller.symbol,
+                        ordinal,
+                    },
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+                .collect(),
+            invocation_elision: Some((
+                caller.symbol,
+                *position as usize,
+                crate::type_identity::identity_context::SignatureElision::inputs(declared.len()),
+            )),
+            ..Default::default()
+        };
+        let parameters = parameters
+            .iter()
+            .map(|reference| application.type_reference(self, *reference))
+            .collect::<Result<Vec<_>, _>>()?;
+        application
+            .invocation_elision
+            .as_ref()
+            .unwrap()
+            .2
+            .enter_result(declared.len(), 0);
+        let result = application.type_reference(self, result)?;
+        caller.lifetime_parameters = self
+            .machine_by_symbol(caller.symbol)
+            .ok_or("invocation lost its current caller")?
+            .lifetime_parameters
+            .clone();
+        Ok((parameters, result))
+    }
+
+    /// A selected member's lifetime parameters belong to its enclosing data
+    /// application. Apply that tuple before using the member in another scope;
+    /// an omitted tuple keeps ordinary lifetime elision.
+    pub fn instantiate_data_member_type(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        application: types::TypeReferenceHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let definition = self
+            .closed_data_definition(application)
+            .ok_or("input member lost its closed data application")?;
+        let declaration = definition.symbol;
+        let parameters = definition.lifetime_parameters.clone();
+        let application = self
+            .type_reference_table
+            .unconstrained_type_reference(application);
+        let supplied = match self.type_reference_node(application) {
+            types::TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } => lifetime_arguments.clone(),
+            types::TypeReferenceNode::Named { .. } => Vec::new(),
+            _ => return Err("input member has no nominal enclosing application"),
+        };
+        if supplied.is_empty() {
+            return self.apply_callable_result_type(
+                original,
+                &parameters
+                    .into_iter()
+                    .map(|parameter| (parameter, None))
+                    .collect::<Vec<_>>(),
+                declaration,
+            );
+        }
+        if supplied.len() != parameters.len() {
+            return Err("input member lost its complete enclosing lifetime tuple");
+        }
+        let owner = self
+            .type_reference_table
+            .operand_lifetime_owner(application);
+        let retained = self.type_reference_table.operand_lifetimes(application);
+        let lifetimes = parameters
+            .into_iter()
+            .zip(supplied)
+            .enumerate()
+            .map(|(slot, (parameter, argument))| {
+                let region = match retained.get(slot).copied() {
+                    Some(region) if region.declaration.is_valid() => Some(region),
+                    Some(_) => {
+                        return Err("input member lifetime still has an unmaterialized elision");
+                    }
+                    None => lifetime_parameter_identity(self, owner, argument.as_str()),
+                }
+                .ok_or("input member lifetime lost its actual supplying declaration")?;
+                Ok(CallableLifetimeBinding {
+                    parameter,
+                    argument,
+                    region,
+                    origin: CallableLifetimeOrigin::Lexical,
+                })
+            })
+            .collect::<Result<Vec<_>, &'static str>>()?;
+        CallableApplication {
+            region_scope: declaration,
+            lifetimes,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

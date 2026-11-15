@@ -1970,7 +1970,7 @@ pub(crate) mod identity_context {
 
         /// The schema ordinal of one elided position, or `None` when it is
         /// ambiguous and needs an explicit relation.
-        fn region(&self) -> Option<usize> {
+        pub(crate) fn region(&self) -> Option<usize> {
             match self.position.get() {
                 ElidedPosition::Fresh | ElidedPosition::FirstResult => {
                     let ordinal = self.next.get();
