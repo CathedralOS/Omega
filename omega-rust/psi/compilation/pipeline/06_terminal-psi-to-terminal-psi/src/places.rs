@@ -4139,7 +4139,9 @@ struct Held<'s, 'a> {
 }
 
 /// Extend a clause's exact path. The storage walk independently checks each
-/// field, case and index against the type reached by the previous segment.
+/// field, case, index and referent step against the type reached by the
+/// previous segment, so a clause through a stored reference names what the
+/// reference actually lends there.
 fn extended(
     mut place: Lineage,
     path: &[CanonicalStructuralPathSegment],
@@ -4149,9 +4151,7 @@ fn extended(
             CanonicalStructuralPathSegment::Field(field) => Segment::Field(*field),
             CanonicalStructuralPathSegment::Case(case) => Segment::Case(*case),
             CanonicalStructuralPathSegment::FixedIndex(position) => Segment::FixedIndex(*position),
-            CanonicalStructuralPathSegment::Referent => {
-                return Err(crate::Unbound::Unsupported("a clause through a referent"));
-            }
+            CanonicalStructuralPathSegment::Referent => Segment::Referent,
         });
     }
     Ok(place)
