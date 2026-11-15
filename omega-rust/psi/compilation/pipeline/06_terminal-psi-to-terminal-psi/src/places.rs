@@ -2182,7 +2182,7 @@ impl<'a> Storage<'a> {
                         self.types,
                         source,
                     )
-                    .is_none_or(|access| !access.admits_referent(source.access))
+                    .is_none_or(|available| !source.access.admits_referent(available))
                 {
                     return Err(self.foreign(concerns, "an element read needs a readable view"));
                 }
