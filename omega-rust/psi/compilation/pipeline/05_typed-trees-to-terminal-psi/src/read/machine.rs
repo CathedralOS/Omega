@@ -3355,7 +3355,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(element, binder, out);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -3549,7 +3549,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(element, uses);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
