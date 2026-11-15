@@ -122,7 +122,7 @@ machine binds_tighter(top: u8, incoming: u8) -> bool {
 // transition back into this machine.
 machine power(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 in Wrapping
 requires right >= 0 && right <= 12 {
-    transition { _ -> step(left, right, 1) }
+    transition { _ -> step(left, right, 1i32 as +Wrapping) }
     machine step(left: i32 in Wrapping, remaining: i32 in Wrapping, accumulated: i32 in Wrapping) -> i32 in Wrapping
     requires remaining >= 0 && remaining <= 12 {
         transition remaining >= 1 {
@@ -171,7 +171,7 @@ requires main.cursor < main.token_count && main.cursor < 16 {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     main.token_count = 0;
-    main.number = 0;
+    main.number = 0i32 as +Wrapping;
     main.in_number = false;
     main.expect_value = true;
     main.values.count = 0;
@@ -239,7 +239,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine store_space_number(main: &mut Main) {
         main.tokens[main.token_count] = Token::Number { value: main.number };
         main.token_count = main.token_count + 1;
-        main.number = 0;
+        main.number = 0i32 as +Wrapping;
         main.in_number = false;
         main.expect_value = false;
         transition { _ -> block read(main) }
@@ -262,7 +262,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine store_number(main: &mut Main, value: i32) {
         main.tokens[main.token_count] = Token::Number { value: main.number };
         main.token_count = main.token_count + 1;
-        main.number = 0;
+        main.number = 0i32 as +Wrapping;
         main.in_number = false;
         main.expect_value = false;
         transition { _ -> block symbol(main, value) }
