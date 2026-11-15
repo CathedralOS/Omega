@@ -73,6 +73,20 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Psi refuses an owned sequence at a by-value argument
+- Category: knowledge crossing a boundary
+- Where: [immutable sequence backing](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3391), [argument admission](omega-rust/psi/interpreter/src/engine_calls.rs#L390)
+- Saw: On macOS arm64 at `c75dc2fc5e6` with Psi runtime admission decoupled from native body lowering, both `consume(make(11u32))` and `consume(tickets)` for a local `[Ticket]` literal reach Psi execution and fail at `bind element descriptor` before entering `consume`. Inspection shows an affine sequence result and affine formal of the same element type. The unconsumed local literal and the inline `[Ticket; 1]` return-and-consume control execute successfully.
+- Cost: The immutable backing grants shared element observation while the checked descriptor itself transfers by value. Argument admission derives the descriptor's multiplicity from element access, yielding unrestricted for an affine sequence. Retain the existing checked descriptor ownership through argument binding and disposal, including returned values, while preserving the same read authority.
+- Reported: 2026-11-15, Codex, while checking Psi execution independently of native lowering.
+
+### A stored-length element sequence cannot report its length
+- Category: knowledge crossing a boundary
+- Where: [source measurement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L533), [measurement emission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L3020), [Psi element length operation](omega-rust/psi/compilation/representations/terminal-psi/src/control_flow.rs#L1445)
+- Saw: On macOS arm64 at `146cd87aed0`, an ordinary `observe(tickets: [Ticket]) -> u64` returning `tickets.len` stopped at `collection measurement without its descriptor operation`. Its caller passed the exact single-element result of `make(number)` and expected a length of one. Changing only the owned declarations to `[Ticket; 1]` ran with both engines at exit 0. The stored-length maker and by-value consumer reach native target lowering when the consumer has no measurement.
+- Cost: Source admits length from a fixed extent or a byte descriptor while the same stored-length element carrier already has a Psi observation operation. Use that operation for the exact located descriptor and preserve the existing per-place extent and index proof obligations.
+- Reported: 2026-11-15, Codex, while tracing native owned sequence backing.
+
 ### Native lowering loses a stored byte view's length
 - Category: knowledge crossing a boundary
 - Where: [native byte-length operation](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L2671), [projected descriptor geometry](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L3257)
@@ -87,11 +101,11 @@ framework or a list of features that remain unimplemented.
 - Cost: A constant declaration cannot supply the same checked owned value as an ordinary call. Carry the evaluator's exact pure structural snapshot and the declaration's checked carrier through the existing canonical constant materialization and expression reader. Preserve the identity of the initializer and the rejection of references or authority-bearing values as constant snapshots.
 - Reported: 2026-11-15, Codex, while checking record-domain placement through constant names.
 
-### An owned record-sequence literal stops at target lowering
+### An owned record-sequence literal stops at native target lowering
 - Category: knowledge crossing a boundary
 - Where: [native structural construction](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow_storage.rs#L3397), [Psi immutable backing](omega-rust/psi/interpreter/src/storage_records_and_arrays.rs)
-- Saw: On macOS arm64 at `7ff185a76e8`, `let tickets: [Ticket] = [Ticket { number: 11u32 }];` in the entry machine refuses with `UnsupportedControlFlow` at `control_flow_storage.rs:3397`. Both `omega run --engine native` and `omega run --engine psi` exit 200 during product compilation at that site. Changing only the local's type to `[Ticket; 1]` reaches exit 0 in both engines.
-- Cost: Product execution cannot construct an owned record sequence from its literal. Target lowering receives the checked element roster but accepts only an inline fixed array for this operation. Complete the existing owned backing and element descriptor handoff through target placement, including ownership when a sequence leaves its creating machine.
+- Saw: On macOS arm64, native target lowering refuses `let tickets: [Ticket] = [Ticket { number: 11u32 }];` with `UnsupportedControlFlow` at `control_flow_storage.rs:3397`. Returning that sequence from a machine and transferring it to a by-value formal reaches the same native refusal. The local literal executes in Psi. The exact local type twin `[Ticket; 1]` exits 0 in both engines.
+- Cost: Native target lowering receives the checked element roster and places only inline fixed arrays for this operation. Settle physical backing for the stored-length descriptor so the checked element roster keeps its ownership when it leaves its creating machine.
 - Reported: 2026-11-15, Codex, while checking structural domains in arrays.
 
 ### A published edge discards an unrestricted record as though it owns affine contents

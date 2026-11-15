@@ -79,21 +79,31 @@ pub(crate) fn lower_to_target(
     budget: optimization_core::OptimizationWorkBudget,
     observation: &NativePipelineObservation,
 ) -> Result<ValidatedOptimizedTargetOperations, TargetLoweringError> {
-    let selections = selections.selections();
-    let optimized = {
-        observation.enter(NativePipelineStage::AbstractOptimization);
-        abstract_operations_to_abstract_operations::optimize_abstract_operations(
-            input.into_optimization_input(),
-            selections,
-            &selections.project_psi(),
-            budget,
-        )
-        .map_err(TargetLoweringError::AbstractOptimization)
-    }?;
+    let optimized = optimize_abstract(input, selections, budget, observation)
+        .map_err(TargetLoweringError::AbstractOptimization)?;
     observation.enter(NativePipelineStage::AbstractToTarget);
     let (program, lowering_facts) = optimized.into_lowering_parts();
     lower_optimized_to_target_operations(program, lowering_facts, request)
         .map_err(TargetLoweringError::Target)
+}
+
+pub(crate) fn optimize_abstract(
+    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    selections: &optimization_core::PostTerminalOptimizationSelections,
+    budget: optimization_core::OptimizationWorkBudget,
+    observation: &NativePipelineObservation,
+) -> Result<
+    abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+    abstract_operations_to_abstract_operations::AbstractOptimizationError,
+> {
+    observation.enter(NativePipelineStage::AbstractOptimization);
+    let selections = selections.selections();
+    abstract_operations_to_abstract_operations::optimize_abstract_operations(
+        input.into_optimization_input(),
+        selections,
+        &selections.project_psi(),
+        budget,
+    )
 }
 
 pub(crate) fn emit_target(
