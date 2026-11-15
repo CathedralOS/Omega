@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "product_declaration_batch");
+    Build::select_provider<LookupService, UnrelatedLookup>(builder, windows_x86_64);
+    Build::select_provider<LookupService, UnrelatedLookup>(builder, linux_x86_64);
+    Build::select_provider<LookupService, UnrelatedLookup>(builder, macos_arm64);
+    Build::select_provider<LookupService, UnrelatedLookup>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

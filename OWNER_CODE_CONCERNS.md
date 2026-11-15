@@ -94,13 +94,6 @@ framework or a list of unimplemented features.
 - Cost: The final negative never reaches the operation-safety judgment. Determine how an exact checked view can observe the same scalar field through the original owned sequence before restoring the bound oracle.
 - Reported: 2026-11-15, Codex, while validating checked type computations.
 
-### Product declaration requests rescan the source roster
-- Category: re-deriving
-- Where: [Product path and author resolution](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1241), [exact source matcher](omega-rust/psi/foundation/symbols/src/table.rs#L2041), [Build declaration formations](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L589)
-- Saw: Forming each service-audit operand rebuilds its boundary candidate and token-bound machine lists, then scans them for the path. Each executed event also searches all typed machines for its authored span. The source continuation searches all collected occurrences for each formation.
-- Cost: A batch pays for the same source inventory repeatedly. Prepare the role, name and original occurrence lookups in their existing source owners. Keep the exact package alias and visibility, source stratum, qualified-path precedence, ambiguity, and lexical author checks for audit, provider and native selection.
-- Reported: 2026-11-15, Codex, while reviewing the authored service audit admission.
-
 ### A target-computed array extent lacks its selected provider during evaluation
 - Category: knowledge crossing a boundary
 - Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [closed computation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs), [invocation admission](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs)
