@@ -3108,8 +3108,16 @@ impl<'a> Lowering<'a> {
     /// the program (patterns.md: "Every dispatch must cover the admitted
     /// subject. Missing runtime coverage is a compile error, not an
     /// implicit trap or fallthrough."), reported as `Unestablished` at the
-    /// block. A wildcard that no case reaches would never be lowered, so it
-    /// is refused rather than dropped.
+    /// block.
+    ///
+    /// `wildcard` is the source of the `_` arm, when there is one. A `_` arm
+    /// after arms that name every declared case is an authored branch no
+    /// arrival takes. state_contracts.md, "Unreachable branches": "This is
+    /// an advisory diagnostic, not an inherent language error", and patterns
+    /// use "first-match order", so the program is accepted: no edge enters
+    /// the arm, no block is returned for it, and the arm is recorded in
+    /// `MachineSources::dead_wildcards` for its warning. A `_` arm that some
+    /// case reaches is lowered and checked like every other arm.
     ///
     /// Each scalar payload field of an arm's case is one parameter of the
     /// arm's block, in declaration order.
@@ -3118,7 +3126,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         subject: &Expression,
         arms: &[usize],
-        wildcard: bool,
+        wildcard: Option<SourceOrigin>,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
     ) -> Evaluation<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
@@ -3172,7 +3180,7 @@ impl<'a> Lowering<'a> {
         for (position, case) in data.cases().iter().enumerate() {
             let (target, payload_fields) = match arms.iter().position(|arm| *arm == position) {
                 Some(arm) => (blocks[arm].0, payloads[arm].clone()),
-                None if wildcard => {
+                None if wildcard.is_some() => {
                     let block = match &rest {
                         Some((block, _)) => *block,
                         None => {
@@ -3224,12 +3232,8 @@ impl<'a> Lowering<'a> {
                 cleanup_actions: Vec::new(),
             });
         }
-        if wildcard && rest.is_none() {
-            return Err(refuse(
-                self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
-                Unserved::Transition("wildcard arm that no case reaches"),
-            ));
+        if let (Some(arm), None) = (wildcard, &rest) {
+            self.sources.dead_wildcards.push(arm);
         }
         self.terminate(Terminator::StructuralCase {
             source: at.root,
