@@ -87,19 +87,40 @@ framework or a list of unimplemented features.
 - Cost: the lowered-form checker's area tests are red for a correct refusal; the oracle should name the refusal by what it checks, not by retired text.
 - Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
 
+### Structural equality refuses a field of a closed generic type
+- Category: knowledge crossing a boundary
+- Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
+- Saw: On clean `eca5c0b9d21` and candidate `c64a4d172f9` on macOS arm64, `Player.point: Point<1>` with `PointEquality satisfies Equatable<Point<1>>` refuses that the field is not Equatable before choosing its comparison row. `Point<const Index: u64> [copy]` has one `i32` field. The same nested comparison over non-generic `Point` runs in both engines.
+- Cost: Equality preparation has the resolved application and has no comparison over its instantiated fields. Use the existing applied type and member substitution owner so a comparison for `Point<1>` cannot be reused for a different argument or unresolved field.
+- Reported: 2026-11-15, Codex, while verifying exact structural equality through aliases.
+
+### A borrowed generic equality formal stops a closed comparison
+- Category: knowledge crossing a boundary
+- Where: [borrowed formal reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L2742), [authored equality signature](samples/cli/probes/synthesized_equatable/main.omg#L17)
+- Saw: On clean `eca5c0b9d21` on macOS arm64, an exact named `Equatable<Player>` row with the declared formal `left: &T` is refused as “parameter reference to a value of a type parameter” even though its actual comparison uses only concrete `Player` values. A separate control with by-value formals and copyable records runs in native and Psi.
+- Cost: The equality's selected concrete row cannot bypass the earlier rigid borrowed formal. Use the checked callable's existing requirement and lifetime ownership so admission closes the reference without assigning an arbitrary referent or waiving its loan.
+- Reported: 2026-11-15, Codex, while preserving the original reference-signature comparison control.
+
+### A user trait named Equatable receives compiler synthesis
+- Category: the documents disagree
+- Where: [synthesis selection](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L2601), [core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition)
+- Saw: On clean `eca5c0b9d21` on macOS arm64, an authored root `trait Equatable<T>` with `equals(left: T, right: T) -> bool` gives an empty named implementation a compiler-generated row. The copied program with only that trait consistently renamed to `UserComparable` refuses the missing `equals` row. The working spelling runs in both engines and reopens. The specification reserves synthesis for a sealed core declaration.
+- Cost: A user root path grants synthesis privilege through spelling. Publish and select the existing equality protocol through an exact sealed owner. Migrate the legacy authored witnesses together with that change so a lookalike user declaration cannot acquire synthesis.
+- Reported: 2026-11-15, Codex, while auditing remaining equality-name selection.
+
+### Named mathematical terms reject total wrapping operators before formation
+- Category: branch per shape
+- Where: [policy-specific binary expression lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1155), [named mathematical definitions](wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [total arithmetic in proof terms](wiki/spec/proofs/contracts.md#total-arithmetic)
+- Saw: With compiler source `16c9a2cd0431` on macOS arm64, a Linux x86-64 check refuses an unused `let reflexive(value: u32): core::Strict<0> = value +% 1u32 == 1u32;` in the [existing predicate fixture](tests/fixtures/fail/proofs/unused_partial_mathematical_predicate). Typing says suffixed operators are supported only in executable machines and their contracts. Replacing only that declaration with a machine precondition over the same `value: u32` and the same `+%` comparison compiles 237 files. The named declaration never reaches canonical term formation.
+- Cost: Totality depends on where the term is written before the shared checker can look at its operands. Admit the same wrapping expression under its exact mathematical input and retain the shared definedness obligation for a division. A trapping term must still refuse.
+- Reported: 2026-11-15, Codex, while comparing overflow controls for the unused mathematical predicate.
+
 ### A `fail/` proof fixture compiles, so `lowered_route_governance` fails at its base
 - Category: a verdict with nothing behind it
 - Where: `tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg`, `omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs:44`
 - Saw: `omega --check --target linux_x86_64` on the fixture prints `compiled 237 source file(s)` at dc83fcb65264, although its header expects `carrier arithmetic in a clause term`; `an_invalid_bound_entry_reports_the_routes_rejection` panics with "the compilation must be rejected after Psi 04".
 - Cost: the governance test is red for every agent that runs the lowered-form checker's area tests, and an unused partial predicate (`value + 1u32 == 1u32`) is accepted without the rejection the fixture pins.
 - Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
-
-### Equality preparation reconstructs resolved types from names
-- Category: re-deriving
-- Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)
-- Saw: Source inspection at `c30b00a0b878` finds `EqualityScope::value_types` storing value/type string pairs. Field comparison converts a resolved type to its name and looks it up again using the containing data's source context. Recursion tracks `Vec<String>`; `Equatable` recognition compares a rendered path and `equals` selection compares row spelling. No runnable misbinding was reproduced.
-- Cost: Equality maintains another model of relationships already resolved upstream. Carry exact value, type/application and requirement-row identities through preparation, keeping names for diagnostics. Check same-leaf imported types, aliased fields and generated/applied types; unrelated declaration order or diagnostic spelling must not change selection. Preserve recursive-equality rejection using the traversed identities.
-- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
 ### Selection recomputes the plan for a call's indirect result
 - Category: re-deriving
@@ -115,12 +136,6 @@ framework or a list of unimplemented features.
 - Cost: Declaration-dependent meaning has another implementation before ordinary checking. Retain selected declarations, scope, substitutions and exact destination/initializer through the existing forward evaluation handoff; keep literal decoding and anonymous primitive normalization. Under **EARLY-TERMINAL-JOBS**, check matching declaration/static-argument/construction outcomes and independence from unrelated incompatible operators, preserving false unused-declaration, overflow, zero-divisor, carrier, arity and uncertain-predicate refusals. Removing this evaluator must not remove those obligations.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### Constant-index finalization searches argument storage to recover its owner
-- Category: re-deriving
-- Where: [receiving parameter search](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L236), [finalization caller](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant.rs#L5029)
-- Saw: At `c30b00a0b878`, production `finalize_const_argument_selections` calls `carrier::receiving_parameters` with an argument span. It scans child types, constants, parameters, returns, fields, payloads, locals, lexical inputs, generated instances and domain constraints for that span, then recovers the receiving declaration's parameters. Conflicting owners return `None`. This is source inspection; no incorrect finalization or timing was measured.
-- Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
-- Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
 ### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
@@ -129,19 +144,13 @@ framework or a list of unimplemented features.
 - Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
 - Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
 
-### Float fixtures stop before target and requirement policy checks
-- Category: tests that pin the bug
-- Where: [rootless conversion](tests/fixtures/pass/float/rootless_target_realization_scope/main.omg), [selected conversion](tests/fixtures/packages/selected-provider-unsupported-target/main.omg), [Float::add owner check](omega-rust/omega/compilation/compiler/tests/package_review.rs#L598)
-- Saw: On `8329cdc221e`, the two conversion fixtures stop at `coordinates::entry::rx` with “call receiver, requirement or coercion call”. The separate kept `Float::add` case stops in `carry` with “numeric primitive has no canonical result contract yet”.
-- Cost: The library and selected UEFI twin never distinguish target capability, and the closed addition never reaches the toolchain owner in recovered policy. Retain each authored operation while completing its canonical call contract.
-- Reported: 2026-11-15, Codex, while replaying kept package-review numeric fixtures.
 
-### Static callable specialization needs a portable receipt for open structural reach
+### Package review cannot recover the nominal callback's Count binder
 - Category: knowledge crossing a boundary
-- Where: [static operand reader](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization.rs), [checked application producer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L537), [retained reach reader](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L2324), [open structural requirements](wiki/spec/language/effects.md#deferred-callback-reach)
-- Saw: On `f8687f1fcd3`, `apply<picked>(7u64)` refuses at static binding for `machine apply<const Callback: machine(value: u64) -> u64>(value: u64) -> u64 { Callback(value) }`. Wiring the existing binder judgment and specialization receipt in a local prototype let native and Psi exit 0. It rejected a callback requiring `value <= 8u64` and a generic body claiming a result absent from its binder. The saved runtime artifact could not reopen: `checked specialization has no retained application`. The producer only materializes type and scalar telescopes. The retained reader rejects a structural binder in the reach dependency even though omission on that binder means open reach. Changing the body to `transition { true -> Callback(value) }` also exposed a named call that bypasses static-call preparation. The kept [package review witness](tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg#L62) on `8329cdc221e` stops at line 62, column 37 because no pass specializes the call's static arguments. Its policy oracle requires `StepContract::step` to recover the original static `Count` binder.
-- Cost: Route ordinary callable arguments and named transition calls through the existing binder check and exact source application. Generalize the retained reach dependency to preserve the originating open or finite bound across production and readback. An empty finite bound cannot stand for omitted reach.
-- Reported: 2026-11-15, Codex, macOS arm64, while carrying the static callback witness into a saved Psi artifact.
+- Where: [kept nominal callback package](tests/fixtures/pass/facts/static_callback_reach_boundary_schema/main.omg#L62), [policy recovery assertion](omega-rust/omega/compilation/compiler/tests/package_review.rs#L827), [machine supply rules](wiki/spec/language/machines.md#supply)
+- Saw: On clean `cfabcb98f21`, the unchanged fixture stops at `TraversalCode::traverse<quiet, unused>(37)` on line 62, column 37. A prototype admitting the exact nominal operands reaches the complete-interface refusal for `Step<2>` and the generic named member without a method application. Direct `quiet<3>(37)` and `boundary_step<3>(37)` hit the same copier refusal without a callback binder. The latter declares a body-bearing free `boundary machine`; the supply rules reserve that free form for bodyless admission.
+- Cost: The policy test never recovers `StepContract::step` with its authored `Count` binder and contract. Carry exact method application and nominal refinement through their existing owners and settle the boundary declaration migration. Keep the checked `Step<2>` and `Step<3>` calls, unused effectful selection, and the recovered schema oracle.
+- Reported: 2026-11-15, Codex, macOS arm64, while testing static callable receipts.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving

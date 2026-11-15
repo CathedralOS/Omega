@@ -34,6 +34,7 @@ pub struct SourceCorrespondence {
 
 pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
+    pub outcomes: semantic_vocabulary::IdTable<MachineId, crate::outcome::Outcome>,
     pub source: SourceCorrespondence,
     pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
     pub prepared_applications: Vec<(MachineId, crate::declare::PreparedApplication)>,

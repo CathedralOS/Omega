@@ -899,30 +899,129 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
 
 #[test]
 fn toolchain_boundary_applications_recover_against_their_owner_qualified_requirement() {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
     use review_evidence::record::PackageReviewNominalOwner;
 
     // `value + 1.0` closes an application of the toolchain `Float::add`
     // overload, whose requirement identity typed Psi qualifies with the
     // toolchain owner namespace.
+    for fixture in [
+        "pass/float/live_float_parameter_across_call_exit/main.omg",
+        "run/float/canonical_arithmetic/main.omg",
+    ] {
+        let recovered = reviewed_and_recovered(&kept_fixture(fixture), "linux_x86_64");
+        let add = recovered
+            .boundary_applications()
+            .realizations()
+            .iter()
+            .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
+            .expect("closed Float::add application");
+        assert!(matches!(
+            add.operator_coordinate().identity().owner(),
+            PackageReviewNominalOwner::ToolchainSource(_)
+        ));
+        assert!(
+            add.requirement_identity()
+                .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
+            "{}",
+            add.requirement_identity()
+        );
+        for application in recovered.boundary_applications().realizations() {
+            let plan =
+                &recovered.selected_providers().plans()[application.selected_plan_index() as usize];
+            assert_eq!(plan.target(), "linux_x86_64");
+            assert_eq!(
+                plan.schema_declaration(),
+                application.operator_coordinate().identity()
+            );
+        }
+
+        // Recovery must still join the exact emitted owner and deployment. Change
+        // one copy in the real capsule, leaving the corresponding plan unchanged.
+        let bytes = recovered.canonical_bytes().unwrap();
+        let PackageReviewNominalOwner::ToolchainSource(owner) =
+            add.operator_coordinate().identity().owner()
+        else {
+            unreachable!()
+        };
+        let digest = owner.digest();
+        let position = bytes
+            .windows(digest.len())
+            .rposition(|window| window == digest)
+            .unwrap();
+        let mut substituted_owner = bytes.clone();
+        substituted_owner[position] ^= 1;
+        assert!(
+            PackagePolicyBaseline::recover_canonical(
+                &substituted_owner,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err(),
+            "a substituted toolchain owner must not recover"
+        );
+
+        let target = b"linux_x86_64";
+        let position = bytes
+            .windows(target.len())
+            .rposition(|window| window == target)
+            .unwrap();
+        let mut substituted_target = bytes;
+        substituted_target[position..position + target.len()].copy_from_slice(b"macos_x86_64");
+        assert!(
+            PackagePolicyBaseline::recover_canonical(
+                &substituted_target,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err(),
+            "a different target must not recover under the Linux policy"
+        );
+    }
+}
+
+#[test]
+fn numeric_library_review_does_not_deploy_unused_calls() {
+    let source = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "unused-numeric-review",
+        false,
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("main.omg"),
+        "public machine calculate(value: f64) -> f64 { value + 1.0 }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("build.omg"),
+        "machine build(builder: &mut Build) { Build::package(builder, \"unused_numeric\"); }\n",
+    )
+    .unwrap();
+    let recovered = reviewed_and_recovered(&source.path().join("main.omg"), "uefi_x86_64");
+    assert!(recovered.boundary_applications().realizations().is_empty());
+    assert!(recovered.semantic_dependencies().iter().any(|dependency| {
+        dependency.dependency().path() == "Float::add"
+            && matches!(
+                dependency.dependency().owner(),
+                review_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+            )
+    }));
+}
+
+#[test]
+fn numeric_review_retains_calls_inside_a_selected_provider() {
     let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/float/live_float_parameter_across_call_exit/main.omg"),
+        &kept_fixture("run/float/reviewed_provider/main.omg"),
         "linux_x86_64",
     );
-    let add = recovered
-        .boundary_applications()
-        .realizations()
-        .iter()
-        .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
-        .expect("closed Float::add application");
-    assert!(matches!(
-        add.operator_coordinate().identity().owner(),
-        PackageReviewNominalOwner::ToolchainSource(_)
-    ));
     assert!(
-        add.requirement_identity()
-            .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
-        "{}",
-        add.requirement_identity()
+        recovered
+            .boundary_applications()
+            .realizations()
+            .iter()
+            .any(|application| {
+                application.operator_coordinate().identity().path() == "Float::add"
+            }),
+        "an arithmetic call reached only through a provider is still deployed"
     );
 }
 

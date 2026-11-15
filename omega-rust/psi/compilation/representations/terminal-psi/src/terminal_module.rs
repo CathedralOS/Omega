@@ -367,7 +367,7 @@ pub mod scalar_conditions {
 
     use super::{ProofDeclarationId, ScalarApplication, ScalarApplications};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub enum ScalarConditionSubject {
         Module,
         Declaration(ProofDeclarationId),

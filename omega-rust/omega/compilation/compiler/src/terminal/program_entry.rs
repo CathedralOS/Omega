@@ -38,7 +38,7 @@ pub(crate) fn prepare_entry_metadata(
         inputs,
         custody.sources.exact_toolchain_sources(),
     )?;
-    let replacement = publication.with_declaration_metadata(&[declaration])?;
+    let mut replacement = publication.with_declaration_metadata(&[declaration])?;
     let accepted = replacement.accepted()?;
     // Storage metadata cannot admit another body. Keep the same boundary
     // declarations for the settled execution; per-target reach remains owned
@@ -54,8 +54,45 @@ pub(crate) fn prepare_entry_metadata(
             "declaration metadata changed the product's boundary declarations",
         )]);
     }
+    // The added descriptor can change local artifact coordinates. Form
+    // the folded plan commitment from the final checked module and its
+    // exact entry, immediately before this publication is shared.
+    let module = accepted.module();
+    let folded = backend_plan::folded_constant_dependencies(
+        module,
+        profile.target_name(),
+        custody.execution.plans().plans(),
+        &[checked_entry_machine(accepted, selected.machine_symbol)?],
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    if !folded.dependencies.is_empty() {
+        replacement.retain_folded_constants(folded)?;
+    }
     custody.terminal_publication = std::sync::Arc::new(replacement);
     Ok(())
+}
+
+fn checked_entry_machine(
+    accepted: &source_compiler::AcceptedTerminalSource,
+    symbol: symbols::SymbolHandle,
+) -> Result<semantic_vocabulary::MachineId, Vec<Diagnostic>> {
+    let mut machines = accepted
+        .closure()
+        .elaboration
+        .machines
+        .iter()
+        .filter_map(|(machine, source)| (*source == symbol).then_some(machine));
+    let machine = machines.next().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "selected program entry is absent from its accepted source closure",
+        )]
+    })?;
+    if machines.next().is_some() {
+        return Err(vec![Diagnostic::error(
+            "selected program entry has competing accepted machine correspondences",
+        )]);
+    }
+    Ok(machine)
 }
 
 /// Prepare the selected target's entry receipt on its already published code.
@@ -82,23 +119,7 @@ pub fn prepare_program_entry(
         )]
     })?;
 
-    let symbol = selected.machine_symbol;
-    let mut machines = accepted
-        .closure()
-        .elaboration
-        .machines
-        .iter()
-        .filter_map(|(machine, source)| (*source == symbol).then_some(machine));
-    let machine = machines.next().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected program entry is absent from its accepted source closure",
-        )]
-    })?;
-    if machines.next().is_some() {
-        return Err(vec![Diagnostic::error(
-            "selected program entry has competing accepted machine correspondences",
-        )]);
-    }
+    let machine = checked_entry_machine(accepted, selected.machine_symbol)?;
     let program = publication.require_published(publication.optimizations())?;
     let module = program.artifact().semantic_module();
     if module != accepted.module() {

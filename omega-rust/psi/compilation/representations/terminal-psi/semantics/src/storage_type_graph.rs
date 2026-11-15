@@ -46,18 +46,42 @@ impl<'types> StorageTypeGraph<'types> {
         &self,
         roots: impl IntoIterator<Item = StructuralTypeId>,
     ) -> Result<Vec<StructuralTypeId>, StorageGraphError> {
-        let mut pending: Vec<_> = roots.into_iter().collect();
-        let mut visited = vec![false; self.rows.len()];
-        while let Some(identity) = pending.pop() {
-            let row = self.row(identity)?;
-            if visited[row] {
-                continue;
-            }
-            visited[row] = true;
-            for_each_owned_child(&self.rows[row].shape, |child| {
-                pending.push(child);
+        let mut storage = Vec::new();
+        self.reachability().visit(roots, |declaration| {
+            storage.push(declaration.id);
+        })?;
+        storage.sort_unstable();
+        Ok(storage)
+    }
+
+    pub fn reachability(&self) -> StorageReachability<'_, 'types> {
+        StorageReachability {
+            graph: self,
+            visited: vec![false; self.rows.len()],
+        }
+    }
+
+    /// Returns the roots and every declaration that owns their storage.
+    pub fn storage_dependents(
+        &self,
+        roots: impl IntoIterator<Item = StructuralTypeId>,
+    ) -> Result<Vec<StructuralTypeId>, StorageGraphError> {
+        let mut callers = vec![Vec::new(); self.rows.len()];
+        for (row, declaration) in self.rows.iter().enumerate() {
+            for_each_owned_child(&declaration.shape, |child| {
+                callers[self.row(child)?].push(row);
                 Ok(())
             })?;
+        }
+        let mut pending = roots
+            .into_iter()
+            .map(|id| self.row(id))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut visited = vec![false; self.rows.len()];
+        while let Some(row) = pending.pop() {
+            if !std::mem::replace(&mut visited[row], true) {
+                pending.extend_from_slice(&callers[row]);
+            }
         }
         Ok(self
             .rows
@@ -102,6 +126,35 @@ impl<'types> StorageTypeGraph<'types> {
                 // Preserve declaration-order depth-first diagnostics with a LIFO work stack.
                 pending[children_start..].reverse();
             }
+        }
+        Ok(())
+    }
+}
+
+/// Visits each owned-storage declaration once across successive root sets.
+pub struct StorageReachability<'graph, 'types> {
+    graph: &'graph StorageTypeGraph<'types>,
+    visited: Vec<bool>,
+}
+
+impl StorageReachability<'_, '_> {
+    pub fn visit(
+        &mut self,
+        roots: impl IntoIterator<Item = StructuralTypeId>,
+        mut visit: impl FnMut(&StructuralTypeDeclaration),
+    ) -> Result<(), StorageGraphError> {
+        let mut pending: Vec<_> = roots.into_iter().collect();
+        while let Some(identity) = pending.pop() {
+            let row = self.graph.row(identity)?;
+            if std::mem::replace(&mut self.visited[row], true) {
+                continue;
+            }
+            let declaration = self.graph.rows[row];
+            visit(declaration);
+            for_each_owned_child(&declaration.shape, |child| {
+                pending.push(child);
+                Ok(())
+            })?;
         }
         Ok(())
     }
@@ -205,6 +258,10 @@ mod tests {
             graph.storage_reachable_from([id(999)]),
             Err(StorageGraphError::MissingType(id(999)))
         );
+        assert_eq!(
+            graph.storage_dependents([id(20)]),
+            Ok(vec![id(10), id(20), id(900)])
+        );
     }
 
     #[test]
@@ -276,6 +333,10 @@ mod tests {
         assert_eq!(
             graph.storage_reachable_from([id(1)]),
             Ok((1..=5).map(id).collect())
+        );
+        assert_eq!(
+            graph.storage_dependents([id(4)]),
+            Ok((1..=4).map(id).collect())
         );
         rows[4] = array(5, 1);
         assert_eq!(

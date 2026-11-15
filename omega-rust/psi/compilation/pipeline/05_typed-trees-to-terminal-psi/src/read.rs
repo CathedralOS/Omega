@@ -209,7 +209,7 @@ pub(crate) struct Program<'t> {
     /// Resolve selected consumers after the current signature is registered;
     /// a record used by its own cleanup must not allocate that machine twice.
     pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
-    pub scalar_applications: terminal_psi::ScalarApplications,
+    pub(crate) scalar_applications: constant_values::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
     pub declared_domains: Vec<DeclaredDomain>,
@@ -1745,6 +1745,7 @@ mod tests {
                 }],
                 designated: None,
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
             },
             result: None,

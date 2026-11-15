@@ -303,6 +303,7 @@ pub mod declarations {
             pub domain: HandleSpan<DiagnosticName>,
             pub domain_symbol: SymbolHandle,
             pub domain_arguments: HandleSpan<TypeReference>,
+            pub receiving_application: crate::types::ReceivingApplicationHandle,
             pub authored_domain_selection: Option<
                 language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
             >,

@@ -1247,6 +1247,7 @@ pub(crate) mod lowerer {
     #[derive(Debug, Clone, Copy)]
     pub(crate) struct PendingConstArgumentSlot {
         pub(crate) selection: usize,
+        pub(crate) application: symbol_resolved_trees::types::ReceivingApplicationHandle,
         pub(crate) arguments: arena::HandleSpan<TypeReference>,
         pub(crate) ordinal: usize,
     }
@@ -1677,7 +1678,7 @@ pub(crate) mod lowerer {
         */
         pub(crate) fn declaration_child_type_references(
             &mut self,
-        ) -> &mut arena::Arena<TypeReference> {
+        ) -> &mut symbol_resolved_trees::types::TypeReferenceArena {
             &mut self
                 .symbol_resolved_trees
                 .tables

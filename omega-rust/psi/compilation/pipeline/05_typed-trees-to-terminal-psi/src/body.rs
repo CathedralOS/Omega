@@ -1036,8 +1036,8 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
-    /// A query of the selected target's exact layout for its subject.
-    LayoutObservation {
+    /// A checked scalar computed in its selected target scope.
+    ScalarApplication {
         application: semantic_vocabulary::ScalarApplicationId,
     },
     /// One byte of a borrowed byte view, read at `index`. The view is
@@ -1215,6 +1215,7 @@ pub enum ExpressionKind {
     Call {
         callee: TargetMachineCallable,
         required_contract: Option<semantic_vocabulary::ContractId>,
+        static_reach_binding: Option<u32>,
         source_call: Option<(
             MachineId,
             typed_trees::expression::ExpressionHandle,

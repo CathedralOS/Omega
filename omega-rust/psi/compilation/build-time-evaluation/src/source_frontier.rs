@@ -165,14 +165,21 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
             continue;
         }
         match typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::ConstExpression(_) => {
+            TypeReferenceNode::ConstExpression(_)
+                if !typed
+                    .constant_recipe_for_const_application(reference)
+                    .is_valid() =>
+            {
                 types.push((reference, DeferredRequest::TypeExpressionEvaluation));
             }
             TypeReferenceNode::FixedArray {
                 length: FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. },
                 ..
-            } => types.push((reference, DeferredRequest::ArrayExtentEvaluation)),
-            TypeReferenceNode::Reference { .. }
+            } if typed.declared_array_extent(reference).is_none() => {
+                types.push((reference, DeferredRequest::ArrayExtentEvaluation));
+            }
+            TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Constrained { .. }
             | TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }

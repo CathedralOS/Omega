@@ -433,7 +433,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 });
             }
         }
-        self.walk_applications(target, provider_edges, pending)
+        self.walk_applications(target, provider_edges, pending, &mut Default::default())
     }
 
     pub fn invocation_reachability<'scope>(
@@ -442,14 +442,31 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         provider_edges: &[(Declaration, Declaration)],
         roots: &[Declaration],
     ) -> ProofApplicationReachability<Declaration> {
-        let pending = roots
-            .iter()
-            .map(|root| Application {
-                machine: *root,
-                bindings: Vec::new(),
-            })
-            .collect();
-        self.walk_applications(target.into(), provider_edges, pending)
+        self.walk_applications(
+            target.into(),
+            provider_edges,
+            invocation_roots(roots),
+            &mut Default::default(),
+        )
+    }
+
+    /// Reuses the same proof invocation walk as new roots become known.
+    /// The selected target and provider edges stay fixed for the walk.
+    pub fn invocation_machines_walk<'walk>(
+        &'walk self,
+        target: Option<&'walk str>,
+        provider_edges: &'walk [(Declaration, Declaration)],
+    ) -> impl FnMut(&[Declaration]) -> Vec<Declaration> + 'walk {
+        let mut visited = Default::default();
+        move |roots| {
+            self.walk_applications(
+                target,
+                provider_edges,
+                invocation_roots(roots),
+                &mut visited,
+            )
+            .machines
+        }
     }
 
     fn walk_applications(
@@ -457,9 +474,8 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         target: Option<&str>,
         provider_edges: &[(Declaration, Declaration)],
         mut pending: Vec<Application<Declaration>>,
+        visited: &mut std::collections::BTreeMap<Calls::Order, Vec<Application<Declaration>>>,
     ) -> ProofApplicationReachability<Declaration> {
-        let mut visited =
-            std::collections::BTreeMap::<Calls::Order, Vec<Application<Declaration>>>::new();
         let mut machines = Vec::new();
         let mut seen_machines = std::collections::BTreeSet::new();
         let mut calls = Vec::new();
@@ -632,6 +648,16 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
             invocations,
         }
     }
+}
+
+fn invocation_roots<Declaration: Copy>(roots: &[Declaration]) -> Vec<Application<Declaration>> {
+    roots
+        .iter()
+        .map(|&machine| Application {
+            machine,
+            bindings: Vec::new(),
+        })
+        .collect()
 }
 
 fn resolve_bindings<Declaration: Copy + Eq, Calls: ProofApplicationCalls<Declaration>>(

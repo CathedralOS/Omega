@@ -53,29 +53,6 @@ pub(crate) struct Qualifications {
     pub structural_changes: Vec<StructuralQualificationChange>,
 }
 
-pub(crate) fn layout_observation(
-    applications: &mut terminal_psi::ScalarApplications,
-    subject: semantic_vocabulary::StructuralTypeId,
-    measurement: terminal_psi::LayoutMeasurement,
-    scalar_type: ScalarType,
-) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
-    let declaration = terminal_psi::ScalarApplication::LayoutObservation {
-        subject,
-        measurement,
-        semantics_version: terminal_psi::LayoutMeasurement::SEMANTICS_VERSION,
-        scalar_type,
-    };
-    if let Some(position) = applications
-        .declarations()
-        .iter()
-        .position(|existing| *existing == declaration)
-    {
-        return semantic_vocabulary::ScalarApplicationId::new(position as u64 + 1)
-            .ok_or("scalar application namespace is exhausted");
-    }
-    applications.insert(declaration)
-}
-
 /// Which declared route an issuer restriction names.
 #[derive(Clone, Copy)]
 enum RouteKind {

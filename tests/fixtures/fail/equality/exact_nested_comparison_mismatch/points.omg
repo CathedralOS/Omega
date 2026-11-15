@@ -1,0 +1,2 @@
+module points;
+public data Point [copy] { x: i32; }

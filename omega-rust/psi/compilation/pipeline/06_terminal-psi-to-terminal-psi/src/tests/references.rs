@@ -146,6 +146,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
         call_context: None,
         kind: ExpressionKind::Call {
             required_contract: None,
+            static_reach_binding: None,
             source_call: None,
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
@@ -668,6 +669,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                         call_context: None,
                         kind: ExpressionKind::Call {
                             required_contract: None,
+                            static_reach_binding: None,
                             source_call: None,
                             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: vec![lend(

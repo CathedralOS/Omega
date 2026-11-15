@@ -360,7 +360,11 @@ fn read_bodies(
     let mut position = 0;
     // `program.body` appends callees while bodies are read, so the bound is
     // re-read on every step.
-    while position < program.symbols.len() {
+    loop {
+        program.resolve_scalar_applications(diagnostic)?;
+        if position == program.symbols.len() {
+            break;
+        }
         position += 1;
         let next = MachineId::new(position as u64).ok_or_else(|| {
             refuse(
@@ -713,6 +717,7 @@ fn elaborate_witness_call(
                 .collect(),
             designated: None,
             required_contract: None,
+            static_reach_binding: None,
             source_call: None,
         },
         result: required.result,
@@ -785,22 +790,31 @@ fn finish_reading_into<'source>(
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
+    let mut binder_reach = IdTable::default();
+    let mut predicates_prepared = false;
     loop {
+        program.resolve_scalar_applications(diagnostic)?;
         program.finish_cleanup_selections()?;
-        if bodies.len() == program.symbols.len() {
-            break;
+        if binder_reach.len() == program.symbols.len() {
+            if predicates_prepared {
+                break;
+            }
+            program.prepare_domain_predicates(diagnostic)?;
+            predicates_prepared = true;
+            continue;
         }
-        let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
+        let next = MachineId::new(binder_reach.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 diagnostic,
                 Construct::Machine,
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let body = program.body(next)?;
-        bodies.push(body);
+        if bodies.get(next).is_none() {
+            bodies.push(program.body(next)?);
+        }
+        binder_reach.push(program.application_binders(next)?);
     }
-    program.prepare_domain_predicates(diagnostic)?;
     program.finish_declarations(diagnostic)?;
     let components = components::components(&bodies, &mut program.signatures)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
@@ -810,6 +824,7 @@ fn finish_reading_into<'source>(
     program.finish_cleanup_selections()?;
     let PreparedProgram {
         program: mut elaboration,
+        outcomes,
         mut source,
         ..
     } = lower_generic_for(
@@ -830,26 +845,32 @@ fn finish_reading_into<'source>(
     )?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
-    let prepared_applications = declare::declare(program.typed(), &program, &mut elaboration)
-        .and_then(|prepared_applications| {
-            declare::provider_candidates(
-                program.typed(),
-                &program.symbols,
-                &program.boundary_symbols,
-                &program.supplied,
-                &mut elaboration.module,
-            )?;
-            // Last, over the finished operations and published contracts.
-            suspension::publish_crossings(&mut elaboration.module)?;
-            Ok(prepared_applications)
-        })
-        .map_err(|reason| {
-            refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Declaration(reason),
-            )
-        })?;
+    let prepared_applications = declare::declare(
+        program.typed(),
+        &program,
+        &outcomes,
+        &binder_reach,
+        &mut elaboration,
+    )
+    .and_then(|prepared_applications| {
+        declare::provider_candidates(
+            program.typed(),
+            &program.symbols,
+            &program.boundary_symbols,
+            &program.supplied,
+            &mut elaboration.module,
+        )?;
+        // Last, over the finished operations and published contracts.
+        suspension::publish_crossings(&mut elaboration.module)?;
+        Ok(prepared_applications)
+    })
+    .map_err(|reason| {
+        refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Declaration(reason),
+        )
+    })?;
     source.records = program.source_record_correspondence(diagnostic)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {
@@ -885,6 +906,7 @@ fn finish_reading_into<'source>(
     elaboration.supplied = program.supplied;
     Ok(PreparedProgram {
         program: elaboration,
+        outcomes,
         source,
         selected_calls: Vec::new(),
         prepared_applications,
@@ -1165,7 +1187,13 @@ fn lower_generic_for<'source>(
     if let Some(source) = declarations {
         let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
         let conditions = std::mem::take(&mut module.scalar_applications.conditions);
-        module.scalar_applications = source.scalar_applications.clone();
+        module.scalar_applications = source.scalar_applications.published().map_err(|reason| {
+            refuse(
+                MachineId::new(1).expect("nonzero identity"),
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        })?;
         module.scalar_applications.proof_scope = proof_scope;
         module.scalar_applications.conditions = conditions;
     }
@@ -1236,6 +1264,7 @@ fn lower_generic_for<'source>(
         }
     }
     let mut prepared = PreparedProgram {
+        outcomes,
         source,
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),

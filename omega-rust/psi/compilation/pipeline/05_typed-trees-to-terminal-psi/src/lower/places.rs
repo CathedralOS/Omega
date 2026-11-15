@@ -277,11 +277,11 @@ pub(crate) fn declare<'a>(
             crate::StorageShape::FixedArray {
                 element, length, ..
             } => {
-                if element.get() >= id.get() || length.literal().is_none() {
+                if element.get() >= id.get() {
                     return Err(refuse(
                         entry,
                         Construct::Machine,
-                        Unserved::Type("array with an unresolved element or extent"),
+                        Unserved::Type("array element has no earlier storage type"),
                     ));
                 }
                 StructuralTypeShape::FixedArray {
@@ -708,7 +708,7 @@ fn expression_homes<'b>(
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
@@ -2187,6 +2187,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Call {
                 callee,
                 required_contract,
+                static_reach_binding,
                 source_call,
                 arguments,
                 designated,
@@ -2197,7 +2198,7 @@ impl<'a> Lowering<'a> {
                     arguments,
                     *designated,
                     expression.result,
-                    (expression.source, *source_call),
+                    (expression.source, *source_call, *static_reach_binding),
                     expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
@@ -2247,7 +2248,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::LayoutObservation { .. }
+            | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
@@ -4313,6 +4314,7 @@ mod tests {
                         }],
                         designated: None,
                         required_contract: None,
+                        static_reach_binding: None,
                         source_call: None,
                     },
                     result: Some(plain),

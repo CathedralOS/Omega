@@ -241,7 +241,7 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
-            ExpressionKind::LayoutObservation { application } => {
+            ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;
                 let operation = self.operation_identity(source);
                 self.emit(
@@ -368,6 +368,7 @@ impl Lowering<'_> {
             ExpressionKind::Call {
                 callee,
                 required_contract,
+                static_reach_binding,
                 source_call,
                 arguments,
                 designated,
@@ -377,7 +378,7 @@ impl Lowering<'_> {
                 arguments,
                 *designated,
                 expression.result,
-                (source, *source_call),
+                (source, *source_call, *static_reach_binding),
                 expression.call_context.unwrap_or_default(),
             ),
         }

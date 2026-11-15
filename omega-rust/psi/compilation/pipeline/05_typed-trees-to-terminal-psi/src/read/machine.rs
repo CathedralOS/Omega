@@ -1065,7 +1065,10 @@ impl<'t> Program<'t> {
                 for parameter in parameters {
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Implementation
-                        | typed_trees::data::TypeParameterKind::Const { .. } => {}
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Machine {
+                            contract: typed_trees::data::MachineParameterContract::Structural(_),
+                        } => {}
                         typed_trees::data::TypeParameterKind::Type
                             if parameter.bounds.multiplicity
                                 != language_core::Multiplicity::Linear => {}
@@ -1074,7 +1077,7 @@ impl<'t> Program<'t> {
                         }
                         _ => {
                             return unserved_parameters(
-                                "parameter that is no type, value or implementation",
+                                "parameter without a supported static contract",
                             );
                         }
                     }
@@ -3374,7 +3377,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
@@ -3571,7 +3574,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => {}
         ExpressionKind::Array { elements } => {

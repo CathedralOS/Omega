@@ -1,0 +1,1 @@
+`picked` does not satisfy the callback binder of `apply::Callback`: it declares a precondition on its inputs that the binder does not publish
