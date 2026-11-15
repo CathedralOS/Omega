@@ -74,7 +74,6 @@ the candidate's role/ledgers and reject tampered historical bytes.
   Four authored target bindings are source coverage; other matching hosts remain
   unmeasured.
 
-The projects are pinned under `tests/omega/{pass,fail}/facts/recorded_build_role`.
 Remaining parent acceptance includes remaining Build operations, opaque-provider
 reference results, staged preparation and matching host checks. These historical
 source repairs do not close that broader outcome.

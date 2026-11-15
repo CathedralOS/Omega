@@ -46,19 +46,6 @@ They require original storage and independent bounds and loan authority; they
 do not permit copying a small referent and pretending that callee-local writes
 establish caller-visible mutation.
 
-Run the assigned row with:
-
-```sh
-python3 tools/sample_native_gate.py --cli <fixed-compiler> --facts --filter indexed_element_mut_loan
-python3 tools/corpus_gate.py --filter indexed_element_mut_loan
-python3 tools/corpus_gate.py --native --filter indexed_element_mut_loan
-```
-
-The corresponding regression fixtures are
-`tests/omega/pass/facts/indexed_element_mut_loan_through_<place>_exit` and
-`tests/omega/fail/facts/indexed_element_mut_loan_through_<place>_rejected`
-(nine each; the reject fixture is a byte-identical copy of `<place>/invalid/main.omg`).
-
 On the initial fixed compiler, three places ran and all nine twins rejected;
 local, field, call result, match join and const name reached a missing
 result-operand storage presentation, and a nested machine reached a missing loan
@@ -68,12 +55,6 @@ backing across state edges. The repaired row runs all nine applications with
 exit 0 on Linux x86-64 and Windows x86-64, and all nine twins retain their
 intended rejection. The root application and nine place projects all verify
 that loan with exit 0.
-
-The additional regression
-`tests/omega/pass/borrows/runtime_result_element_call_selector_capture_exit`
-changes the selector in a later call argument and checks that the callee
-mutates the element selected by the earlier argument. This tests formation
-order rather than merely storing an index in an immutable local.
 
 ## Requirements and Evidence
 

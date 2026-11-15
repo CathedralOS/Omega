@@ -12,14 +12,12 @@ places. Every place copies this sentence; its reject twin changes only the
 selected provider's extent to `2`, which cannot justify that subtraction.
 
 The root and nine places are [local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
-and [another target body](target_body/main.omg). Each `<place>/invalid/main.omg`
-is paired with the corresponding positive and corpus pin under
-`tests/omega/{pass,fail}/facts/target_scoped_constant_realization_through_*`.
-The primary [root](main.omg), [multi-method](multi_method/main.omg) and
-[zero-extent](zero_extent/main.omg) controls remain part of the owned cohort.
+[parameter](parameter/main.omg), [call result](call_result/main.omg), [match
+join](match_join/main.omg), [const name](const_name/main.omg), [nested
+machine](other_state/main.omg), [another machine](other_machine/main.omg), and
+[another target body](target_body/main.omg). The primary [root](main.omg),
+[multi-method](multi_method/main.omg) and [zero-extent](zero_extent/main.omg)
+controls remain part of the owned cohort.
 
 Build selects the original `Small` provider (`4`) for both Linux profiles and
 `Large` (`8`) for Windows and macOS. `Same` remains the separate equal-valued

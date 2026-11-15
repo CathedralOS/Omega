@@ -9,15 +9,15 @@ Every place performs the same operation: sign-extend bounded 32-bit signed opera
 | Place | Positive Project | Reject Twin | Pinned Pass Fixture | Pinned Fail Fixture | Transport Mechanism |
 | --- | --- | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | — | — | root 32-bit to 64-bit signed sign extension, headroom subtraction, and margin discharge |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_local` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_local` | the 32-bit signed operand is sign-extended into a local binding before verification |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_field` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_field` | the sign-extended 64-bit signed value is stored in a record field before verification |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_parameter` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_parameter` | machine parameter receives the sign-extended 64-bit value before verification |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_call_result` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_call_result` | callee function sign-extends the bounded 32-bit signed operand and returns the 64-bit result before verification |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_match_join` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_match_join` | both match arms yield bounded 32-bit values and join before sign-extending and verification |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_const_name` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_const_name` | named constant supplies bounded 32-bit signed operand before sign extension and verification |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_other_state` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_other_state` | successor machine receives sign-extended 64-bit value before verification |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_other_machine` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_other_machine` | an intermediate forwarding machine receives and passes the sign-extended 64-bit value to verification |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `tests/omega/pass/facts/narrow_to_wide_signed_32to64_extension_through_target_body` | `tests/omega/fail/facts/narrow_to_wide_signed_32to64_extension_unproved_at_target_body` | each of four target-scoped machine bodies sign-extends bounded 32-bit signed operand and verifies |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |  |  | the 32-bit signed operand is sign-extended into a local binding before verification |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |  |  | the sign-extended 64-bit signed value is stored in a record field before verification |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |  |  | machine parameter receives the sign-extended 64-bit value before verification |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |  |  | callee function sign-extends the bounded 32-bit signed operand and returns the 64-bit result before verification |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |  |  | both match arms yield bounded 32-bit values and join before sign-extending and verification |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |  |  | named constant supplies bounded 32-bit signed operand before sign extension and verification |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |  |  | successor machine receives sign-extended 64-bit value before verification |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |  |  | an intermediate forwarding machine receives and passes the sign-extended 64-bit value to verification |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |  |  | each of four target-scoped machine bodies sign-extends bounded 32-bit signed operand and verifies |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -56,11 +56,6 @@ omega --check samples/cli/facts/narrow_to_wide_signed_32to64_extension/<place>/i
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\cargo-target\debug\omega-latest.exe --filter cli/facts/narrow_to_wide_signed_32to64_extension --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call`).
 

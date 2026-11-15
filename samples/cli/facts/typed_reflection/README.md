@@ -14,11 +14,9 @@ world to a captured helper with a narrower four-type requirement. Impossible
 branches retain source formation without demanding excluded helper bodies. A callback excluding one included field type
 is the sensitive rejection obligation.
 
-The row covers all nine standard transport places. Each positive has a matching
-excluded-type reject twin and a regression pin under
-`tests/omega/{pass,fail}/facts/typed_reflection_through_*`. The positive oracle
-requires native/Terminal agreement at exit zero; the reject excludes an included
-field type from the selected callback's exact requirement.
+The row covers all nine standard transport places. The positive oracle requires
+native/Terminal agreement at exit zero; the reject excludes an included field
+type from the selected callback's exact requirement.
 
 The source operation must select a subject under the lexical author's dependency
 and visibility authority. Each invocation uses a fresh shared field subloan and

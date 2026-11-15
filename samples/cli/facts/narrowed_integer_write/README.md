@@ -30,30 +30,26 @@ in an unrelated generic library declaration.
 | [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](invalid_other_machine/main.omg) |
 | [target body](target_body/main.omg) | Build-selected named implementation of a requirement [invalid](invalid_target_body/main.omg) |
 
-Each place has an `invalid/main.omg` twin and a corresponding pin under
-`tests/omega/{pass,fail}/facts/narrowed_integer_write_through_<place>_*`.
 `layouts/unused_generic_concrete_integer_at_requires_fit` additionally rejects
 a concrete out-of-range write inside an unused generic template. Template
 checking continues; only a symbolic type parameter's physical layout awaits
 specialization.
 
-The [completed-result control](controls/completed_result/main.omg) also copies
-its scalar through an inline call before a later operand writes 70 to the old
-source. Its twin starts that source at 200: the later 70 must not justify the
-earlier result's physical store. Matching fixtures pin this snapshot boundary.
-The target-body place calls the `SelectedPerform` requirement; Build selects
-`X86Perform` or `ArmPerform` per target. A requirement has no body, so Psi
-judges the narrowing store through every satisfier's checked body against the
-caller's captured operands (owner: **BUILD-OWNED-TARGET-SELECTION**, "carry the
-facts that still refuse behind a selected implementation"). Before that repair
-the positive refused with `effectful invocation has no complete performed-write
-body`. The [unselected-implementation control](controls/nonhost_body/invalid/main.omg)
-adds `SparePerform`, which stores 200 and which no Build row selects, while
-`X86Perform` and `ArmPerform` forward 70. Psi must reject it for every realized
-target: a selected implementation cannot stand in for the others' performed
-writes. A generic implementation's open template body refuses rather than
-being judged without its concrete write types. It is pinned as
-`tests/omega/fail/facts/narrowed_integer_write_unselected_implementation_rejected`.
+The [completed-result control](controls/completed_result/main.omg) also copies its
+scalar through an inline call before a later operand writes 70 to the old source. Its
+twin starts that source at 200: the later 70 must not justify the earlier result's
+physical store. Matching fixtures pin this snapshot boundary. The target-body place
+calls the `SelectedPerform` requirement; Build selects `X86Perform` or `ArmPerform`
+per target. A requirement has no body, so Psi judges the narrowing store through every
+satisfier's checked body against the caller's captured operands (owner:
+**BUILD-OWNED-TARGET-SELECTION**, "carry the facts that still refuse behind a selected
+implementation"). Before that repair the positive refused with `effectful invocation
+has no complete performed-write body`. The [unselected-implementation
+control](controls/nonhost_body/invalid/main.omg) adds `SparePerform`, which stores 200
+and which no Build row selects, while `X86Perform` and `ArmPerform` forward 70. Psi
+must reject it for every realized target: a selected implementation cannot stand in
+for the others' performed writes. A generic implementation's open template body
+refuses rather than being judged without its concrete write types.
 
 The [direct-assignment control](controls/direct_assignment/main.omg) writes the
 same 70 through a nested encoded view, then passes the retained leaf alongside
@@ -83,9 +79,8 @@ Matching `layouts/direct_encoded_assignment_*` fixtures pin both outcomes.
 - Omega 07–09 and emission: native execution must agree with Terminal execution
   and the authored exit-zero/writeback oracle.
 
-Run the row with `python3 tools/sample_native_gate.py --filter
-cli/facts/narrowed_integer_write --jobs 2`. All four hosted targets have entry
-bindings; native execution on other hosts remains separate qualification.
+All four hosted targets have entry bindings; native execution on other hosts
+remains separate qualification.
 
 On macOS ARM64, producer built from base `6bbc0c024e2` plus this repair runs
 all nine places and the completed-result control with native/Terminal exit 0.

@@ -48,13 +48,10 @@ through the corresponding transport. Twin observations accept 11 so their normal
 cleanup remains reachable; the tested cleanup requirement stays 10. Result promises remain honest. The unequal
 match control separately prevents one arm's count from becoming a join fact.
 
-The matching corpus pairs are
-`tests/omega/pass/facts/nominal_loan_backing_cleanup_through_<place>_exit` and
-`tests/omega/fail/facts/nominal_loan_backing_cleanup_through_<place>_cleanup_prerequisite`.
-The Linux Console provider uses the existing syscall descriptor and ordinary OS
-service; the Terminal engine consumes its existing trusted host adapter.
-The same authored output oracles apply to both engines. Foreign hosted bodies
-are source checked; this trial does not claim foreign native execution.
+The Linux Console provider uses the existing syscall descriptor and ordinary OS service;
+the Terminal engine consumes its existing trusted host adapter. The same authored output
+oracles apply to both engines. Foreign hosted bodies are source checked; this trial does
+not claim foreign native execution.
 
 ## Requirements and Evidence
 
@@ -100,9 +97,4 @@ No cleanup successor exists for a crash.
 ```sh
 omega run --both samples/cli/facts/nominal_loan_backing_cleanup/local/main.omg
 omega --check samples/cli/facts/nominal_loan_backing_cleanup/invalid_local/main.omg
-python3 tools/sample_gate.py --filter cli/facts/nominal_loan_backing_cleanup --cli <omega>
-python3 tools/sample_native_gate.py --filter cli/facts/nominal_loan_backing_cleanup --cli <omega>
-python3 tools/corpus_gate.py --filter nominal_loan_backing_cleanup
-python3 tools/corpus_gate.py --native --filter nominal_loan_backing_cleanup
-python3 tools/corpus_gate.py --both --filter nominal_loan_backing_cleanup
 ```

@@ -10,8 +10,7 @@
 // Historical workaround note: a native miscompile used to trigger when a
 // value-position call with an internal `let` was followed by a call with MORE
 // args. Probe-verified FIXED (native==interp) on 2026-07-01; the caller-side
-// multiplications below are retained but no longer load-bearing. (The old
-// tests/omega/pending reference was purged with the pending backlog.)
+// multiplications below are retained but no longer load-bearing.
 //
 // Expected exit: 70.
 

@@ -23,6 +23,5 @@ the fixed `[u32; 8]` record and is rejected at compile time
 After ordinary package review on macOS arm64:
 
 ```sh
-python3 tools/sample_native_gate.py --cli build/dev-target/debug/omega --target macos_arm64 --filter arithmetic/fixed_limb_bignum --jobs 1
 build/dev-target/debug/omega run --both samples/cli/arithmetic/fixed_limb_bignum/main.omg < /dev/null
 ```

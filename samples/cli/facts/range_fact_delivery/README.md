@@ -142,16 +142,6 @@ accepted-review state, not a compiler defect (tools/docs/testing.md). Fresh
 places; the unchanged programs then passed `--both` with exit 0. No compiler
 repair was needed.
 
-Measured on `macos_arm64` @ `ff8be1e0d47`: root plus all nine places exit 0
-under `omega run --both`; all nine `controls/missing_bound` twins reject exit 1
-with `cannot prove requires contract for call count ... index <= 4`;
-`sample_gate.py` reports 19/19 checked with 9 intended rejections matched;
-`sample_native_gate.py` reports 10/10 oracles plus 9/9 controls;
-`corpus_gate.py` re-pinned the 27 fail rows to record the actual emitted
-diagnostics (previously recorded without diagnostic text).
-
-The row is pinned under `tests/omega/{pass,fail}/facts/
-range_fact_delivery_through_<place>_{exit,rejected}`.
 Every positive records native exit 0, every twin records its emitted
 rejection diagnostic. (The `float_range_delivery_through_*` family pins the
 sibling `samples/cli/facts/float_range_delivery/` row, not this folder.)
@@ -159,9 +149,6 @@ sibling `samples/cli/facts/float_range_delivery/` row, not this folder.)
 ```sh
 omega run --both samples/cli/facts/range_fact_delivery/local/main.omg
 omega --check samples/cli/facts/range_fact_delivery/local/controls/missing_bound/main.omg
-python3 tools/sample_gate.py --filter cli/facts/range_fact_delivery --cli <omega>
-python3 tools/sample_native_gate.py --filter cli/facts/range_fact_delivery --cli <omega>
-python3 tools/corpus_gate.py --filter range_delivery,range_fact_delivery
 ```
 
 ## Build-owned target-body migration

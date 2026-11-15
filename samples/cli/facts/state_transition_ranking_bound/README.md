@@ -27,14 +27,8 @@ Every place carries the same construct and operation: a terminating, ranked stat
 
 Pinned fixtures:
 
-- Pass: `tests/omega/pass/facts/state_transition_ranking_bound_through_<place>_exit/`
-  — byte-identical copy of `<place>/main.omg`, with `Build::application`
-  renamed to the fixture directory name.
-- Reject: `tests/omega/fail/facts/state_transition_ranking_bound_through_<place>_rejected/`
-  — byte-identical copy of `<place>/invalid/main.omg`, with `expected.txt`
-  carrying the `may overflow \`u64\`` fragment. Feeding both halves through
-  `git diff` shows only the construct's own guard and exit-bound values moved
-  (`60u64 -> 61u64`).
+- Feeding both halves through `git diff` shows only the construct's own guard and
+  exit-bound values moved (`60u64 -> 61u64`).
 
 ### Verification commands
 
@@ -73,11 +67,6 @@ native execution agree at exit 0 in ten of ten positives. All nine
 `omega --check --target macos_arm64` (exit 1) with the pinned diagnostic
 `exact arithmetic in machine ... may overflow \`u64\`` (`target_body` carries
 two such diagnostics, the others one each).
-
-Corpus goldens recorded on that revision with the generation
-`corpus_runner`: 18 fixtures {`checked`: 9, `rejected`: 9} in
-`tests/omega/corpus_outcomes.txt` and nine `built <ms> exit:0` rows in
-`tests/omega/corpus_native_macos_arm64.txt`.
 
 ## Requirements and Evidence
 

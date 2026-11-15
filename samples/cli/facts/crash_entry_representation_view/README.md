@@ -32,8 +32,6 @@ exit 0 and binds all four hosted targets (`windows_x86_64`, `linux_x86_64`, `mac
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `pass/facts/crash_entry_representation_view_through_other_machine_exit`, `fail/facts/crash_entry_representation_view_through_other_machine_rejected` |
 | Target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `pass/facts/crash_entry_representation_view_through_target_body_exit`, `fail/facts/crash_entry_representation_view_through_target_body_rejected` |
 
-Additional mechanism sub-witnesses and controls retained in this folder and pinned under `tests/omega/{pass,fail}/facts/crash_entry_integer_view_*`:
-
 - Root (`main.omg`): parameter → primitive view → immutable copy → guarded helper.
 - `high_bit`: `u64::MAX` reads as `i64(-1)`, preserving bit interpretation.
 - `reverse_signed`: `i32(-1)` reads as `u32::MAX`.

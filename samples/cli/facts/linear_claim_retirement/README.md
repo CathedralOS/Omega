@@ -96,12 +96,6 @@ Every positive place ran native and Terminal Psi on base `cc2f948d148e` (rebased
 OMEGA_LIBRARY_ROOT=<worktree>/source/library omega run --both samples/cli/facts/linear_claim_retirement/<place>/main.omg
 ```
 
-- `python3 tools/sample_native_gate.py --facts --filter linear_claim_retirement`: 10/10 samples meet their documented oracle on `macos_arm64` and `windows_x86_64`, and 9/9 intended-invalid controls match their authored rejection.
-- `python3 tools/corpus_gate.py --native --filter facts/linear_claim_retirement`: clean, 9 fixtures `{'built': 9}`, executed 9 with exit codes `{'0': 9}`, 9 rows stamped.
-- `python3 tools/corpus_gate.py --filter facts/linear_claim_retirement`: 0 structural moves, 18 fixtures `{'checked': 9, 'rejected': 9}`.
-
-The row is pinned by `tests/omega/{pass,fail}/facts/linear_claim_retirement_through_*` fixtures. Each of the positives carries `expected_native_exit.txt` reading `0`.
-
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

@@ -74,33 +74,9 @@ omega --check samples/cli/facts/fixed_array_layout_geometry/<place>/invalid/main
 
 All 18 positive and reject places are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_local_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_field_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_parameter_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_call_result_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_match_join_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_const_name_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_other_state_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_other_machine_exit/`
-  - `tests/omega/pass/facts/fixed_array_layout_geometry_through_target_body_exit/`
 - **Fail fixtures (`expected.txt`):**
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_local_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_field_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_parameter_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_call_result_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_match_join_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_const_name_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_other_state_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/fixed_array_layout_geometry_through_target_body_rejected/`
-
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\cargo-target\debug\omega-latest.exe --filter cli/facts/fixed_array_layout_geometry --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`exact arithmetic may overflow`).
 

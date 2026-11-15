@@ -24,18 +24,6 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
-## Pinned Fixtures
-
-The row is pinned under `tests/omega/pass/facts/signed_8bit_saturating_arithmetic_bound_through_<place>_exit/`
-and `tests/omega/fail/facts/signed_8bit_saturating_arithmetic_bound_through_<place>_rejected/` for the nine places.
-Each pass fixture is a byte copy of its place program and carries the four hosted `ProgramEntry` binds and
-`expected_native_exit.txt` 0; each reject twin is a byte copy of its `<place>/invalid/main.omg`, which differs
-from the positive only in the saturating operand values (`60 + 15` widened to `85 + 20`) and its comment, and
-pins `cannot prove` together with the `<= 100` upper bound the widened input breaks.
-The three corpus legs recorded at `9b001b8f6af+wt`: `corpus_outcomes.txt` 9 checked + 9 rejected
-(`check-target:macos_arm64`), `corpus_native_macos_arm64.txt` 9 built with `exit:0`, and
-`corpus_both_macos_arm64.txt` 9 built with `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` ([TASKS.md](../../../../TASKS.md)), the item the `signed_8bit_exact_arithmetic_bound` and `signed_8bit_wrapping_arithmetic_bound` siblings name; the earlier `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` names appear in no revision of the board.

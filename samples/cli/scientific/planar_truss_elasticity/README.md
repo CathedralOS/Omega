@@ -105,9 +105,6 @@ ignored `build/` or other repository-ignored paths. Frozen inputs and independen
 oracles are committed. Acceptance observations identify their exact compiler,
 source/oracle identities, target, host, commands and any unresolved gate.
 
-`validation/qualification.json` records Linux x86_64 qualification on compiler
-revision `3c1bdf7bcc87cfb3947bd7e29399064f81120e70`: 37 cases on each native
-and retained Terminal route, comprising 14 solves and 23 runtime refusals, plus
-the exact source-invalid rejection. Maximum reconstructed residual is
-2.061e-13 of load scale; maximum energy/work defect is 1.001e-12. Both sample
-source/native gates also include the intended-invalid control.
+Maximum reconstructed residual is 2.061e-13 of load scale; maximum energy/work
+defect is 1.001e-12. Both sample source/native gates also include the
+intended-invalid control.

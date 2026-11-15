@@ -72,14 +72,6 @@ Producer revision `ab9a94dfb6a5` (fixture commit), macOS arm64 host, optimized d
 All ten projects (root plus nine places) were measured with `omega run --both` and reported
 `native exit 0` with `interp exit: 0`; no place refused or disagreed.
 
-- `python3 tools/sample_native_gate.py --filter cli/facts/sret_aggregate_return_bound` —
-  10/10 samples meet their documented oracle on `macos_arm64` (0 unscored),
-  9/9 intended-invalid controls match their authored rejection.
-- `python3 tools/corpus_gate.py --native --filter facts/sret_aggregate_return_bound` —
-  nine fixtures, all `built` with `exit:0`, executed 9 (`exit codes {'0': 9}`),
-  0 rejected without the expected fragment, 0 fail fixtures failing to reject.
-  The nine rows are recorded in `tests/omega/corpus_native_macos_arm64.txt`.
-
 ### Oracle discrimination
 
 The oracle was proved to discriminate before it was recorded. The positive place shape
@@ -96,15 +88,6 @@ also reject member corruption at compile time: a caller-visible member changed t
 outside the callee's declared postcondition is reported as
 `the instantiated fact is structurally false (500 == 40)`. The proof therefore derives the
 returned member from the callee's body rather than trusting the declared `ensures`.
-
-### Fixtures
-
-Nine positive places are pinned under `tests/omega/pass/facts/sret_aggregate_return_bound_through_<place>_exit`
-(with `expected_native_exit.txt` `0`), and nine reject twins under
-`tests/omega/fail/facts/sret_aggregate_return_bound_through_<place>_rejected`
-(with `expected.txt` `may overflow `u64``). Each twin differs from its positive only in the
-construct's own returned member value and declared bound (`40u64` versus `91u64`), never in a
-caller guard.
 
 ## Build-owned target-body migration
 

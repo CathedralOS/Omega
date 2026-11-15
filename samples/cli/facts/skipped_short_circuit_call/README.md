@@ -54,7 +54,7 @@ substitution), `parameter`, `other_machine` and `target_body` already ran.
 Each twin changes only the left operand's value (and the contract that fixes
 it) from `false` to `true`. `bump` then runs, the counter is no longer known to
 be 0, and the twin rejects with `cannot prove requires contract for call
-untouched ...: counter == 0`. Pins: `tests/omega/{pass,fail}/facts/skipped_short_circuit_call_through_*`.
+untouched ...: counter == 0`.
 
 Nearest rows: `copied_call_argument_snapshot` and `copied_case_before_later_argument`
 order completed operands of one call; neither has a selective operand, and

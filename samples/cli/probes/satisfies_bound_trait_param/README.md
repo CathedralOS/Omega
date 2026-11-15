@@ -15,13 +15,10 @@ no `Main::exit` — run a check target, not native.
   ([data and code are independent](../../../../wiki/spec/language/conformances.md#data-and-code-are-independent)),
   so it is named apart from the data whose machine it binds:
   `RegistrarDecider satisfies Decider { machine pick(value: u64) -> u64 { Registrar::pick(value) } }`.
-- "Every whole-trait use names its evidence ... There is no unique-visible,
-  most-specific, ambient default, or attached-machine search"
-  ([declaration and selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection)).
-  `Decider::pick(6)` names none, so it is not a call of the one visible
-  implementation. "If only one implementation is intended, source can call
-  that machine directly"
+- "Every whole-trait use names its evidence ... There is no unique-visible, most-specific,
+  ambient default, or attached-machine search" ([declaration and
+  selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection)).
+  `Decider::pick(6)` names none, so it is not a call of the one visible implementation. "If
+  only one implementation is intended, source can call that machine directly"
   ([generics](../../../../wiki/spec/language/generics.md#static-machine-binder-categories)):
-  `Registrar::pick(6)`. A generic machine selects it through an evidence
-  binder: `decide<RegistrarDecider>(7)` with `Policy::pick(value)` inside
-  (`tests/omega/pass/traits/satisfies_bound_trait_parameter_exit`).
+  `Registrar::pick(6)`.

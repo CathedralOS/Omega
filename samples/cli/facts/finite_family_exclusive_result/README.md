@@ -27,11 +27,9 @@ The place names describe how each program receives its input counter. Every
 returned case follows the common storage, forwarding and consumption path;
 this row does not claim nine different places for storing the returned case.
 The constant example copies an owned array into runtime storage before
-borrowing it. The match example checks both inputs and distinguishes tags
-17 and 29. The target example distinguishes the x86-64 and ARM64 helpers.
-All Main and Build sources match their copies under
-`tests/omega/{pass,fail}/facts/finite_family_exclusive_result/`.
-All positives bind the four hosted targets and require exit 0.
+borrowing it. The match example checks both inputs and distinguishes tags 17
+and 29. The target example distinguishes the x86-64 and ARM64 helpers. All
+positives bind the four hosted targets and require exit 0.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |

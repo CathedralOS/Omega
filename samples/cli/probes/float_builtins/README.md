@@ -20,8 +20,4 @@ mbx run -p omega -- packages update --project samples/cli/probes/float_builtins
 
 The program imports `omega::language::core::float_operations`, so the guard's
 `f32`/`f64` comparisons resolve through that declared selection and the probe
-builds natively on macOS arm64. Without the import each `==` checks through a
-builtin-fallback meaning that has no Terminal route in any position; that gap
-is pinned at `tests/omega/pending/arithmetic/float_computation_no_route` and
-owned by OPERATOR-BOUNDARY-CALLS, whose board entry says to preserve declared
-operator selection with no spelling-based fallback.
+builds natively on macOS arm64.

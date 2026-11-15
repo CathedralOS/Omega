@@ -26,10 +26,7 @@ must refuse because the u64 result's other four bytes have no placement.
 
 Every positive below, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64` and
-`linux_arm64`. The nine place sources are pinned as
-`tests/omega/pass/facts/generic_calling_policy_through_<place>_exit` with the
-Width-4 rejects as
-`tests/omega/fail/facts/generic_calling_policy_through_<place>_rejected`.
+`linux_arm64`.
 
 | Place | Positive | Width-4 reject twin |
 | --- | --- | --- |
@@ -300,12 +297,6 @@ expressions and package projection, mixed implementation telescopes, other
 policy/member kinds, reference-row source migration and complete named member
 contract preservation. This row alone does not close the parent task.
 
-Pinned for this host at base `c1c6bc8cb8ec` (fixture rename only; compiler
-unchanged): the corpus recorded 9/9 positives `checked` with
-`check-target:macos_arm64` and 9/9 Width-4 twins `rejected` with the
-byte-coverage diagnostic in `corpus_outcomes.txt`, 9/9 native
-`built ... exit:0` rows in `corpus_native_macos_arm64.txt` and 9/9
-`exit:0 interpreter-exit:0 interpreter:agrees` rows in
-`corpus_both_macos_arm64.txt`. The rename guard kept all 36 rows byte-identical
-apart from their key text, and a post-rename diff run reported 0 structural
-moves with 0 twins rejecting without their expected fragment.
+The rename guard kept all 36 rows byte-identical apart from their key text, and
+a post-rename diff run reported 0 structural moves with 0 twins rejecting
+without their expected fragment.

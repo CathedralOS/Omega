@@ -50,8 +50,7 @@ The chained two-tag reference control retains independent sibling backings.
   a reference descriptor.
 - Composition: qualification survives each of the nine places into the same
   observation operation. Call-result lifetimes and state transfers retain the
-  receiving reference. Indexed tags, tag aliases and real receiving predicates
-  have additional focused fixtures in `tests/omega/{pass,fail}/domains`.
+  receiving reference.
 - Soundness: physical identity does not merge domain identities or introduce
   routed evidence. Predicates, ranges, unknown and routed constraints keep their
   receiving storage identity. Neither access-policy admission fence changes.
@@ -68,8 +67,6 @@ The chained two-tag reference control retains independent sibling backings.
 
 Acceptance: `omega run --both <place>/main.omg`, exit 0 in both engines, and
 the corresponding `<place>/invalid/main.omg` rejected for the active loan.
-The same sources and twins are pinned under
-`tests/omega/{pass,fail}/facts/scalar_tag_field_loan_through_*`.
 
 This row does not close the parent's other host/authority gates, domain access
 policy, stronger predicate introduction onto bare storage, or Cathedral's next

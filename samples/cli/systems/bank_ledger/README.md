@@ -22,11 +22,10 @@ omega --target windows_x86_64 --build-dir build samples/cli/systems/bank_ledger/
 ./build/omega-program.exe   # exit 70
 ```
 
-**Workaround noted:** a native miscompile triggers when a `let`-bound local
-(e.g. `let slot = count`) is passed as an argument to a nested dispatch state
-in repeated calls. The deposit machine therefore guards on `self.ledger.count`
-directly (post-increment) rather than forwarding a captured local. The bug is
-tracked at `tests/omega/pending/calls/let_local_passed_to_nested_state_arg_wrong`.
+**Workaround noted:** a native miscompile triggers when a `let`-bound local (e.g.
+`let slot = count`) is passed as an argument to a nested dispatch state in
+repeated calls. The deposit machine therefore guards on `self.ledger.count`
+directly (post-increment) rather than forwarding a captured local.
 
 Exercises: `[i32; 8]` fixed array, const-indexed reads/writes in arithmetic
 sum, machine-to-machine call chaining (`withdraw` calls `deposit`),

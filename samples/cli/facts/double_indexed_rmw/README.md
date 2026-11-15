@@ -78,25 +78,6 @@ and all nine places (10/10), and a native signal 5 with interpreter
 executes there; a Windows x86-64 host previously reported the same agreement
 for the root and its twin at `ff5d57b7c845`.
 
-## Pinned fixtures
-
-Pass fixtures `tests/omega/pass/facts/double_indexed_rmw_through_<place>_exit`
-copy the place program and record the native exit 0 oracle. Checking fixtures
-`tests/omega/fail/facts/double_indexed_rmw_through_<place>_unproved_inner_bound`
-copy the fact-sensitive bound controls. Trap fixtures
-`tests/omega/run/facts/double_indexed_rmw_through_<place>_traps` retain the
-original runtime control and record the `trap` oracle, following
-`tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps`.
-
-Historical macOS fixture rows were measured with the wave's
-opt-level 1 corpus runner at `595562a958b` (sha256
-`fa7c9b282deaefd7f38eafd3b4ea07d960ad1eb7e679d23253fef05ed8ff30dd`): the check
-leg records all eighteen as `checked check-target:macos_arm64`,
-`corpus_native_macos_arm64.txt` records the nine `built ... exit:0` positives
-and the nine `built ... exit:signal signal:5` traps, and
-`corpus_both_macos_arm64.txt` records the same runs with
-`interpreter-exit:0 interpreter:agrees` and `interpreter:trapped`.
-
 ## Requirements and evidence
 
 - **Owning contract:** [structural access](../../../../wiki/spec/terminal-psi/structural_access.md)

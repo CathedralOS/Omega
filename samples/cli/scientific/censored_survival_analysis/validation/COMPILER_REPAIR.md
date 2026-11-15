@@ -27,15 +27,12 @@ is captured before that sibling argument executes and retired on its selector
 write. The existing descriptor, filesystem, proof and runtime authority checks
 remain in force.
 
-The focused executable `tests/omega/pass/collections/contract_length_results_exit`
-checks nonempty and empty views, direct calls, copies, assignments, reversed
-contract equality, reordered parameters, state transport and reuse after an
-element write. Ten invalid controls cover false and conditional guarantees,
-fake members, wrong subjects, missing preconditions, replaced counts/descriptors,
-both later-argument selector writes, and private machine-binder strengthening. Existing captured length/range and
-returned range extent controls are rechecked. Full native and captured Terminal
-survival validation continues to use the unchanged independent rational and
-event-subset enumeration oracles.
+Ten invalid controls cover false and conditional guarantees, fake members, wrong
+subjects, missing preconditions, replaced counts/descriptors, both later-argument
+selector writes, and private machine-binder strengthening. Existing captured
+length/range and returned range extent controls are rechecked. Full native and
+captured Terminal survival validation continues to use the unchanged independent
+rational and event-subset enumeration oracles.
 
 Producer identities, numerical results and final integration are recorded in
 `producer.json`; raw source, runtime and numerical observations remain in the

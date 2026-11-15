@@ -52,16 +52,16 @@ omega --check samples/cli/independent/crossed_gauge_study/controls/out_of_bounds
 The final command must reject specifically because index 8 is outside `[i32;8]`;
 package, entry, parser or type failures do not count. The invalid source is a
 separate complete project and never imported by the application. `build/` holds
-compiler and execution artifacts and is ignored. Validation passed on the recorded Linux x86-64 compiler: source check and native
-compilation, all 19 exact-output native fixtures, all eight native/Terminal exit
-comparisons, and the separate bounds rejection control. The CLI comparison
-observes Terminal exits; interpreted stdout is not exposed by this route and is
-not claimed as verified by that CLI route. The documented repository corpus
-runner additionally passed all 19 native and admitted Terminal stdout, stderr
-and exit oracles, using unchanged copies of the complete application and frozen
-fixtures. That historical corpus matcher allows CRLF-to-LF normalization;
-separate native captures use raw-byte equality. The final review bundle records
-an additional private test-only observer of actual native and Terminal buffers
-for the frozen zero-byte tolerance, without changing the ordinary matcher or runtime. See `EVIDENCE.md` for commands, producer/binary identity,
-package-review continuity, artifacts and validation scope.
-Only Linux x86-64 is declared here; other native targets are untested.
+compiler and execution artifacts and is ignored. Validation passed on the
+recorded Linux x86-64 compiler: source check and native compilation, all 19
+exact-output native fixtures, all eight native/Terminal exit comparisons, and
+the separate bounds rejection control. The CLI comparison observes Terminal
+exits; interpreted stdout is not exposed by this route and is not claimed as
+verified by that CLI route. The documented repository corpus runner additionally
+passed all 19 native and admitted Terminal stdout, stderr and exit oracles,
+using unchanged copies of the complete application and frozen fixtures. That
+historical corpus matcher allows CRLF-to-LF normalization; separate native
+captures use raw-byte equality. The final review bundle records an additional
+private test-only observer of actual native and Terminal buffers for the frozen
+zero-byte tolerance, without changing the ordinary matcher or runtime. Only
+Linux x86-64 is declared here; other native targets are untested.

@@ -4,7 +4,14 @@ A copied first argument equal to 7 stays 7 when the second argument overwrites i
 
 Parent: **STATE-LOCAL-VALUE-FRONTIER**; prerequisite evidence for **CHECKED-PACKAGE-REUSE**. The first argument completes as 7, then `overwrite` stores 9 through the original home. The caller must establish `receive`'s explicit `requires first == 7` from that completed copy. `receive` transports its declared premise through `seven`'s entry contract, establishes its result as 7, and permits the caller's exact subtraction `observed - 7`. A runtime guard does not establish that fact.
 
-The nine places are [`local`](local/main.omg), [`field`](field/main.omg), [`parameter`](parameter/main.omg), [`call_result`](call_result/main.omg), [`match_join`](match_join/main.omg), [`const_name`](const_name/main.omg), [`other_state`](other_state/main.omg), [`other_machine`](other_machine/main.omg), [`target_body`](target_body/main.omg). Every place has an `invalid/main.omg` twin changing only the initial first operand from 7 to 9. It must refuse the same 7 obligation. Matching pins live under `tests/omega/{pass,fail}/facts/copied_call_argument_snapshot_through_*`.
+The nine places are [`local`](local/main.omg), [`field`](field/main.omg),
+[`parameter`](parameter/main.omg), [`call_result`](call_result/main.omg),
+[`match_join`](match_join/main.omg), [`const_name`](const_name/main.omg),
+[`other_state`](other_state/main.omg),
+[`other_machine`](other_machine/main.omg),
+[`target_body`](target_body/main.omg). Every place has an `invalid/main.omg`
+twin changing only the initial first operand from 7 to 9. It must refuse the
+same 7 obligation.
 
 The original baseline `55898d082fc8` reread the first operand's home after later operands ran. The producer already retained exact `FlowOperandFact` completion constraints, and call admission must consume that capture; live views instead consult their exact invocation-time referents. The by-value entry-contract correction in `9ac3908938b6` also requires each `receive` body to declare its premise: a caller's literal cannot justify an unrestricted callee body. Positive and false-input twins share that same contract; only the initial first operand differs. A conservative unknown-input fallback must never re-establish a fact from a predecessor subset.
 
@@ -14,11 +21,9 @@ The selected value of a copied first argument remains 7 when the second argument
 replaces its former descriptor home with a view of 9.
 
 The same nine places have `<place>/descriptor/main.omg` witnesses and
-`descriptor/invalid/main.omg` twins. The positives carry
-`requires selected.target.value == 7` through the selected place into `seven`
-and then the caller's exact subtraction. Twins change only the first backing
-value from 7 to 9. Their pins are
-`tests/omega/{pass,fail}/facts/copied_call_argument_snapshot_descriptor_through_*`.
+`descriptor/invalid/main.omg` twins. The positives carry `requires
+selected.target.value == 7` through the selected place into `seven` and then the
+caller's exact subtraction. Twins change only the first backing value from 7 to 9.
 
 A copied descriptor releases its former slot after evaluation while retaining
 its selected backing until the enclosing invocation. Staged exclusions use the
@@ -33,13 +38,10 @@ never becomes an inline canonical field or a new proof assumption. Checked
 source contracts remain the authority for source admission; this change does
 not restore a second proof replay in ordinary compilation.
 
-Related ownership controls under `tests/omega/{pass,fail}/borrows` pin retained
-intermediate backing, consumed backing, borrowed source homes, independent input
-permissions, and active/empty case snapshots. Explicit image provenance differs
-from opaque static lifetime debt. An opaque-input call-result control also runs
-through native and Terminal execution; it retains the exact supplier without
-inventing an address. The image-backed descriptor control now also executes in both engines;
-its former sequence-cleanup refusal is retained in the baseline evidence.
+Explicit image provenance differs from opaque static lifetime debt. An opaque-input
+call-result control also runs through native and Terminal execution; it retains the exact
+supplier without inventing an address. The image-backed descriptor control now also executes
+in both engines; its former sequence-cleanup refusal is retained in the baseline evidence.
 
 Host acceptance is `omega run --both <place>/descriptor/main.omg` with native
 and Terminal exit 0, plus each twin rejecting `receive`'s 7 obligation.
@@ -55,8 +57,7 @@ The nine `<place>/byte_view/main.omg` witnesses carry the pointer-and-length
 descriptor in a shared byte-view field. The unchanged consumer `seven` and exact
 subtraction require its captured extent of 7; `byte_view/invalid/main.omg` changes
 only the first extent to 9. This is a distinct descriptor representation, not
-another count or integer width. Matching positive and reject pins live under
-`tests/omega/{pass,fail}/facts/copied_byte_view_argument_snapshot_through_*`.
+another count or integer width.
 
 Fresh optimized baseline `a92f16431042e8a54bc3f6d90a87f8602fa3aa18` accepted the
 positive source obligations, but eight places refused normal-exit cleanup and
@@ -101,12 +102,11 @@ The selected value of a copied first argument remains 7 when the second argument
 replaces its former descriptor home with a view of 9.
 
 The nine `<place>/inline_byte_view/main.omg` witnesses pass the replacement
-literal directly to `overwrite` and retain a second view field of extent 4.
-Every caller checks that the first copied extent stays 7, the replaced field
-becomes 9, and its sibling stays 4. The existing byte-view row retains the
-named-source control. Each inline witness has an `invalid/main.omg` twin that
-changes only the first extent to 9; the consumer still requires 7. Matching pins
-are `tests/omega/{pass,fail}/facts/inline_byte_view_argument_snapshot_through_*`.
+literal directly to `overwrite` and retain a second view field of extent 4. Every
+caller checks that the first copied extent stays 7, the replaced field becomes 9,
+and its sibling stays 4. The existing byte-view row retains the named-source
+control. Each inline witness has an `invalid/main.omg` twin that changes only the
+first extent to 9; the consumer still requires 7.
 
 Optimized baseline `6ede39fcd256b210ac9a3be102ae61147ba9666b` refused a direct
 literal with “call stores a borrowed value without a complete destination/backing
@@ -128,14 +128,13 @@ Windows native execution remains owner-deferred and Linux execution unverified.
 The selected value of a copied first argument remains 7 when the second argument
 replaces its former descriptor home with a view of 9.
 
-The nine `<place>/computed_byte_view/main.omg` witnesses keep that obligation and
-its false-input twin. Each program exercises a source-free helper, a helper that changes another
-descriptor and toggles a counter once, an owned carrier, a direct projected
-view, a constructed carrier, and a returned view selected before a later write. The field place binds the computed result
-before the call; the parameter place borrows the counter through a helper;
-the call-result place returns a local array view and reads its distinct first
-byte after installation. The sibling view stays at extent 4. Matching pins are
-`tests/omega/{pass,fail}/facts/computed_byte_view_argument_snapshot_through_*`.
+The nine `<place>/computed_byte_view/main.omg` witnesses keep that obligation and its
+false-input twin. Each program exercises a source-free helper, a helper that changes another
+descriptor and toggles a counter once, an owned carrier, a direct projected view, a constructed
+carrier, and a returned view selected before a later write. The field place binds the computed
+result before the call; the parameter place borrows the counter through a helper; the
+call-result place returns a local array view and reads its distinct first byte after
+installation. The sibling view stays at extent 4.
 
 The initial computed controls refused on
 `a59b4a6ce16cdba1316ae78d83a945a2eee46b23`. The expanded argument-replacement
@@ -205,37 +204,33 @@ and dependent result composition remain open under the parent acceptance.
 
 The computed row now passes its first copied carrier through a ranked identity
 return. Its field place copies that carrier to an immutable local before the
-recursive edge; its const-name place forms a literal window. The original
-snapshot, bound, operation and source-9 twins are unchanged. Baseline `b50066b7530`
-refused the recursive descriptor-length guarantees and completed backing join.
-Finite result equations now distinguish descriptor leaves from paths growing
-inside their pointees. Exact immutable input-slot correspondence establishes
-returned length metadata without citing the recursive guarantee being checked.
-Completed owned bindings retain inline descriptor cells across disjoint writes,
-while typed projections hide old pointee contents. Local copies follow retained
-completed values; contextual window operands supply their captured carrier for
-selected builtin indexing. An unchanged incoming descriptor retains its defining
-formal identity through those whole-value links. That identity is resolved only
-after the descriptor's consumer-cut storage query, preserving current reads
-through stored references and refusals for unavailable captures. These relations
-grant no new access authority.
-The changed-input, swapped-field and shortened-window controls under
-`tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
-own length guarantee. Ranking and recursive premise checks remain independent.
-Terminal machine calls retain their invocation identity and completion
-obligations, including when a recursive call reuses activation storage.
-Invocation-local parameter origins stay separate from whole-activation
-invariants: the latter follow actual entry backedges and keep the original
-inputs distinct from replaced entry slots. The invariant solver builds its
-components from that same arrival roster. It discharges a recursive completion
-only after every reachable normal-result producer proves the same guarantee;
-unsupported exits withhold that proof. Ordinary call-result reasoning may also
-use a recursive guarantee when that exact call edge independently proves strict
-descent; its captured actuals and ordinary premise checks remain mandatory.
-A whole-component termination promise alone grants no such hypothesis. The scalar changed-actual control
+recursive edge; its const-name place forms a literal window. The original snapshot,
+bound, operation and source-9 twins are unchanged. Baseline `b50066b7530` refused
+the recursive descriptor-length guarantees and completed backing join. Finite
+result equations now distinguish descriptor leaves from paths growing inside their
+pointees. Exact immutable input-slot correspondence establishes returned length
+metadata without citing the recursive guarantee being checked. Completed owned
+bindings retain inline descriptor cells across disjoint writes, while typed
+projections hide old pointee contents. Local copies follow retained completed
+values; contextual window operands supply their captured carrier for selected
+builtin indexing. An unchanged incoming descriptor retains its defining formal
+identity through those whole-value links. That identity is resolved only after the
+descriptor's consumer-cut storage query, preserving current reads through stored
+references and refusals for unavailable captures. These relations grant no new
+access authority. Ranking and recursive premise checks remain independent. Terminal
+machine calls retain their invocation identity and completion obligations,
+including when a recursive call reuses activation storage. Invocation-local
+parameter origins stay separate from whole-activation invariants: the latter follow
+actual entry backedges and keep the original inputs distinct from replaced entry
+slots. The invariant solver builds its components from that same arrival roster. It
+discharges a recursive completion only after every reachable normal-result producer
+proves the same guarantee; unsupported exits withhold that proof. Ordinary
+call-result reasoning may also use a recursive guarantee when that exact call edge
+independently proves strict descent; its captured actuals and ordinary premise
+checks remain mandatory. A whole-component termination promise alone grants no such
+hypothesis. The scalar changed-actual control
 `fail/contracts/recursive_result_bound_changed_actual` also rejects, while
 ordinary, mutable and forwarding-state scalar controls retain their results.
-
 
 ## Public local dispatch results
 
@@ -402,12 +397,11 @@ replaces its former descriptor home with a view of 9.
 
 Each of the nine places has an `indexed_byte_view/main.omg` witness and an
 `indexed_byte_view/invalid/main.omg` twin. Both direct and public `dyn` producers
-return `Counted<'storage, (source.bytes.len)>` from a local array-backed view.
-The receiver accepts `Counted<'storage, 7>` and consumes its own default-domain
+return `Counted<'storage, (source.bytes.len)>` from a local array-backed view. The
+receiver accepts `Counted<'storage, 7>` and consumes its own default-domain
 invariant through `seven`; it needs no redundant length precondition. The caller
 subtracts 7 and checks that the former home became 9 while its sibling stayed 4.
-Twins change only the initial array extent and contents to length 8. Pins are
-`tests/omega/{pass,fail}/facts/indexed_byte_view_argument_snapshot_through_*_exit`.
+Twins change only the initial array extent and contents to length 8.
 
 Baseline `970629516baaa28053e7f4cdeb5eeebb0d6c3721` refuses the field-valued
 application during parsing. The repair retains the expression until binder-owned
@@ -419,20 +413,13 @@ separate from source index equality. The nine positives execute with native and
 Terminal exit 0 on macOS ARM64, and all nine twins reject index equality.
 Other-host execution remains unverified; Windows execution is owner-deferred.
 
-Formation controls reject unused overflowing recipes, wrong/refined carriers,
-a provider returning a different projection, forged descriptors and retagging an
-already admitted value. A bounded unused recipe remains valid. Those controls
-are under `tests/omega/{pass,fail}/generics/runtime_value_recipe_*`.
+Formation controls reject unused overflowing recipes, wrong/refined carriers, a
+provider returning a different projection, forged descriptors and retagging an
+already admitted value. A bounded unused recipe remains valid.
 
 ### Inferred runtime indices
 
-The same nine places have `inferred_indexed_byte_view/main.omg` witnesses and
-`inferred_indexed_byte_view/invalid/main.omg` twins, pinned under
-`tests/omega/{pass,fail}/facts/inferred_indexed_byte_view_argument_snapshot_through_*_exit`.
-Their consumer infers an ordinary machine Value argument from the completed
-`Counted` operand. Both direct and public producers toggle a separate counter;
-the caller checks each counter to detect repeated execution. The false-length
-twins change only the initial array from seven to eight elements and reject
+The false-length twins change only the initial array from seven to eight elements and reject
 `Count == 7`.
 
 The optimized baseline at `a600523a236621d61c5033f0bed399346a297f15` tries to
@@ -468,20 +455,17 @@ remain required; this does not establish full RUNTIME-VALUE-GENERICS acceptance.
 
 Actual baseline diagnostics, producer/source/oracle identities, engine observations and reject reasons belong in the owning qualification/claim records. No unexecuted target is claimed.
 
-
 ## Earlier operands establish the descriptor selected by a later operand
 
 The selected value of a copied first argument remains 7 when the second argument
 replaces its former descriptor home with a view of 9.
 
-The nine `<place>/post_write_indexed_byte_view/main.omg` programs first install
-an array window into a descriptor whose old extent is 1, then capture a dependent
-result, then replace the former descriptor with extent 9. Both direct and public
-trait result producers toggle an independent counter exactly once. The receiving
-`Counted<7>` invariant, `seven` contract and exact subtraction consume the captured
-extent without a caller equality guard. Each twin changes only the installed
-backing from 7 to 8. Matching pins are
-`tests/omega/{pass,fail}/facts/post_write_indexed_byte_view_argument_snapshot_through_*_exit`.
+The nine `<place>/post_write_indexed_byte_view/main.omg` programs first install an array
+window into a descriptor whose old extent is 1, then capture a dependent result, then replace
+the former descriptor with extent 9. Both direct and public trait result producers toggle an
+independent counter exactly once. The receiving `Counted<7>` invariant, `seven` contract and
+exact subtraction consume the captured extent without a caller equality guard. Each twin
+changes only the installed backing from 7 to 8.
 
 Fresh optimized baseline `a69dd2d132b727bfbcb28f1ff4920e803a38eef0` refuses all
 nine positives at runtime-index equality. Invocation write frames now consume the
@@ -493,16 +477,11 @@ consume admitted call guarantees; erased integer arithmetic retains its meaning
 when compared by the existing scoped integer engine. Inverse alias invalidation
 remains conservative.
 
-The same nine places also contain
-[`public_post_write_indexed_byte_view/main.omg`](local/public_post_write_indexed_byte_view/main.omg)
-with matching `invalid/main.omg` twins, pinned under
-`tests/omega/{pass,fail}/facts/public_post_write_indexed_byte_view_argument_snapshot_through_*_exit`.
-Here an ordinary public `Installing` requirement establishes the changed extent;
-the named implementation deliberately renames its formals. Fresh optimized
-baseline `4d987059e887d2712b1c7679f6577008f8f5e20d` rejects the valid public
-postcondition and wrongly accepts a separate implementation promising the wrong
-mutable formal. Law correspondence now preserves applied declaration identity,
-selected operator meaning, and positional formal roles.
+Here an ordinary public `Installing` requirement establishes the changed extent; the named
+implementation deliberately renames its formals. Fresh optimized baseline
+`4d987059e887d2712b1c7679f6577008f8f5e20d` rejects the valid public postcondition and wrongly
+accepts a separate implementation promising the wrong mutable formal. Law correspondence now
+preserves applied declaration identity, selected operator meaning, and positional formal roles.
 
 The public call retains its complete evaluated operands, including the selector's
 empty data frontier. Checked stored-output summaries join every selectable body
@@ -545,8 +524,7 @@ effect and the later write are observed by the exit-0 oracle.
 All nine `<place>/provider_field_poststate/main.omg` programs carry this fact,
 including the four hosted `ProgramEntry` bindings. Their `invalid/main.omg`
 twins change only the provider's replacement argument from 7 to 6; the receiving
-`Counted<7>` obligation and consumer remain unchanged. Byte-identical pins are
-`tests/omega/{pass,fail}/facts/provider_field_poststate_through_<place>_*`.
+`Counted<7>` obligation and consumer remain unchanged.
 
 The fresh optimized baseline at `717593f593c656f865c7a322fd2874b4bd168afc`
 rejects the provider's independently proved projected post-state equation.
@@ -592,7 +570,6 @@ that path without deriving pointer geometry from lifetime dependencies. The earl
 control already executes with exit 0 in both engines on the preserved baseline;
 it is retained evidence, not a new repair.
 
-
 ### Public descriptor extent after an earlier operand
 
 The same copied-first-argument fact also crosses all nine
@@ -612,20 +589,18 @@ not evaluated operands. Unknown operation frames still withhold preservation.
 This adds no pointer equality or backing authority from a length equation.
 
 The optimized producer
-`8b9806ec346fe629cb120ea55a387093d8259892a76e156204c8167b2f5477ad`
-(SHA-256) passes all nine preparations, native/Terminal exit-0 observations,
-and input-only rejecting twins for both this extent row and the scalar-field
-row. Raw evidence lives in `build/slot5/{extent-row-11,field-row-11}/` in the
-owning checkpoint. Source/build pins are byte-identical under
-`tests/omega/{pass,fail}/facts/provider_extent_poststate_through_<place>_*`.
-Four hosted bindings are authored; execution evidence here is Linux x86-64.
+`8b9806ec346fe629cb120ea55a387093d8259892a76e156204c8167b2f5477ad` (SHA-256)
+passes all nine preparations, native/Terminal exit-0 observations, and
+input-only rejecting twins for both this extent row and the scalar-field row.
+Raw evidence lives in `build/slot5/{extent-row-11,field-row-11}/` in the
+owning checkpoint. Four hosted bindings are authored; execution evidence here
+is Linux x86-64.
 
 The reduced extent control first rejected on candidate 8, then ran exit 0 in
 both engines on candidate 11; it was promoted without changing its local
 `main.omg` bytes. The larger reference-bearing `provider_post_write_indexed_byte_view`
 program remains frozen. Its completed backing relation is a separate repair
 from this scalar extent proof; see the observations below.
-
 
 Golden recording used a separate checkout of the same preserved published
 base `717593f593c656f865c7a322fd2874b4bd168afc`, restored to byte-identical
@@ -635,7 +610,6 @@ reject or oracle failure. Their inspectable stamp is `717593f593c6+wt`;
 recording did not rebase the working branch, fetch main, rebuild a producer,
 or change other golden rows. Raw records and restoration hashes are retained
 in `build/slot5/record-{source,both}-corpus-11.*` and `recording-tree.json`.
-
 
 ### Completed public selected descriptor storage
 
@@ -659,12 +633,9 @@ a selector identity. Unknown, differing and cyclic selections withhold it.
 Producer `3b196efe2ecc3511b89e4ccf0dab9aa84136e4d5d5500d6e8e87869921dc4f0d`
 (SHA-256, candidate 17) prepares and runs all nine frozen positives with native
 and Terminal exit 0. All nine twins still reject their intentionally false
-runtime index. Raw observations are `build/slot5/descriptor-row-17/`.
-Source/build pins copy these exact programs into
-`tests/omega/{pass,fail}/facts/provider_descriptor_poststate_through_<place>_*`.
-These are Linux x86-64 observations; four authored target bindings do not
-constitute execution on the other hosts. Copied and projected selector controls
-remain under repair and review; this does not close the whole TASKS item.
+runtime index. Raw observations are `build/slot5/descriptor-row-17/`. Copied and
+projected selector controls remain under repair and review; this does not close
+the whole TASKS item.
 
 ## Ranked dependent descriptor returns
 
@@ -691,15 +662,11 @@ The source and the extent-8 twins retain the same fact, bound and consuming
 subtraction; neither an inline-arithmetic rewrite nor an extra caller guard
 establishes it.
 
-This establishes the ranked dependent-result part of
-**STATE-LOCAL-VALUE-FRONTIER** across all nine places, with pins under
-`tests/omega/{pass,fail}/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_*`
-and `copied_computed_ranked_indexed_byte_view_argument_snapshot_through_*`.
-Generic call payloads remain intact through admission; resolved completing calls
-share state-equation and constant-stack successor planning with named arrivals.
-Result carriers apply the actual invocation telescope; result equations bind the
-public declaration or dynamic-slot telescope to captured operands. Neither a
-receiving annotation nor the helper's private body establishes the caller's fact.
+Generic call payloads remain intact through admission; resolved completing calls share
+state-equation and constant-stack successor planning with named arrivals. Result carriers
+apply the actual invocation telescope; result equations bind the public declaration or
+dynamic-slot telescope to captured operands. Neither a receiving annotation nor the
+helper's private body establishes the caller's fact.
 
 Both productions' nine positives run with native and Terminal exit 0 on macOS
 ARM64; their extent-8 twins reject the intended obligation. Focused
@@ -732,16 +699,14 @@ through the same typed source-path query as custody replay. These regions prove
 neither descriptor equality nor permission ancestry. Authenticated image scope
 and declared lifetime debts remain separate obligations.
 
-The nine positive and negative places are pinned as
-`tests/omega/{pass,fail}/facts/copied_captured_window_index_argument_snapshot_through_*`.
-The `dependent_window_*` controls reject missing order, self-forming requirements,
-wrong window extent, mismatched parameter indices and writes to retained backing.
-Their positive counterparts exercise an unrelated write, an image-backed sibling
-and a dependent parameter application. `runtime_dependent_window_byte_payload_exit`
-also reads byte 49 through the returned `Counted` value, checking the nonzero
-window offset independently of its extent. Native/Terminal observations are macOS
-ARM64 exit 0; other-host execution remains unverified. General opaque/provider
-result composition and the parent capability remain open.
+The `dependent_window_*` controls reject missing order, self-forming requirements, wrong
+window extent, mismatched parameter indices and writes to retained backing. Their
+positive counterparts exercise an unrelated write, an image-backed sibling and a
+dependent parameter application. `runtime_dependent_window_byte_payload_exit` also reads
+byte 49 through the returned `Counted` value, checking the nonzero window offset
+independently of its extent. Native/Terminal observations are macOS ARM64 exit 0;
+other-host execution remains unverified. General opaque/provider result composition and
+the parent capability remain open.
 
 ### Forwarded dependent results and static callable contracts
 
@@ -763,13 +728,12 @@ private descriptor metadata. Mutable subjects retain ordinary invalidation.
 These operations supply neither spatial geometry nor access authority.
 
 `controls/dependent_callback_window` also reads byte 49 at the returned window's
-nonzero offset. `dependent_forwarded_window` exercises ordinary forwarding,
-and `dependent_renamed_callback_window` changes the callback's formal names.
+nonzero offset. `dependent_forwarded_window` exercises ordinary forwarding, and
+`dependent_renamed_callback_window` changes the callback's formal names.
 `dependent_local_valid_order` forms a local index from its current written value;
 its `dependent_local_written_order` twin changes only that write to break the
 ordering. `dependent_callback_missing_order` and `dependent_callback_wrong_result`
-reject missing public premises and a different result index. Corresponding pins
-live under `tests/omega/{pass,fail}/{borrows,generics}`.
+reject missing public premises and a different result index.
 
 Acceptance requires all nine positive places and their pins to agree between
 native and Terminal execution, their nine reject twins to refuse `Count == 7`,

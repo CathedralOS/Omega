@@ -15,9 +15,6 @@ The native miscompile that previously caused this to exit 72 has been fixed
 into the callee's parameter slot, so the case tag stayed 0 (Idle), the
 dispatch guard failed, and `self.register.balance` was never updated.
 
-The fix and a minimal regression canary are in
-`tests/omega/pass/calls/by_value_case_param_self_write_exit`.
-
 ## Build
 
 ```

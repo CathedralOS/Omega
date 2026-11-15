@@ -118,6 +118,5 @@ read. Its build must receive its own ordinary package review if required.
 current CLI compares termination; it does not expose an independent Terminal
 stdout oracle. Record agreement, disagreement or explicit decline as observed,
 and retain that limit separately from the exact native stream comparison.
-Build/compiler/validation identities and actual route results are recorded in
-`validation/RESULTS.md` when execution finishes. Generated output and logs live
-under local `build/` and are included separately in the review bundle.
+Generated output and logs live under local `build/` and are included separately
+in the review bundle.

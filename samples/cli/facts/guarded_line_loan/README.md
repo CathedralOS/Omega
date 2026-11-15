@@ -71,11 +71,6 @@ nine places; the board's other acceptance remains open.
 ```sh
 omega run --both samples/cli/facts/guarded_line_loan/local/main.omg
 omega --check samples/cli/facts/guarded_line_loan/invalid_local/main.omg
-python3 tools/sample_gate.py --filter cli/facts/guarded_line_loan --cli <omega>
-python3 tools/sample_native_gate.py --filter cli/facts/guarded_line_loan --cli <omega>
-python3 tools/corpus_gate.py --filter facts/guarded_line_loan
-python3 tools/corpus_gate.py --native --filter facts/guarded_line_loan
-python3 tools/corpus_gate.py --both --filter facts/guarded_line_loan
 ```
 
 ## Build-owned target-body migration

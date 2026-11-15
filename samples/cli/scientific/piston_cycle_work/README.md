@@ -52,9 +52,8 @@ digit-plus-EOF, plus five invalid input records including an extra byte after LF
 intended-invalid control is a complete separate source project delivering nominal `Pressure` to a
 `Volume` parameter; only the documented type-mismatch diagnostic is acceptable.
 
-Commands are run from the repository root with `OMEGA_LIBRARY_ROOT` selecting
-this checkout's `source/library`. See `validation/RESULTS.md` for binary identity,
-exact commands and observed routes. Package preparation uses normal reviewed
-`omega packages update --project samples/cli/independent/piston_cycle_work --target linux_x86_64`,
-then `update --resume` after accepting the concrete required decisions. Denied
-acceptance is a blocker and must not be retried via another route.
+Commands are run from the repository root with `OMEGA_LIBRARY_ROOT` selecting this checkout's
+`source/library`. Package preparation uses normal reviewed `omega packages update --project
+samples/cli/independent/piston_cycle_work --target linux_x86_64`, then `update --resume` after
+accepting the concrete required decisions. Denied acceptance is a blocker and must not be retried
+via another route.

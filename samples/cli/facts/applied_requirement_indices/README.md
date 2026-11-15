@@ -40,7 +40,6 @@ omega run --both samples/cli/facts/applied_requirement_indices/const_name/main.o
 omega run --both samples/cli/facts/applied_requirement_indices/other_state/main.omg
 omega run --both samples/cli/facts/applied_requirement_indices/other_machine/main.omg
 omega run --both samples/cli/facts/applied_requirement_indices/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/applied_requirement_indices
 ```
 
 ### The oracle discriminates
@@ -64,33 +63,6 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `index compatibility condition` |
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `index compatibility condition` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `index compatibility condition` |
-
-## Pinned Fixtures
-
-The nine-place row is pinned under `tests/omega/pass/facts/applied_requirement_indices_through_<place>_exit` and `tests/omega/fail/facts/applied_requirement_indices_through_<place>_rejected`:
-
-- Pass fixtures (`expected_native_exit.txt` = `0`):
-  - `tests/omega/pass/facts/applied_requirement_indices_through_local_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_field_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_parameter_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_call_result_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_match_join_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_const_name_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_other_state_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_other_machine_exit`
-  - `tests/omega/pass/facts/applied_requirement_indices_through_target_body_exit`
-- Fail fixtures (`expected.txt` = `index compatibility condition`):
-  - `tests/omega/fail/facts/applied_requirement_indices_through_local_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_field_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_parameter_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_call_result_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_match_join_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_const_name_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_other_state_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_other_machine_rejected`
-  - `tests/omega/fail/facts/applied_requirement_indices_through_target_body_rejected`
-
-Adjacent provider fixtures (`tests/omega/pass/providers/applied_type_index_forwarding_exit`, `tests/omega/pass/providers/applied_routed_index_forwarding_exit`, `tests/omega/pass/providers/applied_requirement_computed_const_exit`, and their fail controls `applied_type_index_wrong_actual`, `applied_type_index_wrong_field`, `applied_type_index_nested_wrong_actual`, `applied_type_index_wrong_result`, and `applied_routed_parameter_mint`) cover compound indices, computed const index expressions, and issuer-routed domain qualifications.
 
 ## Build-owned target selection
 

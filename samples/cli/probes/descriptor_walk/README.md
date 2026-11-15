@@ -10,9 +10,6 @@ Its own contract establishes the recast footprint; the loop transfers control
 with constant stack usage. Numeric conversion helpers called from fused states
 remain ordinary dependencies of their authored state owners.
 
-This exercises the projected-storage requirement of
-`STATE-LOCAL-VALUE-FRONTIER`. The bounds control under
-`tests/omega/fail/borrows/projected_record_region_exceeds_backing` reduces the
-backing extent by one byte and must reject the same 16-byte view at offset 32.
+This exercises the projected-storage requirement of `STATE-LOCAL-VALUE-FRONTIER`.
 Development runs use the normal target-specific `omega packages update` package workflow
 before accepting the local standard library's program-entry binding.

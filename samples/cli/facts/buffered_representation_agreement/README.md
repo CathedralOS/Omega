@@ -29,10 +29,6 @@ A generic conversion call may need concrete type arguments before its reference
 transfers are known. The compiler keeps that unresolved obligation while checking
 later calls. Fresh borrows of owned local storage still receive ordinary lifetime
 and conflict checks; loaded references still need complete source information.
-The [live-borrow control](../../../../tests/omega/fail/borrows/template_prefix_keeps_owned_borrow_live/main.omg)
-rejects a write before the borrowed pointer's last use. The
-[later-call control](../../../../tests/omega/fail/borrows/template_prefix_keeps_concrete_output_obligation/main.omg)
-rejects a missing concrete call relation even after an unresolved generic call.
 
 The [local witness](local/main.omg) encodes a tag followed by the arbitrary Pair's
 two bytes. The writer promises which bytes it stores; the reader promises which
@@ -140,7 +136,6 @@ separate controls above, broader library support and other-host execution:
 | [Nested machine](other_state/main.omg) | Result returned by a nested machine | [Wrong last-byte load](invalid_other_state/main.omg) |
 | [Other machine](other_machine/main.omg) | Result forwarded by another named implementation | [Wrong last-byte load](invalid_other_machine/main.omg) |
 | [Selected implementation](target_body/main.omg) | Result through a Build-selected body, marker and neighbors | [Wrong last-byte load](invalid_target_body/main.omg) |
-
 
 Governing contracts: [codecs](../../../../wiki/spec/layouts/codecs.md),
 [completed returns](../../../../wiki/spec/language/state_contracts.md#returns-and-proof-use),

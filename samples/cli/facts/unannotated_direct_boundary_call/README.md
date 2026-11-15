@@ -44,7 +44,6 @@ omega run --both samples/cli/facts/unannotated_direct_boundary_call/const_name/m
 omega run --both samples/cli/facts/unannotated_direct_boundary_call/other_state/main.omg
 omega run --both samples/cli/facts/unannotated_direct_boundary_call/other_machine/main.omg
 omega run --both samples/cli/facts/unannotated_direct_boundary_call/target_body/main.omg
-python3 tools/sample_native_gate.py --facts --filter cli/facts/unannotated_direct_boundary_call
 ```
 
 The oracle discriminates. A provider result other than 7 takes `bad()` and
@@ -82,13 +81,8 @@ still requires that direct contribution to fit the authored row.
 
 ## Pinned fixtures
 
-`tests/omega/pass/facts/unannotated_direct_boundary_call_through_<place>_exit`
-copies each positive place's `main.omg` and `build.omg`.
-`tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_<place>_rejected`
-copies each `invalid_missing_requirement` control's two source files and its
-expected rejection reason. These controls remove the boundary requirement's
-explicit ceiling. The separate `<place>/invalid` controls keep that requirement
-and declare an empty caller ceiling.
+The separate `<place>/invalid` controls keep that requirement and declare an empty
+caller ceiling.
 
 The Build companions explicitly select `MarkerMark` for their existing entry
 targets. The implementation still returns 7; these choices preserve the
@@ -184,21 +178,19 @@ is a runtime oracle, not replacement evidence for reach.
 | other_machine | [positive](transitive/other_machine/main.omg) / [reject](transitive/other_machine/invalid/main.omg) | [positive](generic/other_machine/main.omg) / [reject](generic/other_machine/invalid/main.omg) | [positive](dynamic/other_machine/main.omg) / [reject](dynamic/other_machine/invalid/main.omg) |
 | target_body | [positive](transitive/target_body/main.omg) / [reject](transitive/target_body/invalid/main.omg) | [positive](generic/target_body/main.omg) / [reject](generic/target_body/invalid/main.omg) | [positive](dynamic/target_body/main.omg) / [reject](dynamic/target_body/invalid/main.omg) |
 
-The corresponding `unannotated_{transitive,generic,dynamic}_boundary_call_through_*`
-fixtures under `tests/omega/{pass,fail}/facts` are byte copies of these sources.
 `contracts/empty` pins service-free local mutation under an empty ceiling.
-`contracts/declared_slack` pins `Mark + Unused` as a real conservative contract:
-its body reaches only Mark, while its caller still needs the published Unused
-allowance. Its twin removes only Unused from that caller's ceiling. Unused is
-root-registered for audit, so its overdeclaration must remain visible separately
-from checked-body reach. Package comparison retains exact declaration ownership.
+`contracts/declared_slack` pins `Mark + Unused` as a real conservative contract: its
+body reaches only Mark, while its caller still needs the published Unused allowance.
+Its twin removes only Unused from that caller's ceiling. Unused is root-registered
+for audit, so its overdeclaration must remain visible separately from checked-body
+reach. Package comparison retains exact declaration ownership.
 `contracts/generic_narrow` checks nominal substitution against a wider allowed
-requirement: the selected inferred Mark contract fits a Mark-only caller, while
-a twin with a published Mark + Unused contract rejects. In contrast,
+requirement: the selected inferred Mark contract fits a Mark-only caller, while a
+twin with a published Mark + Unused contract rejects. In contrast,
 `contracts/target_union` keeps the Forbidden contribution of a Windows body even
-when this host executes the Mark-only macOS body; its Mark-only caller twin
-rejects. `contracts/disjoint_service/invalid` rejects Forbidden under a
-Mark + Unused ceiling.
+when this host executes the Mark-only macOS body; its Mark-only caller twin rejects.
+`contracts/disjoint_service/invalid` rejects Forbidden under a Mark + Unused
+ceiling.
 
 ### Baseline and repair mechanism
 
@@ -279,13 +271,11 @@ scoped records neither overwrite nor qualify them.
 
 ## Explicit boundary requirement ceilings
 
-The same nine original positive places retain `Mark::read`'s explicit `Mark`
-ceiling. Each place's [`invalid_missing_requirement/main.omg`](local/invalid_missing_requirement/main.omg)
-removes only that requirement clause, keeping the selected checked implementation
-and the consuming program unchanged. The twins are pinned as
-`tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_<place>_rejected`.
-They require `Mark::read`'s missing explicit-ceiling diagnostic, independently of
-whether the caller itself requests inference or declares a ceiling.
+The same nine original positive places retain `Mark::read`'s explicit `Mark` ceiling.
+Each place's
+[`invalid_missing_requirement/main.omg`](local/invalid_missing_requirement/main.omg)
+removes only that requirement clause, keeping the selected checked implementation and
+the consuming program unchanged.
 
 | Place | Positive | Missing-ceiling twin |
 | --- | --- | --- |
@@ -350,8 +340,6 @@ the explicit empty boundary requirement/caller cases.
 | other_machine | [positive](provider/other_machine/main.omg), [reject](provider/other_machine/invalid/main.omg) | [positive](imported/other_machine/main.omg), [reject](imported/other_machine/invalid/main.omg) |
 | target_body | [positive](provider/target_body/main.omg), [reject](provider/target_body/invalid/main.omg) | [positive](imported/target_body/main.omg), [reject](imported/target_body/invalid/main.omg) |
 
-The corpus copies each complete project under
-`tests/omega/{pass,fail}/facts/unannotated_{provider,imported}_boundary_call_through_<place>_{exit,rejected}`.
 The frozen f5c producer already executes the minimal provider and imported
 probes with native exit 0 and Terminal exit 0 and rejects their exact controls.
 These establish remaining acceptance of the existing inference/selection
@@ -375,12 +363,10 @@ state symbol and owner. The repair derives that owner from the state before
 replaying the call's ordinary arguments, claims and contract evidence. It does
 not fabricate another callee plan or skip availability checking.
 
-Every recursive place has an empty-ceiling twin pinned under
-`tests/omega/fail/facts/unannotated_recursive_boundary_call_through_<place>_rejected`.
-The positive copies are pinned in the corresponding pass folders.
-[The foreign-owner exit](contracts/recursive_foreign_exit/main.omg) starts at the
-other countdown parity so runtime execution also exits through the non-root
-owner's helper call. Both exits preserve the same service row and result 7.
+The positive copies are pinned in the corresponding pass folders. [The foreign-owner
+exit](contracts/recursive_foreign_exit/main.omg) starts at the other countdown parity
+so runtime execution also exits through the non-root owner's helper call. Both exits
+preserve the same service row and result 7.
 
 | Place | Recursive positive | Empty-ceiling twin |
 | --- | --- | --- |

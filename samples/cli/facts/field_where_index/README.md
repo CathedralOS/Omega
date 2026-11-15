@@ -58,11 +58,6 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove index `index + 1` is within length 5` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
 
-## Pinned Fixtures
-
-- Positive passes: `tests/omega/pass/facts/field_where_index_through_<place>_exit` (all 9 places pinned, each carrying `build.omg` and `expected_native_exit.txt` = 0, recording native exit 0).
-- Negative controls: `tests/omega/fail/facts/field_where_index_through_<place>_rejected` (all 9 places pinned, rejecting with `cannot prove index ... is within length 5`).
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).

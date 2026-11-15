@@ -41,13 +41,13 @@ including a swap result transported through a checked return guarantee. A reserv
 result slot has no mathematical initializer: neither arithmetic nor return-contract
 checking may treat the parser's placeholder zero as the observed prior.
 
-Controls additionally reject [a result goal as its own premise](controls/load_result_goal_is_not_premise/main.omg),
-[a stronger receiving field](controls/load_field_goal_is_not_premise/main.omg),
-[a cached stored constant as a fresh load value](controls/load_bound_is_not_current_value/main.omg),
-[an observed prior treated as zero](controls/prior_is_not_zero/main.omg),
-[a return guarantee derived from the reserved zero](controls/prior_guarantee_is_not_zero/main.omg), and
-[using an event result before completion](controls/prior_before_event/main.omg).
-The row, composition and controls are pinned under `tests/omega/{pass,fail}/facts/atomic_bounded_resident`.
+Controls additionally reject [a result goal as its own
+premise](controls/load_result_goal_is_not_premise/main.omg), [a stronger receiving
+field](controls/load_field_goal_is_not_premise/main.omg), [a cached stored constant as a fresh load
+value](controls/load_bound_is_not_current_value/main.omg), [an observed prior treated as
+zero](controls/prior_is_not_zero/main.omg), [a return guarantee derived from the reserved
+zero](controls/prior_guarantee_is_not_zero/main.omg), and [using an event result before
+completion](controls/prior_before_event/main.omg).
 
 Serial execution agreement establishes no concurrent theorem. Bounded
 single-attempt exchange, universal fetch preservation, non-observing exchange,

@@ -46,8 +46,6 @@ The const-name place carries the selected slot through a constant index; it
 does not claim a constant can own a runtime reference. Each twin changes only
 the final reference argument to read the carrier after its earlier argument
 has transferred it. It must reject at that use, not at package preparation.
-The nine positives and twins are pinned under
-`tests/omega/{pass,fail}/facts/descriptor_replacement_order_through_*`.
 
 Controls challenge the operation rather than its spelling:
 

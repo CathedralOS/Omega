@@ -26,14 +26,6 @@ Run each place with `omega run <place>/main.omg`.
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/boundary_provider_call_through_*`
-fixtures: nine positives, each with its own `expected_native_exit.txt`, and nine
-reject twins with an authored `expected.txt`. Every positive place and the root
-bind `ProgramEntry` for all four hosted targets, so this construct is not
-target-restricted and the golden row for it belongs on each host's own
-`corpus_native_<target>.txt`; the host recorded here is
-`tests/omega/corpus_native_macos_arm64.txt`.
-
 The fact's obligation class is a **value/arithmetic bound**: the boundary
 contract's interval `[100, 100]` must be strong enough to discharge exact
 subtraction `result - 100u64`. Discriminating that class measured:

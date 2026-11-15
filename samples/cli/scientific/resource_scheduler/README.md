@@ -116,7 +116,6 @@ approved per-command execution context, without changing ownership or guards.
 
 ## Review checkpoint
 
-See `validation/STATUS.md` for the recorded baseline and validation results.
 All 53 native/Terminal cases pass the frozen independent oracle, and the distinct
 complete intended-invalid source rejects for its declared range. The bounded
 compiler repair preserves reused integer inputs across fixed-register divisions.

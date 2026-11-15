@@ -36,18 +36,14 @@ constant branch cannot pass merely because both code fields are 9. The reject tw
 changes only both code fields to 8 and still refuses the write contract; the tag check
 never establishes the code requirement.
 
-The nine valid examples also have corpus tests under `tests/omega/pass/facts/` as
-`installed_entry_storage_through_<place>_exit`. The invalid examples remain sample
-projects. Their corresponding invalid corpus tests are still missing, so this row is not
-complete. Every positive binds all four hosted targets. `entry_ram.txt` explicitly
-requests initialization for source occurrence 0; `expected_entry_ram.txt` lists the
-expected bytes in the original memory after execution. The portable test entrypoints
-consume those same files:
+The invalid examples remain sample projects. Their corresponding invalid corpus tests
+are still missing, so this row is not complete. Every positive binds all four hosted
+targets. `entry_ram.txt` explicitly requests initialization for source occurrence 0;
+`expected_entry_ram.txt` lists the expected bytes in the original memory after
+execution. The portable test entrypoints consume those same files:
 
 ```sh
 omega run --both --keep --entry-ram 0=2900000003000000 main.omg
-python3 tools/sample_native_gate.py --filter facts/installed_entry_storage
-python3 tools/corpus_gate.py --both --filter installed_entry_storage
 ```
 
 `entry_ram.txt` rows are `source-position=hex-bytes`, never addresses. The runtime
@@ -85,18 +81,6 @@ reader reconstructs the final pointer addresses, argument registers, exact seman
 call, stack switch/restore, full writes and loader continuation, and the final image
 header must select that exact adapter.
 
-The [two-occurrence
-control](../../../../tests/omega/pass/build/installed_entry_ram_two_occurrences_exit/main.omg)
-additionally checks argument order and distinct backing: occurrence 0 remains
-`2900000003000000`, and occurrence 1 changes from `3500000005000000` to
-`3500000009000000`. The existing rejection tests cover:
-
-- [missing backing](../../../../tests/omega/fail/build/installed_entry_ram_missing_backing/main.omg);
-- [wrong source occurrence](../../../../tests/omega/fail/build/installed_entry_ram_wrong_occurrence/main.omg);
-- [incomplete initialized extent](../../../../tests/omega/fail/build/installed_entry_ram_invalid_extent/main.omg);
-- [noncanonical initialized padding](../../../../tests/omega/fail/build/installed_entry_ram_invalid_padding/main.omg);
-- [overlapping exclusive root uses](../../../../tests/omega/fail/build/installed_entry_ram_overlapping_exclusive_roots/main.omg).
-
 The initial frozen macOS ARM64 producer at `436add4eac90` refused the valid root at
 native admission because it had no matching installed-argument lender. The repaired
 macOS bridge executed the root, all nine places and two-occurrence control with
@@ -111,16 +95,12 @@ independent instruction reader. A process-bound private pipe carries a bounded c
 observation after normal return; stdout/stderr and child execution are bounded
 separately.
 
-The [stack-argument
-witness](../../../../tests/omega/pass/build/installed_entry_ram_stack_occurrence_exit/main.omg)
-lends five distinct occurrences, crossing the first Windows stack-argument boundary
-after four register arguments. Only occurrence four changes its transmit byte to 9.
-Linux ARM64 uses the same exact-allocation lifecycle and AAPCS64 X0–X7 pointer
-placement, with Linux write and exit-group syscalls and an independent final-byte
-reader. Qualification records distinguish named QEMU/PRoot execution on Linux x86-64
-from physical ARM hardware execution. The current macOS ARM64 run below observes these
-existing programs. Current Windows x86-64 and Linux ARM64 migration execution remains
-unverified. Unsupported native placements still refuse explicitly. This is private
+Only occurrence four changes its transmit byte to 9. Linux ARM64 uses the same exact-allocation
+lifecycle and AAPCS64 X0–X7 pointer placement, with Linux write and exit-group syscalls and
+an independent final-byte reader. Qualification records distinguish named QEMU/PRoot execution
+on Linux x86-64 from physical ARM hardware execution. The current macOS ARM64 run below
+observes these existing programs. Current Windows x86-64 and Linux ARM64 migration execution
+remains unverified. Unsupported native placements still refuse explicitly. This is private
 hosted RAM, not a device-provider or Atomic establishment claim.
 
 The companion [free local-state row](../free_entry_local_state/README.md) proves

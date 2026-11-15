@@ -20,13 +20,11 @@ Every positive forms `size - (align * 2u64)` before checking the transported siz
 
 The [root program](main.omg) exercises the same geometry. Two compositions retain the same fact, bound and operation: [ordinary call results followed by a private arrival](compositions/private_arrival_calls/main.omg), and [terminal helper returns followed by a private arrival](compositions/terminal_returns/main.omg). Their [first](compositions/private_arrival_calls/invalid/main.omg) and [second](compositions/terminal_returns/invalid/main.omg) twins break only the record's second-field requirement.
 
-Each twin removes `Pair.hi`, giving size eight and alignment eight. The unchanged subtraction underflows with bounds `[-8, -8]`. The checks after subtraction do not make that partial operation form. Positives and twins are mirrored under `tests/omega/{pass,fail}/facts/size_align_layout_geometry_*`.
+Each twin removes `Pair.hi`, giving size eight and alignment eight. The
+unchanged subtraction underflows with bounds `[-8, -8]`. The checks after
+subtraction do not make that partial operation form.
 
 Every positive binds `ProgramEntry` for Windows x86-64, Linux x86-64, Linux ARM64 and macOS ARM64 and declares exit zero. Fixture target oracles execute those four worlds against the same Terminal artifact with compiled-application provisions. Native agreement is measured on the actual execution host; binding another target is not an observation of its native execution.
-
-```sh
-python3 tools/sample_native_gate.py --cli <optimized-omega> --facts --filter cli/facts/size_align_layout_geometry --jobs 2
-```
 
 Evidence is retained in [the qualification record](https://github.com/CathedralOS/Omega/blob/6e5131c510b9e6227b4592652c9a5a39e350a970/wiki/drafts/measurements/layout_query_arrivals_2026_10_29/evidence.json). The fixed `9d0ba50bdc86` baseline wrongly refused the nested-machine arithmetic, the ordinary-call/private-arrival composition and a complete runtime arithmetic fixture. Checking now retains the existing admitted observation recipes on completed scalar values, composes both operands within each arrival, joins every complete path, and shares bounded return inference through ordinary and terminal descendants. No caller equality guard replaces that transport.
 

@@ -39,10 +39,6 @@ Every twin relaxes only the constructing machine's own guard `left > 0` to
 | other_machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | A top-level `grow` owns the construction and its own coupled requires; only its guard changes. |
 | target_body | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) | `Advance::next` is a boundary requirement; Build selects `X86Advance` or `ArmAdvance` per target. The twin relaxes both implementations' guard. |
 
-Pins: `tests/omega/pass/facts/coupled_requires_construction_<place>_exit/` and
-`tests/omega/fail/facts/coupled_requires_construction_<place>_rejected/`,
-byte-identical to these sources.
-
 ## Baseline and repair
 
 At base `b9a2381a9f2`, every positive refused `data \`Counter\` literal cannot

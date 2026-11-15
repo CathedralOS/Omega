@@ -14,15 +14,15 @@ Subsequent exact 8-bit subtractions `180u8 - prod` and `prod - 80u8` are proved 
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism | Pinned Pass Fixture | Pinned Reject Fixture |
 | --- | --- | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root witness with bounded unsigned u8 exact multiplication and dual margin subtractions | — | — |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | bounded unsigned product is copied into a local binding before exact subtractions | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_local_rejected` |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | bounded unsigned product is stored into and read from a record field before exact subtractions | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_field_rejected` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | bounded unsigned product is passed as an explicit machine parameter before exact subtractions | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_parameter_rejected` |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | bounded unsigned product is returned from a dedicated helper machine | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_call_result_rejected` |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of a match expression unify the bounded unsigned product | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_match_join_rejected` |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply upper and lower ceilings for exact subtractions | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_const_name_rejected` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition carries the bounded unsigned product into a successor machine | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_other_state_rejected` |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an independent forwarding machine transports the bounded unsigned product | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_other_machine_rejected` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target provides a target-scoped machine body performing the multiplication and subtractions | `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_target_body_rejected` |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | bounded unsigned product is copied into a local binding before exact subtractions |  |  |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | bounded unsigned product is stored into and read from a record field before exact subtractions |  |  |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | bounded unsigned product is passed as an explicit machine parameter before exact subtractions |  |  |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | bounded unsigned product is returned from a dedicated helper machine |  |  |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of a match expression unify the bounded unsigned product |  |  |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply upper and lower ceilings for exact subtractions |  |  |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition carries the bounded unsigned product into a successor machine |  |  |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an independent forwarding machine transports the bounded unsigned product |  |  |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target provides a target-scoped machine body performing the multiplication and subtractions |  |  |
 
 ## Execution
 
@@ -76,35 +76,16 @@ The `local`, `field`, `const_name` and `target_body` twins emit the exact-arithm
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_<place>_exit`
-and `tests/omega/fail/facts/unsigned_8bit_exact_multiplication_bound_through_<place>_rejected` for the nine
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its place's
-`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
-of its place twin's `main.omg`/`build.omg`/`expected.txt`. Positive versus twin `git diff` moves only
-the fact's own bound (`rhs <= 12u8` to `rhs <= 13u8`), so a red place or twin names this fact's
-establishment, not a shape recognizer.
-
-Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d3326d2` (base
-`f1b0d3326d2dcc6ee9aad44ecd2f177a88bebec4`; omega sha256
-`4e3950e53eb15fbb3b54868f9c8964e23e7efc5bdced336e07f18eb27e28ac4a`, corpus_runner sha256
-`c25372101a8cd22676fc23b3b80b2387a58609a988353552f158251c65650b96`):
+Positive versus twin `git diff` moves only the fact's own bound (`rhs <= 12u8` to `rhs <=
+13u8`), so a red place or twin names this fact's establishment, not a shape recognizer.
 
 - `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
 - `omega run --both` over the nine twins: 9/9 exit 200 at checking with their authored fragments
   (four ``may overflow `u8` ``, five forwarded-interval refusals); none reaches native execution.
 - Perturbing the root oracle (one token: `transition combined == 100u8` -> `== 101u8`) exits 255 with
   `native signal 5` and `interp crash: Trap (host presentation agrees)`.
-- `python3 tools/sample_gate.py --cli <generation omega> --filter unsigned_8bit_exact_multiplication_bound,unsigned_8bit_exact_subtraction_bound`
-  records 38/38 projects checked on Darwin arm64 with 18 of these matched intended rejection controls.
-- The three corpus legs were recorded with the fixture and golden changes staged at published main
-  `f1b0d3326d2d`, so every row is stamped `@f1b0d3326d2d+wt`: `tests/omega/corpus_outcomes.txt` gained
-  60 lines for this row's 18 fixtures (nine `checked` carrying `check-target:macos_arm64` and nine
-  `rejected` carrying their diagnostics with the expected fragments satisfied),
-  `tests/omega/corpus_native_macos_arm64.txt` gained nine `built ... exit:0` rows and
-  `tests/omega/corpus_both_macos_arm64.txt` gained nine `built ... exit:0 interpreter-exit:0
-  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); the legs exited 0
-  with 36/36, 18/18 and 18/18 fixtures done, 0 unimplemented rows and 0 rows recording a lost success.
+- Every golden diff is a pure addition (0 deletions); the legs exited 0 with 36/36, 18/18 and
+  18/18 fixtures done, 0 unimplemented rows and 0 rows recording a lost success.
 
 ## Requirements and Evidence (AGENTS.md)
 

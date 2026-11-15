@@ -44,30 +44,6 @@ the original default-domain predicate respectively.
 
 ## Pinned fixtures
 
-- Standard 9-place positive fixtures (9):
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_local_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_field_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_parameter_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_call_result_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_match_join_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_const_name_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_other_state_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_other_machine_exit`
-  - `tests/omega/pass/facts/computed_constant_array_extent_through_target_body_exit`
-- Standard 9-place reject fixtures (9):
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_local_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_field_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_parameter_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_call_result_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_match_join_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_const_name_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_other_state_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_other_machine_rejected`
-  - `tests/omega/fail/facts/computed_constant_array_extent_through_target_body_rejected`
-- Root & control fixtures:
-  - `tests/omega/pass/facts/computed_constant_array_extent_exit`
-  - `tests/omega/fail/facts/computed_constant_array_extent_{mismatch,index,qualified_element}_rejected`
-
 | Obligation Class | How This Fact Row Establishes It |
 |---|---|
 | **Establishment** | `const SIZE: u64 = 1 + 0; const SOURCE: [u64; SIZE] = [3 + 0]; const ALIAS: [u64; 1] = SOURCE;` evaluates declared-type extent dependencies before canonical value encoding so `[u64; SIZE]` and `[u64; 1]` unify and prove index `0 < 1` ([constants](../../../../wiki/spec/language/constants.md), [evaluation](../../../../wiki/spec/language/evaluation.md)). |

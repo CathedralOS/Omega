@@ -54,7 +54,8 @@ omega --check samples/cli/facts/computed_record_window/<place>/invalid/main.omg
 
 ## Measured oracle
 
-The root, all nine places, and `case_payload` each carry `expected_native_exit.txt` containing `0` beside an empty `input.txt`. Both files are required: `tools/sample_native_gate.py` honors authored `expected_*` files only for a project that carries `input.txt`, and otherwise scores the header alone.
+The root, all nine places, and `case_payload` each carry
+`expected_native_exit.txt` containing `0` beside an empty `input.txt`.
 
 The oracle discriminates on both halves of the fact. Against a byte-identical copy of `local/main.omg`:
 
@@ -79,8 +80,6 @@ The requirement established is that a record window / subview computed at runtim
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows join `ProgramEntry` declarations across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) to the Terminal catalog without reopening source. Layout plans validate backing array geometry (`[f64; 4]`: `size_of = 32`, `align_of = 8`), slice descriptors (`&mut [f64]`: pointer + length, `size_of = 16`, `align_of = 8`), and record `Held` (`size_of = 16`, `align_of = 8`). `CallPlan`/`StatePlan` lower slice views and record carriers across register pairs (e.g. `rcx`+`rdx` / `x0`+`x1`) and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects integer arithmetic for window offset calculations (`which + 2`), indexed double-precision floating-point loads and stores (`movsd` / `ldr d0`, `str d0`), and assigns register homes and activation frame storage. Worst-case stack usage (WCSU) is composed, and standard function entry prologues and epilogues are emitted honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and slice descriptor offsets resolve, basic blocks and conditional branches relax with offset reflow around exit transitions, machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
-
-The row is pinned by `tests/omega/pass/facts/computed_record_window_through_*_exit` and `tests/omega/fail/facts/computed_record_window_through_*_rejected` fixtures; every positive records native exit 0.
 
 ## Build-owned target-body migration
 

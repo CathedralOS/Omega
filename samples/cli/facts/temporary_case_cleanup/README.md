@@ -33,9 +33,7 @@ execution must exit 0. Check its `invalid/main.omg` and compare the authored
 The unchanged root `main.omg` additionally checks once-only ordered child calls:
 short-circuiting skips the first construction, then two child calls increment a
 counter before the constructed case is borrowed and cleaned up. It must also
-exit 0 in native and Terminal execution. The unchanged full regression fixture
-`tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit` retains its
-arrays, erased fields, active payload and short-circuit paths.
+exit 0 in native and Terminal execution.
 
 Cleanup uses exact checked dying-owner identities. A contained omitted zero
 field may share its constructor's source expression; it is not another owner.
@@ -69,11 +67,6 @@ for non-hosted targets.
 ```sh
 omega run --both samples/cli/facts/temporary_case_cleanup/local/main.omg
 omega --check samples/cli/facts/temporary_case_cleanup/invalid_local/main.omg
-python3 tools/sample_gate.py --filter cli/facts/temporary_case_cleanup --cli <omega>
-python3 tools/sample_native_gate.py --filter cli/facts/temporary_case_cleanup --cli <omega>
-python3 tools/corpus_gate.py --filter temporary_case_cleanup
-python3 tools/corpus_gate.py --native --filter temporary_case_cleanup
-python3 tools/corpus_gate.py --both --filter temporary_case_cleanup
 ```
 
 ## Build-owned target-body migration

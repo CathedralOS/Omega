@@ -85,9 +85,6 @@ Restoring the array bound `[u64; 9]` restores clean compilation and zero exit.
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
 - **Ticket:** `dd1724b6f7c74abca06de7fcab2ea51e`
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/record_layout_geometry_through_<place>_exit/`
-  - Negative controls: `tests/omega/fail/facts/record_layout_geometry_unproved_<place>/`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** `size_of<PaddedFrame>()` (88u64), `align_of<PaddedFrame>()` (8u64), and `align_of<u32>()` (4u64) on structural `data PaddedFrame { tag: u8; word: u64; tail: [u64; 9]; }` establish the exact compile-time byte size, alignment, and internal padding (7 padding bytes following `tag: u8` before 8-byte aligned `word: u64` and fixed array `tail: [u64; 9]`), summing to exactly `100u64` directly without any post-hoc caller equality guard (`transition x == 100`).
@@ -114,16 +111,6 @@ repair was needed and no fixture, twin, or golden row was added.
   header comment plus the construct's own array bound (`tail: [u64; 9]` to
   `[u64; 8]`, with the `match_join` scrutinee reading the narrowed size,
   `match s == 88` to `match s == 80`).
-- `python3 tools/sample_native_gate.py --facts --filter
-  cli/facts/readonly_byte_literal_subslice,cli/facts/record_layout_geometry
-  --cli <producer> --jobs 1`: 20/20 samples meet their documented oracle on
-  `macos_arm64` (10 here: root plus the nine places), and 27/27
-  intended-invalid controls match their authored rejection (18 here: the nine
-  `<place>/invalid/` twins plus the nine byte-identical `invalid/<place>`
-  copies, which discovery reports as independent projects).
-- `python3 tools/sample_gate.py --cli <producer> --filter
-  facts/record_layout_geometry`: 28/28 checked with 18 intended-invalid
-  controls matched.
 - Every fixture source is byte-identical to its sample counterpart (`cmp`, 36
   pairs across both rows).
 
@@ -132,18 +119,9 @@ repair was needed and no fixture, twin, or golden row was added.
 Runner built from this tree at the landed candidate `56ec1c794f3`; host
 `macos_arm64`; `OMEGA_CORPUS_JOBS=2`.
 
-- `python3 tools/corpus_gate.py --filter
-  facts/readonly_byte_literal_subslice,facts/record_layout_geometry`:
-  clean — 36 fixtures (18 `checked`, 18 `rejected`), 0 rejected without their
-  expected fragment, 0 fail fixtures that did not reject, 0 moved rows. The
-  nine rows here keep their pinned fragment and their stored diagnostic text
-  byte-for-byte, which is where the `linux_x86_64` wording is confirmed as the
-  runner route's own output.
-- `python3 tools/corpus_gate.py --native --filter` the same two rows: clean —
-  18 fixtures all `built` and executed at exit `0`, 0 with stdout differing
-  from expected, 0 moved rows; the `perf_faster` verdicts are jobs=2-vs-3 and
-  host-load noise, as the gate's own perf context reports.
-
+- The nine rows here keep their pinned fragment and their stored diagnostic
+  text byte-for-byte, which is where the `linux_x86_64` wording is confirmed
+  as the runner route's own output.
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

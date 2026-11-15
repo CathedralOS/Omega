@@ -80,8 +80,6 @@ same endpoint types.
 | Selected implementation | [target_body](target_body/main.omg) | [corrupted decoder](invalid_target_body/main.omg) |
 
 Each project binds `ProgramEntry` for all four hosted targets and declares exit 0.
-The nine positive programs and nine decoder-only controls are mirrored under
-`tests/omega/{pass,fail}/facts/representation_agreement_through_*`.
 
 ## Standard-interface validation
 
