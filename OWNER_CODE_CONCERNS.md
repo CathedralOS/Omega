@@ -73,19 +73,19 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Reference retirement hides the refusal for a match with two possible backings
+- Category: knowledge crossing a boundary
+- Where: [two-input match control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L237), [reference retirement planning](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/reference_ends.rs#L95), [exact backing judgment](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L731)
+- Saw: On clean `e66df38eb7c` on macOS arm64, the call-result case still reports `call reference result has alternatives from different input roots`. The match over the same two input roots stops first at `reference disposition flow is incomplete for MachineId(2)`. The retirement planner calls descriptor replay before the ordinary backing check and drops the reason the flow could not be reconstructed.
+- Cost: The match is refused without identifying the ambiguous backing at its use. Retain the failure through the existing descriptor-flow owner and keep both original negative judgments and the exact-backing positive paths.
+- Reported: 2026-11-15, Codex, while repairing arrival obligations on structural match edges
+
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: tests that pin the bug
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L253), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L239)
 - Saw: At `6c485f370e4` `echo(items: &[Item]) -> &[Item] { items }` refuses preparing its entry with `call the view's original incoming borrow cannot be identified`, so the test never reaches the returned-backing consumer or the `&mut [Item]` refusal it exists to check.
 - Cost: Nothing checks that a host-supplied shared typed view keeps its backing through a returned view, or that immutable host values cannot supply an exclusive one. Identify the probe caller's actual view argument as the borrow `echo` returns.
 - Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls
-
-### Existing match and reference controls reach obligations with no lowered owner
-- Category: knowledge crossing a boundary
-- Where: [owned match results](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/owned_match_results.rs), [loan-region negative](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L237), [obligation roster check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/minted.rs#L752)
-- Saw: On clean `f5ed845ea2f` on macOS arm64, all three owned-match controls and the two-origin reference negative refuse with `an obligation row that nothing in the lowered form owes`. The same tests passed on the earlier `59b8d53b729` Stage 06 run. The two-owned-arm and early-ended-arm positive cases never reach their consuming call. On `1a5fd676246`, the new literal-window match also refuses at this roster check, and its companion stops before examining the selected literal establishment.
-- Cost: The compiler stops at obligation ownership before checking either valid value transfer or the specific invalid use. Match each generated obligation to its exact lowered arrival, operation or edge and preserve the original ownership judgments.
-- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving

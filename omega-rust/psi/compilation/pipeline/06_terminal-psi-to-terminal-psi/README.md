@@ -246,7 +246,7 @@ already carries every identity:
 | `NormalGuarantee` | every return terminator owes one per `ensures` clause, naming its own edge and the clause's published identity | that return edge |
 | `DataDomain` | counted by `Storage::owed_are_minted` from the writes the place walk finds | the point before the operation |
 | `CrashCoverage` | a `Crash` terminator owes one for its cause; an `InvokeNoNormal` terminator, or a `Call` or `CallUnit` with crash continuations, one per cause among them | the point before the terminator or the call |
-| `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar arguments owes one for its edge | that edge |
+| `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar or structural arguments owes one for its edge | that edge |
 | `WellFoundedness` | each cycle of the machine's `ranked_scc` owes one, named by the identity of its edges | the entry of the cycle's first block |
 | `RankComparison` | each edge row of a ranked cycle owes one | that edge |
 
