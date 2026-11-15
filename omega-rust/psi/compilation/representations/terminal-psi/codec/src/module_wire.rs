@@ -2525,6 +2525,7 @@ pub(crate) mod closed_conformance_wire {
     }
 }
 pub(crate) mod declaration_wire {
+    use access_plans::{AccessPermissions, AtomicPermissions as DomainAtomicPermissions};
 
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
@@ -2581,10 +2582,10 @@ pub(crate) mod declaration_wire {
     )>;
 
     wire_record! {
-        Permissions: access_plans::AccessPermissions {
+        Permissions: AccessPermissions {
             read: Flag, take: Flag, write: Flag, atomic: AtomicPermissions,
         }
-        AtomicPermissions: access_plans::AtomicPermissions {
+        AtomicPermissions: DomainAtomicPermissions {
             load: Flag, store: Flag, fetch_add: Flag, fetch_sub: Flag,
             fetch_xor: Flag, fetch_or: Flag, fetch_and: Flag, swap: Flag,
             compare_exchange: Flag, compare_exchange_once: Flag,
