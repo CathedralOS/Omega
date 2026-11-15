@@ -2943,7 +2943,7 @@ pub(crate) mod tests {
             let entry = prepared
                 .entry(symbol, symbol, &[BuildTimeValue::Int(9)])
                 .expect("complete actual types select one ordinary visible header");
-            let mut meter = psi_work::WorkMeter::unbounded();
+            let mut meter = terminal_work::WorkMeter::unbounded();
             assert_eq!(
                 entry.invoke(target(), &mut meter).unwrap(),
                 BuildTimeValue::Int(expected)
