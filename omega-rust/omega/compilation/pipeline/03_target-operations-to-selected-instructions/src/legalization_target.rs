@@ -4071,12 +4071,31 @@ pub(crate) mod unit {
                     let declaration = plan
                         .structural_type(result.structural_type)
                         .ok_or(LegalizationError::custody())?;
-                    let terminal_psi::StructuralTypeShape::FixedArray {
-                        element,
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                    } = declaration.shape
-                    else {
-                        return Err(LegalizationError::custody());
+                    let (element, length) = match declaration.shape {
+                        terminal_psi::StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => (element, length),
+                        // An owned sequence is backed by its constant roster in the
+                        // read-only literal pool; target lowering admits no other form.
+                        terminal_psi::StructuralTypeShape::ElementView {
+                            element,
+                            access: None,
+                        } => {
+                            let roster = target_operations::constant_element_roster(
+                                optimized.blocks.iter().flat_map(|block| {
+                                    block.nodes.iter().map(|node| &node.operation)
+                                }),
+                                abstracted,
+                                unit.geometry(),
+                            )
+                            .ok_or(LegalizationError::custody())?;
+                            if roster.element != element {
+                                return Err(LegalizationError::custody());
+                            }
+                            (element, roster.count)
+                        }
+                        _ => return Err(LegalizationError::custody()),
                     };
                     if psi_operation != expected_operation
                         || elements != expected_elements
