@@ -6,6 +6,12 @@ use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
 fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let typed = super::build_purpose::frontier_of(text, "machine build_entry() {}");
+    program_from_typed(typed)
+}
+
+fn program_from_typed(
+    typed: typed_trees::TypedTrees,
+) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     let entry = super::build_purpose::symbol(&typed, "main");
     crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
@@ -22,7 +28,12 @@ fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
 }
 
 fn accepted(text: &str) -> Box<crate::verdict::AcceptedClosure> {
-    let mut verdicts = program(text);
+    accepted_verdicts(program(text))
+}
+
+fn accepted_verdicts(
+    mut verdicts: Vec<Result<RouteVerdict, crate::CompilationRefusal>>,
+) -> Box<crate::verdict::AcceptedClosure> {
     let accepted = match verdicts.remove(0) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the source program must be judged: {other:?}"),
@@ -124,7 +135,7 @@ fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
 
 #[test]
 fn canonical_process_exit_publishes_never_without_a_receiving_value() {
-    let accepted = accepted(
+    let typed = super::build_purpose::frontier_with_core(
         "use omega::language::core::Never; \
          use omega::language::core::ProcessExit; \
          public machine finish(status: i32) -> Never \
@@ -134,7 +145,27 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
          machine main() reaches ProcessExit crashes none terminates { \
              let unreachable_value: u32 = finish(0); \
          }",
+        "machine build_entry() {}",
+        &[
+            (
+                "never.omg",
+                "Never",
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../source/library/core/never.omg"
+                )),
+            ),
+            (
+                "process_exit.omg",
+                "ProcessExit",
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../../source/library/core/process_exit.omg"
+                )),
+            ),
+        ],
     );
+    let accepted = accepted_verdicts(program_from_typed(typed));
     check_no_normal(&accepted);
     let module = &accepted.elaboration.module;
     let query =
