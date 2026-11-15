@@ -2271,7 +2271,7 @@ mod normalized_foreign_calls {
                     .ok_or(ObjectError::TextSizeOverflow)?;
                 let caller_live_bytes =
                     u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
-                let controls = if record.call.binding.system_call().is_none()
+                let controls = if record.call.binding.requires_floating_control_preservation()
                     && record.invocation_site.operation().is_some()
                 {
                     Some(

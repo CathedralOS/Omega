@@ -418,6 +418,19 @@ impl NormalizedForeignCallBinding {
         self.mechanism.same_stack_contribution()
     }
 
+    /// On a normal return, user-space calls must preserve floating controls
+    /// regardless of the callee's stack bound. Callers decide whether the
+    /// invocation has a return continuation; direct syscalls need no envelope.
+    pub fn requires_floating_control_preservation(&self) -> bool {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import { .. }
+            | NormalizedForeignCallMechanism::HostedImport { .. }
+            | NormalizedForeignCallMechanism::Component { .. }
+            | NormalizedForeignCallMechanism::Table { .. } => true,
+            NormalizedForeignCallMechanism::SystemCall(_) => false,
+        }
+    }
+
     pub fn table_dispatch(&self) -> Option<(u32, bool)> {
         match self.mechanism {
             NormalizedForeignCallMechanism::Table {

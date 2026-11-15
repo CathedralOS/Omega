@@ -5147,13 +5147,11 @@ pub(crate) mod normalized_foreign {
                     });
             }
         }
-        let saved_controls =
-            call.binding
-                .same_stack_contribution()
-                .and(operation)
-                .map(|operation| LocalStorageSlotId::Boundary {
-                    operation: operation.operation,
-                });
+        let saved_controls = operation
+            .filter(|_| call.binding.requires_floating_control_preservation())
+            .map(|operation| LocalStorageSlotId::Boundary {
+                operation: operation.operation,
+            });
         let mut operands = Vec::new();
         for argument in &call.scalar_arguments {
             let value = argument.source.source_value();

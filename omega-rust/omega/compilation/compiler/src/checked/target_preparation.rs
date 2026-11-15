@@ -149,8 +149,8 @@ impl ModuleDemand {
 /// (`provider_planning::target_supply`); each chosen provider joins the
 /// roster of the same compilation, where the lowered-form checker judges its
 /// machines as roots and proves that each refines the requirement it
-/// supplies. Each reached native leaf instead nominates its own canonical
-/// calling declaration on that same roster, without adding a provider body.
+/// supplies. The shared declaration publisher retains the ABI of each read
+/// boundary, including native leaves, without adding a provider body.
 /// A provider may itself reach a boundary requirement, so the
 /// roster is judged again until no target chooses anything new; it only
 /// grows, and it is bounded by the selections the Build and the target
@@ -194,14 +194,9 @@ pub fn judge_supplied_product(
                             }
                         }
                     }
-                    SupplySelection::Native(_) => {
-                        // A native leaf needs the declaration's canonical ABI,
-                        // without adding a body or selecting its sibling methods.
-                        let declaration = requirement.reached.requirement;
-                        if !roster.declaration_metadata.contains(&declaration) {
-                            roster.declaration_metadata.push(declaration);
-                        }
-                    }
+                    // The shared declaration publisher retains every boundary's
+                    // ABI. A native leaf adds neither a body nor a sibling demand.
+                    SupplySelection::Native(_) => {}
                 }
             }
         }

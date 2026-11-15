@@ -527,7 +527,6 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         ProductTarget::LinuxX86_64,
         package(),
     );
-    let requirement = native.selection.requirement;
     let publication = compiler::judge_supplied_product(compiler::ProductSupplySource {
         publication: original,
         build: &[],
@@ -535,16 +534,83 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         defaults: &defaults,
     })
     .unwrap();
-    assert_eq!(
-        publication.roster().unwrap().declaration_metadata,
-        [requirement]
-    );
     assert!(
-        publication.roster().unwrap().supplies.is_empty(),
-        "native metadata adds no checked provider root"
+        publication
+            .roster()
+            .unwrap()
+            .declaration_metadata
+            .is_empty(),
+        "the common boundary publisher needs no native-only metadata nomination"
+    );
+    let supplies = &publication.roster().unwrap().supplies;
+    let [checked] = supplies.as_slice() else {
+        panic!("the other targets choose one shared checked default")
+    };
+    assert_eq!(checked.slot, native.selection.subject);
+    assert_eq!(
+        checked.provider,
+        defaults[0].selections[0].provider_type.symbol
     );
     let accepted = publication.accepted().unwrap();
-    let prepared = prepare_for_target(accepted, &[], &[native], &defaults, Some(TARGET)).unwrap();
+    assert!(
+        accepted
+            .module()
+            .calling_signatures
+            .iter()
+            .any(|signature| {
+                signature.application.is_ok()
+                    && accepted
+                        .module()
+                        .boundary_machine(signature.boundary)
+                        .is_some()
+            }),
+        "the native boundary retains its ABI through the shared publication"
+    );
+    let other = compiler::prepare_supplied_target(compiler::TargetSupplySource {
+        publication: &publication,
+        build: &[],
+        native_bindings: std::slice::from_ref(&native),
+        defaults: &defaults,
+        target: Some("windows_x86_64"),
+    })
+    .unwrap()
+    .settle()
+    .unwrap();
+    assert_eq!(other.requirements().len(), 1);
+    assert_eq!(
+        other.requirements()[0].supply.authority,
+        SupplyAuthority::TargetDefault
+    );
+    assert_eq!(
+        other.requirements()[0].supply.checked(),
+        Some(&defaults[0].selections[0])
+    );
+    assert_eq!(
+        other.requirements()[0].reached.requirement,
+        native.selection.requirement
+    );
+    assert!(
+        other
+            .native_bindings(accepted.module())
+            .unwrap()
+            .rows
+            .is_empty()
+    );
+    let other_plans = plans(accepted, &other).unwrap();
+    let [other_plan] = other_plans.as_slice() else {
+        panic!("the other target retains its exact checked default plan")
+    };
+    assert_eq!(other_plan.provider_type, "Native");
+    assert_eq!(other_plan.target, "windows_x86_64");
+
+    let prepared = prepare_for_target(
+        accepted,
+        &[],
+        std::slice::from_ref(&native),
+        &defaults,
+        Some(TARGET),
+    )
+    .unwrap();
     assert_eq!(
         prepared.requirements().len(),
         1,
@@ -577,10 +643,26 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         .module()
         .calling_abi_identity(row.boundary)
         .unwrap();
-    let [calling] = accepted.module().calling_abi_signatures.as_slice() else {
-        panic!("only the reached native requirement needs a calling declaration")
-    };
-    assert_eq!(calling.id, abi.id());
+    let module = accepted.module();
+    assert_eq!(module.calling_signatures.len(), 2);
+    assert_eq!(module.calling_abi_signatures.len(), 2);
+    for declared in &module.boundary_machines {
+        let application = module
+            .calling_signatures
+            .iter()
+            .find(|signature| signature.boundary == declared.id)
+            .unwrap();
+        let calling = module
+            .calling_abi_signature(*application.application.as_ref().unwrap())
+            .unwrap();
+        assert_eq!(
+            module.identities.text(calling.requirement_identity),
+            module
+                .identities
+                .text(declared.declaration.as_ref().unwrap().source.callable)
+        );
+    }
+    let calling = module.calling_abi_signature(abi.id()).unwrap();
     assert!(
         calling.storage.is_ok(),
         "the canonical calling declaration retains its storage"
@@ -957,6 +1039,79 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     judged.sort_unstable();
     assert_eq!(installed, judged);
     assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
+}
+
+/// A supplied slot needs ABI declarations for its uncalled members too.
+/// Their signatures remain distinct from the reached member's signature.
+#[test]
+fn a_whole_slot_keeps_each_members_exact_calling_declaration() {
+    let supplied = format!(
+        "{}{NATIVE_DEFAULT}",
+        WHOLE_SLOT.replace("stop()", "stop(bytes: &[u8])")
+    );
+    let target = supplied_target(&supplied, REACHES).expect("both supplied bodies check");
+    assert_eq!(target.supply.requirements().len(), 1, "only go is demanded");
+    let accepted = target.publication.accepted().unwrap();
+    let module = accepted.module();
+    assert_eq!(module.calling_signatures.len(), 2);
+    assert_eq!(module.calling_abi_signatures.len(), 2);
+    for boundary in &module.boundary_machines {
+        let declaration = boundary.declaration.as_ref().unwrap();
+        let signature = module
+            .calling_signatures
+            .iter()
+            .find(|row| row.boundary == boundary.id)
+            .unwrap();
+        let abi = module
+            .calling_abi_signature(*signature.application.as_ref().unwrap())
+            .unwrap();
+        assert_eq!(
+            module.identities.text(abi.requirement_identity),
+            module.identities.text(declaration.source.callable),
+            "each ABI belongs to its exact requirement"
+        );
+    }
+    let settled = target.supply.settle().unwrap();
+    let execution = execution(Some(profile()), accepted, &settled).unwrap();
+    let plan = &execution.plans().plans()[0];
+    let program = provider_planning::calling_policy_plans::CallingProgram {
+        artifact: produced(accepted),
+        evaluator: build_settings::CALLING_POLICY_EVALUATOR,
+    };
+    let applications = provider_planning::calling_policy_plans::component_calling_applications(
+        profile(),
+        &program,
+        &[plan],
+        &[],
+    )
+    .expect("every member has a materializable declaration application");
+    assert_eq!(applications.len(), 2);
+
+    let mut changed = plan.clone();
+    let sibling = module
+        .calling_abi_signatures
+        .iter()
+        .find(|abi| {
+            module.identities.text(abi.requirement_identity)
+                != Some(
+                    changed
+                        .identities
+                        .text(changed.rows[0].declared_requirement_identity),
+                )
+        })
+        .unwrap();
+    changed.rows[0].calling_signature = Some(sibling.id);
+    let error = provider_planning::calling_policy_plans::component_calling_applications(
+        profile(),
+        &program,
+        &[&changed],
+        &[],
+    )
+    .expect_err("one member cannot borrow its sibling's declaration ABI");
+    assert!(
+        diagnostics::join_messages(&error)
+            .contains("selected closed method lost its exact published declaration ABI")
+    );
 }
 
 /// The twins of the plan. A module that states no candidate of the provider

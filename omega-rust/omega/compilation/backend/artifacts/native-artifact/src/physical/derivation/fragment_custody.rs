@@ -353,7 +353,7 @@ fn fragment_scalar_argument_custody_rejoin(
     let (Some(fragment), None) = (fragments.next(), fragments.next()) else {
         return false;
     };
-    if record.call.binding.system_call().is_some() {
+    if !record.call.binding.requires_floating_control_preservation() {
         if foreign.x86_floating_control.is_some()
             || foreign.aarch64_floating_control.is_some()
             || !foreign.callback_addresses.is_empty()

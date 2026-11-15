@@ -1,5 +1,5 @@
-//! Declaration ABI metadata is prepared from the nominated source declarations.
-//! It does not register outbound services, requirements, or executable roots.
+//! Declaration ABI metadata belongs to the exact boundaries already read and
+//! any additional nominated declarations. It adds no calls or executable roots.
 
 use std::sync::Arc;
 
@@ -47,7 +47,7 @@ fn unavailable(entry: MachineId, detail: impl Into<String>) -> Refusal {
 }
 
 impl Program<'_> {
-    /// Read only the ABI applications owned by these exact source declarations.
+    /// Read the ABI applications of this module's boundaries and exact nominations.
     /// Storage is registered before lowering freezes the structural namespace.
     /// An unsupported storage shape remains an explicit per-declaration refusal;
     /// requesting metadata does not widen the executable body's feature set.
@@ -62,7 +62,7 @@ impl Program<'_> {
                 "calling ABI storage requested before the complete body closure",
             ));
         }
-        if boundaries.is_empty() {
+        if boundaries.is_empty() && self.boundary_symbols.is_empty() {
             return Ok(PreparedCallingAbis {
                 entry,
                 declarations: Vec::new(),
@@ -88,6 +88,15 @@ impl Program<'_> {
                 ids.push(id);
             }
         };
+        // Every boundary already read into this module owns its declaration
+        // ABI, including uncalled members of a supplied slot. An open schema
+        // keeps its reason for lacking a physical application; reading its
+        // declaration does not choose static arguments for it.
+        for (_, symbol) in self.boundary_symbols.iter() {
+            if let Some(Ok(application)) = signatures.abi_for_boundary(*symbol) {
+                add(*application);
+            }
+        }
         for symbol in boundaries {
             if let Some(application) = signatures.abi_for_boundary(*symbol) {
                 add(*application
@@ -145,14 +154,17 @@ impl Program<'_> {
         let boundary_applications = self
             .boundary_symbols
             .iter()
-            .filter_map(|(boundary, symbol)| {
-                let application = signatures.abi_for_boundary(*symbol)?.as_ref().ok()?;
-                ids.contains(application)
-                    .then_some(terminal_psi::CallingSignatureDeclaration {
-                        boundary,
-                        application: Ok(*application),
-                    })
-            })
+            .map(
+                |(boundary, symbol)| terminal_psi::CallingSignatureDeclaration {
+                    boundary,
+                    application: signatures
+                        .abi_for_boundary(*symbol)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            Err("boundary declaration has no retained ABI application".into())
+                        }),
+                },
+            )
             .collect();
         let outer = std::mem::take(&mut self.scope);
         let prepared = (|| {

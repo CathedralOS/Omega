@@ -338,7 +338,6 @@ pub fn component_calling_applications(
                 continue;
             }
             let trait_name = trait_name_text(&plan.schema);
-            let requirement = plan.identities.text(row.requirement_identity);
             let selected = selected_calling_applications(
                 program.artifact.semantic_module(),
                 explicit,
@@ -365,7 +364,8 @@ pub fn component_calling_applications(
                 );
                 if selected_applications.is_empty() {
                     return Err(vec![Diagnostic::error(format!(
-                        "component boundary `{requirement}` has no exact materializable declaration application"
+                        "component boundary `{trait_name}::{}` has no exact materializable declaration application",
+                        row.method
                     ))]);
                 }
             }
