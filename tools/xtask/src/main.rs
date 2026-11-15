@@ -16,7 +16,9 @@
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
 //! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
-//! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv>] [--jobs <n>] [--out <file>]`
+//! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep>] [--target <name>] [--shard K/N] [--out <file>]`
+//! - `cargo xtask sweep merge --out <file.json> <shard.json>...`
+//! - `cargo xtask sweep fleet <start|status|collect|restart>`
 
 mod alpha_forge;
 mod attached_machines;
@@ -71,7 +73,8 @@ verification and gates:
   check-boundary            Verify native/runtime production dependency and Psi/Omega boundaries
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
-  sweep                     Run omega --check over the programs and group where each one stops
+  sweep                     Run omega --check over the programs and group where each one stops;
+                            `sweep fleet` splits one target's sweep across machines
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
 
 formatting and migration:

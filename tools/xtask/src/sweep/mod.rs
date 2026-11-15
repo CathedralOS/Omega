@@ -28,7 +28,19 @@
 //! starts with `invalid` should be rejected; every other program should check.
 //! Rows are written as tab-separated text, or JSON when `--out` ends in
 //! `.json`, and a summary by outcome, stage and cause is printed.
+//!
+//! `--target <name>` checks for that target rather than the host's, and
+//! `--shard K/N` (or `A-B/N`) checks one share of the selection, so one
+//! target's sweep can be split across machines. With `--out`, each program
+//! is journalled as it finishes and the same command resumes an interrupted
+//! run ([`record`]). `merge` joins a run's shards and refuses any set that
+//! is not exactly one row per selected program; `fleet` starts, watches and
+//! collects such a run on several machines ([`fleet`]).
 
+mod fleet;
+mod record;
+
+use record::{Header, Journal, Shard, Status};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
@@ -42,10 +54,13 @@ const FACTS_ROOT: &str = "samples/cli/facts/";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 
 const USAGE: &str = "\
-usage: cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv>
-                          | --changed <rev> [--previous <sweep.tsv>]]
-                         [--filter <fragment>] [--omega <path>] [--jobs <n>]
-                         [--timeout <seconds>] [--out <file.tsv|file.json>] [--list]";
+usage: cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv|sweep.json>
+                          | --changed <rev> [--previous <sweep.tsv|sweep.json>]]
+                         [--filter <fragment>] [--target <name>] [--shard K/N | A-B/N]
+                         [--omega <path>] [--jobs <n>] [--timeout <seconds>]
+                         [--out <file.tsv|file.json>] [--list]
+       cargo xtask sweep merge --out <file.json> <shard.json>...
+       cargo xtask sweep fleet <start|status|collect|restart> ...  (see `sweep fleet --help`)";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Options {
@@ -54,6 +69,8 @@ struct Options {
     changed: Option<String>,
     previous: Option<PathBuf>,
     filter: Option<String>,
+    target: Option<String>,
+    shard: Shard,
     omega: Option<PathBuf>,
     jobs: usize,
     timeout: Duration,
@@ -68,6 +85,8 @@ fn parse(args: &[String]) -> Result<Options, String> {
         changed: None,
         previous: None,
         filter: None,
+        target: None,
+        shard: Shard::WHOLE,
         omega: None,
         jobs: 10,
         timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECONDS),
@@ -87,6 +106,11 @@ fn parse(args: &[String]) -> Result<Options, String> {
             "--changed" => options.changed = Some(value("--changed")?),
             "--previous" => options.previous = Some(PathBuf::from(value("--previous")?)),
             "--filter" => options.filter = Some(value("--filter")?),
+            "--target" => options.target = Some(value("--target")?),
+            "--shard" => {
+                options.shard = Shard::parse(&value("--shard")?)
+                    .map_err(|error| format!("{error}\n{USAGE}"))?;
+            }
             "--omega" => options.omega = Some(PathBuf::from(value("--omega")?)),
             "--jobs" => {
                 options.jobs = value("--jobs")?
@@ -128,8 +152,10 @@ fn parse(args: &[String]) -> Result<Options, String> {
     Ok(options)
 }
 
-/// Whether a program should be rejected: it sits under a `fail/` folder or a
-/// folder whose name starts with `invalid` (a negative twin).
+/// Whether a program's path says it should be rejected: it sits under a
+/// `fail/` folder or a folder whose name starts with `invalid` (a negative
+/// twin). Only `--quick` picks programs by this; a checked row reads the
+/// program's own expectations ([`expectation`]).
 fn expects_rejection(program: &str) -> bool {
     program
         .split('/')
@@ -198,6 +224,8 @@ struct Row {
     stage: &'static str,
     cause: String,
     detail: String,
+    /// Its own files say `--check` must refuse it.
+    reject: bool,
 }
 
 /// The error that stopped a program: the first error indented under the
@@ -295,8 +323,25 @@ fn stage_of(top: &str, cause: &str) -> &'static str {
     }
 }
 
+/// A row for a program expected to check, as most are; tests use it.
+#[cfg(test)]
 fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
-    let reject = expects_rejection(program);
+    judged(program, exit, ms, output, output, &Expectation::Check)
+}
+
+/// Where a program stopped and whether that is what its own files ask for.
+/// A negative program earns "Rejected as expected" only when the refusal is
+/// the one it pins, judged as `sample-gate` judges it; a different verdict,
+/// or a negative that pins nothing, is "Rejected for another reason".
+fn judged(
+    program: &str,
+    exit: i32,
+    ms: u128,
+    output: &str,
+    diagnostics: &str,
+    expected: &Expectation,
+) -> Row {
+    let reject = matches!(expected, Expectation::Reject(_));
     if exit == 0 {
         return Row {
             program: program.to_owned(),
@@ -310,14 +355,25 @@ fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
             stage: "Checks",
             cause: String::new(),
             detail: String::new(),
+            reject,
         };
     }
     let (top, cause) = first_error(output);
     let stage = stage_of(&top, &cause);
-    let outcome = if reject && matches!(stage, "Checker verdict" | "Typing" | "Parsing") {
-        "Rejected as expected"
-    } else {
-        "Blocked"
+    let outcome = match expected {
+        Expectation::Check => "Blocked",
+        Expectation::Reject(project) => {
+            let pinned = project.as_ref().map_err(String::clone).and_then(|project| {
+                crate::samples::judge_rejection(project, Some(exit), diagnostics)
+            });
+            match pinned {
+                Ok(()) => "Rejected as expected",
+                Err(_) if matches!(stage, "Checker verdict" | "Typing" | "Parsing") => {
+                    "Rejected for another reason"
+                }
+                Err(_) => "Blocked",
+            }
+        }
     };
     Row {
         program: program.to_owned(),
@@ -325,18 +381,22 @@ fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
         ms,
         outcome,
         stage,
+        reject,
         cause: pattern(&cause),
         detail: cause.chars().take(300).collect(),
     }
 }
 
-/// `omega --check <program>` with stdin closed, at idle priority where the
-/// host offers one, killed after `timeout`.
-fn check(omega: &Path, root: &Path, program: &str, timeout: Duration) -> Row {
+/// `omega --check [--target <name>] <program>` with stdin closed, at idle
+/// priority where the host offers one, killed after `timeout`.
+fn check(omega: &Path, root: &Path, target: Option<&str>, program: &str, timeout: Duration) -> Row {
     let started = Instant::now();
     let mut command = Command::new(omega);
+    command.arg("--check");
+    if let Some(target) = target {
+        command.arg("--target").arg(target);
+    }
     command
-        .arg("--check")
         .arg(program)
         .current_dir(root)
         .stdin(Stdio::null())
@@ -351,12 +411,8 @@ fn check(omega: &Path, root: &Path, program: &str, timeout: Duration) -> Row {
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            return row(
-                program,
-                -1,
-                0,
-                &format!("error: cannot start omega: {error}"),
-            );
+            let failed = format!("error: cannot start omega: {error}");
+            return judged(program, -1, 0, &failed, &failed, &Expectation::Check);
         }
     };
     // Drain both pipes on their own threads so a chatty child never blocks.
@@ -394,16 +450,47 @@ fn check(omega: &Path, root: &Path, program: &str, timeout: Duration) -> Row {
         }
     };
     let mut output = stdout.join().unwrap_or_default();
-    output.push_str(&stderr.join().unwrap_or_default());
+    let diagnostics = stderr.join().unwrap_or_default();
+    output.push_str(&diagnostics);
     let ms = started.elapsed().as_millis();
+    let expected = expectation(root, program);
     match status {
-        Some(status) => row(program, status.code().unwrap_or(-1), ms, &output),
-        None => row(
+        Some(status) => judged(
             program,
-            -1,
+            status.code().unwrap_or(-1),
             ms,
-            &format!("error: timed out after {} seconds", timeout.as_secs()),
+            &output,
+            &diagnostics,
+            &expected,
         ),
+        None => {
+            let timed_out = format!("error: timed out after {} seconds", timeout.as_secs());
+            judged(program, -1, ms, &timed_out, &timed_out, &expected)
+        }
+    }
+}
+
+/// What a program's own files say `--check` must do with it.
+#[derive(Debug, Clone)]
+enum Expectation {
+    Check,
+    /// Refuse it for the reason its `expected.txt` or `sample.json` pins; the
+    /// error says why its expectations could not be read.
+    Reject(Result<Box<crate::samples::SampleProject>, String>),
+}
+
+/// The sample gate's reading of the program's folder, so both tools agree on
+/// which programs are negative and what each must be refused for.
+fn expectation(root: &Path, program: &str) -> Expectation {
+    let folder = root.join(record::short(program));
+    match crate::samples::project_at(&folder, root) {
+        Ok(project) if project.role == "intended-invalid" => {
+            Expectation::Reject(Ok(Box::new(project)))
+        }
+        Ok(_) => Expectation::Check,
+        // Unreadable expectations never earn a negative credit.
+        Err(error) if expects_rejection(program) => Expectation::Reject(Err(error)),
+        Err(_) => Expectation::Check,
     }
 }
 
@@ -419,6 +506,22 @@ struct Previous {
 fn read_previous(previous: &Path) -> Result<Vec<Previous>, String> {
     let content =
         fs::read_to_string(previous).map_err(|error| format!("{}: {error}", previous.display()))?;
+    if previous
+        .extension()
+        .is_some_and(|extension| extension == "json")
+    {
+        let (_, rows) = record::parse_output(&content)
+            .map_err(|error| format!("{}: {error}", previous.display()))?;
+        return Ok(rows
+            .into_iter()
+            .map(|row| Previous {
+                program: row.program,
+                outcome: row.outcome.to_owned(),
+                cause: row.cause,
+                detail: row.detail,
+            })
+            .collect());
+    }
     Ok(content
         .lines()
         .filter(|line| !line.starts_with('#') && !line.starts_with("program\t"))
@@ -673,31 +776,34 @@ fn escape_tsv(text: &str) -> String {
     text.replace(['\t', '\n', '\r'], " ")
 }
 
-fn write_rows(path: &Path, commit: &str, rows: &[Row]) -> Result<(), String> {
+/// Writes rows as JSON when `path` ends in `.json`, else as tab-separated
+/// text; both carry the run's header.
+fn render_rows(path: &Path, header: &Header, rows: &[Row]) -> Result<(), String> {
     let text = if path
         .extension()
         .is_some_and(|extension| extension == "json")
     {
-        let rows: Vec<serde_json::Value> = rows
-            .iter()
-            .map(|row| {
-                serde_json::json!({
-                    "program": row.program.trim_end_matches("/main.omg"),
-                    "exit": row.exit,
-                    "ms": row.ms as u64,
-                    "outcome": row.outcome,
-                    "stage": row.stage,
-                    "cause": row.cause,
-                    "detail": row.detail,
-                    "expect": if expects_rejection(&row.program) { "reject" } else { "accept" },
-                })
-            })
-            .collect();
-        serde_json::to_string(&serde_json::json!({ "commit": commit, "programs": rows }))
-            .map_err(|error| error.to_string())?
+        let rows: Vec<serde_json::Value> = rows.iter().map(record::row_json).collect();
+        serde_json::to_string(&serde_json::json!({
+            "commit": header.commit,
+            "run": header,
+            "programs": rows,
+        }))
+        .map_err(|error| error.to_string())?
     } else {
-        let mut text =
-            format!("# commit {commit}\nprogram\texit\tms\toutcome\tstage\tcause\tdetail\n");
+        let mut text = format!(
+            "# commit {} target {} shard {} selection {} ({} programs)\n\
+             program\texit\tms\toutcome\tstage\tcause\tdetail\n",
+            header.commit,
+            if header.target.is_empty() {
+                "host"
+            } else {
+                &header.target
+            },
+            header.shard.label(),
+            header.fingerprint,
+            header.selection,
+        );
         for row in rows {
             text.push_str(&format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
@@ -741,6 +847,16 @@ fn summary(rows: &[Row]) -> String {
     {
         text.push_str(&format!("{n:>7}  {cause}\n"));
     }
+    let elsewhere = count(
+        |row| &row.cause,
+        |row| row.outcome == "Rejected for another reason",
+    );
+    if !elsewhere.is_empty() {
+        text.push_str("\nnegatives refused for another reason than they pin, top causes:\n");
+        for (cause, n) in elsewhere.into_iter().take(15) {
+            text.push_str(&format!("{n:>7}  {cause}\n"));
+        }
+    }
     let wrong: Vec<_> = rows
         .iter()
         .filter(|row| row.outcome == "Accepted a wrong program")
@@ -755,6 +871,11 @@ fn summary(rows: &[Row]) -> String {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
+    match args.first().map(String::as_str) {
+        Some("merge") => return merge_command(&args[1..]),
+        Some("fleet") => return fleet::run(&args[1..]),
+        _ => {}
+    }
     let options = parse(args).map_err(|message| {
         eprintln!("{message}");
         2
@@ -805,45 +926,189 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     if let Some(filter) = &options.filter {
         programs.retain(|program| program.contains(filter.as_str()));
     }
+    let selection = programs.len();
+    let fingerprint = record::fingerprint(programs.iter().map(String::as_str));
+    let programs: Vec<String> = programs
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| options.shard.holds(*index))
+        .map(|(_, program)| program)
+        .collect();
     if options.list {
         for program in &programs {
             println!("{program}");
         }
-        eprintln!("xtask sweep: {} programs selected", programs.len());
+        eprintln!(
+            "xtask sweep: {} programs selected (shard {} of a selection of {selection}, {fingerprint})",
+            programs.len(),
+            options.shard.label()
+        );
         return Ok(());
     }
-    let commit = Command::new("git")
-        .args(["rev-parse", "--short=10", "HEAD"])
-        .current_dir(&root)
-        .output()
-        .ok()
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .unwrap_or_default();
-    eprintln!(
-        "xtask sweep: {} programs at {commit}, {} at a time",
-        programs.len(),
-        options.jobs
-    );
+    let header = Header {
+        commit: head_commit(&root).map_err(fail)?,
+        target: options.target.clone().unwrap_or_default(),
+        shard: options.shard,
+        selection,
+        fingerprint,
+        total: programs.len(),
+    };
+    sweep(&options, &root, &omega, &header, &programs).map_err(|message| {
+        if let Some(out) = &options.out {
+            let _ = record::write_status(
+                out,
+                &Status {
+                    state: "failed".to_owned(),
+                    total: header.total,
+                    updated: record::now(),
+                    detail: message.clone(),
+                    ..Status::default()
+                },
+            );
+        }
+        fail(message)
+    })
+}
 
-    let next = AtomicUsize::new(0);
-    let done = AtomicUsize::new(0);
-    let rows = Mutex::new(Vec::with_capacity(programs.len()));
+/// An error that says the run itself is wrong, not the program: every other
+/// program would fail the same way.
+fn run_wide_refusal(row: &Row) -> Option<String> {
+    let run_wide = ["unknown target profile", "cannot start omega"];
+    run_wide
+        .iter()
+        .any(|needle| row.detail.contains(needle))
+        .then(|| format!("stopped at {}: {}", record::short(&row.program), row.detail))
+}
+
+fn head_commit(root: &Path) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--short=10", "HEAD"])
+        .current_dir(root)
+        .output()
+        .map_err(|error| format!("git rev-parse: {error}"))?;
+    let commit = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if !output.status.success() || commit.is_empty() {
+        return Err("git rev-parse HEAD failed".to_owned());
+    }
+    Ok(commit)
+}
+
+/// Checks `programs`, journalling each row when there is an `--out`, and
+/// writes the verified output.
+fn sweep(
+    options: &Options,
+    root: &Path,
+    omega: &Path,
+    header: &Header,
+    programs: &[String],
+) -> Result<(), String> {
+    // Open the journal before checking anything, so an unwritable `--out`
+    // fails in the first second rather than after the last program.
+    let (journal, earlier) = match &options.out {
+        Some(out) => {
+            let (journal, earlier) = Journal::open(out, header)?;
+            (Some(journal), earlier)
+        }
+        None => (None, Vec::new()),
+    };
+    let finished: std::collections::BTreeSet<&str> =
+        earlier.iter().map(|row| row.program.as_str()).collect();
+    let todo: Vec<&String> = programs
+        .iter()
+        .filter(|program| !finished.contains(program.as_str()))
+        .collect();
+    eprintln!(
+        "xtask sweep: {} programs at {}{}, shard {}, {} at a time{}",
+        header.total,
+        header.commit,
+        if header.target.is_empty() {
+            String::new()
+        } else {
+            format!(" for {}", header.target)
+        },
+        header.shard.label(),
+        options.jobs,
+        if earlier.is_empty() {
+            String::new()
+        } else {
+            format!("; resuming, {} already checked", earlier.len())
+        },
+    );
     let started = Instant::now();
+    let status = |done: usize, state: &str| -> Result<(), String> {
+        match &options.out {
+            Some(out) => record::write_status(
+                out,
+                &Status {
+                    state: state.to_owned(),
+                    done,
+                    total: header.total,
+                    elapsed: started.elapsed().as_secs(),
+                    updated: record::now(),
+                    detail: String::new(),
+                },
+            ),
+            None => Ok(()),
+        }
+    };
+    status(earlier.len(), "running")?;
+
+    struct Progress {
+        rows: Vec<Row>,
+        journal: Option<Journal>,
+        error: Option<String>,
+    }
+    let progress = Mutex::new(Progress {
+        rows: earlier,
+        journal,
+        error: None,
+    });
+    let next = AtomicUsize::new(0);
     std::thread::scope(|scope| {
-        for _ in 0..options.jobs.min(programs.len().max(1)) {
+        for _ in 0..options.jobs.min(todo.len().max(1)) {
             scope.spawn(|| {
                 loop {
+                    if progress.lock().expect("progress").error.is_some() {
+                        break;
+                    }
                     let index = next.fetch_add(1, Ordering::SeqCst);
-                    let Some(program) = programs.get(index) else {
+                    let Some(program) = todo.get(index) else {
                         break;
                     };
-                    let row = check(&omega, &root, program, options.timeout);
-                    rows.lock().expect("rows").push(row);
-                    let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
-                    if finished.is_multiple_of(250) || finished == programs.len() {
+                    let row = check(
+                        omega,
+                        root,
+                        options.target.as_deref(),
+                        program,
+                        options.timeout,
+                    );
+                    let mut progress = progress.lock().expect("progress");
+                    // A misspelled `--target` fails every program the same
+                    // way; stop rather than record thousands of such rows.
+                    if let Some(refusal) = run_wide_refusal(&row) {
+                        progress.error.get_or_insert(refusal);
+                        break;
+                    }
+                    let written = match &mut progress.journal {
+                        Some(journal) => journal.append(&row),
+                        None => Ok(()),
+                    };
+                    progress.rows.push(row);
+                    let done = progress.rows.len();
+                    let reported = written.and_then(|()| {
+                        if done.is_multiple_of(10) {
+                            status(done, "running")
+                        } else {
+                            Ok(())
+                        }
+                    });
+                    if let Err(error) = reported {
+                        progress.error.get_or_insert(error);
+                    }
+                    if done.is_multiple_of(250) || done == header.total {
                         eprintln!(
-                            "xtask sweep: {finished}/{} in {}s",
-                            programs.len(),
+                            "xtask sweep: {done}/{} in {}s",
+                            header.total,
                             started.elapsed().as_secs()
                         );
                     }
@@ -851,18 +1116,82 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             });
         }
     });
-    let mut rows = rows.into_inner().expect("rows");
+    let Progress {
+        mut rows,
+        journal,
+        error,
+    } = progress.into_inner().expect("progress");
+    if let Some(error) = error {
+        return Err(error);
+    }
     rows.sort_by(|a, b| a.program.cmp(&b.program));
     if let Some(out) = &options.out {
-        write_rows(out, &commit, &rows).map_err(fail)?;
+        record::write_output(out, header, &rows, render_rows)?;
+        if let Some(journal) = journal {
+            journal.remove()?;
+        }
+        status(rows.len(), "finished")?;
     }
     print!("{}", summary(&rows));
     println!(
-        "\n{} programs in {}s at {commit}",
+        "\n{} programs in {}s at {}",
         rows.len(),
-        started.elapsed().as_secs()
+        started.elapsed().as_secs(),
+        header.commit
+    );
+    if let Some(out) = &options.out {
+        println!("wrote {} rows to {}", rows.len(), out.display());
+    }
+    Ok(())
+}
+
+/// `sweep merge --out <file.json> <shard.json>...`
+fn merge_command(args: &[String]) -> Result<(), u8> {
+    let usage = "usage: cargo xtask sweep merge --out <file.json> <shard.json>...";
+    let mut out = None;
+    let mut inputs = Vec::new();
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--out" => out = args.next().map(PathBuf::from),
+            "-h" | "--help" => {
+                eprintln!("{usage}");
+                return Err(2);
+            }
+            other => inputs.push(PathBuf::from(other)),
+        }
+    }
+    let Some(out) = out.filter(|_| !inputs.is_empty()) else {
+        eprintln!("{usage}");
+        return Err(2);
+    };
+    let fail = |message: String| {
+        eprintln!("xtask sweep merge: {message}");
+        1
+    };
+    let (header, rows) = merge_files(&inputs).map_err(fail)?;
+    record::write_output(&out, &header, &rows, render_rows).map_err(fail)?;
+    print!("{}", summary(&rows));
+    println!(
+        "\nmerged {} shards into {} rows at {}; wrote {}",
+        inputs.len(),
+        rows.len(),
+        header.commit,
+        out.display()
     );
     Ok(())
+}
+
+fn merge_files(inputs: &[PathBuf]) -> Result<(Header, Vec<Row>), String> {
+    let mut parts = Vec::with_capacity(inputs.len());
+    for path in inputs {
+        let text =
+            fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
+        let (header, rows) =
+            record::parse_output(&text).map_err(|error| format!("{}: {error}", path.display()))?;
+        parts.push((path.clone(), header, rows));
+    }
+    record::merge(&parts)
 }
 
 #[cfg(test)]
@@ -931,21 +1260,75 @@ mod tests {
     }
 
     #[test]
-    fn a_rejected_negative_is_expected_and_an_accepted_one_is_not() {
-        let rejected = row(
-            "samples/cli/facts/f/invalid_local/main.omg",
-            1,
-            10,
-            "cannot compile\n  error: exact arithmetic may overflow `u64`\n",
+    fn a_negative_earns_credit_only_for_the_refusal_it_pins() {
+        let program = "samples/cli/facts/f/invalid_local/main.omg";
+        let pinning = |fragments: &[&str]| {
+            Expectation::Reject(Ok(Box::new(crate::samples::SampleProject {
+                directory: PathBuf::from("samples/cli/facts/f/invalid_local"),
+                rel_path: "samples/cli/facts/f/invalid_local".to_owned(),
+                entry: Some(PathBuf::from("main.omg")),
+                role: "intended-invalid".to_owned(),
+                source_inputs: Vec::new(),
+                rejection: fragments.iter().map(|text| (*text).to_owned()).collect(),
+                rejection_any: Vec::new(),
+                rejection_casefold: false,
+                native_rejection: None,
+            })))
+        };
+        let overflow = "cannot compile\n  error: exact arithmetic may overflow `u64`\n";
+        let judge = |output: &str, exit: i32, expected: &Expectation| {
+            judged(program, exit, 10, output, output, expected)
+        };
+
+        let pinned = pinning(&["may overflow `u64`"]);
+        assert_eq!(judge(overflow, 1, &pinned).outcome, "Rejected as expected");
+        assert!(judge(overflow, 1, &pinned).reject);
+        assert_eq!(
+            judge("compiled", 0, &pinned).outcome,
+            "Accepted a wrong program"
         );
-        assert_eq!(rejected.outcome, "Rejected as expected");
-        let accepted = row(
-            "samples/cli/facts/f/invalid_local/main.omg",
-            0,
-            10,
-            "compiled",
+
+        // The twin exists for a borrow error; an earlier overflow proves nothing.
+        let borrow = pinning(&["while local borrow `held` is still active"]);
+        assert_eq!(
+            judge(overflow, 1, &borrow).outcome,
+            "Rejected for another reason"
         );
-        assert_eq!(accepted.outcome, "Accepted a wrong program");
+        // A refusal the checker cannot judge yet is still a blocker.
+        let unsupported = "cannot compile\n  error: not supported yet: type generic application\n";
+        assert_eq!(judge(unsupported, 1, &borrow).outcome, "Blocked");
+        // A negative with nothing pinned, or unreadable pins, earns nothing.
+        assert_eq!(
+            judge(overflow, 1, &pinning(&[])).outcome,
+            "Rejected for another reason"
+        );
+        let unreadable = Expectation::Reject(Err("sample.json: bad".to_owned()));
+        assert_eq!(
+            judge(overflow, 1, &unreadable).outcome,
+            "Rejected for another reason"
+        );
+        // A crash is not a normal rejection, even when its text matches.
+        assert_eq!(
+            judge(overflow, 101, &pinned).outcome,
+            "Rejected for another reason"
+        );
+    }
+
+    #[test]
+    fn expectations_come_from_the_programs_own_files() {
+        let root = crate::repo_root().unwrap();
+        let twin = "samples/cli/facts/abi_multi_arg_spill/invalid_call_result/main.omg";
+        let Expectation::Reject(Ok(project)) = expectation(&root, twin) else {
+            panic!("{twin} pins its refusal in sample.json");
+        };
+        assert_eq!(project.rejection, ["may overflow `u64`"]);
+        let positive = "samples/cli/facts/abi_multi_arg_spill/call_result/main.omg";
+        assert!(matches!(expectation(&root, positive), Expectation::Check));
+        let fail = "tests/fixtures/fail/arithmetic/exact_divisor_unproven/main.omg";
+        let Expectation::Reject(Ok(project)) = expectation(&root, fail) else {
+            panic!("{fail} pins its refusal in expected.txt");
+        };
+        assert!(!project.rejection.is_empty());
     }
 
     #[test]
@@ -1020,6 +1403,26 @@ mod tests {
     }
 
     #[test]
+    fn a_misspelled_target_stops_the_run_not_one_program() {
+        let refused = row(
+            "samples/a/main.omg",
+            1,
+            1,
+            "error: unknown target profile `linx`; expected linux_x86_64
+",
+        );
+        assert!(run_wide_refusal(&refused).unwrap().contains("samples/a"));
+        let blocked = row(
+            "samples/a/main.omg",
+            1,
+            1,
+            "error: not supported yet: x
+",
+        );
+        assert!(run_wide_refusal(&blocked).is_none());
+    }
+
+    #[test]
     fn the_previous_sweep_reads_back_its_own_rows() {
         let rows = [row(
             "samples/cli/x/main.omg",
@@ -1028,7 +1431,15 @@ mod tests {
             "error: project source discovery failed: \n  error: not supported yet: call late-bound selection\n",
         )];
         let path = std::env::temp_dir().join(format!("sweep-{}.tsv", std::process::id()));
-        write_rows(&path, "abc", &rows).unwrap();
+        let header = Header {
+            commit: "abc".to_owned(),
+            target: String::new(),
+            shard: Shard::WHOLE,
+            selection: 1,
+            fingerprint: record::fingerprint(["samples/cli/x/main.omg"]),
+            total: 1,
+        };
+        render_rows(&path, &header, &rows).unwrap();
         let read = read_previous(&path).unwrap();
         let _ = fs::remove_file(&path);
         assert_eq!(read.len(), 1);
