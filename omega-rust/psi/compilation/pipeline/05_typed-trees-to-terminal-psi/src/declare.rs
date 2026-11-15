@@ -738,13 +738,18 @@ pub(crate) fn access_caller_route(
         {
             return Err("access caller lost its prepared declaration application");
         }
-        let arguments = match typed.type_reference_node(selected.type_reference) {
+        let arguments = match typed
+            .type_reference_table
+            .type_reference(selected.type_reference)
+        {
             TypeReferenceNode::Named { symbol, .. } if *symbol == machine.symbol => &[][..],
             TypeReferenceNode::Generic {
                 base_symbol,
                 arguments,
                 ..
-            } if *base_symbol == machine.symbol => typed.type_reference_handles(*arguments),
+            } if *base_symbol == machine.symbol => typed
+                .type_reference_table
+                .type_reference_handles(*arguments),
             _ => return Err("access caller lost its prepared declaration application"),
         };
         if arguments.len() != parameters.len() + machine.conformance_bounds.len() {
