@@ -458,8 +458,9 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
         bindings: frontier.bindings,
         ..Default::default()
     };
+    let typed = Arc::new(frontier.typed);
     let accepted = roster
-        .judge(Arc::new(frontier.typed))
+        .judge(Arc::clone(&typed))
         .expect("the actual ProcessExit program is accepted");
     let supply =
         prepare(&accepted, &[], &[]).expect("external completion is an ordinary provider demand");
@@ -485,9 +486,71 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
     let source_schema = accepted
         .slot_schema(requirement.reached.slot)
         .expect("the actual source owns the complete Core schema");
+    // Source review uses display paths and ordinary type identities. Native
+    // planning uses canonical service applications and package-qualified types.
+    // Build the full expected contract from the independent source owner in
+    // that coordinate system; copying the projected header would hide a lost
+    // nominal Never result or a changed public row.
+    let source_owner = typed
+        .trait_definition_by_symbol(requirement.reached.slot)
+        .unwrap();
+    let source_requirement = typed
+        .trait_machine_signature_by_symbol(source_owner, requirement.reached.requirement)
+        .unwrap();
+    let service_application = |symbol| {
+        let declaration = typed.trait_definition_by_symbol(symbol).unwrap();
+        let scope = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration);
+        typed
+            .type_identity_text(scope.portable_application_identity(&typed).unwrap())
+            .unwrap()
+    };
+    let canonical_service_name = |name: &String| {
+        let mut declarations = typed
+            .service_reaches
+            .definitions()
+            .iter()
+            .filter(|declaration| declaration.name == *name);
+        let symbol = declarations.next().unwrap().symbol;
+        assert!(declarations.next().is_none());
+        service_application(symbol)
+    };
+    let mut expected = source_schema.as_ref().clone();
+    expected.trait_name = expected
+        .identities
+        .intern(&service_application(source_owner.symbol));
+    assert_eq!(expected.receiver_applications.len(), 1);
+    expected.receiver_applications[0].trait_name = expected.trait_name;
+    let [method] = expected.methods.as_mut_slice() else {
+        panic!("the genuine Core ProcessExit contract has exactly one member");
+    };
+    method.requirement_owner = service_application(source_owner.symbol);
+    method.parameter_type_identities = typed
+        .state_signature_parameters(source_requirement)
+        .iter()
+        .map(|parameter| {
+            expected
+                .identities
+                .intern(&typed.package_qualified_type_identity_text(parameter.type_reference))
+        })
+        .collect();
+    method.result_type_identity = expected
+        .identities
+        .intern(&typed.package_qualified_type_identity_text(source_requirement.return_type));
+    method.service_reach = method
+        .service_reach
+        .iter()
+        .map(canonical_service_name)
+        .collect();
+    method.service_reach.sort_unstable();
+    method.synchronous_invocations = method
+        .synchronous_invocations
+        .iter()
+        .map(canonical_service_name)
+        .collect();
+    method.synchronous_invocations.sort_unstable();
     assert_eq!(
         projected.declaration.as_ref(),
-        source_schema.as_ref(),
+        &expected,
         "native projection must retain nominal result, progress and all public rows",
     );
     assert!(requirement.supplies.is_empty());

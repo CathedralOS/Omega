@@ -4,13 +4,16 @@
 
 use effects::provider_plan::{ServiceMethod, ServiceSchema, ServiceSurface};
 use language_core::sealed_intrinsics::HostedOperation;
+use language_semantics::service_surface::ServiceReceiverApplication;
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::{CheckedBoundaryExecution, TerminalModule};
 
 /// Project the complete supported hosted requirement, preserving declared type
 /// identities even when its physical result occupies no storage. The caller
 /// supplies an already admitted declaration; this is not source authentication
-/// or an authority grant.
+/// or an authority grant. This native schema uses the canonical module's service
+/// application and package-qualified type coordinates, rather than source
+/// display paths and ordinary type coordinates.
 pub fn hosted_requirement_schema(
     module: &TerminalModule,
     operation: HostedOperation,
@@ -35,6 +38,9 @@ pub fn hosted_requirement_schema(
         || !boundary.requires.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.scalar_domain_requirements.is_empty()
+        || !boundary.scalar_requires.is_empty()
+        || !boundary.scalar_ensures.is_empty()
+        || !boundary.crash_routes.is_empty()
         || !boundary.reference_outputs.is_empty()
         || !boundary.program_local_root_introductions.is_empty()
         || !boundary.content_guarantees.is_empty()
@@ -60,11 +66,18 @@ pub fn hosted_requirement_schema(
             .ok_or_else(|| "hosted schema lost a declared service".to_owned())?;
         text(service.identity)
     };
-    let owner = service_name(
-        boundary
-            .owning_service
-            .ok_or("hosted schema lost its declaring service")?,
-    )?;
+    let owner_service = boundary
+        .owning_service
+        .ok_or("hosted schema lost its declaring service")?;
+    let owner_declaration = module
+        .services
+        .iter()
+        .find(|service| service.id == owner_service)
+        .ok_or("hosted schema lost its declaring service")?;
+    if !owner_declaration.parents.is_empty() {
+        return Err("hosted schema needs its complete inherited service projection".into());
+    }
+    let owner = service_name(owner_service)?;
     let mut surface = ServiceSurface::default();
     surface.trait_name = surface.identities.intern(owner);
     let parameter_type_identities = declaration
@@ -77,6 +90,16 @@ pub fn hosted_requirement_schema(
         .identities
         .intern(text(declaration.source.result_type)?);
     let requirement_identity = surface.identities.intern(text(boundary.identity)?);
+    surface
+        .receiver_applications
+        .push(ServiceReceiverApplication {
+            application: surface.trait_name,
+            trait_name: surface.trait_name,
+            trait_package_identity: None,
+            argument_identities: Vec::new(),
+            lifetime_argument_identities: Vec::new(),
+            requirement_identities: vec![requirement_identity],
+        });
     let services = |row: &[semantic_vocabulary::ServiceId]| {
         let mut names = row
             .iter()
