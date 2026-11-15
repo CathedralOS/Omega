@@ -172,13 +172,6 @@ framework or a list of unimplemented features.
 - Cost: A guarded read loses the descriptor's projected path at the scalar operation. Preserve the same storage and length through its existing exact descriptor access. Keep a sibling descriptor's bound and a non-copy element read refused.
 - Reported: 2026-11-15, Codex, while checking native backing for owned record sequences. Narrowed after replaying whole descriptors and projected length.
 
-### A boundary that borrows a stored mutable byte descriptor omits its output contract
-- Category: knowledge crossing a boundary
-- Where: [structural boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs) (`reference_outputs`), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs) (`provider_outputs_cover_writable_slots`)
-- Saw: The unchanged Console program prints `K`, exits 0 in native and Psi on macOS arm64 and reopens with its original direct `Console::read_line(&mut [u8])` requirement. A separate selected requirement and implementation with `input: &mut &mut [u8]` still run and then refuse readback with “boundary reference parameter contract has incomplete leaf coverage”. A reached call now lends the descriptor slot without conflicting with the live payload; its saved Psi still refuses the same incomplete output roster.
-- Cost: A mutable loan of stored descriptor storage can replace the slot. The checked boundary must publish the exact writable slot's handback origin or replacement before independent readback can admit it. Preserve the distinction from directly borrowed bytes and keep incomplete output coverage refused.
-- Reported: 2026-11-15, Codex, while repairing saved byte-view calling signatures. Narrowed after replaying the direct and stored-parameter twins.
-
 ### A layout-query constant lacks target authority at evaluation
 - Category: knowledge crossing a boundary
 - Where: [kept layout-query constant](tests/fixtures/pass/layouts/runtime_constant_layout_contract_exit/main.omg#L5), [constant evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs), [folded-constant closure](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module.rs#L17)

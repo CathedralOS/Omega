@@ -383,6 +383,14 @@ impl<'t> Program<'t> {
                     "boundary result has an unresolved declared lifetime frontier",
                 ));
             }
+            declaration.reference_outputs = self
+                .declared_reference_outputs(
+                    caller,
+                    signature,
+                    &module.structural_types,
+                    &declaration.structural_parameters,
+                )
+                .map_err(unavailable)?;
             boundaries.push(declaration);
         }
         module.boundary_machines = boundaries;

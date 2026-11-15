@@ -4,7 +4,8 @@
 
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryMachineDeclaration, BoundaryMachineResult,
-    DeclaredResultLifetime, StructuralAccess, StructuralTypeDeclaration, StructuralTypeShape,
+    DeclaredResultLifetime, StructuralAccess, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 use crate::descriptor_results::{
@@ -64,6 +65,205 @@ pub(crate) fn provider_lifetime_debts(
         .collect()
 }
 
+/// A checked realization must establish the published slot on normal return.
+pub fn validate_provider_reference_outputs(
+    module: &terminal_psi::TerminalModule,
+) -> Result<(), &'static str> {
+    use crate::descriptor_lifetimes::descriptor_location;
+    use crate::descriptor_results::{DescriptorAnalysis, terminal_borrowed_storage_graph_from};
+    use terminal_psi::{BoundaryReferenceDestination, StructuralAccess};
+
+    let candidates = module
+        .provider_candidates
+        .iter()
+        .filter_map(|candidate| {
+            let boundary = module.boundary_machine(candidate.boundary)?;
+            (!boundary.reference_outputs.is_empty()).then_some((candidate.candidate, boundary))
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return Ok(());
+    }
+    let types = &module.structural_types;
+    let graph =
+        terminal_borrowed_storage_graph_from(module, candidates.iter().map(|(body, _)| *body), &[])
+            .map_err(|_| "checked provider output has no complete descriptor graph")?;
+    let mut analysis = DescriptorAnalysis::new(types, &graph);
+    for (body, boundary) in candidates {
+        let implementation = graph
+            .iter()
+            .find(|machine| machine.id == body)
+            .ok_or("checked provider output has no exact implementation")?;
+        if implementation.normal_exits.is_empty() {
+            continue;
+        }
+        let effects = analysis
+            .stored_effects(body)
+            .ok_or("checked provider output has no complete normal storage effect")?;
+        for output in &boundary.reference_outputs {
+            let BoundaryReferenceDestination::Parameter(position) = output.destination;
+            let ordinal = usize::try_from(position)
+                .map_err(|_| "checked provider output ordinal exceeds its parameter namespace")?;
+            let formal = boundary
+                .structural_parameters
+                .get(ordinal)
+                .filter(|formal| formal.position == position)
+                .ok_or("checked provider output names no exact formal")?;
+            if boundary_descriptor_access(types, formal, &output.path) != Some(output.access)
+                || !matches!(
+                    formal.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+            {
+                return Err("checked provider output changes its exact formal access");
+            }
+            let location = descriptor_location(
+                types,
+                formal.place,
+                formal.structural_type,
+                &output.path,
+                None,
+            )
+            .ok_or("checked provider output has no exact descriptor path")?;
+            let anchors = provider_lifetime_debts(
+                types,
+                &boundary.structural_parameters,
+                &output.dependencies,
+            )?;
+            let keeps_its_input = anchors.iter().any(|anchor| {
+                matches!(
+                    &anchor.origin,
+                    DescriptorStoredOrigin::IncomingSlot { position, path }
+                        if *position == ordinal && *path == location.path
+                )
+            });
+            if keeps_its_input
+                && analysis.preserves_descriptor_storage(body, ordinal, &location.path)?
+            {
+                continue;
+            }
+            let mut matching = effects.iter().filter(|effect| {
+                effect.parameter == ordinal && effect.exact_path().as_ref() == Some(&location.path)
+            });
+            let effect = matching
+                .next()
+                .filter(|_| matching.next().is_none())
+                .ok_or("checked provider has no unique normal output effect")?;
+            if effect.origins.is_empty()
+                || !effect.origins.iter().all(|origin| {
+                    let Some((position, path)) = origin.captured_entry_slot() else {
+                        return false;
+                    };
+                    anchors.iter().any(|anchor| {
+                        matches!(
+                            &anchor.origin,
+                            DescriptorStoredOrigin::IncomingSlot { position: input, path: source }
+                                if *input == position && source.as_slice() == path.as_ref()
+                        )
+                    })
+                })
+            {
+                return Err("checked provider output exceeds its published lifetime anchors");
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_declared_boundary_reference_outputs(
+    types: &[StructuralTypeDeclaration],
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<(), &'static str> {
+    if !crate::descriptor_results::provider_outputs_cover_writable_slots(types, boundary) {
+        return Err("boundary reference parameter contract has incomplete leaf coverage");
+    }
+    let parameter = |position: u32| {
+        boundary
+            .structural_parameters
+            .get(position as usize)
+            .filter(|parameter| parameter.position == position)
+            .ok_or("boundary reference contract names an absent parameter")
+    };
+    let mut destinations = std::collections::BTreeSet::new();
+    for output in &boundary.reference_outputs {
+        if !destinations.insert((output.destination, output.path.clone())) {
+            return Err("boundary reference contract repeats an output destination");
+        }
+        let destination = match output.destination {
+            terminal_psi::BoundaryReferenceDestination::Parameter(position) => {
+                let parameter = parameter(position)?;
+                if !matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ) {
+                    return Err("boundary reference output has no writable parameter storage");
+                }
+                parameter
+            }
+        };
+        validate_leaf(types, destination, &output.path, output.access)?;
+        if output.dependencies.is_empty() {
+            return Err("boundary reference output has no lifetime anchor");
+        }
+        let mut dependencies = std::collections::BTreeSet::new();
+        for dependency in &output.dependencies {
+            if !dependencies.insert(dependency) {
+                return Err("boundary reference output repeats a lifetime anchor");
+            }
+            match dependency {
+                BoundaryLifetimeDependency::Referent {
+                    argument_index,
+                    access,
+                } => {
+                    let parameter = parameter(*argument_index)?;
+                    if *access == StructuralAccess::Owned || parameter.access != *access {
+                        return Err(
+                            "boundary reference lifetime anchor differs from formal access",
+                        );
+                    }
+                }
+                BoundaryLifetimeDependency::Stored {
+                    argument_index,
+                    path,
+                    access,
+                } => {
+                    let parameter = parameter(*argument_index)?;
+                    if parameter.access == StructuralAccess::WriteOnlyBorrow {
+                        return Err("boundary reference lifetime anchor reads write-only storage");
+                    }
+                    validate_leaf(types, parameter, path, *access)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_leaf(
+    types: &[StructuralTypeDeclaration],
+    parameter: &StructuralParameterDeclaration,
+    path: &[StructuralPathSegment],
+    access: StructuralAccess,
+) -> Result<(), &'static str> {
+    if path.iter().any(|segment| {
+        !matches!(
+            segment,
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::Case(_)
+                | StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return Err("boundary reference contract has a nonstorage projection");
+    }
+    let declared = boundary_descriptor_access(types, parameter, path);
+    if access == StructuralAccess::Owned || declared != Some(access) {
+        return Err(
+            "boundary reference contract endpoint has different access or is not a descriptor",
+        );
+    }
+    Ok(())
+}
+
 /// A provider result owns its provenance, while its dependencies describe
 /// only what must remain live. Neither the declared group nor these debts
 /// places the result inside an input's storage.
@@ -116,6 +316,37 @@ pub fn boundary_result_slots(
     }
     slots.sort_unstable_by(|left, right| left.path.cmp(&right.path));
     Ok(slots)
+}
+
+/// The access declared at a boundary's exact descriptor endpoint. A loan of
+/// storage has its own multiplicity, independent of the stored descriptor.
+pub fn boundary_descriptor_access(
+    types: &[StructuralTypeDeclaration],
+    parameter: &StructuralParameterDeclaration,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralAccess> {
+    let selected =
+        crate::runtime_structural_path_tip(types.iter(), parameter.structural_type, path)?;
+    let stored = !path.is_empty() || crate::borrowed_storage_parameter(parameter, types.iter());
+    let declared = match selected.shape {
+        StructuralTypeShape::Reference { access, .. } => Some(access),
+        _ if stored => crate::stored_reference_access(&selected.shape),
+        _ => crate::descriptor_results::descriptor_value_access(
+            types.iter(),
+            selected.id,
+            parameter.multiplicity,
+        ),
+    }?;
+    if parameter.access == StructuralAccess::SharedBorrow {
+        match declared {
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow => {
+                Some(StructuralAccess::SharedBorrow)
+            }
+            _ => None,
+        }
+    } else {
+        Some(declared)
+    }
 }
 
 pub fn boundary_result_lifetimes<'boundary>(
@@ -196,20 +427,7 @@ pub fn boundary_result_lifetimes<'boundary>(
                 if parameter.access == StructuralAccess::WriteOnlyBorrow {
                     return Err("boundary lifetime anchor reads write-only storage");
                 }
-                let selected = crate::runtime_structural_path_tip(
-                    types.iter(),
-                    parameter.structural_type,
-                    path,
-                )
-                .ok_or("boundary lifetime anchor has no exact stored descriptor")?;
-                let declared = match selected.shape {
-                    StructuralTypeShape::Reference { access, .. } => Some(access),
-                    _ => crate::descriptor_results::descriptor_value_access(
-                        types.iter(),
-                        selected.id,
-                        parameter.multiplicity,
-                    ),
-                };
+                let declared = boundary_descriptor_access(types, parameter, path);
                 if declared != Some(access) {
                     return Err("boundary stored lifetime anchor changes descriptor access");
                 }
