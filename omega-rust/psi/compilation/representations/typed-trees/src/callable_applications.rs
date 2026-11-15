@@ -6909,9 +6909,8 @@ pub(crate) mod signatures {
                         signature::AuthoredInvocationTarget::Service(symbol) => {
                             signature::AuthoredInvocationTarget::Service(self.symbol(symbol))
                         }
-                        signature::AuthoredInvocationTarget::Unresolved => {
-                            signature::AuthoredInvocationTarget::Unresolved
-                        }
+                        unresolved @ (signature::AuthoredInvocationTarget::Unresolved
+                        | signature::AuthoredInvocationTarget::Undeclared) => unresolved,
                     };
                     program
                         .signature_invokes
