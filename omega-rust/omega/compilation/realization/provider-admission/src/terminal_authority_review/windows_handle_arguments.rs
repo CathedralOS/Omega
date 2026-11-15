@@ -1,10 +1,10 @@
-//! Check actual native scalar arguments independently of receiver permission.
+//! Checks actual native scalar arguments separately from receiver permission.
 //!
 //! Closed literal values flow through every original origin alternative. Cyclic
 //! equations are solved to a bounded fixed point; an unseeded cycle proves
-//! nothing, and an external or unsupported value remains unknown. This is an
-//! overapproximation across all callers, not permission to select one helpful
-//! activation or to infer a handle's successful acquisition.
+//! nothing, and an external or unsupported value stays unknown. The result
+//! overapproximates across all callers: it never picks one helpful activation
+//! or infers that a handle was acquired successfully.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 

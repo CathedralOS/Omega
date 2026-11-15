@@ -1,5 +1,5 @@
-//! Evaluate retained constant computations through the accepted invocation
-//! bridge, then materialize their snapshots in the original typed owner.
+//! Evaluates retained constant computations through the accepted invocation
+//! bridge, then stores their snapshots in their original typed owner.
 //! Dependency discovery reads identities only; it never interprets an
 //! expression or chooses a result. Every job still passes typed preparation,
 //! structural discharge, publication and hermetic invocation admission.

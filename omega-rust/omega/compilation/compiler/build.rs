@@ -1,10 +1,10 @@
-//! Embed build-input identity, not the pathname of a running executable.
+//! Embed build-input identity, not the path of a running executable.
 //!
-//! Accepted package inputs are compiler-versioned. A release label or Git HEAD
-//! misses uncommitted development changes, so both development and release
-//! builds identify the actual Rust source/configuration and Rust toolchain.
-//! This is an invalidation key, not compiler attestation. The separately loaded
-//! Omega library is identified by its loader at acceptance/compilation time.
+//! Accepted package inputs are compiler-versioned. A release label or Git
+//! HEAD misses uncommitted changes, so development and release builds both
+//! identify the actual Rust source/configuration and toolchain. This is an
+//! invalidation key, not compiler attestation. The separately loaded Omega
+//! library is identified by its loader at acceptance/compilation time.
 
 mod build_profile;
 

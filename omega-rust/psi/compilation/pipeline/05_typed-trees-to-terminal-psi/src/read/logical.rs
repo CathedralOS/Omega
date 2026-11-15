@@ -1,9 +1,9 @@
-//! Source-owned inputs of a logical invocation witness. Scalar leaves here are
-//! mathematical snapshots, including fields of linear data; they are never an
+//! Reads the source-owned inputs of a logical invocation witness. Scalar leaves
+//! here are mathematical snapshots, including fields of linear data, never an
 //! executable representation of that data. Establishment-restricted domains
 //! keep their nominal premise; every domain keeps its complete declared theory.
-//! Unread theory refuses the witness
-//! before proof search, so failure under an approximation cannot reject source.
+//! Unread theory refuses the witness before proof search, so failure under an
+//! approximation cannot reject source.
 
 use arena::{Arena, HandleSpan};
 use semantic_vocabulary::{

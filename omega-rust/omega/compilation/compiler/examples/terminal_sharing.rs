@@ -1,9 +1,9 @@
-//! Measure real two-target production, outside parallel corpus counter traffic.
+//! Measure real two-target production, away from parallel tests' counters.
 //!
 //! `cargo run -p compiler --example terminal_sharing` compiles the existing
-//! distinct-entry customer for Windows and Linux. Both native products must
+//! distinct-entry fixture for Windows and Linux. Both native products must
 //! borrow one Terminal allocation; this does not execute a foreign-host image.
-//! Optional arguments select another corpus root followed by its target names.
+//! Optional arguments select another fixture root followed by its target names.
 //! Prefix `--check` or `--terminal` to measure those stops. `--reject TARGET`
 //! expects that target to refuse while its siblings still produce their outputs.
 //! `--reason TEXT` pins a different refusal than the default missing ProgramEntry.

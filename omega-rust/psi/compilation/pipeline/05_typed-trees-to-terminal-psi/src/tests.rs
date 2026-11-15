@@ -769,8 +769,9 @@ fn a_value_machine_that_falls_off_its_end_is_refused() {
     .unwrap_err();
     assert_eq!(
         refusal.reason,
-        terminal_check_tables::RefusalReason::Unsupported
+        terminal_check_tables::RefusalReason::Violation
     );
+    assert_eq!(refusal.detail, "value machine can fall off its end");
 }
 
 fn boolean_slot(slot: usize) -> Expression {

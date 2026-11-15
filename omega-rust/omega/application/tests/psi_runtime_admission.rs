@@ -75,6 +75,22 @@ machine consume(tickets: [Ticket]) {}
     );
 }
 
+#[test]
+fn psi_runs_the_bundled_atomic_fence_in_its_module() {
+    assert_psi_runs(
+        "atomic-fence",
+        r#"use omega::language::core::Atomic;
+use omega::language::core::Atomic::fence;
+use omega::language::core::FenceOrdering;
+machine main() {
+    Atomic::fence(FenceOrdering::Receive);
+    fence(FenceOrdering::Publish);
+    Atomic::fence(FenceOrdering::ReceivePublish);
+}
+"#,
+    );
+}
+
 fn compile(project: &Path, destination: NativeDestination) -> Result<BuildReport, BuildError> {
     let outcomes = build(BuildRequest {
         root_path: project.join("main.omg"),

@@ -1442,7 +1442,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     }
             }
             (
-                ExpressionKind::Atomic { .. }
+                ExpressionKind::Atomic(_)
                 | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
                 | ExpressionKind::LayoutObservation { .. }

@@ -9,40 +9,39 @@
 //! root, and the capture admits only those canonical modes, because a root
 //! that is still writable cannot commit the bytes a build's `Source` reads.
 //!
-//! Test targets that compile repository fixtures bypassed acquisition and
-//! bound the root package straight to the checked-out fixture directory, whose
-//! mode is an ordinary writable `0o755`. Those compilations therefore had no
-//! canonical Source metadata to offer, and any fixture whose build machine
-//! reached the build filesystem was refused by the harness rather than by the
-//! rule it meant to exercise. This module closes that gap: it stages a sealed
-//! private snapshot of a fixture's directory and the binding is made against
-//! the snapshot, so the harness supplies the custody the compiler demands
-//! instead of the compiler relaxing the demand.
+//! Tests that compile repository fixtures skip acquisition, so they would bind
+//! the root package to the checked-out fixture directory, whose mode is an
+//! ordinary writable `0o755`. Such a compilation has no canonical Source
+//! metadata, and the harness, not the rule under test, would refuse any fixture
+//! whose build machine reached the build filesystem. This module stages a sealed
+//! private snapshot of the fixture's directory and binds the root package to
+//! it, so the harness supplies the custody the compiler demands instead of the
+//! compiler relaxing the demand.
 //!
-//! Two properties of the staged layout are load-bearing:
+//! Two properties of the staged layout matter:
 //!
 //! - A snapshot keeps the fixture's repository-relative path under one private
 //!   session root (`<session>/tests/fixtures/fail/build/<name>/`). Diagnostics
-//!   render positions with the path they were compiled from, and the corpus
-//!   record's sanitizer strips a known root prefix to stay checkout-portable;
-//!   mirroring the relative path means stripping the session root yields the
-//!   exact text stripping the repository root yielded, so no recorded golden
-//!   row moves because a fixture is now compiled out of a snapshot.
+//!   show positions with the path they were compiled from, and the test
+//!   sanitizer strips a known root prefix to stay checkout-portable. Because the
+//!   relative path is mirrored, stripping the session root yields the text
+//!   stripping the repository root yielded, so no pinned diagnostic changes
+//!   because a fixture is now compiled out of a snapshot.
 //! - Sealing happens in a private copy, never in place. Fixture directories
-//!   are shared: several corpus runs execute against one checkout at once and
-//!   an editor may hold a file open, so making the working tree read-only for
-//!   the duration of a compile would let one run's restore unseal another
-//!   run's source. The session root is exclusively created, so even processes
-//!   with the same id in separate PID namespaces cannot share it.
+//!   are shared: several test runs use one checkout at once and an editor may
+//!   hold a file open, so making the working tree read-only during a compile
+//!   would let one run's restore unseal another run's source. The session root
+//!   is created exclusively, so even processes with the same id in separate
+//!   PID namespaces cannot share it.
 //!
-//! Dependency rows are deliberately not staged for the root's compilation. A
+//! Dependencies are deliberately not staged for the root's compilation. A
 //! fixture resolves `Source::Path` locations against its authored project
-//! (849 fixtures reach the bundled standard library through
-//! `../../../../../source/library/std`), so the authored directory stays the
-//! place those rows are read and resolved from, and only the root package's
-//! binding moves to the snapshot. Nested members keep their own existing
-//! staging. A dependency whose own Build occurrence runs is that occurrence's
-//! root, so it is sealed the same way, once per process, apart from fixtures.
+//! (fixtures reach the bundled standard library through
+//! `../../../../../source/library/std`), so those rows are still read and
+//! resolved from the authored directory; only the root package's binding moves
+//! to the snapshot. Nested members keep their existing staging. A dependency
+//! whose own Build runs is that Build's root, so it is sealed the same way,
+//! once per process, separately from fixtures.
 
 use std::fs;
 use std::path::{Path, PathBuf};

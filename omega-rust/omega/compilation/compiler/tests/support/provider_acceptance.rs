@@ -1,19 +1,18 @@
-//! Repository test acceptance of one exact package-owned provider plan.
+//! Test-only acceptance of one exact package-owned provider plan.
 //!
-//! Three sibling sites used to resolve, admit and permission a package-owned
-//! service role by hand. Every role now resolves the same way, once: one exact
-//! settled provider plan serving the
-//! role's complete requested method set and belonging to the accepting
-//! owner, then an `AcceptedSemanticBinding` with that plan's digests and the
+//! Every package-owned service role is resolved, admitted and given permission
+//! the same way, here: find the one exact settled provider plan that serves the
+//! role's complete requested method set and belongs to the accepting owner,
+//! then build an `AcceptedSemanticBinding` from that plan's digests and the
 //! sorted terminal-authority rows of the methods the role accepts.
 //!
-//! `Console` is a package-owned boundary, so the package the plan originates
-//! from names the owner; `ProcessExit` is toolchain-owned
-//! (`omega::language::core::process_exit`) and carries no package identity, so
-//! the bound package owns the selected nominal provider type. Both coordinates
-//! are read from the settled plan itself. Both spellings live here so the requirement projection and
-//! the binding constructors cannot disagree about which package owns a plan.
-//! This is test policy, not evidence that an audit occurred.
+//! `Console` is a package-owned boundary, so the package the plan comes from
+//! is the owner. `ProcessExit` is toolchain-owned
+//! (`omega::language::core::process_exit`) and has no package identity, so
+//! the bound package owns the selected nominal provider type. Both owners are
+//! read from the settled plan itself. Both cases live here so the requirement
+//! projection and the binding constructors cannot disagree about which package
+//! owns a plan. This is test policy, not evidence that an audit occurred.
 
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;

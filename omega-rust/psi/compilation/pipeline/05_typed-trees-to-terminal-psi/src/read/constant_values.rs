@@ -1,9 +1,9 @@
-//! Constant values arrive as materialized source data, never as a source
-//! checking verdict. Source completion joins computed values to their real
-//! invocation receipts before freezing. Reading independently checks the
+//! Constant values arrive as materialized source data, never as a verdict of
+//! source checking. Before freezing, source completion joins each computed value
+//! to its real invocation receipt. Reading then checks independently the
 //! carrier, each scalar leaf of a scalar, array or record value, and the
-//! exact retained initializer entry; that entry is
-//! an ordinary subject machine whose body the lowered checker also judges.
+//! exact retained initializer entry, an ordinary subject machine whose body
+//! the lowered-form checker also judges.
 
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use semantic_vocabulary::{IntegerValue, MachineId, ScalarType};

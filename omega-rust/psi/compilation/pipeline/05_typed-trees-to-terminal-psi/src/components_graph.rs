@@ -1,8 +1,8 @@
-//! Discover call components once, with storage proportional to machines and
-//! calls. Lowering borrows one ordered member span instead of retaining a copy
-//! for every member, and outcome inference walks the components callee-first,
-//! re-queuing a member's callers from the retained reverse calls. The separate
-//! emitted graphs keep their existing ownership.
+//! Find strongly connected call components once, with storage
+//! proportional to machines and calls. Lowering borrows one ordered member
+//! span instead of copying it per member, and outcome inference walks the
+//! components callee-first, re-queuing a member's callers from the retained
+//! reverse calls. The separate emitted graphs keep their existing ownership.
 
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};

@@ -1,12 +1,11 @@
-//! The first piece of a production path from the checker on the lowered
-//! form: a program the route accepts is published as canonical Terminal Psi
-//! from the route's own module (`AcceptedClosure::publish`), its evidence
-//! seals are attached by Omega 00 to that module and fill the accepted
-//! obligations' proof fingerprints in Omega 01, and the published program
-//! runs in the Terminal interpreter to the exit its fixture pins
-//! (`wiki/drafts/designs/check_on_lowered_form.md`, "Route one", Build:
-//! "Discharged certificates travel in memory beside `TerminalModule` within
-//! one compile so Omega 00 can fill
+//! Tests the path from the lowered-form checker to a running program. A program
+//! the checker accepts is published as canonical Terminal Psi from the checker's
+//! own module (`AcceptedClosure::publish`). Omega 00 attaches its evidence seals
+//! to that module, Omega 01 uses them to fill the accepted obligations' proof
+//! fingerprints, and the published program runs in the Terminal interpreter to
+//! the exit its fixture pins (`wiki/drafts/designs/check_on_lowered_form.md`,
+//! "Route one", Build: "Discharged certificates travel in memory beside
+//! `TerminalModule` within one compile so Omega 00 can fill
 //! `AcceptedObligationFact::proof_bundle_fingerprint`").
 //!
 //! Each machine of the published module states the declaration identity of
@@ -14,11 +13,11 @@
 //! the way the program-entry receipt finds it on the product check's
 //! program.
 //!
-//! The default compile takes this path for the application: when the route
-//! accepts a compilation and its module publishes, the Terminal product is
-//! that artifact and its seals stay beside it for Omega 00. An executable
-//! child requests its calling declarations before publication and receives a
-//! new judgment over the same source and full roster.
+//! The default compile takes this path: when the checker accepts a compilation
+//! and its module publishes, the Terminal product is that artifact and its
+//! seals stay beside it for Omega 00. An executable child requests its calling
+//! declarations before publication and receives a new judgment over the same
+//! source and full roster.
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 

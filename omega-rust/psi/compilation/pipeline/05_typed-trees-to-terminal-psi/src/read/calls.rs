@@ -1885,6 +1885,9 @@ impl<'t> Program<'t> {
             (machine, boundary)
         };
         self.visible_to(id, target)?;
+        if let Some(fence) = self.atomic_fence(id, target, arguments, source)? {
+            return Ok(fence);
+        }
         if boundary_call {
             let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
@@ -2725,13 +2728,8 @@ fn mentions<'a>(
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
-        ExpressionKind::Atomic {
-            place, operands, ..
-        } => {
-            if mentions(id, place, slots, captures)? {
-                return Ok(true);
-            }
-            for operand in operands {
+        ExpressionKind::Atomic(operation) => {
+            for operand in operation.inputs() {
                 if mentions(id, operand, slots, captures)? {
                     return Ok(true);
                 }

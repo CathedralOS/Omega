@@ -163,11 +163,24 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
-            ExpressionKind::Atomic {
-                place,
-                event,
-                operands,
-            } => self.atomic_access(place, *event, operands, result, source),
+            ExpressionKind::Atomic(operation) => match operation {
+                crate::body::AtomicOperation::Access {
+                    place,
+                    event,
+                    operands,
+                } => self.atomic_access(place, *event, operands, result, source),
+                crate::body::AtomicOperation::Fence(ordering) => {
+                    let operation = self.operation_identity(source);
+                    self.emit(
+                        operation,
+                        None,
+                        OperationKind::AtomicFence {
+                            ordering: *ordering,
+                        },
+                    )
+                    .map(Reached::Value)
+                }
+            },
             ExpressionKind::Integer(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(

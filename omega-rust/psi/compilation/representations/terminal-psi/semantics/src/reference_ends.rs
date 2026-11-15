@@ -1,7 +1,7 @@
-//! Descriptor liveness supplies disposition candidates, not permission to
-//! dispose storage. The affine storage walk resolves these against its exact
-//! available owned regions, then ordinary ReleaseReference operations carry
-//! the result to the checker, interpreter and native lowering.
+//! Descriptor liveness proposes disposal candidates, not permission to
+//! dispose storage. The affine storage walk checks them against its exact
+//! available owned regions, then ordinary ReleaseReference operations
+//! carry the result to the checker, interpreter and native lowering.
 
 use crate::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPosition, descriptor_location_lifetime, descriptor_path,

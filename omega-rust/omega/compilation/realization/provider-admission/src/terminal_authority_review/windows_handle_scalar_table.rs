@@ -1,9 +1,9 @@
-//! Share unchanged scalar slots between retained execution states.
+//! Let retained replay states share unchanged scalar slots.
 //!
-//! The existing IdTable owns the original identity run and its gap validation.
+//! The `IdTable` owns the original identity range and checks its gaps.
 //! Copies keep that immutable namespace and every slot, including holes and
-//! unevaluated values. Updating one slot copies only its small shared page;
-//! neither allocation sharing nor a missing value changes semantic identity.
+//! unevaluated values. Changing one slot copies only its small shared page;
+//! neither shared storage nor a missing value changes semantic identity.
 
 use std::cmp::Ordering;
 use std::sync::Arc;

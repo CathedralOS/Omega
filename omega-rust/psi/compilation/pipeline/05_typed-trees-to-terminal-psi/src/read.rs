@@ -675,15 +675,26 @@ mod tests {
                 )
             }),
         );
+        let subjects = domains
+            .handles()
+            .map(|domain| {
+                builder
+                    .insert_children(
+                        domain,
+                        [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+                    )
+                    .handle_at(0)
+            })
+            .collect::<Vec<_>>();
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
         };
-        for ((symbol, name), predicate) in
-            domains
-                .handles()
-                .zip(["Never", "Always", "Bare"])
-                .zip([Some(false), Some(true), None])
+        for (((symbol, name), predicate), subject_symbol) in domains
+            .handles()
+            .zip(["Never", "Always", "Bare"])
+            .zip([Some(false), Some(true), None])
+            .zip(subjects)
         {
             let (predicate_presence, facts) = if let Some(value) = predicate {
                 let expression = typed
@@ -703,6 +714,7 @@ mod tests {
                 symbol,
                 name: name.into(),
                 semantic_id,
+                subject_symbol,
                 predicate_presence,
                 facts,
                 ..Default::default()

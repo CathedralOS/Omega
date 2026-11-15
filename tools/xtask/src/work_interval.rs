@@ -1,8 +1,8 @@
-//! A checkout owns the start of its current work, independently of remote refs.
+//! Record where a checkout's current work started, independently of remote refs.
 //!
-//! Acquisition records it automatically. Legacy active slots adopt a provable
-//! local source transition once; an explicit warm handoff starts the next one.
-//! Only source identity and time are retained here, never reported model counts.
+//! Acquiring a slot records it automatically. An older active slot adopts a
+//! provable local source transition once; an explicit warm handoff starts the
+//! next interval. Only source identity and time are kept, never model counts.
 
 use std::fs;
 use std::path::{Path, PathBuf};

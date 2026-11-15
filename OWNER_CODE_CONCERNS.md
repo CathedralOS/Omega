@@ -73,12 +73,19 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### The record-domain catalog test has no declared predicate subject
-- Category: tests that pin the bug
-- Where: [catalog fixture](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L638), [subject requirement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/predicates.rs#L408)
-- Saw: On clean `cdd086553fa` on macOS arm64, `a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence` fails with `spelling domain predicate without a subject symbol`. Its hand-built false and true predicate declarations leave the subject at its invalid default, so lowering never reaches the catalog assertions.
-- Cost: The control cannot distinguish false, true and absent record-domain predicates. Supply the same declaration-owned subject that real source retains, and preserve all three catalog assertions.
-- Reported: 2026-11-15, Codex, while verifying named-map invocation contracts.
+### Constant validation refuses a case the source reader already materialized
+- Category: knowledge crossing a boundary
+- Where: [constant materialization check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/constant_values.rs#L214)
+- Saw: On macOS arm64 with the bundled-fence repair, using `const selected: Policy = Policy::Read` in a two-case copyable sum refuses with “constant of a sum type requires its case materializer.” Constructing `Policy::Read` inline and taking the same checked case branch exits 0 in both engines. A named `FenceOrdering::Receive` constant stops at the same earlier check.
+- Cost: The compiler already reads the retained initializer before it compares it with the decoded constant. Compare the materialized variant's exact nominal declaration, case, and payload through the existing agreement check. Refuse a mismatch in any of them.
+- Reported: 2026-11-15, Codex, while tracing static named fence arguments.
+
+### A fence loses the ordering known from a local initializer
+- Category: branch per shape
+- Where: [fence argument reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L196), [ordering rules](wiki/spec/language/concurrency.md#orderings)
+- Saw: On macOS arm64, the bundled-fence repair runs a direct `FenceOrdering::Receive` in both engines. Binding that same case to an immutable local immediately before the call makes checked compilation refuse at `main.omg:6:5` with “an atomic fence needs a known case of FenceOrdering.” The reader looks for the variant symbol on the argument expression itself.
+- Cost: A refactor from an explicit case to a local loses a statically determined order. Use existing proof facts to select the exact normalized fence event when they establish one case. Keep a runtime choice and an unrelated declaration from supplying ordering or proof authority.
+- Reported: 2026-11-15, Codex, while restoring the bundled atomic fence.
 
 ### A descriptor length premise cannot cross the loop join
 - Category: knowledge crossing a boundary
@@ -114,13 +121,6 @@ framework or a list of unimplemented features.
 - Saw: On macOS arm64 with the closed-application repair at `ca02a870855`, both unchanged negative programs exit 200 at `41u64 as +Delivered` on line 24, column 25. The checker cites `u64::Delivered` and `self >= 42 && self <= 42`, while both expectation files still require the literal `expected 42..=42`.
 - Cost: The sample gate calls the correct cast refusal a mismatch. Replay the other pinned placements and update the oracles to identify the refused cast, exact domain and unchanged bound.
 - Reported: 2026-11-15, Codex, while validating closed Build-time layout arguments.
-
-### The bundled atomic fence still uses a retired attached declaration
-- Category: zombie machinery
-- Where: [bundled atomic ordering facade](source/library/core/atomic.omg#L12), [kept Boolean store](samples/cli/facts/atomic_boolean_store/local/main.omg#L12), [attached-machine admission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L891)
-- Saw: On macOS arm64 with the atomic-store build repair at `0eefa10be23`, the unchanged Boolean-store sample fails at `core/atomic.omg:12:16` because `Atomic::fence` is attached to a data declaration. The existing invalid twin still rejects `Receive` on the store itself. The unchanged projected store/load probe from the atomic-wake test runs in both engines when exposed through its hosted entry.
-- Cost: A program importing the bundled fence cannot reach the compiler's exact atomic-fence primitive. Restore the existing public ordering behavior through a supported declaration owner and retain the rejection for a lookalike or illegal ordering. Re-run the kept Boolean store/twin placements.
-- Reported: 2026-11-15, Codex, while running the atomic-store compiler-build repair.
 
 ### A constant snapshot loses a checked element qualification
 - Category: knowledge crossing a boundary

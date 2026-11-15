@@ -1,11 +1,11 @@
-//! The kernel legs of the foundation's nonconstructive-existence
-//! discriminating control (`wiki/spec/proofs/foundation.md`'s migration
-//! acceptance and `wiki/spec/proofs/mathematical_bindings.md`'s
-//! `boundary let choose`): squashed existence composes through a logical
-//! hypothesis with *no* axiom, while reaching a relevant witness requires
-//! an admitted choice assumption with an exact statement — and the
-//! admission is recorded in the judgment's assumption closure so a
-//! refusing receiver sees exactly what the proof committed to.
+//! Kernel tests that tell proved existence apart from chosen witnesses
+//! (`wiki/spec/proofs/foundation.md`'s migration acceptance and
+//! `wiki/spec/proofs/mathematical_bindings.md`'s `boundary let choose`):
+//! squashed existence composes through a logical hypothesis with *no*
+//! axiom, while reaching a relevant witness requires an admitted choice
+//! assumption with an exact statement — and the admission is recorded in
+//! the judgment's assumption closure so a refusing receiver sees exactly
+//! what the proof committed to.
 //!
 //! * `transfer` is a *proved* declaration — the spec's squash-
 //!   elimination example: from `Squash (Σ(x:A). Box (P x))` ("present")
@@ -21,7 +21,7 @@
 //!   of a nonempty subset of `u32`, with `fst`/`snd` projecting the
 //!   member and its boxed membership evidence. The member is a neutral
 //!   `fst (choice …)` — an exact mathematical witness with no algorithm.
-//! * The refusal cells: `unsq` into the relevant `Subset P` is
+//! * The refusals: `unsq` into the relevant `Subset P` is
 //!   unauthorized strict elimination (`SquashTargetNotStrict`), `fst`
 //!   on a squash is `NotAPair`, and the derivable projection lands only
 //!   in `Squash U32` — squashed relations yield only squashed evidence.
@@ -29,8 +29,8 @@
 //! Everything is re-decided as `MathematicalCertificate` judgments with
 //! exact closures; the canonical wire already carries the strict layer
 //! and assumption-bearing signatures (terminal-codec's
-//! `mathematical_certificate`/`theorem_certificate` tests), so the wire
-//! leg adds nothing new here.
+//! `mathematical_certificate`/`theorem_certificate` tests), so no wire test
+//! is added here.
 
 use std::collections::BTreeSet;
 

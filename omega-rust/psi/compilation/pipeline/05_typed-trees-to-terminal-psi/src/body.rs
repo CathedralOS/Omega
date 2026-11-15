@@ -964,14 +964,31 @@ pub struct Expression {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionKind {
-    /// One atomic event at an exact place. Operand indices name this event
-    /// roster in source evaluation order; no ordinary load supplies its prior.
-    Atomic {
+pub enum AtomicOperation {
+    Access {
         place: Box<Expression>,
         event: terminal_psi::AtomicAccessEvent<usize>,
         operands: Vec<Expression>,
     },
+    Fence(terminal_psi::FenceOrdering),
+}
+
+impl AtomicOperation {
+    pub(crate) fn inputs(&self) -> impl Iterator<Item = &Expression> {
+        let (place, operands) = match self {
+            Self::Access {
+                place, operands, ..
+            } => (Some(place.as_ref()), operands.as_slice()),
+            Self::Fence(_) => (None, &[][..]),
+        };
+        place.into_iter().chain(operands)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpressionKind {
+    /// Operand indices refer to the event's source evaluation order.
+    Atomic(AtomicOperation),
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<typed_trees::expression::CompletedValueCapture>),
     Integer(IntegerValue),
