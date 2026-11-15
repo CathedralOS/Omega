@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Unused place-access summaries discard referent effects
+- Category: zombie machinery
+- Where: [call propagation](omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/semantic_analyses.rs#L1289), [analysis registration](omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/analyses.rs#L87)
+- Saw: On `e17077ce417`, known-call propagation reduces each parameter read/write path to the actual argument prefix, dropping `Referent`. An owned local carrier can therefore classify a callee's write through its contained reference as internal and omit it. Repository reference inspection found no production rule requesting or consuming this analysis; its incomplete flag has no readers. The active descriptor solver used by cleanup does retain those effects.
+- Cost: The private catalog advertises incomplete access summaries that cannot support preservation claims. Retire the unused analysis or derive its results from the existing owner-aware descriptor effect solver; appending recursive call paths would introduce an unbounded path fixed point.
+- Reported: 2026-11-15, Codex, while reviewing ordinary owned cleanup call composition.
+
 ### Equality preparation reconstructs resolved types from names
 - Category: re-deriving
 - Where: [operand scope](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L722), [field comparison](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs#L515), [operand lowering](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L3356)
