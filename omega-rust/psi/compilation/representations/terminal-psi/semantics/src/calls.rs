@@ -770,6 +770,134 @@ pub mod closed_conformances {
         ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
     };
 
+    struct HostedProcessExitIdentities {
+        primitive: String,
+        primitive_entry: String,
+        primitive_semantic: String,
+        primitive_callable: String,
+        requirement_owner: String,
+        requirement_member: String,
+        requirement_semantic: String,
+        requirement_callable: String,
+        parameter: String,
+        result: String,
+    }
+
+    fn hosted_process_exit_identities() -> &'static HostedProcessExitIdentities {
+        use language_core::sealed_intrinsics::{
+            HostedOperation, SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
+        };
+        use language_semantics::type_identity::encoding::{
+            CoordinateTag, atom, bare, byte_atom, compound,
+        };
+        use language_semantics::type_identity::vocabulary::{Label, NameForm, OwnerForm, TypeForm};
+        static IDENTITIES: std::sync::OnceLock<HostedProcessExitIdentities> =
+            std::sync::OnceLock::new();
+        IDENTITIES.get_or_init(|| {
+            let [primitive, requirement, result] =
+                language_core::sealed_intrinsics::hosted_process_exit_sources();
+            // The complete member path below must be the exact retained catalog
+            // row under these bundled bytes. A suffix or lookalike declaration
+            // cannot nominate this operation.
+            let requirement_member = "ProcessExit::exit_process";
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+                    file: std::path::Path::new(requirement.0),
+                    declaration: requirement_member,
+                    source: requirement.2,
+                }),
+                Some(SealedIntrinsic::HostedRequirement(
+                    HostedOperation::ProcessExit
+                ))
+            );
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(SealedDeclarationSite {
+                    file: std::path::Path::new(primitive.0),
+                    declaration: primitive.1,
+                    source: primitive.2,
+                }),
+                Some(SealedIntrinsic::HostedPrimitive(
+                    HostedOperation::ProcessExit
+                ))
+            );
+            let exact_nominal = |(file, _, bytes): (&str, &str, &[u8]), declaration: &str| {
+                let file = source::SourceFile {
+                    source_id: source::SourceId(0),
+                    path: std::path::Path::new("/compiler/core").join(file),
+                    package_root: "/compiler/core".into(),
+                    package_identity: None,
+                    dependency_scope: source::DependencyScope::Product,
+                    origin: source::SourceOrigin::Toolchain,
+                    resolution_stratum: source::SourceResolutionStratum::Base,
+                    source: std::str::from_utf8(bytes)
+                        .expect("bundled core source is UTF-8")
+                        .into(),
+                };
+                let digest = source::source_identity::toolchain_source_identity_digest(&file)
+                    .expect("bundled core source has canonical custody");
+                compound(
+                    NameForm::Nominal,
+                    [
+                        byte_atom(OwnerForm::ToolchainSource, &digest),
+                        atom(Label::Path, declaration),
+                    ],
+                )
+            };
+            let signature_nominal = |declaration| {
+                compound(
+                    NameForm::Nominal,
+                    [bare(OwnerForm::Toolchain), atom(Label::Path, declaration)],
+                )
+            };
+            // These are the known catalog's ordinary declared signature types.
+            // Physical i32 correspondence and actual emptiness are still checked
+            // independently below; an identity string proves neither fact.
+            let integer = numerics::integer_carrier::FixedInteger::signed(32).to_string();
+            let argument = compound(TypeForm::Named, [atom(Label::Name, &integer)]);
+            let parameter = compound(
+                TypeForm::Named,
+                [atom(
+                    Label::Name,
+                    &compound(NameForm::CompilerType, [atom(Label::Atom, &integer)]),
+                )],
+            );
+            let result_type = compound(
+                TypeForm::Named,
+                [atom(Label::Name, &signature_nominal(result.1))],
+            );
+            let parameters = compound(
+                CoordinateTag::Parameter,
+                [
+                    atom(CoordinateTag::Mutable, "no"),
+                    atom(CoordinateTag::Const, "no"),
+                    argument,
+                ],
+            );
+            let callable = |declaration| {
+                compound(
+                    CoordinateTag::NamedCallable,
+                    [
+                        atom(CoordinateTag::Path, &signature_nominal(declaration)),
+                        atom(CoordinateTag::Parameters, &parameters),
+                        atom(CoordinateTag::ResultDispatch, ""),
+                    ],
+                )
+            };
+            HostedProcessExitIdentities {
+                primitive: exact_nominal(primitive, primitive.1),
+                primitive_entry: exact_nominal(primitive, &format!("{}::entry", primitive.1)),
+                primitive_semantic: format!("toolchain::{}", primitive.1),
+                primitive_callable: callable(primitive.1),
+                requirement_owner: exact_nominal(requirement, requirement.1),
+                requirement_member: exact_nominal(requirement, requirement_member),
+                requirement_semantic: format!("toolchain::{requirement_member}"),
+                requirement_callable: callable(requirement_member),
+                parameter,
+                result: result_type,
+            }
+        })
+    }
+
     /// Resolve the public contract of an authenticated primitive. This is
     /// declaration admission only; execution still requires target and authority
     /// settlement. The primitive never borrows the requirement's callable identity.
@@ -794,32 +922,7 @@ pub mod closed_conformances {
         if operation != language_core::sealed_intrinsics::HostedOperation::ProcessExit {
             return Err("hosted primitive operation has no admitted declaration");
         }
-        static OWNERS: std::sync::OnceLock<[String; 3]> = std::sync::OnceLock::new();
-        let owners = OWNERS.get_or_init(|| {
-            language_core::sealed_intrinsics::hosted_process_exit_sources().map(
-                |(file, declaration, bytes)| {
-                    let file = source::SourceFile {
-                        source_id: source::SourceId(0),
-                        path: std::path::Path::new("/compiler/core").join(file),
-                        package_root: "/compiler/core".into(),
-                        package_identity: None,
-                        dependency_scope: source::DependencyScope::Product,
-                        origin: source::SourceOrigin::Toolchain,
-                        resolution_stratum: source::SourceResolutionStratum::Base,
-                        source: std::str::from_utf8(bytes)
-                            .expect("bundled core source is UTF-8")
-                            .into(),
-                    };
-                    let digest = source::source_identity::toolchain_source_identity_digest(&file)
-                        .expect("bundled core source has canonical custody");
-                    let hexadecimal = digest
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>();
-                    format!("nominal(toolchain-source-owner(32:{hexadecimal}),path({declaration}))")
-                },
-            )
-        });
+        let expected = hosted_process_exit_identities();
         let canonical = module
             .boundary_machine(requirement)
             .ok_or("hosted primitive references an absent requirement")?;
@@ -830,8 +933,35 @@ pub mod closed_conformances {
         let actual_owner = module.identities.text(boundary.owner.identity());
         if boundary.id == requirement
             || boundary.kind != BoundaryRequirementKind::Machine
-            || actual_owner != Some(owners[0].as_str())
-            || module.identities.text(canonical.owner.identity()) != Some(owners[1].as_str())
+            || actual_owner != Some(expected.primitive.as_str())
+            || module.identities.text(canonical.owner.identity())
+                != Some(expected.requirement_owner.as_str())
+            || module.identities.text(checked.source.state.identity())
+                != Some(expected.primitive_entry.as_str())
+            || module.identities.text(checked.source.semantic_declaration)
+                != Some(expected.primitive_semantic.as_str())
+            || module.identities.text(checked.source.callable)
+                != Some(expected.primitive_callable.as_str())
+            || boundary.identity != checked.source.callable
+            || module
+                .identities
+                .text(canonical_source.source.state.identity())
+                != Some(expected.requirement_member.as_str())
+            || module
+                .identities
+                .text(canonical_source.source.semantic_declaration)
+                != Some(expected.requirement_semantic.as_str())
+            || module.identities.text(canonical_source.source.callable)
+                != Some(expected.requirement_callable.as_str())
+            || canonical.identity != canonical_source.source.callable
+            || checked.source.parameter_types.len() != 1
+            || checked
+                .source
+                .parameter_types
+                .first()
+                .and_then(|identity| module.identities.text(*identity))
+                != Some(expected.parameter.as_str())
+            || module.identities.text(checked.source.result_type) != Some(expected.result.as_str())
             || canonical.kind != BoundaryRequirementKind::Trait
             || canonical_source.execution != CheckedBoundaryExecution::Provider
             || checked.source.callable == canonical_source.source.callable

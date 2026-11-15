@@ -97,6 +97,52 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
             .expect("independent primitive receiving");
     assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
 
+    // Equal-length substitutions change only the identity text, preserving its
+    // coordinates and every copied proof header. Rejection must authenticate
+    // the exact catalog declaration, rather than notice a detached header.
+    for (original, replacement) in [
+        ("ProcessExit::exit_process", "ProcessExit::fake_process"),
+        (
+            "toolchain::ProcessExitPrimitive::exit_process",
+            "toolchain::ProcessExitPrimitive::fake_process",
+        ),
+        (
+            r"path\(ProcessExitPrimitive::exit_process\)",
+            r"path\(ProcessExitPrimitive::fake_process\)",
+        ),
+        (
+            "ProcessExitPrimitive::exit_process::entry",
+            "ProcessExitPrimitive::exit_process::other",
+        ),
+    ] {
+        let mut relabelled = closed.semantic_bytes().to_vec();
+        assert_eq!(original.len(), replacement.len());
+        let mut substitutions = 0;
+        for offset in 0..=relabelled.len() - original.len() {
+            if &relabelled[offset..offset + original.len()] == original.as_bytes() {
+                relabelled[offset..offset + original.len()].copy_from_slice(replacement.as_bytes());
+                substitutions += 1;
+            }
+        }
+        assert!(substitutions > 0, "the actual artifact retains {original}");
+        let error = match terminal_codec::ClosedTerminalModule::from_semantic_bytes(&relabelled) {
+            Err(error) => error,
+            Ok(_) => panic!("a relabelled catalog declaration was accepted: {original}"),
+        };
+        assert!(
+            format!("{error:?}").contains(
+                "hosted primitive differs from its exact Core declaration and requirement"
+            ),
+            "{original}: {error:?}"
+        );
+    }
+    let mut legacy = closed.semantic_bytes().to_vec();
+    legacy[8..10].copy_from_slice(&270u16.to_le_bytes());
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(&legacy),
+        Err(terminal_codec::CodecError::UnsupportedFormatMarker(270))
+    ));
+
     // Local boundary numbers are not declaration identity across modules.
     // These comparison controls move only the catalog coordinate; they do not
     // claim that this partial relocation is an executable module rewrite.
