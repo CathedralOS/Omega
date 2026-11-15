@@ -1,4 +1,4 @@
-//! Publish the declared meaning of a scalar qualification once, and intern the
+//! Publish the declared meaning of each qualification once, and intern the
 //! complete sets used by lowering. Source handles are construction coordinates;
 //! only exact declaration identities and module-local domain IDs leave this stage.
 
@@ -11,11 +11,12 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute,
     ScalarDomainPredicate, ScalarQualificationCatalog, ScalarQualificationSet,
-    StructuralDomainDeclaration, StructuralEstablishmentRoute, StructuralQualificationChange,
-    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder,
+    StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
+    StructuralQualificationChange, TerminalIdentityIndex, TerminalIdentityTable,
+    TerminalIdentityTableBuilder,
 };
 
-use crate::body::{DomainSet, Policy, Qualification, ValueType};
+use crate::body::{DomainSet, Policy, Qualification, Regions, ValueType};
 use crate::{Unserved, refuse};
 
 #[derive(Default)]
@@ -211,18 +212,15 @@ impl Qualifications {
         for &(symbol, carrier) in &source.declared_domains {
             let carrier = match carrier {
                 ValueType::Scalar(carrier, _) => carrier,
-                ValueType::Record(carrier, _, _) => {
+                ValueType::Record(carrier, _, regions) => {
                     result.declare_structural(
-                        typed,
-                        source,
-                        &sources,
-                        symbol,
-                        carrier,
-                        &unavailable,
+                        diagnostic, source, &sources, symbol, carrier, regions,
                     )?;
                     continue;
                 }
-                ValueType::Rigid(_) => continue,
+                ValueType::Rigid(_) => {
+                    return Err(unavailable("domain retains an unresolved carrier"));
+                }
             };
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
@@ -449,30 +447,50 @@ impl Qualifications {
         Ok(())
     }
 
-    /// Publish one record domain. A record domain's predicates are clauses
-    /// of the data type that declares a field in it, which the proof kernel
-    /// owes wherever that type is established (`RecordType::requires`); the
-    /// reader refuses every other place in it. The declaration therefore
-    /// marks that it has predicates without claiming to carry their theory,
-    /// so no cast can add it and nothing treats it as free.
+    /// Retain the generic predicate over the domain's own carrier for
+    /// declaration formation. Field sites separately prove the same clauses
+    /// at their declared storage paths (`RecordType::requires`).
     fn declare_structural(
         &mut self,
-        typed: &typed_trees::TypedTrees,
+        diagnostic: MachineId,
         source: &crate::read::Program<'_>,
         sources: &[(source::SourceId, [u8; 32])],
         symbol: SymbolHandle,
         carrier: StructuralTypeId,
-        unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
+        regions: Regions,
     ) -> Checked<()> {
+        let typed = source.typed();
+        let unavailable = |detail| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(detail),
+            )
+        };
         let definition = typed
             .domain_definition(symbol)
             .ok_or_else(|| unavailable("a used record domain lost its declaration"))?;
-        let predicate = crate::read::has_predicates(definition).then(|| {
-            terminal_psi::StructuralDomainPredicate {
-                subject: semantic_vocabulary::PlaceId::new(1).expect("one is a place"),
-                proposition: semantic_vocabulary::Proposition::Truth,
-            }
-        });
+        let predicate = if crate::read::has_predicates(definition) {
+            let domains = DomainSet::EMPTY
+                .with(symbol)
+                .ok_or_else(|| unavailable("record domain subject"))?;
+            let qualification = Qualification {
+                policy: None,
+                domains,
+            };
+            let clauses = source.field_predicates(
+                diagnostic,
+                &[],
+                ValueType::Record(carrier, qualification, regions),
+            )?;
+            Some(StructuralDomainPredicate {
+                subject: crate::body::self_place()
+                    .ok_or_else(|| unavailable("record domain subject identity"))?,
+                proposition: crate::canonical::conjunction(clauses, diagnostic)?,
+            })
+        } else {
+            None
+        };
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
         let identity = crate::declare::nominal(typed, sources, symbol, &mut self.identities)
@@ -494,7 +512,7 @@ impl Qualifications {
                 sources,
                 &mut self.identities,
                 definition,
-                unavailable,
+                &unavailable,
                 |kind, declaration, identity| match kind {
                     RouteKind::ExactMachine => StructuralEstablishmentRoute::ExactMachine {
                         declaration,
