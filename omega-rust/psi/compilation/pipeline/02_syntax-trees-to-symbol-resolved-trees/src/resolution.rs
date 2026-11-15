@@ -1026,7 +1026,42 @@ mod continuations {
         }
 
         #[test]
-        fn implicit_call_identity_requires_the_exact_first_state() {
+        fn implicit_call_identity_uses_the_selected_entry_regardless_of_child_order() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+            let declaration = source::SourceSpan::new(source::SourceId(0), source::Span::new(0, 6));
+            for (names, selected) in [(["other", "entry"], 1), (["entry", "helper"], 1)] {
+                let mut builder = SymbolTableBuilder::default();
+                let machine = builder.insert_root(
+                    SymbolKind::Machine,
+                    SymbolNameRef::OwnedSource {
+                        value: "helper",
+                        source_span: declaration,
+                    },
+                );
+                let children = builder.insert_children(
+                    machine,
+                    names.map(|name| (SymbolKind::State, SymbolNameRef::Static(name))),
+                );
+                let program = SymbolResolvedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let custody = crate::selection::call_identity::call_declaration_source;
+                assert_eq!(
+                    custody(&program, children.handle_at(selected)),
+                    Ok(declaration)
+                );
+                assert!(
+                    custody(&program, children.handle_at(0))
+                        .unwrap_err()
+                        .contains("not its exact owning entry")
+                );
+            }
+        }
+
+        #[test]
+        fn implicit_call_entry_retains_its_authored_machine_source() {
             let text = "machine helper(value: u64) -> u64 { value }";
             let mut sources = source::SourceMap::default();
             let source = sources.add("calls/main.omg".into(), text.into()).source_id;
