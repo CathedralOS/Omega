@@ -1299,6 +1299,7 @@ mod tests {
         let hooks = scratch.0.join("empty-hooks");
         fs::create_dir(&hooks).unwrap();
         git(&repository, &["init"]);
+        let repository = super::primary_root(&repository);
         git(
             &repository,
             &[
@@ -1316,8 +1317,8 @@ mod tests {
                 "initial",
             ],
         );
-        let original = scratch.0.join("original-worktree");
-        let moved = scratch.0.join("worker-1");
+        let original = repository.with_file_name("original-worktree");
+        let moved = repository.with_file_name("worker-1");
         git(
             &repository,
             &[
@@ -1368,7 +1369,7 @@ mod tests {
         );
         // An archive's source is retained elsewhere while Git intentionally
         // keeps the locked registration at its original restoration location.
-        let archive = scratch.0.join("offline-source");
+        let archive = repository.with_file_name("offline-source");
         fs::rename(&moved, &archive).unwrap();
         assert!(
             worktree_git_dir(&moved)
