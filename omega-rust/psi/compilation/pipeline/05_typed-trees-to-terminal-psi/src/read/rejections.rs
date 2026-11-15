@@ -164,6 +164,7 @@ impl Program<'_> {
         match qualification.policy {
             Some(Policy::Wrapping) => names.push("`Wrapping`".to_owned()),
             Some(Policy::Saturating) => names.push("`Saturating`".to_owned()),
+            Some(Policy::Trapping) => names.push("`Trapping`".to_owned()),
             None => {}
         }
         names.extend(
