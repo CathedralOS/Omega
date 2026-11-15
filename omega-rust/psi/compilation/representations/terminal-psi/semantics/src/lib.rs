@@ -36,6 +36,7 @@ pub mod descriptors;
 pub mod inhabitation;
 pub mod normal_completion;
 pub mod plain_affine;
+pub mod reference_releases;
 pub mod references;
 pub mod scalar_qualifications;
 pub mod scalars;
