@@ -4036,6 +4036,23 @@ mod routed_scalar_tests {
         let mut module = module();
         let required = semantic_vocabulary::ContractId::new(2).unwrap();
         let mut public = module.machines[0].contract.clone();
+        // The body returns its input, but callers of the public contract know
+        // only its qualified result, not this stronger private relationship.
+        let input = module.machines[0].parameters[0];
+        let result = module.machines[0].result.scalar().unwrap();
+        module.machines[0].ensures.push(ContractClause {
+            obligation: ObligationId::new(2).unwrap(),
+            proposition: Proposition::Equal(
+                ScalarTerm::Value {
+                    id: input.id,
+                    scalar_type: input.scalar_type,
+                },
+                ScalarTerm::Value {
+                    id: result.id,
+                    scalar_type: result.scalar_type,
+                },
+            ),
+        });
         public.id = required;
         public.declaration.as_mut().unwrap().parameter_types = vec![TerminalIdentityIndex(3)];
         public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
@@ -4050,9 +4067,9 @@ mod routed_scalar_tests {
         );
         assert_eq!(
             decoded.declaration_contract(required).unwrap().ensures,
-            decoded.machines[0].contract.ensures,
+            [decoded.machines[0].contract.ensures[0].clone()],
         );
-        assert_eq!(decoded.machines[0].contract.ensures.len(), 1);
+        assert_eq!(decoded.machines[0].contract.ensures.len(), 2);
         assert_eq!(
             decoded.declaration_contract(required).unwrap().termination,
             semantic_vocabulary::Termination::Terminates
