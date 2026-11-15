@@ -182,18 +182,32 @@ fn lease_timestamps(now: SystemTime) -> Result<(String, String), String> {
     Ok((format_utc(now)?, format_utc(expires)?))
 }
 
+// A claim lives at most one lease past the moment it was taken, whatever expiry
+// it records. Hand-written far-future expiries (2099) kept 66 claims on paths
+// that no longer exist visible for weeks, so a recorded expiry can shorten a
+// claim but never lengthen it. Unknown times still keep a claim visible: only a
+// parsed instant proves that it ended.
+fn claim_expiry(claim: &serde_json::Value) -> Option<i128> {
+    let instant = |field: &str| {
+        claim
+            .get(field)
+            .and_then(serde_json::Value::as_str)
+            .and_then(parse_expiry)
+    };
+    let lease_ceiling = instant("claimed_utc")
+        .map(|claimed| claimed + i128::from(DEFAULT_LEASE_MINUTES * 60) * NANOSECONDS_PER_SECOND);
+    match (instant("expires_utc"), lease_ceiling) {
+        (Some(recorded), Some(ceiling)) => Some(recorded.min(ceiling)),
+        (recorded, ceiling) => recorded.or(ceiling),
+    }
+}
+
 fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
     let now = epoch_nanoseconds(now);
     let claims: Vec<_> = record
         .claims
         .iter()
-        .filter(|claim| {
-            claim
-                .get("expires_utc")
-                .and_then(serde_json::Value::as_str)
-                .and_then(parse_expiry)
-                .is_none_or(|expires| expires > now)
-        })
+        .filter(|claim| claim_expiry(claim).is_none_or(|expires| expires > now))
         .collect();
     serde_json::json!({
         "state": if claims.is_empty() { "available" } else { "claimed" },
@@ -804,30 +818,54 @@ mod tests {
     }
 
     #[test]
-    fn status_keeps_unknown_expiry_and_honors_historical_far_future_expiry() {
-        let claims = vec![
+    fn status_keeps_unknown_expiry_and_caps_far_future_expiry_at_one_lease() {
+        let unknown = vec![
             json!({"ticket": "missing", "legacy_field": [1, 2]}),
             json!({"ticket": "null", "expires_utc": null}),
             json!({"ticket": "number", "expires_utc": 42}),
             json!({"ticket": "malformed", "expires_utc": "2026-02-30T00:00:00Z"}),
-            json!({
-                "ticket": "historical", "lease_minutes": 480,
-                "claimed_utc": "2026-11-07T00:00:00+00:00",
-                "expires_utc": "2099-01-01T00:00:00+00:00",
-                "unknown_field": true
-            }),
         ];
+        let mut claims = unknown.clone();
+        // Taken 2026-11-07 with a 2099 expiry: its lease ended that morning.
+        claims.push(json!({
+            "ticket": "historical", "lease_minutes": 480,
+            "claimed_utc": "2026-11-07T00:00:00+00:00",
+            "expires_utc": "2099-01-01T00:00:00+00:00",
+            "unknown_field": true
+        }));
         let wire = json!({"protocol": PROTOCOL, "claims": claims, "notes": []});
         let record: ClaimsRecord = serde_json::from_value(wire.clone()).unwrap();
         let now = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
         let out = status_snapshot("snapshot", &record, now);
         assert_eq!(out["state"], "claimed");
-        assert_eq!(out["claims"], json!(claims));
+        assert_eq!(out["claims"], json!(unknown));
         assert_eq!(serde_json::to_value(record).unwrap(), wire);
         assert_eq!(
             status_snapshot("empty", &ClaimsRecord::default(), now)["state"],
             "available"
         );
+    }
+
+    #[test]
+    fn a_recorded_expiry_shortens_a_lease_but_never_extends_it() {
+        let (claimed, expires) = lease_timestamps(UNIX_EPOCH + Duration::from_secs(1_000)).unwrap();
+        let lease = i128::from(DEFAULT_LEASE_MINUTES * 60) * NANOSECONDS_PER_SECOND;
+        let start = parse_expiry(&claimed).unwrap();
+        for (recorded, ends) in [
+            (expires.as_str(), start + lease),
+            ("2099-01-01T00:00:00Z", start + lease),
+            ("1970-01-01T00:20:00Z", 1_200 * NANOSECONDS_PER_SECOND),
+        ] {
+            let claim = json!({"claimed_utc": claimed, "expires_utc": recorded});
+            assert_eq!(claim_expiry(&claim), Some(ends), "{recorded}");
+        }
+        // Without a recorded expiry the lease still ends; without either the
+        // claim stays visible.
+        assert_eq!(
+            claim_expiry(&json!({"claimed_utc": claimed})),
+            Some(start + lease)
+        );
+        assert_eq!(claim_expiry(&json!({"claimed_utc": "soon"})), None);
     }
 
     #[test]
