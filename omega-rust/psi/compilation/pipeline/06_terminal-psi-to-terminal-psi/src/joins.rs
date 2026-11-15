@@ -21,6 +21,9 @@ parameters, control_flow.md):
   with `a` replaced by the exact scalar definitions available on the
   arrival edge, through the same bounded substitution that
   `ValueEqualityTransport` checks;
+- for each integer parameter, the literal range the prover finds for its
+  argument on that arrival (`argument_bounds`), which the unfolded
+  definition alone may no longer give;
 - each fact available on the arrival edge but not at the join, transported
   through those definitions into its denotation;
 - each preceding join's predicate that names a value this edge fixes to a
@@ -254,8 +257,9 @@ pub(crate) fn infer(
                 skip = true;
                 break;
             };
+            let bounds = argument_bounds(id, tables, graph, context, join, at_edge, arguments);
             disjuncts.push(describe(
-                lowered, id, tables, graph, context, join, at_edge, entry, arguments,
+                lowered, id, tables, graph, context, join, at_edge, entry, arguments, bounds,
             )?);
         }
         if skip {
@@ -291,6 +295,64 @@ pub(crate) fn infer(
     Ok(())
 }
 
+/// The literal range of each integer argument an arrival passes, stated on
+/// the destination parameter it binds. The parameter's equation keeps the
+/// argument's definition, but a definition the integer rules bound only
+/// through its own result equations, such as `(x & 32) as u8 as u64`, says
+/// nothing once it is unfolded into a block assumption: an assumption is no
+/// operation axiom, so neither the mask's endpoint step nor the cast's bound
+/// transport can cite it. The arrival still has those axioms, so its range is
+/// found there, by the prover the arrival obligation itself is decided with,
+/// and crosses as an inclusive range conjunct ("Inclusive integer ranges are
+/// ordinary conjunction predicates in this same roster", control_flow.md).
+/// Every arrival proves it again with the rest of the predicate. A bound that
+/// is only the carrier's, or an arrival whose hypotheses cannot be read, adds
+/// nothing.
+fn argument_bounds(
+    id: MachineId,
+    tables: &MachineTables,
+    graph: &Graph,
+    context: &PropositionContext,
+    join: &terminal_psi::Block,
+    at_edge: ProgramPoint,
+    arguments: &[ValueId],
+) -> Vec<Proposition> {
+    let mut bounds = Vec::new();
+    if !join
+        .parameters
+        .iter()
+        .any(|parameter| matches!(parameter.scalar_type, ScalarType::Integer(_)))
+    {
+        return bounds;
+    }
+    let Some(identity) = ObligationId::new(1) else {
+        return bounds;
+    };
+    let Ok(known) = crate::hypotheses(graph, tables, id, identity, at_edge) else {
+        return bounds;
+    };
+    let mut prover =
+        crate::prove::Prover::new(context, &known.assumptions, &known.axioms, &tables.values);
+    for (parameter, argument) in join.parameters.iter().zip(arguments) {
+        let ScalarType::Integer(integer) = parameter.scalar_type else {
+            continue;
+        };
+        let subject = ScalarTerm::value(parameter.id, parameter.scalar_type);
+        let literal = |value| ScalarTerm::Integer {
+            scalar_type: integer,
+            value,
+        };
+        let (lower, upper) = prover.literal_bounds(*argument);
+        if let Some(lower) = lower {
+            bounds.push(Proposition::LessOrEqual(literal(lower), subject.clone()));
+        }
+        if let Some(upper) = upper {
+            bounds.push(Proposition::LessOrEqual(subject, literal(upper)));
+        }
+    }
+    bounds
+}
+
 /// What one arrival knows that the join does not, in the join's scope.
 #[allow(clippy::too_many_arguments)]
 fn describe(
@@ -303,6 +365,7 @@ fn describe(
     at_edge: ProgramPoint,
     entry: ProgramPoint,
     arguments: &[ValueId],
+    bounds: Vec<Proposition>,
 ) -> Checked<Proposition> {
     let mut available = Vec::new();
     for (_, row) in tables.knowledge.iter() {
@@ -409,7 +472,7 @@ fn describe(
         });
         named
     };
-    let mut parts = Vec::new();
+    let mut parts = bounds;
     let renaming: Vec<_> = arguments
         .iter()
         .copied()
