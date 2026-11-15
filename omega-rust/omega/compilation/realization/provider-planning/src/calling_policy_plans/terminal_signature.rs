@@ -160,8 +160,48 @@ impl CanonicalCallingSignature {
                 },
             });
         }
+        // Keep the logical result in canonical storage. Only a declaration
+        // with external completion and an empty-result proof has no ABI value.
+        let mut erased_result = None;
+        for binding in module
+            .calling_signatures
+            .iter()
+            .filter(|binding| binding.application.as_ref() == Ok(&declaration))
+        {
+            let boundary = module
+                .boundary_machine(binding.boundary)
+                .ok_or("calling result lost its exact boundary declaration")?;
+            let erase = if matches!(
+                boundary.completion,
+                semantic_vocabulary::BoundaryCompletion::External(_)
+            ) {
+                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
+                else {
+                    return Err("external completion lost its structural logical result".into());
+                };
+                if storage.result != Some(result.structural_type) {
+                    return Err(
+                        "external calling result differs from its logical declaration".into(),
+                    );
+                }
+                terminal_semantics::inhabitation::external_result_is_erased(
+                    boundary.completion,
+                    storage.result,
+                    &module.structural_types,
+                )?
+            } else {
+                false
+            };
+            if erased_result
+                .replace(erase)
+                .is_some_and(|previous| previous != erase)
+            {
+                return Err("one calling ABI has inconsistent completion declarations".into());
+            }
+        }
         let result = storage
             .result
+            .filter(|_| erased_result != Some(true))
             .map(|result| recipes.value(result))
             .transpose()?
             .map(|recipe| {

@@ -624,6 +624,17 @@ fn validate_native_geometry(
         (terminal_psi::BoundaryMachineResult::Structural(kind), Some(root)) => {
             owned(kind.structural_type, root)
         }
+        (terminal_psi::BoundaryMachineResult::Structural(kind), None) => {
+            if terminal_semantics::inhabitation::external_result_is_erased(
+                boundary.completion,
+                Some(kind.structural_type),
+                &module.structural_types,
+            )? {
+                Ok(())
+            } else {
+                Err("native calling result erased a type without external completion".into())
+            }
+        }
         _ => Err("native calling result differs from its canonical requirement".into()),
     }
 }
