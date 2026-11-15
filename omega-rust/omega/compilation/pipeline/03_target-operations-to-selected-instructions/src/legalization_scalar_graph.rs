@@ -5301,6 +5301,8 @@ pub(crate) mod invocations {
                 AbstractOperation::InvokeNoNormal { psi_edge, .. } if *psi_edge == edge),
             InvocationSite::ExternalCompletion(edge) => matches!(operation,
                 AbstractOperation::ExternalCompletion { psi_edge, .. } if *psi_edge == edge),
+            // Cleanup calls belong to their edge/action roster, not a node.
+            InvocationSite::Cleanup { .. } => false,
         }
     }
 

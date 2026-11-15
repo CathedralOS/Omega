@@ -121,7 +121,7 @@ pub(super) fn decode_invocation_site(
         });
     }
     InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
-        0 | 1 | 2 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
+        0..=2 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
         _ => FixedViewCopyDecodeError::UnknownOption(tag),
     })
 }
@@ -868,7 +868,7 @@ pub(super) fn decode_cleanup(
                 structural_type: decode_id(cursor, StructuralTypeId::new)?,
                 cleanup_machine: decode_id(cursor, MachineId::new)?,
                 claim_transfers: decode_list(cursor, |cursor| {
-                    Ok(terminal_psi::ClaimTransfer {
+                    Ok::<_, FixedViewCopyDecodeError>(terminal_psi::ClaimTransfer {
                         claim: decode_id(cursor, ClaimId::new)?,
                         argument_index: cursor.u32()?,
                         path: decode_path(cursor)?,

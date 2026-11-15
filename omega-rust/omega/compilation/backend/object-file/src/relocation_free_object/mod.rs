@@ -880,7 +880,7 @@ fn decode_boundary_invocation_site(
         });
     }
     semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
-        0 | 1 | 2 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
+        0..=2 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
         _ => RelocationFreeObjectDecodeError::UnknownInvocationSiteTag(tag),
     })
 }

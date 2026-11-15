@@ -810,14 +810,13 @@ mod qualified_cleanup_receiving_tests {
         let mut changed = false;
         let alter = |actions: &mut [TerminalAffineCleanupAction]| {
             for action in actions {
-                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                    if let Some(first) = cleanup.requirement_obligations.first_mut() {
-                        *first = semantic_vocabulary::ObligationId::new(
-                            first.get().checked_add(1).unwrap(),
-                        )
-                        .unwrap();
-                        return true;
-                    }
+                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    && let Some(first) = cleanup.requirement_obligations.first_mut()
+                {
+                    *first =
+                        semantic_vocabulary::ObligationId::new(first.get().checked_add(1).unwrap())
+                            .unwrap();
+                    return true;
                 }
             }
             false

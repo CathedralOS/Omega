@@ -3590,7 +3590,8 @@ mod normalized_foreign_calls {
         site: semantic_vocabulary::InvocationSite,
     ) -> bool {
         match site {
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => false,
+            semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+            | semantic_vocabulary::InvocationSite::Cleanup { .. } => false,
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 provenance.operations.last() == Some(&operation)
                     && provenance.edges.is_empty()

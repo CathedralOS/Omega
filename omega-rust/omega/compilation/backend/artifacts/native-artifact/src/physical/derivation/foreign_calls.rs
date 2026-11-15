@@ -76,6 +76,9 @@ pub(crate) fn derive_normalized_foreign_child(
             semantic_vocabulary::InvocationSite::InvokeNoNormal(_) => {
                 return Err("ordinary no-normal invocation cannot acquire foreign-call authority");
             }
+            semantic_vocabulary::InvocationSite::Cleanup { .. } => {
+                return Err("owned module cleanup cannot acquire foreign-call authority");
+            }
             semantic_vocabulary::InvocationSite::Operation(operation_id) => {
                 let mut operations = module
                     .machines

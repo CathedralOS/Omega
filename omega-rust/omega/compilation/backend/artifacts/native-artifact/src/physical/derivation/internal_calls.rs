@@ -62,6 +62,9 @@ fn rejoin_call_custody<'publication>(
         | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
             instruction.provenance.edges.contains(&edge)
         }
+        InvocationSite::Cleanup { .. } => {
+            return Err("owned module cleanup cannot carry selected boundary call custody");
+        }
     };
     if record.call.target.machine() != Some(callee)
         || instruction.kind.machine_callee() != Some(callee)
@@ -116,6 +119,9 @@ pub(crate) fn boundary_internal_call_exists(
     object: &image_emission::ObjectArtifact,
     occurrence: &OptimizedBoundaryOccurrence,
 ) -> bool {
+    if matches!(occurrence.invocation_site(), InvocationSite::Cleanup { .. }) {
+        return false;
+    }
     let invocation_owner = CallSiteOwner::from(occurrence.invocation_site());
     object
         .function_on_machine(occurrence.machine())
@@ -154,6 +160,9 @@ pub(crate) fn derive_boundary_internal_call_child(
             return Err(
                 "ordinary no-normal invocation cannot acquire boundary selection authority",
             );
+        }
+        InvocationSite::Cleanup { .. } => {
+            return Err("owned module cleanup cannot acquire boundary selection authority");
         }
         InvocationSite::Operation(source_operation) => {
             let mut operations = machine
@@ -212,6 +221,7 @@ pub(crate) fn derive_boundary_internal_call_child(
         InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
             function.provenance.edges.contains(&edge)
         }
+        InvocationSite::Cleanup { .. } => false,
     };
     if !retains_owner {
         return Err("selected boundary internal call left its function provenance");

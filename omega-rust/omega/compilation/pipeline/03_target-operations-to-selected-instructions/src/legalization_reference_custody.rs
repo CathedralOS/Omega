@@ -3383,7 +3383,13 @@ pub(crate) mod stored_calls {
                         {
                             return Err(invalid());
                         }
-                        invocations.insert(0, (function.machine, operation));
+                        invocations.insert(
+                            0,
+                            (
+                                function.machine,
+                                terminal_psi::InvocationOwner::Operation(operation),
+                            ),
+                        );
                         let mut lifetime_debts = Vec::new();
                         for (dependency, required_access) in debts {
                             match dependency {

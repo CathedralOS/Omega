@@ -1880,7 +1880,13 @@ mod stored_calls {
                                 "provider promise does not cover the destination reference",
                             ));
                         }
-                        invocations.insert(0, (function.machine, operation));
+                        invocations.insert(
+                            0,
+                            (
+                                function.machine,
+                                terminal_psi::InvocationOwner::Operation(operation),
+                            ),
+                        );
                         ReferenceStorage {
                             root: ReferenceRoot::Alternatives(vec![origin]),
                             carrier_type,

@@ -770,9 +770,6 @@ pub(crate) mod place_access_summaries {
             callee: MachineId,
             arguments: Vec<StructuralArgument>,
         },
-        Reach {
-            callee: MachineId,
-        },
     }
 
     impl PendingSurface {
@@ -852,15 +849,6 @@ pub(crate) mod place_access_summaries {
                 self.unsummarized = true;
             }
         }
-
-        fn push_reach(&mut self, machines: &BTreeSet<MachineId>, callee: MachineId) {
-            if machines.contains(&callee) {
-                self.contributions
-                    .push(PendingContribution::Reach { callee });
-            } else {
-                self.unsummarized = true;
-            }
-        }
     }
 
     fn scan_operation(
@@ -885,13 +873,12 @@ pub(crate) mod place_access_summaries {
                         );
                     }
                     TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
-                        pending.attribute(
+                        pending.push_call(
                             context,
-                            cleanup.subject.place,
-                            Vec::new(),
-                            AccessKind::Write,
+                            machines,
+                            cleanup.cleanup_machine,
+                            std::slice::from_ref(&cleanup.subject),
                         );
-                        pending.push_reach(machines, cleanup.cleanup_machine);
                     }
                 }
             }
@@ -1207,6 +1194,8 @@ pub(crate) mod place_access_summaries {
             | O::MergeActivationClaim { .. }
             | O::EstablishNativeCodeLayout { .. }
             | O::EstablishZeroedStructural { .. }
+            // Partition changes custody, without reading or writing the value's bytes.
+            | O::DecomposeStructuralValue { .. }
             | O::EstablishStructuralLocal { .. }
             | O::PortWrite { .. }
             | O::Crash { .. }
@@ -1328,18 +1317,6 @@ pub(crate) mod place_access_summaries {
                                 let (reads, writes) = declared_access(argument.access);
                                 summary.attribute_argument(context, argument, reads, writes);
                             }
-                            summary
-                                .external_reads
-                                .extend(callee_summary.external_reads.iter().cloned());
-                            summary
-                                .external_writes
-                                .extend(callee_summary.external_writes.iter().cloned());
-                            summary.unsummarized |= callee_summary.unsummarized;
-                        }
-                        PendingContribution::Reach { callee } => {
-                            let Some(callee_summary) = prior.get(&callee) else {
-                                continue;
-                            };
                             summary
                                 .external_reads
                                 .extend(callee_summary.external_reads.iter().cloned());

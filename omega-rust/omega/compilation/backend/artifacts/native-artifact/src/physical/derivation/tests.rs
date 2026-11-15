@@ -120,6 +120,50 @@ fn equal_boundary_requirements_at_distinct_operations_have_distinct_occurrences(
 }
 
 #[test]
+fn physical_cleanup_identity_keeps_edge_action_and_call_family() {
+    use crate::physical::derivation::hashing::hash_call_site_owner;
+    use crate::physical::identity_bytes::append_boundary_occurrence_identity;
+    use semantic_vocabulary::{BoundaryMachineId, EdgeId, InvocationSite, OperationId};
+    let (_, machine) = fixture_terminal([7; 32]);
+    let boundary = BoundaryMachineId::new(2).unwrap();
+    let edge = EdgeId::new(7).unwrap();
+    let sites = [
+        InvocationSite::Cleanup {
+            edge,
+            action_ordinal: 0,
+        },
+        InvocationSite::Cleanup {
+            edge,
+            action_ordinal: 1,
+        },
+        InvocationSite::Cleanup {
+            edge: EdgeId::new(8).unwrap(),
+            action_ordinal: 0,
+        },
+        InvocationSite::Operation(OperationId::new(7).unwrap()),
+        InvocationSite::ExternalCompletion(edge),
+        InvocationSite::InvokeNoNormal(edge),
+    ];
+    let encoded: Vec<_> = sites
+        .into_iter()
+        .map(|site| {
+            let mut bytes = Vec::new();
+            append_boundary_occurrence_identity(&mut bytes, machine, site, boundary, 3);
+            let mut digest =
+                crate::digest_encoder::DomainDigestEncoder::new(b"cleanup-owner-control");
+            hash_call_site_owner(&mut digest, &site.into());
+            (bytes, digest.finish())
+        })
+        .collect();
+    for (index, (bytes, digest)) in encoded.iter().enumerate() {
+        for (other_bytes, other_digest) in &encoded[index + 1..] {
+            assert_ne!(bytes, other_bytes);
+            assert_ne!(digest, other_digest);
+        }
+    }
+}
+
+#[test]
 fn operator_occurrence_identity_binds_exact_terminal_operation() {
     let (terminal, machine) = fixture_terminal([11; 32]);
     let first = operator_occurrence_identity(

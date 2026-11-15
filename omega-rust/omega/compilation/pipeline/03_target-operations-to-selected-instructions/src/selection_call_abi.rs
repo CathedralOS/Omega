@@ -608,6 +608,27 @@ pub(crate) mod input_site {
                         return None;
                     }
                 }
+                InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal,
+                } => {
+                    // This cut locates static storage and preceding producers;
+                    // it is not a pre-action content or authority snapshot.
+                    // Runtime argument copies execute in exact roster order.
+                    let owner = target_operations::CallSiteOwner::CleanupAction {
+                        edge,
+                        action_ordinal,
+                    };
+                    for (actual, _) in block.terminator.cleanup_calls() {
+                        if *actual == owner
+                            && found
+                                .replace((block.id, block.instructions.len()))
+                                .is_some()
+                        {
+                            return None;
+                        }
+                    }
+                }
                 InvocationSite::ExternalCompletion(edge) => {
                     if matches!(&block.terminator,
                         LegalizedScalarTerminator::ExternalCompletion { psi_edge, .. } if *psi_edge == edge)
@@ -621,6 +642,34 @@ pub(crate) mod input_site {
             }
         }
         found
+    }
+
+    pub(crate) fn cleanup_call<'input>(
+        source: &'input crate::native_geometry::NativeFunction<'input>,
+        site: InvocationSite,
+    ) -> Option<&'input legalized_operations::LegalizedScalarCall> {
+        let InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        } = site
+        else {
+            return None;
+        };
+        let (block, position) = use_cut(source, site)?;
+        let block = source.blocks.iter().find(|actual| actual.id == block)?;
+        if position != block.instructions.len() {
+            return None;
+        }
+        let owner = target_operations::CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        };
+        let mut calls = block
+            .terminator
+            .cleanup_calls()
+            .filter(|(actual, _)| *actual == owner);
+        let (_, call) = calls.next()?;
+        calls.next().is_none().then_some(call)
     }
 
     pub(crate) fn producer_before_use<'input>(
@@ -668,6 +717,157 @@ pub(crate) mod input_site {
                 ..
             } if *psi_edge == edge && retained == call => Some(declared_result),
             _ => None,
+        }
+    }
+    #[cfg(test)]
+    mod cleanup_tests {
+        use super::*;
+        use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+        use legalized_operations::{
+            LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarFunction,
+            LegalizedScalarReturn, LegalizedScalarReturnValue,
+        };
+        use semantic_vocabulary::{EdgeId, MachineId, ObligationId};
+        use target_operations::{CallSiteOwner, NativeCallOrigin, NativeCallTarget};
+
+        #[test]
+        fn cleanup_lookup_keeps_action_requirements_and_rejects_duplicate_owners() {
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::SystemVAMD64,
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: None,
+                },
+            )
+            .unwrap();
+            let call = |requirement| LegalizedScalarCall {
+                source: NativeCallOrigin::Authored,
+                target: NativeCallTarget::Machine(MachineId::new(2).unwrap()),
+                call_plan: call_plan.clone(),
+                arguments: Vec::new(),
+                result_placement: None,
+                structural_result: None,
+                descriptor_origins: Vec::new(),
+                access_bindings: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: vec![ObligationId::new(requirement).unwrap()],
+                crash_continuations: Vec::new(),
+            };
+            let mut function = LegalizedScalarFunction {
+                machine: MachineId::new(1).unwrap(),
+                attachment: None,
+                provenance: Default::default(),
+                call_plan: call_plan.clone(),
+                parameters: Vec::new(),
+                structural: None,
+                entry_block: BlockId::new(1).unwrap(),
+                blocks: [1, 2]
+                    .map(|index| {
+                        let edge = EdgeId::new(index).unwrap();
+                        LegalizedScalarBlock {
+                            id: BlockId::new(index).unwrap(),
+                            parameters: Vec::new(),
+                            structural_parameters: Vec::new(),
+                            instructions: Vec::new(),
+                            terminator: LegalizedScalarTerminator::ReturnCleanup {
+                                returned: LegalizedScalarReturn {
+                                    edge,
+                                    value: LegalizedScalarReturnValue::Unit,
+                                    work: Vec::new(),
+                                    effect: optimization_unit::EffectLink {
+                                        input: 0,
+                                        output: 1,
+                                    },
+                                    ownership: Vec::new(),
+                                },
+                                calls: vec![
+                                    (
+                                        CallSiteOwner::CleanupAction {
+                                            edge,
+                                            action_ordinal: 0,
+                                        },
+                                        call(index * 2),
+                                    ),
+                                    (
+                                        CallSiteOwner::CleanupAction {
+                                            edge,
+                                            action_ordinal: 1,
+                                        },
+                                        call(index * 2 + 1),
+                                    ),
+                                ],
+                            },
+                        }
+                    })
+                    .into_iter()
+                    .collect(),
+                ownership_frontier_facts: Vec::new(),
+            };
+            let geometry = crate::native_geometry::NativeGeometry::new(&[]).unwrap();
+            {
+                let source = crate::native_geometry::NativeInput::new(&function, &geometry);
+                for index in [1, 2] {
+                    for action_ordinal in [0, 1] {
+                        let site = InvocationSite::Cleanup {
+                            edge: EdgeId::new(index).unwrap(),
+                            action_ordinal,
+                        };
+                        let actual = cleanup_call(&source, site).unwrap();
+                        assert_eq!(
+                            actual.requirement_obligations,
+                            [ObligationId::new(index * 2 + u64::from(action_ordinal)).unwrap()]
+                        );
+                        assert_eq!(
+                            use_cut(&source, site),
+                            Some((BlockId::new(index).unwrap(), 0))
+                        );
+                        let mut changed = actual.clone();
+                        changed.requirement_obligations[0] = ObligationId::new(99).unwrap();
+                        assert_ne!(cleanup_call(&source, site), Some(&changed));
+                    }
+                }
+                assert!(
+                    cleanup_call(
+                        &source,
+                        InvocationSite::Cleanup {
+                            edge: EdgeId::new(1).unwrap(),
+                            action_ordinal: 2
+                        }
+                    )
+                    .is_none()
+                );
+                assert!(
+                    use_cut(
+                        &source,
+                        InvocationSite::Operation(OperationId::new(1).unwrap())
+                    )
+                    .is_none()
+                );
+                assert!(
+                    use_cut(
+                        &source,
+                        InvocationSite::InvokeNoNormal(EdgeId::new(1).unwrap())
+                    )
+                    .is_none()
+                );
+            }
+            let LegalizedScalarTerminator::ReturnCleanup { calls, .. } =
+                &mut function.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            calls.push(calls[0].clone());
+            let source = crate::native_geometry::NativeInput::new(&function, &geometry);
+            assert!(
+                cleanup_call(
+                    &source,
+                    InvocationSite::Cleanup {
+                        edge: EdgeId::new(1).unwrap(),
+                        action_ordinal: 0
+                    }
+                )
+                .is_none()
+            );
         }
     }
 }
@@ -1679,7 +1879,19 @@ pub(crate) fn validate(
             target_operations::CallSiteOwner::ExternalCompletion(edge) => {
                 semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
             }
-            _ => return Err(invalid()),
+            target_operations::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
+                let site = semantic_vocabulary::InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal,
+                };
+                if input_site::cleanup_call(source, site) != Some(call) {
+                    return Err(invalid());
+                }
+                site
+            }
         };
         if source.call_plan.policy != CallingPolicy::native_for_target(environment.target()) {
             return Err(invalid());

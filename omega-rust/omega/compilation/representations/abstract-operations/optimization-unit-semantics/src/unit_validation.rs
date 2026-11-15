@@ -731,10 +731,10 @@ pub(crate) mod affine_authority {
                     if matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                         return None;
                     }
-                    if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                        if !cleanup.claim_transfers.is_empty() {
-                            return None;
-                        }
+                    if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                        && !cleanup.claim_transfers.is_empty()
+                    {
+                        return None;
                     }
                 }
                 if frontier
@@ -3051,7 +3051,6 @@ pub(crate) mod derived_metadata {
     }
 }
 pub(crate) mod function_structure {
-    use crate::unit_validation::catalog_mismatch;
     use crate::unit_validation::derived_metadata::validate_places_and_claims;
     use crate::unit_validation::operation_contracts::validate_values_and_bindings;
     use crate::unit_validation::services::valid_service_ceiling;
@@ -7052,6 +7051,7 @@ pub(crate) mod function_structure {
 
             pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
                 match operation {
+                    O::DecomposeStructuralValue { subject, .. } => vec![subject.place],
                     O::ActivateTaskRegister {
                         gdt,
                         task_state,

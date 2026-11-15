@@ -1521,13 +1521,13 @@ pub(crate) mod address_joins {
                 for (index, node) in block.nodes.iter().enumerate() {
                     let targets = if node.successors.is_empty() {
                         (index + 1 < block.nodes.len())
-                            .then_some((block.id, index as u32 + 1))
+                            .then_some((None, (block.id, index as u32 + 1)))
                             .into_iter()
                             .collect::<Vec<_>>()
                     } else {
                         node.successors
                             .iter()
-                            .map(|edge| (edge.target, 0))
+                            .map(|edge| (Some(edge.psi_edge), (edge.target, 0)))
                             .collect()
                     };
                     steps.insert(
@@ -1541,7 +1541,9 @@ pub(crate) mod address_joins {
                             may_escape: true,
                             successors: targets
                                 .into_iter()
-                                .map(|target| DescriptorFlowEdge {
+                                .map(|(edge, target)| DescriptorFlowEdge {
+                                    edge,
+                                    effects: Vec::new(),
                                     definitions: Vec::new(),
                                     target,
                                     parameters: vec![],

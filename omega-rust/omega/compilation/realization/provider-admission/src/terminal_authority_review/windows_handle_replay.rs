@@ -29,7 +29,7 @@ use super::windows_handle_aliases::{
     HandleStorageRange, HandleWordAliases,
 };
 use super::windows_handle_arguments::PreparedHandleArguments;
-use super::windows_handle_calls::{CallSite, CallTarget, Caller, HandleCallGraph, RuntimeCall};
+use super::windows_handle_calls::{CallTarget, Caller, HandleCallGraph, RuntimeCall};
 use super::windows_handle_contracts::WindowsHandleContract;
 use super::windows_handle_inputs::{
     HandleProofProgress, NativeHandleInput, PreparedHandleMachine, WindowsHandleInputs,
@@ -67,7 +67,7 @@ impl HandleReplayActivations {
         if artifact == [0; 32] || calls.entry != context.input.plan().entry {
             return Err("handle replay has no matching retained artifact and entry".into());
         }
-        let mut source = DomainDigestEncoder::new(b"omega.windows.handle.source-context.v1\0");
+        let mut source = DomainDigestEncoder::new(b"omega.windows.handle.source-context.v2\0");
         source.raw(&artifact);
         source.bytes(context.selected.identity_digest().as_bytes());
         source.u64(calls.entry.get());
@@ -159,7 +159,7 @@ impl HandleReplayActivations {
         let CallTarget::Boundary(boundary) = call.target else {
             return Err("native handle occurrence is not its original boundary target".into());
         };
-        let CallSite::Invocation(site @ InvocationSite::Operation(_)) = caller.site else {
+        let site @ InvocationSite::Operation(_) = caller.site else {
             return Err(
                 "native handle transition has no original result-producing operation".into(),
             );
@@ -232,19 +232,9 @@ fn encode_caller(encoder: &mut DomainDigestEncoder, caller: Caller) {
     encoder.u64(caller.machine.get());
     encoder.u64(caller.block.get());
     encoder.len(caller.operation_index);
-    match caller.site {
-        CallSite::Invocation(site) => {
-            encoder.byte(0);
-            let mut identity = Vec::with_capacity(9);
-            site.encode_identity(&mut identity);
-            encoder.bytes(&identity);
-        }
-        CallSite::Cleanup { edge, ordinal } => {
-            encoder.byte(1);
-            encoder.u64(edge.get());
-            encoder.len(ordinal);
-        }
-    }
+    let mut identity = Vec::with_capacity(13);
+    caller.site.encode_identity(&mut identity);
+    encoder.bytes(&identity);
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -657,7 +647,7 @@ impl CanonicalHandleState {
         if caller.machine != machine.body.id
             || caller.block != machine.block.id
             || occurrence.machine != caller.machine
-            || caller.site != CallSite::Invocation(occurrence.site)
+            || caller.site != occurrence.site
             || occurrence.site != InvocationSite::Operation(operation.id)
             || input.call.boundary != Some(occurrence.boundary)
         {
@@ -699,11 +689,7 @@ impl CanonicalHandleState {
                         .into()
                 })
         };
-        let super::windows_handle_calls::RuntimeArguments::Explicit { structural, .. } =
-            input.call.arguments
-        else {
-            return Err("native handle protocol has no original explicit storage arguments".into());
-        };
+        let super::windows_handle_calls::RuntimeArguments { structural, .. } = input.call.arguments;
         let allowed_handle = match input.reviewed.contract {
             WindowsHandleContract::DuplicateHandle => Some(1),
             WindowsHandleContract::CloseHandle
@@ -1154,12 +1140,12 @@ impl CanonicalHandleState {
             &bindings,
         )?;
         let result = match frame.invocation.caller.site {
-            CallSite::Invocation(InvocationSite::Operation(_)) => frame
+            InvocationSite::Operation(_) => frame
                 .receiving
                 .as_ref()
                 .ok_or("handle continuation lost its original receiving operation")?,
-            CallSite::Cleanup { .. } => &terminal_psi::OperationResult::Unit,
-            CallSite::Invocation(_) => {
+            InvocationSite::Cleanup { .. } => &terminal_psi::OperationResult::Unit,
+            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
                 return Err("handle continuation has no normal receiving operation".into());
             }
         };
@@ -1406,19 +1392,20 @@ impl CanonicalHandleState {
                 .map_err(|_| "handle call ordinal exceeds its canonical position")?,
         );
         let site = match invocation.caller.site {
-            CallSite::Invocation(InvocationSite::Operation(operation)) => {
-                ScalarUseSite::Operation(operation)
+            InvocationSite::Operation(operation) => ScalarUseSite::Operation(operation),
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => ScalarUseSite::Cleanup {
+                edge,
+                action_ordinal,
+            },
+            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
+                ScalarUseSite::Edge(edge)
             }
-            CallSite::Cleanup { edge, .. } => ScalarUseSite::Edge(edge),
-            CallSite::Invocation(
-                InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge),
-            ) => ScalarUseSite::Edge(edge),
         };
         let occurrence = activations.scalar(invocation.parent, site)?;
-        let scalar_actuals = match call.arguments {
-            super::windows_handle_calls::RuntimeArguments::Explicit { scalar, .. } => scalar,
-            super::windows_handle_calls::RuntimeArguments::Cleanup(_) => &[],
-        };
+        let scalar_actuals = call.arguments.scalar;
         if scalar_actuals.len() != callee.parameters.len() {
             return Err("handle call changes the selected body's scalar signature".into());
         }
@@ -1587,7 +1574,7 @@ impl CanonicalHandleState {
             machine: body.id,
             block: position.0,
             operation_index: position.1 as usize,
-            site: CallSite::Invocation(InvocationSite::Operation(operation.id)),
+            site: InvocationSite::Operation(operation.id),
         };
         if calls.calls.contains_key(&caller) {
             return Err("handle call requires its matched execution and return".into());

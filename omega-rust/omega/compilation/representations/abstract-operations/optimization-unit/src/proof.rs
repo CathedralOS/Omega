@@ -162,15 +162,14 @@ pub fn validate_runtime_evidence_context(
 pub fn validate_owned_cleanup_evidence(
     unit: &super::PsiOptimizationUnit,
 ) -> Result<(), &'static str> {
-    if let Some(catalog) = &unit.runtime_evidence {
-        if catalog.psi != unit.psi
+    if let Some(catalog) = &unit.runtime_evidence
+        && (catalog.psi != unit.psi
             || !catalog.owned_cleanups.windows(2).all(|rows| {
                 (rows[0].machine, rows[0].edge, rows[0].action_ordinal)
                     < (rows[1].machine, rows[1].edge, rows[1].action_ordinal)
-            })
-        {
-            return Err("cleanup source custody has a foreign or repeated action owner");
-        }
+            }))
+    {
+        return Err("cleanup source custody has a foreign or repeated action owner");
     }
     for function in &unit.functions {
         for node in function.block_nodes() {

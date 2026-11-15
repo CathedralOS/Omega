@@ -804,6 +804,7 @@ pub(crate) mod aggregate_return {
     use selected_instructions::SelectedTerminator;
 
     pub(crate) fn build(
+        function: usize,
         source: &crate::native_geometry::NativeFunction<'_>,
         block: &legalized_operations::LegalizedScalarBlock,
         returned: &legalized_operations::LegalizedScalarReturn,
@@ -870,6 +871,7 @@ pub(crate) mod aggregate_return {
         };
         if indirect_result(placement, source.call_plan.policy).is_some() {
             super::structural::indirect_results::returned(
+                function,
                 source,
                 block,
                 returned,
@@ -973,7 +975,15 @@ pub(crate) mod aggregate_return {
             }
         }
         for (owner, call) in cleanup_calls {
-            super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
+            super::cleanup_call::emit(
+                function,
+                source,
+                *owner,
+                call,
+                returned.effect,
+                builder,
+                environment,
+            )?;
         }
 
         if !cleanup_calls.is_empty() {
@@ -1838,7 +1848,7 @@ pub(crate) mod call_arguments {
     }
 
     pub(crate) struct TerminalInvocation<'a> {
-        pub edge: semantic_vocabulary::EdgeId,
+        pub site: semantic_vocabulary::InvocationSite,
         pub call: &'a LegalizedScalarCall,
         pub ownership: &'a [optimization_unit::OwnershipEvent],
         pub work: &'a [optimization_unit::WorkSettlement],
@@ -1846,7 +1856,7 @@ pub(crate) mod call_arguments {
 
     impl InvocationArgumentSource for TerminalInvocation<'_> {
         fn invocation_site(&self) -> semantic_vocabulary::InvocationSite {
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(self.edge)
+            self.site
         }
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
@@ -1881,7 +1891,8 @@ pub(crate) mod call_arguments {
                 }
             }
             semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+            | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => {
                 SelectedInstructionProvenance {
                     edges: vec![edge],
                     ..Default::default()
@@ -1898,7 +1909,8 @@ pub(crate) mod call_arguments {
                 selected_instructions::SelectedMemoryAccessOrigin::Operation(operation)
             }
             semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            | semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+            | semantic_vocabulary::InvocationSite::Cleanup { edge, .. } => {
                 selected_instructions::SelectedMemoryAccessOrigin::Edge(edge)
             }
         }
@@ -1907,8 +1919,8 @@ pub(crate) mod call_arguments {
     pub(crate) fn argument_slot(
         source: &impl InvocationArgumentSource,
         argument_index: u32,
-    ) -> selected_instructions::LocalStorageSlotId {
-        match source.invocation_site() {
+    ) -> Result<selected_instructions::LocalStorageSlotId, SelectedInstructionError> {
+        Ok(match source.invocation_site() {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 selected_instructions::LocalStorageSlotId::StructuralCallArgument {
                     operation,
@@ -1922,7 +1934,12 @@ pub(crate) mod call_arguments {
                     argument_index,
                 }
             }
-        }
+            semantic_vocabulary::InvocationSite::Cleanup { .. } => {
+                // Owned cleanup uses exact per-action outgoing slots. This
+                // borrowed descriptor scratch lane has no action owner.
+                return Err(SelectedInstructionError::custody());
+            }
+        })
     }
 
     pub(crate) fn marshal(
@@ -2293,7 +2310,7 @@ pub(crate) mod call_arguments {
                         argument_index
                             .try_into()
                             .map_err(|_| SelectedInstructionError::custody())?,
-                    ),
+                    )?,
                     pointer,
                     codec_register,
                 )?
@@ -2436,101 +2453,70 @@ pub(crate) mod call_arguments {
     }
 }
 pub(crate) mod cleanup_call {
-    use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
+    use super::{Builder, SelectedInstructionKind};
     use crate::SelectedInstructionError;
-    use calling_conventions::ValueClass;
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
     use optimization_unit::EffectLink;
+    use semantic_vocabulary::InvocationSite;
     use target_operations::{CallSiteOwner, NativeCallOrigin};
 
     pub(crate) fn emit(
+        function: usize,
+        source: &crate::native_geometry::NativeFunction<'_>,
         owner: CallSiteOwner,
         call: &LegalizedScalarCall,
         effect: EffectLink,
         builder: &mut Builder<'_>,
         environment: &register_environment::ValidatedTargetRegisterEnvironment,
     ) -> Result<(), SelectedInstructionError> {
-        let edge = owner.edge().ok_or(SelectedInstructionError::custody())?;
+        let CallSiteOwner::CleanupAction {
+            edge,
+            action_ordinal,
+        } = owner
+        else {
+            return Err(SelectedInstructionError::custody());
+        };
+        let site = InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        };
+        let [LegalizedScalarArgument::Structural { semantic, .. }] = call.arguments.as_slice()
+        else {
+            return Err(SelectedInstructionError::custody());
+        };
         if call.source != NativeCallOrigin::Authored
+            || semantic.access != terminal_psi::StructuralAccess::Owned
             || call.result_placement.is_some()
             || call.structural_result.is_some()
             || !call.claim_transfers.is_empty()
             || !call.crash_continuations.is_empty()
-            || call.arguments.len() > 1
+            || crate::selection::scalar_call_abi::input_site::cleanup_call(source, site)
+                != Some(call)
         {
             return Err(SelectedInstructionError::custody());
         }
-        for argument in &call.arguments {
-            let LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices,
-            } = argument
-            else {
-                return Err(SelectedInstructionError::custody());
-            };
-            if !matches!(
-                semantic.access,
-                terminal_psi::exclusive_borrow_pair_pattern!()
-            ) || target.access != semantic.access
-                || target.place != semantic.place
-                || target.path != semantic.path
-                || indices.len() != target.indices.len()
-                || indices
-                    .iter()
-                    .zip(&target.indices)
-                    .any(|(selected, target)| !selected.matches_target(target))
-                || !matches!(
-                    target.shape.class,
-                    ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference
-                )
-                || target.destination.shape != target.shape
-            {
-                return Err(SelectedInstructionError::custody());
-            }
-        }
-        // The stored plan is the calling-convention result. Match the arguments
-        // about to be encoded to that plan instead of computing it again.
-        if call.arguments.len() != call.call_plan.parameters.len()
-            || call
-                .arguments
-                .iter()
-                .zip(&call.call_plan.parameters)
-                .any(|(argument, placement)| argument.placement() != placement)
-        {
-            return Err(SelectedInstructionError::custody());
-        }
-        let key = crate::selection::scalar_call_abi::unit_key(call, environment)
-            .ok_or(SelectedInstructionError::custody())?;
-        let provenance = SelectedInstructionProvenance {
-            edges: vec![edge],
-            ..Default::default()
+        let invocation = super::call_arguments::TerminalInvocation {
+            site,
+            call,
+            ownership: &[],
+            work: &[],
         };
-        let mut operands = Vec::new();
-        for argument in &call.arguments {
-            let LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices,
-            } = argument
-            else {
-                return Err(SelectedInstructionError::custody());
-            };
-            let pointer = super::structural::place_pointer_at_site(
-                builder,
-                provenance.clone(),
-                semantic.place,
-                target.source_byte_offset,
-            )?;
-            operands.push(super::structural::runtime_address::scale_at_site(
-                builder,
-                provenance.clone(),
-                semantic.place,
-                target.source_byte_offset,
-                pointer,
-                indices,
-            )?);
-        }
+        let key = super::call_arguments::validated_call_key(
+            function,
+            source,
+            call,
+            owner,
+            builder,
+            environment,
+            SelectedInstructionError::custody,
+        )?;
+        let operands = super::call_arguments::marshal(
+            source,
+            &invocation,
+            call,
+            builder,
+            SelectedInstructionError::custody,
+        )?;
         super::call_arguments::emit_call(
             builder,
             owner,
@@ -2542,7 +2528,7 @@ pub(crate) mod cleanup_call {
             },
             key,
             &operands,
-            provenance,
+            super::call_arguments::invocation_provenance(&invocation),
         )?;
         Ok(())
     }
@@ -2593,6 +2579,7 @@ pub(crate) mod control {
                         | LegalizedScalarReturnValue::SharedDescriptor { .. }
                 ) {
                     return super::aggregate_return::build(
+                        function,
                         source,
                         block,
                         returned,
@@ -2602,7 +2589,15 @@ pub(crate) mod control {
                     );
                 }
                 for (owner, call) in calls {
-                    super::cleanup_call::emit(*owner, call, returned.effect, builder, environment)?;
+                    super::cleanup_call::emit(
+                        function,
+                        source,
+                        *owner,
+                        call,
+                        returned.effect,
+                        builder,
+                        environment,
+                    )?;
                 }
                 let mut normal = block.clone();
                 normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
@@ -2663,6 +2658,7 @@ pub(crate) mod control {
                     | LegalizedScalarReturnValue::StructuralParameter { .. }
                     | LegalizedScalarReturnValue::SharedDescriptor { .. } => {
                         return super::aggregate_return::build(
+                            function,
                             source,
                             block,
                             returned,
@@ -4735,7 +4731,7 @@ pub(crate) mod no_normal {
         let row = super::row(builder.catalog, key)?;
         validate(function, source, call, owner, key, row, environment)?;
         let site = super::call_arguments::TerminalInvocation {
-            edge: *psi_edge,
+            site: semantic_vocabulary::InvocationSite::InvokeNoNormal(*psi_edge),
             call,
             ownership,
             work,
@@ -5426,7 +5422,9 @@ pub(crate) mod normalized_foreign {
     fn completion_edges(site: InvocationSite) -> Vec<semantic_vocabulary::EdgeId> {
         match site {
             InvocationSite::Operation(_) => Vec::new(),
-            InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
+            InvocationSite::ExternalCompletion(edge)
+            | InvocationSite::InvokeNoNormal(edge)
+            | InvocationSite::Cleanup { edge, .. } => {
                 vec![edge]
             }
         }
@@ -7655,7 +7653,15 @@ pub(crate) fn select_function(
             for (owner, call) in block.terminator.cleanup_calls() {
                 let edge = owner.edge().ok_or_else(invalid)?;
                 let start = builder.instructions.len();
-                cleanup_call::emit(*owner, call, effect, &mut builder, environment)?;
+                cleanup_call::emit(
+                    function,
+                    source,
+                    *owner,
+                    call,
+                    effect,
+                    &mut builder,
+                    environment,
+                )?;
                 let instructions = builder.instructions[start..].to_vec();
                 builder.edge_work_at(edge)?.cleanup.extend(instructions);
             }
