@@ -289,6 +289,7 @@ Write each item so any agent can start from it alone: current state, files and e
 <a id="normalized-abi-lowering"></a>
 
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
+  - Complete owned foreign-record result admission using the calling application's ordered field carriers, placements and canonical record layout ([admission owner](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs), [original sample](samples/cli/facts/foreign_indirect_float_record_result/README.md)). On macOS arm64, the unchanged `CGAffineTransformMake` sample exits 200 on `d897503cd19` and `02cd253f7b6` with “native owned aggregate needs complete canonical field calling correspondence.” Restore its 48-byte, six-`f64` result through `omega run --both`; retain both constructor calls and all first/copy/second field checks. Its copy-permission twin must still reject reuse after consumption; mismatched field carriers or layout must still refuse. This requires no new language decision and claims no CoreGraphics execution on other hosts.
 
 - **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi preparation](wiki/drafts/designs/psi_claim_admission.md). Emit code 36.
 

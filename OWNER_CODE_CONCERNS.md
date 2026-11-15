@@ -73,13 +73,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Native binding admission cannot check an owned record result
-- Category: the documents disagree
-- Where: [native geometry admission](omega-rust/omega/compilation/realization/provider-admission/src/native_bindings.rs#L610), [foreign affine record sample](samples/cli/facts/foreign_indirect_float_record_result/README.md)
-- Saw: On clean `d897503cd19` and candidate `02cd253f7b6` on macOS arm64, the unchanged `CGAffineTransformMake` sample exits 200 before instruction selection with “native owned aggregate needs complete canonical field calling correspondence.” Its result is an owned 48-byte record of six `f64` fields. The sample documents successful native and Psi execution.
-- Cost: Admission refuses the record before comparing its fields. Use the existing calling application's ordered field carriers and placement with the canonical record layout so an exact binding can proceed and a field or layout mismatch still refuses.
-- Reported: 2026-11-15, Codex, while verifying retained indirect result placement.
-
 ### Structural equality refuses a field of a closed generic type
 - Category: knowledge crossing a boundary
 - Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
