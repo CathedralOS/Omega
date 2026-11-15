@@ -10350,7 +10350,7 @@ mod source {
                 }
                 AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
                     graph.operations().filter(|row| matches!(row,
-                        TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage }
+                        TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage, .. }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source && retained_storage == storage
                     )).count() == 1
                 }
@@ -12669,6 +12669,7 @@ mod source {
                         result_home,
                         source,
                         correspondence,
+                        ..
                     } = operation
                     {
                         geometry
@@ -13461,7 +13462,7 @@ mod source {
             let mut exact = target.graph.operations().filter(|row| {
                 matches!(row,
                 TargetUnitOperation::EstablishAccessReference { psi_operation, result_home,
-                    source: captured, correspondence: retained } if *psi_operation == operation
+                    source: captured, correspondence: retained, .. } if *psi_operation == operation
                     && result_home.operation_result() == Some((operation, result))
                     && captured == source && retained == correspondence)
             });

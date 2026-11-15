@@ -437,12 +437,14 @@ pub enum TargetUnitOperation {
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         correspondence: abstract_operations::AccessReferenceBacking,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     EstablishReference {
         psi_operation: OperationId,
         result_home: crate::TargetStructuralHomeRequirement,
         source: StructuralArgument,
         storage: Option<terminal_psi::ReferenceStorageView>,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     ReleaseReference {
         psi_operation: OperationId,
