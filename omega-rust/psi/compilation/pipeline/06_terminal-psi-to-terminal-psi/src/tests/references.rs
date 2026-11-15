@@ -1249,13 +1249,14 @@ machine pair_left(left: u32) {{ }}"
     // The place does not admit an exclusive loan.
     assert_eq!(
         verdict(&program("pair", "see(&mut pair)")),
-        "call exclusive loan of an immutable binding"
+        "call exclusive loan of an immutable binding while reading the body of `build_entry`"
     );
     // The exclusive loan overlaps another loan of its storage.
     for call in ["both(&mut pair, &pair)", "both(&pair, &mut pair)"] {
         assert_eq!(
             verdict(&program("mut pair", call)),
-            "call exclusive loan for a shared formal beside another loan of its storage",
+            "call exclusive loan for a shared formal beside another loan of its storage while \
+             reading the body of `build_entry`",
             "{call}"
         );
     }

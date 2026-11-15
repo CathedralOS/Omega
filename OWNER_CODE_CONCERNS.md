@@ -80,12 +80,33 @@ framework or a list of features that remain unimplemented.
 - Cost: A program with no authored type expression cannot reach either engine, and its author has no location to identify which admitted declaration triggered the refusal. Trace the request and its owning declaration through package admission before changing the guard or the fixture.
 - Reported: 2026-11-14, Codex, while reproducing the macOS entry adapter proof failure
 
-### Stage 06 refusal controls omit the declaration context now emitted by Stage 05
+### The scalar join control loses the bound of its only reachable arithmetic arm
+- Category: knowledge crossing a boundary
+- Where: [Stage 06 scalar join control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/scalar_joins.rs#L11)
+- Saw: At `7f12cb9f722` the positive control for `contradictory_match_predecessor_join_exit` is rejected with an unproved return subtraction in `pick`: the operands are not provably in the `u64` carrier. The reachable-unsafe-predecessor and overwritten-result controls still reject.
+- Cost: The checker cannot demonstrate that the reachable arm's established bound survives the join. Trace the two arrivals and preserve both negative controls and the original arithmetic in the positive.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+
+### Provider-supply controls lose the reasons their runtime module is rejected
 - Category: tests that pin the bug
-- Where: [example diagnostic assertions](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/address_bounds.rs)
-- Saw: On macOS arm64 at production base `af9510104ca63735a02adea551f7e50332e461c9` with the test-constructor compatibility repair, the Stage 06 suite reports 70 failures. In 46 of those, the exact actual text is the old expected reason followed by one or more `while reading …` contexts. For example, the missing-`embed` control now names the signature of `sized`.
-- Cost: The red diagnostic assertions obscure independent failures. Pin the original reason and its appropriate declaration context. Attribute the remaining failures separately.
-- Reported: 2026-11-14, Codex, while restoring downstream checker test compilation
+- Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)
+- Saw: At `7f12cb9f722` five provider-supply tests fail with `part 0 rejected`, including the provider that should refine its requirement and the controls for reach and invocation ceilings. The harness formats only unproved and exceeded rows and omits the other evidence of rejection.
+- Cost: A runtime rejection can hide the failure that prevented the suite from reaching its intended refinement, effect ceiling, or publication check. Recover the actual rejection evidence while keeping the matching positive and negative supply programs.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+
+### The selected reference result control stops before checking its public contract
+- Category: tests that pin the bug
+- Where: [Stage 06 selected result control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L694)
+- Saw: At `7f12cb9f722` the call of `Chosen::hand` in `relay` refuses with `call selected result has no complete original declared types`. The test expects the refusal for the absent public requirement contract on a selected reference result.
+- Cost: The test cannot demonstrate that the selected call refuses to use only the private implementation's result origin. Trace the selected declaration and preserve the missing-contract control.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+
+### The machine lifetime control loses the reason a data lifetime is unavailable
+- Category: tests that pin the bug
+- Where: [Stage 06 data-name machine lifetime control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs#L253)
+- Saw: At `7f12cb9f722` a machine under `Session` that names its data declaration's lifetime returns `rejected` from the test harness. The test expects the explicit refusal that the byte view has no complete owned region identity.
+- Cost: The control cannot show that the machine rejected the data declaration's lifetime because the machine has no binder for it. Inspect the rejection evidence before updating the expected outcome.
+- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
 
 ### Stored-reference field tests stop at field selection before checking custody
 - Category: tests that pin the bug

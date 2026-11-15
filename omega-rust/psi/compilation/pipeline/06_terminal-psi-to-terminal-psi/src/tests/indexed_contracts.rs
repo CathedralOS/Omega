@@ -71,7 +71,8 @@ machine entry(buffer: &Buffer) -> u16 { buffer.large[4095] }
     );
     assert_eq!(
         refused.detail,
-        "contract array index 2 is outside its fixed extent 2"
+        "contract array index 2 is outside its fixed extent 2 while reading the signature of \
+         `entry`"
     );
 }
 

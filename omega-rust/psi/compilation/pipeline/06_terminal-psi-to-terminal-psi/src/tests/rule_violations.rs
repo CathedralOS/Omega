@@ -229,7 +229,8 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert_eq!(
         refusal.detail,
-        "contract policy operator in a clause term that owes a condition before it is total"
+        "contract policy operator in a clause term that owes a condition before it is total while \
+         reading the signature of `quotient`"
     );
 }
 

@@ -282,7 +282,7 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
     );
     assert_eq!(
         verdict(&root("&write ", "0u64"), &["root"]),
-        "parameter write-only reference parameter",
+        "parameter write-only reference parameter while reading the signature of `root`",
         "a readable established input is not an uninitialized write-only loan"
     );
     let crash = format!(

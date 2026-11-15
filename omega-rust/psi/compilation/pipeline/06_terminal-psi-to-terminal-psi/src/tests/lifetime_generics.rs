@@ -72,7 +72,7 @@ machine build_entry(holder: &mut Holder, other: &Holder) {{
 }}
 "
         )),
-        "typing call that gives one lifetime two regions"
+        "typing call that gives one lifetime two regions while reading the body of `build_entry`"
     );
 }
 
@@ -111,7 +111,7 @@ machine named<'storage, 'other>(holder: &mut Holder<'storage>, name: &'other [u8
 machine build_entry() {{ }}
 "
         )),
-        "typing assigned value type"
+        "typing assigned value type while reading the body of `named`"
     );
 }
 
@@ -131,7 +131,7 @@ fn a_view_moves_between_records_only_at_one_region() {
                 "{HOLDER}machine build_entry() {{ }}\n\
                  machine exchange{signature} {{ long.name = short.name; }}\n"
             )),
-            "typing assigned value type",
+            "typing assigned value type while reading the body of `exchange`",
             "{signature}"
         );
     }
