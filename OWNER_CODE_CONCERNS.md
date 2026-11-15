@@ -101,12 +101,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Unrelated compiler builds and two in-flight repairs stopped before tests could run. Compare the latency and detection coverage of checking the affected crates on a warmed merge tree with the current post-merge validation.
 - Reported: 2026-11-15, Codex, while validating copyable record constants and the owned-element call path.
 
-### A named-map specialization loses its captured application at Psi publication
-- Category: knowledge crossing a boundary
-- Where: [named-map fixture](tests/fixtures/run/generics/named_map_own_telescope/main.omg#L4), [captured source application](omega-rust/psi/compilation/representations/typed-trees/src/access_views_and_commitments.rs#L1556), [artifact validation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L1858)
-- Saw: On macOS arm64, `named_map_own_telescope` runs to exit 0 in native and Psi. Reloading its retained `program.oterm` refuses with `checked specialization has no retained application`. Its two selected implementations bind the same value type and different unused map arguments, which the already-accepted source and in-process execution distinguish.
-- Cost: Standalone Psi consumers cannot reload either capture in the same checked module. Carry the exact retained map telescope and any method application through the existing capture/application records. Keep different captured arguments distinct and preserve the codec's missing and mismatched capture refusals.
-- Reported: 2026-11-15, Codex, while restoring publication of ordinary generic specializations.
+### A copied-owner test refuses before checking either package's types
+- Category: tests that pin the bug
+- Where: [copied-owner control](omega-rust/omega/compilation/compiler/tests/anonymous_module_owner.rs#L422), [fixture entry preparation](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L190), [bundled Console realization](source/library/std/console.omg#L105)
+- Saw: On clean `ce501a3161d4` on macOS arm64, `equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute` fails at its fixture's separate Linux ProgramEntry preparation. Checking the whole std supplier rejects `ConsoleNativeProvider::read_line` with `a data declaration cannot own a machine`. Even if that check succeeds, the helper always returns an error about an unpublished service schema. The separate ordinary and named artifact reload test passes.
+- Cost: The imported-package acceptance and copied-owner rejection are never exercised. Use the existing Build and package admission route for the actual entry, with both captured sources and the original nominal-type controls intact.
+- Reported: 2026-11-15, Codex, while verifying named-map artifact reload.
 
 ### A stored-length element sequence cannot report its length
 - Category: knowledge crossing a boundary
