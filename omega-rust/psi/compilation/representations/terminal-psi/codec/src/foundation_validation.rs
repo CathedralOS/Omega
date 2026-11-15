@@ -1346,6 +1346,7 @@ pub(crate) mod call_foundations {
             let mut module = TerminalModule::declarations();
             let structural_type = StructuralTypeId::new(1).unwrap();
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 id: structural_type,
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
@@ -1883,6 +1884,7 @@ pub(crate) mod declaration_foundations {
                 module.identities = identities.build();
                 for raw in [1, 2] {
                     module.structural_types.push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralTypeId::new(raw).unwrap(),
                         identity,
                         quotient_carrier: None,
@@ -2214,6 +2216,7 @@ pub(crate) mod declaration_foundations {
             fn opaque_target_storage_compares_full_placements_after_coordinate_rebase() {
                 let fields = |first| {
                     [first, first + 1].map(|identity| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralFieldId::new(identity).unwrap(),
                         identity: TerminalIdentityIndex(identity as u32),
                         relevance: BindingRelevance::Relevant,
@@ -3014,6 +3017,7 @@ mod empty_elimination_foundations {
             let mut module = TerminalModule::declarations();
             let ty = StructuralTypeId::new(1).unwrap();
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 id: ty,
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
@@ -3167,14 +3171,17 @@ mod empty_elimination_foundations {
             sum.shape = StructuralTypeShape::Sum {
                 cases: vec![
                     StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralCaseId::new(1).unwrap(),
                         identity: TerminalIdentityIndex(1),
                         fields: Vec::new(),
                     },
                     StructuralCaseDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralCaseId::new(2).unwrap(),
                         identity: TerminalIdentityIndex(2),
                         fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
                             id: StructuralFieldId::new(1).unwrap(),
                             identity: TerminalIdentityIndex(3),
                             relevance: Default::default(),
@@ -3699,6 +3706,7 @@ pub(crate) mod machine_foundations {
 
         fn record(raw: u64, empty: bool) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 id: StructuralTypeId::new(raw).unwrap(),
                 identity: TerminalIdentityIndex::ABSENT,
                 quotient_carrier: None,
@@ -8686,6 +8694,7 @@ pub(crate) mod storage_foundations {
                 StructuralTypeShape::PrimitiveScalar(scalar(8)),
                 StructuralTypeShape::Record {
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralFieldId::new(1).unwrap(),
                         identity: TerminalIdentityIndex(7),
                         field_type: StructuralFieldType::Scalar(scalar(64)),
@@ -8716,6 +8725,7 @@ pub(crate) mod storage_foundations {
             ];
             for (index, shape) in shapes.into_iter().enumerate() {
                 module.structural_types.push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     id: ty(index as u64 + 1),
                     identity: TerminalIdentityIndex(index as u32 + 1),
                     shape,
@@ -9312,6 +9322,7 @@ pub(crate) mod structural_type_foundations {
         #[test]
         fn field_geometry_requires_the_record_envelope_in_every_field_roster() {
             let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(1).expect("field identity"),
                 identity: TerminalIdentityIndex(291),
@@ -9328,6 +9339,7 @@ pub(crate) mod structural_type_foundations {
                 ))),
             };
             let case = StructuralCaseDeclaration {
+                declaration_identity: Default::default(),
                 id: StructuralCaseId::new(1).expect("case identity"),
                 identity: TerminalIdentityIndex(826),
                 fields: vec![field.clone()],
@@ -9369,6 +9381,7 @@ pub(crate) mod structural_type_foundations {
                 IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"),
             );
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -9381,6 +9394,7 @@ pub(crate) mod structural_type_foundations {
                 shape: StructuralTypeShape::PrimitiveScalar(integer),
             });
             let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(1).expect("field"),
                 identity: TerminalIdentityIndex(291),
@@ -9419,6 +9433,7 @@ pub(crate) mod structural_type_foundations {
             let element = StructuralTypeId::new(1).expect("element");
             let array = StructuralTypeId::new(2).expect("array");
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -9433,6 +9448,7 @@ pub(crate) mod structural_type_foundations {
                 )),
             });
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -9448,6 +9464,7 @@ pub(crate) mod structural_type_foundations {
                 },
             });
             let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 inline_carrier: None,
                 id: StructuralFieldId::new(1).expect("field"),
                 identity: TerminalIdentityIndex(535),
@@ -11260,6 +11277,29 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             ),
         "structural type identity",
     )?;
+    for declaration in &module.structural_types {
+        if module
+            .identities
+            .text(declaration.declaration_identity)
+            .is_none()
+        {
+            return malformed("structural type has an out-of-range source declaration identity");
+        }
+        for case in declaration.shape.cases() {
+            if module.identities.text(case.declaration_identity).is_none() {
+                return malformed(
+                    "structural case has an out-of-range source declaration identity",
+                );
+            }
+        }
+        for field in declaration.shape.fields() {
+            if module.identities.text(field.declaration_identity).is_none() {
+                return malformed(
+                    "structural field has an out-of-range source declaration identity",
+                );
+            }
+        }
+    }
     let mut type_ids = BTreeSet::new();
     for id in module
         .structural_types
@@ -11284,6 +11324,11 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             )
         }) {
             return malformed("identity-only structural type is not a reference target");
+        }
+    }
+    for domain in &module.structural_domains {
+        if module.identities.text(domain.subject_identity).is_none() {
+            return malformed("structural domain has an out-of-range subject application identity");
         }
     }
     require_unique_nonempty_identities(
@@ -12665,6 +12710,7 @@ fn validate_structural_type_graph(
 fn shared_storage_graph_preserves_codec_cycle_rejection() {
     let id = StructuralTypeId::new(29).unwrap();
     let declaration = StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         id,
         identity: terminal_psi::TerminalIdentityIndex(1),
         requires: Vec::new(),

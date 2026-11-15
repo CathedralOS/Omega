@@ -915,8 +915,303 @@ fn validate_arguments(
     Ok(())
 }
 
+/// Validate each rule against the source declarations retained by this module.
+/// A lookalike record, case or field cannot satisfy a policy for another one.
+pub fn validate_access_policy(
+    module: &TerminalModule,
+    domain: &StructuralDomainDeclaration,
+) -> Judged<()> {
+    let Some(plan) = &domain.access_policy else {
+        return Ok(());
+    };
+    let error = |detail| StructuralQualificationError {
+        machine: None,
+        detail,
+    };
+    let projected = plan.clone().try_bind(
+        |(node, _)| Ok::<_, StructuralQualificationError>(node),
+        |(description, _)| Ok(description),
+    )?;
+    let normalized = access_plans::normalize_access_plan(projected.clone()).map_err(|_| {
+        error("domain access rules have invalid semantic coordinates or descriptions")
+    })?;
+    if normalized != projected {
+        return Err(error("domain access rules are not in normalized order"));
+    }
+    let carrier = module
+        .structural_type(domain.carrier)
+        .ok_or_else(|| error("domain access rules have no carrier declaration"))?;
+    let owner = module
+        .identities
+        .text(carrier.declaration_identity)
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| error("domain access subject has no exact source declaration"))?;
+    let subject = module
+        .identities
+        .text(domain.subject_identity)
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| error("domain access subject has no exact applied identity"))?;
+    if plan.schema.declaration().owner_identity != owner
+        || plan.schema.declaration().application_identity.as_deref() != Some(subject)
+    {
+        return Err(error(
+            "domain access schema describes another subject declaration or application",
+        ));
+    }
+    let mut cases = carrier
+        .shape
+        .cases()
+        .iter()
+        .map(|case| {
+            let identity = module
+                .identities
+                .text(case.declaration_identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| error("domain access case has no exact source declaration"))?;
+            Ok((identity, case))
+        })
+        .collect::<Judged<Vec<_>>>()?;
+    cases.sort_unstable_by(|left, right| left.0.cmp(right.0));
+    if cases.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(error(
+            "domain access carrier repeats a source case declaration",
+        ));
+    }
+    let described_cases = plan
+        .schema
+        .declaration()
+        .members
+        .iter()
+        .filter_map(|member| match plan.schema.node(*member) {
+            language_semantics::reflection::SchemaNode::Case(case) => Some(case),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if described_cases.len() != cases.len()
+        || described_cases.iter().any(|case| {
+            cases
+                .binary_search_by(|(identity, _)| identity.cmp(&case.member_identity.as_str()))
+                .is_err()
+        })
+    {
+        return Err(error(
+            "domain access schema differs from its carrier's source cases",
+        ));
+    }
+    let mut fields = carrier
+        .shape
+        .fields_with_case()
+        .map(|(case, field)| {
+            let name = module
+                .identities
+                .text(field.declaration_identity)
+                .filter(|name| !name.is_empty())
+                .ok_or_else(|| {
+                    error("domain access schema has a field without a source declaration")
+                })?;
+            Ok((name, case, field))
+        })
+        .collect::<Judged<Vec<_>>>()?;
+    fields.sort_unstable_by(|left, right| left.0.cmp(right.0));
+    if fields.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(error(
+            "domain access carrier repeats a source field declaration",
+        ));
+    }
+    let governed = plan
+        .schema
+        .governed_fields()
+        .map_err(|_| error("domain access schema lost its complete subject field roster"))?;
+    if governed.len() != fields.len()
+        || governed.iter().any(|(_, field)| {
+            fields
+                .binary_search_by(|(name, _, _)| name.cmp(&field.member_identity.as_str()))
+                .is_err()
+        })
+    {
+        return Err(error(
+            "domain access schema differs from its carrier's source fields",
+        ));
+    }
+    // Every described field keeps its source owner, even when no rule names
+    // it. A later policy cannot borrow an unvalidated case or erased field.
+    for (_, description) in &governed {
+        let index = fields
+            .binary_search_by(|(name, _, _)| name.cmp(&description.member_identity.as_str()))
+            .map_err(|_| error("domain access schema lost its source field"))?;
+        let (_, case, field) = fields[index];
+        let described_case = match plan.schema.node(description.owner_case) {
+            language_semantics::reflection::SchemaNode::Case(case)
+                if description.owner_case.is_valid() =>
+            {
+                Some(case.member_identity.as_str())
+            }
+            _ if !description.owner_case.is_valid() => None,
+            _ => return Err(error("domain access field has no valid schema case owner")),
+        };
+        let actual_case = case
+            .map(|case| {
+                module
+                    .identities
+                    .text(case.declaration_identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| error("domain access field lost its source case owner"))
+            })
+            .transpose()?;
+        if described_case != actual_case {
+            return Err(error("domain access field belongs to another source case"));
+        }
+        if description.erased != field.relevance.is_erased() {
+            return Err(error("domain access field changed its runtime relevance"));
+        }
+    }
+    let region = |(node, path): &(
+        language_semantics::reflection::SchemaNodeHandle,
+        Option<Vec<StructuralPathSegment>>,
+    )|
+     -> Judged<()> {
+        if *node == plan.schema.root() {
+            return if path.as_deref() == Some(&[]) {
+                Ok(())
+            } else {
+                Err(error("whole-subject access rule has another storage path"))
+            };
+        }
+        let index = governed
+            .binary_search_by_key(node, |(node, _)| *node)
+            .map_err(|_| error("domain access rule names a field outside its subject"))?;
+        let description = governed[index].1;
+        let index = fields
+            .binary_search_by(|(name, _, _)| name.cmp(&description.member_identity.as_str()))
+            .map_err(|_| error("domain access rule lost its source field"))?;
+        let (_, case, field) = fields[index];
+        if description.erased {
+            return if path.is_none() {
+                Ok(())
+            } else {
+                Err(error("erased access field has a fabricated storage path"))
+            };
+        }
+        let matches = match (case, path.as_deref()) {
+            (None, Some([StructuralPathSegment::Field(identity)])) => *identity == field.identity,
+            (
+                Some(case),
+                Some(
+                    [
+                        StructuralPathSegment::Case(selected),
+                        StructuralPathSegment::Field(identity),
+                    ],
+                ),
+            ) => *selected == case.id && *identity == field.identity,
+            _ => false,
+        };
+        if matches {
+            Ok(())
+        } else {
+            Err(error(
+                "domain access field has another declaration's storage path",
+            ))
+        }
+    };
+    for (coordinate, _) in plan.readers.iter().chain(&plan.writers) {
+        region(coordinate)?;
+    }
+    for (coordinate, _) in &plan.observations {
+        region(coordinate)?;
+    }
+    for (description, route) in plan.issuance.iter().flatten().chain(
+        plan.readers
+            .iter()
+            .chain(&plan.writers)
+            .flat_map(|(_, callers)| callers),
+    ) {
+        if description.0 != !matches!(route, StructuralEstablishmentRoute::ExactMachine { .. })
+            || module
+                .identities
+                .text(route.identity())
+                .is_none_or(str::is_empty)
+            || module
+                .identities
+                .text(route.declaration().identity())
+                .is_none_or(str::is_empty)
+        {
+            return Err(error(
+                "domain access caller lost its complete declared route",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Each module numbers its cases and fields independently. Compare the rules
+/// through their resolved source declarations after validating each module's
+/// links, so matching numbers alone cannot make different policies equal.
+pub fn same_access_policy(
+    left: &TerminalModule,
+    source: &StructuralDomainDeclaration,
+    right: &TerminalModule,
+    target: &StructuralDomainDeclaration,
+) -> bool {
+    fn semantic_plan(
+        module: &TerminalModule,
+        domain: &StructuralDomainDeclaration,
+    ) -> Option<
+        access_plans::AccessPlan<
+            language_semantics::reflection::SchemaNodeHandle,
+            (
+                language_semantics::reflection::CallableDescription,
+                (u8, String, String),
+            ),
+        >,
+    > {
+        validate_access_policy(module, domain).ok()?;
+        domain
+            .access_policy
+            .clone()?
+            .try_bind(
+                |(node, _)| Ok::<_, ()>(node),
+                |(description, route)| {
+                    let kind = match route {
+                        StructuralEstablishmentRoute::ExactMachine { .. } => 0,
+                        StructuralEstablishmentRoute::CheckedRequirement { .. } => 1,
+                        StructuralEstablishmentRoute::BoundaryRequirement { .. } => 2,
+                    };
+                    let declaration = route.declaration().identity();
+                    let callable = route.identity();
+                    if module.identities.is_invocation_local(declaration)
+                        || module.identities.is_invocation_local(callable)
+                    {
+                        return Err(());
+                    }
+                    let owner = module
+                        .identities
+                        .text(declaration)
+                        .filter(|name| !name.is_empty())
+                        .ok_or(())?;
+                    let callable = module
+                        .identities
+                        .text(callable)
+                        .filter(|name| !name.is_empty())
+                        .ok_or(())?;
+                    Ok((description, (kind, owner.to_owned(), callable.to_owned())))
+                },
+            )
+            .ok()
+    }
+    match (&source.access_policy, &target.access_policy) {
+        (None, None) => true,
+        (Some(_), Some(_)) => semantic_plan(left, source)
+            .zip(semantic_plan(right, target))
+            .is_some_and(|(a, b)| a == b),
+        _ => false,
+    }
+}
+
 /// The whole judgment of a module's structural memberships.
 pub fn validate(module: &TerminalModule) -> Judged<()> {
+    for domain in &module.structural_domains {
+        validate_access_policy(module, domain)?;
+    }
     for machine in &module.machines {
         validate_machine(module, machine)?;
     }

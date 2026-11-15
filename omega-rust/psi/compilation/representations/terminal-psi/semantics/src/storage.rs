@@ -3122,6 +3122,7 @@ pub(crate) mod calling_storage {
 
         fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
             StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: identity(value),
                 identity: TerminalIdentityIndex::ABSENT,
@@ -3227,6 +3228,7 @@ pub(crate) mod calling_storage {
                 3,
                 StructuralTypeShape::Record {
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         id: field,
                         identity: TerminalIdentityIndex::ABSENT,
                         inline_carrier: None,

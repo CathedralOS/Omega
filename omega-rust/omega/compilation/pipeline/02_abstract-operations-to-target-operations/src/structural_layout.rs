@@ -1252,6 +1252,7 @@ mod placed_geometry_tests {
         .into_iter()
         .enumerate()
         .map(|(position, shape)| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralTypeId::new(position as u64 + 1).unwrap(),
             identity: TerminalIdentityIndex(position as u32 + 1),
             shape,
@@ -1362,6 +1363,7 @@ mod placed_geometry_tests {
         .into_iter()
         .enumerate()
         .map(|(position, shape)| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: StructuralTypeId::new(position as u64 + 1).unwrap(),
             identity: TerminalIdentityIndex(position as u32 + 1),
@@ -1407,6 +1409,7 @@ mod placed_geometry_tests {
         let accessor = StructuralTypeId::new(2).unwrap();
         let field = StructuralFieldId::new(1).unwrap();
         let accessor_declaration = StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             id: accessor,
@@ -1425,6 +1428,7 @@ mod placed_geometry_tests {
             },
         };
         let root_declaration = StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             quotient_carrier: None,
             id: root,
@@ -1436,6 +1440,7 @@ mod placed_geometry_tests {
             scalar_restriction: None,
             shape: StructuralTypeShape::Record {
                 fields: vec![StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     id: field,
                     identity: TerminalIdentityIndex(3),

@@ -2633,6 +2633,7 @@ fn sum_inside_record() -> String {
     let body = names.intern("body");
     let sum = sum_type(1, names.intern("Inner"), &mut names, &[]);
     let record = StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         quotient_carrier: None,
         id: ty(2),
         identity: names.intern("Outer"),
@@ -2645,6 +2646,7 @@ fn sum_inside_record() -> String {
             fields: vec![
                 scalar_field(1, prefix, u32_type()),
                 StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     id: StructuralFieldId::new(2).unwrap(),
                     identity: body,
@@ -3494,6 +3496,7 @@ fn sum_type(
     payload: &[StructuralFieldDeclaration],
 ) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         quotient_carrier: None,
         id: ty(id),
         identity,
@@ -3504,11 +3507,13 @@ fn sum_type(
         shape: StructuralTypeShape::Sum {
             cases: vec![
                 StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: case_id(1),
                     identity: names.intern("Left"),
                     fields: payload.to_vec(),
                 },
                 StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: case_id(2),
                     identity: names.intern("Right"),
                     fields: Vec::new(),
@@ -3526,6 +3531,7 @@ fn reference_type(
     referent: StructuralTypeId,
 ) -> StructuralTypeDeclaration {
     StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
         quotient_carrier: None,
         id: ty(id),
         identity,
@@ -3548,6 +3554,7 @@ fn scalar_field(
     integer: IntegerType,
 ) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        declaration_identity: Default::default(),
         inline_carrier: None,
         id: StructuralFieldId::new(id).unwrap(),
         identity,

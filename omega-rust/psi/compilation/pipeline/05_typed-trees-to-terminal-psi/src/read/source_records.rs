@@ -410,6 +410,116 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// Retain the source declaration for each type, case and field. These
+    /// declarations produced the storage; a policy's returned descriptions
+    /// cannot create those links, including for empty records or cases.
+    pub(crate) fn publish_source_declarations(
+        &self,
+        machine: MachineId,
+        records: &[SourceRecordCorrespondence],
+        module: &mut terminal_psi::TerminalModule,
+    ) -> Checked<()> {
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let result = (|| {
+            for source in records {
+                let position = module
+                    .structural_types
+                    .binary_search_by_key(&source.record, |row| row.id)
+                    .map_err(|_| malformed(machine, "source fields lost their canonical record"))?;
+                let declaration = &mut module.structural_types[position];
+                let (identity, _) = typed_trees::reflection::construction::exact_symbol_identity(
+                    self.typed,
+                    source.declaration,
+                )
+                .map_err(|_| {
+                    malformed(machine, "canonical type lost its exact source declaration")
+                })?;
+                if !declaration.declaration_identity.is_absent() {
+                    return Err(malformed(
+                        machine,
+                        "canonical type source declaration was already published",
+                    ));
+                }
+                declaration.declaration_identity = identities.intern(&identity);
+                let shape = &mut declaration.shape;
+                let original = self.data_type(machine, source.record)?;
+                let source_record = terminal_check_tables::row(
+                    &self.record_sources,
+                    source.record,
+                    machine,
+                    Construct::Machine,
+                )?;
+                if shape.cases().len() != original.cases().len()
+                    || shape.cases().len() != source_record.cases.len()
+                {
+                    return Err(malformed(
+                        machine,
+                        "canonical/source case declaration rosters differ",
+                    ));
+                }
+                for ((case, original), (symbol, _)) in shape
+                    .cases_mut()
+                    .iter_mut()
+                    .zip(original.cases())
+                    .zip(&source_record.cases)
+                {
+                    if case.id != original.id || !case.declaration_identity.is_absent() {
+                        return Err(malformed(
+                            machine,
+                            "canonical case changed its source declaration coordinate",
+                        ));
+                    }
+                    let (identity, _) =
+                        typed_trees::reflection::construction::exact_symbol_identity(
+                            self.typed, *symbol,
+                        )
+                        .map_err(|_| {
+                            malformed(machine, "canonical case lost its exact source declaration")
+                        })?;
+                    case.declaration_identity = identities.intern(&identity);
+                }
+                let mut fields = Vec::with_capacity(source.fields.len());
+                for field in &source.fields {
+                    let (identity, _) =
+                        typed_trees::reflection::construction::exact_symbol_identity(
+                            self.typed,
+                            field.declaration,
+                        )
+                        .map_err(|_| {
+                            malformed(machine, "canonical field lost its exact source declaration")
+                        })?;
+                    fields.push((field.field, identities.intern(&identity)));
+                }
+                fields.sort_unstable_by_key(|(field, _)| *field);
+                if fields.windows(2).any(|pair| pair[0].0 == pair[1].0)
+                    || shape.fields().count() != fields.len()
+                {
+                    return Err(malformed(
+                        machine,
+                        "canonical/source field declaration rosters differ",
+                    ));
+                }
+                for field in shape.fields_mut() {
+                    let position = fields
+                        .binary_search_by_key(&field.id, |(field, _)| *field)
+                        .map_err(|_| {
+                            malformed(machine, "canonical field has no source declaration")
+                        })?;
+                    if !field.declaration_identity.is_absent() {
+                        return Err(malformed(
+                            machine,
+                            "canonical field source declaration was already published",
+                        ));
+                    }
+                    field.declaration_identity = fields[position].1;
+                }
+            }
+            Ok(())
+        })();
+        module.identities = identities.build();
+        result
+    }
+
     /// A rule's field coordinate comes from the same source row that minted
     /// this record's fields. Matching names or positions alone would allow
     /// another record application to lend it permission.

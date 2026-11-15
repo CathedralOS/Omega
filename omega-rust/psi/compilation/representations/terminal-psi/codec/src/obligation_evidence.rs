@@ -1247,6 +1247,7 @@ mod projection_tests {
         .into_iter()
         .enumerate()
         .map(|(position, shape)| StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: ty(position as u64 + 1),
             identity: TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,
@@ -1358,6 +1359,7 @@ mod projection_tests {
             cases: cases
                 .iter()
                 .map(|case| terminal_psi::StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: *case,
                     identity: TerminalIdentityIndex::ABSENT,
                     fields: vec![],

@@ -2672,6 +2672,7 @@ pub mod domain_preservation {
             let low = StructuralFieldId::new(1).unwrap();
             let case_id = |id| StructuralCaseId::new(id).unwrap();
             let declaration = |id, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id,
@@ -2693,14 +2694,17 @@ pub mod domain_preservation {
                     StructuralTypeShape::Sum {
                         cases: vec![
                             StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: case_id(1),
                                 identity: TerminalIdentityIndex(3),
                                 fields: Vec::new(),
                             },
                             StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: case_id(2),
                                 identity: TerminalIdentityIndex(4),
                                 fields: vec![StructuralFieldDeclaration {
+                                    declaration_identity: Default::default(),
                                     inline_carrier: None,
                                     id: low,
                                     identity: TerminalIdentityIndex(5),

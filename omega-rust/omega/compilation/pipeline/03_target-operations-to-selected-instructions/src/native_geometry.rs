@@ -154,6 +154,7 @@ mod tests {
 
     fn declaration(id: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralTypeId::new(u64::from(id)).unwrap(),
             identity: TerminalIdentityIndex(id),
             shape,
@@ -305,6 +306,7 @@ mod tests {
         let array = StructuralTypeId::new(2).unwrap();
         let element = StructuralTypeId::new(3).unwrap();
         let field = StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralFieldId::new(1).unwrap(),
             identity: TerminalIdentityIndex(4),
             relevance: BindingRelevance::Relevant,
@@ -388,6 +390,7 @@ mod tests {
                 1,
                 StructuralTypeShape::Record {
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         id: StructuralFieldId::new(1).unwrap(),
                         identity,
                         relevance: BindingRelevance::Relevant,

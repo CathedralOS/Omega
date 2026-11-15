@@ -455,12 +455,14 @@ mod scalar_expressions {
                     .collect::<Result<Vec<_>, _>>()
                     .unwrap();
                 let types = [StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     id: StructuralTypeId::new(1).unwrap(),
                     identity: TerminalIdentityIndex(1),
                     shape: StructuralTypeShape::Sum {
                         cases: [1, 2]
                             .map(|number| StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
                                 id: StructuralCaseId::new(number).unwrap(),
                                 identity: TerminalIdentityIndex(number as u32 + 1),
                                 fields: Vec::new(),

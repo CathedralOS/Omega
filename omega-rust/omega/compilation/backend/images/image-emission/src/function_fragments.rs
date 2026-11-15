@@ -10880,6 +10880,7 @@ mod source {
                     StructuralTypeShape::Record {
                         storage: terminal_psi::StructuralRecordStorage::Packed,
                         fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
                             inline_carrier: None,
                             storage: None,
                             id: StructuralFieldId::new(1).unwrap(),
@@ -15631,6 +15632,7 @@ mod source {
                 shape: StructuralTypeShape,
             ) -> StructuralTypeDeclaration {
                 StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
                     requires: Vec::new(),
                     id,
                     identity,
@@ -15652,6 +15654,7 @@ mod source {
                 StructuralTypeShape::Record {
                     storage: terminal_psi::StructuralRecordStorage::Packed,
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         storage: None,
                         id,
@@ -15764,6 +15767,7 @@ mod source {
                             StructuralTypeShape::Record {
                                 storage: terminal_psi::StructuralRecordStorage::Packed,
                                 fields: vec![StructuralFieldDeclaration {
+                                    declaration_identity: Default::default(),
                                     inline_carrier: None,
                                     id: field,
                                     identity: terminal_psi::TerminalIdentityIndex(2),
@@ -16509,6 +16513,7 @@ mod source {
                         StructuralTypeShape::Record {
                             storage: terminal_psi::StructuralRecordStorage::Packed,
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: None,
                                 id: StructuralFieldId::new(2).unwrap(),
@@ -16532,6 +16537,7 @@ mod source {
                         StructuralTypeShape::Record {
                             storage: terminal_psi::StructuralRecordStorage::Packed,
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 storage: None,
                                 id: field,
@@ -16636,6 +16642,7 @@ mod source {
                 let fields =
                     record_fields_mut(&mut grouped.graph.structural_types.make_mut()[0]).unwrap();
                 fields.push(StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     storage: None,
                     id: StructuralFieldId::new(3).unwrap(),
@@ -17447,6 +17454,7 @@ mod source {
                     unreachable!();
                 };
                 fields.push(StructuralFieldDeclaration {
+                    declaration_identity: Default::default(),
                     inline_carrier: None,
                     storage: None,
                     id: output,
@@ -21713,14 +21721,17 @@ mod structural {
                             StructuralTypeShape::Sum {
                                 cases: vec![
                                     terminal_psi::StructuralCaseDeclaration {
+                                        declaration_identity: Default::default(),
                                         id: StructuralCaseId::new(1).unwrap(),
                                         identity: terminal_psi::TerminalIdentityIndex(2),
                                         fields: vec![],
                                     },
                                     terminal_psi::StructuralCaseDeclaration {
+                                        declaration_identity: Default::default(),
                                         id: StructuralCaseId::new(2).unwrap(),
                                         identity: terminal_psi::TerminalIdentityIndex(3),
                                         fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                            declaration_identity: Default::default(),
                                             inline_carrier: None,
                                             storage: None,
                                             id: StructuralFieldId::new(1).unwrap(),

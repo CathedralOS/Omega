@@ -604,6 +604,7 @@ mod tests {
 
     fn field(raw: u64) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralFieldId::new(raw).unwrap(),
             identity: TerminalIdentityIndex::ABSENT,
             relevance: Default::default(),
@@ -626,6 +627,7 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(|(index, children)| StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
                     id: StructuralCaseId::new(index as u64 + 1).unwrap(),
                     identity: TerminalIdentityIndex::ABSENT,
                     fields: children.iter().map(|child| field(*child)).collect(),
@@ -636,6 +638,7 @@ mod tests {
 
     fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: id(raw),
             identity: TerminalIdentityIndex::ABSENT,
             quotient_carrier: None,

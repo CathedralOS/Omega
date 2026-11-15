@@ -925,7 +925,11 @@ pub(crate) mod component_memberships {
         right: &TerminalModule,
         target: &StructuralDomainDeclaration,
     ) -> bool {
-        if source.establishment_routes.is_none() != target.establishment_routes.is_none() {
+        if source.establishment_routes.is_none() != target.establishment_routes.is_none()
+            || !terminal_semantics::structural_qualifications::same_access_policy(
+                left, source, right, target,
+            )
+        {
             return false;
         }
         let same_name = |a, b| {
@@ -1039,6 +1043,7 @@ pub(crate) mod component_memberships {
             let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
             module.identities = identities.build();
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: carrier,
                 identity: carrier_identity,
@@ -1054,6 +1059,7 @@ pub(crate) mod component_memberships {
                 },
             });
             module.structural_domains.push(StructuralDomainDeclaration {
+                subject_identity: Default::default(),
                 access_policy: None,
                 required_memberships: Some(Vec::new()),
                 complete_predicate_theory: true,
@@ -1070,6 +1076,245 @@ pub(crate) mod component_memberships {
                 establishment_routes: deny_issuance.then(Vec::new),
             });
             module
+        }
+
+        fn policy_module(carrier: u64, pad: bool, with_cases: bool) -> TerminalModule {
+            use language_semantics::reflection::{
+                CaseDescription, DeclarationDescription, FieldDescription, SchemaNode,
+                SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
+            };
+            use semantic_vocabulary::{StructuralCaseId, StructuralFieldId};
+            use terminal_psi::{
+                BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+                StructuralFieldType, StructuralPathSegment,
+            };
+            let mut module = module(carrier, carrier, pad, false);
+            let mut identities = std::mem::take(&mut module.identities).into_builder();
+            module.structural_types[0].declaration_identity = identities.intern("test::Cell");
+            module.structural_domains[0].subject_identity = identities.intern("test::Cell");
+            let root = SchemaNodeHandle::from_index(1);
+            let left = SchemaNodeHandle::from_index(2);
+            let right = SchemaNodeHandle::from_index(3);
+            let value = SchemaNodeHandle::from_index(4);
+            let mut nodes = vec![
+                SchemaNode::Invalid,
+                SchemaNode::Declaration(DeclarationDescription {
+                    owner_identity: "test::Cell".into(),
+                    identity_is_hermetic: true,
+                    name: "Cell".into(),
+                    shape: if with_cases {
+                        SchemaShape::Sum
+                    } else {
+                        SchemaShape::Empty
+                    },
+                    supply: "Ordinary".into(),
+                    multiplicity: "Unrestricted".into(),
+                    carry: None,
+                    type_parameters: Vec::new(),
+                    lifetime_parameters: Vec::new(),
+                    application_identity: Some("test::Cell".into()),
+                    members: if with_cases {
+                        vec![left, right]
+                    } else {
+                        Vec::new()
+                    },
+                    retired_identities: Vec::new(),
+                }),
+            ];
+            let region = if with_cases {
+                let case = StructuralCaseId::new(carrier + 1).unwrap();
+                let key = identities.intern("value");
+                module.structural_types[0].shape = StructuralTypeShape::Sum {
+                    cases: vec![
+                        StructuralCaseDeclaration {
+                            declaration_identity: identities.intern("test::Cell::Left"),
+                            id: case,
+                            identity: identities.intern("Left"),
+                            fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: identities.intern("test::Cell::Left::value"),
+                                inline_carrier: None,
+                                id: StructuralFieldId::new(carrier + 3).unwrap(),
+                                identity: key,
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(
+                                    semantic_vocabulary::ScalarType::Boolean,
+                                ),
+                                storage: None,
+                            }],
+                        },
+                        StructuralCaseDeclaration {
+                            declaration_identity: identities.intern("test::Cell::Right"),
+                            id: StructuralCaseId::new(carrier + 2).unwrap(),
+                            identity: identities.intern("Right"),
+                            fields: Vec::new(),
+                        },
+                    ],
+                };
+                nodes.extend([
+                    SchemaNode::Case(CaseDescription {
+                        member_identity: "test::Cell::Left".into(),
+                        name: "Left".into(),
+                        declaration_position: 0,
+                        stable_number: None,
+                        payload_fields: vec![value],
+                        retired_payload_identities: Vec::new(),
+                    }),
+                    SchemaNode::Case(CaseDescription {
+                        member_identity: "test::Cell::Right".into(),
+                        name: "Right".into(),
+                        declaration_position: 1,
+                        stable_number: None,
+                        payload_fields: Vec::new(),
+                        retired_payload_identities: Vec::new(),
+                    }),
+                    SchemaNode::Field(FieldDescription {
+                        member_identity: "test::Cell::Left::value".into(),
+                        name: "value".into(),
+                        declaration_position: 0,
+                        stable_number: None,
+                        erased: false,
+                        qualified_type: "bool".into(),
+                        nominal_references: Vec::new(),
+                        owner_case: left,
+                    }),
+                ]);
+                (
+                    value,
+                    Some(vec![
+                        StructuralPathSegment::Case(case),
+                        StructuralPathSegment::Field(key),
+                    ]),
+                )
+            } else {
+                (root, Some(Vec::new()))
+            };
+            let schema = SemanticSchemaGraph::from_nodes(
+                nodes,
+                root,
+                SchemaQueryAuthority::OwningScope {
+                    requester_identity: "test::Cell::Controlled".into(),
+                },
+            )
+            .unwrap();
+            module.structural_domains[0].access_policy =
+                Some(terminal_psi::StructuralDomainAccessPlan {
+                    schema,
+                    issuance: None,
+                    readers: vec![(region, Vec::new())],
+                    writers: Vec::new(),
+                    observations: Vec::new(),
+                    reach: Default::default(),
+                });
+            module.identities = identities.build();
+            module
+        }
+
+        // Equal definitions use different local numbers. Changing an empty
+        // subject, a case owner or an explicit denial must still change the
+        // admitted policy; a matching name cannot supply missing source data.
+        #[test]
+        fn component_policies_keep_their_actual_source_roots_and_case_fields() {
+            use language_semantics::reflection::{
+                SchemaNode, SchemaNodeHandle, SemanticSchemaGraph,
+            };
+            for with_cases in [false, true] {
+                let source = policy_module(1, false, with_cases);
+                let target = policy_module(9, true, with_cases);
+                let compatible = |target: &TerminalModule| {
+                    let source_domain = &source.structural_domains[0];
+                    let target_domain = &target.structural_domains[0];
+                    admit_memberships(
+                        &source,
+                        source_domain.carrier,
+                        &[source_domain.id],
+                        target,
+                        target_domain.carrier,
+                        &[target_domain.id],
+                    )
+                    .is_ok()
+                };
+                assert!(
+                    compatible(&target),
+                    "resolve each module's own case, field and identity numbers"
+                );
+                let change_schema =
+                    |target: &mut TerminalModule, edit: fn(&mut Vec<SchemaNode>)| {
+                        let plan = target.structural_domains[0].access_policy.as_mut().unwrap();
+                        let mut nodes = plan.schema.nodes().to_vec();
+                        edit(&mut nodes);
+                        plan.schema = SemanticSchemaGraph::from_nodes(
+                            nodes,
+                            plan.schema.root(),
+                            plan.schema.authority().clone(),
+                        )
+                        .unwrap();
+                    };
+                let mut unrelated = target.clone();
+                change_schema(&mut unrelated, |nodes| {
+                    let SchemaNode::Declaration(root) = &mut nodes[1] else {
+                        unreachable!()
+                    };
+                    root.owner_identity = "test::Other".into();
+                });
+                assert!(
+                    !compatible(&unrelated),
+                    "even an empty field roster needs its actual nominal root"
+                );
+                let mut application = target.clone();
+                change_schema(&mut application, |nodes| {
+                    let SchemaNode::Declaration(root) = &mut nodes[1] else {
+                        unreachable!()
+                    };
+                    root.application_identity = Some("test::Cell<Other>".into());
+                });
+                assert!(
+                    !compatible(&application),
+                    "the nominal root cannot replace its selected application"
+                );
+                let mut widened = target.clone();
+                widened.structural_domains[0]
+                    .access_policy
+                    .as_mut()
+                    .unwrap()
+                    .readers
+                    .clear();
+                assert!(
+                    !compatible(&widened),
+                    "an absent reader row cannot replace an explicit empty denial"
+                );
+                if with_cases {
+                    let mut wrong_case = target.clone();
+                    change_schema(&mut wrong_case, |nodes| {
+                        let SchemaNode::Case(left) = &mut nodes[2] else {
+                            unreachable!()
+                        };
+                        left.payload_fields.clear();
+                        let SchemaNode::Case(right) = &mut nodes[3] else {
+                            unreachable!()
+                        };
+                        right.payload_fields.push(SchemaNodeHandle::from_index(4));
+                        let SchemaNode::Field(field) = &mut nodes[4] else {
+                            unreachable!()
+                        };
+                        field.owner_case = SchemaNodeHandle::from_index(3);
+                    });
+                    assert!(
+                        !compatible(&wrong_case),
+                        "an existing field cannot borrow another case's source owner"
+                    );
+                    let mut synthetic = target.clone();
+                    synthetic.structural_types[0]
+                        .shape
+                        .fields_mut()
+                        .next()
+                        .unwrap()
+                        .declaration_identity = Default::default();
+                    assert!(
+                        !compatible(&synthetic),
+                        "a matching field key cannot replace its source declaration"
+                    );
+                }
+            }
         }
 
         // Provider membership compatibility compares the actual declarations,

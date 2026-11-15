@@ -1574,6 +1574,7 @@ pub(crate) mod machine_wire {
                 kind: StructuralPlaceKind::Parameter { position: 0 },
             });
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 owns_linear_claim: false,
@@ -3237,6 +3238,7 @@ mod reference_transport_tests {
                 abstract_opaque: false,
             });
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: StructuralTypeId::new(2).unwrap(),
             identity: TerminalIdentityIndex(2),
@@ -3289,6 +3291,7 @@ mod reference_transport_tests {
                 [],
             );
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(3).unwrap(),
                 identity: TerminalIdentityIndex(3),
@@ -3301,6 +3304,7 @@ mod reference_transport_tests {
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
                     fields: vec![StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(1).unwrap(),
                         identity: TerminalIdentityIndex(4),
@@ -3347,6 +3351,7 @@ mod reference_transport_tests {
             )
         };
         let carrier = StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: StructuralTypeId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
@@ -3367,6 +3372,7 @@ mod reference_transport_tests {
         record.shape = StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
                 id: StructuralFieldId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(4),
                 relevance: BindingRelevance::Relevant,
@@ -4755,6 +4761,9 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
+// Marker 276 retains complete domain access rules and the source identities
+// that bind their subject, cases and fields. A 275 artifact cannot supply
+// those independent receiving checks.
 pub(crate) const FORMAT_MARKER: u16 = 276;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -4780,6 +4789,18 @@ pub(crate) fn encode_closed_execution_module(
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
     module_wire::encode_raw_closed(module)
+}
+
+/// The complete domain declaration has one encoding for artifact transport
+/// and downstream identity checks. Omitting a rule from an identity would let
+/// a changed permission reuse an earlier checked optimization unit.
+pub fn encode_structural_domain_declaration(
+    declaration: &terminal_psi::StructuralDomainDeclaration,
+) -> Result<Vec<u8>, CodecError> {
+    use self::wire_fields::Field;
+    let mut writer = Writer::default();
+    module_wire::declaration_wire::Domain::write(&mut writer, declaration)?;
+    Ok(writer.finish())
 }
 
 pub fn encode_structural_type_declaration(
@@ -4956,6 +4977,7 @@ mod normal_qualification_tests {
                     .into_iter()
                     .enumerate()
                     .map(|(position, identity)| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
                         inline_carrier: None,
                         id: StructuralFieldId::new(position as u64 + 1).unwrap(),
                         identity: TerminalIdentityIndex(identity),
@@ -4983,6 +5005,7 @@ mod normal_qualification_tests {
                 );
             }
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: type_id(position as u64 + 1),
                 identity: TerminalIdentityIndex(position as u32 + 4),
@@ -4997,6 +5020,7 @@ mod normal_qualification_tests {
         }
         let domain = StructuralDomainId::new(1).unwrap();
         module.structural_domains.push(StructuralDomainDeclaration {
+            subject_identity: Default::default(),
             access_policy: None,
             id: domain,
             semantic_domain: DomainSemanticId::new(1).unwrap(),
@@ -5090,6 +5114,7 @@ mod normal_qualification_tests {
     fn boundary_logical_result_lifetimes_round_trip_and_reject_missing_frontiers() {
         let mut module = module();
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: type_id(5),
             identity: TerminalIdentityIndex(12),
@@ -5330,6 +5355,7 @@ mod global_descriptor_table_tests {
         });
         let carrier = StructuralTypeId::new(1).unwrap();
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: carrier,
             identity: TerminalIdentityIndex(3),
@@ -5485,6 +5511,7 @@ mod descriptor_operation_tests {
         ];
         for (index, shape) in shapes.into_iter().enumerate() {
             module.structural_types.push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 id: StructuralTypeId::new(index as u64 + 1).unwrap(),
                 identity: TerminalIdentityIndex(index as u32 + 3),
@@ -5747,6 +5774,7 @@ mod opaque_value_tests {
         let identity = StructuralTypeId::new(1).unwrap();
         module.identities = identity_table(1);
         module.structural_types.push(StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             requires: Vec::new(),
             id: identity,
             identity: TerminalIdentityIndex(1),

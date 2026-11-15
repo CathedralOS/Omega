@@ -33,9 +33,9 @@ pub struct AccessPlan<
 }
 
 impl<Region, Caller> AccessPlan<Region, Caller> {
-    /// Bind all coordinates together before publishing a plan. Repeated rows
-    /// stay separate: binding a field or caller must not turn intersection
-    /// into a last-row override or discard an independent policy axis.
+    /// Replace descriptions with the exact fields and functions they name.
+    /// Keep every rule: later rules must not override earlier restrictions or
+    /// discard the independent issuer, caller, observation and reach choices.
     pub fn try_bind<BoundRegion, BoundCaller, Error>(
         self,
         mut region: impl FnMut(Region) -> Result<BoundRegion, Error>,

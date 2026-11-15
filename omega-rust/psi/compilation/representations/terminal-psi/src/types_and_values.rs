@@ -246,10 +246,9 @@ pub mod types {
             DomainSemanticId, StructuralDomainId, StructuralTypeId,
         };
 
-        /// The same policy data with its semantic regions and callers bound
-        /// to this module. A region keeps its original schema coordinate;
-        /// erased fields have no runtime path. Caller descriptions retain
-        /// their full source application alongside the canonical declaration.
+        /// Keep the same plan while linking its descriptions to this module's
+        /// checked fields and functions. Erased fields keep their description
+        /// but have no storage path. These links supply no backing by themselves.
         pub type StructuralDomainAccessPlan = access_plans::AccessPlan<
             (
                 language_semantics::reflection::SchemaNodeHandle,
@@ -270,6 +269,10 @@ pub mod types {
             pub semantic_domain: DomainSemanticId,
             pub identity: TerminalIdentityIndex,
             pub carrier: StructuralTypeId,
+            /// Identity of the complete type selected by this domain, including
+            /// lifetime and static arguments. The storage type can erase these
+            /// details and cannot stand in for them.
+            pub subject_identity: TerminalIdentityIndex,
             pub content_projection: Option<StructuralContentProjection>,
             pub byte_predicate: Option<crate::ByteSequencePredicate>,
             /// None adds no issuer restriction; Some(empty) permits nobody.
@@ -289,6 +292,7 @@ pub mod types {
             #[test]
             fn explicit_empty_issuance_is_not_an_unrestricted_predicate() {
                 let mut domain = StructuralDomainDeclaration {
+                    subject_identity: Default::default(),
                     access_policy: None,
                     required_memberships: Some(Vec::new()),
                     complete_predicate_theory: true,
@@ -737,6 +741,8 @@ pub mod types {
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralTypeDeclaration {
+            /// Exact source owner; absent for compiler-generated declarations.
+            pub declaration_identity: TerminalIdentityIndex,
             pub quotient_carrier: Option<StructuralTypeId>,
             pub id: StructuralTypeId,
             pub identity: TerminalIdentityIndex,
@@ -817,8 +823,64 @@ pub mod types {
             AtomicCell(semantic_vocabulary::AtomicCellType),
         }
 
+        impl StructuralTypeShape {
+            pub fn cases(&self) -> &[StructuralCaseDeclaration] {
+                match self {
+                    Self::Sum { cases } | Self::Mixed { cases, .. } => cases,
+                    _ => &[],
+                }
+            }
+
+            pub fn cases_mut(&mut self) -> &mut [StructuralCaseDeclaration] {
+                match self {
+                    Self::Sum { cases } | Self::Mixed { cases, .. } => cases,
+                    _ => &mut [],
+                }
+            }
+
+            pub fn fields_with_case(
+                &self,
+            ) -> impl Iterator<
+                Item = (
+                    Option<&StructuralCaseDeclaration>,
+                    &StructuralFieldDeclaration,
+                ),
+            > {
+                let fields = match self {
+                    Self::Record { fields, .. } | Self::Mixed { fields, .. } => fields.as_slice(),
+                    _ => &[],
+                };
+                fields.iter().map(|field| (None, field)).chain(
+                    self.cases()
+                        .iter()
+                        .flat_map(|case| case.fields.iter().map(move |field| (Some(case), field))),
+                )
+            }
+
+            pub fn fields(&self) -> impl Iterator<Item = &StructuralFieldDeclaration> {
+                self.fields_with_case().map(|(_, field)| field)
+            }
+
+            pub fn fields_mut(&mut self) -> impl Iterator<Item = &mut StructuralFieldDeclaration> {
+                let (fields, cases): (
+                    &mut [StructuralFieldDeclaration],
+                    &mut [StructuralCaseDeclaration],
+                ) = match self {
+                    Self::Record { fields, .. } => (fields, &mut []),
+                    Self::Sum { cases } => (&mut [], cases),
+                    Self::Mixed { fields, cases } => (fields, cases),
+                    _ => (&mut [], &mut []),
+                };
+                fields
+                    .iter_mut()
+                    .chain(cases.iter_mut().flat_map(|case| &mut case.fields))
+            }
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralCaseDeclaration {
+            /// Exact source owner; absent for compiler-generated declarations.
+            pub declaration_identity: TerminalIdentityIndex,
             pub id: StructuralCaseId,
             pub identity: TerminalIdentityIndex,
             pub fields: Vec<StructuralFieldDeclaration>,
@@ -826,6 +888,9 @@ pub mod types {
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralFieldDeclaration {
+            /// A compiler-generated field has no source declaration and cannot
+            /// satisfy a policy naming a source field, even if its name matches.
+            pub declaration_identity: TerminalIdentityIndex,
             pub inline_carrier: Option<StructuralTypeId>,
             pub id: StructuralFieldId,
             pub identity: TerminalIdentityIndex,
@@ -1545,6 +1610,7 @@ pub mod types {
                 let array = StructuralTypeId::new(4).unwrap();
                 let types = vec![
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1560,6 +1626,7 @@ pub mod types {
                         },
                     },
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1572,6 +1639,7 @@ pub mod types {
                         shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                     },
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,
@@ -1583,6 +1651,7 @@ pub mod types {
                         identity: crate::TerminalIdentityIndex(3),
                         shape: StructuralTypeShape::Record {
                             fields: vec![StructuralFieldDeclaration {
+                                declaration_identity: Default::default(),
                                 inline_carrier: None,
                                 id: StructuralFieldId::new(1).unwrap(),
                                 identity: crate::TerminalIdentityIndex(4),
@@ -1594,6 +1663,7 @@ pub mod types {
                         },
                     },
                     StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
                         requires: Vec::new(),
                         quotient_carrier: None,
                         owns_linear_claim: false,

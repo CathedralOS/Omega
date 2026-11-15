@@ -2547,6 +2547,7 @@ pub(crate) mod declaration_wire {
             complete_predicate_theory: Flag,
             identity: Index,
             carrier: Id,
+            subject_identity: Index,
             predicate: Optional<DomainPredicate>,
             byte_predicate: OptionalBytePredicate,
             content_projection: Optional<ContentProjection>,

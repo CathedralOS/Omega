@@ -740,6 +740,7 @@ pub(crate) mod capabilities {
             let entry = MachineId::new(1).unwrap();
             let mut module = TerminalModule::for_entry(entry);
             let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id: StructuralTypeId::new(id).unwrap(),
@@ -885,6 +886,7 @@ pub(crate) mod capabilities {
             let array = StructuralTypeId::new(3).unwrap();
             let borrowed = StructuralTypeId::new(4).unwrap();
             let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
                 id,

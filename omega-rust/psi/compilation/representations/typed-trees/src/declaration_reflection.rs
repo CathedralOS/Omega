@@ -53,6 +53,24 @@ pub mod reflection {
             }
         }
 
+        /// Describe the original query's author and visibility. Consumers of
+        /// a retained schema use the same request, so another policy or helper
+        /// cannot substitute a more privileged author when the value is read.
+        pub fn schema_query_authority(
+            typed: &TypedTrees,
+            requester: SymbolHandle,
+            subject: SymbolHandle,
+        ) -> Result<SchemaQueryAuthority, String> {
+            let requester_identity = typed.normalized_hermetic_symbol_identity(requester)?;
+            Ok(
+                if typed.symbols.same_symbol_source_package(requester, subject) {
+                    SchemaQueryAuthority::OwningScope { requester_identity }
+                } else {
+                    SchemaQueryAuthority::ForeignScope { requester_identity }
+                },
+            )
+        }
+
         pub fn exact_symbol_identity(
             typed: &TypedTrees,
             symbol: SymbolHandle,

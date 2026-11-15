@@ -88,6 +88,20 @@ pub(crate) fn publish_access_plans(
                     "access rules have more than one canonical domain owner",
                 ));
             }
+            let subject = typed
+                .closed_data_definition(definition.target_type)
+                .ok_or_else(|| unavailable("access rules have no exact subject declaration"))?;
+            let authority = typed_trees::reflection::construction::schema_query_authority(
+                typed,
+                definition.symbol,
+                subject.symbol,
+            )
+            .map_err(|_| unavailable("access rules lost their original query author"))?;
+            if checked.normalized.schema.authority() != &authority {
+                return Err(unavailable(
+                    "access rules changed their subject query's original visibility",
+                ));
+            }
             let regions = source.access_plan_regions(
                 diagnostic,
                 carrier,
@@ -700,7 +714,17 @@ impl Qualifications {
                 }
             }
         };
+        let subject_owner = typed
+            .closed_data_definition(definition.target_type)
+            .map_or(definition.symbol, |subject| subject.symbol);
+        let subject_identity = typed_trees::reflection::construction::schema_type_identity(
+            typed,
+            definition.target_type,
+            subject_owner,
+        )
+        .map_err(|_| unavailable("domain lost its exact selected subject application"))?;
         self.structural.push(StructuralDomainDeclaration {
+            subject_identity: self.identities.intern(&subject_identity),
             access_policy: None,
             required_memberships: Some(Vec::new()),
             complete_predicate_theory: false,

@@ -161,6 +161,7 @@ mod tests {
 
     fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
         StructuralTypeDeclaration {
+            declaration_identity: Default::default(),
             id: id(raw),
             identity: TerminalIdentityIndex(1),
             requires: Vec::new(),
@@ -228,6 +229,7 @@ mod tests {
             StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage,
         };
         let field = |child| StructuralFieldDeclaration {
+            declaration_identity: Default::default(),
             inline_carrier: None,
             id: StructuralFieldId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
@@ -236,6 +238,7 @@ mod tests {
             storage: None,
         };
         let case = |child| StructuralCaseDeclaration {
+            declaration_identity: Default::default(),
             id: StructuralCaseId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
             fields: vec![field(child)],
