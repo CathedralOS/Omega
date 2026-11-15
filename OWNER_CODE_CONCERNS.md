@@ -73,6 +73,20 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### An untagged constant test expects the requesting declaration's old span
+- Category: tests that pin the bug
+- Where: [untagged target constant assertion](omega-rust/psi/compilation/build-time-evaluation/src/tests.rs#L1336), [innermost refusal attribution](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L2821)
+- Saw: On clean `f188866ef7c`, `a_constant_cannot_acquire_a_target_from_an_untagged_caller` still refused target selection. The diagnostic's source span is the underlying `selected` declaration at bytes `114..122`; the test expects the requesting `VALUE` declaration at `15..20`. #3612 places a refusal at the innermost declaration that supplied it.
+- Cost: The stale span assertion fails before the test can check that the constant remains unevaluated. Check the exact `selected` declaration span and keep both the target-selection and unevaluated-value assertions.
+- Reported: 2026-11-15, Codex, while checking an unrelated source-proof result on macOS arm64.
+
+### Grouped-refusal tests still look for the retired cast diagnostic
+- Category: tests that pin the bug
+- Where: [grouped verdict assertion](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/every_refusal.rs#L61), [direct verdict assertion](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/every_refusal.rs#L146), [carrier conversion refusal](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/casts.rs#L141)
+- Saw: After #3608, the kept f64-to-f32 narrowing witness reports `expression cast whose exact carrier conversion is not supported`. The two assertions still require `expression cast between carriers that are not integers`, the wording #3608 replaced. In the full Phase06 suite on macOS arm64 at `9e9a0f059d8`, both assertions failed while the three helpers still produced their expected separate refusals.
+- Cost: The group and direct-reading tests fail on obsolete wording. Match the current narrowing diagnostic and retain the exact refusal count, helper names and first-refusal behavior.
+- Reported: 2026-11-15, Codex, while verifying the static callback and exact float widening integration.
+
 ### Structural equality refuses a field of a closed generic type
 - Category: knowledge crossing a boundary
 - Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)
