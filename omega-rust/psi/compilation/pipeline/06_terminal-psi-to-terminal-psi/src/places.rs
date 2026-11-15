@@ -1774,53 +1774,45 @@ impl<'a> Storage<'a> {
         };
         let mut found = None;
         for projection in projections {
-            for (position, segment) in projection.path.iter().enumerate() {
-                let StructuralPathSegment::RuntimeIndex {
-                    index,
-                    obligation: owned,
-                } = segment
-                else {
-                    continue;
-                };
-                if *owned != obligation {
-                    continue;
+            if !projection.path.iter().any(|step| {
+                step.runtime_index()
+                    .is_some_and(|(_, owned)| owned == obligation)
+            }) {
+                continue;
+            }
+            let root = self.root_type(projection.root, concerns)?;
+            let mut duplicate = false;
+            terminal_semantics::visit_runtime_index_goals(
+                self.types.iter(),
+                |id| self.declaration(id, concerns).ok(),
+                root,
+                projection.path,
+                types,
+                |owned, goal| {
+                    if owned == obligation {
+                        duplicate |= found.replace(goal).is_some();
+                    }
+                },
+            )
+            .map_err(|error| {
+                use terminal_semantics::RuntimeIndexGoalError;
+                match error {
+                    RuntimeIndexGoalError::InvalidPath => {
+                        self.foreign(concerns, "an indexed path lost its actual array type")
+                    }
+                    RuntimeIndexGoalError::OpenExtent => self
+                        .unsupported(concerns, "index into storage without a closed array extent"),
+                    RuntimeIndexGoalError::MissingSelector => {
+                        self.foreign(concerns, "an array selector has no scalar type")
+                    }
+                    RuntimeIndexGoalError::UnsupportedSelector => {
+                        self.unsupported(concerns, "array selector without integer bound semantics")
+                    }
                 }
-                if found.is_some() {
-                    return Err(
-                        self.foreign(concerns, "two array projections own one index obligation")
-                    );
-                }
-                let root = self.root_type(projection.root, concerns)?;
-                let array = terminal_semantics::runtime_structural_path_tip(
-                    self.types.iter(),
-                    root,
-                    &projection.path[..position],
-                )
-                .ok_or_else(|| {
-                    self.foreign(concerns, "an indexed path lost its actual array type")
-                })?;
-                let StructuralTypeShape::FixedArray {
-                    length: terminal_psi::ArrayExtent::Literal(extent),
-                    ..
-                } = array.shape
-                else {
-                    return Err(self.unsupported(
-                        concerns,
-                        "index into storage without a closed array extent",
-                    ));
-                };
-                let scalar = types.get(*index).copied().ok_or_else(|| {
-                    self.foreign(concerns, "an array selector has no scalar type")
-                })?;
-                found = Some(
-                    terminal_semantics::runtime_index_bound(*index, scalar, extent).ok_or_else(
-                        || {
-                            self.unsupported(
-                                concerns,
-                                "array selector without integer bound semantics",
-                            )
-                        },
-                    )?,
+            })?;
+            if duplicate {
+                return Err(
+                    self.foreign(concerns, "two array projections own one index obligation")
                 );
             }
         }
