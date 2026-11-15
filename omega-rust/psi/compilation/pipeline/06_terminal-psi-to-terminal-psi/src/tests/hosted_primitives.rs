@@ -97,6 +97,64 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
             .expect("independent primitive receiving");
     assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
 
+    // Local boundary numbers are not declaration identity across modules.
+    // These comparison controls move only the catalog coordinate; they do not
+    // claim that this partial relocation is an executable module rewrite.
+    let mut relocated = module.clone();
+    let moved_id = semantic_vocabulary::BoundaryMachineId::new(99).unwrap();
+    relocated
+        .boundary_machines
+        .iter_mut()
+        .find(|row| row.id == requirement)
+        .unwrap()
+        .id = moved_id;
+    relocated.boundary_machines.sort_by_key(|row| row.id);
+    let moved = relocated
+        .boundary_machines
+        .iter_mut()
+        .find(|row| row.id == primitive.id)
+        .unwrap();
+    moved.declaration.as_mut().unwrap().execution =
+        terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
+            operation: language_core::sealed_intrinsics::HostedOperation::ProcessExit,
+            requirement: moved_id,
+        };
+    let actual = primitive.declaration.as_ref().unwrap();
+    let moved = relocated
+        .boundary_machine(primitive.id)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap();
+    assert!(actual.same_identity_as(module, moved, &relocated));
+    let mut unrelated = relocated.clone();
+    unrelated
+        .boundary_machines
+        .iter_mut()
+        .find(|row| row.id == moved_id)
+        .unwrap()
+        .declaration
+        .as_mut()
+        .unwrap()
+        .source
+        .contract = [42; 32];
+    let moved = unrelated
+        .boundary_machine(primitive.id)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap();
+    assert!(!actual.same_identity_as(module, moved, &unrelated));
+    let mut absent = relocated.clone();
+    absent.boundary_machines.retain(|row| row.id != moved_id);
+    let moved = absent
+        .boundary_machine(primitive.id)
+        .unwrap()
+        .declaration
+        .as_ref()
+        .unwrap();
+    assert!(!actual.same_identity_as(module, moved, &absent));
+
     for mutation in 0..6 {
         let mut changed = module.clone();
         if mutation == 5 {
