@@ -229,8 +229,7 @@ fn malformed_ordering(source: &str, detail: &str) {
         .tokenize()
         .unwrap();
     let error = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens)
-        .err()
-        .expect("illegal ordering was parsed");
+        .expect_err("illegal ordering was parsed");
     assert!(error.message.contains(detail), "{error:?}");
 }
 

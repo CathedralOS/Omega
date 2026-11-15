@@ -212,13 +212,13 @@ pub(crate) mod atomic {
         #[test]
         fn legality_replays_the_source_ordering_matrix() {
             assert!(
-                AtomicAccessEvent::Load {
+                AtomicAccessEvent::<ValueId>::Load {
                     ordering: MemoryOrdering::Receive
                 }
                 .ordering_is_legal()
             );
             assert!(
-                !AtomicAccessEvent::Load {
+                !AtomicAccessEvent::<ValueId>::Load {
                     ordering: MemoryOrdering::Publish
                 }
                 .ordering_is_legal()
