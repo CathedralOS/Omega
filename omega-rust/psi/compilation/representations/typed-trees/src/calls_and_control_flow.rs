@@ -2125,6 +2125,7 @@ pub mod control_flow {
                                         );
                                 }
                                 StatementNode::Call(TableCall {
+                                    unresolved_name: call.unresolved_name,
                                     installed_interrupt_operation,
                                     authored_machine_application,
                                     static_machine_parameter: call.static_machine_parameter,
@@ -2840,6 +2841,7 @@ pub mod control_flow {
                         TransitionTargetNode::Named {
                             static_machine_parameter: *static_machine_parameter,
                             path: TableNamePath {
+                                unresolved_name: path.unresolved_name,
                                 members,
                                 receiver_symbol: path.receiver_symbol,
                                 head_symbol: path.head_symbol,
@@ -3125,6 +3127,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableCall {
+            pub unresolved_name: symbols::UnresolvedName,
             pub installed_interrupt_operation:
                 Option<crate::expression::InstalledInterruptOperationRequest>,
             pub authored_machine_application:
@@ -3283,6 +3286,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableNamePath {
+            pub unresolved_name: symbols::UnresolvedName,
             pub receiver_symbol: SymbolHandle,
             pub members: HandleSpan<Identifier>,
             pub head_symbol: SymbolHandle,

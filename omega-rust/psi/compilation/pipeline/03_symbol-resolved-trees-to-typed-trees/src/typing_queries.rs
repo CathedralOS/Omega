@@ -669,11 +669,11 @@ impl<'program> DeclaredCallTargets<'program> {
 /// Typing sees the program with every bundled library and does not know what
 /// an entry reaches, so such a call is not refused here: it is a row of the
 /// declaration, raised by whoever demands that declaration. A call of a bare
-/// name nothing in the program has is an error in every program and its row
-/// says so (`DeferredRequest::UndeclaredCallName`); any other is a request no
-/// pass serves yet. A value name resolution left unbound that nothing has
-/// is the same error (`DeferredRequest::UndeclaredValueName`); one that
-/// something has stays the reader's refusal. A
+/// name with no visible declaration is an error in every program and its row
+/// says so (`DeferredRequest::UndeclaredCallName`); other unserved selections
+/// stay requests. Resolution retains absence at each exact occurrence; typing
+/// never asks unrelated declarations to reinterpret it. A missing value name
+/// is the same error (`DeferredRequest::UndeclaredValueName`). A
 /// terminal call is examined for the machines of this cohort only, as before.
 /// A request in an expression no declaration owns has no reader to raise it
 /// and still refuses here.
@@ -684,21 +684,25 @@ pub(crate) fn defer_unbound_calls(
 ) -> Result<(), Diagnostic> {
     use typed_trees::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
-    // Each row keeps the call's bare written name while it may still be
-    // found to name nothing at all (`undeclared_call_names`).
+    // Each row retains resolution's scoped outcome until its owner is known.
     let mut in_declarations = Vec::new();
     let mut closed_selections = Vec::new();
     let rows: Vec<(SymbolHandle, DeferredRequest, source::SourceSpan)>;
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
-        // Value names resolution left unbound, with their one written member,
-        // until `names_nothing_has` says which of them name nothing.
-        let mut unbound_names = Vec::new();
         for (handle, expression) in program.expression_table.expression_entries() {
-            if let ExpressionNode::Name(_) = expression {
-                if let Some(name) = unbound_value_name(program, handle) {
-                    unbound_names.push((handle, name));
+            if let ExpressionNode::Name(path) = expression {
+                if !path.symbol.is_valid()
+                    && !path.reserved_result_of.is_valid()
+                    && program.expression_table.unresolved_name(handle)
+                        == symbols::UnresolvedName::NoVisibleDeclaration
+                {
+                    in_expressions.push((
+                        handle,
+                        DeferredRequest::UndeclaredValueName,
+                        symbols::UnresolvedName::Unserved,
+                    ));
                 }
                 continue;
             }
@@ -718,16 +722,19 @@ pub(crate) fn defer_unbound_calls(
                 let request = case_call(program, request, receiver, call.target.as_str());
                 // A compiler operation the call was recognized as, or a
                 // selection bound some other way, is not a bare name.
-                let bare = (matches!(receiver, CallReceiver::Absent)
-                    && !call.static_machine_parameter.is_valid()
+                let bare = if !call.static_machine_parameter.is_valid()
                     && call.static_requirement_dispatch.is_none()
                     && call.authored_call_binding.is_none()
                     && call.quotient_operation.is_none()
                     && call.private_layout_operation.is_none()
                     && call.installed_interrupt_operation.is_none()
                     && call.layout_query.is_none()
-                    && call.native_code_layout.is_none())
-                .then_some(call.target.as_str());
+                    && call.native_code_layout.is_none()
+                {
+                    program.expression_table.unresolved_name(handle)
+                } else {
+                    Default::default()
+                };
                 in_expressions.push((handle, request, bare));
             }
             if targets.named_expression_call(call)
@@ -753,10 +760,13 @@ pub(crate) fn defer_unbound_calls(
                         if let Some(request) = targets.unserved(call.target_symbol, receiver) {
                             let request =
                                 case_call(program, request, receiver, call.target.as_str());
-                            let bare = (matches!(receiver, CallReceiver::Absent)
-                                && call.installed_interrupt_operation.is_none()
-                                && !call.static_machine_parameter.is_valid())
-                            .then_some(call.target.as_str());
+                            let bare = if call.installed_interrupt_operation.is_none()
+                                && !call.static_machine_parameter.is_valid()
+                            {
+                                call.unresolved_name
+                            } else {
+                                Default::default()
+                            };
                             in_declarations.push((machine.symbol, request, call.source_span, bare));
                         }
                         if targets.named_call(call.target_symbol, receiver)
@@ -791,15 +801,10 @@ pub(crate) fn defer_unbound_calls(
                             CallReceiver::Absent
                         };
                         if let Some(request) = targets.unserved(path.symbol, receiver) {
-                            let bare = match program.statement_table.name_path_members(path.members)
-                            {
-                                [name]
-                                    if matches!(receiver, CallReceiver::Absent)
-                                        && !static_machine_parameter.is_valid() =>
-                                {
-                                    Some(name.as_str())
-                                }
-                                _ => None,
+                            let bare = if !static_machine_parameter.is_valid() {
+                                path.unresolved_name
+                            } else {
+                                Default::default()
                             };
                             in_declarations.push((machine.symbol, request, *source_span, bare));
                         }
@@ -807,14 +812,6 @@ pub(crate) fn defer_unbound_calls(
                 }
             }
         }
-        let undeclared =
-            program.names_nothing_has(unbound_names.iter().map(|(_, name)| *name).collect());
-        in_expressions.extend(
-            unbound_names
-                .into_iter()
-                .filter(|(_, name)| undeclared.binary_search(name).is_ok())
-                .map(|(handle, _)| (handle, DeferredRequest::UndeclaredValueName, None)),
-        );
         if !in_expressions.is_empty() {
             let owners = typed_trees::references::collect_program_operand_owners(program);
             for (handle, request, bare) in in_expressions {
@@ -835,18 +832,13 @@ pub(crate) fn defer_unbound_calls(
                 }
             }
         }
-        let undeclared = undeclared_call_names(
-            program,
-            in_declarations
-                .iter()
-                .filter(|row| row.1 == DeferredRequest::UnresolvedCallTarget)
-                .filter_map(|row| row.3),
-        );
         rows = in_declarations
             .into_iter()
             .map(|(declaration, request, source_span, bare)| {
-                let undeclared = request == DeferredRequest::UnresolvedCallTarget
-                    && bare.is_some_and(|name| undeclared.binary_search(&name).is_ok());
+                let undeclared = matches!(
+                    request,
+                    DeferredRequest::UnresolvedCallTarget | DeferredRequest::ReceiverCallSelection
+                ) && bare == symbols::UnresolvedName::NoVisibleDeclaration;
                 let request = if undeclared {
                     DeferredRequest::UndeclaredCallName
                 } else {
@@ -934,42 +926,6 @@ fn case_call(
     } else {
         request
     }
-}
-
-/// The value spellings the compiler gives a meaning without a symbol: the
-/// subject of a domain or data predicate and the reserved result of a
-/// contract. Neither is an unknown name where resolution left it unbound.
-const COMPILER_VALUE_SPELLINGS: [&str; 2] = ["self", "result"];
-
-/// The one written name of the value name `expression` that resolution
-/// left unbound, if it may name nothing at all: a single plain segment,
-/// with no static application, reserved result or compiler meaning. Only
-/// such a name can be found by `names_nothing_has` to name nothing
-/// (`DeferredRequest::UndeclaredValueName`); a projected or applied path
-/// typing does not follow stays the reader's refusal.
-fn unbound_value_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
-    let (path, name) = program.expression_table.single_name_member(expression)?;
-    let name = name.as_str();
-    (path.resolved_symbol().is_none()
-        && !path.reserved_result_of.is_valid()
-        && !COMPILER_VALUE_SPELLINGS.contains(&name))
-    .then_some(name)
-}
-
-/// Of the bare names `written` that calls resolution left unbound, those
-/// nothing in the program has: no declaration, parameter, local, state or
-/// builtin of any kind, in this source or any library, carries the name.
-/// Compiler operations have installed declarations too; a bare spelling needs
-/// no exemption from this check. Such a call is an error in every
-/// program (`DeferredRequest::UndeclaredCallName`). A name something has
-/// may name it validly where resolution does not follow yet (a local
-/// holding a callable, an ambiguous import), so it stays a request.
-fn undeclared_call_names<'a>(
-    program: &TypedTrees,
-    written: impl Iterator<Item = &'a str>,
-) -> Vec<&'a str> {
-    // A call with no written name was made by the compiler, not the author.
-    program.names_nothing_has(written.collect())
 }
 
 /*
@@ -1601,6 +1557,9 @@ mod tests {
             panic!("call expression")
         };
         node.receiver = Default::default();
+        program
+            .expression_table
+            .set_unresolved_name(unbound, symbols::UnresolvedName::NoVisibleDeclaration);
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
@@ -1615,12 +1574,15 @@ mod tests {
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]
         );
-        // Unbound, but something is named `run`: resolution may not follow
-        // it yet, so the call stays a request.
+        // An ambiguous source lookup stays unserved, regardless of which
+        // declarations elsewhere happen to carry its spelling.
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
             panic!("call expression")
         };
         node.target = typed_trees::name::Identifier::generated("run");
+        program
+            .expression_table
+            .set_unresolved_name(unbound, symbols::UnresolvedName::Ambiguous);
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UnresolvedCallTarget)]
