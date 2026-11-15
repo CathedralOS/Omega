@@ -152,8 +152,10 @@ fn parse(args: &[String]) -> Result<Options, String> {
     Ok(options)
 }
 
-/// Whether a program should be rejected: it sits under a `fail/` folder or a
-/// folder whose name starts with `invalid` (a negative twin).
+/// Whether a program's path says it should be rejected: it sits under a
+/// `fail/` folder or a folder whose name starts with `invalid` (a negative
+/// twin). Only `--quick` picks programs by this; a checked row reads the
+/// program's own expectations ([`expectation`]).
 fn expects_rejection(program: &str) -> bool {
     program
         .split('/')
@@ -222,6 +224,8 @@ struct Row {
     stage: &'static str,
     cause: String,
     detail: String,
+    /// Its own files say `--check` must refuse it.
+    reject: bool,
 }
 
 /// The error that stopped a program: the first error indented under the
@@ -319,8 +323,25 @@ fn stage_of(top: &str, cause: &str) -> &'static str {
     }
 }
 
+/// A row for a program expected to check, as most are; tests use it.
+#[cfg(test)]
 fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
-    let reject = expects_rejection(program);
+    judged(program, exit, ms, output, output, &Expectation::Check)
+}
+
+/// Where a program stopped and whether that is what its own files ask for.
+/// A negative program earns "Rejected as expected" only when the refusal is
+/// the one it pins, judged as `sample-gate` judges it; a different verdict,
+/// or a negative that pins nothing, is "Rejected for another reason".
+fn judged(
+    program: &str,
+    exit: i32,
+    ms: u128,
+    output: &str,
+    diagnostics: &str,
+    expected: &Expectation,
+) -> Row {
+    let reject = matches!(expected, Expectation::Reject(_));
     if exit == 0 {
         return Row {
             program: program.to_owned(),
@@ -334,14 +355,25 @@ fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
             stage: "Checks",
             cause: String::new(),
             detail: String::new(),
+            reject,
         };
     }
     let (top, cause) = first_error(output);
     let stage = stage_of(&top, &cause);
-    let outcome = if reject && matches!(stage, "Checker verdict" | "Typing" | "Parsing") {
-        "Rejected as expected"
-    } else {
-        "Blocked"
+    let outcome = match expected {
+        Expectation::Check => "Blocked",
+        Expectation::Reject(project) => {
+            let pinned = project.as_ref().map_err(String::clone).and_then(|project| {
+                crate::samples::judge_rejection(project, Some(exit), diagnostics)
+            });
+            match pinned {
+                Ok(()) => "Rejected as expected",
+                Err(_) if matches!(stage, "Checker verdict" | "Typing" | "Parsing") => {
+                    "Rejected for another reason"
+                }
+                Err(_) => "Blocked",
+            }
+        }
     };
     Row {
         program: program.to_owned(),
@@ -349,6 +381,7 @@ fn row(program: &str, exit: i32, ms: u128, output: &str) -> Row {
         ms,
         outcome,
         stage,
+        reject,
         cause: pattern(&cause),
         detail: cause.chars().take(300).collect(),
     }
@@ -378,12 +411,8 @@ fn check(omega: &Path, root: &Path, target: Option<&str>, program: &str, timeout
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            return row(
-                program,
-                -1,
-                0,
-                &format!("error: cannot start omega: {error}"),
-            );
+            let failed = format!("error: cannot start omega: {error}");
+            return judged(program, -1, 0, &failed, &failed, &Expectation::Check);
         }
     };
     // Drain both pipes on their own threads so a chatty child never blocks.
@@ -421,16 +450,47 @@ fn check(omega: &Path, root: &Path, target: Option<&str>, program: &str, timeout
         }
     };
     let mut output = stdout.join().unwrap_or_default();
-    output.push_str(&stderr.join().unwrap_or_default());
+    let diagnostics = stderr.join().unwrap_or_default();
+    output.push_str(&diagnostics);
     let ms = started.elapsed().as_millis();
+    let expected = expectation(root, program);
     match status {
-        Some(status) => row(program, status.code().unwrap_or(-1), ms, &output),
-        None => row(
+        Some(status) => judged(
             program,
-            -1,
+            status.code().unwrap_or(-1),
             ms,
-            &format!("error: timed out after {} seconds", timeout.as_secs()),
+            &output,
+            &diagnostics,
+            &expected,
         ),
+        None => {
+            let timed_out = format!("error: timed out after {} seconds", timeout.as_secs());
+            judged(program, -1, ms, &timed_out, &timed_out, &expected)
+        }
+    }
+}
+
+/// What a program's own files say `--check` must do with it.
+#[derive(Debug, Clone)]
+enum Expectation {
+    Check,
+    /// Refuse it for the reason its `expected.txt` or `sample.json` pins; the
+    /// error says why its expectations could not be read.
+    Reject(Result<Box<crate::samples::SampleProject>, String>),
+}
+
+/// The sample gate's reading of the program's folder, so both tools agree on
+/// which programs are negative and what each must be refused for.
+fn expectation(root: &Path, program: &str) -> Expectation {
+    let folder = root.join(record::short(program));
+    match crate::samples::project_at(&folder, root) {
+        Ok(project) if project.role == "intended-invalid" => {
+            Expectation::Reject(Ok(Box::new(project)))
+        }
+        Ok(_) => Expectation::Check,
+        // Unreadable expectations never earn a negative credit.
+        Err(error) if expects_rejection(program) => Expectation::Reject(Err(error)),
+        Err(_) => Expectation::Check,
     }
 }
 
@@ -786,6 +846,16 @@ fn summary(rows: &[Row]) -> String {
         .take(25)
     {
         text.push_str(&format!("{n:>7}  {cause}\n"));
+    }
+    let elsewhere = count(
+        |row| &row.cause,
+        |row| row.outcome == "Rejected for another reason",
+    );
+    if !elsewhere.is_empty() {
+        text.push_str("\nnegatives refused for another reason than they pin, top causes:\n");
+        for (cause, n) in elsewhere.into_iter().take(15) {
+            text.push_str(&format!("{n:>7}  {cause}\n"));
+        }
     }
     let wrong: Vec<_> = rows
         .iter()
@@ -1190,21 +1260,75 @@ mod tests {
     }
 
     #[test]
-    fn a_rejected_negative_is_expected_and_an_accepted_one_is_not() {
-        let rejected = row(
-            "samples/cli/facts/f/invalid_local/main.omg",
-            1,
-            10,
-            "cannot compile\n  error: exact arithmetic may overflow `u64`\n",
+    fn a_negative_earns_credit_only_for_the_refusal_it_pins() {
+        let program = "samples/cli/facts/f/invalid_local/main.omg";
+        let pinning = |fragments: &[&str]| {
+            Expectation::Reject(Ok(Box::new(crate::samples::SampleProject {
+                directory: PathBuf::from("samples/cli/facts/f/invalid_local"),
+                rel_path: "samples/cli/facts/f/invalid_local".to_owned(),
+                entry: Some(PathBuf::from("main.omg")),
+                role: "intended-invalid".to_owned(),
+                source_inputs: Vec::new(),
+                rejection: fragments.iter().map(|text| (*text).to_owned()).collect(),
+                rejection_any: Vec::new(),
+                rejection_casefold: false,
+                native_rejection: None,
+            })))
+        };
+        let overflow = "cannot compile\n  error: exact arithmetic may overflow `u64`\n";
+        let judge = |output: &str, exit: i32, expected: &Expectation| {
+            judged(program, exit, 10, output, output, expected)
+        };
+
+        let pinned = pinning(&["may overflow `u64`"]);
+        assert_eq!(judge(overflow, 1, &pinned).outcome, "Rejected as expected");
+        assert!(judge(overflow, 1, &pinned).reject);
+        assert_eq!(
+            judge("compiled", 0, &pinned).outcome,
+            "Accepted a wrong program"
         );
-        assert_eq!(rejected.outcome, "Rejected as expected");
-        let accepted = row(
-            "samples/cli/facts/f/invalid_local/main.omg",
-            0,
-            10,
-            "compiled",
+
+        // The twin exists for a borrow error; an earlier overflow proves nothing.
+        let borrow = pinning(&["while local borrow `held` is still active"]);
+        assert_eq!(
+            judge(overflow, 1, &borrow).outcome,
+            "Rejected for another reason"
         );
-        assert_eq!(accepted.outcome, "Accepted a wrong program");
+        // A refusal the checker cannot judge yet is still a blocker.
+        let unsupported = "cannot compile\n  error: not supported yet: type generic application\n";
+        assert_eq!(judge(unsupported, 1, &borrow).outcome, "Blocked");
+        // A negative with nothing pinned, or unreadable pins, earns nothing.
+        assert_eq!(
+            judge(overflow, 1, &pinning(&[])).outcome,
+            "Rejected for another reason"
+        );
+        let unreadable = Expectation::Reject(Err("sample.json: bad".to_owned()));
+        assert_eq!(
+            judge(overflow, 1, &unreadable).outcome,
+            "Rejected for another reason"
+        );
+        // A crash is not a normal rejection, even when its text matches.
+        assert_eq!(
+            judge(overflow, 101, &pinned).outcome,
+            "Rejected for another reason"
+        );
+    }
+
+    #[test]
+    fn expectations_come_from_the_programs_own_files() {
+        let root = crate::repo_root().unwrap();
+        let twin = "samples/cli/facts/abi_multi_arg_spill/invalid_call_result/main.omg";
+        let Expectation::Reject(Ok(project)) = expectation(&root, twin) else {
+            panic!("{twin} pins its refusal in sample.json");
+        };
+        assert_eq!(project.rejection, ["may overflow `u64`"]);
+        let positive = "samples/cli/facts/abi_multi_arg_spill/call_result/main.omg";
+        assert!(matches!(expectation(&root, positive), Expectation::Check));
+        let fail = "tests/fixtures/fail/arithmetic/exact_divisor_unproven/main.omg";
+        let Expectation::Reject(Ok(project)) = expectation(&root, fail) else {
+            panic!("{fail} pins its refusal in expected.txt");
+        };
+        assert!(!project.rejection.is_empty());
     }
 
     #[test]

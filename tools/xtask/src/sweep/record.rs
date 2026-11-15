@@ -13,7 +13,7 @@
 //! fingerprint of the whole selection, so `merge` can refuse shards from
 //! different runs and say exactly which shard or program is missing.
 
-use super::{Row, expects_rejection};
+use super::Row;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
@@ -137,6 +137,7 @@ const LABELS: &[&str] = &[
     "Checks",
     "Blocked",
     "Rejected as expected",
+    "Rejected for another reason",
     "Accepted a wrong program",
     "Build program",
     "Package roots",
@@ -162,7 +163,7 @@ pub(crate) fn row_json(row: &Row) -> serde_json::Value {
         "stage": row.stage,
         "cause": row.cause,
         "detail": row.detail,
-        "expect": if expects_rejection(&row.program) { "reject" } else { "accept" },
+        "expect": if row.reject { "reject" } else { "accept" },
     })
 }
 
@@ -191,6 +192,7 @@ pub(crate) fn row_from_json(value: &serde_json::Value) -> Result<Row, String> {
         stage: known("stage")?,
         cause: text("cause")?.to_owned(),
         detail: text("detail")?.to_owned(),
+        reject: text("expect")? == "reject",
         program,
     })
 }
