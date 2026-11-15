@@ -42,13 +42,15 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 273 combines explicit
+Marker 255 introduced term tables. Current marker 278 combines explicit
 structural qualification changes and their issuer routes with normalized
 service contracts, selected provider coordinates,
 entry source commitments, sealed native execution meanings, typed dynamic-family
 tuple members, exact numeric intrinsic sign and width, and declared boundary
-result lifetime groups. The independent marker 272 layouts each lack part of
-this combined schema and reject before payload interpretation.
+result lifetime groups. Installation-bound service rows and absent versus
+explicit machine-parameter upper bounds remain distinct. The incompatible
+predecessor layouts, including both schemas marked 277, reject before payload
+interpretation.
 It also retains the independent operational ceilings and exact call formations
 introduced by marker 263. It retains the runtime callable contracts,
 descriptors and synchronous-entry rows
@@ -998,9 +1000,10 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 
 ## Machine rows
 
-Marker 273 combines these public-call and observation records with explicit
-structural qualification changes, normalized service schemas, provider
-selections, entry commitments and the complete callable catalogs. Marker 266's float-conversion integer carriers remain intact.
+Current marker 278 combines these public-call and observation records with
+explicit structural qualification changes, normalized service schemas, provider
+selections, entry commitments, complete callable catalogs and installation-bound
+service rows. Marker 266's float-conversion integer carriers remain intact.
 Every earlier format rejects before its payload is interpreted.
 
 Marker 265 distinguishes entry field observations (scalar tags 42–44) from
@@ -1066,8 +1069,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 277 + `u16` vocabulary
-marker 137 + a Boolean default-entry presence flag, followed by the entry
+Module bytes are `PSITERM\0` + `u16` format marker 278 + `u16` vocabulary
+marker 138 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
@@ -1529,6 +1532,14 @@ including 275, reject before table decoding. The native terminal-input record
 uses `OMGNTI31`; `OMGNTI30` is retired. The mathematical certificate envelope
 and proof-system marker remain unchanged because this adds no proof rule.
 
+One predecessor marked 277 added whether a boundary requirement's service
+row is installation-bound; the combined marker 278 retains that distinction. A Boolean after its fixed service reach distinguishes
+an abstract selected row from an ordinary pinned requirement ceiling, including
+when either is empty. An installation-bound requirement has no fixed service
+contribution; its published ceiling remains the selected row's finite upper
+bound. Root installation dependencies must name such requirements. Earlier
+semantic formats reject before table decoding.
+
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
 parameter-type identity indices; `u32` callable and result-type identity indices;
@@ -1790,7 +1801,13 @@ when present, by the call application.
 | 0 | Type | argument string |
 | 1 | Const | argument string |
 | 2 | Proposition | argument string |
-| 3 | Machine | machine binding |
+| 3 | Machine with an authored reach bound | machine binding |
+| 4 | Machine with open reach | machine binding without its upper-bound service ceiling |
+
+Tag 3 encodes an explicit empty bound as a zero-length service row. Tag 4
+defers to the selected callable's published reach. The template commitment
+binds the authored bound at each machine binder position, including whether
+the bound was omitted and the exact service identities of a finite bound.
 
 <!-- reach-argument-tags -->
 | Tag | Reach argument | Fields after the tag |
@@ -1898,17 +1915,21 @@ producer state and rederives every ordering rule.
 | concrete root service reach | counted service ids |
 | installation reach dependency | requirement identity string + counted service-id upper bound |
 
-Semantic format marker 277 retains the structural qualification change table
+Semantic format marker 278 retains the structural qualification change table
 after the structural domains. Each row is one explicit `value as +D` or
 `value as -D` on a structural value: the successor edge and structural argument
 ordinal that carry it, the source place, and the fresh destination block
 parameter whose declared whole-value domains differ from the source's. Rows are
 strictly ordered by machine, edge and ordinal; each row's establishments are
 strictly ordered by domain and name only domains the change adds that have
-issuer routes. Marker 277 combines these rows and complete callable contracts with marker
-276's numeric clauses and marker 273's public result-lifetime groups. Vocabulary
-marker 137 describes that combined schema. Earlier layouts, including the
-independent marker 273 schemas, reject before their payload is interpreted.
+issuer routes. Marker 278 combines these rows and complete callable contracts
+with marker 276's numeric clauses, marker 273's public result-lifetime groups,
+installation-bound service rows and optional machine-parameter upper bounds.
+An absent machine upper bound differs from an explicit empty bound. Vocabulary
+marker 138 describes this combined schema. Both incompatible predecessor schemas
+marked 277 and every earlier semantic format reject before payload interpretation.
+The `OMGFCV\0\0` fixed-view recovery envelope uses version 105 for this semantic
+vocabulary; versions 103 and 104 reject at the recovery header.
 
 Storage declarations and identity-only referents share one type-id namespace.
 Their ids and canonical identities are disjoint, and each roster is strictly
@@ -2177,7 +2198,7 @@ requires a format change; display spelling does not select a provider.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + result-reference regions + optional declared result-lifetime groups + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling + published synchronous entries |
+| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + result-reference regions + optional declared result-lifetime groups + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + `bool` installation-bound service reach + optional owning service id + published service ceiling + published synchronous entries |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
@@ -2895,14 +2916,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (137). A receiver rejects an unknown magic or stale marker
+vocabulary marker (138). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 277 | yes |
+| semantic module | `PSITERM\0` | 278 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

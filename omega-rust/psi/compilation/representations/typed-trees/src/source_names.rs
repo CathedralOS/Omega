@@ -41,13 +41,6 @@ pub fn declared_receiver_type_reference(
                 .find(|owned| owned.symbol == receiver)
                 .map(|owned| owned.type_reference)
         })
-        .or_else(|| {
-            let data = program.attached_data_definition(machine)?;
-            program.data_members(data).iter().find_map(|member| {
-                let field = member.as_field()?;
-                (field.symbol == receiver).then_some(field.type_reference)
-            })
-        })
 }
 
 pub fn receiver_member_chain(
@@ -136,21 +129,33 @@ fn value_root_is_known(
     {
         return true;
     }
-    let (parameters, _) =
-        program.machine_type_reference_scope(machine, |left, right| left.name == right.name);
+    // Only declaration binders belong to this lexical scope. A data carrier
+    // supplies no implicit receiver or attached field namespace.
+    let mut parameters = program.machine_type_parameters(machine).to_vec();
+    let mut owner = program.declaration_scope_parent(machine.symbol);
+    let mut visited = Vec::new();
+    while owner.is_valid() && !visited.contains(&owner) {
+        visited.push(owner);
+        let enclosing = program
+            .machine_declaration_for_lexical_scope(owner)
+            .map(|declaration| program.machine_type_parameters(declaration))
+            .or_else(|| {
+                program
+                    .conformance_by_symbol(owner)
+                    .map(|declaration| program.conformance_type_parameters(declaration))
+            });
+        for parameter in enclosing.into_iter().flatten() {
+            if !parameters.iter().any(|inner| inner.name == parameter.name) {
+                parameters.push(parameter.clone());
+            }
+        }
+        owner = program.declaration_scope_parent(owner);
+    }
     if parameters
         .iter()
         .filter(|parameter| parameter.symbol == root && parameter.kind.is_const_or_value())
         .count()
         == 1
-    {
-        return true;
-    }
-    if let Some(data) = program.attached_data_definition(machine)
-        && program
-            .data_type_parameters(data)
-            .iter()
-            .any(|parameter| parameter.symbol == root && parameter.kind.is_const_or_value())
     {
         return true;
     }

@@ -6,6 +6,9 @@
 
 use super::*;
 
+const UNSUPPORTED_NARROWING: &str =
+    "expression cast whose exact carrier conversion is not supported";
+
 /// Each helper narrows a float with an `as` cast, which the reader refuses.
 /// The entry calls all three so the grouped reader encounters every body.
 const THREE_HELPERS: &str = r#"
@@ -61,7 +64,7 @@ fn every_refused_body_is_its_own_verdict() {
     assert_eq!(refused.len(), 3, "{refused:#?}");
     for (detail, helper) in refused.iter().zip(["first", "second", "third"]) {
         assert!(
-            detail.contains("expression cast between carriers that are not integers")
+            detail.contains(UNSUPPORTED_NARROWING)
                 && detail.ends_with(&format!("while reading the body of `{helper}`")),
             "{detail}"
         );
@@ -148,9 +151,7 @@ fn a_direct_reading_still_refuses_at_the_first() {
     )
     .unwrap_err();
     assert!(
-        refused
-            .detail
-            .contains("expression cast between carriers that are not integers")
+        refused.detail.contains(UNSUPPORTED_NARROWING)
             && refused
                 .detail
                 .ends_with("while reading the body of `first`"),

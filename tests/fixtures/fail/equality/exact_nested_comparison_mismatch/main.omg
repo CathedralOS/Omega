@@ -1,0 +1,26 @@
+use points;
+trait Equatable<T> {
+    machine equals(left: T, right: T) -> bool;
+}
+ForeignEquality satisfies Equatable<points::Point> { }
+data Position = points::Point;
+data Point [copy] { nested: Position; }
+data LocalPoint = Point;
+PointEquality satisfies Equatable<Point> { }
+data Mark [copy] { value: i32; }
+MarkEquality satisfies Equatable<Mark> {
+    machine equals(left: Mark, right: Mark) -> bool { false }
+}
+data Marked [copy] { mark: Mark; }
+MarkedEquality satisfies Equatable<Marked> { }
+machine main() crashes Trap {
+    let a: LocalPoint = Point { nested: points::Point { x: 17 } };
+    let b: LocalPoint = Point { nested: points::Point { x: 17 } };
+    let c: Position = points::Point { x: 19 };
+    let selected: bool = PointEquality::equals(a, b);
+    let marked: Marked = Marked { mark: Mark { value: 17 } };
+    let authored: bool = MarkedEquality::equals(marked, marked);
+    transition selected && a != c && !authored { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

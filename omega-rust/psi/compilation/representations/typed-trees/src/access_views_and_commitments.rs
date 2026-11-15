@@ -32,7 +32,7 @@ pub(crate) mod access_views {
     pub(crate) mod lifecycle_execution {
         use super::AccessLifecycleOperation;
         use crate::TypedTrees;
-        use crate::types::TypeReferenceHandle;
+
         use diagnostics::Diagnostic;
         use language_semantics::MachineSupplyMode;
 
@@ -63,101 +63,6 @@ pub(crate) mod access_views {
         }
 
         impl AccessExecutionDeclaration {
-            pub fn backing_outcomes(&self) -> &'static [AccessBackingOutcome] {
-                use AccessBackingOutcome as Outcome;
-                use AccessBackingTransfer as Transfer;
-                match (self.operation, self.content) {
-                    (AccessLifecycleOperation::Initialize, AccessContentShape::Run) => &[
-                        Outcome {
-                            case: "Ready",
-                            transfers: &[Transfer {
-                                parameter: 0,
-                                input: "",
-                                output: "view.storage",
-                            }],
-                        },
-                        Outcome {
-                            case: "Rejected",
-                            transfers: &[Transfer {
-                                parameter: 0,
-                                input: "",
-                                output: "returned.source",
-                            }],
-                        },
-                    ],
-                    (AccessLifecycleOperation::Initialize, AccessContentShape::Resident) => &[
-                        Outcome {
-                            case: "Ready",
-                            transfers: &[Transfer {
-                                parameter: 0,
-                                input: "",
-                                output: "view",
-                            }],
-                        },
-                        Outcome {
-                            case: "Rejected",
-                            transfers: &[Transfer {
-                                parameter: 0,
-                                input: "",
-                                output: "returned.source",
-                            }],
-                        },
-                    ],
-                    (AccessLifecycleOperation::MoveOut, AccessContentShape::Run) => &[Outcome {
-                        case: "Moved",
-                        transfers: &[Transfer {
-                            parameter: 0,
-                            input: "storage",
-                            output: "storage",
-                        }],
-                    }],
-                    (AccessLifecycleOperation::MoveOut, AccessContentShape::Resident) => {
-                        &[Outcome {
-                            case: "Moved",
-                            transfers: &[Transfer {
-                                parameter: 0,
-                                input: "",
-                                output: "storage",
-                            }],
-                        }]
-                    }
-                    (AccessLifecycleOperation::Relocate, AccessContentShape::Run) => &[
-                        Outcome {
-                            case: "Ready",
-                            transfers: &[
-                                Transfer {
-                                    parameter: 1,
-                                    input: "",
-                                    output: "view.run.storage",
-                                },
-                                Transfer {
-                                    parameter: 0,
-                                    input: "storage",
-                                    output: "view.vacated",
-                                },
-                            ],
-                        },
-                        Outcome {
-                            case: "Rejected",
-                            transfers: &[
-                                Transfer {
-                                    parameter: 0,
-                                    input: "storage",
-                                    output: "returned.source.storage",
-                                },
-                                Transfer {
-                                    parameter: 1,
-                                    input: "",
-                                    output: "returned.custody",
-                                },
-                            ],
-                        },
-                    ],
-                    (AccessLifecycleOperation::View, _)
-                    | (AccessLifecycleOperation::Relocate, AccessContentShape::Resident) => &[],
-                }
-            }
-
             pub const fn content(&self) -> AccessContentShape {
                 self.content
             }
@@ -178,191 +83,6 @@ pub(crate) mod access_views {
                 self.template
             }
 
-            pub fn source_invocation_bindings(
-                &self,
-                program: &TypedTrees,
-                owner: symbols::SymbolHandle,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-            ) -> Result<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>, Diagnostic> {
-                self.invocation_application(program, owner, application)?;
-                let declaration = program.machine(self.template).ok_or_else(|| {
-                    Diagnostic::error(
-                        "placement source contract lost its exact template declaration",
-                    )
-                })?;
-                self.invocation_bindings(
-                    program,
-                    application,
-                    program.machine_type_parameters(declaration),
-                )
-            }
-
-            fn invocation_application<'program>(
-                &self,
-                program: &'program TypedTrees,
-                owner: symbols::SymbolHandle,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-            ) -> Result<&'program crate::static_applications::StaticMachineApplication, Diagnostic>
-            {
-                if !program
-                    .expression_table
-                    .static_machine_application_is_valid(application)
-                {
-                    return Err(Diagnostic::error(
-                        "placement execution lost its retained invocation application",
-                    ));
-                }
-                let source = program.static_machine_application(application);
-                if source.lexical_owner != owner || source.binding_declaration != self.template {
-                    return Err(Diagnostic::error(
-                        "placement execution application does not belong to this caller and declaration",
-                    ));
-                }
-                Ok(source)
-            }
-
-            fn invocation_bindings(
-                &self,
-                program: &TypedTrees,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-                parameters: &[crate::data::TypeParameter],
-            ) -> Result<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>, Diagnostic> {
-                if parameters.len() != self.type_parameter_count()? {
-                    return Err(Diagnostic::error(
-                        "placement execution lost its complete type and supply-role binders",
-                    ));
-                }
-                let bindings = program.static_machine_application_bindings(application);
-                if bindings.len() != parameters.len() {
-                    return Err(Diagnostic::error(
-                        "placement execution lost its complete invocation-owned type operand roster",
-                    ));
-                }
-                let operand = |parameter| {
-                    let mut matching = bindings
-                        .iter()
-                        .filter(|binding| binding.parameter == parameter);
-                    match (matching.next(), matching.next()) {
-                        (
-                            Some(crate::static_applications::StaticMachineBinding {
-                                value:
-                                    crate::static_applications::StaticMachineBindingValue::Type(
-                                        reference,
-                                    ),
-                                ..
-                            }),
-                            None,
-                        ) if program
-                            .type_reference_table
-                            .contains_type_reference(*reference) =>
-                        {
-                            Ok((parameter, *reference))
-                        }
-                        _ => Err(Diagnostic::error(
-                            "placement execution lost an exact invocation-owned type operand",
-                        )),
-                    }
-                };
-                parameters
-                    .iter()
-                    .map(|parameter| operand(parameter.symbol))
-                    .collect()
-            }
-
-            pub fn invocation_operands(
-                &self,
-                program: &TypedTrees,
-                owner: symbols::SymbolHandle,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-            ) -> Result<(TypeReferenceHandle, TypeReferenceHandle), Diagnostic> {
-                self.invocation_application(program, owner, application)?;
-                let specialization = program
-            .machine_specialization(self.machine)
-            .ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "placement execution `{}` in caller `{}` lost its closed machine application",
-                    program.symbols.name(self.machine),
-                    program.symbols.name(owner),
-                ))
-            })?;
-                let bindings = self.invocation_bindings(
-                    program,
-                    application,
-                    program
-                        .data_type_parameters
-                        .span_or_empty(specialization.template_parameters),
-                )?;
-                // A full View is not a policy/schema pair. Its selected
-                // domain plan must be evaluated before it can supply either
-                // interpretation; prototype metadata cannot replace that join.
-                if self.operation == AccessLifecycleOperation::View {
-                    return Err(Diagnostic::error(
-                        "placement View requires its evaluated qualified-domain interpretation",
-                    ));
-                }
-                if self.content == AccessContentShape::Resident {
-                    self.storage_semantic_type(program, bindings[2].1, bindings[1].1)?;
-                }
-                Ok((bindings[0].1, bindings[1].1))
-            }
-
-            /// Keep the independent storage selection alongside the owned
-            /// semantic value. This checks correspondence only; it supplies
-            /// no evaluated layout, policy, profile or resident claim.
-            pub fn invocation_storage(
-                &self,
-                program: &TypedTrees,
-                owner: symbols::SymbolHandle,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-            ) -> Result<TypeReferenceHandle, Diagnostic> {
-                if self.content != AccessContentShape::Resident
-                    || self.operation == AccessLifecycleOperation::View
-                {
-                    return Err(Diagnostic::error(
-                        "placement operation has no independent owned-value storage argument",
-                    ));
-                }
-                let bindings = self.source_invocation_bindings(program, owner, application)?;
-                let storage = bindings[2].1;
-                self.storage_semantic_type(program, storage, bindings[1].1)?;
-                Ok(storage)
-            }
-
-            fn storage_semantic_type(
-                &self,
-                program: &TypedTrees,
-                storage: TypeReferenceHandle,
-                semantic: TypeReferenceHandle,
-            ) -> Result<(), Diagnostic> {
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(storage)
-                    || !program
-                        .type_reference_table
-                        .contains_type_reference(semantic)
-                {
-                    return Err(Diagnostic::error(
-                        "placement storage lost its retained storage or semantic operand",
-                    ));
-                }
-                let selected = program.layout_storage_arguments(storage).ok_or_else(|| {
-                    Diagnostic::error(
-                        "placement storage lost its exact core LayoutStorage application",
-                    )
-                })?;
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(selected.semantic_type)
-                    || program.normalized_type_identity(selected.semantic_type)
-                        != program.normalized_type_identity(semantic)
-                {
-                    return Err(Diagnostic::error(
-                        "placement storage denotes a different semantic value type",
-                    ));
-                }
-                Ok(())
-            }
-
             fn type_parameter_count(&self) -> Result<usize, Diagnostic> {
                 match (self.content, self.operation) {
                     (AccessContentShape::Resident, AccessLifecycleOperation::View) => Ok(2),
@@ -377,58 +97,6 @@ pub(crate) mod access_views {
                     (AccessContentShape::Run, AccessLifecycleOperation::Relocate) => Ok(4),
                     _ => Err(Diagnostic::error(
                         "placement operation has no declared content/type-argument correspondence",
-                    )),
-                }
-            }
-
-            pub fn profile_role(
-                &self,
-                program: &TypedTrees,
-                role_position: usize,
-            ) -> Result<TypeReferenceHandle, Diagnostic> {
-                let specialization =
-                    program
-                        .machine_specialization(self.machine)
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                "placement execution lost its closed supply-role application",
-                            )
-                        })?;
-                if !specialization.binding_application.is_valid() {
-                    return Err(Diagnostic::error(
-                        "placement execution lost its supply-role binding application",
-                    ));
-                }
-                let parameters = program
-                    .data_type_parameters
-                    .span_or_empty(specialization.template_parameters);
-                let first_role = match (self.content, self.operation) {
-                    (AccessContentShape::Resident, AccessLifecycleOperation::View) => 1,
-                    (AccessContentShape::Resident, _) => 3,
-                    (AccessContentShape::Run, _) => 2,
-                };
-                let expected = self.type_parameter_count()?;
-                if parameters.len() != expected || role_position >= expected - first_role {
-                    return Err(Diagnostic::error(
-                        "placement execution lost its original supply-role binder",
-                    ));
-                }
-                let role = &parameters[first_role + role_position];
-                let mut bindings = program
-                    .static_machine_application_bindings(specialization.binding_application)
-                    .iter()
-                    .filter(|binding| binding.parameter == role.symbol);
-                match (bindings.next(), bindings.next()) {
-                    (
-                        Some(crate::static_applications::StaticMachineBinding {
-                            value:
-                                crate::static_applications::StaticMachineBindingValue::Type(reference),
-                            ..
-                        }),
-                        None,
-                    ) => Ok(*reference),
-                    _ => Err(Diagnostic::error(
-                        "placement execution lost its exact closed supply-role operand",
                     )),
                 }
             }
@@ -1237,22 +905,6 @@ pub(crate) mod access_views {
         pub state_symbol: symbols::SymbolHandle,
     }
 
-    pub(crate) fn named_type_reference_through_shells(
-        table: &crate::types::TypeReferenceTable,
-        handle: TypeReferenceHandle,
-    ) -> Option<TypeReferenceHandle> {
-        match table.type_reference(handle) {
-            crate::types::TypeReferenceNode::Named { .. } => Some(handle),
-            crate::types::TypeReferenceNode::Reference { referee, .. } => {
-                named_type_reference_through_shells(table, *referee)
-            }
-            crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                named_type_reference_through_shells(table, *base_type)
-            }
-            _ => None,
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct PlanLaidLayout {
         /// The original storage application retains the semantic type and the
@@ -1327,13 +979,6 @@ pub(crate) mod access_views {
     }
 
     impl PlanLaidLayout {
-        pub fn invariant_geometry(&self) -> Option<&PlanLaidGeometry> {
-            match &self.realizations {
-                PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-                PlanLaidRealizations::TargetInputs(_) => None,
-            }
-        }
-
         pub fn geometry_for_target<'a>(
             &'a self,
             typed: &'a crate::TypedTrees,
@@ -1666,52 +1311,6 @@ pub mod constant_recipes {
                         })
                 })
             }
-
-            pub fn constant_evaluation_for_expression(
-                &self,
-                expression: ExpressionHandle,
-                owner: SymbolHandle,
-            ) -> Result<Option<ConstantEvaluationEntry>, &'static str> {
-                let mut found = None;
-                for declaration in self.const_declarations() {
-                    if declaration.materialized_initializer == expression
-                        && (!owner.is_valid() || owner == declaration.symbol)
-                        && self.tables.machines.is_valid(declaration.evaluation_entry)
-                    {
-                        let entry = self
-                            .tables
-                            .machines
-                            .get(declaration.evaluation_entry)
-                            .symbol;
-                        found = self.constant_evaluation_entry(entry);
-                    }
-                }
-                for (_, recipe) in self.constant_recipes.iter() {
-                    if recipe.position.expression() != expression {
-                        continue;
-                    }
-                    for context in self
-                        .constant_expression_contexts
-                        .span_or_empty(recipe.contexts)
-                    {
-                        if !context.evaluation_entry.is_valid()
-                            || self.machine_by_symbol(context.evaluation_entry).is_none()
-                            || (owner.is_valid() && context.owner != owner)
-                        {
-                            continue;
-                        }
-                        if found.is_some_and(|previous: ConstantEvaluationEntry| {
-                            previous.entry != context.evaluation_entry
-                        }) {
-                            return Err(
-                                "constant expression has multiple evaluation contexts; its lexical owner is required",
-                            );
-                        }
-                        found = self.constant_evaluation_entry(context.evaluation_entry);
-                    }
-                }
-                Ok(found)
-            }
         }
 
         pub fn create_evaluation_entry(
@@ -1882,13 +1481,6 @@ pub mod constant_recipes {
                     .and_then(BigInt::to_u64),
             }
         }
-
-        pub fn admits_fixed_index(self, index: u64) -> bool {
-            match self {
-                Self::Literal(length) => index < length,
-                Self::Recipe(_) => true,
-            }
-        }
     }
 
     impl crate::TypedTrees {
@@ -1963,18 +1555,6 @@ pub mod constant_recipes {
                 .unwrap_or_default()
         }
 
-        pub fn is_deferred_contract_invocation(&self, expression: ExpressionHandle) -> bool {
-            self.constant_recipes.iter().any(|(_, recipe)| {
-                matches!(
-                    recipe.position,
-                    RetainedConstantPosition::ContractExpression(_)
-                ) && self
-                    .expression_table
-                    .expression_handles(recipe.invocations)
-                    .contains(&expression)
-            })
-        }
-
         pub fn constant_recipe_for_const_application(
             &self,
             site: TypeReferenceHandle,
@@ -1990,18 +1570,6 @@ pub mod constant_recipes {
                 })
                 .map(|(handle, _)| handle)
                 .unwrap_or_default()
-        }
-
-        pub fn constant_recipe_root_for_const_application(
-            &self,
-            expression: ExpressionHandle,
-        ) -> bool {
-            self.constant_recipes.iter().any(|(_, recipe)| {
-                matches!(
-                    recipe.position,
-                    RetainedConstantPosition::ConstApplication { root, .. } if root == expression
-                )
-            })
         }
 
         pub fn closed_constant_recipe_value(
@@ -2036,34 +1604,6 @@ pub mod constant_recipes {
                     )
                     .and_then(BigInt::to_u64)
                     .and_then(|value| usize::try_from(value).ok()),
-            }
-        }
-
-        pub fn retain_symbolic_constant_recipes(&mut self) {
-            let folded: Vec<ConstantRecipeHandle> = self
-                .constant_recipes
-                .iter()
-                .filter(|(_, recipe)| match recipe.position {
-                    RetainedConstantPosition::None => false,
-                    RetainedConstantPosition::ArrayLength(type_reference) => !matches!(
-                        self.type_reference_table.type_reference(type_reference),
-                        TypeReferenceNode::FixedArray {
-                            length: FixedArrayLength::ConstCall { .. },
-                            ..
-                        }
-                    ),
-                    RetainedConstantPosition::ContractExpression(expression) => {
-                        !self.pending_const_range_endpoints.contains(&expression)
-                    }
-                    RetainedConstantPosition::ConstApplication { site, .. } => !matches!(
-                        self.type_reference_table.type_reference(site),
-                        TypeReferenceNode::ConstExpression(_)
-                    ),
-                })
-                .map(|(handle, _)| handle)
-                .collect();
-            for handle in folded {
-                self.constant_recipes.free(handle);
             }
         }
     }
@@ -2145,7 +1685,7 @@ pub mod constant_recipes {
 
 pub(crate) mod wire_schema_queries {
     use crate::TypedTrees;
-    use crate::{types, wire};
+    use crate::wire;
     use arena::HandleSpan;
 
     impl TypedTrees {
@@ -2179,248 +1719,6 @@ pub(crate) mod wire_schema_queries {
 
         pub fn wire_members(&self, span: HandleSpan<wire::WireMember>) -> &[wire::WireMember] {
             self.tables.wire_members.span_or_empty(span)
-        }
-
-        pub fn relevant_wire_fields<'a>(
-            &'a self,
-            span: HandleSpan<wire::WireMember>,
-        ) -> impl Iterator<Item = &'a wire::WireField> + 'a {
-            self.wire_members(span).iter().filter_map(|member| {
-                let wire::WireMember::Field(field) = member else {
-                    return None;
-                };
-                (!field.relevance.is_erased()).then_some(field)
-            })
-        }
-
-        pub fn wire_schema_current_era(&self, schema: &wire::WireSchema) -> u64 {
-            self.wire_members(schema.members)
-                .iter()
-                .filter(|member| matches!(member, wire::WireMember::Version(_)))
-                .count() as u64
-        }
-
-        pub fn wire_field_nested_schema(
-            &self,
-            field: &wire::WireField,
-        ) -> Option<&wire::WireSchema> {
-            let name = self.named_type_reference_name(field.type_reference)?;
-            self.wire_schemas()
-                .iter()
-                .find(|schema| schema.name.as_str() == name)
-        }
-
-        pub fn is_core_fixed_vec(&self, symbol: symbols::SymbolHandle) -> bool {
-            if !symbol.is_valid() {
-                return false;
-            }
-            let generic = self
-                .data_definition_by_symbol(symbol)
-                .and_then(|data| data.generic_instance)
-                .and_then(
-                    |instance| match self.type_reference_table.type_reference(instance) {
-                        types::TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
-                        _ => None,
-                    },
-                )
-                .unwrap_or(symbol);
-            let declaration = self.symbols.authored_origin(generic);
-            self.symbols.core_vocabulary(declaration)
-                == Some(language_core::core_vocabulary::CoreVocabulary::FixedVec)
-        }
-
-        fn named_type_reference_name(
-            &self,
-            type_reference: types::TypeReferenceHandle,
-        ) -> Option<&str> {
-            if !type_reference.is_valid() {
-                return None;
-            }
-            match self.type_reference_table.type_reference(type_reference) {
-                types::TypeReferenceNode::Reference { referee, .. } => {
-                    self.named_type_reference_name(*referee)
-                }
-                types::TypeReferenceNode::Constrained { base_type, .. } => {
-                    self.named_type_reference_name(*base_type)
-                }
-                types::TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
-                _ => None,
-            }
-        }
-
-        pub fn wire_field_fixed_array(
-            &self,
-            field: &wire::WireField,
-        ) -> Option<(types::TypeReferenceHandle, usize)> {
-            let mut handle = field.type_reference;
-            loop {
-                if !handle.is_valid() {
-                    return None;
-                }
-                match self.type_reference_table.type_reference(handle) {
-                    types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
-                    types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
-                    types::TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: types::FixedArrayLength::Literal(length),
-                    } => return Some((*element_type, *length)),
-                    _ => return None,
-                }
-            }
-        }
-
-        pub fn wire_field_is_unbounded_slice(&self, field: &wire::WireField) -> bool {
-            let mut handle = field.type_reference;
-            loop {
-                if !handle.is_valid() {
-                    return false;
-                }
-                match self.type_reference_table.type_reference(handle) {
-                    types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
-                    types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
-                    types::TypeReferenceNode::Slice { .. } => return true,
-                    _ => return false,
-                }
-            }
-        }
-
-        pub fn wire_field_slice_element(
-            &self,
-            field: &wire::WireField,
-        ) -> Option<types::TypeReferenceHandle> {
-            let mut handle = field.type_reference;
-            loop {
-                if !handle.is_valid() {
-                    return None;
-                }
-                match self.type_reference_table.type_reference(handle) {
-                    types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
-                    types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
-                    types::TypeReferenceNode::Slice { element_type } => return Some(*element_type),
-                    _ => return None,
-                }
-            }
-        }
-
-        pub fn wire_field_borrowed_scalar_slice_encoding(
-            &self,
-            field: &wire::WireField,
-        ) -> Option<wire::WireBorrowedScalarSliceEncoding> {
-            let element = self.wire_field_slice_element(field)?;
-            let element = self
-                .primitive_type_reference(element)
-                .and_then(wire::WireScalarEncoding::for_primitive)?;
-            Some(wire::WireBorrowedScalarSliceEncoding { element })
-        }
-
-        pub fn wire_field_repeated_carrier(
-            &self,
-            field: &wire::WireField,
-        ) -> Option<(wire::WireRepeatedCarrier, types::TypeReferenceHandle, usize)> {
-            if let Some((element, count)) = self.wire_field_fixed_array(field) {
-                return Some((wire::WireRepeatedCarrier::FixedArray, element, count));
-            }
-
-            let mut handle = field.type_reference;
-            loop {
-                match self.type_reference_table.type_reference(handle) {
-                    types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
-                    types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
-                    types::TypeReferenceNode::Generic {
-                        base_symbol,
-                        arguments,
-                        ..
-                    } if self.is_core_fixed_vec(*base_symbol) => {
-                        let arguments =
-                            self.type_reference_table.type_reference_handles(*arguments);
-                        let [element, count] = arguments else {
-                            return None;
-                        };
-                        let count = match self.type_reference_table.type_reference(*count) {
-                            types::TypeReferenceNode::Named { name, .. } => {
-                                name.as_str().parse::<usize>().ok()?
-                            }
-                            _ => return None,
-                        };
-                        return Some((wire::WireRepeatedCarrier::FixedVec, *element, count));
-                    }
-                    _ => break,
-                }
-            }
-
-            let types::TypeReferenceNode::Named { symbol, .. } =
-                self.type_reference_table.type_reference(handle)
-            else {
-                return None;
-            };
-            if !self.is_core_fixed_vec(*symbol) {
-                return None;
-            }
-            let data = self.data_definition_by_symbol(*symbol)?;
-            let mut items = None;
-            let mut has_u64_length = false;
-            for member in self.data_members(data) {
-                let crate::data::DataMember::Field(member) = member else {
-                    continue;
-                };
-                match member.name.as_str() {
-                    "items" => {
-                        let mut synthetic = field.clone();
-                        synthetic.type_reference = member.type_reference;
-                        items = self.wire_field_fixed_array(&synthetic);
-                    }
-                    "length" => {
-                        has_u64_length = matches!(
-                            self.primitive_type_reference(member.type_reference),
-                            Some(types::PrimitiveType::U64)
-                        );
-                    }
-                    _ => {}
-                }
-            }
-            let (element, count) = items?;
-            has_u64_length.then_some((wire::WireRepeatedCarrier::FixedVec, element, count))
-        }
-
-        pub fn wire_field_repeated_encoding(
-            &self,
-            field: &wire::WireField,
-        ) -> Option<wire::WireRepeatedEncoding> {
-            let (carrier, element_type, max_count) = self.wire_field_repeated_carrier(field)?;
-            let element = self
-                .primitive_type_reference(element_type)
-                .and_then(wire::WireScalarEncoding::for_primitive)?;
-            Some(wire::WireRepeatedEncoding {
-                carrier,
-                element,
-                max_count,
-            })
-        }
-
-        pub fn wire_schema_scalar_body_worst_case(
-            &self,
-            schema: &wire::WireSchema,
-        ) -> Option<usize> {
-            let mut worst_case_bytes = 0usize;
-            for member in self.wire_members(schema.members) {
-                let wire::WireMember::Field(field) = member else {
-                    continue;
-                };
-                if field.relevance.is_erased() {
-                    continue;
-                }
-                let scalar = self
-                    .primitive_type_reference(field.type_reference)
-                    .and_then(wire::WireScalarEncoding::for_primitive)?;
-                worst_case_bytes +=
-                    wire::wire_varint_bytes(field.number).len() + scalar.max_varint_length();
-            }
-            Some(worst_case_bytes)
-        }
-
-        pub fn wire_nested_field_worst_case(&self, child: &wire::WireSchema) -> Option<usize> {
-            let body = self.wire_schema_scalar_body_worst_case(child)?;
-            Some(wire::wire_varint_bytes(body as u64).len() + body)
         }
     }
 }

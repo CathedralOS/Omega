@@ -715,15 +715,19 @@ pub(super) fn realize_target_supply_detailed(
         request.reached,
     )?;
     let primitive_schemas = crate::compiler_primitive_schemas(module)?;
-    for leaf in crate::direct_compiler_primitive_leaves(module, &primitive_schemas, request.target)
-        .map_err(|diagnostics| {
-            diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect::<Vec<_>>()
-                .join("; ")
-        })?
-    {
+    for leaf in crate::direct_compiler_primitive_leaves(
+        module,
+        &primitive_schemas,
+        request.target,
+        request.reached.iter().copied(),
+    )
+    .map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect::<Vec<_>>()
+            .join("; ")
+    })? {
         if !direct_boundary_leaves.iter().any(|known| {
             known.declaration_identity == leaf.declaration_identity
                 && known.callable_identity == leaf.callable_identity

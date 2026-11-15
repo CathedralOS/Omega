@@ -624,6 +624,7 @@ pub(crate) mod errors {
         CompletionReceiptMismatch,
         ProviderInstallationIdentityMismatch,
         FoldedConstantClosure(&'static str),
+        InstallationServiceReach(String),
         EntryResultObservation(&'static str),
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationEvaluation(String),

@@ -314,12 +314,6 @@ pub(crate) fn written_ceiling(
     if !written {
         return Ok(None);
     }
-    if machine.service_reach_is_installation_bound {
-        return Err(unavailable(
-            context,
-            "service reach remains bound to an installation",
-        ));
-    }
     crate::read::services::finite_reach(typed, context, machine.service_reach_row).map(Some)
 }
 

@@ -63,7 +63,23 @@ impl RealizedTargetSupply {
         module: &TerminalModule,
         roots: &[semantic_vocabulary::MachineId],
     ) -> Result<Self, String> {
-        for &root in roots {
+        let graph = terminal_installation::SynchronousCallGraph::new(module, None)?;
+        let mut demanded_roots = roots.to_vec();
+        for root in graph.scalar_evaluation_roots(roots, None)? {
+            match root {
+                terminal_psi::TargetMachineCallable::Machine(machine) => {
+                    demanded_roots.push(machine)
+                }
+                terminal_psi::TargetMachineCallable::Boundary(_) => {
+                    return Err(
+                        "boundary requirements require an explicit deployment target".into(),
+                    );
+                }
+            }
+        }
+        demanded_roots.sort_unstable();
+        demanded_roots.dedup();
+        for root in demanded_roots {
             if !terminal_semantics::callable_values::reached_boundary_calls(module, root, &[])?
                 .is_empty()
             {
@@ -190,15 +206,19 @@ impl RealizedTargetSupply {
             }
         }
         let primitive_schemas = crate::compiler_primitive_schemas(module)?;
-        let primitive_leaves =
-            crate::direct_compiler_primitive_leaves(module, &primitive_schemas, &input.target)
-                .map_err(|diagnostics| {
-                    diagnostics
-                        .into_iter()
-                        .map(|diagnostic| diagnostic.message)
-                        .collect::<Vec<_>>()
-                        .join("; ")
-                })?;
+        let primitive_leaves = crate::direct_compiler_primitive_leaves(
+            module,
+            &primitive_schemas,
+            &input.target,
+            input.reached.iter().copied(),
+        )
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?;
         for leaf in &input.direct_boundary_leaves {
             leaf.validate_calling_custody()?;
             if leaf.plan.target != input.target {

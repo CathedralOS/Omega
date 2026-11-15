@@ -341,7 +341,7 @@ pub(crate) mod proof_kernel {
             }
 
             pub const fn get(self) -> u16 {
-                6
+                7
             }
         }
 
@@ -510,6 +510,9 @@ pub(crate) mod proof_kernel {
             /// Compose nonempty positive IEEE order premises. Ordered truth
             /// excludes NaN; unordered complements are not order premises.
             IeeeFloatOrderChain(Vec<ProofNode>),
+            /// Normalize meaning equations from independently checked cited
+            /// equations, closed catalog evaluation and exact widening reversal.
+            FloatMeaningNormalization(Vec<ProofNode>),
         }
     }
     pub(crate) mod witnesses {

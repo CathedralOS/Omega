@@ -97,7 +97,11 @@ fn byte_domain_membership_survives_locals_formals_and_call_results() {
             terminal_codec::TerminalPublication::Portable,
         );
         let mut verdicts = crate::judge_compilation(prepared.program);
-        assert_eq!(verdicts.len(), 1);
+        assert_eq!(
+            verdicts.len(),
+            1,
+            "the requested build_entry compilation returned these complete verdicts: {verdicts:#?}",
+        );
         verdicts.remove(0)
     }
     let source = r#"

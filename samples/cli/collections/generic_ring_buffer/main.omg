@@ -33,13 +33,13 @@ data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {
     let mut ring: Ring;
     Console::write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
-    push(&mut ring, 20);
-    push(&mut ring, 30);
-    push(&mut ring, 40);
-    push(&mut ring, 50);
+    push(&mut ring, 20i32 as +Saturating);
+    push(&mut ring, 30i32 as +Saturating);
+    push(&mut ring, 40i32 as +Saturating);
+    push(&mut ring, 50i32 as +Saturating);
     let first: i32 in Saturating = pop(&mut ring);
-    push(&mut ring, 5);
-    push(&mut ring, 15);
+    push(&mut ring, 5i32 as +Saturating);
+    push(&mut ring, 15i32 as +Saturating);
     let second: i32 in Saturating = pop(&mut ring);
     let last: i32 in Saturating = pop(&mut ring);
     transition ring.size == 3 {

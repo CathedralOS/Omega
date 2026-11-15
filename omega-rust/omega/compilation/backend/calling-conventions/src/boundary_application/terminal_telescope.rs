@@ -358,6 +358,7 @@ mod tests {
                 program_local_root_introductions: vec![],
                 content_guarantees: vec![],
                 fixed_service_reach: vec![],
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: vec![],

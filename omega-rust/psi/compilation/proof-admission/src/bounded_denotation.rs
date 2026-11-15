@@ -7153,7 +7153,9 @@ mod elaboration {
                         }
                         Children::slice(children)
                     }
-                    IeeeFloatOrderChain(children) => Children::slice(children),
+                    IeeeFloatOrderChain(children) | FloatMeaningNormalization(children) => {
+                        Children::slice(children)
+                    }
                     ConjunctionElimination {
                         conjunction,
                         conjunct: _,
@@ -7722,6 +7724,21 @@ mod elaboration {
             operands: &mut walk::ChildEvidence<'_>,
         ) -> Result<TermHandle, BoundedDenotationError> {
             match &proof.rule {
+                ProofRule::FloatMeaningNormalization(premises) => {
+                    crate::check_float_meaning_normalization(
+                        &proof.conclusion,
+                        premises.iter().map(|premise| &premise.conclusion),
+                    )
+                    .map_err(|error| {
+                        certificate!(ProofError::FloatMeaningNormalization(Box::new(error)))
+                    })?;
+                    for premise in premises {
+                        let _ = operands.take(premise);
+                    }
+                    Err(BoundedDenotationError::Unsupported(
+                        "float meaning normalization in the mathematical core",
+                    ))
+                }
                 ProofRule::IeeeFloatOrderChain(premises) => {
                     crate::ieee_float_rules::check_chain(
                         &proof.conclusion,

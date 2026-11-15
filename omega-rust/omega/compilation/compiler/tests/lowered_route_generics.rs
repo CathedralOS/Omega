@@ -719,6 +719,179 @@ fn a_transition_into_a_copied_lexical_child_checks_the_original_body() {
     });
 }
 
+#[test]
+fn a_static_callable_specialization_keeps_its_exact_target_and_checks_the_binder() {
+    let _guard = lock_fixture_compilation();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main =
+                repository("tests/fixtures/run/generics/static_callable_specialization/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("callable source: {:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let artifact = accepted.closure().publish().unwrap().artifact;
+            let reloaded =
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .expect("independent readback of the checked callable receipt");
+            let module = reloaded.semantic_module();
+            let applications = module
+                .machines
+                .iter()
+                .filter_map(|machine| {
+                    let application = machine.closed_reach_application.as_ref()?;
+                    application
+                        .parameters()
+                        .any(|parameter| {
+                            matches!(parameter, terminal_psi::ClosedReachParameter::Machine(_))
+                        })
+                        .then_some((machine, application))
+                })
+                .map(|(machine, application)| {
+                    let [terminal_psi::ClosedReachParameter::Machine(binding)] =
+                        application.telescope.as_slice()
+                    else {
+                        panic!("one callable binder");
+                    };
+                    assert_eq!(binding.upper_bound, None);
+                    assert_eq!(application.dependencies, [0]);
+                    let [call] = application.calls.as_slice() else {
+                        panic!("one invocation through the binder");
+                    };
+                    let invocation = machine
+                        .module_invocations()
+                        .find(|invocation| invocation.site == call.site)
+                        .unwrap();
+                    assert_eq!(call.binder, 0);
+                    assert_eq!(invocation.static_reach_binding, Some(0));
+                    assert_eq!(binding.callee, Some(invocation.inputs.callee));
+                    (
+                        binding.selected_identity,
+                        application.specialization_commitment,
+                        application.template_identity,
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                applications.len(),
+                2,
+                "portable applications: {applications:?}"
+            );
+            assert_ne!(applications[0].0, applications[1].0);
+            assert_ne!(applications[0].1, applications[1].1);
+            assert_eq!(applications[0].2, applications[1].2);
+
+            let mut wrong_binder = module.clone();
+            let machine = wrong_binder
+                .machines
+                .iter_mut()
+                .find(|machine| {
+                    machine
+                        .closed_reach_application
+                        .as_ref()
+                        .is_some_and(|application| {
+                            application.specialization_commitment == applications[0].1
+                        })
+                })
+                .unwrap();
+            let operation = machine
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| operation.static_reach_binding == Some(0))
+                .unwrap();
+            operation.static_reach_binding = Some(1);
+            let bytes = terminal_codec::encode_module(&wrong_binder).unwrap();
+            assert_eq!(
+                terminal_codec::decode_module(&bytes).unwrap_err(),
+                terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "closed reach call differs from its invocation binder marker"
+                ),
+            );
+
+            let main =
+                repository("tests/fixtures/fail/generics/static_callable_precondition/main.omg");
+            let expected = std::fs::read_to_string(main.with_file_name("expected.txt")).unwrap();
+            let failure = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("an individual call's argument cannot justify a stronger binder contract");
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(expected.trim())),
+                "{diagnostics:#?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
+
+#[test]
+fn a_static_callable_receipt_cannot_open_an_explicit_empty_bound() {
+    let _guard = lock_fixture_compilation();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main =
+                repository("tests/fixtures/run/generics/static_callable_specialization/main.omg");
+            let source = std::fs::read_to_string(&main).unwrap();
+            let binder = "const Callback: machine(value: u64) -> u64";
+            assert_eq!(source.matches(binder).count(), 1);
+            let source = source.replace(binder, &format!("{binder} reaches none"));
+            let root = std::env::temp_dir()
+                .join(format!("omega-explicit-callback-reach-{}", std::process::id()));
+            std::fs::create_dir(&root).expect("private staging directory");
+            std::fs::copy(main.with_file_name("build.omg"), root.join("build.omg")).unwrap();
+            let main = root.join("main.omg");
+            std::fs::write(&main, source).unwrap();
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result;
+            std::fs::remove_dir_all(root).unwrap();
+            let checked = checked.unwrap_or_else(|failure| {
+                panic!("explicit-empty callback source: {:?}", failure.into_diagnostics())
+            });
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let artifact = accepted.closure().publish().unwrap().artifact;
+            let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                .expect("read the explicit empty bound from the saved artifact");
+            let mut changed = reloaded.semantic_module().clone();
+            let binding = changed
+                .machines
+                .iter_mut()
+                .filter_map(|machine| machine.closed_reach_application.as_mut())
+                .find_map(|application| match application.telescope.as_mut_slice() {
+                    [terminal_psi::ClosedReachParameter::Machine(binding)] => Some(binding),
+                    _ => None,
+                })
+                .expect("one selected callback with an explicit empty bound");
+            assert_eq!(binding.upper_bound.as_deref(), Some([].as_slice()));
+            assert!(binding.selected_reach.is_empty());
+            binding.upper_bound = None;
+            let bytes = terminal_codec::encode_module(&changed).unwrap();
+            assert_eq!(
+                terminal_codec::decode_module(&bytes).unwrap_err(),
+                terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "closed callback contract differs from its committed bounds, dependencies, or conditional carry"
+                ),
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
+
 /// Actual Build preparation and the ordinary publication factory must retain
 /// both complete map tuples, rather than borrowing one body's capture.
 #[test]

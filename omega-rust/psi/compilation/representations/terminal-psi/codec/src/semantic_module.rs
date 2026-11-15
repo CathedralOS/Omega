@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 277`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 278`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -2361,7 +2361,7 @@ pub(crate) mod reach_application_wire {
                     writer.string("reach proposition argument", argument)?;
                 }
                 ClosedReachParameter::Machine(binding) => {
-                    writer.u8(3);
+                    writer.u8(if binding.upper_bound.is_some() { 3 } else { 4 });
                     writer.boolean(binding.nominal_requirement.is_some());
                     if let Some(requirement) = &binding.nominal_requirement {
                         writer.string("reach requirement", requirement)?;
@@ -2374,7 +2374,9 @@ pub(crate) mod reach_application_wire {
                     for argument in &binding.requirement_arguments {
                         writer.u32(argument.0);
                     }
-                    encode_service_ceiling(writer, &binding.upper_bound)?;
+                    if let Some(upper_bound) = &binding.upper_bound {
+                        encode_service_ceiling(writer, upper_bound)?;
+                    }
                     writer.boolean(binding.upper_bound_may_suspend);
                     writer.boolean(binding.upper_bound_may_block);
                     writer.boolean(binding.selected_may_suspend);
@@ -2477,7 +2479,7 @@ pub(crate) mod reach_application_wire {
                 2 => ClosedReachParameter::Proposition {
                     argument: reader.string("reach requirement")?,
                 },
-                3 => {
+                tag @ (3 | 4) => {
                     let nominal_requirement = if reader.boolean()? {
                         Some(reader.string("reach selected identity")?)
                     } else {
@@ -2489,7 +2491,11 @@ pub(crate) mod reach_application_wire {
                         requirement_arguments: decode_counted(reader, |reader| {
                             Ok(TerminalIdentityIndex(reader.u32()?))
                         })?,
-                        upper_bound: decode_ids(reader, "ServiceId")?,
+                        upper_bound: if tag == 3 {
+                            Some(decode_ids(reader, "ServiceId")?)
+                        } else {
+                            None
+                        },
                         upper_bound_may_suspend: reader.boolean()?,
                         upper_bound_may_block: reader.boolean()?,
                         selected_may_suspend: reader.boolean()?,
@@ -3099,6 +3105,7 @@ mod numeric_intrinsic_tests {
             result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -3751,6 +3758,7 @@ mod routed_scalar_tests {
             result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -4244,12 +4252,13 @@ mod routed_scalar_tests {
         module.machines[0].closed_reach_application = Some(ClosedReachApplication {
             template_identity: TerminalIdentityIndex(1),
             template_base_commitment: [7; 32],
-            template_commitment: terminal_psi::template_contract_commitment(
+            template_commitment: terminal_psi::closed_reach_template_commitment(
                 [7; 32],
-                0,
+                [],
                 &false.into(),
                 &false.into(),
                 &[],
+                |_| None,
             )
             .unwrap(),
             suspension_dependency: false.into(),
@@ -4313,7 +4322,7 @@ mod routed_scalar_tests {
                     nominal_requirement: None,
                     requirement_parameter_kinds: Vec::new(),
                     requirement_arguments: Vec::new(),
-                    upper_bound: Vec::new(),
+                    upper_bound: Some(Vec::new()),
                     upper_bound_may_suspend: true,
                     upper_bound_may_block: false,
                     selected_may_suspend: false,
@@ -4359,12 +4368,13 @@ mod routed_scalar_tests {
                 }],
                 condition: application.suspension_dependency.clone(),
             }];
-            application.template_commitment = terminal_psi::template_contract_commitment(
+            application.template_commitment = terminal_psi::closed_reach_template_commitment(
                 application.template_base_commitment,
-                1,
+                application.parameters(),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                |_| None,
             )
             .unwrap();
         }
@@ -4377,12 +4387,16 @@ mod routed_scalar_tests {
                 .unwrap();
             application.suspension_dependency.parameters = vec![1];
             application.conditional_carry[0].condition.parameters = vec![1];
-            let capture_commitment = terminal_psi::template_contract_commitment(
+            let capture_telescope = vec![terminal_psi::ClosedReachParameter::Type {
+                argument: "u32".into(),
+            }];
+            let capture_commitment = terminal_psi::closed_reach_template_commitment(
                 [8; 32],
-                2,
+                capture_telescope.iter().chain(&application.telescope),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                |_| None,
             )
             .unwrap();
             application.capture = Some(terminal_psi::ClosedReachCapture {
@@ -4394,16 +4408,15 @@ mod routed_scalar_tests {
                 conditional_carry: application.conditional_carry.clone(),
                 specialization_commitment: [6; 32],
                 parameter_kinds: vec![0],
-                telescope: vec![terminal_psi::ClosedReachParameter::Type {
-                    argument: "u32".into(),
-                }],
+                telescope: capture_telescope,
             });
-            application.template_commitment = terminal_psi::template_contract_commitment(
+            application.template_commitment = terminal_psi::closed_reach_template_commitment(
                 application.template_base_commitment,
-                2,
+                application.parameters(),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                |_| None,
             )
             .unwrap();
             capture_commitment
@@ -4744,35 +4757,12 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 273 combines explicit structural qualification changes and issuer
-// routes with exact callable/service/provider/entry schemas, sealed native
-// meanings and declared boundary result lifetimes. The independent marker 272
-// layouts do not encode this combined schema and are refused before decoding.
-// Marker 274 adds authenticated hosted-primitive requirement links to the
-// machine contract layout retained by marker 273. A 273 artifact has no such
-// execution link and cannot be read as this declaration grammar.
-// Marker 273 moves a public requirement's declared result lifetime groups
-// from each static method tuple onto the machine contract both selected and
-// rigid calls read. A 272 artifact keeps them on the method tuple instead.
-// Marker 271 retains boundary logical result lifetimes independently of spatial regions.
-// Marker 270 removes executable target-family catalogs and portable family heads.
-// Marker 269 retains complete primitive scalar storage types and predicate
-// establishment completions. Earlier catalogs cannot express either judgment.
-// Marker 268 retains the declared public result lifetime groups separately from body origins.
-// Marker 267 lets the existing record-invariant wrapper retain any record
-// storage shape. Earlier packed-only tag17 bytes cannot supply that nested shape.
-// Marker 266 retains the integer carrier in float semantic conversion identities.
-// A finite catalog ordinal from an earlier artifact cannot express that identity.
-// Marker 265 distinguishes entry field observations from current observations.
-// A 264 artifact cannot be read as that schema. Marker 264 retains each selected
-// call's public contract and closed application
-// separately from its executable body. Marker 263 operational ceilings and call
-// acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
-// numeric and finite-family identities remain part of the same format.
-// Marker 272 retains each structural value's explicit qualification changes
-// (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
-// row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 277;
+// Marker 278 combines callable/service/provider contracts, structural
+// qualifications, numeric clauses, installation-bound service rows and the
+// distinction between absent and explicit machine-parameter upper bounds.
+// Both incompatible predecessor layouts used 277; neither supplies this
+// combined grammar. Reject them at the header before reading any payload.
+pub(crate) const FORMAT_MARKER: u16 = 278;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5095,6 +5085,7 @@ mod normal_qualification_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
@@ -5822,13 +5813,28 @@ mod format_marker_tests {
     use super::*;
 
     #[test]
+    fn predecessor_vocabularies_are_refused_before_payload_interpretation() {
+        for vocabulary in [136u16, 137] {
+            for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
+                let mut bytes = MAGIC.to_vec();
+                bytes.extend_from_slice(&FORMAT_MARKER.to_le_bytes());
+                bytes.extend_from_slice(&vocabulary.to_le_bytes());
+                bytes.extend_from_slice(payload);
+                assert!(matches!(
+                    decode_module(&bytes),
+                    Err(CodecError::UnsupportedVocabularyMarker(marker)) if marker == vocabulary
+                ));
+            }
+        }
+    }
+
+    #[test]
     fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
-        // Independent Id and interrupt layouts both used 252 (and earlier
-        // independent Id and relocation layouts both used 251).
-        // Neither body may be interpreted as the combined layout, regardless
-        // of which payload follows their shared legacy marker.
+        // Independent predecessors shared markers 251, 252 and 277.
+        // None may enter the combined grammar, regardless of payload.
         for legacy in [
-            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273,
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
+            275, 276, 277,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

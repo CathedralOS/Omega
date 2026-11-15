@@ -414,6 +414,7 @@ pub(crate) fn declaration_contract(
                 .map(|outcome| outcome.service_reach.clone())
                 .unwrap_or_default(),
         },
+        fixed_service_reach: None,
         synchronous_entries: match &signature.invokes {
             crate::Ceiling::Authored(row) => row.clone(),
             crate::Ceiling::Inferred => selected
@@ -487,6 +488,7 @@ impl<'a> Lowering<'a> {
             call_formations: Vec::new(),
             blocks: IdTable::default(),
             operation_locations: IdTable::default(),
+            scalar_constants: terminal_semantics::ScalarConstants::default(),
             current: None,
             point: None,
             slots: vec![None; slot_types.len()],
@@ -800,6 +802,7 @@ struct Lowering<'a> {
     /// Coordinates of emitted operations in this in-progress machine. A call
     /// reads exact scalar definitions without rescanning all earlier blocks.
     operation_locations: IdTable<OperationId, Option<(BlockId, usize)>>,
+    scalar_constants: terminal_semantics::ScalarConstants,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
     /// The program point after the last thing emitted in `current`.
@@ -1100,7 +1103,11 @@ impl<'a> Lowering<'a> {
                 let mut clauses = Vec::with_capacity(signature.requires.len());
                 for clause in &signature.requires {
                     clauses.push(canonical::substitute_parameters(
-                        clause, &scalars, &roots, id,
+                        clause,
+                        &scalars,
+                        &roots,
+                        &self.tables.values,
+                        id,
                     )?);
                 }
                 self.invariants.push(ScalarBlockInvariant {
@@ -1295,6 +1302,7 @@ impl<'a> Lowering<'a> {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => Vec::new(),
             },
+            fixed_service_reach: None,
             synchronous_entries: match &self.signature.invokes {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => Vec::new(),

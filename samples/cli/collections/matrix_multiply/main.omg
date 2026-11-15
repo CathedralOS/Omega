@@ -25,12 +25,12 @@ data Matrices {
 }
 machine main(context: &mut Main) reaches ProcessExit + Console {
     let mut matrices: Matrices;
-    matrices.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
-    matrices.b = [[9, 8, 7], [6, 5, 4], [3, 2, 1]];
+    matrices.a = [[1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping], [4i32 as +Wrapping, 5i32 as +Wrapping, 6i32 as +Wrapping], [7i32 as +Wrapping, 8i32 as +Wrapping, 9i32 as +Wrapping]];
+    matrices.b = [[9i32 as +Wrapping, 8i32 as +Wrapping, 7i32 as +Wrapping], [6i32 as +Wrapping, 5i32 as +Wrapping, 4i32 as +Wrapping], [3i32 as +Wrapping, 2i32 as +Wrapping, 1i32 as +Wrapping]];
     transition { _ -> col(context, &mut matrices, 0, 0) }
     machine col(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64)
     requires i <= 2 requires j <= 2 {
-        transition { _ -> dot(context, matrices, i, j, 0, 0) }
+        transition { _ -> dot(context, matrices, i, j, 0, 0i32 as +Wrapping) }
     }
     machine dot(context: &mut Main, matrices: &mut Matrices, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
     requires i <= 2

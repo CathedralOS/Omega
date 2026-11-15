@@ -8,10 +8,36 @@ use std::sync::Arc;
 use crate::arena::{RevisionStamp, refuse_unresolved, refuse_unresolved_span};
 use crate::{Arena, Handle, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct RetainedPage<T> {
     start: usize,
     rows: Arc<Arena<T>>,
+}
+
+impl<T> Clone for RetainedPage<T> {
+    fn clone(&self) -> Self {
+        Self {
+            start: self.start,
+            rows: Arc::clone(&self.rows),
+        }
+    }
+}
+
+/// Closed slots retain their page association even after a row is retired.
+/// The page still checks occupancy and generation; this directory only finds it.
+#[derive(Debug, Default)]
+struct RetainedDirectory<T> {
+    pages: Vec<RetainedPage<T>>,
+    page_by_slot: Vec<u32>,
+}
+
+impl<T> Clone for RetainedDirectory<T> {
+    fn clone(&self) -> Self {
+        Self {
+            pages: self.pages.clone(),
+            page_by_slot: self.page_by_slot.clone(),
+        }
+    }
 }
 
 /// Absolute-slot tables whose continuations share retained rows and own their
@@ -22,7 +48,7 @@ struct RetainedPage<T> {
 /// `append_to_span`, not manufacture a span across retained and appended rows.
 #[derive(Debug, Clone)]
 pub struct RetainedArena<T> {
-    pages: Vec<RetainedPage<T>>,
+    directory: Arc<RetainedDirectory<T>>,
     appended: Arc<Arena<T>>,
     start: usize,
     revision: RevisionStamp,
@@ -40,7 +66,7 @@ impl<T: Default> Default for RetainedArena<T> {
 impl<T: Default> RetainedArena<T> {
     pub fn new() -> Self {
         Self {
-            pages: Vec::new(),
+            directory: Arc::new(RetainedDirectory::default()),
             appended: Arc::new(Arena::new()),
             start: 0,
             revision: RevisionStamp::unstamped(),
@@ -68,17 +94,35 @@ impl<T: Default> RetainedArena<T> {
             self.appended = Arc::new(Arena::with_generation(generation));
             return;
         }
-        self.pages.push(RetainedPage {
+        self.finish_append_page();
+    }
+
+    /// Keep a completed owner's rows separate from the next owner's output.
+    /// Empty tails need no page, and moving a page changes neither handles
+    /// nor the table's logical revision.
+    pub fn finish_append_page(&mut self) {
+        let length = self.appended.storage_slice().len();
+        if length == 0 {
+            return;
+        }
+        let generation = self.appended.storage_view().fresh_generation;
+        let end = self
+            .start
+            .checked_add(length)
+            .filter(|end| *end <= u32::MAX as usize)
+            .expect("retained arena slot overflow");
+        let directory = Arc::make_mut(&mut self.directory);
+        let position =
+            u32::try_from(directory.pages.len()).expect("retained arena page count overflow");
+        directory.pages.push(RetainedPage {
             start: self.start,
             rows: std::mem::replace(
                 &mut self.appended,
                 Arc::new(Arena::with_generation(generation)),
             ),
         });
-        self.start = self
-            .start
-            .checked_add(length)
-            .expect("retained arena slot overflow");
+        directory.page_by_slot.resize(end, position);
+        self.start = end;
     }
 
     fn storage_len(&self) -> usize {
@@ -86,9 +130,10 @@ impl<T: Default> RetainedArena<T> {
     }
 
     fn page_position(&self, slot: usize) -> Option<usize> {
-        self.pages
-            .partition_point(|page| page.start <= slot)
-            .checked_sub(1)
+        self.directory
+            .page_by_slot
+            .get(slot)
+            .map(|position| *position as usize)
     }
 
     fn local(handle: Handle<T>, start: usize) -> Handle<T> {
@@ -126,7 +171,7 @@ impl<T: Default> RetainedArena<T> {
         if slot >= self.start {
             return Some((self.start, &self.appended));
         }
-        let page = &self.pages[self.page_position(slot)?];
+        let page = &self.directory.pages[self.page_position(slot)?];
         Some((page.start, &page.rows))
     }
 
@@ -230,9 +275,10 @@ impl<T: Default> RetainedArena<T> {
 
     pub fn iter_from(&self, slot: usize) -> impl Iterator<Item = (Handle<T>, &T)> {
         let first_page = self
+            .directory
             .pages
             .partition_point(|page| page.start + page.rows.storage_slice().len() <= slot);
-        self.pages[first_page..]
+        self.directory.pages[first_page..]
             .iter()
             .map(|page| (page.start, page.rows.as_ref()))
             .chain(std::iter::once((self.start, self.appended.as_ref())))
@@ -247,7 +293,7 @@ impl<T: Default> RetainedArena<T> {
     /// As with a slice partition, the caller supplies a partitioned predicate;
     /// retired slots still occupy their original storage positions.
     pub fn partition_point(&self, mut predicate: impl FnMut(&T) -> bool) -> usize {
-        let page = self.pages.partition_point(|page| {
+        let page = self.directory.pages.partition_point(|page| {
             predicate(
                 page.rows
                     .storage_slice()
@@ -255,14 +301,15 @@ impl<T: Default> RetainedArena<T> {
                     .expect("retained page is nonempty"),
             )
         });
-        match self.pages.get(page) {
+        match self.directory.pages.get(page) {
             Some(page) => page.start + page.rows.storage_slice().partition_point(predicate),
             None => self.start + self.appended.storage_slice().partition_point(predicate),
         }
     }
 
     fn stored_rows(&self) -> impl Iterator<Item = (&T, u32, bool)> {
-        self.pages
+        self.directory
+            .pages
             .iter()
             .map(|page| page.rows.as_ref())
             .chain(std::iter::once(self.appended.as_ref()))
@@ -294,13 +341,14 @@ impl<T: Default + Clone> RetainedArena<T> {
             return Some((self.start, Arc::make_mut(&mut self.appended)));
         }
         let position = self.page_position(slot)?;
-        let page = &mut self.pages[position];
+        let page = &mut Arc::make_mut(&mut self.directory).pages[position];
         Some((page.start, Arc::make_mut(&mut page.rows)))
     }
 
     /// Reuse dense storage without allowing any retained handle to name a new row.
     pub fn retire_all_retain_capacity(&mut self) {
         let latest_generation = self
+            .directory
             .pages
             .iter()
             .map(|page| page.rows.as_ref())
@@ -339,12 +387,15 @@ impl<T: Default + Clone> RetainedArena<T> {
                     .expect("empty retained append page is valid"),
             );
         }
-        let mut previous_pages = std::mem::take(&mut self.pages);
         self.start = 0;
         self.retired = 0;
         self.append_only = true;
-        previous_pages.clear();
-        self.pages = previous_pages;
+        if let Some(directory) = Arc::get_mut(&mut self.directory) {
+            directory.pages.clear();
+            directory.page_by_slot.clear();
+        } else {
+            self.directory = Arc::new(RetainedDirectory::default());
+        }
     }
 
     #[track_caller]
@@ -443,7 +494,7 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| {
-            self.pages.write(output)?;
+            self.directory.pages.write(output)?;
             self.appended.write(output)?;
             self.start.write(output)
         })
@@ -480,8 +531,26 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
                 .sum::<usize>()
                 + appended.storage_slice().len()
                 - appended.len();
+            input.allocate(
+                start
+                    .checked_mul(std::mem::size_of::<u32>())
+                    .and_then(|bytes| {
+                        bytes.checked_add(std::mem::size_of::<RetainedDirectory<T>>())
+                    })
+                    .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
+                    .ok_or_else(|| input.error("retained arena directory allocation overflow"))?,
+            )?;
+            let mut page_by_slot = Vec::with_capacity(start);
+            for (position, page) in pages.iter().enumerate() {
+                let position = u32::try_from(position)
+                    .map_err(|_| input.error("retained arena page count overflow"))?;
+                page_by_slot.resize(page.start + page.rows.storage_slice().len(), position);
+            }
             Ok(Self {
-                pages,
+                directory: Arc::new(RetainedDirectory {
+                    pages,
+                    page_by_slot,
+                }),
                 appended,
                 start,
                 revision: RevisionStamp::unstamped(),
@@ -532,6 +601,159 @@ mod tests {
         assert!(next.generation() > replacement.generation());
         assert!(!selected.is_valid(replacement));
         assert_eq!(*retained.get(replacement), 9);
+    }
+
+    #[test]
+    fn owner_boundaries_copy_only_the_rewritten_owners_rows() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Default)]
+        struct Tracked(Arc<AtomicUsize>);
+        impl Clone for Tracked {
+            fn clone(&self) -> Self {
+                self.0.fetch_add(1, Ordering::Relaxed);
+                Self(Arc::clone(&self.0))
+            }
+        }
+        let copies = Arc::new(AtomicUsize::new(0));
+        let mut original = RetainedArena::new();
+        let first = original.insert_many((0..3).map(|_| Tracked(Arc::clone(&copies))));
+        let revision = original.revision();
+        original.finish_append_page();
+        assert_eq!(original.revision(), revision);
+        let second = original.insert_many((0..5).map(|_| Tracked(Arc::clone(&copies))));
+        original.finish_append_page();
+        original.finish_append_page();
+        let mut selected = original.clone();
+        assert!(Arc::ptr_eq(&original.directory, &selected.directory));
+        let _ = selected.get_mut(second.start());
+        assert_eq!(copies.load(Ordering::Relaxed), 5);
+        assert!(std::ptr::eq(
+            original.get(first.start()),
+            selected.get(first.start())
+        ));
+        selected.append(Tracked(Arc::clone(&copies)));
+        assert_eq!(copies.load(Ordering::Relaxed), 5);
+        assert_eq!(original.len(), 8);
+        assert_eq!(selected.len(), 9);
+        assert_eq!(selected.span_or_empty(first).len(), 3);
+        assert_eq!(selected.span_or_empty(second).len(), 5);
+    }
+
+    #[test]
+    fn slot_directory_is_shared_until_changed_and_keeps_retired_positions() {
+        let mut original = RetainedArena::new();
+        original.appended = Arc::new(Arena::with_generation(9));
+        let first = original.insert_many([10u32, 20]);
+        original.finish_append_page();
+        let mut selected = original.clone();
+        assert!(Arc::ptr_eq(&original.directory, &selected.directory));
+        let second = selected.insert_many([30, 40]);
+        selected.finish_append_page();
+        assert!(!Arc::ptr_eq(&original.directory, &selected.directory));
+        let private_directory = Arc::as_ptr(&selected.directory);
+        selected.append(50);
+        selected.finish_append_page();
+        assert_eq!(Arc::as_ptr(&selected.directory), private_directory);
+        assert_eq!(selected.directory.page_by_slot, [0, 0, 1, 1, 2]);
+        assert_eq!(original.directory.page_by_slot, [0, 0]);
+        assert!(selected.free(first.start()));
+        assert!(!selected.is_valid(first.start()));
+        assert!(original.is_valid(first.start()));
+        assert!(!selected.is_valid(Handle::from_arena_index(second.start().arena_index())));
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&selected, limits).unwrap();
+        let decoded: RetainedArena<u32> = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded.directory.page_by_slot, [0, 0, 1, 1, 2]);
+        assert!(!decoded.is_valid(first.start()));
+        assert_eq!(decoded.span_or_empty(second), [30, 40]);
+        assert_eq!(decoded, selected);
+    }
+
+    #[test]
+    fn publishing_checks_slot_overflow_before_changing_the_directory() {
+        let mut rows = RetainedArena::new();
+        rows.append(1u32);
+        rows.start = u32::MAX as usize;
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                rows.finish_append_page();
+            }))
+            .is_err()
+        );
+        assert!(rows.directory.pages.is_empty());
+        assert!(rows.directory.page_by_slot.is_empty());
+        assert_eq!(rows.appended.len(), 1);
+    }
+
+    #[test]
+    fn private_record_charges_the_rebuilt_slot_directory() {
+        let mut rows = RetainedArena::new();
+        rows.insert_many(std::iter::repeat_n((), 4096));
+        rows.finish_append_page();
+        let bytes =
+            compiler_storage::encode(&rows, compiler_storage::RecordLimits::default()).unwrap();
+        let result = compiler_storage::decode::<RetainedArena<()>>(
+            &bytes,
+            compiler_storage::RecordLimits {
+                allocation: 4096,
+                ..Default::default()
+            },
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("decoded allocation limit exceeded")
+        );
+    }
+
+    #[test]
+    fn private_record_keeps_the_page_wire_shape() {
+        #[derive(compiler_storage::Record)]
+        struct StoredPages {
+            pages: Vec<RetainedPage<u32>>,
+            appended: Arc<Arena<u32>>,
+            start: usize,
+        }
+        let mut rows = RetainedArena::new();
+        rows.insert_many([1u32, 2]);
+        rows.finish_append_page();
+        rows.append(3);
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&rows, limits).unwrap();
+        let expected = compiler_storage::encode(
+            &StoredPages {
+                pages: rows.directory.pages.clone(),
+                appended: Arc::clone(&rows.appended),
+                start: rows.start,
+            },
+            limits,
+        )
+        .unwrap();
+        assert_eq!(bytes, expected);
+    }
+
+    #[test]
+    fn extending_an_owners_span_retains_the_other_owner_and_generations() {
+        let mut rows = RetainedArena::new();
+        rows.appended = Arc::new(Arena::with_generation(9));
+        let mut first = rows.insert_many([1u32, 2]);
+        rows.finish_append_page();
+        let other = rows.insert_many([3, 4]);
+        let retained = rows.clone();
+        rows.append_to_span(&mut first, 5);
+        assert_eq!(first.start().generation(), 9);
+        assert_eq!(rows.span_or_empty(first), [1, 2, 5]);
+        assert_eq!(retained.span_or_empty(other), [3, 4]);
+        assert!(std::ptr::eq(
+            rows.get(other.start()),
+            retained.get(other.start())
+        ));
+        let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&rows, limits).unwrap();
+        let decoded: RetainedArena<u32> = compiler_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded, rows);
     }
 
     #[test]
@@ -703,10 +925,16 @@ mod tests {
     fn private_record_refuses_overlapping_page_ranges() {
         let mut original = RetainedArena::<u32>::new();
         original.append(1);
+        original.finish_append_page();
+        original.append(2);
+        original.finish_append_page();
         let mut selected = original.clone();
         selected.append(2);
-        selected.pages[0].start = 1;
+        Arc::make_mut(&mut selected.directory).pages[1].start = 0;
         let limits = compiler_storage::RecordLimits::default();
+        let bytes = compiler_storage::encode(&selected, limits).unwrap();
+        assert!(compiler_storage::decode::<RetainedArena<u32>>(&bytes, limits).is_err());
+        Arc::make_mut(&mut selected.directory).pages[1].start = 2;
         let bytes = compiler_storage::encode(&selected, limits).unwrap();
         assert!(compiler_storage::decode::<RetainedArena<u32>>(&bytes, limits).is_err());
     }

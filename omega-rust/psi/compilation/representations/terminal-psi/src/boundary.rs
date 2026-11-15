@@ -833,6 +833,9 @@ pub(crate) mod declarations {
         pub program_local_root_introductions: Vec<ProgramLocalRootIntroductionSchema>,
         pub content_guarantees: Vec<BoundaryContentGuarantee>,
         pub fixed_service_reach: Vec<ServiceId>,
+        /// Installation substitutes this requirement's exact selected row;
+        /// the published ceiling bounds that row rather than contributing it.
+        pub service_reach_is_installation_bound: bool,
         pub owning_service: Option<ServiceId>,
         pub published_service_ceiling: Vec<ServiceId>,
         /// The entries every admitted implementation may arrive at before
@@ -1738,8 +1741,64 @@ pub(crate) mod providers {
 }
 pub(crate) mod reach_applications {
 
+    use crate::digest_encoder::DomainDigestEncoder;
     use crate::terminal_module::TerminalIdentityIndex;
+    use flow_effects::{ConditionalCarryRequirement, ContractDependency};
     use semantic_vocabulary::{MachineId, ServiceId};
+
+    /// The template publishes each binder's admissible reach, independently of
+    /// the callable chosen for this application. Use the service identities
+    /// rather than their module-local coordinates in the commitment.
+    pub fn closed_reach_template_commitment<'parameter, 'identity>(
+        base: [u8; 32],
+        parameters: impl IntoIterator<Item = &'parameter ClosedReachParameter>,
+        suspension: &ContractDependency<bool, Vec<u32>>,
+        blocking: &ContractDependency<bool, Vec<u32>>,
+        carry: &[ConditionalCarryRequirement],
+        service_identity: impl Fn(ServiceId) -> Option<&'identity str>,
+    ) -> Result<[u8; 32], &'static str> {
+        let mut bounds = None;
+        let mut parameter_count = 0;
+        for parameter in parameters {
+            let position = parameter_count;
+            parameter_count += 1;
+            let ClosedReachParameter::Machine(binding) = parameter else {
+                continue;
+            };
+            let digest = bounds.get_or_insert_with(|| {
+                let mut digest =
+                    DomainDigestEncoder::new(b"omega.machine-template-binder-bounds.v1\0");
+                digest.raw(&base);
+                digest
+            });
+            digest.len(position);
+            digest.byte(u8::from(binding.upper_bound_may_suspend));
+            digest.byte(u8::from(binding.upper_bound_may_block));
+            digest.byte(u8::from(binding.upper_bound.is_some()));
+            if let Some(services) = &binding.upper_bound {
+                let mut identities = services
+                    .iter()
+                    .map(|&service| {
+                        service_identity(service)
+                            .filter(|identity| !identity.is_empty())
+                            .ok_or("closed reach bound has no exact service identity")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                identities.sort_unstable();
+                digest.len(identities.len());
+                for identity in identities {
+                    digest.bytes(identity.as_bytes());
+                }
+            }
+        }
+        flow_effects::template_contract_commitment(
+            bounds.map_or(base, DomainDigestEncoder::finish),
+            parameter_count,
+            suspension,
+            blocking,
+            carry,
+        )
+    }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ClosedReachApplication {
@@ -1797,7 +1856,8 @@ pub(crate) mod reach_applications {
         pub nominal_requirement: Option<String>,
         pub requirement_parameter_kinds: Vec<u8>,
         pub requirement_arguments: Vec<TerminalIdentityIndex>,
-        pub upper_bound: Vec<ServiceId>,
+        /// Omission defers to the selected callable. An empty row is an explicit bound.
+        pub upper_bound: Option<Vec<ServiceId>>,
         pub upper_bound_may_suspend: bool,
         pub upper_bound_may_block: bool,
         pub selected_may_suspend: bool,
@@ -1926,6 +1986,7 @@ pub use providers::{
 pub use reach_applications::{
     ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
     ClosedReachCapture, ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
+    closed_reach_template_commitment,
 };
 pub use services::{InstallationReachDependency, ServiceDeclaration, TerminalRootServiceReach};
 

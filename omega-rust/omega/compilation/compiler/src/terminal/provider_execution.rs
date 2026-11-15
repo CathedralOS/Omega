@@ -309,6 +309,7 @@ pub fn prepare_provider_execution_inputs(
         module,
         &schemas,
         profile.target_name(),
+        reached.iter().copied(),
     )?;
     let policy = native_compiler::current_terminal_authority_policy();
     for leaf in primitives {

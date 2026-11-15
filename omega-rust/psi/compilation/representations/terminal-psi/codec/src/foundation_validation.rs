@@ -181,9 +181,7 @@ pub(crate) mod call_foundations {
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Option<(ScalarType, IntegerValue)> {
         let expected = sources.scalar_type(value)?;
-        let known = terminal_semantics::scalar_constant_value(value, |value| {
-            scalar_index.constant_origin(value)
-        })?;
+        let known = scalar_index.constant_value(value)?;
         (known.0 == expected).then_some(known)
     }
 
@@ -2542,6 +2540,9 @@ pub(crate) mod declaration_foundations {
                     "installation reach dependency has no exact boundary declaration",
                 );
             };
+            if !boundary.service_reach_is_installation_bound {
+                return malformed("installation reach dependency names a fixed requirement");
+            }
             let mut reach = boundary.fixed_service_reach.clone();
             reach.extend(dependency.upper_bound.iter().copied());
             reach.sort_unstable();
@@ -2647,6 +2648,12 @@ pub(crate) mod declaration_foundations {
         }
         require_known_services(module, &boundary.published_service_ceiling)?;
         require_known_services(module, &boundary.fixed_service_reach)?;
+        if boundary.service_reach_is_installation_bound
+            && (boundary.kind != terminal_psi::BoundaryRequirementKind::Trait
+                || !boundary.fixed_service_reach.is_empty())
+        {
+            return malformed("installation-bound reach must be an abstract trait requirement");
+        }
         require_known_services(module, &boundary.published_synchronous_entries)?;
         validate_boundary_scalar_rows(boundary)?;
         if let Some(owner) = boundary.owning_service {
@@ -3470,15 +3477,21 @@ pub(crate) mod machine_foundations {
         validate_parameter_places(machine)?;
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
+        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
         for block in &machine.blocks {
             let mut previous = None;
             for operation in &block.operations {
-                validate_operation_foundation(module, machine, operation, transfers, previous)
-                    .map_err(|error| {
-                        super::operation_foundation_error(
-                            module, machine, block.id, operation, error,
-                        )
-                    })?;
+                validate_operation_foundation(
+                    module,
+                    machine,
+                    operation,
+                    transfers,
+                    previous,
+                    &scalar_index,
+                )
+                .map_err(|error| {
+                    super::operation_foundation_error(module, machine, block.id, operation, error)
+                })?;
                 previous = Some(operation);
             }
         }
@@ -3490,7 +3503,7 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
-        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
+
         let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
@@ -4849,6 +4862,8 @@ pub(crate) mod scalar_applications {
             .iter()
             .map(|(_, owner)| *owner)
             .collect::<std::collections::BTreeSet<_>>();
+        let application_sized_storage = terminal_semantics::application_sized_storage(module)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         for machine in &module.machines {
             for (_, expected) in module
                 .layout_call_conditions(machine)
@@ -4868,6 +4883,45 @@ pub(crate) mod scalar_applications {
                     return malformed(
                         "layout call requirement lost its exact pending target condition",
                     );
+                }
+            }
+            if !module.scalar_applications.declarations().is_empty() {
+                let types = terminal_semantics::SortedValueTypes::new(
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| {
+                            block.parameters.iter().chain(&block.erased_scalar_formals)
+                        })
+                        .chain(
+                            machine
+                                .operations()
+                                .filter_map(|operation| operation.result.scalar_ref()),
+                        )
+                        .map(|value| (value.id, value.scalar_type))
+                        .collect(),
+                )
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "target arithmetic has repeated scalar values",
+                ))?;
+                for expected in terminal_semantics::target_scalar_ranges(
+                    module,
+                    machine,
+                    &types,
+                    &application_sized_storage,
+                )
+                .map_err(CodecError::MalformedStructuralFoundation)?
+                {
+                    if !pending.contains(&expected.owner)
+                        || !conditions
+                            .ranges()
+                            .iter()
+                            .any(|condition| expected.matches(conditions, condition))
+                    {
+                        return malformed(
+                            "arithmetic operation lost its exact pending target range",
+                        );
+                    }
                 }
             }
         }
@@ -5090,6 +5144,106 @@ pub(crate) mod scalar_applications {
         }
 
         #[test]
+        fn ground_target_arithmetic_replays_its_exact_range() {
+            use semantic_vocabulary::{
+                IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
+            };
+            use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+            let caller = MachineId::new(1).unwrap();
+            let evaluator = MachineId::new(2).unwrap();
+            let mut module = TerminalModule::for_entry(caller);
+            module.identities = identity_table(5);
+            let mut body = unit_machine(caller);
+            let declaration = body.declaration.as_mut().unwrap();
+            declaration.semantic_declaration = TerminalIdentityIndex(3);
+            declaration.callable = TerminalIdentityIndex(4);
+            declaration.result_type = TerminalIdentityIndex(5);
+            let owner = ProofDeclarationId(1);
+            let scope = &mut module.scalar_applications.proof_scope;
+            scope
+                .declarations
+                .insert(ProofScopeDeclaration::Callable(declaration.clone()));
+            scope.callables.insert(ProofCallableAssociation::Callable {
+                declaration: owner,
+                callable: TargetMachineCallable::Machine(caller),
+            });
+            let scalar_type =
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+            let value = |raw| ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type,
+                qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            };
+            let mut evaluation = unit_machine(evaluator);
+            evaluation.contract.result = terminal_psi::TerminalMachineResult::Scalar(value(1));
+            let application = module
+                .scalar_applications
+                .insert(ScalarApplication::Evaluate {
+                    entry: TargetMachineCallable::Machine(evaluator),
+                    scalar_type,
+                })
+                .unwrap();
+            let operation = |raw, kind| {
+                Operation::unsuspended(
+                    OperationId::new(raw).unwrap(),
+                    OperationResult::Scalar(value(raw + 1)),
+                    kind,
+                )
+            };
+            body.blocks[0].operations = vec![
+                operation(1, OperationKind::ReadScalarApplication { application }),
+                operation(
+                    2,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(5),
+                    },
+                ),
+                operation(
+                    3,
+                    OperationKind::ExactIntegerSubtract {
+                        left: value(2).id,
+                        right: value(3).id,
+                        obligation: ObligationId::new(1).unwrap(),
+                    },
+                ),
+            ];
+            module.machines.extend([body, evaluation]);
+            let refusal = |module: &TerminalModule| {
+                assert!(matches!(
+                    validate(module),
+                    Err(CodecError::MalformedStructuralFoundation(
+                        "arithmetic operation lost its exact pending target range"
+                    )),
+                ))
+            };
+            refusal(&module);
+            let types = terminal_semantics::SortedValueTypes::new(
+                (2..=4).map(|raw| (value(raw).id, scalar_type)).collect(),
+            )
+            .unwrap();
+            let [range]: [terminal_semantics::TargetScalarRange; 1] =
+                terminal_semantics::target_scalar_ranges(&module, &module.machines[0], &types, &[])
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
+            range
+                .retain(&mut module.scalar_applications.conditions)
+                .unwrap();
+            refusal(&module);
+            module
+                .scalar_applications
+                .proof_scope
+                .pending_evaluation_conditions
+                .insert(owner);
+            validate(&module).unwrap();
+            module.machines[0].blocks[0].operations[1].kind = OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(6),
+            };
+            refusal(&module);
+        }
+
+        #[test]
         fn proof_scope_refuses_swapped_same_nominal_callable_descriptions() {
             let first = MachineId::new(1).unwrap();
             let second = MachineId::new(2).unwrap();
@@ -5176,6 +5330,7 @@ pub(crate) mod scalar_applications {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
@@ -10359,9 +10514,8 @@ pub(crate) mod value_foundations {
         TerminalMachine, TerminalModule, find_structural_case, nonlinear_multiplicity_pair_pattern,
     };
     use terminal_semantics::{
-        canonical_static_projection, contains_access_carrier, machine_scalar_constant_origin,
-        primitive_scalar_memberships, scalar_array_leaf_declaration, scalar_array_leaf_shape,
-        scalar_array_qualifications_hold, scalar_constant_value,
+        canonical_static_projection, contains_access_carrier, primitive_scalar_memberships,
+        scalar_array_leaf_declaration, scalar_array_leaf_shape, scalar_array_qualifications_hold,
         scalar_field_requires_initialization_evidence, structural_claim_paths_may_overlap,
         zeroed_projected_byte_qualifications_hold, zeroed_structural_shape,
     };
@@ -10370,6 +10524,7 @@ pub(crate) mod value_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         operation: &Operation,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
     ) -> Result<(), CodecError> {
         let OperationKind::EstablishScalarArray { elements } = &operation.kind else {
             unreachable!("dispatched validate_establish_scalar_array")
@@ -10387,11 +10542,7 @@ pub(crate) mod value_foundations {
                 result.structural_type,
                 &result.qualifications,
                 elements,
-                |element| {
-                    scalar_constant_value(element, |value| {
-                        machine_scalar_constant_origin(machine, value)
-                    })
-                },
+                |element| scalar_index.constant_value(element),
             )
             || !matches!(
                 machine.structural_place(result.place),
@@ -12163,6 +12314,7 @@ fn validate_operation_foundation(
     operation: &Operation,
     transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
     previous: Option<&Operation>,
+    scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
 ) -> Result<(), CodecError> {
     if let OperationKind::SelectMachine { descriptor } = operation.kind {
         let selected = module.callables.descriptor(descriptor).ok_or(
@@ -12397,7 +12549,12 @@ fn validate_operation_foundation(
             storage_foundations::validate_scalar_structural_field(module, machine, operation)?
         }
         OperationKind::EstablishScalarArray { .. } => {
-            value_foundations::validate_establish_scalar_array(module, machine, operation)?
+            value_foundations::validate_establish_scalar_array(
+                module,
+                machine,
+                operation,
+                scalar_index,
+            )?
         }
         OperationKind::EstablishScalarCase { .. } => {
             value_foundations::validate_establish_scalar_case(module, machine, operation)?

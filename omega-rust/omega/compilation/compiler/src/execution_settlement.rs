@@ -235,7 +235,7 @@ fn settle_execution(
     loop {
         let reached = match entry {
             Some(entry) => accepted
-                .boundary_calls_reached(entry, &bindings)
+                .boundary_calls_reached(entry, &bindings, Some(target.target_name()))
                 .map_err(|error| vec![error])?,
             None => Vec::new(),
         };

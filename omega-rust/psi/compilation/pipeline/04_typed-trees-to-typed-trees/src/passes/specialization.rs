@@ -14,18 +14,18 @@
 //! holds are served in turn (`forward<T>` inside `relay` becomes
 //! `forward<u8>` inside `relay` at `u8`).
 //!
-//! Nothing here checks. The generated machine is the generic declaration's
-//! own body and contract at the arguments; whether that body keeps its
-//! contract is the lowered-form checker's judgment, made once on the generic
-//! form and carried to each generated machine.
+//! Before copying a body, a selected callable must satisfy its published
+//! binder. The lowered-form checker then judges the generic body under that
+//! binder and checks the generated calls at the selected declarations.
 //!
 //! An application this pass does not serve keeps the call as typing left it
 //! and records a deferred refusal on the machine holding the call, so only a
 //! program that demands that machine is refused. Served today: type
 //! parameters given plain named types, implementation parameters given
-//! plain named implementations and value parameters given one integer
-//! literal or `true`/`false`, on single-state checked bodies with their lexical children
-//! ([`template`]). Each child has no independent static telescope; it retains
+//! plain named implementations, structural callable parameters given exact
+//! named machines, and value parameters given one integer literal or
+//! `true`/`false`, on single-state checked bodies with their lexical children
+//! ([`template`]). Each child has no independent static telescope. It retains
 //! the original enclosing application without capturing runtime values.
 //!
 //! A value parameter (`value<const Units: u64>`) is bound like the others
@@ -74,6 +74,7 @@ use typed_trees::{
     SymbolRebinding, TypedTreeTables, TypedTrees,
 };
 
+mod callable_binder;
 mod named_conformances;
 mod reflected_fields;
 
@@ -164,6 +165,10 @@ enum Stop {
 }
 
 type Served<T> = Result<T, Stop>;
+
+fn unserved(reason: &'static str) -> Stop {
+    Stop::Unserved(Some(reason))
+}
 
 /// One generated machine: the generic machine, the declaration each of its
 /// parameters was bound to, and the generated machine and its one state.
@@ -692,8 +697,8 @@ fn apply_requirement(
 #[derive(Clone, PartialEq, Eq)]
 enum Identity {
     Type(typed_trees::type_identity::TypeIdentityId),
-    /// The declaration the argument names: a type, an implementation, or a
-    /// parameter of the enclosing generic machine.
+    /// The declaration the argument names: a type, an implementation, a
+    /// callable, or a parameter of the enclosing generic machine.
     Declaration(SymbolHandle),
     /// A closed scalar value, by its canonical spelling. The parameter it is
     /// given to fixes its type.
@@ -795,10 +800,21 @@ impl Operand {
                 };
                 (identity, StaticMachineBindingValue::Const(reference))
             }
-            // A runtime value, a machine and a proposition each need their
-            // own reading of the argument; none is built yet.
-            TypeParameterKind::Value { .. }
-            | TypeParameterKind::Machine { .. }
+            // Only a body-bearing machine application will run the
+            // structural binder judgment before copying the declaration.
+            TypeParameterKind::Machine { contract }
+                if contract.structural().is_some()
+                    && program
+                        .machine_by_symbol(program.symbols.get(parameter).parent)
+                        .is_some() =>
+            {
+                (
+                    Identity::Declaration(named_callable(program, argument)?),
+                    StaticMachineBindingValue::Machine(argument.clone()),
+                )
+            }
+            TypeParameterKind::Machine { .. }
+            | TypeParameterKind::Value { .. }
             | TypeParameterKind::Proposition { .. } => return Err(Stop::Unserved(None)),
         };
         Ok(Self {
@@ -824,7 +840,9 @@ impl Operand {
         self.declaration().is_some_and(|declaration| {
             matches!(
                 program.symbols.get(declaration).kind,
-                SymbolKind::TypeParameter | SymbolKind::ConformanceParameter
+                SymbolKind::TypeParameter
+                    | SymbolKind::ConformanceParameter
+                    | SymbolKind::MachineParameter
             )
         })
     }
@@ -915,6 +933,26 @@ fn only_a_name(program: &TypedTrees, argument: &StaticMachineArgument) -> bool {
             TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
         );
     argument.application.is_none() && argument.evidence_projection.is_none() && named_again
+}
+
+/// Keep a named callable's exact declaration as the application key. A
+/// parameter remains open until the caller supplies its own selected machine.
+fn named_callable(program: &TypedTrees, argument: &StaticMachineArgument) -> Served<SymbolHandle> {
+    let symbol = argument.symbol;
+    if !only_a_name(program, argument)
+        || argument.const_literal.is_some()
+        || !symbol.is_valid()
+        || !program.symbols.symbols().nodes().is_valid(symbol)
+        || !matches!(
+            program.symbols.get(symbol).kind,
+            SymbolKind::Machine | SymbolKind::State | SymbolKind::MachineParameter
+        )
+    {
+        return Err(unserved(
+            "a static callable argument must name a machine without its own application",
+        ));
+    }
+    Ok(symbol)
 }
 
 /// The implementation a static argument names when it is only a name, as
@@ -1690,6 +1728,46 @@ fn generate(
     application: StaticMachineApplicationHandle,
     operands: &[Operand],
 ) -> Served<Generated> {
+    let bound = operands
+        .iter()
+        .filter_map(|operand| match operand.value {
+            StaticMachineBindingValue::Type(reference) => {
+                Some((operand.parameter, callable_binder::Bound::Type(reference)))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for operand in operands {
+        let StaticMachineBindingValue::Machine(argument) = &operand.value else {
+            continue;
+        };
+        let Some(typed_trees::data::MachineParameterContractView::Structural(binder)) =
+            program.retained_static_machine_contract(operand.parameter)
+        else {
+            return Err(Stop::Defect(
+                "a callable operand lost its structural binder",
+            ));
+        };
+        let machine = program
+            .machine_by_symbol(argument.symbol)
+            .or_else(|| {
+                program
+                    .unique_machine_by_entry_state_symbol(argument.symbol)
+                    .map(|(machine, _)| machine)
+            })
+            .ok_or(unserved("a static callable argument has no machine entry"))?;
+        callable_binder::satisfies_binder(
+            program,
+            binder,
+            machine,
+            &format!(
+                "`{}::{}`",
+                program.symbols.name(template_symbol),
+                program.symbols.name(operand.parameter)
+            ),
+            &bound,
+        )?;
+    }
     let copied = copy_declarations(program, template_symbol, operands)?;
     // Each nested declaration is specialized by the actual enclosing
     // application's bindings, not by an invented call or runtime capture.
@@ -1943,6 +2021,22 @@ fn substitute_arguments(
             }
         }
     };
+    let mut callables = operands
+        .iter()
+        .filter_map(|operand| match &operand.value {
+            StaticMachineBindingValue::Machine(argument) => {
+                Some((operand.parameter, argument.symbol))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    callables.sort_unstable_by_key(|(binder, _)| symbol_order(*binder));
+    let selected_callable = |target| {
+        callables
+            .binary_search_by_key(&symbol_order(target), |(binder, _)| symbol_order(*binder))
+            .ok()
+            .map(|position| callables[position].1)
+    };
     let mut applications = Vec::new();
     let calls = program
         .expression_table
@@ -1956,13 +2050,40 @@ fn substitute_arguments(
             && !call.build_selection.is_valid()
         {
             replace(&mut call.machine_arguments);
+            if let Some(target) = selected_callable(call.target_symbol) {
+                call.static_machine_parameter = call.target_symbol;
+                call.target_symbol = target;
+            }
             applications.push(call.authored_machine_application);
         }
     }
     for handle in statements.handles() {
-        if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
-            replace(&mut call.machine_arguments);
-            applications.push(call.authored_machine_application);
+        let statement = program.statement_table.statement_mut(handle);
+        match statement {
+            StatementNode::Call(call) => {
+                replace(&mut call.machine_arguments);
+                if let Some(target) = selected_callable(call.target_symbol) {
+                    call.static_machine_parameter = call.target_symbol;
+                    call.target_symbol = target;
+                }
+                applications.push(call.authored_machine_application);
+            }
+            StatementNode::Transition(transition) => {
+                let targets = transition.targets();
+                for handle in targets {
+                    if let typed_trees::statement::TransitionTargetNode::Named {
+                        path,
+                        static_machine_parameter,
+                        ..
+                    } = program.statement_table.transition_target_mut(handle)
+                        && let Some(target) = selected_callable(path.symbol)
+                    {
+                        *static_machine_parameter = path.symbol;
+                        path.symbol = target;
+                    }
+                }
+            }
+            _ => {}
         }
     }
     for application in applications {

@@ -38,7 +38,7 @@ fn find<'program, Calls: ExpressionCalls<'program>>(
 ) -> Option<Calls::Site> {
     let program = traversal.source();
     if !program.expression_table.expression_is_valid(expression)
-        || program.static_type_context_is_unreachable(expression)
+        || program.static_type_contexts.is_unreachable(expression)
     {
         return None;
     }

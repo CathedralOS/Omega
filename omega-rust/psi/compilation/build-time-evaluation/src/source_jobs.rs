@@ -1377,6 +1377,8 @@ pub(crate) mod tests {
             source.push_machine(machine);
         }
         let request = terminal_production::TerminalSourceCompilation {
+            calling: None,
+            providers: None,
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
@@ -1763,6 +1765,8 @@ pub(crate) mod tests {
         let accepted = terminal_production::AcceptedTerminalSource::judge(
             Arc::new(prepared),
             terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[root],
                 subjects: &[],

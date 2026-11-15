@@ -36,6 +36,7 @@ mod calls;
 mod calls_visibility_tests;
 mod carriers;
 mod casts;
+mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
@@ -159,6 +160,9 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// The machines whose bodies a contract clause is unfolding, innermost
+    /// last (`clause_calls`): a recursive predicate is refused.
+    unfolding_calls: Vec<SymbolHandle>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -227,7 +231,7 @@ pub(crate) struct Program<'t> {
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
     pub byte_domains: Vec<crate::body::SourceByteDomain>,
-    pub scalar_applications: terminal_psi::ScalarApplications,
+    pub(crate) scalar_applications: constant_values::ScalarApplications,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
     pub declared_domains: Vec<DeclaredDomain>,
@@ -394,6 +398,7 @@ impl<'t> Program<'t> {
             implementation_body: None,
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            unfolding_calls: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
@@ -1772,6 +1777,7 @@ mod tests {
                 }],
                 designated: None,
                 required_contract: None,
+                static_reach_binding: None,
             },
             result: None,
             source,

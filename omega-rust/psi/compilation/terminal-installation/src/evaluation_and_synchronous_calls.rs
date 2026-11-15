@@ -1710,15 +1710,16 @@ pub(crate) mod synchronous_calls {
             &self,
             root: MachineId,
             installation_requirements: &[BoundaryMachineId],
-            inherited_root_bound: bool,
         ) -> Result<terminal_psi::TerminalRootServiceReach, String> {
-            let closure = self.from_root(root)?;
+            let closure = self.visit_callables_stopping_at(
+                [TargetMachineCallable::Machine(root)],
+                &mut BTreeSet::new(),
+                installation_requirements,
+            )?;
             let mut concrete = BTreeSet::new();
             let mut installation_dependencies = Vec::new();
             for body in closure.machines {
-                if body.id != root || !inherited_root_bound {
-                    concrete.extend(body.declared_service_reach.iter().flatten().copied());
-                }
+                concrete.extend(body.declared_service_reach.iter().flatten().copied());
                 for operation in body.operations() {
                     let service = match operation.kind {
                         OperationKind::PortWrite { service, .. } => Some(service),
@@ -1740,10 +1741,17 @@ pub(crate) mod synchronous_calls {
                     .boundary_machine(called)
                     .ok_or_else(|| format!("service reach lost boundary {called:?}"))?;
                 if installation_requirements.binary_search(&called).is_ok() {
+                    if !required.service_reach_is_installation_bound {
+                        return Err("installation reach names a fixed requirement".into());
+                    }
                     installation_dependencies.push(terminal_psi::InstallationReachDependency {
                         requirement_identity: required.identity,
                         upper_bound: required.published_service_ceiling.clone(),
                     });
+                } else if required.service_reach_is_installation_bound {
+                    if self.boundary_callee(called)?.is_none() {
+                        return Err("installation reach has no checked selected provider".into());
+                    }
                 } else {
                     concrete.extend(required.published_service_ceiling.iter().copied());
                 }
@@ -1761,12 +1769,140 @@ pub(crate) mod synchronous_calls {
             })
         }
 
+        /// Check the actual selected rows before executing this installed root.
+        /// Symbolic child rows are resolved once in dependency order; an absent
+        /// child or cycle cannot establish a parent's finite bound.
+        pub fn validate_installed_service_reach(&self, root: MachineId) -> Result<(), String> {
+            use flow_effects::installation_reach::{ReachResolutionError, ReachRow, resolve};
+            let closure = self.from_root(root)?;
+            let mut required = Vec::new();
+            for id in &closure.boundaries {
+                let boundary = self
+                    .module
+                    .boundary_machine(*id)
+                    .ok_or("installed reach lost a boundary declaration")?;
+                if boundary.service_reach_is_installation_bound {
+                    required.push(boundary);
+                }
+            }
+            if required.is_empty() {
+                return Ok(());
+            }
+            let mut positions = required
+                .iter()
+                .enumerate()
+                .map(|(position, boundary)| (boundary.identity, position))
+                .collect::<Vec<_>>();
+            positions.sort_unstable();
+            if positions.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Err("installed reach has competing exact requirement identities".into());
+            }
+            let requirements = self.module.installation_reach_requirements();
+            let mut rows = Vec::with_capacity(required.len());
+            for boundary in &required {
+                let selected = self
+                    .boundary_callee(boundary.id)?
+                    .ok_or("installation reach has no checked selected provider")?;
+                let reach = self.service_reach_from(selected, &requirements)?;
+                let dependencies = reach
+                    .installation_dependencies
+                    .iter()
+                    .map(|dependency| {
+                        positions
+                            .binary_search_by_key(&dependency.requirement_identity, |row| row.0)
+                            .ok()
+                            .map(|position| positions[position].1)
+                    })
+                    .collect();
+                rows.push(ReachRow {
+                    fixed: reach.concrete,
+                    dependencies,
+                });
+            }
+            let resolved = resolve(rows).map_err(|error| match error {
+                ReachResolutionError::Unresolved(pending) => {
+                    let identities = pending
+                        .iter()
+                        .map(|(position, _)| {
+                            self.module
+                                .identities
+                                .text(required[*position].identity)
+                                .unwrap_or("<absent requirement identity>")
+                        })
+                        .collect::<Vec<_>>();
+                    format!(
+                        "selected installation retains unresolved or cyclic reach rows: {}",
+                        identities.join(", ")
+                    )
+                }
+                ReachResolutionError::InvalidDependency { row, dependency } => {
+                    format!("installed reach row {row} has invalid dependency {dependency}")
+                }
+            })?;
+            for (boundary, row) in required.iter().zip(resolved) {
+                if row.iter().any(|service| {
+                    boundary
+                        .published_service_ceiling
+                        .binary_search(service)
+                        .is_err()
+                }) {
+                    let identity = self
+                        .module
+                        .identities
+                        .text(boundary.identity)
+                        .ok_or("installed reach lost its exact requirement identity")?;
+                    return Err(format!(
+                        "installation reach resolution for `{identity}` exceeds its published upper bound"
+                    ));
+                }
+            }
+            Ok(())
+        }
+
         pub fn from_root(
             &self,
             root: MachineId,
         ) -> Result<SynchronousCallClosure<'module>, String> {
-            let mut pending = vec![TargetMachineCallable::Machine(root)];
-            let mut visited = BTreeSet::new();
+            self.from_callables([TargetMachineCallable::Machine(root)])
+        }
+
+        pub fn scalar_evaluation_roots(
+            &self,
+            roots: &[MachineId],
+            target: Option<&str>,
+        ) -> Result<Vec<TargetMachineCallable>, String> {
+            crate::scalar_applications::demanded_scalar_entries(
+                self.module,
+                self,
+                roots,
+                target,
+                &self.boundary_calls,
+            )
+        }
+
+        pub fn from_callables(
+            &self,
+            roots: impl IntoIterator<Item = TargetMachineCallable>,
+        ) -> Result<SynchronousCallClosure<'module>, String> {
+            self.visit_callables(roots, &mut BTreeSet::new())
+        }
+
+        pub(crate) fn visit_callables(
+            &self,
+            roots: impl IntoIterator<Item = TargetMachineCallable>,
+            visited: &mut BTreeSet<TargetMachineCallable>,
+        ) -> Result<SynchronousCallClosure<'module>, String> {
+            self.visit_callables_stopping_at(roots, visited, &[])
+        }
+
+        fn visit_callables_stopping_at(
+            &self,
+            roots: impl IntoIterator<Item = TargetMachineCallable>,
+            visited: &mut BTreeSet<TargetMachineCallable>,
+            installation_requirements: &[BoundaryMachineId],
+        ) -> Result<SynchronousCallClosure<'module>, String> {
+            let mut pending: Vec<_> = roots.into_iter().collect();
+            let roots = pending.clone();
             let mut machines = Vec::new();
             let mut boundaries = BTreeSet::new();
             let mut callable_reach = None;
@@ -1779,7 +1915,9 @@ pub(crate) mod synchronous_calls {
                     if retain_boundary {
                         boundaries.insert(boundary);
                     }
-                    if let Some(callee) = callee {
+                    if let Some(callee) = callee
+                        && installation_requirements.binary_search(&boundary).is_err()
+                    {
                         pending.push(TargetMachineCallable::Machine(callee));
                     }
                     continue;
@@ -1811,7 +1949,7 @@ pub(crate) mod synchronous_calls {
                     }
                     for operation in &block.operations {
                         if matches!(operation.kind, OperationKind::CallMachine { .. }) {
-                            // Resolve code values from the original entry, so
+                            // Resolve code values from the original entries, so
                             // a helper's formal keeps its caller's selection.
                             // Starting each helper as a root would lose it.
                             if callable_reach.is_none() {
@@ -1834,8 +1972,26 @@ pub(crate) mod synchronous_calls {
                                         &implementations,
                                     )
                                     .map_err(str::to_owned)?;
+                                let mut entries = Vec::with_capacity(roots.len());
+                                for root in &roots {
+                                    match *root {
+                                        TargetMachineCallable::Machine(machine) => {
+                                            entries.push(machine)
+                                        }
+                                        TargetMachineCallable::Boundary(boundary) => {
+                                            if installation_requirements
+                                                .binary_search(&boundary)
+                                                .is_err()
+                                                && let Some(machine) =
+                                                    self.boundary_callee(boundary)?
+                                            {
+                                                entries.push(machine);
+                                            }
+                                        }
+                                    }
+                                }
                                 callable_reach = Some(
-                                    reachable_callable_invocations(&program, [root])
+                                    reachable_callable_invocations(&program, entries)
                                         .map_err(str::to_owned)?,
                                 );
                             }

@@ -609,6 +609,7 @@ impl TableTerm for ProofNode {
                 premises.push(premise);
             }
             ProofRule::IeeeFloatOrderChain(children)
+            | ProofRule::FloatMeaningNormalization(children)
             | ProofRule::ConjunctionIntroduction(children) => {
                 premises.extend(children.iter());
             }
@@ -870,6 +871,10 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
         }
         ProofRule::IeeeFloatOrderChain(premises) => {
             writer.u8(29);
+            writer.len("certificate children", premises.len())?;
+        }
+        ProofRule::FloatMeaningNormalization(premises) => {
+            writer.u8(30);
             writer.len("certificate children", premises.len())?;
         }
     }
@@ -1263,30 +1268,52 @@ mod tests {
     }
 
     #[test]
-    fn ieee_chain_fingerprint_covers_each_premise_and_the_closed_judgment() {
+    fn ordered_rule_fingerprints_cover_each_child_order_and_family() {
         let leaf = |index| ProofNode {
             conclusion: Proposition::Truth,
             rule: ProofRule::Assumption { index },
         };
-        let proof = ProofNode {
-            conclusion: Proposition::Truth,
-            rule: ProofRule::IeeeFloatOrderChain(vec![leaf(0), leaf(1)]),
-        };
-        let original = canonical_certificate_bytes(&proof).unwrap();
-        for position in 0..2 {
-            let mut changed = proof.clone();
-            let ProofRule::IeeeFloatOrderChain(children) = &mut changed.rule else {
+        let mut encodings = Vec::new();
+        for meaning in [false, true] {
+            let children = vec![leaf(0), leaf(1)];
+            let proof = ProofNode {
+                conclusion: Proposition::Truth,
+                rule: if meaning {
+                    ProofRule::FloatMeaningNormalization(children)
+                } else {
+                    ProofRule::IeeeFloatOrderChain(children)
+                },
+            };
+            let original = canonical_certificate_bytes(&proof).unwrap();
+            encodings.push(original.clone());
+            for position in 0..2 {
+                let mut changed = proof.clone();
+                let (ProofRule::IeeeFloatOrderChain(children)
+                | ProofRule::FloatMeaningNormalization(children)) = &mut changed.rule
+                else {
+                    unreachable!()
+                };
+                children[position].rule = ProofRule::Assumption { index: 7 };
+                assert_ne!(canonical_certificate_bytes(&changed).unwrap(), original);
+            }
+            let mut reversed = proof.clone();
+            let (ProofRule::IeeeFloatOrderChain(children)
+            | ProofRule::FloatMeaningNormalization(children)) = &mut reversed.rule
+            else {
                 unreachable!()
             };
-            children[position].rule = ProofRule::Assumption { index: 7 };
-            assert_ne!(canonical_certificate_bytes(&changed).unwrap(), original);
+            children.reverse();
+            assert_ne!(canonical_certificate_bytes(&reversed).unwrap(), original);
+            let mut shorter = proof;
+            let (ProofRule::IeeeFloatOrderChain(children)
+            | ProofRule::FloatMeaningNormalization(children)) = &mut shorter.rule
+            else {
+                unreachable!()
+            };
+            children.pop();
+            assert_ne!(canonical_certificate_bytes(&shorter).unwrap(), original);
         }
-        let mut reversed = proof.clone();
-        let ProofRule::IeeeFloatOrderChain(children) = &mut reversed.rule else {
-            unreachable!()
-        };
-        children.reverse();
-        assert_ne!(canonical_certificate_bytes(&reversed).unwrap(), original);
+        assert_ne!(encodings[0], encodings[1]);
         let mut closed = leaf(0);
         closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIeeeFloatRelation);
         let encoded = canonical_certificate_bytes(&closed).unwrap();

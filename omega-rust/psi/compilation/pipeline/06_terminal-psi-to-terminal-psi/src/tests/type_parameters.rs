@@ -104,6 +104,7 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
                 call_context: None,
                 kind: ExpressionKind::Call {
                     required_contract: None,
+                    static_reach_binding: None,
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,
@@ -340,6 +341,7 @@ fn rigid_result_transport(
         kind: ExpressionKind::Call {
             callee: id::<MachineId>(2).into(),
             required_contract: None,
+            static_reach_binding: None,
             arguments: vec![item(input_type)],
             designated: None,
         },

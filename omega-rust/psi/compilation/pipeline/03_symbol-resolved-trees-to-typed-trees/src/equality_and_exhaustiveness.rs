@@ -27,10 +27,9 @@ pub(crate) mod equality {
     internal lowering of `in`).
     */
 
-    use crate::tables::{resolved_expressions, resolved_statements};
+    use crate::tables::resolved_statements;
     use diagnostics::Diagnostic;
     use resolved::SymbolResolvedTrees;
-    use resolved::data::{DataDefinition, DataMember};
     use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
     use resolved::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
     use symbol_resolved_trees as resolved;
@@ -251,74 +250,40 @@ pub(crate) mod equality {
         program: &SymbolResolvedTrees,
         operand: ExpressionHandle,
     ) -> Result<(), Diagnostic> {
-        match program.tables.bodies.expressions.expression(operand) {
-            ExpressionNode::Name(path) => {
-                let members = resolved_expressions(program).name_path_members(path.members);
-                let [type_name, case_name] = members else {
-                    return Ok(());
-                };
-                let Some((data, case_name)) = payload_bearing_case(
-                    program,
-                    type_name.as_str(),
-                    case_name.as_str(),
-                    program.tables.bodies.expressions.source_span(operand),
-                ) else {
-                    return Ok(());
-                };
-                let data_name = data.name.as_str();
-                Err(Diagnostic::error(format!(
-                    "`{data_name}::{case_name}` carries a payload, so the bare case name is not a value -- use `in` to test the case (`value in {data_name}::{case_name}`), or compare against a constructed value"
-                )))
-            }
+        use crate::expressions::equatable::{
+            EqualitySelection, equality_selection, suggested_equality_declaration, variant_owner,
+        };
+
+        let (case, constructed) = match program.tables.bodies.expressions.expression(operand) {
+            ExpressionNode::Name(path) => (path.symbol, false),
             ExpressionNode::StructLiteral(literal) => {
-                let Some(case_name) = literal.case_name.as_ref() else {
-                    return Ok(());
-                };
-                let Some((data, case_name)) = payload_bearing_case(
-                    program,
-                    literal.type_name.as_str(),
-                    case_name.as_str(),
-                    program.tables.bodies.expressions.source_span(operand),
-                ) else {
-                    return Ok(());
-                };
-                let data_name = data.name.as_str();
-                if !matches!(
-                    crate::expressions::equatable::equality_selection(program, data),
-                    crate::expressions::equatable::EqualitySelection::Missing
-                ) {
-                    return Ok(());
-                }
-                Err(Diagnostic::error(format!(
-                    "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity",
-                    crate::expressions::equatable::suggested_equality_declaration(data_name)
-                )))
+                (literal.case_symbol.unwrap_or_default(), true)
             }
-            _ => Ok(()),
+            _ => return Ok(()),
+        };
+        let Some((data, case)) = variant_owner(program, case) else {
+            return Ok(());
+        };
+        if case.payload.count() == 0 {
+            return Ok(());
         }
-    }
-
-    fn payload_bearing_case<'program>(
-        program: &'program SymbolResolvedTrees,
-        type_name: &str,
-        case_name: &str,
-        reference: source::SourceSpan,
-    ) -> Option<(&'program DataDefinition, String)> {
-        let data_definition = crate::expressions::equatable::data_definition_by_name_from(
-            program, type_name, reference,
-        )?;
-
-        program
-            .data_members(data_definition.members)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant)
-                    if variant.name.as_str() == case_name && variant.payload.count() > 0 =>
-                {
-                    Some((data_definition, case_name.to_owned()))
-                }
-                _ => None,
-            })
+        let data_name = data.name.as_str();
+        let case_name = case.name.as_str();
+        if !constructed {
+            return Err(Diagnostic::error(format!(
+                "`{data_name}::{case_name}` carries a payload, so the bare case name is not a value -- use `in` to test the case (`value in {data_name}::{case_name}`), or compare against a constructed value"
+            )));
+        }
+        if !matches!(
+            equality_selection(program, data),
+            EqualitySelection::Missing
+        ) {
+            return Ok(());
+        }
+        Err(Diagnostic::error(format!(
+            "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality, or use `core::Identity` with complete values and their carrier for mathematical identity",
+            suggested_equality_declaration(data_name)
+        )))
     }
 }
 
@@ -326,7 +291,7 @@ pub(crate) mod equatable {
     use crate::tables::{resolved_statements, type_constraints, type_references};
     use diagnostics::Diagnostic;
     use resolved::SymbolResolvedTrees;
-    use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};
+    use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind, DataVariant};
     use resolved::trait_definition::{Conformance, ConformanceRow, ConformanceRowSource};
     use symbol_resolved_trees as resolved;
     use typed_trees::types::PrimitiveType;
@@ -340,45 +305,33 @@ pub(crate) mod equatable {
         Structural,
     }
 
-    pub(crate) fn data_definition_by_name_from<'program>(
-        program: &'program SymbolResolvedTrees,
-        type_name: &str,
-        reference: source::SourceSpan,
-    ) -> Option<&'program DataDefinition> {
-        if reference.span.start != reference.span.end
-            && let Some(symbol) = program
-                .symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    type_name,
-                    &[symbols::SymbolKind::Data],
-                    reference,
-                )
-        {
-            return data_definition_by_symbol(program, symbol);
-        }
-        let mut matches = program
-            .data_definitions
-            .iter()
-            .filter(|definition| definition.name.as_str() == type_name);
-        let first = matches.next()?;
-        matches.next().is_none().then_some(first)
-    }
-
     pub(crate) fn data_definition_by_symbol(
         program: &SymbolResolvedTrees,
         symbol: symbols::SymbolHandle,
     ) -> Option<&DataDefinition> {
-        program.data_definition_by_symbol(symbol)
+        symbol
+            .is_valid()
+            .then(|| program.data_definition_by_symbol(symbol))
+            .flatten()
     }
 
-    fn canonical_data_name(
+    pub(crate) fn variant_owner(
         program: &SymbolResolvedTrees,
-        symbol: symbols::SymbolHandle,
-        authored: &resolved::name::DiagnosticName,
-    ) -> String {
-        data_definition_by_symbol(program, symbol)
-            .map(|definition| definition.name.as_str().to_owned())
-            .unwrap_or_else(|| authored.as_str().to_owned())
+        case: symbols::SymbolHandle,
+    ) -> Option<(&DataDefinition, &DataVariant)> {
+        if !case.is_valid() || program.symbols.get(case).kind != symbols::SymbolKind::Variant {
+            return None;
+        }
+        let data = data_definition_by_symbol(program, program.symbols.get(case).parent)?;
+        let variant =
+            program
+                .data_members(data.members)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.symbol == case => Some(variant),
+                    _ => None,
+                })?;
+        Some((data, variant))
     }
 
     pub(crate) fn data_equality_shape(
@@ -410,8 +363,14 @@ pub(crate) mod equatable {
 
     pub(crate) struct EqualityImplementation<'program> {
         pub(crate) conformance: &'program Conformance,
-        pub(crate) equals_state: symbols::SymbolHandle,
-        pub(crate) synthesized: bool,
+        pub(crate) row: Option<&'program ConformanceRow>,
+    }
+
+    impl EqualityImplementation<'_> {
+        pub(crate) fn is_synthesized(&self) -> bool {
+            self.row
+                .is_some_and(|row| row.source == ConformanceRowSource::Synthesized)
+        }
     }
 
     fn is_equatable_implementation(
@@ -425,16 +384,17 @@ pub(crate) mod equatable {
         program: &'program SymbolResolvedTrees,
         conformance: &Conformance,
     ) -> Option<&'program DataDefinition> {
-        let [resolved::types::TypeReference::Named { symbol, name, .. }] =
-            program.child_type_references(conformance.arguments)
-        else {
+        let [operand] = program.child_type_references(conformance.arguments) else {
             return None;
         };
-        if symbol.is_valid() {
-            data_definition_by_symbol(program, *symbol)
-        } else {
-            data_definition_by_name_from(program, name.as_str(), name.source_span())
+        let mut operand = operand;
+        while let resolved::types::TypeReference::AliasUse { expansion, .. } = operand {
+            operand = expansion;
         }
+        let resolved::types::TypeReference::Named { symbol, .. } = operand else {
+            return None;
+        };
+        data_definition_by_symbol(program, *symbol)
     }
 
     pub(crate) fn implementation_name(
@@ -447,10 +407,29 @@ pub(crate) mod equatable {
         )
     }
 
-    fn equals_row(conformance: &Conformance) -> Option<&ConformanceRow> {
-        let rows = &conformance.rows;
-        rows.iter()
-            .find(|row| row.requirement_name.as_str() == EQUALS_REQUIREMENT)
+    fn equals_row<'program>(
+        program: &'program SymbolResolvedTrees,
+        conformance: &'program Conformance,
+    ) -> Option<&'program ConformanceRow> {
+        let trait_symbol = conformance.trait_symbol;
+        let mut requirements = program
+            .symbols
+            .child_handles(trait_symbol)?
+            .filter(|&symbol| {
+                program.symbols.get(symbol).kind == symbols::SymbolKind::State
+                    && program.symbols.name(symbol) == EQUALS_REQUIREMENT
+                    && program.symbols.symbol_source_is_selected(symbol)
+            });
+        let requirement = requirements.next()?;
+        if requirements.next().is_some() {
+            return None;
+        }
+        let mut rows = conformance
+            .rows
+            .iter()
+            .filter(|row| row.declaring_trait == trait_symbol && row.requirement == requirement);
+        let row = rows.next()?;
+        rows.next().is_none().then_some(row)
     }
 
     pub(crate) fn equality_selection<'program>(
@@ -468,16 +447,10 @@ pub(crate) mod equatable {
             .collect::<Vec<_>>();
         match candidates.as_slice() {
             [] => EqualitySelection::Missing,
-            [conformance] => {
-                let row = equals_row(conformance);
-                EqualitySelection::Selected(EqualityImplementation {
-                    conformance,
-                    equals_state: row
-                        .map_or_else(symbols::SymbolHandle::invalid, |row| row.realization_state),
-                    synthesized: row
-                        .is_some_and(|row| row.source == ConformanceRowSource::Synthesized),
-                })
-            }
+            [conformance] => EqualitySelection::Selected(EqualityImplementation {
+                conformance,
+                row: equals_row(program, conformance),
+            }),
             _ => EqualitySelection::Ambiguous(
                 candidates
                     .iter()
@@ -493,7 +466,7 @@ pub(crate) mod equatable {
     ) -> Option<&DataDefinition> {
         program.conformances.iter().find_map(|conformance| {
             (is_equatable_implementation(program, conformance)
-                && equals_row(conformance).is_some_and(|row| {
+                && equals_row(program, conformance).is_some_and(|row| {
                     row.source == ConformanceRowSource::Synthesized
                         && row.realization_state == state
                 }))
@@ -509,7 +482,7 @@ pub(crate) mod equatable {
     pub(crate) enum FieldEquality<'program> {
         Direct,
         Text,
-        Structural(&'program DataDefinition),
+        Structural(&'program DataDefinition, EqualityImplementation<'program>),
     }
 
     pub(crate) fn field_equality<'program>(
@@ -523,32 +496,20 @@ pub(crate) mod equatable {
             return Ok(FieldEquality::Text);
         }
 
-        let Some(base_name) = value_type_base_name(program, &field.type_reference) else {
+        if scalar_field_type(program, &field.type_reference).is_some() {
+            return Ok(FieldEquality::Direct);
+        }
+
+        let Some(field_data) = value_type_symbol(program, &field.type_reference)
+            .and_then(|symbol| data_definition_by_symbol(program, symbol))
+        else {
             return Err(Diagnostic::error(format!(
                 "{}: field `{}` of `{owner}` is not Equatable: only scalar primitives, payload-less sums, and data types with an Equatable implementation participate in synthesized structural equality",
                 context(),
                 field.name
             )));
         };
-
-        if scalar_field_type(program, &field.type_reference).is_some() {
-            return Ok(FieldEquality::Direct);
-        }
-
-        let Some(field_data) = data_definition_by_name_from(
-            program,
-            &base_name,
-            program
-                .symbols
-                .symbol_source_span(owner_data.symbol)
-                .unwrap_or_default(),
-        ) else {
-            return Err(Diagnostic::error(format!(
-                "{}: field `{}` of `{owner}` is not Equatable: `{base_name}` is not a comparable data type",
-                context(),
-                field.name
-            )));
-        };
+        let base_name = field_data.name.as_str();
 
         if field_data.quotient.is_some() {
             return Err(Diagnostic::error(format!(
@@ -561,12 +522,14 @@ pub(crate) mod equatable {
         match data_equality_shape(program, field_data) {
             DataEqualityShape::Implicit => Ok(FieldEquality::Direct),
             DataEqualityShape::Structural => match equality_selection(program, field_data) {
-                EqualitySelection::Selected(_) => Ok(FieldEquality::Structural(field_data)),
+                EqualitySelection::Selected(selected) => {
+                    Ok(FieldEquality::Structural(field_data, selected))
+                }
                 EqualitySelection::Missing => Err(Diagnostic::error(format!(
                     "{}: field `{}` of `{owner}` is not Equatable: add `{}`",
                     context(),
                     field.name,
-                    suggested_equality_declaration(&base_name)
+                    suggested_equality_declaration(base_name)
                 ))),
                 EqualitySelection::Ambiguous(implementations) => Err(Diagnostic::error(format!(
                     "{}: field `{}` of `{owner}` has {} Equatable implementations for `{base_name}` (`{}`); structural equality selects at most one",
@@ -590,7 +553,7 @@ pub(crate) mod equatable {
         };
         for conformance in program.conformances.iter().skip(skip) {
             if !is_equatable_implementation(program, conformance)
-                || !equals_row(conformance)
+                || !equals_row(program, conformance)
                     .is_some_and(|row| row.source == ConformanceRowSource::Synthesized)
             {
                 continue;
@@ -609,7 +572,7 @@ pub(crate) mod equatable {
                 )));
             }
 
-            let mut visiting = vec![type_name.to_owned()];
+            let mut visiting = vec![data.symbol];
             validate_equatable_data(program, &context, data, &mut visiting)?;
         }
         Ok(())
@@ -619,7 +582,7 @@ pub(crate) mod equatable {
         program: &SymbolResolvedTrees,
         context: &str,
         data: &DataDefinition,
-        visiting: &mut Vec<String>,
+        visiting: &mut Vec<symbols::SymbolHandle>,
     ) -> Result<(), Diagnostic> {
         let owner = data.name.as_str();
         for member in program.data_members(data.members) {
@@ -628,19 +591,22 @@ pub(crate) mod equatable {
                 DataMember::Variant(variant) => program.data_payload_fields(variant.payload),
             };
             for field in fields {
-                let FieldEquality::Structural(nested) =
+                let FieldEquality::Structural(nested, implementation) =
                     field_equality(program, || context.to_owned(), data, field)?
                 else {
                     continue;
                 };
+                if !implementation.is_synthesized() {
+                    continue;
+                }
                 let nested_name = nested.name.as_str();
-                if visiting.iter().any(|name| name == nested_name) {
+                if visiting.contains(&nested.symbol) {
                     return Err(Diagnostic::error(format!(
                         "{context}: type `{nested_name}` is recursive through field `{}` of `{owner}`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet",
                         field.name
                     )));
                 }
-                visiting.push(nested_name.to_owned());
+                visiting.push(nested.symbol);
                 validate_equatable_data(program, context, nested, visiting)?;
                 visiting.pop();
             }
@@ -719,50 +685,50 @@ pub(crate) mod equatable {
         }
     }
 
-    pub(crate) fn value_type_base_name(
-        program: &SymbolResolvedTrees,
-        type_reference: &resolved::types::TypeReference,
-    ) -> Option<String> {
-        match type_reference {
-            resolved::types::TypeReference::Reference(reference) => value_type_base_name(
-                program,
-                program.child_type_reference(reference.storage.referee),
-            ),
-            resolved::types::TypeReference::Constrained(constrained) => value_type_base_name(
-                program,
-                program.child_type_reference(constrained.storage.base_type),
-            ),
-            resolved::types::TypeReference::Named { symbol, name, .. } => {
-                Some(canonical_data_name(program, *symbol, name))
-            }
-            _ => None,
+    // Transparent aliases and qualified or borrowed values retain the
+    // declaration chosen by resolution in their underlying type.
+    pub(crate) fn value_type_symbol<'program>(
+        program: &'program SymbolResolvedTrees,
+        mut reference: &'program resolved::types::TypeReference,
+    ) -> Option<symbols::SymbolHandle> {
+        loop {
+            reference = match reference {
+                resolved::types::TypeReference::Reference(reference) => {
+                    program.child_type_reference(reference.storage.referee)
+                }
+                resolved::types::TypeReference::Constrained(constrained) => {
+                    program.child_type_reference(constrained.storage.base_type)
+                }
+                resolved::types::TypeReference::AliasUse { expansion, .. } => expansion,
+                resolved::types::TypeReference::Named { symbol, .. } => {
+                    return symbol.is_valid().then_some(*symbol);
+                }
+                _ => return None,
+            };
         }
     }
 
-    pub(crate) fn table_type_base_name(
+    fn table_type_symbol(
         program: &SymbolResolvedTrees,
-        type_reference: resolved::types::TypeReferenceHandle,
-    ) -> Option<String> {
-        if !type_reference.is_valid() {
-            return None;
+        mut reference: resolved::types::TypeReferenceHandle,
+    ) -> Option<symbols::SymbolHandle> {
+        while reference.is_valid() {
+            reference = match type_references(program).type_reference(reference) {
+                resolved::types::TypeReferenceNode::Reference { referee, .. } => *referee,
+                resolved::types::TypeReferenceNode::Constrained { base_type, .. } => *base_type,
+                resolved::types::TypeReferenceNode::AliasUse { expansion, .. } => *expansion,
+                resolved::types::TypeReferenceNode::Named { symbol, .. } => {
+                    return symbol.is_valid().then_some(*symbol);
+                }
+                _ => return None,
+            };
         }
-        match type_references(program).type_reference(type_reference) {
-            resolved::types::TypeReferenceNode::Reference { referee, .. } => {
-                table_type_base_name(program, *referee)
-            }
-            resolved::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                table_type_base_name(program, *base_type)
-            }
-            resolved::types::TypeReferenceNode::Named { symbol, name } => {
-                Some(canonical_data_name(program, *symbol, name))
-            }
-            _ => None,
-        }
+        None
     }
 
     #[derive(Debug, Clone)]
     pub(crate) struct EqualityScope {
-        pub(crate) value_types: Vec<(String, String)>,
+        value_types: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>,
         pub(crate) synthesized_row_data: symbols::SymbolHandle,
     }
 
@@ -774,13 +740,13 @@ pub(crate) mod equatable {
         ) -> Self {
             let mut value_types = Vec::new();
             for owned in program.machine_owned_data(machine.owned_data) {
-                if let Some(base) = value_type_base_name(program, &owned.type_reference) {
-                    value_types.push((owned.name.as_str().to_owned(), base));
+                if let Some(base) = value_type_symbol(program, &owned.type_reference) {
+                    value_types.push((owned.symbol, base));
                 }
             }
             for parameter in program.state_parameters(state.parameters) {
-                if let Some(base) = value_type_base_name(program, &parameter.type_reference) {
-                    value_types.push((parameter.name.as_str().to_owned(), base));
+                if let Some(base) = value_type_symbol(program, &parameter.type_reference) {
+                    value_types.push((parameter.symbol, base));
                 }
             }
             let synthesized_row_data = program
@@ -788,7 +754,7 @@ pub(crate) mod equatable {
                 .iter()
                 .find(|conformance| {
                     is_equatable_implementation(program, conformance)
-                        && equals_row(conformance).is_some_and(|row| {
+                        && equals_row(program, conformance).is_some_and(|row| {
                             row.source == ConformanceRowSource::Synthesized
                                 && row.realization_machine == machine.symbol
                         })
@@ -809,23 +775,22 @@ pub(crate) mod equatable {
             let mut scope = Self::for_state_interface(program, machine, state);
             for statement in resolved_statements(program).statements(state.statement_nodes) {
                 if let resolved::statement::StatementNode::LocalData(local) = statement
-                    && let Some(base) = table_type_base_name(program, local.type_reference)
+                    && let Some(base) = table_type_symbol(program, local.type_reference)
                 {
-                    scope
-                        .value_types
-                        .push((local.name.as_str().to_owned(), base));
+                    scope.value_types.push((local.symbol, base));
                 }
             }
 
             scope
         }
 
-        pub(crate) fn value_type(&self, name: &str) -> Option<&str> {
+        pub(crate) fn value_type(
+            &self,
+            symbol: symbols::SymbolHandle,
+        ) -> Option<symbols::SymbolHandle> {
             self.value_types
                 .iter()
-                .rev()
-                .find(|(value_name, _)| value_name == name)
-                .map(|(_, type_name)| type_name.as_str())
+                .find_map(|&(binding, ty)| (binding == symbol).then_some(ty))
         }
     }
 }
@@ -3540,5 +3505,39 @@ pub(crate) mod proposition {
         literal
             .value_bignum()
             .is_some_and(|value| carrier.admits(&value))
+    }
+}
+
+#[cfg(test)]
+mod equality_identity_tests {
+    #[test]
+    fn aliases_keep_exact_same_leaf_declarations_at_both_sides_of_equality() {
+        let points = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/fixtures/run/equality/exact_nested_comparison/points.omg"
+        ));
+        let accepted = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/fixtures/run/equality/exact_nested_comparison/main.omg"
+        ));
+        let refused = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../tests/fixtures/fail/equality/exact_nested_comparison_mismatch/main.omg"
+        ));
+        let check = |main| {
+            crate::qualified_operator_home_tests::checked(&[
+                ("points.omg", points),
+                ("main.omg", main),
+            ])
+        };
+
+        assert!(check(accepted).is_ok_and(|program| !program.machines().is_empty()));
+        let Some(error) = check(refused).err() else {
+            panic!("Point and points::Point are different data types");
+        };
+        assert!(
+            error.contains("the operands are different data types"),
+            "{error}"
+        );
     }
 }

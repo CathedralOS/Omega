@@ -51,6 +51,8 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/float_meaning.rs"]
+mod float_meaning;
 #[path = "prove/ieee_float_order.rs"]
 mod ieee_float_order;
 #[path = "prove/ranges.rs"]
@@ -105,7 +107,7 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
-        Proposition::ScalarIeeeFloatComparison { .. } => true,
+        Proposition::ScalarIeeeFloatComparison { .. } | Proposition::FloatMeaningEqual(_) => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
@@ -1189,12 +1191,12 @@ impl<'a> Prover<'a> {
                 .closed(goal.clone())
                 .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
-            | Proposition::FloatMeaningEqual(_)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            Proposition::FloatMeaningEqual(_) => self.float_meaning(goal),
             Proposition::ScalarIeeeFloatComparison { .. } => self
                 .closed(goal.clone())
                 .or_else(|| self.ieee_float_order(goal))

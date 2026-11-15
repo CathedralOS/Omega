@@ -18,8 +18,8 @@ requires direct == true
 machine observe(kept: bool) -> bool
 requires kept == true
 {
-    let direct: bool in Held = kept;
-    hold(direct)
+    let direct: bool in Held = kept as +Held;
+    hold(direct as -Held)
 }
 
 machine main() crashes Trap {

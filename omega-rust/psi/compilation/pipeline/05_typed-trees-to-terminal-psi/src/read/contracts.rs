@@ -328,6 +328,9 @@ impl Program<'_> {
                 if let Some(predicate) = self.numeric_comparison_clause(id, scope, call)? {
                     return Ok(predicate);
                 }
+                // A call of a declared machine states what its body computes
+                // for the arguments (`clause_calls`).
+                return self.called_clause(id, scope, call);
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 // A callable predicate is Boolean, including a named input
@@ -1024,7 +1027,7 @@ impl Program<'_> {
                     crate::SourceOrigin::of(typed.expression_table.source_span(expression));
                 let measured = self.layout_query(id, call, query, source)?;
                 if let (
-                    crate::body::ExpressionKind::LayoutObservation { application },
+                    crate::body::ExpressionKind::ScalarApplication { application },
                     Some(ValueType::Scalar(scalar_type, qualification)),
                 ) = (measured.kind, measured.result)
                 {
@@ -1038,7 +1041,7 @@ impl Program<'_> {
                 }
                 unserved("layout query has no scalar application")
             }
-            ExpressionNode::Call(_) => unserved("call in a clause term"),
+            ExpressionNode::Call(call) => self.called_term(id, scope, call),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
         }
     }

@@ -145,12 +145,6 @@ impl Program<'_> {
         context: MachineId,
         signature: &StateSignature,
     ) -> Checked<SourceEnvelope> {
-        if signature.service_reach_is_installation_bound {
-            return Err(unavailable(
-                context,
-                "callable has an unsettled installation service ceiling",
-            ));
-        }
         let authored = self
             .typed
             .signature_invokes
@@ -226,12 +220,6 @@ impl Program<'_> {
             {
                 policy.clone()
             } else if let Some(machine) = self.typed.machine_by_symbol(*symbol) {
-                if machine.service_reach_is_installation_bound {
-                    return Err(unavailable(
-                        id,
-                        "named callable has an unsettled installation service ceiling",
-                    ));
-                }
                 let authored = self
                     .typed
                     .signature_invokes
@@ -664,13 +652,11 @@ impl Program<'_> {
             .span(signature.invokes)
             .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
         let mut reach = if crate::reach::has_authored_ceiling(self.typed, id, signature.symbol)? {
-            if signature.service_reach_is_installation_bound {
-                return Err(unavailable(
-                    id,
-                    "requirement service reach remains bound to an installation",
-                ));
+            if signature.service_reach_is_installation_bound && source_owner != signature.symbol {
+                crate::reach::written_ceiling(self.typed, id, source_owner)?
+            } else {
+                Some(finite_reach(self.typed, id, signature.service_reach_row)?)
             }
-            Some(finite_reach(self.typed, id, signature.service_reach_row)?)
         } else {
             None
         };
@@ -935,7 +921,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         }
         E::SavedSubject(_)
         | E::Float(_)
-        | E::LayoutObservation { .. }
+        | E::ScalarApplication { .. }
         | E::ByteLiteral(_)
         | E::Integer(_)
         | E::Boolean(_)
@@ -1173,6 +1159,57 @@ impl<'t> Program<'t> {
             named,
             crate::body::Axis::Reach,
         )?))
+    }
+
+    /// Prepare each selected callable and its binder ceiling in the same
+    /// catalog as the executable body. An unused binding needs its own
+    /// checked declaration but contributes no call or service reach.
+    pub(crate) fn application_binders(
+        &mut self,
+        owner: MachineId,
+    ) -> Checked<crate::declare::BinderReach> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+
+        let typed = self.typed;
+        let unserved = |what| refuse(owner, Construct::Machine, Unserved::Declaration(what));
+        let symbol = *self
+            .symbols
+            .get(owner)
+            .ok_or_else(|| unserved("a callback application lost its owner"))?;
+        let Some(instantiation) = typed.machine_instantiation(symbol).map_err(unserved)? else {
+            return Ok(Vec::new());
+        };
+        let bindings = typed
+            .expression_table
+            .static_machine_application_bindings(instantiation.binding_application());
+        let mut bounds = Vec::new();
+        for binding in bindings {
+            let StaticMachineBindingValue::Machine(argument) = &binding.value else {
+                continue;
+            };
+            let contract = typed
+                .retained_static_machine_contract(binding.parameter)
+                .ok_or_else(|| unserved("a static callback binding has no source requirement"))?;
+            let bound = match self.reach_ceiling(owner, contract.signature().symbol, true)? {
+                crate::Ceiling::Inferred => None,
+                crate::Ceiling::Authored(bound) => Some(bound),
+            };
+            let selected = typed
+                .machine_by_symbol(argument.symbol)
+                .or_else(|| {
+                    typed
+                        .unique_machine_by_entry_state_symbol(argument.symbol)
+                        .map(|(machine, _)| machine)
+                })
+                .ok_or_else(|| {
+                    unserved("a static callback binding has no exact selected machine")
+                })?;
+            if typed.machine_callable_parameters(selected).is_empty() {
+                self.machine(selected.symbol)?;
+            }
+            bounds.push((binding.parameter, bound));
+        }
+        Ok(bounds)
     }
 
     /// What a header says about synchronous entry: its `invokes` rows as

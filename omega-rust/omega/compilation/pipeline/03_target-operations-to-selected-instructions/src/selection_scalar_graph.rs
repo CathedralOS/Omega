@@ -868,7 +868,7 @@ pub(crate) mod aggregate_return {
                 .find(|(owner, _)| *owner == place)
                 .map(|(_, pointer)| *pointer)
         };
-        if indirect_result(placement, source.call_plan.policy).is_some() {
+        if indirect_result(placement).is_some() {
             super::structural::indirect_results::returned(
                 source,
                 block,
@@ -4757,12 +4757,7 @@ pub(crate) mod no_normal {
             ..Default::default()
         };
         if let Some(placement) = &call.result_placement {
-            if crate::selection::aggregate_result_input::indirect_result(
-                placement,
-                call.call_plan.policy,
-            )
-            .is_some()
-            {
+            if crate::selection::aggregate_result_input::indirect_result(placement).is_some() {
                 let slot = LocalStorageSlotId::InvocationResult { edge: *psi_edge };
                 if builder
                     .transport
@@ -5280,7 +5275,7 @@ pub(crate) mod normalized_foreign {
         let mut result_registers = Vec::new();
         if let Some(pointer) = hidden {
             operands.push(pointer);
-        } else if let Some((result, placement, _)) = operation.and_then(|operation| {
+        } else if let Some((result, placement)) = operation.and_then(|operation| {
             crate::selection::aggregate_result_input::call_completion(source, operation)
         }) {
             for location in &placement.locations {
@@ -7009,7 +7004,7 @@ pub(crate) mod unit_call {
         result_registers: &[selected_instructions::VirtualRegisterId],
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
-        if let Some((result, placement, _)) =
+        if let Some((result, placement)) =
             crate::selection::aggregate_result_input::call_completion(source, operation)
         {
             use selected_instructions::SelectedMemoryAccessRole;

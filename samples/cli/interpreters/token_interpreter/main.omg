@@ -105,12 +105,12 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
     // Clamp(30) -> acc=25 (no clamp); Add -> acc=50; Literal(20) -> acc=70.
-    exec(main, Token::Literal { value: 10 });
+    exec(main, Token::Literal { value: 10i32 as +Saturating });
     exec(main, Token::Add);
-    exec(main, Token::Literal { value: 5 });
-    exec(main, Token::Clamp { max: 30 });
+    exec(main, Token::Literal { value: 5i32 as +Saturating });
+    exec(main, Token::Clamp { max: 30i32 as +Saturating });
     exec(main, Token::Add);
-    exec(main, Token::Literal { value: 20 });
+    exec(main, Token::Literal { value: 20i32 as +Saturating });
 
     transition main.interp.acc == 70 {
         true -> block good(main)

@@ -396,7 +396,11 @@ fn read_bodies(
     let mut position = 0;
     // `program.body` appends callees while bodies are read, so the bound is
     // re-read on every step.
-    while position < program.symbols.len() {
+    loop {
+        program.resolve_scalar_applications(diagnostic)?;
+        if position == program.symbols.len() {
+            break;
+        }
         position += 1;
         let next = MachineId::new(position as u64).ok_or_else(|| {
             refuse(
@@ -673,7 +677,16 @@ fn prepare_witness<'source>(
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     let bodies = witness_call(&mut program, entry, callee)?;
-    finish_reading(program, Some(entry), bodies, None, None, None)
+    let mut prepared = finish_reading(program, Some(entry), bodies, None, None, None)?;
+    if typed
+        .trait_machine_signature(requirement)
+        .is_some_and(|(owner, signature)| {
+            owner.is_boundary && signature.service_reach_is_installation_bound
+        })
+    {
+        prepared.program.installation_bound_refinement = Some(entry);
+    }
+    Ok(prepared)
 }
 
 /// The declaration supplying a callable's published contract. An applied
@@ -766,6 +779,7 @@ fn witness_call(
                 .collect(),
             designated: None,
             required_contract: None,
+            static_reach_binding: None,
         },
         result: required.result,
         source,
@@ -946,22 +960,32 @@ fn finish_reading_into<'source>(
         .map(|selected| program.prepare_provider_selections(diagnostic, selected))
         .transpose()?;
     let mut policies = read::calling::SourceCallingPolicies::default();
+    let mut binder_reach = IdTable::default();
     let components = loop {
         program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
-        // Bodies and policy bodies share one discovery closure. Reading either
-        // may introduce another boundary's ordinary parent contract.
-        while bodies.len() < program.symbols.len() {
-            let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
+        let mut predicates_prepared = false;
+        loop {
+            program.resolve_scalar_applications(diagnostic)?;
+            if binder_reach.len() == program.symbols.len() {
+                if predicates_prepared {
+                    break;
+                }
+                program.prepare_domain_predicates(diagnostic)?;
+                predicates_prepared = true;
+                continue;
+            }
+            let next = MachineId::new(binder_reach.len() as u64 + 1).ok_or_else(|| {
                 refuse(
                     diagnostic,
                     Construct::Machine,
                     Unserved::Machine("identity overflow"),
                 )
             })?;
-            let body = program.body(next)?;
-            bodies.push(body);
+            if bodies.get(next).is_none() {
+                bodies.push(program.body(next)?);
+            }
+            binder_reach.push(program.application_binders(next)?);
         }
-        program.prepare_domain_predicates(diagnostic)?;
         let components = prepare_call_components(&bodies, &mut program.signatures)?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
@@ -987,6 +1011,7 @@ fn finish_reading_into<'source>(
     let source_selection_questions = capture_source_questions(&mut program, diagnostic)?;
     let PreparedProgram {
         program: mut elaboration,
+        outcomes,
         mut source,
         ..
     } = lower_program(
@@ -1025,8 +1050,14 @@ fn finish_reading_into<'source>(
     };
     // Real typed bodies retain their actual declarations in check forms too.
     // A synthetic frame has no such declaration and is recorded as undeclared.
-    let prepared_applications =
-        declare::declare(program.typed, &program, &mut elaboration).map_err(declaration_error)?;
+    let prepared_applications = declare::declare(
+        program.typed,
+        &program,
+        &outcomes,
+        &binder_reach,
+        &mut elaboration,
+    )
+    .map_err(declaration_error)?;
     if let Some(typed) = declared {
         elaboration.provider_candidate_intents = declare::provider_candidates(
             typed,
@@ -1105,6 +1136,7 @@ fn finish_reading_into<'source>(
     elaboration.supplied = program.supplied;
     Ok(PreparedProgram {
         program: elaboration,
+        outcomes,
         source,
         selected_calls: Vec::new(),
         prepared_applications,
@@ -1488,7 +1520,13 @@ fn lower_program<'source>(
     if let Some(source) = declarations {
         let proof_scope = std::mem::take(&mut module.scalar_applications.proof_scope);
         let conditions = std::mem::take(&mut module.scalar_applications.conditions);
-        module.scalar_applications = source.scalar_applications.clone();
+        module.scalar_applications = source.scalar_applications.published().map_err(|reason| {
+            refuse(
+                MachineId::new(1).expect("nonzero identity"),
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        })?;
         module.scalar_applications.proof_scope = proof_scope;
         module.scalar_applications.conditions = conditions;
     }
@@ -1608,10 +1646,12 @@ fn lower_program<'source>(
         }
     }
     let mut prepared = PreparedProgram {
+        outcomes,
         source,
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),
         program: Elaboration {
+            installation_bound_refinement: None,
             module,
             tables,
             sources,

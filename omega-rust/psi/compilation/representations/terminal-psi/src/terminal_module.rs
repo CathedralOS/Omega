@@ -367,7 +367,7 @@ pub mod scalar_conditions {
 
     use super::{ProofDeclarationId, ScalarApplication, ScalarApplications};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub enum ScalarConditionSubject {
         Module,
         Declaration(ProofDeclarationId),
@@ -1578,6 +1578,16 @@ impl TerminalModule {
         self.boundary_machines
             .iter()
             .find(|declaration| declaration.id == id)
+    }
+
+    /// Exact requirements whose selected service rows remain to be supplied.
+    /// Keep the declaration's bound distinct from an ordinary pinned row.
+    pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
+        self.boundary_machines
+            .iter()
+            .filter(|boundary| boundary.service_reach_is_installation_bound)
+            .map(|boundary| boundary.id)
+            .collect()
     }
 
     pub fn for_entry(entry: MachineId) -> Self {

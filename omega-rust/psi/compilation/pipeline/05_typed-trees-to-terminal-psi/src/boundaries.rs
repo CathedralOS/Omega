@@ -54,6 +54,7 @@ impl BoundaryNamespace {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => return None,
             },
+            fixed_service_reach: None,
             synchronous_entries: match &source.signature.invokes {
                 crate::Ceiling::Authored(row) => row.clone(),
                 crate::Ceiling::Inferred => return None,
@@ -277,6 +278,12 @@ impl BoundaryNamespace {
                     &header.structural_parameters,
                 )
                 .map_err(refusal)?;
+            let installation_bound = reader
+                .typed
+                .trait_machine_signature(source.source)
+                .is_some_and(|(owner, signature)| {
+                    owner.is_boundary && signature.service_reach_is_installation_bound
+                });
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(checked),
@@ -303,7 +310,8 @@ impl BoundaryNamespace {
                 reference_outputs,
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
-                fixed_service_reach: envelope.service_reach.clone(),
+                service_reach_is_installation_bound: installation_bound,
+                fixed_service_reach: if installation_bound { Vec::new() } else { envelope.service_reach.clone() },
                 owning_service: source.owning_service.map(|service| services.service(context, service)).transpose()?,
                 published_service_ceiling: envelope.service_reach,
                 published_synchronous_entries: envelope.invocations.iter().filter_map(|entry| match entry { terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service), terminal_psi::TerminalCallableInvocation::Parameter(_) => None }).collect(),

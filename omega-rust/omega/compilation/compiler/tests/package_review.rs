@@ -111,6 +111,34 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         .unwrap();
     assert!(requirement.contains("A::visit"), "{requirement}");
     assert_eq!(dependency.upper_bound.len(), 2);
+    let abstract_requirements = module.installation_reach_requirements();
+    assert_eq!(abstract_requirements.len(), 4);
+    for boundary in &module.boundary_machines {
+        if boundary.service_reach_is_installation_bound {
+            assert!(boundary.fixed_service_reach.is_empty());
+            assert_eq!(boundary.published_service_ceiling.len(), 2);
+        }
+    }
+    let encoded = terminal_codec::encode_module(module).expect("retained installation module");
+    let decoded =
+        terminal_codec::decode_module(&encoded).expect("installation declaration roundtrip");
+    assert_eq!(
+        decoded.installation_reach_requirements(),
+        abstract_requirements
+    );
+    let mut fixed = decoded.clone();
+    let required = fixed
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| boundary.identity == dependency.requirement_identity)
+        .expect("exact root requirement");
+    required.service_reach_is_installation_bound = false;
+    assert!(matches!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&fixed).unwrap()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "installation reach dependency names a fixed requirement"
+        ))
+    ));
     let selected = checked.execution().plans();
     assert_eq!(
         selected.resolve_root_service_reach(module).unwrap().len(),
@@ -189,6 +217,130 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         assert_eq!(names(reach.upper_bound()), ["X", "Y"]);
         assert_eq!(names(reach.resolved()), resolved);
     }
+}
+
+#[test]
+fn narrow_installation_bound_uses_the_selected_child_row() {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for (fixture, refusal) in [
+        ("pass/providers/narrow_installation_reach", None),
+        (
+            "fail/providers/narrow_installation_reach",
+            Some("exceeds its published upper bound"),
+        ),
+    ] {
+        let source = kept_fixture(fixture).join("main.omg");
+        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &source,
+            Some(target),
+        )
+        .and_then(|mut prepared| {
+            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        });
+        match (result, refusal) {
+            (Ok(checked), None) => {
+                let selected = checked.execution().plans();
+                let plan = selected
+                    .plans()
+                    .iter()
+                    .find(|plan| plan.provider_type == "AProvider")
+                    .expect("selected bounded parent");
+                let row = selected
+                    .installation_reach_resolutions()
+                    .iter()
+                    .find(|row| row.provider_plan_report_identity == plan.report_fingerprint())
+                    .expect("resolved parent row");
+                assert_eq!(row.resolved_row.len(), 1);
+                let module = checked.terminal_publication().accepted().unwrap().module();
+                assert_eq!(
+                    selected.resolve_root_service_reach(module).unwrap().len(),
+                    2
+                );
+                check_reopened_installation_reach(module, selected.plans());
+            }
+            (Err(errors), Some(expected))
+                if errors.iter().any(|error| error.message.contains(expected)) => {}
+            (Err(errors), _) => failures.push(format!("{fixture}: {errors:?}")),
+            (Ok(_), Some(expected)) => {
+                failures.push(format!("{fixture}: accepted instead of {expected:?}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Reopening code must check the selected bodies, rather than trust the
+/// producer's saved resolved rows or substitute a requirement's wider bound.
+fn check_reopened_installation_reach(
+    module: &terminal_psi::TerminalModule,
+    plans: &[effects::provider_plan::ProviderPlan],
+) {
+    let encoded = terminal_codec::encode_module(module).unwrap();
+    let mut reopened = terminal_codec::decode_module(&encoded).unwrap();
+    let calls = backend_plan::selected_checked_invocation_rows(plans, &reopened)
+        .unwrap()
+        .into_iter()
+        .flat_map(|row| row.candidates)
+        .map(|candidate| {
+            (
+                candidate.conformance.boundary,
+                candidate.conformance.candidate,
+            )
+        })
+        .collect::<Vec<_>>();
+    let terminal_psi::TargetMachineCallable::Machine(entry) = reopened.entry.unwrap() else {
+        panic!("fixture has an executable root");
+    };
+    let check = |module: &terminal_psi::TerminalModule, calls: &[_]| {
+        terminal_installation::SynchronousCallGraph::new(module, None)
+            .unwrap()
+            .with_boundary_calls(calls.iter().copied())
+            .unwrap()
+            .validate_installed_service_reach(entry)
+    };
+    check(&reopened, &calls).expect("reopened narrower child fits its parent");
+    let parent = reopened
+        .boundary_machines
+        .iter()
+        .position(|boundary| {
+            reopened
+                .identities
+                .text(boundary.identity)
+                .unwrap()
+                .contains("A::visit")
+        })
+        .unwrap();
+    let child = reopened
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            reopened
+                .identities
+                .text(boundary.identity)
+                .unwrap()
+                .contains("B::visit")
+        })
+        .unwrap()
+        .id;
+    let incomplete = calls
+        .iter()
+        .copied()
+        .filter(|(boundary, _)| *boundary != child)
+        .collect::<Vec<_>>();
+    assert!(
+        check(&reopened, &incomplete)
+            .unwrap_err()
+            .contains("no checked selected provider")
+    );
+    reopened.boundary_machines[parent]
+        .published_service_ceiling
+        .clear();
+    assert!(
+        check(&reopened, &calls)
+            .unwrap_err()
+            .contains("exceeds its published upper bound")
+    );
 }
 
 #[test]
@@ -899,30 +1051,129 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
 
 #[test]
 fn toolchain_boundary_applications_recover_against_their_owner_qualified_requirement() {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
     use review_evidence::record::PackageReviewNominalOwner;
 
     // `value + 1.0` closes an application of the toolchain `Float::add`
     // overload, whose requirement identity typed Psi qualifies with the
     // toolchain owner namespace.
+    for fixture in [
+        "pass/float/live_float_parameter_across_call_exit/main.omg",
+        "run/float/canonical_arithmetic/main.omg",
+    ] {
+        let recovered = reviewed_and_recovered(&kept_fixture(fixture), "linux_x86_64");
+        let add = recovered
+            .boundary_applications()
+            .realizations()
+            .iter()
+            .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
+            .expect("closed Float::add application");
+        assert!(matches!(
+            add.operator_coordinate().identity().owner(),
+            PackageReviewNominalOwner::ToolchainSource(_)
+        ));
+        assert!(
+            add.requirement_identity()
+                .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
+            "{}",
+            add.requirement_identity()
+        );
+        for application in recovered.boundary_applications().realizations() {
+            let plan =
+                &recovered.selected_providers().plans()[application.selected_plan_index() as usize];
+            assert_eq!(plan.target(), "linux_x86_64");
+            assert_eq!(
+                plan.schema_declaration(),
+                application.operator_coordinate().identity()
+            );
+        }
+
+        // Recovery must still join the exact emitted owner and deployment. Change
+        // one copy in the real capsule, leaving the corresponding plan unchanged.
+        let bytes = recovered.canonical_bytes().unwrap();
+        let PackageReviewNominalOwner::ToolchainSource(owner) =
+            add.operator_coordinate().identity().owner()
+        else {
+            unreachable!()
+        };
+        let digest = owner.digest();
+        let position = bytes
+            .windows(digest.len())
+            .rposition(|window| window == digest)
+            .unwrap();
+        let mut substituted_owner = bytes.clone();
+        substituted_owner[position] ^= 1;
+        assert!(
+            PackagePolicyBaseline::recover_canonical(
+                &substituted_owner,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err(),
+            "a substituted toolchain owner must not recover"
+        );
+
+        let target = b"linux_x86_64";
+        let position = bytes
+            .windows(target.len())
+            .rposition(|window| window == target)
+            .unwrap();
+        let mut substituted_target = bytes;
+        substituted_target[position..position + target.len()].copy_from_slice(b"macos_x86_64");
+        assert!(
+            PackagePolicyBaseline::recover_canonical(
+                &substituted_target,
+                PackagePolicyRecoveryLimits::default()
+            )
+            .is_err(),
+            "a different target must not recover under the Linux policy"
+        );
+    }
+}
+
+#[test]
+fn numeric_library_review_does_not_deploy_unused_calls() {
+    let source = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "unused-numeric-review",
+        false,
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("main.omg"),
+        "public machine calculate(value: f64) -> f64 { value + 1.0 }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("build.omg"),
+        "machine build(builder: &mut Build) { Build::package(builder, \"unused_numeric\"); }\n",
+    )
+    .unwrap();
+    let recovered = reviewed_and_recovered(&source.path().join("main.omg"), "uefi_x86_64");
+    assert!(recovered.boundary_applications().realizations().is_empty());
+    assert!(recovered.semantic_dependencies().iter().any(|dependency| {
+        dependency.dependency().path() == "Float::add"
+            && matches!(
+                dependency.dependency().owner(),
+                review_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+            )
+    }));
+}
+
+#[test]
+fn numeric_review_retains_calls_inside_a_selected_provider() {
     let recovered = reviewed_and_recovered(
-        &kept_fixture("pass/float/live_float_parameter_across_call_exit/main.omg"),
+        &kept_fixture("run/float/reviewed_provider/main.omg"),
         "linux_x86_64",
     );
-    let add = recovered
-        .boundary_applications()
-        .realizations()
-        .iter()
-        .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
-        .expect("closed Float::add application");
-    assert!(matches!(
-        add.operator_coordinate().identity().owner(),
-        PackageReviewNominalOwner::ToolchainSource(_)
-    ));
     assert!(
-        add.requirement_identity()
-            .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
-        "{}",
-        add.requirement_identity()
+        recovered
+            .boundary_applications()
+            .realizations()
+            .iter()
+            .any(|application| {
+                application.operator_coordinate().identity().path() == "Float::add"
+            }),
+        "an arithmetic call reached only through a provider is still deployed"
     );
 }
 

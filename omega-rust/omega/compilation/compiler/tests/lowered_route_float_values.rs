@@ -76,8 +76,14 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                 }
             }
             let schemas = provider_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64").unwrap();
+            let leaves = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
             assert_eq!(leaves.len(), 12);
+            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
+            let first = module.boundary_machines[0].id;
+            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
+            assert!(provider_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
+            let unsupported = provider_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
+            assert!(format!("{unsupported:?}").contains("the target declares no floating-point realization table"), "{unsupported:?}");
             let selection = effects::SelectedProviderPlanFacts::default()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
             let executions = selection.plans().iter().map(|plan| {
@@ -557,6 +563,7 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 module,
                 &schemas,
                 "macos_arm64",
+                module.boundary_machines.iter().map(|boundary| boundary.id),
             )
             .unwrap();
             let leaf = leaves
@@ -615,6 +622,100 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 "{diagnostics}"
             );
             assert!(!diagnostics.contains("not supported yet"), "{diagnostics}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
+
+#[test]
+fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use semantic_vocabulary::{
+                FloatMeaningClauseValue, IeeeFloatFormat, Proposition, ScalarType,
+            };
+            let main = repository().join("tests/fixtures/run/float/exact_narrowing/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            let reopened = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = reopened.module();
+            let goals = module
+                .scalar_block_invariants
+                .iter()
+                .filter_map(|invariant| {
+                    let Proposition::FloatMeaningEqual(clause) = &invariant.predicate else {
+                        return None;
+                    };
+                    Some((invariant, clause))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(goals.len(), 1, "one exactness obligation before narrowing");
+            let (invariant, clause) = goals[0];
+            assert!(!invariant.arrivals.is_empty());
+            let sources = clause.sources().collect::<Vec<_>>();
+            assert_eq!(
+                sources.len(),
+                1,
+                "the goal names only the existing wide operand"
+            );
+            assert_eq!(
+                sources[0].scalar_type(),
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)
+            );
+            let formats = clause
+                .values
+                .iter()
+                .filter_map(|row| match row {
+                    FloatMeaningClauseValue::Application { format, .. } => Some(*format),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                formats,
+                [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64]
+            );
+            for boundary in &module.boundary_machines {
+                if boundary.numeric_intrinsic.is_some() {
+                    terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                        .unwrap();
+                }
+            }
+            let invalid = repository().join("tests/fixtures/fail/float/exact_narrowing/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("range alone cannot justify loss of precision")
+            .into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("cannot prove the required condition of this cast")),
+                "{diagnostics:?}"
+            );
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|diagnostic| !diagnostic.message.contains("not supported yet")),
+                "{diagnostics:?}"
+            );
         })
         .unwrap()
         .join()

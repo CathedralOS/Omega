@@ -412,6 +412,7 @@ mod machines {
                                 .unwrap_or_else(|| definition.name.clone()),
                             lifetime_arguments: definition.lifetime_parameters.clone(),
                             arguments: child_type_references.insert_many(arguments),
+                            ..Default::default()
                         },
                     },
                 )
@@ -843,7 +844,7 @@ mod operators {
         siblings: &mut impl Iterator<Item = SymbolHandle>,
         data_type_parameters: &mut Arena<symbol_resolved_trees::data::TypeParameter>,
         state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-        child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
         operator: &mut symbol_resolved_trees::operator::OperatorDefinition,
     ) {
@@ -865,7 +866,7 @@ mod operators {
         symbols: &SymbolTable,
         data_type_parameters: &mut Arena<symbol_resolved_trees::data::TypeParameter>,
         state_parameters: &mut Arena<symbol_resolved_trees::signature::StateParameter>,
-        child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
         operator: &mut symbol_resolved_trees::operator::OperatorDefinition,
     ) {
@@ -1215,7 +1216,6 @@ use symbol_resolved_trees::machine::GenericConformanceBound;
 use symbol_resolved_trees::signature::StateParameter;
 use symbol_resolved_trees::signature::StateSignature;
 use symbol_resolved_trees::types::TypeConstraint;
-use symbol_resolved_trees::types::TypeReference;
 
 /*
     Trait-side tables both machine and trait assignment consult: which
@@ -1372,7 +1372,7 @@ pub(super) struct SignatureSymbolTables<'a> {
     pub symbols: &'a SymbolTable,
     pub data_type_parameters: &'a mut Arena<TypeParameter>,
     pub state_parameters: &'a mut Arena<StateParameter>,
-    pub child_type_references: &'a mut Arena<TypeReference>,
+    pub child_type_references: &'a mut symbol_resolved_trees::types::TypeReferenceArena,
     pub type_constraints: &'a Arena<TypeConstraint>,
     pub trait_proposition_slots: &'a [(SymbolHandle, Vec<bool>)],
     pub trait_machine_identity_slots: &'a [(SymbolHandle, Vec<bool>)],
@@ -1581,7 +1581,7 @@ pub(super) fn assign_callable_signature_symbols(
 pub(super) fn assign_proposition_parameter_signature_symbols(
     symbols: &SymbolTable,
     state_parameters: &mut Arena<StateParameter>,
-    child_type_references: &mut Arena<TypeReference>,
+    child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
     type_constraints: &Arena<TypeConstraint>,
     contract: &mut PropositionParameterSignature,
     owner_symbol: SymbolHandle,
@@ -1607,7 +1607,7 @@ pub(super) fn assign_proposition_parameter_signature_symbols(
 */
 pub(super) fn assign_conformance_bound_symbols(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<TypeReference>,
+    child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
     type_constraints: &Arena<TypeConstraint>,
     local_type_parameters: &[TypeParameter],
     bounds: &mut [GenericConformanceBound],

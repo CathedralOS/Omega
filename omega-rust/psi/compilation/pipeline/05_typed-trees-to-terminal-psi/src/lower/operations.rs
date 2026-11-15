@@ -268,7 +268,7 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
-            ExpressionKind::LayoutObservation { application } => {
+            ExpressionKind::ScalarApplication { application } => {
                 let scalar_type = self.result_type(expression)?;
                 let operation = self.operation_identity(source);
                 self.emit(
@@ -359,8 +359,18 @@ impl Lowering<'_> {
             ExpressionKind::Requalify(operand) => {
                 let scalar_type = self.result_type(operand)?;
                 let operand = continuing!(self.scalar(operand));
-                self.prove_membership(operand, scalar_type, &[], "", source)
-                    .map(|value| Reached::Value(Value::Scalar(value)))
+                self.establish_predicates(
+                    operand,
+                    scalar_type,
+                    expression
+                        .result
+                        .ok_or_else(|| self.internal("a cast has no result type"))?
+                        .qualification(),
+                    &[],
+                    "",
+                    source,
+                )
+                .map(|value| Reached::Value(Value::Scalar(value)))
             }
             ExpressionKind::Establish {
                 operand,
@@ -369,8 +379,18 @@ impl Lowering<'_> {
             } => {
                 let scalar_type = self.result_type(operand)?;
                 let operand = continuing!(self.scalar(operand));
-                self.prove_membership(operand, scalar_type, clauses, stated, source)
-                    .map(|value| Reached::Value(Value::Scalar(value)))
+                self.establish_predicates(
+                    operand,
+                    scalar_type,
+                    expression
+                        .result
+                        .ok_or_else(|| self.internal("a cast has no result type"))?
+                        .qualification(),
+                    clauses,
+                    stated,
+                    source,
+                )
+                .map(|value| Reached::Value(Value::Scalar(value)))
             }
             ExpressionKind::Strict {
                 left: left_expression,
@@ -395,6 +415,7 @@ impl Lowering<'_> {
             ExpressionKind::Call {
                 callee,
                 required_contract,
+                static_reach_binding,
                 arguments,
                 designated,
             } => self.call(
@@ -403,7 +424,7 @@ impl Lowering<'_> {
                 arguments,
                 *designated,
                 expression.result,
-                source,
+                (source, *static_reach_binding),
                 expression.call_context.unwrap_or_default(),
             ),
         }

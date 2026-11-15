@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+flow-effects = { path = "../../../../psi/foundation/flow-effects" }
 boundary-applications = { path = "../../backend/artifacts/boundary-applications" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

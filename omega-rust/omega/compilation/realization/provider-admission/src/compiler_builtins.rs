@@ -724,6 +724,7 @@ mod selected_completion_contract_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: None,
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),

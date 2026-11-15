@@ -232,6 +232,8 @@ impl RoutePublication {
 /// Why an accepted closure could not be published.
 #[derive(Debug)]
 pub enum PublicationError {
+    /// A conditional installation refinement is a proof problem, not a program.
+    InstallationReachRefinement,
     /// The closure retains abstract requirements, logical-frame envelopes,
     /// open source binders, static-value formals or opaque rigid values.
     /// These generic check forms are never executable source programs.
@@ -285,6 +287,9 @@ impl AcceptedClosure {
     }
 
     fn validate_publication(&self) -> Result<(), PublicationError> {
+        if self.elaboration.installation_bound_refinement.is_some() {
+            return Err(PublicationError::InstallationReachRefinement);
+        }
         if !self.elaboration.requirements.is_empty()
             || !self.elaboration.check_form_envelopes.is_empty()
             || !self.elaboration.generic_binders.is_empty()
@@ -1348,16 +1353,39 @@ fn conclude(
     }
     let applications = &mut elaboration.module.scalar_applications;
     let mut pending = Vec::new();
-    for (_, machine) in discharged.machines.iter() {
-        for (_, verdict) in machine.verdicts.iter() {
-            if let Ok(crate::Discharged::TargetCondition(condition)) = verdict
-                && let terminal_psi::ScalarConditionSubject::Declaration(owner) = condition.subject
-            {
-                pending.push(owner);
-                applications
-                    .conditions
-                    .insert_predicate((**condition).clone());
-            }
+    for (machine, result) in discharged.machines.iter() {
+        for (obligation, verdict) in result.verdicts.iter() {
+            let Ok(crate::Discharged::TargetCondition(condition)) = verdict else {
+                continue;
+            };
+            let owner = match condition.as_ref() {
+                crate::TargetCondition::Predicate(condition) => {
+                    let terminal_psi::ScalarConditionSubject::Declaration(owner) =
+                        condition.subject
+                    else {
+                        return fall_back_or_defect(refusal(
+                            RefusalReason::ForeignIdentity,
+                            machine,
+                            Construct::Obligation(obligation),
+                            "ground predicate lost its declaration owner",
+                        ));
+                    };
+                    applications.conditions.insert_predicate(condition.clone());
+                    owner
+                }
+                crate::TargetCondition::Range(range) => {
+                    if let Err(detail) = range.retain(&mut applications.conditions) {
+                        return fall_back_or_defect(refusal(
+                            RefusalReason::ForeignIdentity,
+                            machine,
+                            Construct::Obligation(obligation),
+                            detail,
+                        ));
+                    }
+                    range.owner
+                }
+            };
+            pending.push(owner);
         }
     }
     pending.sort_unstable();

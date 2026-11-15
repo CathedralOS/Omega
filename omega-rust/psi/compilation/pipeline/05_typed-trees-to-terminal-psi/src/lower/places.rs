@@ -281,11 +281,11 @@ pub(crate) fn declare<'a, 'b>(
             crate::StorageShape::FixedArray {
                 element, length, ..
             } => {
-                if element.get() >= id.get() || length.literal().is_none() {
+                if element.get() >= id.get() {
                     return Err(refuse(
                         entry,
                         Construct::Machine,
-                        Unserved::Type("array with an unresolved element or extent"),
+                        Unserved::Type("array element has no earlier storage type"),
                     ));
                 }
                 StructuralTypeShape::FixedArray {
@@ -821,7 +821,7 @@ fn expression_homes<'b>(
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_)
@@ -1741,10 +1741,13 @@ impl<'a> Lowering<'a> {
                     clause,
                     &[],
                     &[place],
+                    &self.tables.values,
                     id,
                 )?);
             }
-            self.sources.memberships.push((cast, stated.to_owned()));
+            self.sources
+                .predicate_establishments
+                .push((cast, stated.to_owned()));
             self.invariants.push(terminal_psi::ScalarBlockInvariant {
                 machine: id,
                 header: cast,
@@ -2256,6 +2259,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Call {
                 callee,
                 required_contract,
+                static_reach_binding,
                 arguments,
                 designated,
             } => {
@@ -2265,7 +2269,7 @@ impl<'a> Lowering<'a> {
                     arguments,
                     *designated,
                     expression.result,
-                    expression.source,
+                    (expression.source, *static_reach_binding),
                     expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
@@ -2316,7 +2320,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::LayoutObservation { .. }
+            | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
@@ -4390,6 +4394,7 @@ mod tests {
                         }],
                         designated: None,
                         required_contract: None,
+                        static_reach_binding: None,
                     },
                     result: Some(plain),
                     source,

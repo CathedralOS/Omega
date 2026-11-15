@@ -153,8 +153,13 @@ pub(crate) mod source_occurrences {
                 }
                 let mut roots = SourceCalls::default();
                 visit_program(self, &mut roots);
+                let mut previous_owner = None;
                 for (expression, owner) in roots.expressions {
-                    self.retain_call_static_argument_context(expression, owner)?;
+                    if previous_owner != Some(owner) {
+                        self.begin_declaration_output();
+                        previous_owner = Some(owner);
+                    }
+                    self.retain_call_static_argument_context_in_owner(expression, owner)?;
                 }
                 let statement_calls = self
                     .machines()
@@ -178,7 +183,12 @@ pub(crate) mod source_occurrences {
                         })
                     })
                     .collect::<Vec<_>>();
+                let mut previous_owner = None;
                 for (handle, owner, mut call) in statement_calls {
+                    if previous_owner != Some(owner) {
+                        self.begin_declaration_output();
+                        previous_owner = Some(owner);
+                    }
                     if crate::reflection::construction::declaration_query_argument_role(
                         self,
                         crate::references::StaticArgumentCall::Statement(&call),
@@ -241,6 +251,15 @@ pub(crate) mod source_occurrences {
             /// whose prepared context is unchanged. Later call producers use
             /// the same operation for calls they introduce.
             pub fn retain_call_static_argument_context(
+                &mut self,
+                expression: crate::expression::ExpressionHandle,
+                owner: SymbolHandle,
+            ) -> Result<(), &'static str> {
+                self.begin_declaration_output();
+                self.retain_call_static_argument_context_in_owner(expression, owner)
+            }
+
+            fn retain_call_static_argument_context_in_owner(
                 &mut self,
                 expression: crate::expression::ExpressionHandle,
                 owner: SymbolHandle,
@@ -1561,17 +1580,6 @@ impl TypedReferences for ReferenceCollector {
         self.mathematical_types.insert(handle)
     }
 }
-pub fn collect_expression_symbol_dependencies(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Vec<SymbolHandle> {
-    let mut references = ReferenceCollector::default();
-    visit_expression(program, &mut references, expression);
-    let mut symbols = references.symbols.into_iter().collect::<Vec<_>>();
-    symbols.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-    symbols
-}
-
 pub fn collect_type_symbol_dependencies(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -1902,10 +1910,6 @@ impl DeclarationSelection {
             != self.excluded
     }
 
-    pub fn is_all(&self) -> bool {
-        self.excluded && self.symbols.is_empty()
-    }
-
     /// The exact finite roster, when this filter names declarations instead
     /// of excluding them. Consumers must not turn an exclusion into roots.
     pub fn explicit_symbols(&self) -> Option<&[SymbolHandle]> {
@@ -2025,12 +2029,6 @@ pub fn collect_selected_program_references(
     selection: &DeclarationSelection,
 ) -> ProgramReferences {
     collect_program_references_with_roles(program, selection, None)
-}
-
-pub fn collect_declaration_symbol_dependencies(
-    program: &TypedTrees,
-) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
-    declaration_symbol_dependencies(program, true)
 }
 
 /// Actual source computation dependencies omit derived receipt/provenance
@@ -2156,15 +2154,6 @@ fn collect_program_references_from(
     finish_references(roots)
 }
 
-pub fn collect_signature_references(
-    program: &TypedTrees,
-    signature: &crate::signature::StateSignature,
-) -> ProgramReferences {
-    let mut roots = ReferenceCollector::default();
-    visit_signature(program, &mut roots, signature);
-    finish_references(roots)
-}
-
 fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     let mut type_references = roots
         .types
@@ -2229,18 +2218,6 @@ impl MachineSidecarIndex {
     }
 }
 
-pub fn collect_machine_references(
-    program: &TypedTrees,
-    machine: &Machine,
-    sidecars: &MachineSidecarIndex,
-) -> ProgramReferences {
-    let mut roots = ReferenceCollector::default();
-    if roots.declaration(machine.symbol) {
-        visit_machine_with_sidecars(program, &mut roots, machine, Some(sidecars));
-    }
-    finish_references(roots)
-}
-
 pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     visit_declarations(program, roots);
     let mut sidecars = None;
@@ -2289,211 +2266,6 @@ pub fn visit_product_operand_inputs(
         visit_static_argument(program, roots, &application.argument);
         application.scope.visit_references(program, roots);
         roots.leave_lexical_scope();
-    }
-}
-
-pub fn collect_expression_source_owners(
-    program: &TypedTrees,
-    expression_sources: &[source::SourceSpan],
-) -> DeclarationSelection {
-    if expression_sources.is_empty() {
-        return DeclarationSelection::from_symbols([]);
-    }
-    struct OwnerVisitor<'a> {
-        program: &'a TypedTrees,
-        sources: &'a [source::SourceSpan],
-        current: SymbolHandle,
-        matched: bool,
-        owners: DeclarationSelection,
-        expressions: HashSet<ExpressionHandle>,
-        types: HashSet<TypeReferenceHandle>,
-        facts: HashSet<arena::Handle<ProofFact>>,
-        mathematical_types: HashSet<MathematicalTypeHandle>,
-    }
-    impl Extend<SymbolHandle> for OwnerVisitor<'_> {
-        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
-    }
-    impl TypedReferences for OwnerVisitor<'_> {
-        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-            if self.owners.contains(symbol) {
-                self.matched = true;
-                return false;
-            }
-            if self.current != symbol {
-                self.current = symbol;
-                self.expressions.clear();
-                self.types.clear();
-                self.facts.clear();
-                self.mathematical_types.clear();
-            }
-            self.matched = false;
-            true
-        }
-        fn expression(&mut self, handle: ExpressionHandle) -> bool {
-            if self.matched || !self.expressions.insert(handle) {
-                return false;
-            }
-            if self
-                .sources
-                .contains(&self.program.expression_table.source_span(handle))
-            {
-                self.owners.include(self.current);
-                self.matched = true;
-                return false;
-            }
-            true
-        }
-        fn type_reference(&mut self, handle: TypeReferenceHandle) -> bool {
-            !self.matched && self.types.insert(handle)
-        }
-        fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
-            !self.matched && self.facts.insert(handle)
-        }
-        fn mathematical_type(&mut self, handle: MathematicalTypeHandle) -> bool {
-            !self.matched && self.mathematical_types.insert(handle)
-        }
-    }
-    let mut visitor = OwnerVisitor {
-        program,
-        sources: expression_sources,
-        current: SymbolHandle::invalid(),
-        matched: false,
-        owners: DeclarationSelection::from_symbols([]),
-        expressions: HashSet::default(),
-        types: HashSet::default(),
-        facts: HashSet::default(),
-        mathematical_types: HashSet::default(),
-    };
-    visit_program(program, &mut visitor);
-    visitor.owners
-}
-
-pub struct ReferenceClosure {
-    sidecars: Option<MachineSidecarIndex>,
-    visited_declarations: DeclarationSelection,
-    collector: ReferenceCollector,
-}
-
-impl Default for ReferenceClosure {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ReferenceClosure {
-    pub fn new() -> Self {
-        Self {
-            sidecars: None,
-            visited_declarations: DeclarationSelection::from_symbols([]),
-            collector: ReferenceCollector {
-                track_new_expressions: true,
-                ..ReferenceCollector::default()
-            },
-        }
-    }
-
-    pub fn extend(
-        &mut self,
-        program: &TypedTrees,
-        selection: &DeclarationSelection,
-    ) -> (
-        std::collections::HashSet<SymbolHandle, symbols::BuildSymbolHasher>,
-        std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
-    ) {
-        let delta = selection.excluding(&self.visited_declarations);
-        if delta.symbols.is_empty() && !delta.excluded {
-            return (HashSet::default(), HashSet::default());
-        }
-        for &symbol in &delta.symbols {
-            self.visited_declarations.include(symbol);
-        }
-        self.collector.selection = delta;
-        visit_declarations(program, &mut self.collector);
-        for machine in program.machines() {
-            if self.collector.declaration(machine.symbol) {
-                let sidecars = self
-                    .sidecars
-                    .get_or_insert_with(|| MachineSidecarIndex::build(program));
-                visit_machine_with_sidecars(program, &mut self.collector, machine, Some(sidecars));
-            }
-        }
-        (
-            std::mem::take(&mut self.collector.symbols),
-            std::mem::take(&mut self.collector.new_expressions),
-        )
-    }
-}
-
-pub fn program_proof_facts(
-    program: &TypedTrees,
-) -> impl Iterator<Item = (arena::Handle<ProofFact>, &ProofFact)> {
-    let mut facts = program_scoped_proof_facts(program)
-        .map(|(_, handle, _)| handle)
-        .collect::<Vec<_>>();
-    facts.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
-    facts.dedup();
-    facts
-        .into_iter()
-        .map(move |handle| (handle, program.proof_facts.get(handle)))
-}
-
-pub fn program_scoped_proof_facts(
-    program: &TypedTrees,
-) -> impl Iterator<Item = (SymbolHandle, arena::Handle<ProofFact>, &ProofFact)> {
-    let mut roots = ProofFactCollector::default();
-    visit_program(program, &mut roots);
-    let mut facts = roots.facts.into_iter().collect::<Vec<_>>();
-    facts.sort_unstable_by_key(|(owner, handle)| {
-        (
-            owner.arena_index(),
-            owner.generation(),
-            handle.arena_index(),
-            handle.generation(),
-        )
-    });
-    facts
-        .into_iter()
-        .map(move |(owner, handle)| (owner, handle, program.proof_facts.get(handle)))
-}
-
-#[derive(Default)]
-struct ProofFactCollector {
-    declaration: SymbolHandle,
-    scopes: Vec<SymbolHandle>,
-    facts: HashSet<(SymbolHandle, arena::Handle<ProofFact>)>,
-}
-impl Extend<SymbolHandle> for ProofFactCollector {
-    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
-}
-impl TypedReferences for ProofFactCollector {
-    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-        self.declaration = symbol;
-        true
-    }
-    fn enter_lexical_scope(&mut self, symbol: SymbolHandle) {
-        self.scopes.push(symbol);
-    }
-    fn leave_lexical_scope(&mut self) {
-        self.scopes.pop();
-    }
-    fn statement(&mut self, _: &StatementNode) -> bool {
-        false
-    }
-    fn expression(&mut self, _: ExpressionHandle) -> bool {
-        false
-    }
-    fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
-        false
-    }
-    fn mathematical_type(&mut self, _: MathematicalTypeHandle) -> bool {
-        false
-    }
-    fn proof_fact(&mut self, handle: arena::Handle<ProofFact>) -> bool {
-        self.facts.insert((
-            self.scopes.last().copied().unwrap_or(self.declaration),
-            handle,
-        ));
-        false
     }
 }
 

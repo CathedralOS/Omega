@@ -176,12 +176,19 @@ impl PreparedTargetSupply {
             let graph = terminal_installation::SynchronousCallGraph::new(module, None)
                 .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
                 .map_err(defect)?;
-            let mut reached = Vec::new();
-            for root in roots {
-                reached.extend(graph.from_root(*root).map_err(defect)?.boundaries);
-            }
-            reached.sort_unstable();
-            reached.dedup();
+            let scalar_roots = graph
+                .scalar_evaluation_roots(roots, target)
+                .map_err(defect)?;
+            let reached = graph
+                .from_callables(
+                    roots
+                        .iter()
+                        .copied()
+                        .map(terminal_psi::TargetMachineCallable::Machine)
+                        .chain(scalar_roots),
+                )
+                .map_err(defect)?
+                .boundaries;
             let before = resolved.len();
             for boundary in reached {
                 if met.contains(&boundary) {
@@ -828,7 +835,7 @@ pub(super) fn resolve_installation_reach(
             }
             let required = boundary(supplied.boundary)?;
             let reach = graph
-                .service_reach_from(supplied.candidate, installation_requirements, true)
+                .service_reach_from(supplied.candidate, installation_requirements)
                 .map_err(fail)?;
             let dependencies = reach
                 .installation_dependencies

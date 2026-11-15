@@ -62,6 +62,7 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
             arguments,
             designated: None,
             required_contract: None,
+            static_reach_binding: None,
         },
         result,
     )
@@ -155,6 +156,7 @@ fn returns_normally() -> Outcome {
         operational: [false; 2],
         completes_normally: true,
         service_reach: Vec::new(),
+        fixed_service_reach: None,
         synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     }
@@ -965,6 +967,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
                 operational: [false; 2],
                 completes_normally: false,
                 service_reach: Vec::new(),
+                fixed_service_reach: None,
                 synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
@@ -1121,6 +1124,7 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
                 operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
+                fixed_service_reach: None,
                 synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
@@ -1128,6 +1132,7 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
                 operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
+                fixed_service_reach: None,
                 synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
@@ -1392,6 +1397,7 @@ fn a_never_returning_record_base_stops_its_field_projection() {
                 ExpressionKind::Call {
                     callee: id::<semantic_vocabulary::MachineId>(2).into(),
                     required_contract: None,
+                    static_reach_binding: None,
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -1790,6 +1796,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
             operational: [false; 2],
             completes_normally: false,
             service_reach: Vec::new(),
+            fixed_service_reach: None,
             synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
@@ -1856,6 +1863,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         operational: [false; 2],
         completes_normally: false,
         service_reach: Vec::new(),
+        fixed_service_reach: None,
         synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     };
@@ -1925,6 +1933,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
             operational: [false; 2],
             completes_normally: true,
             service_reach: Vec::new(),
+            fixed_service_reach: None,
             synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
@@ -1982,6 +1991,7 @@ fn settle_both(
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
+                        static_reach_binding: None,
                     },
                     None,
                 )),
@@ -2576,6 +2586,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                         arguments: Vec::new(),
                         designated: None,
                         required_contract: None,
+                        static_reach_binding: None,
                     },
                     point(),
                 ),

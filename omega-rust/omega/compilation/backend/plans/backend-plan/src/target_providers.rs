@@ -326,6 +326,66 @@ fn slot_target(plan: &effects::provider_plan::ProviderPlan) -> SynchronousBounda
     }
 }
 
+/// Commit the selected checked providers the scalar evaluator can invoke.
+pub fn folded_constant_dependencies(
+    module: &terminal_psi::TerminalModule,
+    target: &str,
+    plans: &[ProviderPlan],
+    roots: &[semantic_vocabulary::MachineId],
+) -> Result<terminal_psi::FoldedConstantClosure, String> {
+    if roots.is_empty() || module.scalar_applications.declarations().is_empty() {
+        return Ok(terminal_psi::FoldedConstantClosure::default());
+    }
+    let rows = selected_checked_invocation_rows(plans, module)?;
+    let mut selected = rows
+        .iter()
+        .flat_map(|row| row.candidates.iter())
+        .map(|candidate| {
+            (
+                candidate.conformance.boundary,
+                candidate.conformance.candidate,
+            )
+        })
+        .collect::<Vec<_>>();
+    selected.sort_unstable();
+    selected.dedup();
+    let graph = terminal_installation::SynchronousCallGraph::new(module, None)?
+        .with_boundary_calls(selected)?;
+    let reached = graph
+        .from_callables(graph.scalar_evaluation_roots(roots, Some(target))?)?
+        .boundaries;
+    let mut dependencies = Vec::new();
+    for row in rows {
+        if selected_plan_target(row.plan)? != target {
+            return Err("folded scalar evaluation received a plan for another target".into());
+        }
+        for candidate in row.candidates {
+            let candidate = candidate.conformance;
+            if reached.contains(&candidate.boundary) {
+                dependencies.push(terminal_psi::FoldedConstantDependency {
+                    target: target.to_owned(),
+                    requirement: candidate.source_requirement_identity,
+                    plan: *row.plan.identity_digest().as_bytes(),
+                    candidate: Some(terminal_psi::FoldedConstantCandidate {
+                        boundary: candidate.boundary,
+                        machine: candidate.candidate,
+                        declaration: candidate.provider_declaration.clone(),
+                    }),
+                });
+            }
+        }
+    }
+    dependencies.sort_unstable();
+    dependencies.dedup();
+    let target = (!dependencies.is_empty()).then(|| target.to_owned());
+    let closure = terminal_psi::FoldedConstantClosure {
+        target,
+        dependencies,
+    };
+    closure.validate(module).map_err(str::to_owned)?;
+    Ok(closure)
+}
+
 pub fn matching_folded_constant_dependencies<'plan>(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     target: &str,

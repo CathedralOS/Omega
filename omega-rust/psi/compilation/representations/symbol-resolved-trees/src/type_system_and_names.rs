@@ -80,8 +80,9 @@ pub mod type_system {
         pub(crate) mod tests {
             use super::{
                 FixedArrayLength, FixedArrayTypeReference, FixedArrayTypeReferenceStorage,
-                GenericTypeReference, GenericTypeReferenceStorage, TypeConstraint, TypeReference,
-                TypeReferenceNode, TypeReferenceTable,
+                GenericTypeReference, GenericTypeReferenceStorage, ReceivingApplication,
+                TypeConstraint, TypeReference, TypeReferenceArena, TypeReferenceNode,
+                TypeReferenceTable,
             };
             use crate::expression::ExpressionTable;
             use crate::name::DiagnosticName;
@@ -117,6 +118,7 @@ pub mod type_system {
                         base_name: DiagnosticName::generated("Result"),
                         lifetime_arguments: Vec::new(),
                         arguments,
+                        ..Default::default()
                     },
                 });
 
@@ -139,6 +141,86 @@ pub mod type_system {
                 };
 
                 assert_eq!(arguments.count(), 2);
+            }
+
+            #[test]
+            fn type_storage_clone_and_record_keep_receiving_records_and_lifetime_arguments() {
+                let mut storage = TypeReferenceArena::default();
+                let arguments = storage.insert_many([TypeReference::Unit]);
+                let selected = SymbolHandle::from_arena_index(3);
+                let receiving = storage.receiving_applications.insert(ReceivingApplication {
+                    selected,
+                    name: DiagnosticName::generated("Indexed"),
+                    arguments,
+                    ..Default::default()
+                });
+                let root = storage.insert(TypeReference::Generic(GenericTypeReference {
+                    storage: GenericTypeReferenceStorage {
+                        base_symbol: selected,
+                        base_name: DiagnosticName::generated("Indexed"),
+                        lifetime_arguments: vec![DiagnosticName::generated("'buffer")],
+                        arguments,
+                        receiving_application: receiving,
+                        ..Default::default()
+                    },
+                }));
+                let cloned = storage.clone();
+                let mut other_occurrence = storage.get(root).clone();
+                let other_receiving = storage
+                    .receiving_applications
+                    .insert(storage.receiving_applications.get(receiving).clone());
+                if let TypeReference::Generic(application) = &mut other_occurrence {
+                    application.receiving_application = other_receiving;
+                }
+                assert_ne!(&other_occurrence, storage.get(root));
+                let semantic_graph = |reference: &TypeReference| {
+                    let mut types = TypeReferenceTable::new();
+                    let expressions = ExpressionTable::new();
+                    let root = types.insert_tree(
+                        reference,
+                        &mut ExpressionTable::new(),
+                        &storage,
+                        &Arena::new(),
+                        &expressions,
+                    );
+                    compiler_storage::encode(
+                        &(types, root),
+                        compiler_storage::RecordLimits::default(),
+                    )
+                    .unwrap()
+                };
+                assert_eq!(
+                    semantic_graph(storage.get(root)),
+                    semantic_graph(&other_occurrence)
+                );
+                let bytes = compiler_storage::encode(
+                    &(storage.clone(), root),
+                    compiler_storage::RecordLimits::default(),
+                )
+                .unwrap();
+                let (restored, restored_root): (TypeReferenceArena, arena::Handle<TypeReference>) =
+                    compiler_storage::decode(&bytes, compiler_storage::RecordLimits::default())
+                        .unwrap();
+                for (owner, root) in [(&cloned, root), (&restored, restored_root)] {
+                    let TypeReference::Generic(application) = owner.get(root) else {
+                        panic!("generic application survives storage transport");
+                    };
+                    let receipt = owner
+                        .receiving_applications
+                        .get(application.receiving_application);
+                    assert_eq!(receipt.selected, selected);
+                    assert_eq!(receipt.arguments, application.arguments);
+                    assert_eq!(
+                        owner.span(receipt.arguments).unwrap(),
+                        &[TypeReference::Unit]
+                    );
+                    assert_eq!(
+                        application.lifetime_arguments,
+                        vec![DiagnosticName::generated("'buffer")]
+                    );
+                }
+                storage.receiving_applications.free(receiving);
+                assert!(cloned.receiving_applications.is_valid(receiving));
             }
         }
 
@@ -301,6 +383,8 @@ pub mod type_system {
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct GenericTypeReferenceStorage {
             pub supplied_operand_owner: OperandLifetimeOwnerHandle,
+            /* The retained receiving application, independent of shared argument storage. */
+            pub receiving_application: ReceivingApplicationHandle,
             pub base_symbol: SymbolHandle,
             pub base_name: DiagnosticName,
             pub lifetime_arguments: Vec<DiagnosticName>,
@@ -308,6 +392,44 @@ pub mod type_system {
         }
 
         deref_to_storage!(GenericTypeReference => GenericTypeReferenceStorage);
+
+        pub type ReceivingApplicationHandle = Handle<ReceivingApplication>;
+
+        /* Pending declaration custody, not another language type or a selected value. */
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct ReceivingApplication {
+            pub name: DiagnosticName,
+            pub selected: SymbolHandle,
+            pub arguments: HandleSpan<TypeReference>,
+            pub parameters: HandleSpan<crate::data::TypeParameter>,
+            pub conflict: Option<ReceivingApplicationConflict>,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+        pub struct ReceivingApplicationConflict {
+            pub attempted_declaration: SymbolHandle,
+            pub attempted_arguments: HandleSpan<TypeReference>,
+        }
+
+        /* Copying/moving type storage keeps its receiving records under the same owner. */
+        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub struct TypeReferenceArena {
+            references: Arena<TypeReference>,
+            pub receiving_applications: Arena<ReceivingApplication>,
+        }
+
+        impl Deref for TypeReferenceArena {
+            type Target = Arena<TypeReference>;
+            fn deref(&self) -> &Self::Target {
+                &self.references
+            }
+        }
+
+        impl DerefMut for TypeReferenceArena {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.references
+            }
+        }
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub struct TypeReferenceTable {
@@ -796,6 +918,7 @@ pub mod type_system {
         pub struct DomainConstraint {
             pub name: DiagnosticName,
             pub arguments: HandleSpan<TypeReference>,
+            pub receiving_application: ReceivingApplicationHandle,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

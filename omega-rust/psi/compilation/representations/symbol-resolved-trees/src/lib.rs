@@ -244,7 +244,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub assembly_graphs: Arena<statement::AssemblyControlFlow>,
     pub assembly_blocks: Arena<statement::AssemblyBlock>,
     pub assembly_expressions: Arena<expression::ExpressionHandle>,
-    pub child_type_references: Arena<types::TypeReference>,
+    pub child_type_references: types::TypeReferenceArena,
     pub wire_members: Arena<wire::WireMember>,
 }
 

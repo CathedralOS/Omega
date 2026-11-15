@@ -74,6 +74,7 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 provider-selection = { path = "../realization/provider-selection" }
 layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
+target-operations-to-selected-instructions = { path = "../pipeline/03_target-operations-to-selected-instructions" }
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
@@ -214,6 +215,12 @@ path = "tests/lowered_route_generics.rs"
 [[test]]
 name = "lowered_route_qualified"
 path = "tests/lowered_route_qualified.rs"
+
+# A domain predicate that calls a declared machine is judged as that
+# machine's body at the actual arguments.
+[[test]]
+name = "lowered_route_clause_calls"
+path = "tests/lowered_route_clause_calls.rs"
 
 # A value-position `match` on an integer or Boolean subject is judged on the
 # lowered form: each arm is checked knowing its test held.

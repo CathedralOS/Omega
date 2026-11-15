@@ -6,6 +6,7 @@
 use semantic_vocabulary::{
     CallableContractId, InvocationSite, MachineId, ServiceId, TargetMachineCallable,
 };
+use std::borrow::Cow;
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use terminal_psi::{
@@ -746,6 +747,17 @@ pub(crate) fn judge(
 ) -> Checked<Vec<Excess>> {
     let module = &elaboration.module;
     let tables = &elaboration.tables;
+    if elaboration
+        .installation_bound_refinement
+        .is_some_and(|root| module.entry != Some(TargetMachineCallable::Machine(root)))
+    {
+        return Err(fault(
+            elaboration
+                .installation_bound_refinement
+                .expect("present refinement root"),
+            "installation reach refinement does not name its proof root",
+        ));
+    }
     validate_check_form_envelopes(elaboration)?;
     let Some(first) = module.machines.first().map(|machine| machine.id) else {
         return Ok(Vec::new());
@@ -860,12 +872,30 @@ pub(crate) fn judge(
     }
     if let Some(TargetMachineCallable::Machine(entry)) = module.entry
         && let Envelope::Runtime(envelope) = machine_envelope(elaboration, entry)?
-        && envelope.service_reach != module.root_service_reach.concrete
     {
-        return Err(fault(
-            entry,
-            "root service reach is not the entry's published row",
-        ));
+        // An unresolved installation row is bounded by its requirement, not
+        // an unconditional contribution to this root's concrete services.
+        let root_ceiling = if module
+            .root_service_reach
+            .installation_dependencies
+            .is_empty()
+        {
+            Cow::Borrowed(module.root_service_reach.concrete.as_slice())
+        } else {
+            let mut ceiling = module.root_service_reach.concrete.clone();
+            for dependency in &module.root_service_reach.installation_dependencies {
+                ceiling.extend(dependency.upper_bound.iter().copied());
+            }
+            ceiling.sort_unstable();
+            ceiling.dedup();
+            Cow::Owned(ceiling)
+        };
+        if envelope.service_reach.as_slice() != root_ceiling.as_ref() {
+            return Err(fault(
+                entry,
+                "root service reach is not the entry's published row",
+            ));
+        }
     }
     // Ordinary service-only calls need no storage/version reconstruction.
     // Code-value queries stay symbolic, preserving each formal's identity.
@@ -983,6 +1013,22 @@ pub(crate) fn judge(
             {
                 return Err(context
                     .unsupported("callee termination premises need their exact invocation proof"));
+            }
+            if elaboration.installation_bound_refinement == Some(caller.id)
+                && let (Some(ceiling), Callee::Declared(callee)) =
+                    (ceiling.reach(), call.inputs.callee)
+                && reached
+                    .reach
+                    .iter()
+                    .any(|service| ceiling.binary_search(service).is_err())
+            {
+                reached.reach = fixed_refinement_reach(
+                    module,
+                    tables,
+                    caller.id,
+                    callee,
+                    call.inputs.required_contract,
+                )?;
             }
             contain(
                 ceiling,
@@ -1105,6 +1151,16 @@ fn tail_contribution(
             context.unsupported("callee termination premises need their exact invocation proof")
         );
     }
+    if elaboration.installation_bound_refinement == Some(caller.id)
+        && let Some(ceiling) = ceiling.reach()
+        && reached
+            .reach
+            .iter()
+            .any(|service| ceiling.binary_search(service).is_err())
+    {
+        reached.reach =
+            fixed_refinement_reach(module, &elaboration.tables, caller.id, callee.into(), None)?;
+    }
     contain(
         ceiling,
         &reached,
@@ -1114,4 +1170,106 @@ fn tail_contribution(
         found,
     );
     Ok(())
+}
+
+/// Only the proof of an abstract installation requirement may leave its child
+/// rows conditional. Explicit machine headers and ordinary boundary headers
+/// remain pinned; inferred helpers contribute their known calls and services.
+fn fixed_refinement_reach(
+    module: &TerminalModule,
+    tables: &terminal_check_tables::CheckTables,
+    from: MachineId,
+    callee: TargetMachineCallable,
+    required_contract: Option<semantic_vocabulary::ContractId>,
+) -> Checked<Vec<ServiceId>> {
+    let mut pending = vec![(callee, required_contract)];
+    let mut visited = tables.machines.map(|_, _| false);
+    let mut fixed = Vec::new();
+    while let Some((callee, required_contract)) = pending.pop() {
+        match callee {
+            TargetMachineCallable::Boundary(id) => {
+                let boundary = module
+                    .boundary_machine(id)
+                    .ok_or_else(|| fault(from, "refinement lost a boundary declaration"))?;
+                if !boundary.service_reach_is_installation_bound {
+                    fixed.extend(boundary.published_service_ceiling.iter().copied());
+                }
+            }
+            TargetMachineCallable::Machine(id) => {
+                let contract = module
+                    .invocation_machine_contract(id, required_contract)
+                    .ok_or_else(|| fault(from, "refinement lost a machine contract"))?;
+                if required_contract.is_some() || contract.declared_service_reach.is_some() {
+                    fixed.extend(contract.published_service_ceiling.iter().copied());
+                    continue;
+                }
+                let seen = visited
+                    .get_mut(id)
+                    .ok_or_else(|| fault(from, "refinement machine has no checking rows"))?;
+                if std::mem::replace(seen, true) {
+                    continue;
+                }
+                let body = crate::terminal_machine(&module.machines, id, from)?;
+                if body.blocks.is_empty() {
+                    return Err(fault(from, "inferred reach has no executable body"));
+                }
+                let rows = tables
+                    .machines
+                    .get(id)
+                    .ok_or_else(|| fault(from, "refinement lost a machine's checking rows"))?;
+                for (_, call) in rows.invocations.iter() {
+                    match call.callee {
+                        Callee::Declared(callee) => pending.push((callee, call.required_contract)),
+                        Callee::Selected { .. } => {
+                            return Err(refusal(
+                                RefusalReason::Unsupported,
+                                from,
+                                Construct::Machine,
+                                "installation refinement reach through a selector value",
+                            ));
+                        }
+                    }
+                }
+                for formation in &body.call_formations {
+                    if let (terminal_psi::CallSite::Edge(_), Some(callee)) =
+                        (formation.site, formation.tail_callee)
+                    {
+                        pending.push((callee.into(), None));
+                    }
+                }
+                for block in &body.blocks {
+                    for (_, actions) in block.terminator.cleanup_rosters() {
+                        for action in actions {
+                            if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
+                                cleanup,
+                            ) = action
+                            {
+                                pending.push((
+                                    TargetMachineCallable::Machine(cleanup.cleanup_machine),
+                                    None,
+                                ));
+                            }
+                        }
+                    }
+                }
+                for operation in body.operations() {
+                    let service = match &operation.kind {
+                        terminal_psi::OperationKind::PortWrite { service, .. } => Some(*service),
+                        terminal_psi::OperationKind::RegisterAccess { service, .. } => *service,
+                        _ => None,
+                    };
+                    if let Some(service) = service {
+                        let declaration = module
+                            .service(service)
+                            .ok_or_else(|| fault(from, "refinement lost an instruction service"))?;
+                        fixed.push(service);
+                        fixed.extend(declaration.parents.iter().copied());
+                    }
+                }
+            }
+        }
+    }
+    fixed.sort_unstable();
+    fixed.dedup();
+    Ok(fixed)
 }

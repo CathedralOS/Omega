@@ -746,6 +746,13 @@ pub enum IeeeFloatFormat {
 }
 
 impl IeeeFloatFormat {
+    /// Every binary32 meaning embeds exactly in binary64: precision and both
+    /// exponent ranges fit, and signed zeros, infinities and NaN are preserved.
+    /// This is a relation between meanings, not raw representation identity.
+    pub const fn can_exactly_widen_to(self, target: Self) -> bool {
+        matches!((self, target), (Self::Binary32, Self::Binary64))
+    }
+
     pub const fn byte_size(self) -> u16 {
         match self {
             Self::Binary32 => 4,

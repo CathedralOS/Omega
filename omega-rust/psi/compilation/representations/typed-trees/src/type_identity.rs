@@ -30,6 +30,8 @@ pub(crate) mod callable_identity {
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
     pub struct CallableResultDispatchId(u32);
 
+    // Callable paths are interned only so identities compare by path; no
+    // reader looks a path back up by slot, so that handle omits `slot`.
     macro_rules! interned_handle {
         ($name:ident) => {
             impl $name {
@@ -37,21 +39,26 @@ pub(crate) mod callable_identity {
                     self.0 != 0
                 }
 
-                fn slot(self) -> Option<usize> {
-                    (self.0 != 0).then(|| self.0 as usize - 1)
-                }
-
                 fn from_slot(slot: usize) -> Self {
                     Self(slot as u32 + 1)
                 }
             }
         };
+        ($name:ident, readable) => {
+            interned_handle!($name);
+
+            impl $name {
+                fn slot(self) -> Option<usize> {
+                    (self.0 != 0).then(|| self.0 as usize - 1)
+                }
+            }
+        };
     }
 
-    interned_handle!(CallableIdentityId);
+    interned_handle!(CallableIdentityId, readable);
     interned_handle!(CallablePathId);
-    interned_handle!(CallableParametersId);
-    interned_handle!(CallableResultDispatchId);
+    interned_handle!(CallableParametersId, readable);
+    interned_handle!(CallableResultDispatchId, readable);
 
     pub(crate) struct CallableIdentityParts {
         pub(crate) path: String,
@@ -479,15 +486,6 @@ pub(crate) mod callable_identity {
                 .with_mut(|table| parts.map(|parts| table.intern(parts)).unwrap_or_default())
         }
 
-        pub fn callable_identity_path(&self, identity: CallableIdentityId) -> CallablePathId {
-            self.read_callable_identities(|table| {
-                table
-                    .record(identity)
-                    .map(|record| record.path)
-                    .unwrap_or_default()
-            })
-        }
-
         pub fn callable_identity_parameters(
             &self,
             identity: CallableIdentityId,
@@ -497,30 +495,6 @@ pub(crate) mod callable_identity {
                     .record(identity)
                     .map(|record| record.parameters)
                     .unwrap_or_default()
-            })
-        }
-
-        pub fn callable_identities_share_family(
-            &self,
-            left: CallableIdentityId,
-            right: CallableIdentityId,
-        ) -> bool {
-            self.read_callable_identities(|table| match (table.record(left), table.record(right)) {
-                (Some(left), Some(right)) => {
-                    left.path == right.path && left.parameters == right.parameters
-                }
-                _ => false,
-            })
-        }
-
-        pub fn callable_identities_share_path(
-            &self,
-            left: CallableIdentityId,
-            right: CallableIdentityId,
-        ) -> bool {
-            self.read_callable_identities(|table| match (table.record(left), table.record(right)) {
-                (Some(left), Some(right)) => left.path == right.path,
-                _ => false,
             })
         }
 
@@ -562,15 +536,6 @@ pub(crate) mod callable_identity {
             )
         }
 
-        pub fn callable_path_text(&self, path: CallablePathId) -> String {
-            self.read_callable_identities(|table| {
-                path.slot()
-                    .and_then(|slot| table.paths.get(slot))
-                    .map(|path| path.as_ref().to_owned())
-                    .unwrap_or_default()
-            })
-        }
-
         pub fn callable_parameters_text(&self, parameters: CallableParametersId) -> String {
             self.read_callable_identities(|table| {
                 parameters
@@ -601,19 +566,6 @@ pub(crate) mod callable_identity {
                     .and_then(|slot| table.result_dispatches.get(slot))
                     .is_none_or(NormalizedResultDispatchSet::is_empty)
             })
-        }
-
-        pub fn callable_path_by_text(&self, path: &str) -> CallablePathId {
-            self.callable_identities
-                .with_mut(|table| table.intern_path(path))
-        }
-
-        pub fn callable_result_dispatch_identity(
-            &self,
-            result_dispatch: &NormalizedResultDispatchSet,
-        ) -> CallableResultDispatchId {
-            self.callable_identities
-                .with_mut(|table| table.intern_result_dispatch(result_dispatch.clone()))
         }
 
         fn read_callable_identities<R>(&self, read: impl FnOnce(&CallableIdentityTable) -> R) -> R {
@@ -7001,7 +6953,7 @@ pub(crate) mod substitution {
     use crate::type_system::type_identity::identity_context::normalize_const_or_nominal_name;
     use crate::type_system::type_identity::identity_context::normalize_index_expression;
     use crate::type_system::type_identity::identity_context::normalize_type_reference;
-    use crate::types::FixedArrayLength;
+
     use crate::{
         TypedTrees,
         expression::ExpressionNode,
@@ -7500,64 +7452,6 @@ pub(crate) mod substitution {
             _ => None,
         }
     }
-
-    impl TypedTrees {
-        pub fn closed_array_extent(
-            &self,
-            length: &FixedArrayLength,
-            substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        ) -> Option<usize> {
-            let (mut symbol, mut spelling) = match length {
-                FixedArrayLength::Literal(length) => return Some(*length),
-                FixedArrayLength::ConstParameter { symbol, name } if symbol.is_valid() => {
-                    (*symbol, name.as_str())
-                }
-                _ => return None,
-            };
-            let mut active = Vec::new();
-            loop {
-                let replacement = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| symbol.is_valid() && *parameter == symbol);
-                let Some((_, reference)) = replacement else {
-                    return usize::try_from(integer(self, symbol, spelling)?).ok();
-                };
-                if active.contains(&symbol) || !self.contains_type_reference(*reference) {
-                    return None;
-                }
-                active.push(symbol);
-                match self.type_reference_table.type_reference(*reference) {
-                    TypeReferenceNode::Named {
-                        symbol: selected,
-                        name,
-                    } => {
-                        symbol = *selected;
-                        spelling = name.as_str();
-                    }
-                    TypeReferenceNode::ConstExpression(expression) => {
-                        if !self.expression_table.expression_is_valid(*expression) {
-                            return None;
-                        }
-                        match self.expression_table.expression(*expression) {
-                            ExpressionNode::Integer(literal) => {
-                                return usize::try_from(literal.value_u64()?).ok();
-                            }
-                            ExpressionNode::Name(path)
-                                if !path.static_application.is_valid()
-                                    && path.symbol.is_valid() =>
-                            {
-                                symbol = path.symbol;
-                                spelling = "";
-                            }
-                            _ => return None,
-                        }
-                    }
-                    _ => return None,
-                }
-            }
-        }
-    }
 }
 
 pub use callable_identity::{
@@ -7659,24 +7553,6 @@ pub fn applied_type_identity(
     )
 }
 
-pub fn applied_type_identity_in_scope(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    receiving_owner: SymbolHandle,
-    argument_owner: SymbolHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
-) -> Option<NormalizedTypeIdentity> {
-    qualified_applied_type_identity(
-        program,
-        reference,
-        receiving_owner,
-        argument_owner,
-        scopes,
-        TypeIdentityQualification::Ordinary,
-        &[],
-    )
-}
-
 pub fn applied_type_identity_in_region_scope(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -7722,23 +7598,6 @@ pub fn applied_carrier_identity_in_region_scope(
         },
     );
     (!invalid.get()).then_some(identity)
-}
-
-pub fn applied_index_identity_in_region_scope(
-    program: &TypedTrees,
-    argument: IndexIdentityArgument<'_>,
-    argument_owner: SymbolHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
-    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
-) -> Option<NormalizedTypeIdentity> {
-    qualified_applied_index_identity(
-        program,
-        argument,
-        argument_owner,
-        scopes,
-        TypeIdentityQualification::Ordinary,
-        resolved_lifetimes,
-    )
 }
 
 pub fn applied_declared_carrier_identity(
@@ -7791,23 +7650,6 @@ pub fn portable_applied_index_identity(
         scopes,
         TypeIdentityQualification::PackageQualified,
         &[],
-    )
-}
-
-pub fn portable_applied_index_identity_in_region_scope(
-    program: &TypedTrees,
-    argument: IndexIdentityArgument<'_>,
-    lexical_owner: SymbolHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
-    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
-) -> Option<NormalizedTypeIdentity> {
-    qualified_applied_index_identity(
-        program,
-        argument,
-        lexical_owner,
-        scopes,
-        TypeIdentityQualification::PackageQualified,
-        resolved_lifetimes,
     )
 }
 
@@ -7931,38 +7773,6 @@ pub fn applied_lifetime_identity(
         scopes,
         TypeIdentityQualification::Ordinary,
     )
-}
-
-pub fn applied_type_lifetime_identity_in_scope(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-    ordinal: usize,
-    receiving_owner: SymbolHandle,
-    argument_owner: SymbolHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
-) -> Option<NormalizedTypeIdentity> {
-    if !program.contains_type_reference(reference) {
-        return None;
-    }
-    let crate::types::TypeReferenceNode::Generic {
-        lifetime_arguments, ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    let name = lifetime_arguments.get(ordinal)?;
-    let invalid = Cell::new(false);
-    let context = TypeIdentityContext {
-        application_scopes: scopes,
-        application_owner: receiving_owner,
-        application_argument_owner: argument_owner,
-        invalid_application: Some(&invalid),
-        encountered_elided_regions: Some(&invalid),
-        ..TypeIdentityContext::default()
-    }
-    .enter_type_operand(program, reference);
-    let identity = context.lifetime(program, name.as_str());
-    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
 }
 
 pub fn portable_applied_lifetime_identity(
@@ -8121,39 +7931,6 @@ pub(crate) fn normalized_const_index_expression_identity(
     (!invalid.get()).then_some(identity)
 }
 
-pub fn normalized_expression_identity(
-    program: &TypedTrees,
-    expression: crate::expression::ExpressionHandle,
-    binders: &[(SymbolHandle, String)],
-) -> Option<String> {
-    try_normalized_index_identity(
-        program,
-        IndexIdentityArgument::Expression(expression),
-        binders,
-        &[],
-    )
-}
-
-pub fn try_normalized_index_identity(
-    program: &TypedTrees,
-    argument: IndexIdentityArgument<'_>,
-    binders: &[(SymbolHandle, String)],
-    application_scopes: &[AppliedTypeIdentityScope<'_>],
-) -> Option<String> {
-    let invalid = Cell::new(false);
-    let identity = substitution::index_argument(
-        program,
-        argument,
-        &TypeIdentityContext {
-            binders,
-            application_scopes,
-            invalid_index_argument: Some(&invalid),
-            ..TypeIdentityContext::default()
-        },
-    );
-    (!invalid.get()).then_some(identity)
-}
-
 #[derive(Clone, Copy)]
 pub struct TypeIdentityRequest<'a> {
     pub type_reference: TypeReferenceHandle,
@@ -8195,17 +7972,6 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
-    pub fn data_field_definition(
-        &self,
-        reference: TypeReferenceHandle,
-    ) -> Option<&crate::data::DataDefinition> {
-        let reference = self
-            .type_reference_table
-            .unconstrained_type_reference(reference);
-        self.closed_data_field_definition(reference)
-            .or_else(|| self.data_application_definition(reference))
-    }
-
     pub fn closed_data_field_definition(
         &self,
         reference: TypeReferenceHandle,
@@ -8343,33 +8109,6 @@ impl TypedTrees {
             (self.normalized_type_identity(origin) == identity).then_some(*base_symbol)
         };
         (declaration(instance.symbol)? == declaration(authored)?).then_some(instance)
-    }
-
-    pub fn closed_data_constructor_case(
-        &self,
-        reference: TypeReferenceHandle,
-        retained: SymbolHandle,
-    ) -> Option<&data::DataVariant> {
-        use data::DataMember;
-        if !retained.is_valid() || self.symbols.get(retained).kind != symbols::SymbolKind::Variant {
-            return None;
-        }
-        let owner = self.symbols.get(retained).parent;
-        let instance = self.closed_data_constructor_definition(reference, owner)?;
-        let source = self.unique_data_definition_by_symbol(owner)?;
-        let (ordinal, original) = self.data_members(source).iter().enumerate().find_map(
-            |(ordinal, member)| match member {
-                DataMember::Variant(variant) if variant.symbol == retained => {
-                    Some((ordinal, variant))
-                }
-                _ => None,
-            },
-        )?;
-        let DataMember::Variant(selected) = self.data_members(instance).get(ordinal)? else {
-            return None;
-        };
-        (original.name == selected.name && original.identity == selected.identity)
-            .then_some(selected)
     }
 
     pub fn closed_data_constructor_field(
@@ -8884,10 +8623,6 @@ impl TypedTrees {
         Ok(application)
     }
 
-    pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {
-        self.type_identities.by_text(text)
-    }
-
     pub fn normalized_nominal_type_identity(
         &self,
         symbol: SymbolHandle,
@@ -8938,162 +8673,12 @@ impl TypedTrees {
             .unwrap_or_default()
     }
 
-    pub fn fixed_array_length_identity(
-        &self,
-        length: &crate::types::FixedArrayLength,
-        binders: &[(SymbolHandle, String)],
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<NormalizedTypeIdentity> {
-        self.fixed_array_length_identity_with_substitution_semantics(
-            length,
-            binders,
-            substitutions,
-            SubstitutionSemantics::Transitive,
-            &[],
-        )
-    }
-
-    pub fn fixed_array_length_identity_with_simultaneous_substitutions(
-        &self,
-        length: &crate::types::FixedArrayLength,
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<NormalizedTypeIdentity> {
-        self.fixed_array_length_identity_with_substitution_semantics(
-            length,
-            &[],
-            substitutions,
-            SubstitutionSemantics::Simultaneous,
-            &[],
-        )
-    }
-
-    pub fn scoped_fixed_array_length_identity(
-        &self,
-        length: &crate::types::FixedArrayLength,
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        scope_starts: &[usize],
-    ) -> Option<NormalizedTypeIdentity> {
-        let mut subjects = match length {
-            crate::types::FixedArrayLength::ConstParameter { symbol, .. } => vec![*symbol],
-            crate::types::FixedArrayLength::Expression(reference) => {
-                if !self.contains_type_reference(*reference) {
-                    return None;
-                }
-                crate::references::collect_type_symbol_dependencies(self, *reference)
-            }
-            _ => Vec::new(),
-        };
-        for (_, argument) in substitutions {
-            if !self.contains_type_reference(*argument) {
-                return None;
-            }
-            subjects.extend(crate::references::collect_type_symbol_dependencies(
-                self, *argument,
-            ));
-        }
-        subjects.retain(|symbol| {
-            symbol.is_valid()
-                && matches!(
-                    self.symbols.get(*symbol).kind,
-                    symbols::SymbolKind::TypeParameter
-                        | symbols::SymbolKind::Parameter
-                        | symbols::SymbolKind::Local
-                        | symbols::SymbolKind::MachineParameter
-                        | symbols::SymbolKind::ConformanceParameter
-                        | symbols::SymbolKind::PropositionParameter
-                        | symbols::SymbolKind::PropositionMachineParameter
-                )
-        });
-        subjects.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        subjects.dedup();
-        let binders = subjects
-            .into_iter()
-            .map(|symbol| {
-                (
-                    symbol,
-                    format!(
-                        "array-index:{}:{}",
-                        symbol.arena_index(),
-                        symbol.generation()
-                    ),
-                )
-            })
-            .collect::<Vec<_>>();
-        self.fixed_array_length_identity_with_substitution_semantics(
-            length,
-            &binders,
-            substitutions,
-            SubstitutionSemantics::Transitive,
-            scope_starts,
-        )
-    }
-
-    fn fixed_array_length_identity_with_substitution_semantics(
-        &self,
-        length: &crate::types::FixedArrayLength,
-        binders: &[(SymbolHandle, String)],
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        substitution_semantics: SubstitutionSemantics,
-        scope_starts: &[usize],
-    ) -> Option<NormalizedTypeIdentity> {
-        if let crate::types::FixedArrayLength::Expression(reference) = length
-            && (!self.contains_type_reference(*reference)
-                || !matches!(
-                    self.type_reference_table.type_reference(*reference),
-                    crate::types::TypeReferenceNode::ConstExpression(_)
-                ))
-        {
-            return None;
-        }
-        let invalid = Cell::new(false);
-        let identity = constraint_identity::normalize_array_length(
-            self,
-            length,
-            &TypeIdentityContext {
-                binders,
-                substitutions,
-                substitution_semantics,
-                substitution_scope_starts: scope_starts,
-                invalid_index_argument: Some(&invalid),
-                ..Default::default()
-            },
-        );
-        (!invalid.get()).then(|| program_intern_type_identity(self, identity))
-    }
-
     pub fn type_identity(&self, request: TypeIdentityRequest<'_>) -> NormalizedTypeIdentity {
         self.type_identity_with_substitution_semantics(
             request,
             SubstitutionSemantics::Transitive,
             &[],
         )
-    }
-
-    pub fn type_identities_match_in_static_context(
-        &self,
-        expression: crate::expression::ExpressionHandle,
-        actual: TypeIdentityRequest<'_>,
-        required: TypeIdentityRequest<'_>,
-    ) -> bool {
-        if self.static_type_context_is_unreachable(expression) {
-            return true;
-        }
-        let normalize = |request: TypeIdentityRequest<'_>, semantics| {
-            normalize_type_identity(
-                self,
-                request.type_reference,
-                &TypeIdentityContext {
-                    binders: request.binders,
-                    substitutions: request.substitutions,
-                    qualification: request.qualification,
-                    substitution_semantics: semantics,
-                    static_context: expression,
-                    ..TypeIdentityContext::default()
-                },
-            )
-        };
-        normalize(actual, SubstitutionSemantics::Transitive)
-            == normalize(required, SubstitutionSemantics::Simultaneous)
     }
 
     pub fn storage_type_identity(
@@ -9134,33 +8719,6 @@ impl TypedTrees {
             SubstitutionSemantics::Transitive,
             scope_starts,
         )
-    }
-
-    pub fn scoped_type_identity_with_index_arguments(
-        &self,
-        request: TypeIdentityRequest<'_>,
-        scope_starts: &[usize],
-        arguments: &[(SymbolHandle, IndexIdentityArgument<'_>)],
-    ) -> Option<NormalizedTypeIdentity> {
-        let invalid = Cell::new(false);
-        let regions = Cell::new(false);
-        let identity = normalize_type_identity(
-            self,
-            request.type_reference,
-            &TypeIdentityContext {
-                binders: request.binders,
-                substitutions: request.substitutions,
-                substitution_scope_starts: scope_starts,
-                index_substitutions: arguments,
-                invalid_index_argument: Some(&invalid),
-                invalid_application: Some(&invalid),
-                encountered_elided_regions: Some(&invalid),
-                encountered_regions: Some(&regions),
-                qualification: request.qualification,
-                ..TypeIdentityContext::default()
-            },
-        );
-        (!invalid.get() && !regions.get()).then_some(identity)
     }
 
     pub fn region_free_scoped_type_identity(
@@ -9340,22 +8898,6 @@ impl TypedTrees {
             binders: &binders,
             ..TypeIdentityRequest::ordinary(entry.return_type)
         }))
-    }
-
-    pub fn attached_data_path(&self, machine: &crate::machine::Machine) -> Option<String> {
-        let name = machine.attached_data.as_ref()?;
-        Some(
-            if self
-                .symbols
-                .symbol_module(machine.attached_data_symbol)
-                .is_valid()
-            {
-                self.symbols
-                    .display_path(machine.attached_data_symbol, "::")
-            } else {
-                name.as_str().to_owned()
-            },
-        )
     }
 
     pub fn trait_declaration_path(&self, trait_definition: &TraitDefinition) -> String {

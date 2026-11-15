@@ -575,7 +575,7 @@ mod assignment {
     */
     pub(in crate::symbols) fn assign_trait_bound_slot_argument_symbols(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         local_type_parameters: &[TypeParameter],
         bound_trait_symbol: SymbolHandle,
         arguments: HandleSpan<TypeReference>,
@@ -623,7 +623,7 @@ mod assignment {
     */
     pub(in crate::symbols) fn assign_trait_implementation_argument_symbols(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         local_type_parameters: &[TypeParameter],
         trait_symbol: SymbolHandle,
         arguments: HandleSpan<TypeReference>,
@@ -671,7 +671,7 @@ mod assignment {
 
     pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         local_type_parameters: &[TypeParameter],
         arguments: HandleSpan<TypeReference>,
         machine_slots: &[bool],
@@ -719,7 +719,7 @@ mod assignment {
 
     pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         local_type_parameters: &[TypeParameter],
         arguments: HandleSpan<TypeReference>,
         proposition_slots: &[bool],
@@ -754,7 +754,7 @@ mod assignment {
 
     pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_constraints(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         local_type_parameters: &[TypeParameter],
         type_reference: &mut TypeReference,
@@ -770,7 +770,7 @@ mod assignment {
 
     fn assign_type_reference_symbol_with_context(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         local_type_parameters: &[TypeParameter],
         type_reference: &mut TypeReference,
@@ -787,7 +787,7 @@ mod assignment {
 
     pub(in crate::symbols) fn assign_type_reference_with_definitions(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
         local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
         type_reference: &mut symbol_resolved_trees::types::TypeReference,
@@ -817,6 +817,20 @@ mod assignment {
                     let TypeConstraint::Domain(domain) = constraint else {
                         continue;
                     };
+                    if domain.receiving_application.is_valid() {
+                        let selected = crate::symbols::lookup::top_level_symbol_for_source(
+                            symbols,
+                            SymbolKind::Domain,
+                            &domain.name,
+                        );
+                        crate::constant::bind_receiving_application(
+                            child_type_references,
+                            domain.receiving_application,
+                            &domain.name,
+                            selected,
+                            domain.arguments,
+                        );
+                    }
                     assign_type_arguments_with_definitions(
                         symbols,
                         child_type_references,
@@ -874,6 +888,15 @@ mod assignment {
                     } else {
                         resolve_type_symbol(symbols, local_type_parameters, &generic.base_name)
                     };
+                if !generic.supplied_operand_owner.is_valid() {
+                    crate::constant::bind_receiving_application(
+                        child_type_references,
+                        generic.receiving_application,
+                        &generic.base_name,
+                        generic.base_symbol,
+                        generic.arguments,
+                    );
+                }
                 /*
                     The width of `u<N>` is a const argument, so its name reads a
                     value, never a type. Each other argument takes its role from
@@ -965,7 +988,7 @@ mod assignment {
 
     fn assign_type_parameter_constraint_symbols(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         local_type_parameters: &[TypeParameter],
         type_parameters: &mut [TypeParameter],
@@ -988,7 +1011,7 @@ mod assignment {
 
     fn assign_type_reference_handle_symbol_with_context(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
         local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
         handle: Handle<symbol_resolved_trees::types::TypeReference>,
@@ -1008,7 +1031,7 @@ mod assignment {
 
     fn assign_type_arguments_with_definitions(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
         local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
         arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
@@ -1028,7 +1051,7 @@ mod assignment {
 
     pub(in crate::symbols) fn assign_type_reference_argument_symbols_with_constraints(
         symbols: &SymbolTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         local_type_parameters: &[TypeParameter],
         arguments: HandleSpan<TypeReference>,
@@ -1102,7 +1125,7 @@ mod assignment {
     */
     fn assign_static_operand_types(
         symbols: &SymbolTable,
-        types: &mut Arena<TypeReference>,
+        types: &mut symbol_resolved_trees::types::TypeReferenceArena,
         constraints: &Arena<TypeConstraint>,
         parameters: &[TypeParameter],
         argument: &mut StaticMachineArgument,
@@ -1490,7 +1513,7 @@ mod value_expressions {
         symbols: &SymbolTable,
         scope: &MachineScope<'_>,
         expressions: &mut ExpressionTable,
-        child_types: &mut Arena<TypeReference>,
+        child_types: &mut symbol_resolved_trees::types::TypeReferenceArena,
         arguments: arena::HandleSpan<TypeReference>,
     ) {
         for argument in arguments.handles() {
@@ -1515,7 +1538,7 @@ mod value_expressions {
         parameters: &[StateParameter],
         state_symbol: SymbolHandle,
         expressions: &mut ExpressionTable,
-        child_types: &mut Arena<TypeReference>,
+        child_types: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_reference: &mut TypeReference,
     ) {
         assign_type_value_expressions_with_declarations(
@@ -1537,7 +1560,7 @@ mod value_expressions {
         parameters: &[StateParameter],
         state_symbol: SymbolHandle,
         expressions: &mut ExpressionTable,
-        child_types: &mut Arena<TypeReference>,
+        child_types: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_reference: &mut TypeReference,
         declaration_references: &[source::SourceSpan],
     ) {
@@ -1597,6 +1620,15 @@ mod value_expressions {
                 for argument in generic.arguments.handles() {
                     child(argument);
                 }
+                // Supplied operands bind only after the supplying scope has
+                // replaced the caller's scope above.
+                crate::constant::bind_receiving_application(
+                    child_types,
+                    generic.receiving_application,
+                    &generic.base_name,
+                    generic.base_symbol,
+                    generic.arguments,
+                );
                 /*
                     An integer width is a const argument: like an array extent,
                     its name is a value read in the complete lexical scope, so a
@@ -1749,7 +1781,7 @@ mod value_expressions {
         parameters: &[StateParameter],
         state_symbol: SymbolHandle,
         expressions: &mut ExpressionTable,
-        child_types: &mut Arena<TypeReference>,
+        child_types: &mut symbol_resolved_trees::types::TypeReferenceArena,
         handle: Handle<TypeReference>,
     ) {
         let mut type_reference = child_types.get(handle).clone();
@@ -1778,7 +1810,7 @@ mod value_expressions {
     */
     pub(in crate::symbols) fn reassign_type_reference_symbols(
         symbols: &SymbolTable,
-        child_types: &mut Arena<TypeReference>,
+        child_types: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
         handle: Handle<TypeReference>,

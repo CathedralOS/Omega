@@ -728,7 +728,7 @@ mod traversal {
                 parameters: &[StateParameter],
                 state_symbol: SymbolHandle,
                 expression_table: &mut ExpressionTable,
-                child_type_references: &mut arena::Arena<TypeReference>,
+                child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
                 $parameter: $ty,
             ) {
                 ExpressionSymbolContext {
@@ -766,7 +766,7 @@ mod traversal {
         parameters: &[StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &mut ExpressionTable,
-        child_type_references: &mut arena::Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         machine_arguments: &[StaticMachineArgument],
     ) {
         for argument in machine_arguments {
@@ -788,7 +788,7 @@ mod traversal {
         parameters: &[StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &mut ExpressionTable,
-        child_type_references: &mut arena::Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         expression: ExpressionHandle,
     ) {
         if !expression.is_valid() {
@@ -818,7 +818,7 @@ mod traversal {
         parameters: &[StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &mut ExpressionTable,
-        child_type_references: &mut arena::Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         expression: ExpressionHandle,
         declaration_references: &[source::SourceSpan],
     ) {
@@ -857,7 +857,7 @@ mod traversal {
         parameters: &'visit [StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &'visit mut ExpressionTable,
-        child_type_references: &'visit mut arena::Arena<TypeReference>,
+        child_type_references: &'visit mut symbol_resolved_trees::types::TypeReferenceArena,
         declaration_references: &'visit [source::SourceSpan],
     }
 

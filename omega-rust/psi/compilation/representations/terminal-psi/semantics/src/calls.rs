@@ -2028,25 +2028,27 @@ pub mod closed_reach {
         Ok(())
     }
 
-    fn validate_operational_contract(
+    fn validate_operational_contract<'identity>(
         base: [u8; 32],
         commitment: [u8; 32],
         parameters: &[&ClosedReachParameter],
         suspension: &terminal_psi::ContractDependency<bool, Vec<u32>>,
         blocking: &terminal_psi::ContractDependency<bool, Vec<u32>>,
         carry: &[terminal_psi::ConditionalCarryRequirement],
+        service_identity: impl Fn(semantic_vocabulary::ServiceId) -> Option<&'identity str>,
     ) -> Result<(bool, bool), &'static str> {
         if base == [0; 32]
-            || terminal_psi::template_contract_commitment(
+            || terminal_psi::closed_reach_template_commitment(
                 base,
-                parameters.len(),
+                parameters.iter().copied(),
                 suspension,
                 blocking,
                 carry,
+                service_identity,
             )? != commitment
         {
             return Err(
-                "closed callback contract lost its dependency or conditional carry commitment",
+                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
             );
         }
         let evaluate = |term: &terminal_psi::ContractDependency<bool, Vec<u32>>,
@@ -2105,6 +2107,7 @@ pub mod closed_reach {
                 .filter(|text| !text.is_empty())
                 .ok_or("closed reach has an invalid or empty identity")
         };
+        let service_identity = |service| identity(services.get(&service)?.identity).ok();
         let row = |row: &[semantic_vocabulary::ServiceId]| -> Result<(), &'static str> {
             if row.windows(2).any(|pair| pair[0] >= pair[1]) {
                 return Err("closed reach service row is not strictly ordered");
@@ -2212,6 +2215,7 @@ pub mod closed_reach {
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                service_identity,
             )?;
             let published = machine
                 .declaration
@@ -2234,6 +2238,7 @@ pub mod closed_reach {
                     &capture.suspension_dependency,
                     &capture.blocking_dependency,
                     &capture.conditional_carry,
+                    service_identity,
                 )?;
             }
             row(&application.fixed)?;
@@ -2280,27 +2285,29 @@ pub mod closed_reach {
                                 "selected callback operational contract exceeds its requirement bound",
                             );
                         }
-                        row(&binding.upper_bound)?;
                         row(&binding.selected_reach)?;
-                        if binding
-                            .selected_reach
-                            .iter()
-                            .any(|service| binding.upper_bound.binary_search(service).is_err())
-                        {
-                            return Err(
-                                "closed reach selected contract exceeds its requirement bound",
-                            );
+                        if let Some(upper_bound) = &binding.upper_bound {
+                            row(upper_bound)?;
+                            if binding
+                                .selected_reach
+                                .iter()
+                                .any(|service| upper_bound.binary_search(service).is_err())
+                            {
+                                return Err(
+                                    "closed reach selected contract exceeds its requirement bound",
+                                );
+                            }
                         }
                         if let Some(callee) = binding.callee {
                             let callee = machines
                                 .get(&callee)
                                 .ok_or("closed reach selected callee is absent")?;
-                            if callee
-                                .declaration
-                                .as_ref()
-                                .map(|declaration| declaration.contract)
-                                != Some(binding.selected_contract_commitment)
-                                || callee.published_service_ceiling != binding.selected_reach
+                            if callee.declaration.as_ref().map(|declaration| {
+                                (declaration.semantic_declaration, declaration.contract)
+                            }) != Some((
+                                binding.selected_identity,
+                                binding.selected_contract_commitment,
+                            )) || callee.published_service_ceiling != binding.selected_reach
                                 || callee.declaration.as_ref().is_none_or(|declaration| {
                                     declaration.published_may_suspend
                                         != binding.selected_may_suspend
@@ -2331,14 +2338,19 @@ pub mod closed_reach {
                 return Err("closed reach dependency binders are not strictly ordered");
             }
             let mut union = application.fixed.iter().copied().collect::<BTreeSet<_>>();
+            let called_binders = application
+                .calls
+                .iter()
+                .map(|call| call.binder)
+                .collect::<BTreeSet<_>>();
             for dependency in &application.dependencies {
                 let Some(ClosedReachParameter::Machine(binding)) =
                     application.parameter(*dependency)
                 else {
                     return Err("closed reach dependency is outside its machine telescope");
                 };
-                if binding.nominal_requirement.is_none() {
-                    return Err("closed reach dependency selects a structural fixed-row binder");
+                if binding.nominal_requirement.is_none() && !called_binders.contains(dependency) {
+                    return Err("closed reach structural dependency has no exact call occurrence");
                 }
                 union.extend(binding.selected_reach.iter().copied());
             }

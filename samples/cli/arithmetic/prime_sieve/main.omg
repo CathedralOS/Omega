@@ -12,15 +12,9 @@ use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::narrow_i32_to_u8_trapping;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 48]::Utf8
-requires
-    valid_utf8(self);
 data Main {
     marked: [i32; 50] in Wrapping; // 0 = prime candidate, 1 = composite (zero-init)
-    line: [u8; 48] in Utf8;
+    line: [u8; 48];
     i: i32 in Wrapping;
     j: i32 in Wrapping;
     pos: i32 in Wrapping;  // running write offset into line
@@ -33,11 +27,11 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
     main.line = "                                                ";
-    main.pos = 0;
-    main.i = 2;
+    main.pos = 0 as +Wrapping;
+    main.i = 2 as +Wrapping;
     transition { _ -> block outer(main) }
 
     machine outer(main: &mut Main) {
@@ -100,7 +94,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine finish(main: &mut Main) {
         Console::write_line("PASS: primes below 50 printed (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -108,5 +102,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

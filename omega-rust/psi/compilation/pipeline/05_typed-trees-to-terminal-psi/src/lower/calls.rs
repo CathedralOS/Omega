@@ -388,6 +388,7 @@ impl Lowering<'_> {
                             );
                         }
                     },
+                    fixed_service_reach: None,
                     synchronous_entries: match signature.invokes {
                         crate::Ceiling::Authored(row) => row,
                         crate::Ceiling::Inferred => {
@@ -612,7 +613,7 @@ impl Lowering<'_> {
     /// outcomes stay within their source visibility; an abstract requirement
     /// cannot inherit its implementation's private non-return fact.
     fn completes_normally(
-        &self,
+        &mut self,
         callable: &CallTarget,
         required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &Arguments,
@@ -642,7 +643,7 @@ impl Lowering<'_> {
     /// Bind genuine scalar formals once, with their exact declared carriers.
     /// A callee result ID cannot acquire a caller constant with the same number.
     fn published_postcondition_is_false(
-        &self,
+        &mut self,
         signature: &crate::body::Signature,
         arguments: &Arguments,
     ) -> Checked<bool> {
@@ -693,23 +694,43 @@ impl Lowering<'_> {
     }
 
     fn known_scalar(
-        &self,
+        &mut self,
         value: ValueId,
     ) -> Option<(
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
     )> {
-        let row = self.tables.values.get(value)?;
-        if row.rigid.is_some() {
-            return None;
+        let values = &self.tables.values;
+        let operation_locations = &self.operation_locations;
+        let blocks = &self.blocks;
+        let types = DraftScalarValues { values };
+        let constants = &mut self.scalar_constants;
+        while constants.registered_count() < values.len() {
+            let id = ValueId::new(
+                u64::try_from(constants.registered_count())
+                    .ok()?
+                    .checked_add(1)?,
+            )?;
+            values.get(id)?;
+            if !constants.register(id) {
+                return None;
+            }
         }
-        let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin else {
-            return None;
-        };
-        let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
-        let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
-        let known = terminal_semantics::scalar_operation_literal(operation, value)?;
-        (known.0 == row.scalar_type).then_some(known)
+        constants.value(value, |value| {
+            let row = values.get(value)?;
+            if row.rigid.is_some() {
+                return None;
+            }
+            // A draft join can still gain arrivals. Only already-emitted
+            // operation definitions are stable enough to memoize here.
+            let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin
+            else {
+                return None;
+            };
+            let (block, ordinal) = operation_locations.get(operation)?.as_ref()?;
+            let operation = blocks.get(*block)?.operations.get(*ordinal)?;
+            terminal_semantics::scalar_operation_origin(operation, value, &types)
+        })
     }
 
     /// A call with no normal completion, wherever it is written: the
@@ -737,6 +758,7 @@ impl Lowering<'_> {
         outcome: &Outcome,
         acknowledgement: terminal_psi::CallAcknowledgement,
         source: SourceOrigin,
+        static_reach_binding: Option<u32>,
     ) -> Checked<()> {
         if let EvaluatedCallTarget::Boundary { boundary } = target {
             return self.invoke_boundary_no_normal(boundary, arguments, acknowledgement, source);
@@ -750,8 +772,12 @@ impl Lowering<'_> {
         // It has no normal continuation at which a loan could be restored or
         // its contents observed, but formation still owes the ordinary access
         // and overlap judgments at the exact call site.
-        let crash_continuations =
-            canonical::substituted_routes(&outcome.crash_routes, &arguments.scalars, self.id)?;
+        let crash_continuations = canonical::substituted_routes(
+            &outcome.crash_routes,
+            &arguments.scalars,
+            &self.tables.values,
+            self.id,
+        )?;
         let site = self.current()?;
         let before = self.here()?;
         let loans = self.loans(&arguments.loans, before, source);
@@ -783,7 +809,7 @@ impl Lowering<'_> {
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
         self.terminate(Terminator::InvokeNoNormal {
             edge,
-            static_reach_binding: None,
+            static_reach_binding,
             required_contract: self
                 .signatures
                 .canonical_contract(required_contract, self.id)?,
@@ -888,7 +914,7 @@ impl Lowering<'_> {
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
-        source: SourceOrigin,
+        (source, static_reach_binding): (SourceOrigin, Option<u32>),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
         if designated.is_some() && !matches!(callee, CallTarget::Boundary { .. }) {
@@ -930,11 +956,16 @@ impl Lowering<'_> {
                 &outcome,
                 acknowledgement,
                 source,
+                static_reach_binding,
             )?;
             return Ok(Reached::Ended(source));
         }
-        let crash_continuations =
-            canonical::substituted_routes(&outcome.crash_routes, &arguments.scalars, self.id)?;
+        let crash_continuations = canonical::substituted_routes(
+            &outcome.crash_routes,
+            &arguments.scalars,
+            &self.tables.values,
+            self.id,
+        )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
         if let Some(designated) = designated {
@@ -1077,11 +1108,24 @@ impl Lowering<'_> {
             return Err(self.internal("a selected contract lost its exact call operation"));
         }
         emitted.required_contract = canonical_contract;
+        emitted.static_reach_binding = static_reach_binding;
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.homes.is_empty() {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();
             self.retire_homes(&homes, source)?;
         }
         Ok(Reached::Value(value))
+    }
+}
+
+/// Immutable scalar declarations borrowed separately from the mutable cache.
+struct DraftScalarValues<'a> {
+    values: &'a semantic_vocabulary::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+}
+
+impl terminal_semantics::ValueTypes for DraftScalarValues<'_> {
+    fn value_type(&self, value: ValueId) -> Option<semantic_vocabulary::ScalarType> {
+        let row = self.values.get(value)?;
+        row.rigid.is_none().then_some(row.scalar_type)
     }
 }

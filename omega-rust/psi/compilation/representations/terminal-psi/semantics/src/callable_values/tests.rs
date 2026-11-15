@@ -191,6 +191,7 @@ fn boundary(id: u64, returns_callable: bool) -> terminal_psi::BoundaryMachineDec
             )
         },
         unconditional_termination: false,
+        service_reach_is_installation_bound: false,
         identity: TerminalIdentityIndex(id as u32),
         owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(id as u32)),
         attachment: None,

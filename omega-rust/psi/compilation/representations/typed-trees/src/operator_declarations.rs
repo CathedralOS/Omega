@@ -2076,10 +2076,6 @@ pub mod operator {
             pub fn from_reference(type_reference: Option<TypeReferenceHandle>) -> Self {
                 type_reference.map_or(Self::Unknown, Self::Reference)
             }
-
-            pub fn is_unknown(self) -> bool {
-                matches!(self, Self::Unknown)
-            }
         }
 
         pub fn resolve_spelling_for_operands<'program>(
@@ -3420,18 +3416,6 @@ pub mod operator {
             pub requirement: &'program crate::signature::StateSignature,
             pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
             pub constants: Vec<super::OperatorConstBinding>,
-        }
-
-        impl BoundTraitOperatorMeaning<'_> {
-            pub fn result_identity(
-                &self,
-                program: &TypedTrees,
-            ) -> type_identity::NormalizedTypeIdentity {
-                program.type_identity(TypeIdentityRequest {
-                    substitutions: &self.substitutions,
-                    ..TypeIdentityRequest::ordinary(self.requirement.return_type)
-                })
-            }
         }
 
         pub fn bound_trait_operator_meanings<'program>(

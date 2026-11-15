@@ -3461,9 +3461,10 @@ pub(crate) mod expression {
         pub(crate) mod structural_equality {
             use super::lowerer::ExpressionTableLowerer;
             use crate::expressions::equatable::{
-                DataEqualityShape, EqualitySelection, FieldEquality, data_definition_by_name_from,
-                data_equality_shape, equality_selection, field_equality, implementation_name,
-                suggested_equality_declaration, synthesized_equality_row, value_type_base_name,
+                DataEqualityShape, EqualityImplementation, EqualitySelection, FieldEquality,
+                data_definition_by_symbol, data_equality_shape, equality_selection, field_equality,
+                implementation_name, suggested_equality_declaration, synthesized_equality_row,
+                value_type_symbol, variant_owner,
             };
             use crate::lowerer::name::lower_name;
             use arena::HandleSpan;
@@ -3507,15 +3508,9 @@ pub(crate) mod expression {
                         {
                             return Ok(None);
                         }
-                        let Some(type_name) = self.operand_data_type_name(operand) else {
-                            return Ok(None);
-                        };
-                        if data_definition_by_name_from(
-                            program,
-                            &type_name,
-                            self.source.source_span(operand),
-                        )
-                        .is_none_or(|operand_data| operand_data.symbol != data.symbol)
+                        if self
+                            .operand_data(operand)
+                            .is_none_or(|argument| argument.symbol != data.symbol)
                         {
                             return Ok(None);
                         }
@@ -3564,55 +3559,31 @@ pub(crate) mod expression {
                         return Ok(None);
                     };
 
-                    if self.classifier_reference_operand(binary.left)
-                        || self.classifier_reference_operand(binary.right)
+                    let left_case = self.classifier_data(binary.left);
+                    let right_case = self.classifier_data(binary.right);
+                    let left = left_case.or_else(|| self.operand_data(binary.left));
+                    let right = right_case.or_else(|| self.operand_data(binary.right));
+                    if let (Some(left), Some(right)) = (left, right)
+                        && left.symbol != right.symbol
                     {
-                        let left_type = self
-                            .classifier_reference_type(binary.left)
-                            .or_else(|| self.operand_data_type_name(binary.left));
-                        let right_type = self
-                            .classifier_reference_type(binary.right)
-                            .or_else(|| self.operand_data_type_name(binary.right));
-                        if let Some((left_name, right_name)) = Self::different_data_type_names(
-                            program,
-                            &left_type,
-                            &right_type,
-                            self.source.source_span(binary.left),
-                            self.source.source_span(binary.right),
-                        ) {
-                            return Err(Diagnostic::error(format!(
-                                "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands \
-                     are different data types (a case belongs to its own type only)"
-                            )));
-                        }
-                        return Ok(None);
-                    }
-
-                    let left_type = self.operand_data_type_name(binary.left);
-                    let right_type = self.operand_data_type_name(binary.right);
-                    if let Some((left_name, right_name)) = Self::different_data_type_names(
-                        program,
-                        &left_type,
-                        &right_type,
-                        self.source.source_span(binary.left),
-                        self.source.source_span(binary.right),
-                    ) {
+                        let reason = if left_case.is_some() || right_case.is_some() {
+                            "a case belongs to its own type only"
+                        } else {
+                            "equality requires both operands to be the same type"
+                        };
                         return Err(Diagnostic::error(format!(
-                            "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands are \
-                 different data types (equality requires both operands to be the same type)"
+                            "cannot compare `{}` and `{}` with `==`/`!=`: the operands are different data types ({reason})",
+                            program.symbols.display_path(left.symbol, "::"),
+                            program.symbols.display_path(right.symbol, "::"),
                         )));
                     }
-                    let type_name = match left_type.or(right_type) {
-                        Some(name) => name,
-                        None => return Ok(None),
-                    };
-                    let Some(data) = data_definition_by_name_from(
-                        program,
-                        &type_name,
-                        self.source.source_span(binary.left),
-                    ) else {
+                    if left_case.is_some() || right_case.is_some() {
+                        return Ok(None);
+                    }
+                    let Some(data) = left.or(right) else {
                         return Ok(None);
                     };
+                    let type_name = data.name.as_str();
                     if data.quotient.is_some() {
                         return Err(Diagnostic::error(format!(
                             "cannot compare quotient `{type_name}` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation"
@@ -3633,7 +3604,7 @@ pub(crate) mod expression {
                         EqualitySelection::Missing => {
                             return Err(Diagnostic::error(format!(
                                 "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality, or use `core::Identity<{type_name}>(left, right)` for mathematical identity",
-                                suggested_equality_declaration(&type_name)
+                                suggested_equality_declaration(type_name)
                             )));
                         }
                         EqualitySelection::Ambiguous(implementations) => {
@@ -3644,17 +3615,87 @@ pub(crate) mod expression {
                             )));
                         }
                     };
-                    if implementation.synthesized {
+                    if implementation.is_synthesized() {
                         return self.expand_structural_equality(data, binary).map(Some);
                     }
-                    if !implementation.equals_state.is_valid() {
-                        return Err(Diagnostic::error(format!(
-                            "cannot compare `{type_name}` values with `==`: Equatable implementation `{}` retains no `equals` row; declare it as a closed block",
-                            implementation_name(program, implementation.conformance)
-                        )));
+                    let left = self.lower(binary.left)?;
+                    let right = self.lower(binary.right)?;
+                    let call =
+                        self.call_equality_implementation(data, implementation, [left, right])?;
+                    Ok(Some(self.with_equality_polarity(call, binary.operator)))
+                }
+
+                fn call_equality_implementation(
+                    &mut self,
+                    data: &DataDefinition,
+                    implementation: EqualityImplementation<'program>,
+                    operands: [typed::expression::ExpressionHandle; 2],
+                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+                    let program = self
+                        .program
+                        .expect("equality implementation has a source program");
+                    let conformance = implementation.conformance;
+                    let row = implementation
+                        .row
+                        .filter(|row| row.realization_state.is_valid())
+                        .ok_or_else(|| Diagnostic::error(format!(
+                            "cannot compare `{}` with `==`: Equatable implementation `{}` retains no `equals` row; declare it as a closed block",
+                            data.name,
+                            implementation_name(program, conformance)
+                        )))?;
+                    let requirement = program
+                        .traits
+                        .iter()
+                        .find(|declaration| declaration.symbol == row.declaring_trait)
+                        .and_then(|declaration| {
+                            program
+                                .trait_machine_signatures(declaration.machines)
+                                .iter()
+                                .find(|signature| signature.symbol == row.requirement)
+                        })
+                        .ok_or_else(|| {
+                            Diagnostic::error("the comparison row lost its declared signature")
+                        })?;
+                    let parameters = program.state_parameters(requirement.parameters);
+                    if parameters.len() != operands.len() {
+                        return Err(Diagnostic::error(
+                            "an equality implementation must compare exactly two operands",
+                        ));
+                    }
+                    let mut arguments = Vec::with_capacity(2);
+                    for (operand, formal) in operands.into_iter().zip(parameters) {
+                        let mut reference = &formal.type_reference;
+                        loop {
+                            use resolved::types::TypeReference;
+                            match reference {
+                                TypeReference::AliasUse { expansion, .. } => reference = expansion,
+                                TypeReference::Constrained(node) => {
+                                    reference = program.child_type_reference(node.base_type)
+                                }
+                                TypeReference::Reference(node) => {
+                                    if node.access != language_semantics::ReferenceAccess::Shared {
+                                        return Err(Diagnostic::error(
+                                            "an equality implementation can only borrow its operands shared",
+                                        ));
+                                    }
+                                    arguments.push(self.target().insert(
+                                        typed::expression::ExpressionNode::Borrow(
+                                            typed::expression::TableBorrowExpression {
+                                                target: operand,
+                                                access: node.access,
+                                            },
+                                        ),
+                                    ));
+                                    break;
+                                }
+                                _ => {
+                                    arguments.push(operand);
+                                    break;
+                                }
+                            }
+                        }
                     }
 
-                    let conformance = implementation.conformance;
                     let mut members = HandleSpan::empty();
                     let receiver_name = conformance.alias.as_ref().map_or_else(
                         || {
@@ -3680,52 +3721,36 @@ pub(crate) mod expression {
                                 conformance.symbol,
                             ),
                         ));
-                    let mut arguments = Vec::with_capacity(2);
-                    for operand in [binary.left, binary.right] {
-                        let target = self.lower(operand)?;
-                        let argument =
-                            self.target()
-                                .insert(typed::expression::ExpressionNode::Borrow(
-                                    typed::expression::TableBorrowExpression {
-                                        target,
-                                        access: language_semantics::ReferenceAccess::Shared,
-                                    },
-                                ));
-                        arguments.push(argument);
-                    }
                     let arguments = self.target().insert_expression_handles(arguments);
-                    let call = self
-            .target()
-            .insert(typed::expression::ExpressionNode::Call(
-                typed::expression::TableCallExpression {
-             runtime_call: None,
-             authored_call_selection: None,
-             authored_call_binding: None,
-                    authored_machine_application: Default::default(),
-                    requirement_application: Default::default(),
-                    exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
-                    receiver,
-                    target_symbol: implementation.equals_state,
-                    target: typed::name::Identifier::generated_static("equals"),
-                    static_machine_parameter: symbols::SymbolHandle::invalid(),
-                    static_requirement_dispatch: None,
-                    machine_arguments: Box::default(),
-                    quotient_operation: None,
-                    private_layout_operation: None,
-            installed_interrupt_operation: None,
-                    layout_query: None,
-                    native_code_layout: None,
-                    build_selection: Default::default(),
-                    arguments,
-                    evidence_arguments: Box::default(),
-                    operational_acknowledgement:
-                        language_semantics::CallOperationalAcknowledgement {
-                            origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                            ..Default::default()
+                    Ok(self.target().insert(typed::expression::ExpressionNode::Call(
+                        typed::expression::TableCallExpression {
+                            runtime_call: None,
+                            receiver,
+                            // Named dispatch checks the public row before selecting its realization.
+                            target_symbol: row.requirement,
+                            target: typed::name::Identifier::generated(requirement.name.as_str()),
+                            arguments,
+                            operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
+                                origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                                ..Default::default()
+                            },
+                            authored_call_selection: None,
+                            authored_call_binding: None,
+                            authored_machine_application: Default::default(),
+                            requirement_application: Default::default(),
+                            exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
+                            static_machine_parameter: symbols::SymbolHandle::invalid(),
+                            static_requirement_dispatch: None,
+                            machine_arguments: Box::default(),
+                            quotient_operation: None,
+                            private_layout_operation: None,
+                            installed_interrupt_operation: None,
+                            layout_query: None,
+                            native_code_layout: None,
+                            build_selection: Default::default(),
+                            evidence_arguments: Box::default(),
                         },
-                },
-            ));
-                    Ok(Some(self.with_equality_polarity(call, binary.operator)))
+                    )))
                 }
 
                 fn expand_structural_equality(
@@ -3734,7 +3759,7 @@ pub(crate) mod expression {
                     binary: &resolved::expression::TableBinaryExpression,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     let type_name = data.name.as_str().to_owned();
-                    let mut visiting = vec![type_name.clone()];
+                    let mut visiting = vec![data.symbol];
                     let left = self.classify_operand(binary.left, &type_name)?;
                     let right = self.classify_operand(binary.right, &type_name)?;
                     let equality = self.structural_equality(data, &left, &right, &mut visiting)?;
@@ -3765,109 +3790,72 @@ pub(crate) mod expression {
                     }
                 }
 
-                fn classifier_reference_operand(
+                fn classifier_data(
                     &self,
                     operand: resolved::expression::ExpressionHandle,
-                ) -> bool {
-                    if !operand.is_valid() {
-                        return false;
-                    }
-                    match self.source.expression(operand) {
-                        resolved::expression::ExpressionNode::Name(path) => {
-                            self.source.name_path_members(path.members).len() >= 2
-                        }
-                        resolved::expression::ExpressionNode::Borrow(inner) => {
-                            self.classifier_reference_operand(inner.target)
-                        }
-                        _ => false,
-                    }
-                }
-
-                fn classifier_reference_type(
-                    &self,
-                    operand: resolved::expression::ExpressionHandle,
-                ) -> Option<String> {
+                ) -> Option<&'program DataDefinition> {
                     if !operand.is_valid() {
                         return None;
                     }
                     match self.source.expression(operand) {
                         resolved::expression::ExpressionNode::Name(path) => {
-                            let members = self.source.name_path_members(path.members);
-                            (members.len() >= 2).then(|| members[0].as_str().to_owned())
+                            variant_owner(self.program?, path.symbol).map(|(data, _)| data)
                         }
                         resolved::expression::ExpressionNode::Borrow(inner) => {
-                            self.classifier_reference_type(inner.target)
+                            self.classifier_data(inner.target)
                         }
                         _ => None,
                     }
                 }
 
-                fn different_data_type_names<'a>(
-                    program: &resolved::SymbolResolvedTrees,
-                    left_type: &'a Option<String>,
-                    right_type: &'a Option<String>,
-                    left_span: source::SourceSpan,
-                    right_span: source::SourceSpan,
-                ) -> Option<(&'a String, &'a String)> {
-                    let (Some(left_name), Some(right_name)) = (left_type, right_type) else {
-                        return None;
-                    };
-                    (left_name != right_name
-                        && data_definition_by_name_from(program, left_name, left_span).is_some()
-                        && data_definition_by_name_from(program, right_name, right_span).is_some())
-                    .then_some((left_name, right_name))
-                }
-
-                fn operand_data_type_name(
+                fn operand_data(
                     &self,
                     operand: resolved::expression::ExpressionHandle,
-                ) -> Option<String> {
+                ) -> Option<&'program DataDefinition> {
                     if !operand.is_valid() {
                         return None;
                     }
                     let program = self.program?;
-                    match self.source.expression(operand) {
+                    let symbol = match self.source.expression(operand) {
                         resolved::expression::ExpressionNode::StructLiteral(literal) => {
-                            Some(literal.type_name.as_str().to_owned())
+                            if literal.application_type.is_valid() {
+                                value_type_symbol(
+                                    program,
+                                    program.child_type_reference(literal.application_type),
+                                )?
+                            } else {
+                                literal.type_symbol
+                            }
                         }
                         resolved::expression::ExpressionNode::Borrow(inner) => {
-                            self.operand_data_type_name(inner.target)
+                            return self.operand_data(inner.target);
                         }
                         resolved::expression::ExpressionNode::Name(path) => {
-                            if let Some(reference) =
-                                super::member_binding::declared_symbol_type(program, path.symbol)
-                                && let Some(name) = value_type_base_name(program, reference)
-                            {
-                                return Some(name);
-                            }
-                            let members = self.source.name_path_members(path.members);
-                            let scope = self.equality_scope?;
-                            let [name] = members else {
+                            if !path.symbol.is_valid() {
                                 return None;
-                            };
-                            scope.value_type(name.as_str()).map(str::to_owned)
+                            }
+                            if let Some(symbol) = self
+                                .equality_scope
+                                .and_then(|scope| scope.value_type(path.symbol))
+                            {
+                                symbol
+                            } else {
+                                let declared = super::member_binding::declared_symbol_type(
+                                    program,
+                                    path.symbol,
+                                )?;
+                                value_type_symbol(program, declared)?
+                            }
                         }
                         resolved::expression::ExpressionNode::Member(member) => {
-                            let receiver_type = self.operand_data_type_name(member.receiver)?;
-                            let data = data_definition_by_name_from(
-                                program,
-                                &receiver_type,
-                                self.source.source_span(member.receiver),
-                            )?;
-                            let field = program.data_members(data.members).iter().find_map(
-                                |data_member| match data_member {
-                                    DataMember::Field(field)
-                                        if field.name.as_str() == member.member.as_str() =>
-                                    {
-                                        Some(field)
-                                    }
-                                    _ => None,
-                                },
-                            )?;
-                            value_type_base_name(program, &field.type_reference)
+                            let (field, _) = self.declared_member(member);
+                            let declared =
+                                super::member_binding::declared_symbol_type(program, field)?;
+                            value_type_symbol(program, declared)?
                         }
-                        _ => None,
-                    }
+                        _ => return None,
+                    };
+                    data_definition_by_symbol(program, symbol)
                 }
 
                 fn classify_operand(
@@ -3904,7 +3892,7 @@ pub(crate) mod expression {
                     data: &'program DataDefinition,
                     left: &Operand,
                     right: &Operand,
-                    visiting: &mut Vec<String>,
+                    visiting: &mut Vec<symbols::SymbolHandle>,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     let program = self
                         .program
@@ -3958,7 +3946,7 @@ pub(crate) mod expression {
                     case_variant: Option<&DataVariant>,
                     left: &Operand,
                     right: &Operand,
-                    visiting: &mut Vec<String>,
+                    visiting: &mut Vec<symbols::SymbolHandle>,
                 ) -> Result<Vec<typed::expression::ExpressionHandle>, Diagnostic> {
                     let mut compares = Vec::new();
                     for field in fields {
@@ -3983,7 +3971,7 @@ pub(crate) mod expression {
                     variants: &[&DataVariant],
                     left: &Operand,
                     right: &Operand,
-                    visiting: &mut Vec<String>,
+                    visiting: &mut Vec<symbols::SymbolHandle>,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     let program = self
                         .program
@@ -4120,12 +4108,15 @@ pub(crate) mod expression {
                     case_variant: Option<&DataVariant>,
                     left: &Operand,
                     right: &Operand,
-                    visiting: &mut Vec<String>,
+                    visiting: &mut Vec<symbols::SymbolHandle>,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     let program = self
                         .program
                         .expect("structural equality requires program context");
-                    let context = || format!("structural equality of `{}`", visiting[0]);
+                    let context = || {
+                        let root = program.symbols.display_path(visiting[0], "::");
+                        format!("structural equality of `{root}`")
+                    };
                     match field_equality(program, context, data, field)? {
                         equality @ (FieldEquality::Direct | FieldEquality::Text) => {
                             if matches!(equality, FieldEquality::Text)
@@ -4151,9 +4142,20 @@ pub(crate) mod expression {
                                     },
                                 )))
                         }
-                        FieldEquality::Structural(nested) => {
+                        FieldEquality::Structural(nested, implementation) => {
+                            if !implementation.is_synthesized() {
+                                let left_value =
+                                    self.operand_field_value(field, case_variant, left)?;
+                                let right_value =
+                                    self.operand_field_value(field, case_variant, right)?;
+                                return self.call_equality_implementation(
+                                    nested,
+                                    implementation,
+                                    [left_value, right_value],
+                                );
+                            }
                             let nested_name = nested.name.as_str();
-                            if visiting.iter().any(|name| name == nested_name) {
+                            if visiting.contains(&nested.symbol) {
                                 return Err(Diagnostic::error(format!(
                                     "{}: type `{nested_name}` is recursive through field `{}` of `{}`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet",
                                     context(),
@@ -4169,7 +4171,7 @@ pub(crate) mod expression {
                                 right,
                                 nested_name,
                             )?;
-                            visiting.push(nested_name.to_owned());
+                            visiting.push(nested.symbol);
                             let equality = self.structural_equality(
                                 nested,
                                 &left_nested,

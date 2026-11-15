@@ -1134,7 +1134,10 @@ impl<'t> Program<'t> {
                 for parameter in parameters {
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Implementation
-                        | typed_trees::data::TypeParameterKind::Const { .. } => {}
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Machine {
+                            contract: typed_trees::data::MachineParameterContract::Structural(_),
+                        } => {}
                         typed_trees::data::TypeParameterKind::Type
                             if parameter.bounds.multiplicity
                                 != language_core::Multiplicity::Linear => {}
@@ -1143,7 +1146,7 @@ impl<'t> Program<'t> {
                         }
                         _ => {
                             return unserved_parameters(
-                                "parameter that is no type, value or implementation",
+                                "parameter without a supported static contract",
                             );
                         }
                     }
@@ -1546,11 +1549,20 @@ impl<'t> Program<'t> {
             // There is one executable entry: its caller-facing contract is
             // the requirement's. The member's own clauses remain owed by
             // the independent root-scoped conformance witness.
+            // Calls expose the requirement's contracts. The independent
+            // witness checks the member under its own contract; abstract
+            // reach additionally needs the selected installation below.
             signature.requires = routed.requires;
             signature.ensures = routed.ensures;
             names.requires = routed_names.requires;
             names.ensures = routed_names.ensures;
-            if !matches!(routed.reaches, crate::Ceiling::Inferred) {
+            // An abstract requirement bounds the selected installation's
+            // resolved row. Its body keeps its own written ceiling or
+            // inference; replacing that with the abstract bound would
+            // reject a child whose wider bound resolves to a smaller row.
+            if !requirement.service_reach_is_installation_bound
+                && !matches!(routed.reaches, crate::Ceiling::Inferred)
+            {
                 signature.reaches = routed.reaches;
             }
             signature.invokes = routed.invokes;
@@ -2355,14 +2367,6 @@ impl<'t> Program<'t> {
         };
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
-        }
-        if requirement.service_reach_is_installation_bound
-            || self
-                .typed
-                .service_reach_rows
-                .is_abstract(requirement.service_reach_row)
-        {
-            return unserved("service reach bound by an installation");
         }
         let (signature, mut names) = self.contract(
             id,
@@ -3724,7 +3728,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_)
@@ -3935,7 +3939,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Float(_)
-        | ExpressionKind::LayoutObservation { .. }
+        | ExpressionKind::ScalarApplication { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Boolean(_) => {}

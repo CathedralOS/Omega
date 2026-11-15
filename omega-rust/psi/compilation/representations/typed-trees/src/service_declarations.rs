@@ -271,44 +271,6 @@ pub mod provider_declarations {
         }
     }
 
-    pub fn independent_satisfactions<'program>(
-        typed: &'program crate::TypedTrees,
-        machine: &'program crate::machine::Machine,
-    ) -> impl Iterator<Item = &'program crate::machine::TraitConformance> + 'program {
-        let repeated = owned_requirement_clause(typed, machine);
-        typed
-            .machine_trait_conformances(machine)
-            .iter()
-            .enumerate()
-            .filter(move |(ordinal, _)| Some(*ordinal) != repeated)
-            .map(|(_, edge)| edge)
-    }
-
-    fn owned_requirement_clause(
-        typed: &crate::TypedTrees,
-        machine: &crate::machine::Machine,
-    ) -> Option<usize> {
-        use crate::trait_definition::{AppliedTraitScope, ConformanceRowSource};
-
-        let (implementation, row) = typed.owned_conformance_realization(machine.symbol)?;
-        if row.source != ConformanceRowSource::Inline {
-            return None;
-        }
-        let expected = AppliedTraitScope::from_conformance(typed, implementation)?
-            .declaring_scope(typed, row.declaring_trait)?;
-        let mut matching = typed
-            .machine_trait_conformances(machine)
-            .iter()
-            .enumerate()
-            .filter(|(_, edge)| {
-                edge.requirement_symbol == row.requirement
-                    && AppliedTraitScope::from_machine_conformance(typed, machine, edge)
-                        .is_some_and(|actual| expected.same_application(typed, &actual))
-            });
-        let (ordinal, _) = matching.next()?;
-        matching.next().is_none().then_some(ordinal)
-    }
-
     pub fn provider_target_declarations(
         typed: &crate::TypedTrees,
         scope: source::DependencyScope,
@@ -348,36 +310,6 @@ pub mod provider_declarations {
         (owner.name == *attached).then_some(owner.symbol)
     }
 
-    pub fn boundary_satisfaction_identity(
-        typed: &crate::TypedTrees,
-        machine: &crate::machine::Machine,
-        edge: &crate::machine::TraitConformance,
-    ) -> Option<(symbols::SymbolHandle, String)> {
-        let declaration = crate::machine::resolve_satisfied_declaration(typed, machine, edge)?;
-        let symbol = declaration.symbol();
-        if !edge.requirement_symbol.is_valid() || edge.requirement_symbol != symbol {
-            return None;
-        }
-        let identity = match declaration {
-            crate::machine::SatisfiedDeclaration::Trait {
-                definition,
-                requirement,
-            } if definition.is_boundary => {
-                typed.trait_requirement_callable_identity_text(definition, requirement)
-            }
-            crate::machine::SatisfiedDeclaration::TopLevelRequirement(requirement)
-                if requirement.supply_mode
-                    == language_semantics::MachineSupplyMode::TopLevelRequirement =>
-            {
-                typed.machine_callable_identity_text(requirement)?
-            }
-            crate::machine::SatisfiedDeclaration::Operator(operator) if operator.is_boundary => {
-                crate::operator::boundary_operator_requirement_identity(typed, operator)
-            }
-            _ => return None,
-        };
-        (!identity.is_empty()).then_some((symbol, identity))
-    }
     #[cfg(test)]
     mod inventory_tests {
         use super::PreparedProviderInventory;
@@ -683,13 +615,6 @@ pub mod projection {
         ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
         ServiceProgressPremise, ServiceProgressSubject, ServiceResultClaim, ServiceSurface,
     };
-
-    pub fn is_product_declaration(
-        program: &crate::TypedTrees,
-        symbol: symbols::SymbolHandle,
-    ) -> bool {
-        ProviderPlanningContext::new(program, source::DependencyScope::Product).contains(symbol)
-    }
 
     pub(super) fn projection_failure(
         program: &crate::TypedTrees,
@@ -1544,20 +1469,6 @@ pub(crate) mod catalog {
         }
     }
 
-    struct SealedDeclaration {
-        symbol: SymbolHandle,
-        declaration: Result<Option<ScalarAccessorDeclaration>, Diagnostic>,
-    }
-
-    impl Default for SealedDeclaration {
-        fn default() -> Self {
-            Self {
-                symbol: SymbolHandle::invalid(),
-                declaration: Ok(None),
-            }
-        }
-    }
-
     pub struct PreparedServiceCatalog {
         owner_identity: u64,
         owner_address: usize,
@@ -1565,7 +1476,6 @@ pub(crate) mod catalog {
         records: Arena<ServiceRecord>,
         requirements: Arena<PreparedServiceRequirement>,
         arguments: Arena<TypeReferenceHandle>,
-        sealed: Arena<SealedDeclaration>,
         signatures: Arc<super::signatures::PreparedBoundarySignatures>,
     }
 
@@ -1628,18 +1538,6 @@ pub(crate) mod catalog {
             Self::assemble(context, signatures, exact_toolchain_sources)
         }
 
-        pub fn prepare_frozen(
-            program: &crate::FrozenTypedTrees,
-            scope: source::DependencyScope,
-            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-        ) -> Self {
-            Self::assemble(
-                ProviderPlanningContext::new(program, scope),
-                Arc::clone(program.boundary_signatures()),
-                exact_toolchain_sources,
-            )
-        }
-
         fn assemble(
             context: ProviderPlanningContext<'_>,
             signatures: Arc<super::signatures::PreparedBoundarySignatures>,
@@ -1653,7 +1551,6 @@ pub(crate) mod catalog {
                 records: Arena::new(),
                 requirements: Arena::new(),
                 arguments: Arena::new(),
-                sealed: Arena::new(),
                 signatures,
             };
 
@@ -1851,18 +1748,6 @@ pub(crate) mod catalog {
             self.catalog.lookup(ServiceOrigin::Declaration(schema))
         }
 
-        pub fn retain_declaration(
-            self,
-            schema: ProviderSchemaDeclaration,
-        ) -> Option<RetainedServiceSurface> {
-            let record = self.catalog.record(ServiceOrigin::Declaration(schema));
-            self.catalog.view(self.catalog.records.get(record))?;
-            Some(RetainedServiceSurface {
-                catalog: Arc::clone(self.catalog),
-                record,
-            })
-        }
-
         pub fn retain_application(
             self,
             scope: AppliedTraitScope<'_>,
@@ -1880,65 +1765,8 @@ pub(crate) mod catalog {
             })
         }
 
-        pub fn named_application(
-            self,
-            declaration: SymbolHandle,
-            capture: Handle<crate::CapturedMachineApplication>,
-            receiver: SymbolHandle,
-        ) -> Option<PreparedServiceSurface<'catalog>> {
-            self.catalog.lookup(ServiceOrigin::Named {
-                declaration,
-                capture,
-                receiver,
-            })
-        }
-
         pub fn declared_traits(self) -> impl Iterator<Item = PreparedServiceDeclaration<'catalog>> {
             self.catalog.declared_traits()
-        }
-
-        // Calling must keep the exact declaration used to form the candidate.
-        // Looking it up again by its authored name would discard applied
-        // arguments. Only the same catalog-owned declaration can name its
-        // retained source and requirement correspondence.
-        pub fn retain_surface(
-            self,
-            declaration: &Arc<ServiceSurface>,
-        ) -> Option<RetainedServiceSurface> {
-            let mut matching = self.catalog.records.iter().filter(|(_, record)| {
-                record
-                    .declaration
-                    .as_ref()
-                    .is_some_and(|owned| Arc::ptr_eq(owned, declaration))
-            });
-            let (record, retained) = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
-            self.catalog.view(retained)?;
-            Some(RetainedServiceSurface {
-                catalog: Arc::clone(self.catalog),
-                record,
-            })
-        }
-
-        pub fn sealed_accessor(
-            self,
-            symbol: SymbolHandle,
-        ) -> Result<Option<&'catalog ScalarAccessorDeclaration>, Diagnostic> {
-            let Some((_, record)) = self
-                .catalog
-                .sealed
-                .iter()
-                .find(|(_, record)| record.symbol == symbol)
-            else {
-                return Ok(None);
-            };
-            record
-                .declaration
-                .as_ref()
-                .map(Option::as_ref)
-                .map_err(Clone::clone)
         }
     }
 
@@ -2132,10 +1960,6 @@ pub(crate) mod catalog {
                         );
                     }
                 }
-                self.sealed.insert(SealedDeclaration {
-                    symbol,
-                    declaration,
-                });
             }
         }
     }

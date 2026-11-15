@@ -52,8 +52,9 @@ impl AcceptedTerminalSource {
         compilation: typed_trees_to_terminal_psi::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let prepared =
+        let mut prepared =
             typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
+        retain_installation_reach(&mut prepared.program)?;
         let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
         let advisories = advisories(&verdicts);
         let forms = verdicts.len();
@@ -66,39 +67,13 @@ impl AcceptedTerminalSource {
                 "accepted forms lost their exact source correspondence",
             )]);
         }
-        let mut accepted = Self {
+        Ok(Self {
             source,
             closure,
             correspondence: prepared.source,
             publication,
             advisories,
-        };
-        accepted.retain_installation_reach()?;
-        Ok(accepted)
-    }
-
-    fn retain_installation_reach(&mut self) -> Result<(), Vec<Diagnostic>> {
-        let requirements = self.installation_reach_requirements();
-        let module = &mut self.closure.elaboration.module;
-        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
-            return Ok(());
-        };
-        if requirements.is_empty() {
-            return Ok(());
-        }
-        let reach = terminal_installation::SynchronousCallGraph::new(module, None)
-            .and_then(|graph| graph.service_reach_from(entry, &requirements, false))
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if reach.installation_dependencies.is_empty() {
-            return Ok(());
-        }
-        for boundary in &mut module.boundary_machines {
-            if requirements.binary_search(&boundary.id).is_ok() {
-                boundary.fixed_service_reach.clear();
-            }
-        }
-        module.root_service_reach = reach;
-        Ok(())
+        })
     }
 
     /// Preserve every emitted site of this exact typed call and source member.
@@ -308,18 +283,7 @@ impl AcceptedTerminalSource {
 
     /// Exact lowered boundary declarations whose source owns an installation bound.
     pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
-        self.closure
-            .elaboration
-            .boundaries
-            .iter()
-            .filter_map(|(boundary, symbol)| {
-                let (owner, signature) = self.source.trait_machine_signature(*symbol)?;
-                (owner.is_boundary
-                    && signature.symbol == *symbol
-                    && signature.service_reach_is_installation_bound)
-                    .then_some(boundary)
-            })
-            .collect()
+        self.module().installation_reach_requirements()
     }
 
     /// The boundary requirements this accepted module declares, in the
@@ -404,23 +368,60 @@ impl AcceptedTerminalSource {
         Ok(declared)
     }
 
-    /// Follow actual invocations from this entry through the exact selected
-    /// boundary bodies. Retained declarations and descriptors are not roots.
+    /// Follow the entry and its demanded scalar evaluations through actual
+    /// invocations and exact selected code values. Retained headers are not roots.
     pub fn boundary_calls_reached(
         &self,
         entry: semantic_vocabulary::MachineId,
         implementations: &[crate::CallableBoundaryImplementation],
+        target: Option<&str>,
     ) -> Result<Vec<semantic_vocabulary::BoundaryMachineId>, Diagnostic> {
-        terminal_semantics::callable_values::reached_boundary_calls(
-            self.module(),
-            entry,
-            implementations,
-        )
-        .map_err(|detail| {
+        let module = self.module();
+        let defect = |detail| {
             Diagnostic::error(format!(
                 "cannot determine executable boundary supply: {detail}"
             ))
-        })
+        };
+        let graph = terminal_installation::SynchronousCallGraph::new(module, None)
+            .and_then(|graph| {
+                graph.with_boundary_calls(
+                    implementations
+                        .iter()
+                        .map(|row| (row.boundary, row.machine)),
+                )
+            })
+            .map_err(defect)?;
+        let scalar_roots = graph
+            .scalar_evaluation_roots(&[entry], target)
+            .map_err(defect)?;
+        let mut roots = vec![entry];
+        let mut boundaries = Vec::new();
+        for root in scalar_roots {
+            match root {
+                semantic_vocabulary::TargetMachineCallable::Machine(machine) => roots.push(machine),
+                semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                    boundaries.push(boundary);
+                    if let Some(row) = implementations.iter().find(|row| row.boundary == boundary) {
+                        roots.push(row.machine);
+                    }
+                }
+            }
+        }
+        roots.sort_unstable();
+        roots.dedup();
+        for root in roots {
+            boundaries.extend(
+                terminal_semantics::callable_values::reached_boundary_calls(
+                    module,
+                    root,
+                    implementations,
+                )
+                .map_err(|detail| defect(detail.to_owned()))?,
+            );
+        }
+        boundaries.sort_unstable();
+        boundaries.dedup();
+        Ok(boundaries)
     }
 
     /// The supply a Build names as the backing of a provider readiness
@@ -562,6 +563,23 @@ impl AcceptedTerminalSource {
         &self.closure.elaboration.module
     }
 
+    /// Bind exact selected-plan commitments before any artifact or evidence
+    /// seals are produced from this accepted target module.
+    pub fn retain_folded_constants(
+        &mut self,
+        folded: terminal_psi::FoldedConstantClosure,
+    ) -> Result<(), &'static str> {
+        let module = &mut self.closure.elaboration.module;
+        if self.publication != terminal_codec::TerminalPublication::Portable
+            || module.folded_constants.target.is_some()
+        {
+            return Err("folded constant custody requires an unbound portable product");
+        }
+        folded.validate(module)?;
+        module.folded_constants = folded;
+        Ok(())
+    }
+
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {
         &self.source
     }
@@ -606,6 +624,35 @@ impl AcceptedTerminalSource {
     pub fn is_invocation(&self) -> bool {
         self.publication == terminal_codec::TerminalPublication::Invocation
     }
+}
+
+/// The checker must see the same conditional root that publication retains.
+/// All authority comes from the lowered declarations, not a later source read.
+fn retain_installation_reach(
+    compilation: &mut terminal_check_tables::compilation::TerminalCompilation,
+) -> Result<(), Vec<Diagnostic>> {
+    use terminal_check_tables::compilation::TerminalCompilation;
+    let TerminalCompilation::Prepared(prepared) = compilation else {
+        return Ok(());
+    };
+    let Ok(elaboration) = &mut prepared.closure else {
+        return Ok(());
+    };
+    let module = &mut elaboration.module;
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+        return Ok(());
+    };
+    let requirements = module.installation_reach_requirements();
+    if requirements.is_empty() {
+        return Ok(());
+    }
+    let reach = terminal_installation::SynchronousCallGraph::new(module, None)
+        .and_then(|graph| graph.service_reach_from(entry, &requirements))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    if !reach.installation_dependencies.is_empty() {
+        module.root_service_reach = reach;
+    }
+    Ok(())
 }
 
 /// The advisories of every accepted part: the entry closure and each

@@ -25,6 +25,10 @@ use std::collections::VecDeque;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::constant_recipes::{
+    ConstantExpressionContext, RetainedConstantPosition, RetainedConstantRecipe,
+    retain_constant_recipes,
+};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::deferred_refusals::DeferredRequest;
 use typed_trees::expression::ExpressionHandle;
@@ -351,8 +355,47 @@ pub fn evaluate(
                 source_consent.clone(),
             )
             .map_err(|errors| diagnostics::join_messages(&errors))?;
-            let value = prepared
-                .entry(job.owner, entry, &[])?
+            let invocation = prepared.entry(job.owner, entry, &[])?;
+            if job.application.is_none()
+                && invocation
+                    .accepted()
+                    .module()
+                    .boundary_machines
+                    .iter()
+                    .any(|boundary| {
+                        boundary
+                            .declaration
+                            .as_ref()
+                            .is_some_and(|row| !row.execution.compiler_owned())
+                    })
+            {
+                let symbol = self::entry(program, job);
+                let contexts =
+                    program
+                        .constant_expression_contexts
+                        .insert_many([ConstantExpressionContext {
+                            owner: job.owner,
+                            result_type: job.carrier,
+                            evaluation_entry: symbol,
+                            evaluation_expression: job.expression,
+                        }]);
+                let source_span = program.expression_table.source_span(job.expression);
+                retain_constant_recipes(
+                    program,
+                    [RetainedConstantRecipe {
+                        position: RetainedConstantPosition::ConstApplication {
+                            site: job.argument,
+                            root: job.expression,
+                        },
+                        contexts,
+                        machine: job.owner,
+                        source_span,
+                        ..Default::default()
+                    }],
+                );
+                return Ok(());
+            }
+            let value = invocation
                 .invoke_recorded(
                     InvocationTarget {
                         name: None,

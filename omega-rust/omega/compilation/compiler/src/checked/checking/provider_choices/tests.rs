@@ -154,7 +154,7 @@ fn execution(
         .entry()
         .expect("fixture main is an executable entry");
     let reached = accepted
-        .boundary_calls_reached(entry, &[])
+        .boundary_calls_reached(entry, &[], Some(TARGET))
         .map_err(|error| error.message)?;
     let realized = realize_target_supply(TargetSupplyRealizationRequest::from_execution_inputs(
         module,
@@ -278,7 +278,7 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
     );
     assert!(
         accepted
-            .boundary_calls_reached(accepted.entry().unwrap(), &[])
+            .boundary_calls_reached(accepted.entry().unwrap(), &[], Some(TARGET))
             .unwrap()
             .is_empty()
     );

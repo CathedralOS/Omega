@@ -151,7 +151,7 @@ pub(crate) fn unproved(
         ),
         ObligationKind::ArrivalInvariant { edge } => {
             head_arrival(elaboration, machine, tables, edge, site)
-                .or_else(|| membership_arrival(elaboration, machine, tables, edge, names, site))
+                .or_else(|| cast_predicate_arrival(elaboration, machine, tables, edge, names, site))
                 .unwrap_or_else(|| {
                     format!("cannot prove block invariant in {}", owner(names, site))
                 })
@@ -206,11 +206,10 @@ pub(crate) fn unproved(
 /// machine's state. The calling machine is the one whose names record a
 /// call at the arrival's site. `None` for a join, whose predicate the
 /// checker inferred, and for the entry's jump, which no call made.
-/// The failed arrival at the block a cast `value as +D` continues in: the
-/// cast did not prove the predicates of `D` of its operand
-/// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has predicates |
-/// Prove them for this value."). `None` for any other arrival.
-fn membership_arrival(
+/// A cast's conditions were not established on arrival at its continuation.
+/// The same proof step serves domain predicates and exact representability.
+/// `None` for an arrival that does not establish a cast predicate.
+fn cast_predicate_arrival(
     elaboration: &Elaboration,
     machine: MachineId,
     tables: &MachineTables,
@@ -226,12 +225,12 @@ fn membership_arrival(
     let stated = &elaboration
         .sources
         .get(machine)?
-        .memberships
+        .predicate_establishments
         .iter()
         .find(|(block, _)| *block == established)?
         .1;
     Some(format!(
-        "cannot prove the value of this cast is in the domain it adds in {}: {stated} (needs \
+        "cannot prove the required condition of this cast in {}: {stated} (needs \
          that fact about the operand here; establish it before the cast via a guard, a prior \
          contract guarantee or a `requires` of this machine)",
         owner(names, site)

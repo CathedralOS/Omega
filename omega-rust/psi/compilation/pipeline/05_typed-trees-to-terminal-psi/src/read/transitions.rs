@@ -368,14 +368,13 @@ impl Program<'_> {
                 source_span,
                 authored_call_selection,
             } => {
-                if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
+                if !evidence_arguments.is_empty() {
                     return Err(refuse(
                         id,
                         Construct::Machine,
                         Unserved::Call("static or evidence call"),
                     ));
                 }
-                self.direct_selection(id, path.symbol, *authored_call_selection, None)?;
                 // A boundary trait qualifier completes a requirement name;
                 // it is never a value supplying an implicit argument.
                 let members = typed.statement_table.name_path_members(path.members).len();
@@ -395,7 +394,22 @@ impl Program<'_> {
                     typed_trees::SourceNode::Statement(statement),
                     *source_span,
                 )?;
-                let mut call = self.call(id, slots, path.symbol, arguments, source, None)?;
+                let mut call = if let Some(rigid) = self.rigid_named_call(
+                    id,
+                    slots,
+                    path.symbol,
+                    arguments,
+                    *authored_call_selection,
+                    source,
+                )? {
+                    rigid
+                } else {
+                    let (authored, static_reach_binding) =
+                        self.static_machine_target(id, path.symbol, *static_machine_parameter)?;
+                    self.direct_selection(id, authored, *authored_call_selection, None)?;
+                    let call = self.call(id, slots, path.symbol, arguments, source, None)?;
+                    self.retain_static_reach(id, call, static_reach_binding)?
+                };
                 crate::operational::retain(&mut call, *operational_acknowledgement, true);
                 call
             }

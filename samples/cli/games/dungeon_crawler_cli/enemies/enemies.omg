@@ -1,4 +1,3 @@
-use text::buffer;
 data EnemyKind [copy] {
     case Bat;
     case Spider;

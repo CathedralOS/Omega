@@ -40,6 +40,7 @@ impl Lowering<'_> {
         let crash_continuations = canonical::substituted_routes(
             &self.boundary_outcome(boundary)?.crash_routes,
             &arguments.scalars,
+            &self.tables.values,
             self.id,
         )?;
         if !crash_continuations.is_empty() {

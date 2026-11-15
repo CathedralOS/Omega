@@ -288,6 +288,21 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Name(path) => {
                 self.undeclared_data_member(id, path, source)?;
+                if let Some(constant) = path
+                    .resolved_symbol()
+                    .and_then(|symbol| self.typed.const_declaration_by_symbol(symbol))
+                    .filter(|constant| {
+                        constant.pending_target_observation && constant.evaluated_value.is_none()
+                    })
+                {
+                    let (application, scalar_type) = self.deferred_scalar_constant(id, constant)?;
+                    return Ok(Expression {
+                        call_context: None,
+                        kind: ExpressionKind::ScalarApplication { application },
+                        result: Some(ValueType::plain(scalar_type)),
+                        source,
+                    });
+                }
                 let slot = self.slot_of(id, slots, path)?;
                 // An erased binding supplies no executable value. This
                 // reader does not materialize it; unsupported classification
@@ -1389,8 +1404,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,
             (
-                ExpressionKind::LayoutObservation { application: a },
-                ExpressionKind::LayoutObservation { application: b },
+                ExpressionKind::ScalarApplication { application: a },
+                ExpressionKind::ScalarApplication { application: b },
             ) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (
@@ -1556,7 +1571,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
                 | ExpressionKind::Float(_)
-                | ExpressionKind::LayoutObservation { .. }
+                | ExpressionKind::ScalarApplication { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }

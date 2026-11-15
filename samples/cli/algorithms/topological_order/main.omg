@@ -49,8 +49,8 @@ machine init(t: &mut Topo) {
 
     machine body(t: &mut Topo, index: u64)
     requires index < 8 {
-        t.indeg[index] = 0;
-        t.emitted[index] = 0;
+        t.indeg[index] = 0u64 as +Wrapping;
+        t.emitted[index] = 0u64 as +Wrapping;
         transition { _ -> loop_(t, index + 1) }
     }
 
@@ -124,7 +124,7 @@ machine sort(t: &mut Topo, g: &Graph) {
     machine record(t: &mut Topo, g: &Graph, pass_index: u64, n: u64)
     requires n < 8 && t.emitted_count < 8 {
         t.order[t.emitted_count] = n;
-        t.emitted[n] = 1;
+        t.emitted[n] = 1u64 as +Wrapping;
         t.emitted_count = t.emitted_count + 1;
         transition { _ -> edges(t, g, pass_index, n, g.offsets[n], g.offsets[n + 1]) }
     }

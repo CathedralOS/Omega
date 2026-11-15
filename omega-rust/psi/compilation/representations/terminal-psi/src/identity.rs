@@ -518,8 +518,9 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Callable contracts and numeric clauses share this vocabulary.
-            137
+            // Callable and numeric contracts include installation-bound service
+            // rows and optional machine-parameter upper bounds.
+            138
         }
     }
 }

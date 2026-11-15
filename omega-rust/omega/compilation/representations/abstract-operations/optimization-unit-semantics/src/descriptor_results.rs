@@ -266,7 +266,7 @@ pub mod access_results {
         }
     }
 }
-mod scalar_expressions {
+pub(crate) mod scalar_expressions {
     use super::{O, kernel};
     use optimization_unit::{OptimizationEdge, OptimizationNode, PsiOptimizationFunction};
     use semantic_vocabulary::{BlockId, IntegerValue, ScalarTerm as T, ScalarType, ValueId};
@@ -734,9 +734,10 @@ mod scalar_expressions {
         edge: &'function OptimizationEdge,
     }
 
-    pub(super) struct ScalarExpressions<'function> {
+    pub(crate) struct ScalarExpressions<'function> {
         entry: BlockId,
         types: BTreeMap<ValueId, ScalarType>,
+        constants: std::cell::RefCell<terminal_semantics::ScalarConstants>,
         definitions: BTreeMap<ValueId, ScalarDefinition<'function>>,
         booleans: BTreeMap<ValueId, bool>,
         integers: BTreeMap<ValueId, (ScalarType, IntegerValue)>,
@@ -746,17 +747,19 @@ mod scalar_expressions {
     }
 
     impl<'function> ScalarExpressions<'function> {
-        pub(super) fn new(function: &'function PsiOptimizationFunction) -> Self {
-            let types = function
+        pub(crate) fn new(function: &'function PsiOptimizationFunction) -> Self {
+            let types: BTreeMap<_, _> = function
                 .parameters
                 .iter()
                 .chain(function.blocks.iter().flat_map(|block| &block.parameters))
                 .chain(function.block_nodes().flat_map(|node| &node.definitions))
                 .map(|value| (value.value, value.scalar_type))
                 .collect();
+            let constants = terminal_semantics::ScalarConstants::for_values(types.keys().copied());
             let mut reader = Self {
                 entry: function.entry,
                 types,
+                constants: std::cell::RefCell::new(constants),
                 definitions: BTreeMap::new(),
                 booleans: BTreeMap::new(),
                 integers: BTreeMap::new(),
@@ -814,33 +817,30 @@ mod scalar_expressions {
             reader
         }
 
-        fn literal(&self, value: ValueId) -> Option<T> {
+        pub(crate) fn literal(&self, value: ValueId) -> Option<T> {
             if let Some(&literal) = self.booleans.get(&value) {
                 return Some(T::Boolean(literal));
             }
-            let (scalar_type, literal) =
-                terminal_semantics::scalar_constant_value(value, |value| {
-                    if let Some(&(scalar_type, literal)) = self.integers.get(&value) {
-                        return Some(terminal_semantics::ScalarConstantOrigin::Literal(
-                            scalar_type,
-                            literal,
-                        ));
-                    }
-                    let owner = *self.owners.get(&value)?;
-                    if owner == self.entry {
-                        return None;
-                    }
-                    let incoming = self
-                        .incoming
-                        .get(&owner)
-                        .into_iter()
-                        .flatten()
-                        .map(|incoming| {
-                            incoming.edge.binding(value).map(|binding| binding.argument)
-                        })
-                        .collect::<Option<Vec<_>>>()?;
-                    Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
-                })?;
+            let (scalar_type, literal) = self.constants.borrow_mut().value(value, |value| {
+                if let Some(&(scalar_type, literal)) = self.integers.get(&value) {
+                    return Some(terminal_semantics::ScalarConstantOrigin::Literal(
+                        scalar_type,
+                        literal,
+                    ));
+                }
+                let owner = *self.owners.get(&value)?;
+                if owner == self.entry {
+                    return None;
+                }
+                let incoming = self
+                    .incoming
+                    .get(&owner)
+                    .into_iter()
+                    .flatten()
+                    .map(|incoming| incoming.edge.binding(value).map(|binding| binding.argument))
+                    .collect::<Option<Vec<_>>>()?;
+                Some(terminal_semantics::ScalarConstantOrigin::Incoming(incoming))
+            })?;
             let ScalarType::Integer(integer) = scalar_type else {
                 return None;
             };

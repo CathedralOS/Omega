@@ -138,13 +138,20 @@ pub struct Evidence {
     pub fact: AcceptedFact,
 }
 
+/// A check against scalar applications in the selected target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetCondition {
+    Predicate(terminal_psi::ScalarPredicateCondition),
+    Range(terminal_semantics::TargetScalarRange),
+}
+
 /// What discharged one obligation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Discharged {
     /// A certificate the kernel accepted.
     Certificate(Evidence),
-    /// A ground call requirement still owed in its actual target closure.
-    TargetCondition(Box<terminal_psi::ScalarPredicateCondition>),
+    /// A ground prerequisite still owed in its actual target closure.
+    TargetCondition(Box<TargetCondition>),
     /// A `PublishedGuarantee`: the `NormalGuarantee` of every normal return
     /// edge for this clause was discharged by a certificate, and these are
     /// they. Empty when the machine has no normal return, where the clause
@@ -491,6 +498,15 @@ fn discharge_inner(
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
+    let application_sized_storage =
+        terminal_semantics::application_sized_storage(module).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                diagnostic,
+                Construct::Machine,
+                detail,
+            )
+        })?;
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
             // A requirement has a contract and no body, so nothing about it is
@@ -525,6 +541,7 @@ fn discharge_inner(
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
                 &empty_contracts,
+                &application_sized_storage,
                 activity,
             )
         })?;
@@ -632,6 +649,7 @@ fn machine(
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
+    application_sized_storage: &[StructuralTypeId],
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let module = formed.source();
@@ -738,6 +756,22 @@ fn machine(
         })?
         .into_iter()
         .peekable();
+    let mut target_ranges = terminal_semantics::target_scalar_ranges(
+        module,
+        lowered,
+        &types,
+        application_sized_storage,
+    )
+    .map_err(|detail| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            detail,
+        )
+    })?
+    .into_iter()
+    .peekable();
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -765,7 +799,27 @@ fn machine(
                     "layout condition names a different obligation",
                 ));
             }
-            decided[index] = Some(Ok(Discharged::TargetCondition(Box::new(condition))));
+            decided[index] = Some(Ok(Discharged::TargetCondition(Box::new(
+                TargetCondition::Predicate(condition),
+            ))));
+            continue;
+        }
+        if target_ranges
+            .peek()
+            .is_some_and(|range| range.obligation == obligation)
+            && let Some(range) = target_ranges.next()
+        {
+            if !matches!(row.kind, ObligationKind::OperationSafety { .. }) {
+                return Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Obligation(obligation),
+                    "target arithmetic range names a different obligation",
+                ));
+            }
+            decided[index] = Some(Ok(Discharged::TargetCondition(Box::new(
+                TargetCondition::Range(range),
+            ))));
             continue;
         }
         let verdict = goal(
@@ -807,12 +861,12 @@ fn machine(
         });
         decided[index] = Some(verdict);
     }
-    if layout_conditions.next().is_some() {
+    if layout_conditions.next().is_some() || target_ranges.next().is_some() {
         return Err(refusal(
             RefusalReason::ForeignIdentity,
             id,
             Construct::Machine,
-            "layout condition lost its checked call obligation",
+            "target condition lost its checked obligation",
         ));
     }
     // Published guarantees read normal-return verdicts, so finish that last

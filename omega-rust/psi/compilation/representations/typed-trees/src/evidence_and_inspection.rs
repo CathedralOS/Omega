@@ -9,7 +9,7 @@ pub mod evidence {
         use crate::TypedTrees;
         use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
-        use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use symbols::{BuiltinTypeAtom, SymbolHandle, UnresolvedName};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
@@ -152,43 +152,6 @@ pub mod evidence {
             domain_byte_predicate(program, domain_symbol)
         }
 
-        pub fn type_reference_domain_predicates(
-            program: &TypedTrees,
-            type_reference: TypeReferenceHandle,
-        ) -> Vec<(String, Option<ByteSequencePredicate>)> {
-            let mut predicates = Vec::new();
-            let mut handle = type_reference;
-            loop {
-                if !handle.is_valid() {
-                    return predicates;
-                }
-                handle = program
-                    .type_reference_table
-                    .dereferenced_type_reference(handle);
-                match program.type_reference_table.type_reference(handle) {
-                    TypeReferenceNode::Constrained {
-                        base_type,
-                        constraints,
-                    } => {
-                        for constraint in program.type_reference_table.constraints(*constraints) {
-                            let TypeConstraintNode::Domain(domain_constraint) = constraint else {
-                                continue;
-                            };
-                            let predicate = domain_constraint
-                                .symbol
-                                .is_valid()
-                                .then(|| domain_byte_predicate(program, domain_constraint.symbol))
-                                .flatten();
-                            predicates
-                                .push((domain_constraint.name.as_str().to_owned(), predicate));
-                        }
-                        handle = *base_type;
-                    }
-                    _ => return predicates,
-                }
-            }
-        }
-
         pub fn literal_bytes(
             program: &TypedTrees,
             expression: ExpressionHandle,
@@ -275,19 +238,11 @@ pub mod evidence {
     }
     pub mod proof_only {
         use crate::TypedTrees;
-        use crate::data::DataDefinition;
+
         use crate::name::Identifier;
         use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use std::collections::HashMap;
         use symbols::SymbolHandle;
-
-        /// One erased scalar lane: the field path below an erased binding (empty
-        /// for a primitive or a shared reference to one) and the leaf's type.
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct ErasedScalarLane {
-            pub fields: Vec<SymbolHandle>,
-            pub primitive_type: crate::types::PrimitiveType,
-        }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum ProofOnlyReason {
@@ -303,10 +258,6 @@ pub mod evidence {
         }
 
         impl ProofOnlyClassification {
-            pub fn is_proof_only(&self, symbol: SymbolHandle) -> bool {
-                self.reasons.contains_key(&symbol.arena_index())
-            }
-
             pub fn reason(&self, symbol: SymbolHandle) -> Option<&ProofOnlyReason> {
                 self.reasons.get(&symbol.arena_index())
             }
@@ -330,91 +281,6 @@ pub mod evidence {
                         format!("`{name}` is proof-only: field `{field}` holds proof-only `{held}`")
                     }
                 })
-            }
-
-            pub fn proof_only_mention(
-                &self,
-                program: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-            ) -> Option<Identifier> {
-                proof_only_mention_in(&self.reasons, program, type_reference)
-            }
-
-            pub fn contract_term_carrier(
-                &self,
-                program: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-            ) -> bool {
-                if self.proof_only_mention(program, type_reference).is_some() {
-                    return true;
-                }
-                // A record whose leaves all ride erased scalar lanes is carried
-                // there, leaf by leaf, and owns no contract-term position.
-                if !program.erased_scalar_lanes(type_reference).is_empty() {
-                    return false;
-                }
-                let mut visiting = Vec::new();
-                self.closed_contract_carrier(program, type_reference, &mut visiting)
-            }
-
-            fn closed_contract_carrier(
-                &self,
-                program: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-                visiting: &mut Vec<SymbolHandle>,
-            ) -> bool {
-                if !type_reference.is_valid() {
-                    return false;
-                }
-                if let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } = program.type_reference_table.type_reference(type_reference)
-                {
-                    return matches!(length, crate::types::FixedArrayLength::Literal(_))
-                        && self.contract_term_field(program, *element_type, visiting);
-                }
-                let TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(type_reference)
-                else {
-                    return false;
-                };
-                if visiting.contains(symbol) {
-                    return false;
-                }
-                let Some(definition) = program.data_definition_by_symbol(*symbol) else {
-                    return false;
-                };
-                let shape =
-                    DataDefinition::shape_kind_from_members(program.data_members(definition));
-                if !program.closed_contract_nominal(definition)
-                    || !matches!(
-                        shape,
-                        crate::data::DataShapeKind::Empty
-                            | crate::data::DataShapeKind::Record
-                            | crate::data::DataShapeKind::Enum
-                            | crate::data::DataShapeKind::Mixed
-                    )
-                {
-                    return false;
-                }
-                visiting.push(*symbol);
-                let admitted = program
-                    .data_member_fields(program.data_members(definition))
-                    .all(|field| self.contract_term_field(program, field.type_reference, visiting));
-                visiting.pop();
-                admitted
-            }
-
-            fn contract_term_field(
-                &self,
-                program: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-                visiting: &mut Vec<SymbolHandle>,
-            ) -> bool {
-                program.primitive_type_reference(type_reference).is_some()
-                    || self.proof_only_mention(program, type_reference).is_some()
-                    || self.closed_contract_carrier(program, type_reference, visiting)
             }
         }
 
@@ -457,107 +323,6 @@ pub mod evidence {
                 TypeReferenceNode::Callable { .. }
                 | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Unit => None,
-            }
-        }
-
-        impl ProofOnlyClassification {
-            pub fn is_proof_machine(
-                &self,
-                program: &TypedTrees,
-                machine: &crate::machine::Machine,
-            ) -> bool {
-                let mut has_proof_value = false;
-                for state in program.machine_states(machine) {
-                    let parameters = program
-                        .state_parameters(state)
-                        .iter()
-                        .filter(|parameter| !parameter.relevance.is_erased())
-                        .map(|parameter| (parameter.type_reference, parameter.is_mutable));
-                    let result = std::iter::once((state.return_type, false));
-                    let locals = program
-                        .statement_table
-                        .statements(state.statement_nodes)
-                        .iter()
-                        .filter_map(|statement| match statement {
-                            crate::statement::StatementNode::LocalData(local)
-                                if !local.relevance.is_erased() =>
-                            {
-                                Some((local.type_reference, false))
-                            }
-                            _ => None,
-                        });
-                    for (type_reference, is_mutable_parameter) in
-                        parameters.chain(result).chain(locals)
-                    {
-                        if self.proof_only_mention(program, type_reference).is_none() {
-                            continue;
-                        }
-                        if is_mutable_parameter
-                            || self.borrows_proof_only_data(program, type_reference)
-                        {
-                            return false;
-                        }
-                        has_proof_value = true;
-                    }
-                }
-                has_proof_value
-            }
-
-            pub fn is_proof_signature(
-                &self,
-                program: &TypedTrees,
-                signature: &crate::signature::StateSignature,
-            ) -> bool {
-                let mut has_proof_value = false;
-                let parameters = program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .filter(|parameter| !parameter.relevance.is_erased())
-                    .map(|parameter| (parameter.type_reference, parameter.is_mutable));
-                for (reference, mutable) in
-                    parameters.chain(std::iter::once((signature.return_type, false)))
-                {
-                    if self.proof_only_mention(program, reference).is_none() {
-                        continue;
-                    }
-                    if mutable || self.borrows_proof_only_data(program, reference) {
-                        return false;
-                    }
-                    has_proof_value = true;
-                }
-                has_proof_value
-            }
-
-            fn borrows_proof_only_data(
-                &self,
-                program: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-            ) -> bool {
-                if !type_reference.is_valid() {
-                    return false;
-                }
-                match program.type_reference_table.type_reference(type_reference) {
-                    TypeReferenceNode::Reference { referee, .. } => {
-                        self.proof_only_mention(program, *referee).is_some()
-                    }
-                    TypeReferenceNode::Slice { element_type } => {
-                        self.proof_only_mention(program, *element_type).is_some()
-                    }
-                    TypeReferenceNode::Constrained { base_type, .. } => {
-                        self.borrows_proof_only_data(program, *base_type)
-                    }
-                    TypeReferenceNode::FixedArray { element_type, .. } => {
-                        self.borrows_proof_only_data(program, *element_type)
-                    }
-                    TypeReferenceNode::Generic { arguments, .. } => program
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .any(|argument| self.borrows_proof_only_data(program, *argument)),
-                    TypeReferenceNode::Callable { .. }
-                    | TypeReferenceNode::Named { .. }
-                    | TypeReferenceNode::ConstExpression(_)
-                    | TypeReferenceNode::Unit => false,
-                }
             }
         }
 
@@ -2173,18 +1938,6 @@ pub mod evidence {
                     .then(|| custody.subjects.clone());
             }
             resolve_machine_witness_expressions(program, machine, &witness.subjects)
-        }
-
-        pub fn resolve_machine_witness_view_arguments(
-            program: &TypedTrees,
-            machine: &Machine,
-        ) -> Option<Vec<ExpressionHandle>> {
-            let witness = machine.termination_plan.implementation_witness.as_ref()?;
-            if let Some(custody) = program.ranking_expression_custody_for(machine.symbol) {
-                return (custody.view_arguments.len() == witness.view_arguments.len())
-                    .then(|| custody.view_arguments.clone());
-            }
-            resolve_machine_witness_expressions(program, machine, &witness.view_arguments)
         }
 
         pub fn resolve_machine_witness_expressions(
@@ -6211,45 +5964,6 @@ pub mod inspection {
 
         pub(crate) fn to_strings<T: ToString>(values: impl IntoIterator<Item = T>) -> Vec<String> {
             values.into_iter().map(|value| value.to_string()).collect()
-        }
-    }
-
-    impl crate::TypedTrees {
-        pub fn diagnostic_expression_name(
-            &self,
-            expression: crate::expression::ExpressionHandle,
-        ) -> String {
-            self.expression_table
-                .display_name_resolving(expression, &|mut current| {
-                    for _ in 0..self.expression_table.expression_count() {
-                        let Some(path) = self.expression_table.name_path_node(current) else {
-                            break;
-                        };
-                        if !path.symbol.is_valid() {
-                            break;
-                        }
-                        let authored = self.symbols.authored_origin(path.symbol);
-                        if self.symbols.get(authored).kind == symbols::SymbolKind::Local
-                            && self.symbols.symbol_source_span(authored).is_some()
-                        {
-                            break;
-                        }
-                        let Some(state) =
-                            self.state_by_symbol(self.symbols.get(path.symbol).parent)
-                        else {
-                            break;
-                        };
-                        let Some((_, local)) = self.state_local_declaration(state, path.symbol)
-                        else {
-                            break;
-                        };
-                        if local.is_mutable || !local.initial_value.is_valid() {
-                            break;
-                        }
-                        current = local.initial_value;
-                    }
-                    current
-                })
         }
     }
 }

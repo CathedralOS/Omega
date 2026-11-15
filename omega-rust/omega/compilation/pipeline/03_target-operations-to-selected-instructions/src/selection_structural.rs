@@ -2636,7 +2636,7 @@ pub(crate) mod indirect_results {
         let Some(placement) = source.call_plan.result.as_ref() else {
             return Ok(());
         };
-        let Some(register) = indirect_result(placement, source.call_plan.policy) else {
+        let Some(register) = indirect_result(placement) else {
             return Ok(());
         };
         if source.call_plan.policy
@@ -2667,10 +2667,10 @@ pub(crate) mod indirect_results {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-        let Some((result, placement, policy)) = call_completion(source, row) else {
+        let Some((result, placement)) = call_completion(source, row) else {
             return Ok(None);
         };
-        if indirect_result(placement, policy).is_none() {
+        if indirect_result(placement).is_none() {
             return Ok(None);
         }
         let slot = LocalStorageSlotId::Structural {
@@ -2703,7 +2703,7 @@ pub(crate) mod indirect_results {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
-        let (result, placement, _) = call_completion(source, row).ok_or_else(|| invalid())?;
+        let (result, placement) = call_completion(source, row).ok_or_else(|| invalid())?;
         let slot = LocalStorageSlotId::Structural {
             operation: row.operation,
             place: result.place,

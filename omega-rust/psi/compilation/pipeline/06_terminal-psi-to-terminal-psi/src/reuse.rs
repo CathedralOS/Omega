@@ -497,6 +497,9 @@ impl Transport<'_> {
             ProofRule::IeeeFloatOrderChain(parts) => {
                 ProofRule::IeeeFloatOrderChain(children(parts)?)
             }
+            ProofRule::FloatMeaningNormalization(parts) => {
+                ProofRule::FloatMeaningNormalization(children(parts)?)
+            }
             ProofRule::ConjunctionElimination {
                 conjunction,
                 conjunct,
@@ -2189,5 +2192,82 @@ mod meaning_unification_tests {
             !instance.unify(&tables, &subtract, &equation("divide")),
             "matching source values cannot replace the operation's full contract"
         );
+    }
+
+    #[test]
+    fn carried_float_meaning_certificates_remap_the_live_equation_and_actuals() {
+        use semantic_vocabulary::{
+            FloatMeaningClause, IeeeFloatFormat as IeeeFormat, PropositionContext,
+        };
+        let scalar = |raw, format| {
+            ScalarTerm::value(ValueId::new(raw).unwrap(), ScalarType::IeeeFloat(format))
+        };
+        let source = scalar(1, IeeeFormat::Binary32);
+        let wide = scalar(2, IeeeFormat::Binary64);
+        let convert = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "convert",
+            &[Format, Meaning],
+            Meaning,
+        )
+        .unwrap();
+        let equation = Proposition::FloatMeaningEqual(
+            FloatMeaningClause::result_equation(
+                wide.clone(),
+                convert.contract_identity(),
+                IeeeFormat::Binary64,
+                [source.clone()],
+            )
+            .unwrap(),
+        );
+        let Proposition::FloatMeaningEqual(clause) = &equation else {
+            unreachable!()
+        };
+        assert!(clause.sources().any(|term| *term == source));
+        let goal = Proposition::FloatMeaningEqual(
+            FloatMeaningClause::conversion_roundtrip(wide, IeeeFormat::Binary32).unwrap(),
+        );
+        let proof = ProofNode {
+            conclusion: goal,
+            rule: ProofRule::FloatMeaningNormalization(vec![ProofNode {
+                conclusion: equation,
+                rule: ProofRule::Assumption { index: 0 },
+            }]),
+        };
+        let transport = Transport {
+            scalar_type: &Some,
+            value: &|id, _| ValueId::new(id.get() + 10).map(Moved::Value),
+            assumption: &|index, _| Ok(Cited::Index(index + 1)),
+            axiom: &Ok,
+        };
+        let moved = transport.certificate(&proof).unwrap();
+        let ProofRule::FloatMeaningNormalization(children) = &moved.rule else {
+            panic!("meaning rule was lost")
+        };
+        assert_eq!(children.len(), 1);
+        let context = PropositionContext::from_value_types([
+            (
+                ValueId::new(11).unwrap(),
+                ScalarType::IeeeFloat(IeeeFormat::Binary32),
+            ),
+            (
+                ValueId::new(12).unwrap(),
+                ScalarType::IeeeFloat(IeeeFormat::Binary64),
+            ),
+        ])
+        .unwrap();
+        proof_admission::accept_certificate(
+            &context,
+            &moved.conclusion,
+            &[Proposition::Truth, children[0].conclusion.clone()],
+            &[],
+            &moved,
+        )
+        .unwrap();
+        let changed_format = Transport {
+            scalar_type: &|_| Some(ScalarType::Boolean),
+            ..transport
+        };
+        assert!(changed_format.certificate(&proof).is_err());
     }
 }

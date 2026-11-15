@@ -201,7 +201,7 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
     .into_syntax_and_pre_check();
     let before = typed.clone();
     let errors = pending
-        .project(&typed, &typed)
+        .activate_sources(&typed)
         .err()
         .expect("unrecorded nested array-length work cannot leave the frontier");
     assert!(
@@ -230,7 +230,7 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
         requests
             .contains(&typed_trees::deferred_refusals::DeferredRequest::TypeExpressionEvaluation)
     );
-    assert!(pending.project(&deferred, &deferred).is_ok());
+    assert!(pending.activate_sources(&deferred).is_ok());
 
     let closed_array = typed
         .type_reference_table
@@ -1501,14 +1501,12 @@ fn constant_evaluation_keeps_the_callee_cast_location() {
 
 #[test]
 fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
-    let (_, _, base, pending) = constant_base(&[(
-        "main.omg",
-        r#"
+    let source = r#"
         const VALUE: u64 = answer();
         machine answer() -> u64 { selected() }
         linux_x86_64 machine selected() -> u64 { 7u64 }
-    "#,
-    )]);
+    "#;
+    let (_, ids, base, pending) = constant_base(&[("main.omg", source)]);
     let mut program = base.typed().clone();
     let errors = pending
         .evaluate_requested_constants(&mut program)
@@ -1517,11 +1515,18 @@ fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
     let error = diagnostics::join_messages(&errors);
     assert!(error.contains("target"), "{error}");
     let declaration = &program.const_declarations()[0];
-    let declaration_span = program
-        .symbols
-        .symbol_source_span(declaration.symbol)
-        .unwrap();
-    assert_eq!(errors[0].source_span, Some(declaration_span));
+    let site = errors[0]
+        .source_span
+        .expect("the target selection refusal identifies the selected declaration");
+    let callee = "selected";
+    let callee_start = source
+        .rfind(callee)
+        .expect("fixture declares the target body");
+    assert_eq!(site.source_id, ids[0]);
+    assert_eq!(
+        site.span.start..site.span.end,
+        callee_start..callee_start + callee.len()
+    );
     assert!(declaration.evaluated_value.is_none());
 }
 
@@ -2282,6 +2287,8 @@ fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
                 .unwrap();
             let entry = program.realized_machine_named(root).unwrap().symbol;
             let request = terminal_production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],

@@ -27,12 +27,15 @@ impl Program<'_> {
     ) -> Checked<StaticSourceEnvelope> {
         let written = crate::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
         let service_reach = if written {
-            if signature.service_reach_is_installation_bound {
+            if signature.service_reach_is_installation_bound && !boundary {
                 return Err(services::unavailable(
                     context,
                     "static service ceiling is bound to an unresolved installation",
                 ));
             }
+            // A boundary schema checks the finite upper bound here. Its
+            // boundary declaration retains the installation-bound row until
+            // selection substitutes the exact provider reach.
             SourceServiceCeiling::Closed(services::finite_reach(
                 self.typed,
                 context,

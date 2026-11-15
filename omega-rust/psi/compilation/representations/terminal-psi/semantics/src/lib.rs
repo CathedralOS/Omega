@@ -44,6 +44,10 @@ pub mod plain_affine;
 pub mod reference_ends;
 pub mod references;
 pub mod scalar_qualifications;
+mod scalar_target_ranges;
+pub use scalar_target_ranges::{
+    TargetScalarRange, application_sized_storage, target_scalar_ranges,
+};
 pub mod scalars;
 pub mod storage;
 pub mod structural;
@@ -546,16 +550,16 @@ pub use bytes::byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use bytes::byte_sequence_predicates::{
-    MachineScalarIndex, ScalarConstantOrigin, byte_copied_field_predicates_at_transfer,
-    byte_field_root, byte_literal_qualifications_hold, byte_literal_qualifications_hold_in,
-    byte_owned_call_result, byte_owned_result_predicates, byte_parameter_predicates,
-    byte_parameter_predicates_from_domains, byte_parameter_predicates_in, byte_predicate_carrier,
-    byte_predicate_requirement, byte_qualification_predicates_in,
-    byte_sequence_argument_predicates, byte_sequence_concatenation_predicates,
-    byte_sequence_source_predicates, byte_transfer_qualifications_hold, byte_view_call_result,
-    indexed_byte_store_goal, machine_scalar_constant_origin, pure_byte_qualifications,
-    scalar_array_qualifications_hold, scalar_constant_value, scalar_operation_literal,
-    shared_byte_field_copy_predicates,
+    MachineScalarIndex, ScalarConstantOrigin, ScalarConstants,
+    byte_copied_field_predicates_at_transfer, byte_field_root, byte_literal_qualifications_hold,
+    byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
+    byte_parameter_predicates, byte_parameter_predicates_from_domains,
+    byte_parameter_predicates_in, byte_predicate_carrier, byte_predicate_requirement,
+    byte_qualification_predicates_in, byte_sequence_argument_predicates,
+    byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
+    byte_transfer_qualifications_hold, byte_view_call_result, indexed_byte_store_goal,
+    pure_byte_qualifications, scalar_array_qualifications_hold, scalar_operation_literal,
+    scalar_operation_origin, shared_byte_field_copy_predicates,
 };
 pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{

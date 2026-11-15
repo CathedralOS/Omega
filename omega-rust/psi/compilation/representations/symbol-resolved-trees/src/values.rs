@@ -760,6 +760,11 @@ pub mod expression {
                             .insert_many(names);
                         membership.domain_symbol = self.symbol(membership.domain_symbol);
                         membership.domain_arguments = self.type_span(membership.domain_arguments);
+                        membership.receiving_application = self.receiving_application(
+                            membership.receiving_application,
+                            membership.domain_arguments,
+                            Some(membership.domain_symbol),
+                        );
                         ProofFact::Membership(membership)
                     }
                 }
@@ -1183,6 +1188,11 @@ pub mod expression {
                     TypeReference::Generic(application) => {
                         application.base_symbol = self.symbol(application.base_symbol);
                         application.arguments = self.type_span(application.arguments);
+                        application.receiving_application = self.receiving_application(
+                            application.receiving_application,
+                            application.arguments,
+                            Some(application.base_symbol),
+                        );
                     }
                     TypeReference::ConstExpression(expression) => {
                         expression.expression = self.expression(expression.expression);
@@ -1264,11 +1274,61 @@ pub mod expression {
             fn constraint(&mut self, mut constraint: TypeConstraint) -> TypeConstraint {
                 match &mut constraint {
                     TypeConstraint::Domain(domain) => {
-                        domain.arguments = self.type_span(domain.arguments)
+                        domain.arguments = self.type_span(domain.arguments);
+                        domain.receiving_application = self.receiving_application(
+                            domain.receiving_application,
+                            domain.arguments,
+                            None,
+                        );
                     }
                     TypeConstraint::Named(_) | TypeConstraint::ArithmeticDomain(_) => {}
                 }
                 constraint
+            }
+
+            /*
+                A copy owns its new argument span but still names the selected
+                receiving declaration. Substituting that declaration must not
+                retarget the original application or inherit its binders.
+            */
+            fn receiving_application(
+                &mut self,
+                source: crate::types::ReceivingApplicationHandle,
+                arguments: HandleSpan<TypeReference>,
+                selected: Option<SymbolHandle>,
+            ) -> crate::types::ReceivingApplicationHandle {
+                if !source.is_valid()
+                    || !self
+                        .program
+                        .declarations()
+                        .child_type_references
+                        .receiving_applications
+                        .is_valid(source)
+                {
+                    return source;
+                }
+                let mut retained = self
+                    .program
+                    .declarations()
+                    .child_type_references
+                    .receiving_applications
+                    .get(source)
+                    .clone();
+                retained.arguments = arguments;
+                if let Some(selected) = selected
+                    && retained.selected.is_valid()
+                    && retained.selected != selected
+                {
+                    retained.conflict = Some(crate::types::ReceivingApplicationConflict {
+                        attempted_declaration: selected,
+                        attempted_arguments: arguments,
+                    });
+                }
+                self.program
+                    .declarations_mut()
+                    .child_type_references
+                    .receiving_applications
+                    .insert(retained)
             }
         }
 
@@ -1288,6 +1348,7 @@ pub mod expression {
                         base_name: DiagnosticName::generated("Carrier"),
                         lifetime_arguments: Vec::new(),
                         arguments,
+                        ..Default::default()
                     },
                 })
             }

@@ -321,7 +321,7 @@ mod contracts {
         signature_contracts: &arena::Arena<symbol_resolved_trees::signature::SignatureContract>,
         proof_facts: &arena::Arena<symbol_resolved_trees::domain::ProofFact>,
         expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-        child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
     ) {
         let type_parameters = super::scope::declaration_type_scope(
             signature_type_parameters,
@@ -390,7 +390,7 @@ mod contracts {
         parameters: &[symbol_resolved_trees::signature::StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-        child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         expression: symbol_resolved_trees::expression::ExpressionHandle,
     ) {
         use symbol_resolved_trees::expression::ExpressionNode;
@@ -712,7 +712,6 @@ mod domain_facts {
     use symbol_resolved_trees::expression::TableNamePath;
     use symbol_resolved_trees::name::DiagnosticName;
     use symbol_resolved_trees::types::TypeConstraint;
-    use symbol_resolved_trees::types::TypeReference;
 
     mod case_members {
         /*
@@ -1008,6 +1007,23 @@ mod domain_facts {
                             &name,
                             diagnostic_path_source_span(members),
                         );
+                        if child_type_references
+                            .receiving_applications
+                            .is_valid(membership.receiving_application)
+                        {
+                            let retained_name = child_type_references
+                                .receiving_applications
+                                .get(membership.receiving_application)
+                                .name
+                                .clone();
+                            crate::constant::bind_receiving_application(
+                                child_type_references,
+                                membership.receiving_application,
+                                &retained_name,
+                                membership.domain_symbol,
+                                membership.domain_arguments,
+                            );
+                        }
                     }
                     ProofFact::Expression(expression) => {
                         assign_proof_expression_symbols(
@@ -1203,7 +1219,7 @@ mod domain_facts {
     */
     struct ProofExpressionContext<'visit> {
         symbols: &'visit SymbolTable,
-        child_type_references: &'visit mut arena::Arena<TypeReference>,
+        child_type_references: &'visit mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &'visit arena::Arena<TypeConstraint>,
         local_type_parameters: Option<&'visit [TypeParameter]>,
         local_symbols: &'visit [(String, SymbolHandle)],
@@ -1214,7 +1230,7 @@ mod domain_facts {
 
     fn assign_proof_expression_symbols(
         symbols: &SymbolTable,
-        child_type_references: &mut arena::Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &arena::Arena<TypeConstraint>,
         local_type_parameters: Option<&[TypeParameter]>,
         local_symbols: &[(String, SymbolHandle)],
@@ -2705,7 +2721,7 @@ mod propositions {
         ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern,
     };
     use symbol_resolved_trees::proposition::PropositionBody;
-    use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+    use symbol_resolved_trees::types::TypeConstraint;
     use symbols::{FixedCoreDeclaration, JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
     use super::expressions::{NameRole, assign_struct_literal_symbols};
@@ -2752,7 +2768,7 @@ mod propositions {
 
     fn assign_expression_span_symbols(
         expressions: &mut ExpressionTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
@@ -2784,7 +2800,7 @@ mod propositions {
     */
     pub(super) fn assign_expression_symbols(
         expressions: &mut ExpressionTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
@@ -2804,7 +2820,7 @@ mod propositions {
 
     fn assign_expression_symbols_in_role(
         expressions: &mut ExpressionTable,
-        child_type_references: &mut Arena<TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
