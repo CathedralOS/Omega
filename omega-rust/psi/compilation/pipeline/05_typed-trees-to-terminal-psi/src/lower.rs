@@ -287,6 +287,7 @@ pub(crate) fn boundary(
         structural_parameters: formals.records,
         result,
         result_reference_regions: Vec::new(),
+        result_lifetimes: None,
         crash_routes: crash_routes.to_vec(),
         scalar_requires: signature.requires.clone(),
         scalar_ensures: signature.ensures.clone(),

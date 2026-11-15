@@ -450,6 +450,7 @@ mod tests {
             structural_parameters: vec![],
             result: BoundaryMachineResult::Unit,
             result_reference_regions: vec![],
+            result_lifetimes: None,
             normal_qualifications: vec![],
         }
     }

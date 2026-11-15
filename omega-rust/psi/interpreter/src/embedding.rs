@@ -29,6 +29,7 @@ pub(crate) mod adapters {
         pub structural_parameters: Vec<TerminalImportStructuralParameter>,
         pub result: BoundaryMachineResult,
         pub result_reference_regions: Vec<terminal_psi::TerminalDynamicReferenceRegion>,
+        pub result_lifetimes: Option<Vec<terminal_psi::DeclaredResultLifetime>>,
         pub normal_qualifications: Vec<terminal_psi::StructuralDomainRequirement>,
     }
 
@@ -59,6 +60,7 @@ pub(crate) mod adapters {
                     .collect(),
                 result: declaration.result.clone(),
                 result_reference_regions: declaration.result_reference_regions.clone(),
+                result_lifetimes: declaration.result_lifetimes.clone(),
                 normal_qualifications: declaration.normal_qualifications.clone(),
             }
         }

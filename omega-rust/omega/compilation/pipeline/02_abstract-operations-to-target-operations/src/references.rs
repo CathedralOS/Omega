@@ -1364,7 +1364,7 @@ mod stored_calls {
         ) -> Option<target_operations::TargetReferenceOrigin> {
             let (referent, access) = *self
                 .provider_outputs
-                .get(&(provider.boundary, provider.output))?;
+                .get(&(provider.boundary, provider.output.stored_output()?))?;
             if provider.invocations.is_empty()
                 || !provider.projection.exact
                 || provider.projection.indirect
@@ -1376,7 +1376,7 @@ mod stored_calls {
             Some(target_operations::TargetReferenceOrigin {
                 base: target_operations::TargetReferenceOriginBase::Provider {
                     boundary: provider.boundary,
-                    output: provider.output,
+                    output: provider.output.stored_output()?,
                     invocations: provider
                         .invocations
                         .iter()
@@ -1447,7 +1447,7 @@ mod stored_calls {
                 "CHECKSITE stored-reference-origin machine={machine:?} kind=access-formation owner={owner:?} operation={operation:?} place={place:?} carrier={carrier:?} projection={projection:?}"
             ),
             DescriptorStoredOrigin::Provider(provider) => eprintln!(
-                "CHECKSITE stored-reference-origin machine={machine:?} kind=provider boundary={:?} output={} invocations={:?} projection={:?} lifetime_dependencies={}",
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=provider boundary={:?} output={:?} invocations={:?} projection={:?} lifetime_dependencies={}",
                 provider.boundary,
                 provider.output,
                 provider.invocations,

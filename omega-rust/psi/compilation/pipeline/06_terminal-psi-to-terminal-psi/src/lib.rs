@@ -369,6 +369,25 @@ pub fn discharge_carrying(
 }
 
 fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
+    for boundary in &elaboration.module.boundary_machines {
+        terminal_semantics::boundary_result_lifetimes(
+            &elaboration.module.structural_types,
+            boundary,
+        )
+        .map_err(|detail| {
+            refusal(
+                RefusalReason::Unsupported,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    }
     terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
         refusal(
             RefusalReason::ForeignIdentity,

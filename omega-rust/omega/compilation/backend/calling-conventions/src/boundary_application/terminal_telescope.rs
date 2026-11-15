@@ -353,6 +353,7 @@ mod tests {
                 scalar_requires: vec![],
                 scalar_ensures: vec![],
                 result_reference_regions: Vec::new(),
+                result_lifetimes: None,
                 reference_outputs: vec![],
                 program_local_root_introductions: vec![],
                 content_guarantees: vec![],

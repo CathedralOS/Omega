@@ -157,6 +157,7 @@ mod tests {
                 result: BoundaryMachineResult::Unit,
                 normal_qualifications: vec![],
                 result_reference_regions: Vec::new(),
+                result_lifetimes: None,
             },
             OutputKind::Byte,
             output.clone(),
