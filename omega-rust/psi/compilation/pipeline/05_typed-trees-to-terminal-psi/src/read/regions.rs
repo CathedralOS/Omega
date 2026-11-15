@@ -725,6 +725,9 @@ impl Program<'_> {
                         retained if retained.is_valid() => retained,
                         _ => lexical_owner,
                     };
+                    super::places::reference_lifetime_declared(
+                        self.typed, machine, reference, owner,
+                    )?;
                     let parameter = owner
                         .is_valid()
                         .then(|| {

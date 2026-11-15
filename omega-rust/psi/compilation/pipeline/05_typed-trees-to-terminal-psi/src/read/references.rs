@@ -58,6 +58,7 @@ impl Program<'_> {
         } else {
             self.lifetime_owner
         };
+        super::places::reference_lifetime_declared(self.typed, machine, reference, owner)?;
         let occurrence = typed_trees::type_identity::applied_carrier_identity_in_region_scope(
             self.typed, reference, owner, owner,
         )

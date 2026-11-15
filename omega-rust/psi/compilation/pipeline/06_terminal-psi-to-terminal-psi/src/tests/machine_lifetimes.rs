@@ -27,6 +27,26 @@ fn verdict(build: &str) -> String {
     }
 }
 
+/// The one statement a program judged wrong breaks.
+fn violation(build: &str) -> String {
+    let verdict = judge_build(build);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+        panic!("expected a rejection: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one violation: {violations:?}");
+    };
+    violation.statement.clone()
+}
+
+/// lifetimes.md: "Duplicate binders and undeclared tags reject."
+fn undeclared(tag: &str, machine: &str) -> String {
+    format!(
+        "this type names the lifetime `'{tag}`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the signature of `{machine}`"
+    )
+}
+
 /// "An explicit result lifetime relates its reference leaves to the
 /// corresponding input lifetime." The body may return the view it was given
 /// for that lifetime and no other: "A signature does not authorize returning
@@ -381,13 +401,22 @@ machine take(view: &[u8]) { }
 #[test]
 fn a_signature_names_only_lifetimes_its_machine_declares() {
     assert_eq!(
-        verdict(
+        violation(
             r#"
 machine build_entry(name: &[u8]) { take(name); }
 machine take(view: &'missing [u8]) { }
 "#
         ),
-        "type byte view has no complete owned region identity while reading the signature of `take`"
+        undeclared("missing", "take")
+    );
+    assert_eq!(
+        violation(
+            r#"
+machine build_entry() { let count: u32 = 1; take(&count); }
+machine take(count: &'missing u32) { }
+"#
+        ),
+        undeclared("missing", "take")
     );
     assert_eq!(
         verdict(
@@ -431,10 +460,7 @@ fn a_static_machine_must_declare_the_lifetime_its_signature_uses() {
     // Removing the retired attachment lets the signature reader reach
     // the view whose lifetime is declared only on the data type.
     let ordinary = DATA_QUALIFIED_MACHINE.replace("Session::keep", "keep");
-    assert_eq!(
-        verdict(&ordinary),
-        "type byte view has no complete owned region identity while reading the signature of `keep`"
-    );
+    assert_eq!(violation(&ordinary), undeclared("storage", "keep"));
     let bound = ordinary
         .replace("machine build_entry(", "machine build_entry<'storage>(")
         .replace("machine keep(", "machine keep<'storage>(")

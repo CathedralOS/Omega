@@ -84,6 +84,7 @@ pub(super) fn source_sequence_view(
         } else {
             lexical_owner
         };
+        super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
         typed_trees::type_identity::applied_type_identity_in_region_scope(
             typed,
             reference,

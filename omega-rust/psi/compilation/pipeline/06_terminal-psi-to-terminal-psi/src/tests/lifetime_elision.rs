@@ -6,6 +6,18 @@
 use super::build_purpose::judge_build;
 use super::*;
 
+/// The one statement a program judged wrong breaks.
+fn violation(build: &str) -> String {
+    let verdict = judge_build(build);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+        panic!("expected a rejection: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one violation: {violations:?}");
+    };
+    violation.statement.clone()
+}
+
 fn refusal(build: &str) -> String {
     match judge_build(build) {
         Err(crate::CompilationRefusal::Elaboration(refusal))
@@ -30,16 +42,16 @@ machine build_entry(session: &mut Session) { session.ready = true; }
 }
 
 #[test]
-fn a_formal_that_names_a_lifetime_nothing_declares_is_refused() {
+fn a_formal_that_names_a_lifetime_nothing_declares_is_rejected() {
     assert_eq!(
-        refusal(
+        violation(
             r#"
 data Session<'storage> { ready: bool; count: u32; }
 machine build_entry(session: &mut Session<'missing>) { session.ready = true; }
 "#
         ),
-        "typing lifetime argument its owner does not declare while reading the signature of \
-         `build_entry`"
+        "this type names the lifetime `'missing`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the signature of `build_entry`"
     );
 }
 
@@ -59,13 +71,14 @@ machine build_entry(session: &mut Session) { session.ready = true; }
     };
     accepted.publish_invocation().unwrap();
     assert_eq!(
-        refusal(
+        violation(
             r#"
 data Session<'storage> { ready: bool; name: &'other [u8]; }
 machine build_entry(session: &mut Session) { session.ready = true; }
 "#
         ),
-        "type byte view has no complete owned region identity while reading the record application \
+        "this type names the lifetime `'other`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the record application \
          `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
          while reading the signature of `build_entry`"
     );
@@ -224,14 +237,15 @@ machine build_entry(session: &mut Session) { session.ready = true; }
         [("Inner".to_owned(), true), ("Session".to_owned(), true)]
     );
     assert_eq!(
-        refusal(
+        violation(
             r#"
 data Inner<'held> { count: u32; }
 data Session<'storage> { ready: bool; inner: Inner<'missing>; }
 machine build_entry(session: &mut Session) { session.ready = true; }
 "#
         ),
-        "typing lifetime argument its owner does not declare while reading the record application \
+        "this type names the lifetime `'missing`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the record application \
          `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
          while reading the signature of `build_entry`"
     );

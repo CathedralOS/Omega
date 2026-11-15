@@ -4532,6 +4532,7 @@ pub(crate) mod declared_types {
             }
             let mut types = Vec::new();
             let mut lifetime_uses = Vec::new();
+            let mut undeclared_lifetimes = Vec::new();
             let mut array_length_uses = Vec::new();
             let mut expressions = expression_bindings::ExpressionBindings::default();
             bind_type_occurrences(
@@ -4543,9 +4544,25 @@ pub(crate) mod declared_types {
                 lifetimes,
                 &mut types,
                 &mut lifetime_uses,
+                &mut undeclared_lifetimes,
                 &mut array_length_uses,
                 &mut expressions,
             );
+            // lifetimes.md: named applications "use binders declared in the
+            // lexical owner. Duplicate binders and undeclared tags reject."
+            // The alias is the lexical owner of every lifetime its expansion
+            // writes. A tag it does not declare is rejected here, before
+            // substitution copies the spelling into the use site, where the
+            // receiving declaration's own binders would otherwise answer it.
+            if let Some(tag) = undeclared_lifetimes.first() {
+                return Err(Diagnostic::error(format!(
+                    "type alias `{}` names the lifetime `'{}`, which it does not declare: \
+                     undeclared lifetime tags reject",
+                    alias.name.as_str(forest),
+                    tag.as_str(forest).trim_start_matches('\''),
+                ))
+                .with_source_span(tag.source_span()));
+            }
             if let Some(operand) = expressions.unresolved.first() {
                 return Err(Diagnostic::error("transparent alias expansion cannot yet retain the declaration and supplying scopes of this expression operand").with_source_span(forest.expressions.source_span(*operand)));
             }
@@ -4644,6 +4661,7 @@ pub(crate) mod declared_types {
         lifetimes: &[Identifier],
         types: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
         lifetime_uses: &mut Vec<(SourceSpan, String, Identifier)>,
+        undeclared_lifetimes: &mut Vec<Identifier>,
         array_length_uses: &mut Vec<(SourceSpan, String, TypeReferenceHandle)>,
         expressions: &mut expression_bindings::ExpressionBindings,
     ) {
@@ -4657,6 +4675,7 @@ pub(crate) mod declared_types {
                 lifetimes,
                 types,
                 lifetime_uses,
+                undeclared_lifetimes,
                 array_length_uses,
                 expressions,
             );
@@ -4672,6 +4691,8 @@ pub(crate) mod declared_types {
                     name.as_str(templates).to_owned(),
                     lifetimes[position].clone(),
                 ));
+            } else {
+                undeclared_lifetimes.push(name.clone());
             }
         };
         let children = match templates.type_references.type_reference(reference) {
@@ -4779,6 +4800,7 @@ pub(crate) mod declared_types {
                 lifetimes,
                 types,
                 lifetime_uses,
+                undeclared_lifetimes,
                 array_length_uses,
                 expressions,
             );
@@ -5204,6 +5226,38 @@ pub(crate) mod declared_types {
                 ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())?;
             normalize(&mut syntax, &selection)?;
             Ok(syntax)
+        }
+
+        /// lifetimes.md: "Duplicate binders and undeclared tags reject." An
+        /// alias owns the lifetimes its expansion writes, so `'capture`
+        /// rejects at the alias whether or not the receiving machine happens
+        /// to declare a binder with that tag. The alias that declares and
+        /// substitutes `'capture` expands to the use site's own argument.
+        #[test]
+        fn an_alias_lifetime_is_bound_by_the_alias_not_by_its_use_site() {
+            let rule = "type alias `View` names the lifetime `'capture`, which it does not \
+                        declare: undeclared lifetime tags reject";
+            for source in [
+                "data View = &'capture [u8]; machine build_entry(view: View) { }",
+                "data View = &'capture [u8]; machine build_entry<'capture>(view: View) { }",
+            ] {
+                let errors = normalized(source).unwrap_err();
+                assert_eq!(
+                    errors
+                        .iter()
+                        .map(|error| error.message.as_str())
+                        .collect::<Vec<_>>(),
+                    [rule],
+                    "{source}"
+                );
+                let span = errors[0].source_span.expect("the tag is authored").span;
+                assert_eq!(&source[span.start..span.end], "capture", "{source}");
+            }
+            normalized(
+                "data View<'capture> = &'capture [u8]; \
+                 machine build_entry<'storage>(view: View<'storage>) { }",
+            )
+            .unwrap();
         }
 
         #[test]

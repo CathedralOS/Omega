@@ -87,20 +87,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Stage 06 proves the indexed discriminator at its block terminator, before a case chooses an outgoing edge. Canonical receiving provenance names operations and edges. Preserve the existing pre-dispatch execution site through evidence attachment and realization so a chosen edge cannot stand in for the shared read.
 - Reported: 2026-11-14, Codex, while repairing ordinary indexed operation evidence on macOS arm64
 
-### An explicit undeclared lifetime is reported as a byte-view type gap
-- Category: a verdict with nothing behind it
-- Where: [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L115), [static lifetime controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs)
-- Saw: At `7fec0fb9f8b` an ordinary static `keep` with a formal `view: &'storage [u8]`, where only the separate `Session` data declaration binds `'storage`, stops with `type byte view has no complete owned region identity`. The explicit-binder control with the same body is accepted. The failure comes from the byte-view identity fallback, while the lifetime specification says undeclared tags reject.
-- Cost: An author sees an unavailable byte-view type when the written signature breaks a binder rule. Preserve an explicit undeclared tag as a source violation while keeping genuinely incomplete region identities fail-closed.
-- Reported: 2026-11-14, Codex, while restoring the Stage 06 machine lifetime control
-
-### An alias's undeclared lifetime takes its meaning from the caller
-- Category: a fact with no owner
-- Where: [alias lifetime substitution](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L4664), [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L107)
-- Saw: At `7a8a75d5256`, `data View = &'capture [u8]; machine build_entry(view: View) { }` refuses because the expanded byte view has no owned region identity. Adding only `<'capture>` to `build_entry` changes the verdict to the later `declaration type alias` refusal, the same verdict as an alias that declares and substitutes its own lifetime explicitly. Alias expansion skips its undeclared spelling, which the signature reader then looks up in the receiving machine.
-- Cost: A caller can satisfy a lifetime use written in an unrelated declaration. The current subject gate still refuses the alias overall. Establish the alias's lifetime bindings before substitution so the use site supplies only the alias's declared arguments.
-- Reported: 2026-11-14, Codex, while tracing undeclared lifetime diagnostics
-
 ### A direct partial view of a fixed byte array never reaches endpoint checking
 - Category: tests that pin the bug
 - Where: [const-length sample](samples/cli/facts/length/const_name/main.omg#L12), [target-body sample](samples/cli/facts/length/target_body/main.omg#L49), [array range reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs)
