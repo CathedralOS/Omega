@@ -607,7 +607,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
                 slot: 0,
                 value: invoke(2, Vec::new(), Some(record)),
             },
-            Statement::Evaluate(invoke(
+            Statement::discard(invoke(
                 3,
                 vec![expression(ExpressionKind::Slot(0), Some(record))],
                 None,
@@ -909,7 +909,7 @@ mod transferred_on_one_path {
                         slot: 1,
                         value: invoke(4, Vec::new(), boolean()),
                     },
-                    Statement::Evaluate(expression(
+                    Statement::discard(expression(
                         ExpressionKind::ShortCircuit {
                             conjunction: true,
                             left: Box::new(slot(1, boolean())),

@@ -350,8 +350,9 @@ impl Lowering<'_> {
                 // or treating an inhabited result as disposable.
                 match self.expression(expression)? {
                     Reached::NoNormal => Ok(Reached::NoNormal),
-                    Reached::Value(Value::Unit) => Ok(Reached::Value(())),
-                    Reached::Value(_) if *discards_result => Ok(Reached::Value(())),
+                    Reached::Value(_) if expression.result.is_none() || *discards_result => {
+                        Ok(Reached::Value(()))
+                    }
                     Reached::Value(_) => Err(refuse(
                         self.id,
                         Construct::Machine,
