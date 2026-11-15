@@ -187,6 +187,7 @@ pub(crate) fn boundary(
     ),
     service: Option<semantic_vocabulary::ServiceId>,
     numeric_intrinsic: Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    kind: semantic_vocabulary::BoundaryRequirementKind,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<terminal_psi::BoundaryMachineDeclaration> {
     let signature = signatures.get(
@@ -298,11 +299,7 @@ pub(crate) fn boundary(
         declaration: Some(metadata.1),
         numeric_intrinsic,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
-        kind: if primitive {
-            semantic_vocabulary::BoundaryRequirementKind::Machine
-        } else {
-            semantic_vocabulary::BoundaryRequirementKind::Trait
-        },
+        kind,
         completion,
         unconditional_termination: signature.termination != crate::Termination::Silent,
         attachment: None,

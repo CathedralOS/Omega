@@ -73,45 +73,110 @@ pub fn comparison_predicate(
     Comparison::from_meaning(meaning)?.predicate(left, right)
 }
 
+/// The exact Core declaration for each supported semantic operation. Consumers
+/// authenticate its sealed source and full signature separately from this name.
+pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static str> {
+    use language_semantics::numeric_intrinsics::NumericType;
+    use numerics::arithmetic::ArithmeticDomain;
+    match meaning {
+        NumericIntrinsic::FloatBinary { operation, .. } => {
+            Ok(format!("Float::{}", operation.name()))
+        }
+        NumericIntrinsic::Conversion {
+            source: NumericType::F32,
+            target: NumericType::F64,
+            domain: ArithmeticDomain::Exact,
+        } => Ok("F64::from_f32".into()),
+        NumericIntrinsic::Conversion {
+            source: NumericType::F64,
+            target: NumericType::F32,
+            domain: ArithmeticDomain::Exact,
+        } => Ok("F32::from_f64".into()),
+        _ => Err("numeric primitive is outside the supported catalog"),
+    }
+}
+
+/// The sealed catalog retains token-bound declarations as machines and named
+/// declarations as operators. Receiving reconstructs that actual source form.
+pub fn declaration_kind(
+    meaning: NumericIntrinsic,
+) -> Result<semantic_vocabulary::BoundaryRequirementKind, &'static str> {
+    declaration_path(meaning)?;
+    Ok(match meaning {
+        NumericIntrinsic::FloatBinary { .. } => {
+            semantic_vocabulary::BoundaryRequirementKind::Machine
+        }
+        NumericIntrinsic::Conversion { .. } => {
+            semantic_vocabulary::BoundaryRequirementKind::Operator
+        }
+        _ => return Err("numeric primitive has no supported declaration kind"),
+    })
+}
+
 /// The full normal-result contract of the supported closed primitive. Inputs
-/// occupy values 1 and 2 and the normal result occupies value 3, just as an
-/// ordinary scalar callable does. Unsupported numeric operations refuse.
+/// occupy consecutive values starting at 1; the normal result follows them,
+/// just as an ordinary scalar callable does. Unsupported operations refuse.
 pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static str> {
-    if let NumericIntrinsic::FloatBinary { operation, format } = meaning
-        && matches!(
-            operation,
-            PrimitiveFloatBinaryOperation::Add
-                | PrimitiveFloatBinaryOperation::Subtract
-                | PrimitiveFloatBinaryOperation::Multiply
-                | PrimitiveFloatBinaryOperation::Divide
-        )
-    {
+    let semantic_operation = match meaning {
+        NumericIntrinsic::FloatBinary { operation, .. }
+            if matches!(
+                operation,
+                PrimitiveFloatBinaryOperation::Add
+                    | PrimitiveFloatBinaryOperation::Subtract
+                    | PrimitiveFloatBinaryOperation::Multiply
+                    | PrimitiveFloatBinaryOperation::Divide
+            ) =>
+        {
+            Some(operation.name())
+        }
+        NumericIntrinsic::Conversion { .. } => {
+            declaration_path(meaning)?;
+            Some("convert")
+        }
+        _ => None,
+    };
+    if let Some(name) = semantic_operation {
         use numerics::float_semantics::{
             FloatSemanticOperation,
             FloatSemanticValueKind::{Format, Meaning},
         };
+        let signature = meaning
+            .signature()
+            .ok_or("numeric primitive has no scalar signature")?;
+        let operand = signature
+            .operand
+            .scalar_type()
+            .ok_or("numeric primitive has no scalar operand")?;
+        let result = result_scalar_type(meaning)?;
+        let format = result
+            .as_ieee_float()
+            .ok_or("numeric primitive has no float result")?;
+        let parameters = std::iter::once(Format)
+            .chain(std::iter::repeat_n(Meaning, signature.operand_count))
+            .collect::<Vec<_>>();
         let operation = FloatSemanticOperation::from_source_identity(
             "FloatSemantics",
-            operation.name(),
-            &[Format, Meaning, Meaning],
+            name,
+            &parameters,
             Meaning,
         )
         .ok_or("numeric primitive has no complete semantic catalog row")?;
-        let format = match format {
-            numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-            numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-        };
-        let source = |raw| {
-            ScalarTerm::value(
-                ValueId::new(raw).expect("fixed scalar formal/result"),
-                ScalarType::IeeeFloat(format),
-            )
-        };
+        let count = u64::try_from(signature.operand_count)
+            .map_err(|_| "numeric primitive has too many scalar formals")?;
+        let result_id = count
+            .checked_add(1)
+            .and_then(ValueId::new)
+            .ok_or("numeric primitive has no normal result coordinate")?;
         let clause = semantic_vocabulary::FloatMeaningClause::result_equation(
-            source(3),
+            ScalarTerm::value(result_id, result),
             operation.contract_identity(),
             format,
-            [source(1), source(2)],
+            (1..=count).map(|raw| {
+                ScalarTerm::value(
+                    ValueId::new(raw).expect("nonzero formal coordinate"),
+                    operand,
+                )
+            }),
         )?;
         return Ok(vec![Proposition::FloatMeaningEqual(clause)]);
     }
@@ -175,10 +240,20 @@ pub fn validate_boundary(
         .numeric_intrinsic
         .ok_or("numeric primitive has no closed meaning")?;
     let expected_ensures = ensures(meaning)?;
-    let NumericIntrinsic::FloatBinary { operation, format } = meaning else {
-        return Err("numeric primitive is outside the supported catalog");
+    let declaration = declaration_path(meaning)?;
+    let kind = declaration_kind(meaning)?;
+    let signature = meaning
+        .signature()
+        .ok_or("numeric primitive has no scalar signature")?;
+    let expected_operand = signature
+        .operand
+        .scalar_type()
+        .ok_or("numeric primitive has no scalar operand")?;
+    let format_name = match expected_operand {
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
+        _ => return Err("numeric primitive has an unsupported operand carrier"),
     };
-    let format_name = format.name();
     let expected_result = result_scalar_type(meaning)?;
     let result_name = match expected_result {
         ScalarType::Boolean => "bool",
@@ -186,15 +261,15 @@ pub fn validate_boundary(
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
         _ => return Err("numeric primitive has an unsupported result carrier"),
     };
-    let declaration = format!("Float::{}", operation.name());
-    let [owner, state, semantic, callable, parameter, result] =
-        coordinates(&declaration, format_name, result_name)?;
+    let [owner, state, semantic, callable, parameter, result] = coordinates(
+        &declaration,
+        kind,
+        format_name,
+        signature.operand_count,
+        result_name,
+    )?;
     let text = |identity| module.identities.text(identity);
     let source = &checked.source;
-    let expected_scalar = match format {
-        numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-        numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-    };
     macro_rules! require {
         ($condition:expr, $field:literal) => {
             if !$condition {
@@ -209,10 +284,7 @@ pub fn validate_boundary(
         checked.execution == CheckedBoundaryExecution::NumericPrimitive,
         "execution kind"
     );
-    require!(
-        boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine,
-        "requirement kind"
-    );
+    require!(boundary.kind == kind, "requirement kind");
     require!(
         boundary.role == terminal_psi::BoundaryDeclarationRole::Callable,
         "callable role"
@@ -242,7 +314,7 @@ pub fn validate_boundary(
         "boundary callable coordinate"
     );
     require!(
-        source.parameter_types.len() == 2
+        source.parameter_types.len() == signature.operand_count
             && source
                 .parameter_types
                 .iter()
@@ -266,11 +338,19 @@ pub fn validate_boundary(
         "static application"
     );
     require!(
-        boundary.scalar_parameters == [ScalarType::IeeeFloat(expected_scalar); 2],
+        boundary.scalar_parameters.len() == signature.operand_count
+            && boundary
+                .scalar_parameters
+                .iter()
+                .all(|&carrier| carrier == expected_operand),
         "scalar parameter formats"
     );
     require!(
-        boundary.parameter_order == [terminal_psi::BoundaryParameterKind::Scalar; 2]
+        boundary.parameter_order.len() == signature.operand_count
+            && boundary
+                .parameter_order
+                .iter()
+                .all(|kind| *kind == terminal_psi::BoundaryParameterKind::Scalar)
             && boundary.structural_parameters.is_empty(),
         "parameter telescope"
     );
@@ -324,7 +404,13 @@ pub fn validate_boundary(
     Ok(())
 }
 
-fn coordinates(declaration: &str, format: &str, result: &str) -> Result<[String; 6], &'static str> {
+fn coordinates(
+    declaration: &str,
+    kind: semantic_vocabulary::BoundaryRequirementKind,
+    format: &str,
+    arity: usize,
+    result: &str,
+) -> Result<[String; 6], &'static str> {
     use language_core::sealed_intrinsics::{
         SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
     };
@@ -380,32 +466,41 @@ fn coordinates(declaration: &str, format: &str, result: &str) -> Result<[String;
             ordinary(format),
         ],
     );
-    let callable = compound(
-        CoordinateTag::NamedCallable,
-        [
-            atom(
-                CoordinateTag::Path,
-                &compound(
-                    NameForm::Nominal,
-                    [bare(OwnerForm::Toolchain), atom(Label::Path, declaration)],
+    let callable = if kind == semantic_vocabulary::BoundaryRequirementKind::Operator {
+        format!(
+            "operator::{declaration}({})->{}",
+            vec![ordinary(format); arity].join(","),
+            ordinary(result)
+        )
+    } else {
+        compound(
+            CoordinateTag::NamedCallable,
+            [
+                atom(
+                    CoordinateTag::Path,
+                    &compound(
+                        NameForm::Nominal,
+                        [bare(OwnerForm::Toolchain), atom(Label::Path, declaration)],
+                    ),
                 ),
-            ),
-            atom(
-                CoordinateTag::Parameters,
-                &format!("{parameter},{parameter}"),
-            ),
-            atom(CoordinateTag::ResultDispatch, ""),
-        ],
-    );
+                atom(CoordinateTag::Parameters, &vec![parameter; arity].join(",")),
+                atom(CoordinateTag::ResultDispatch, ""),
+            ],
+        )
+    };
     Ok([
         exact(declaration),
-        exact(&format!(
-            "{declaration}::{}",
-            declaration
-                .rsplit("::")
-                .next()
-                .ok_or("numeric declaration has no entry member")?
-        )),
+        if kind == semantic_vocabulary::BoundaryRequirementKind::Operator {
+            exact(declaration)
+        } else {
+            exact(&format!(
+                "{declaration}::{}",
+                declaration
+                    .rsplit("::")
+                    .next()
+                    .ok_or("numeric declaration has no entry member")?
+            ))
+        },
         format!("toolchain::{declaration}"),
         callable,
         declared(format),

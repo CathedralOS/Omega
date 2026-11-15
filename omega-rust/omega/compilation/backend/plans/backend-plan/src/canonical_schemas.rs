@@ -207,18 +207,23 @@ pub(crate) fn numeric_requirement_schema(
 ) -> Result<ServiceSchema, String> {
     terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
         .map_err(str::to_owned)?;
-    let Some(language_semantics::numeric_intrinsics::NumericIntrinsic::FloatBinary {
-        operation,
-        ..
-    }) = boundary.numeric_intrinsic
-    else {
-        return Err("numeric primitive has no complete top-level requirement".into());
+    let meaning = boundary
+        .numeric_intrinsic
+        .ok_or("numeric primitive has no complete top-level requirement")?;
+    let declaration = terminal_semantics::numeric_primitives::declaration_path(meaning)?;
+    let (owner, method) = if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Operator
+    {
+        (text(module, boundary.identity)?, "realize")
+    } else {
+        declaration
+            .rsplit_once("::")
+            .ok_or("numeric primitive has no declaring namespace")?
     };
     requirement_schema(
         module,
         boundary,
         text(module, boundary.identity)?,
-        "Float",
-        operation.name(),
+        owner,
+        method,
     )
 }

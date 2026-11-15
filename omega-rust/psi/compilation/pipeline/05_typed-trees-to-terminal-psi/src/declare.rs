@@ -1012,11 +1012,39 @@ fn top_level_boundary(
     ),
     Diagnostic,
 > {
-    let machine = typed
-        .machine_by_symbol(symbol)
-        .ok_or_else(|| Diagnostic::error("primitive has no machine declaration"))?;
-    let [state] = typed.machine_states(machine) else {
-        return Err(Diagnostic::error("primitive has no exact entry state"));
+    // Named operators have their own declaration, not an executable entry.
+    // Read that actual source form before sharing the metadata publication.
+    let (entry, formals, return_type, callable, operational) = if let Some(machine) =
+        typed.machine_by_symbol(symbol)
+    {
+        let [state] = typed.machine_states(machine) else {
+            return Err(Diagnostic::error("primitive has no exact entry state"));
+        };
+        let callable = typed
+            .machine_callable_identity_text(machine)
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| Diagnostic::error("primitive has no callable identity"))?;
+        (
+            state.symbol,
+            typed.state_parameters(state),
+            state.return_type,
+            callable,
+            [machine.suspends, machine.blocks],
+        )
+    } else {
+        if execution != terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
+            return Err(Diagnostic::error("primitive has no machine declaration"));
+        }
+        let requirement = typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(typed, symbol)
+                .filter(|requirement| requirement.kind == typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind::Operator)
+                .ok_or_else(|| Diagnostic::error("primitive has no exact operator declaration"))?;
+        (
+            requirement.symbol,
+            requirement.parameters,
+            requirement.return_type,
+            requirement.requirement_identity,
+            [false; 2],
+        )
     };
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
@@ -1030,16 +1058,11 @@ fn top_level_boundary(
             .filter(|text| !text.is_empty())
             .ok_or_else(|| Diagnostic::error("primitive signature type has no identity"))
     };
-    let formals = typed.state_parameters(state);
     let parameter_types = formals
         .iter()
         .map(|formal| type_text(formal.type_reference))
         .collect::<Result<Vec<_>, _>>()?;
-    let result_type = type_text(state.return_type)?;
-    let callable = typed
-        .machine_callable_identity_text(machine)
-        .filter(|text| !text.is_empty())
-        .ok_or_else(|| Diagnostic::error("primitive has no callable identity"))?;
+    let result_type = type_text(return_type)?;
     let contract = declaration_contract_commitment(
         &callable,
         formals,
@@ -1056,7 +1079,7 @@ fn top_level_boundary(
     let source = CheckedMachineDeclaration {
         machine: owner.clone(),
         state: NominalDeclarationIdentity::new(
-            nominal(typed, &sources, state.symbol, identities).map_err(Diagnostic::error)?,
+            nominal(typed, &sources, entry, identities).map_err(Diagnostic::error)?,
         ),
         semantic_declaration: semantic_identity(typed, symbol, identities)
             .map_err(Diagnostic::error)?,
@@ -1067,8 +1090,8 @@ fn top_level_boundary(
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
         contract,
-        published_may_suspend: machine.suspends,
-        published_may_block: machine.blocks,
+        published_may_suspend: operational[0],
+        published_may_block: operational[1],
         specialization: None,
     };
     Ok((
