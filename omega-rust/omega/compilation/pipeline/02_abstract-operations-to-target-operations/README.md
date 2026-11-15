@@ -26,6 +26,11 @@ expressions retain their source identities and arithmetic obligations; they are
 not a second whole-function representation. Block parameters belong to their
 destination block, and edges retain complete ordered transfers.
 
+[Function contracts](src/function_contract.rs) retain semantic structural
+parameters, place declarations, entry claims, the service ceiling and the result
+beside each function's target ABI. Selection reads that contract without fetching
+the earlier body. Independent source correspondence remains an Omega 03 audit.
+
 Signature preparation, dominance, operation lowering, terminators, and edge
 bindings have separate owners inside the common graph. Unsupported operations,
 qualification transport, cleanup, or ABI relationships reject at their owning

@@ -37,6 +37,128 @@ use terminal_psi::{
 
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
+#[test]
+fn function_storage_contract_projects_without_source_and_audits_every_field() {
+    let mut names = TerminalIdentityTableBuilder::default();
+    let sum = sum_type(1, names.intern("Stored"), &mut names, &[]);
+    let plan = plan(
+        names,
+        vec![sum],
+        function_with_body(
+            vec![parameter(ty(1))],
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                }],
+            )],
+        ),
+    );
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let function = &target.functions[0];
+    let projected = crate::legalization_scalar_graph::structural_contract(function)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        projected.parameters[0].semantic,
+        plan.functions[0].structural_parameters[0]
+    );
+    assert_eq!(projected.parameters[0].target, function.graph.parameters[0]);
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let source = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let audit = |function: &TargetFunction| {
+        crate::legalization_scalar_graph::validate_structural_contract(
+            function,
+            &plan.functions[0],
+            &unit.functions[0],
+            &source,
+        )
+    };
+    audit(function).expect("retained storage contract matches admitted input");
+    for mutation in 0..8 {
+        let mut changed = function.clone();
+        if mutation == 0 {
+            changed.structural_contract = None;
+        } else {
+            let contract = changed.structural_contract.as_mut().unwrap();
+            match mutation {
+                1 => contract.parameters.clear(),
+                2 => contract.parameters[0].access = StructuralAccess::MutableBorrow,
+                3 => contract.places.clear(),
+                4 => contract
+                    .published_service_ceiling
+                    .push(semantic_vocabulary::ServiceId::new(9).unwrap()),
+                5 => {
+                    contract.result = Some(terminal_psi::StructuralResultDeclaration {
+                        place: place(99),
+                        structural_type: ty(1),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        reference_sources: Vec::new(),
+                    })
+                }
+                6 => contract.places[0].id = place(99),
+                _ => contract.entry_claims.push(terminal_psi::EntryClaim {
+                    claim: semantic_vocabulary::ClaimId::new(9).unwrap(),
+                    input: place(1),
+                    path: Vec::new(),
+                }),
+            }
+        }
+        assert!(
+            audit(&changed).is_err(),
+            "forged function storage contract {mutation}"
+        );
+    }
+}
+
+#[test]
+fn scalar_parameter_projection_uses_retained_abi_without_a_source_function() {
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                }],
+            )],
+        ),
+    );
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let scalar_type = ScalarType::Integer(u64_type());
+    let call_plan = calling_conventions::evaluate_call_plan(
+        CallingPolicy::native_for_target(HOST()),
+        &CallSignature {
+            parameters: vec![calling_conventions::ValueShape::for_integer(u64_type()).unwrap()],
+            result: None,
+        },
+    )
+    .unwrap();
+    target.functions[0].graph.scalar_parameters = vec![target_operations::ScalarAbiValue {
+        value: val(7),
+        scalar_type,
+        placement: call_plan.parameters[0].clone(),
+    }];
+    let parameters =
+        crate::legalization_source::scalar_graph::parameters(&target.functions[0]).unwrap();
+    assert_eq!(parameters.len(), 1);
+    assert_eq!(parameters[0].value, val(7));
+    assert_eq!(parameters[0].scalar_type, scalar_type);
+    assert_eq!(parameters[0].placement, call_plan.parameters[0]);
+    assert_eq!(
+        parameters[0].definition_site,
+        optimization_unit::ValueDefinitionSite::FunctionParameter(0)
+    );
+}
+
 // Exercise the origin handoff itself; full call ABI construction is covered by
 // the kept returned-window program, not this deliberately minimal target row.
 #[test]
@@ -889,6 +1011,8 @@ fn target_plan(
 ) -> TargetOperationPlan {
     let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let function = &plan.functions[0];
+    let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
     let shapes = function
         .structural_parameters
         .iter()
@@ -929,6 +1053,15 @@ fn target_plan(
             nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
+            structural_contract: (!function.structural_parameters.is_empty()
+                || !unit.functions[0].declared_places.is_empty())
+            .then(|| target_operations::TargetStructuralContract {
+                parameters: function.structural_parameters.clone(),
+                places: unit.functions[0].structural_places.clone(),
+                entry_claims: function.entry_claims.clone(),
+                published_service_ceiling: function.published_service_ceiling.clone(),
+                result: function.result.structural().cloned(),
+            }),
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: Vec::new(),

@@ -41,6 +41,7 @@
 mod call_result_origins;
 pub(crate) mod control_flow;
 mod coordination;
+mod function_contract;
 mod function_signature;
 pub(crate) mod model;
 mod scalar;
