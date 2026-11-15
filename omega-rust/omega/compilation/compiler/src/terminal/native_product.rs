@@ -6,13 +6,11 @@
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
 use native_compiler::{
-    BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
+    BoundaryApplicationSettlement, CompilerIntrinsicPlanProvenance, NativeProgramEntrySettlement,
+    TerminalNativeProposalRequest, current_terminal_authority_policy,
 };
 use optimization_core::OptimizationSelections;
 use source_compiler::ProducedTerminalApplication;
-use terminal_psi_to_abstract_operations::provider_admission::{
-    CompilerIntrinsicPlanProvenance, current_terminal_authority_policy,
-};
 
 use super::ProducedTerminalProduct;
 
