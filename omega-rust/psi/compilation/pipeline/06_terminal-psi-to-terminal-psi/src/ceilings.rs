@@ -36,6 +36,7 @@ a selector value is refused in a module that declares services.
 */
 
 use semantic_vocabulary::{InvocationSite, MachineId, ServiceId, TargetMachineCallable};
+use std::borrow::Cow;
 use terminal_check_tables::edges::Callee;
 use terminal_check_tables::{CheckTables, Checked, Construct, RefusalReason};
 use terminal_psi::{BoundaryMachineDeclaration, TerminalMachine, TerminalModule};
@@ -164,10 +165,23 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
         }
     }
     if let Some(TargetMachineCallable::Machine(entry)) = module.entry {
+        // An unresolved installation row is bounded by its requirement, not
+        // an unconditional contribution to this root's concrete services.
+        let root_ceiling = if module.root_service_reach.installation_dependencies.is_empty() {
+            Cow::Borrowed(module.root_service_reach.concrete.as_slice())
+        } else {
+            let mut ceiling = module.root_service_reach.concrete.clone();
+            for dependency in &module.root_service_reach.installation_dependencies {
+                ceiling.extend(dependency.upper_bound.iter().copied());
+            }
+            ceiling.sort_unstable();
+            ceiling.dedup();
+            Cow::Owned(ceiling)
+        };
         let published = module
             .machine(entry)
             .map(|machine| machine.published_service_ceiling.as_slice());
-        if published != Some(module.root_service_reach.concrete.as_slice()) {
+        if published != Some(root_ceiling.as_ref()) {
             return Err(fault(
                 entry,
                 "root service reach is not the entry's published row",

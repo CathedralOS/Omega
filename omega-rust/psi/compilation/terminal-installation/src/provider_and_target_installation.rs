@@ -543,6 +543,7 @@ pub(crate) mod provider_installation {
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
                 fixed_service_reach: ceiling.clone(),
+                service_reach_is_installation_bound: false,
                 owning_service: Some(service(owner)),
                 published_service_ceiling: ceiling,
                 published_synchronous_entries: Vec::new(),

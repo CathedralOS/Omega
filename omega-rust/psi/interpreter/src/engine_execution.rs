@@ -869,6 +869,7 @@ pub(crate) mod capabilities {
                 result_lifetimes: None,
                 reference_outputs: Vec::new(),
                 fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
                 owning_service: None,
                 published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),

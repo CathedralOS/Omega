@@ -439,6 +439,15 @@ impl<'t> Program<'t> {
                 kind,
                 qualifications,
             )?;
+            declaration.service_reach_is_installation_bound =
+                self.typed.trait_machine_signature(*symbol).is_some_and(
+                    |(owner, signature)| {
+                        owner.is_boundary && signature.service_reach_is_installation_bound
+                    },
+                );
+            if declaration.service_reach_is_installation_bound {
+                declaration.fixed_service_reach.clear();
+            }
             declaration.result_lifetimes = self
                 .declared_result_lifetimes(caller, signature, &module.structural_types)
                 .map_err(unavailable)?;

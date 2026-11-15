@@ -111,6 +111,30 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         .unwrap();
     assert!(requirement.contains("A::visit"), "{requirement}");
     assert_eq!(dependency.upper_bound.len(), 2);
+    let abstract_requirements = module.installation_reach_requirements();
+    assert_eq!(abstract_requirements.len(), 4);
+    for boundary in &module.boundary_machines {
+        if boundary.service_reach_is_installation_bound {
+            assert!(boundary.fixed_service_reach.is_empty());
+            assert_eq!(boundary.published_service_ceiling.len(), 2);
+        }
+    }
+    let encoded = terminal_codec::encode_module(module).expect("retained installation module");
+    let decoded = terminal_codec::decode_module(&encoded).expect("installation declaration roundtrip");
+    assert_eq!(decoded.installation_reach_requirements(), abstract_requirements);
+    let mut fixed = decoded.clone();
+    let required = fixed
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| boundary.identity == dependency.requirement_identity)
+        .expect("exact root requirement");
+    required.service_reach_is_installation_bound = false;
+    assert!(matches!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&fixed).unwrap()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "installation reach dependency names a fixed requirement"
+        ))
+    ));
     let selected = checked.execution().plans();
     assert_eq!(
         selected.resolve_root_service_reach(module).unwrap().len(),
