@@ -849,28 +849,238 @@ pub(crate) mod exhaustiveness {
         use super::*;
         use crate::lowerer::TypingCohort;
         use resolved::expression::TableBinaryExpression;
-        use resolved::machine::{Machine, MachineStorage};
-        use resolved::state::{State, StateStorage};
         use resolved::statement::{TableTransition, TransitionTargetNode};
-        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        fn resolve(text: &str) -> SymbolResolvedTrees {
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add("coverage/main.omg".into(), text.to_owned())
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(std::sync::Arc::new(sources));
+            syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap()
+        }
+
+        #[test]
+        fn separately_evaluated_calls_do_not_prove_dispatch_coverage() {
+            for text in [
+                "machine flag<const B: bool>() -> bool { B } machine uncovered() { transition { flag<false>() == true -> {} flag<true>() == false -> {} } }",
+                "machine flag() -> bool { false } machine uncovered() { transition { flag() == true -> {} flag() == false -> {} } }",
+                "machine number() -> u32 { 0u32 } machine uncovered() { transition { number() == 0u32 -> {} number() != 0u32 -> {} } }",
+            ] {
+                let program = resolve(text);
+                let error =
+                    validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                        .expect_err("separate invocations do not name one unchanged subject");
+                assert!(error.message.contains("can fall through"), "{error:?}");
+            }
+        }
+
+        #[test]
+        fn capturing_a_call_result_or_adding_a_wildcard_closes_coverage() {
+            for text in [
+                "machine flag() -> bool { false } machine covered() { let value: bool = flag(); transition { value == true -> {} value == false -> {} } }",
+                "machine flag() -> bool { false } machine covered() { transition flag() { true -> {} false -> {} } }",
+                "machine flag() -> bool { false } machine covered() { transition { flag() == true -> {} _ -> {} } }",
+                "machine covered(value: u32) { transition { value == 0u32 -> {} value != 0u32 -> {} } }",
+            ] {
+                let program = resolve(text);
+                crate::lower_symbol_resolved_trees(&program)
+                    .expect("one captured value or wildcard has exhaustive coverage");
+            }
+        }
+
+        #[test]
+        fn coverage_distinguishes_conversion_targets_and_builtin_policies() {
+            for text in [
+                "machine uncovered(value: u16) { transition { 0 == (value as u8) -> {} 0 != (value as u16) -> {} } }",
+                "machine uncovered(value: u8) { transition { 255 == (value +% 1u8) -> {} 255 != (value +| 1u8) -> {} } }",
+            ] {
+                let program = resolve(text);
+                validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                    .expect_err("different conversions or unselected computations need a capture");
+            }
+            for text in [
+                "machine covered(value: u8) { transition { 0 == (value as u16) -> {} 0 != (value as u16) -> {} } }",
+                "machine covered(value: u8) { transition { 0 == (value +% 1u8) -> {} 0 != (value +% 1u8) -> {} } }",
+                "machine covered(value: u8) { transition { 0 == (value * 0u8) -> {} 0 != (value * 0u8) -> {} } }",
+            ] {
+                let program = resolve(text);
+                crate::lower_symbol_resolved_trees(&program)
+                    .expect("the same builtin computation covers its complement");
+            }
+        }
+
+        #[test]
+        fn coverage_uses_copied_values_and_versions_memory_reads_across_calls() {
+            let prefix = "machine flip(value: &mut bool) -> bool { value = false; false } ";
+            let program = resolve(&format!(
+                "{prefix} machine uncovered(value: &mut bool) {{ transition {{ value == true -> {{}} flip(value) == true -> {{}} value == false -> {{}} }} }}"
+            ));
+            validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                .expect_err("the call can change the pointee between alternatives");
+            for body in [
+                "machine covered(value: &mut bool, captured: bool) { transition { captured == true -> {} flip(value) == true -> {} captured == false -> {} } }",
+                "machine covered(value: &mut bool) { transition { value == true -> {} value == false -> {} flip(value) == true -> {} } }",
+                "machine covered(value: &mut bool) { transition { flip(value) == true -> {} value == true -> {} value == false -> {} } }",
+            ] {
+                let program = resolve(&format!("{prefix}{body}"));
+                crate::lower_symbol_resolved_trees(&program).expect(
+                    "snapshots, complete prefixes and fresh complete suffixes cover arrivals",
+                );
+            }
+        }
+
+        #[test]
+        fn unchanged_fields_and_captured_fields_keep_boolean_coverage() {
+            for body in [
+                "machine covered(flags: &Flags) { transition { flags.flag == true -> {} flags.flag == false -> {} } }",
+                "machine covered(flags: &Flags) { transition flags.flag { true -> {} false -> {} } }",
+                "machine covered(flags: &Flags) { let captured: bool = flags.flag; transition { captured == true -> {} captured == false -> {} } }",
+            ] {
+                let program = resolve(&format!("data Flags {{ flag: bool; }} {body}"));
+                crate::lower_symbol_resolved_trees(&program)
+                    .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+            }
+        }
+
+        #[test]
+        fn borrowed_case_captures_keep_their_storage_version() {
+            let mut program = resolve(
+                "data Mode { case First; case Second; } machine change(value: &mut Mode) -> bool { value = Mode::First; false } machine uncovered(value: &mut Mode) { transition { value in Mode::First -> {} change(value) == true -> {} value in Mode::Second -> {} } }",
+            );
+            validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                .expect_err("the call changes the case between borrowed reads");
+
+            // A saved structural subject retains the borrowed place; its capture
+            // identity does not snapshot the referent's case. Use the ordinary
+            // capture producer with the same resolved borrowed subject.
+            let expressions = &mut program.tables.bodies.expressions;
+            let memberships = expressions
+                .iter_expressions()
+                .filter_map(|(handle, node)| match node {
+                    ExpressionNode::Membership(membership) => Some((handle, membership.value)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(memberships.len(), 2);
+            let capture = expressions.insert_match_subject(memberships[0].1);
+            for (membership, _) in memberships {
+                let saved = expressions.insert(ExpressionNode::SavedSubject(
+                    resolved::expression::TableSavedSubject {
+                        capture,
+                        ..Default::default()
+                    },
+                ));
+                let ExpressionNode::Membership(membership) = expressions.expression_mut(membership)
+                else {
+                    unreachable!();
+                };
+                membership.value = saved;
+            }
+            validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                .expect_err("a borrowed capture cannot freeze the referent's case");
+        }
+
+        #[test]
+        fn constants_boolean_captures_and_builtin_indices_keep_coverage() {
+            for text in [
+                "const ENABLED: bool = true; machine covered() { transition { ENABLED == true -> {} } }",
+                "const COUNT: u32 = 1u32; machine covered() { transition { COUNT == 0u32 -> {} COUNT != 0u32 -> {} } }",
+                "machine covered<const COUNT: u32>() { transition { COUNT == 0u32 -> {} COUNT != 0u32 -> {} } }",
+                "machine covered() { transition true { true -> {} false -> {} } }",
+                "machine covered(left: u32, right: u32) { transition (left == right) { true -> {} false -> {} } }",
+                "machine covered(items: &[bool; 2]) { transition { items[0u64] == true -> {} items[0u64] == false -> {} } }",
+                "machine covered(items: &[bool; 2]) { transition items[0u64] { true -> {} false -> {} } }",
+            ] {
+                let program = resolve(text);
+                crate::lower_symbol_resolved_trees(&program)
+                    .unwrap_or_else(|error| panic!("{text}: {error:?}"));
+            }
+        }
+
+        #[test]
+        fn an_authored_indexer_is_an_effectful_guard_evaluation() {
+            let program = resolve(
+                "data Buffer { flag: bool; } machine [] select(buffer: &mut Buffer, index: u64) -> bool { buffer.flag = true; false } machine uncovered(buffer: &mut Buffer) { transition { buffer.flag == true -> {} buffer[0u64] -> {} buffer.flag == false -> {} } }",
+            );
+            validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                .expect_err("index syntax can invoke the authored machine and change the field");
+        }
+
+        #[test]
+        fn a_complete_prefix_does_not_enumerate_later_storage_versions() {
+            let suffix = "flip(value) == true -> {} value == true -> {} ".repeat(20);
+            let program = resolve(&format!(
+                "machine flip(value: &mut bool) -> bool {{ value = false; false }} machine covered(value: &mut bool) {{ transition {{ value == true -> {{}} value == false -> {{}} {suffix} }} }}"
+            ));
+            validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                .expect("the first pair covers every arrival before the later guards");
+        }
+
+        #[test]
+        fn partial_matrix_search_retains_exact_witnesses_and_bounds_work() {
+            let mut program = resolve("machine matrix(left: bool, right: bool) {}");
+            let machine = &program.machines[0];
+            let state_handle = program.machine_state_handles(machine.states)[0];
+            let parameters =
+                program.state_parameters(program.machine_state(state_handle).parameters);
+            let symbols = [parameters[0].symbol, parameters[1].symbol];
+            let subjects = symbols.map(|symbol| {
+                program
+                    .tables
+                    .bodies
+                    .expressions
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        symbol,
+                        head_symbol: symbol,
+                        ..Default::default()
+                    }))
+            });
+            let mut scope = DispatchScope {
+                program: &program,
+                machine: &program.machines[0],
+                state: program.machine_state(state_handle),
+                bindings: Vec::new(),
+            };
+            scope.bindings = coverage_bindings(&scope);
+            let boolean = |position: usize, value| FiniteConstraint::Bool {
+                subject: subjects[position],
+                epoch: 0,
+                value,
+            };
+            let mut arms = vec![
+                vec![boolean(0, false)],
+                vec![boolean(0, true), boolean(1, false)],
+            ];
+            let axes = finite_axes(&scope, &arms, &[]);
+            assert!(
+                matches!(first_uncovered_assignment(&scope, &axes, &arms), MatrixCoverage::Uncovered(values) if values == [1, 1])
+            );
+            arms.push(vec![boolean(0, true), boolean(1, true)]);
+            assert!(matches!(
+                first_uncovered_assignment(&scope, &axes, &arms),
+                MatrixCoverage::Complete
+            ));
+            let expensive = vec![(0..65_537).map(|_| boolean(0, true)).collect()];
+            assert!(matches!(
+                first_uncovered_assignment(&scope, &axes, &expensive),
+                MatrixCoverage::TooLarge
+            ));
+        }
 
         fn dispatches(
             groups: &[&[Option<bool>]],
             retained_continuation: bool,
         ) -> SymbolResolvedTrees {
-            let mut symbols = SymbolTableBuilder::default();
-            let machine_symbol =
-                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("dispatch_test"));
-            let subject_symbol = symbols
-                .insert_children(
-                    machine_symbol,
-                    [(SymbolKind::Parameter, SymbolNameRef::Static("selected"))],
-                )
-                .start();
-            let mut program = SymbolResolvedTrees {
-                symbols: symbols.finish(),
-                ..Default::default()
-            };
+            let mut program = resolve("machine dispatch_test(selected: bool) {}");
+            let machine = &program.machines[0];
+            let state_handle = program.machine_state_handles(machine.states)[0];
+            let state = program.machine_state(state_handle);
+            let subject_symbol = program.state_parameters(state.parameters)[0].symbol;
             let expressions = &mut program.tables.bodies.expressions;
             let mut members = HandleSpan::empty();
             expressions.push_name_path_member(&mut members, DiagnosticName::generated("selected"));
@@ -922,28 +1132,13 @@ pub(crate) mod exhaustiveness {
                     statement_nodes.push_contiguous(statement);
                 }
             }
-            let state = program.tables.declarations.machine_states.append(State {
-                name: DiagnosticName::generated("dispatch_test"),
-                storage: StateStorage {
-                    statement_nodes,
-                    ..Default::default()
-                },
-                ..Default::default()
-            });
-            let states = program
+            let state = program
                 .tables
                 .declarations
-                .machine_state_handles
-                .insert_many([state]);
-            program.machines.push(Machine {
-                symbol: machine_symbol,
-                name: DiagnosticName::generated("dispatch_test"),
-                storage: MachineStorage {
-                    states,
-                    ..Default::default()
-                },
-                ..Default::default()
-            });
+                .machine_states
+                .get_mut(state_handle);
+            state.name = DiagnosticName::generated("dispatch_test");
+            state.statement_nodes = statement_nodes;
             program
         }
 
@@ -1000,11 +1195,13 @@ pub(crate) mod exhaustiveness {
             }
             for state_handle in program.machine_state_handles(machine.states) {
                 let state = program.machine_state(*state_handle);
-                let scope = DispatchScope {
+                let mut scope = DispatchScope {
                     program,
                     machine,
                     state,
+                    bindings: Vec::new(),
                 };
+                scope.bindings = coverage_bindings(&scope);
                 let statements = resolved_statements(program).statements(state.statement_nodes);
                 let location =
                     if machine.name.as_str().rsplit("::").next() == Some(state.name.as_str()) {
@@ -1052,6 +1249,7 @@ pub(crate) mod exhaustiveness {
         Case(CaseClaim),
         Bool {
             subject: ExpressionHandle,
+            epoch: usize,
             value: bool,
         },
     }
@@ -1059,6 +1257,7 @@ pub(crate) mod exhaustiveness {
     struct CaseClaim {
         data_index: usize,
         subject: ExpressionHandle,
+        epoch: usize,
         covered: Option<Vec<usize>>,
     }
 
@@ -1077,6 +1276,7 @@ pub(crate) mod exhaustiveness {
         program: &'a SymbolResolvedTrees,
         machine: &'a resolved::machine::Machine,
         state: &'a resolved::state::State,
+        bindings: Vec<CoverageBinding>,
     }
 
     fn check_dispatch_run(
@@ -1092,40 +1292,93 @@ pub(crate) mod exhaustiveness {
         // Only the arms inside this authored dispatch contribute coverage.
         let mut finite_arms: Vec<Vec<FiniteConstraint>> = Vec::new();
         let mut uncounted_claims: Vec<CaseClaim> = Vec::new();
-        let mut compare_arms: Vec<(ExpressionHandle, ExpressionHandle, bool)> = Vec::new();
+        let mut compare_arms: Vec<(ExpressionHandle, ExpressionHandle, usize, usize, bool)> =
+            Vec::new();
         let mut has_opaque_arm = false;
+        let mut epoch = 1;
+        let subject_epoch = |subject, epoch| {
+            if snapshot_subject(scope, subject) {
+                0
+            } else {
+                epoch
+            }
+        };
 
         for guard in run {
+            if let TransitionGuardNode::When(expression) = guard
+                && guard_may_change_storage(scope, *expression)
+            {
+                // Keep old constraints: an earlier complete prefix still covers
+                // every arrival. Later memory reads receive a new storage epoch;
+                // immutable scalar snapshots retain their captured identity.
+                epoch += 1;
+                has_opaque_arm = true;
+                continue;
+            }
             match classify_arm(scope, guard) {
                 ArmShape::Default => return Ok(()),
-                ArmShape::Finite(constraints) => finite_arms.push(constraints),
-                ArmShape::UncountedCase(claim) => uncounted_claims.push(claim),
+                ArmShape::Finite(mut constraints) => {
+                    for constraint in &mut constraints {
+                        match constraint {
+                            FiniteConstraint::Case(claim) => {
+                                claim.epoch = subject_epoch(claim.subject, epoch)
+                            }
+                            FiniteConstraint::Bool {
+                                subject,
+                                epoch: subject_version,
+                                ..
+                            } => *subject_version = subject_epoch(*subject, epoch),
+                        }
+                    }
+                    finite_arms.push(constraints);
+                }
+                ArmShape::UncountedCase(mut claim) => {
+                    claim.epoch = subject_epoch(claim.subject, epoch);
+                    uncounted_claims.push(claim);
+                }
                 ArmShape::Compare {
                     left,
                     right,
                     negated,
-                } => compare_arms.push((left, right, negated)),
+                } => compare_arms.push((
+                    left,
+                    right,
+                    subject_epoch(left, epoch),
+                    subject_epoch(right, epoch),
+                    negated,
+                )),
                 ArmShape::Opaque => has_opaque_arm = true,
             }
         }
 
-        let compare_pair_closes = compare_arms.iter().any(|(left, right, negated)| {
-            !*negated
-                && compare_arms
-                    .iter()
-                    .any(|(other_left, other_right, other_negated)| {
-                        *other_negated
-                            && expressions_structurally_equal(program, *left, *other_left)
-                            && expressions_structurally_equal(program, *right, *other_right)
-                    })
-        });
+        let compare_pair_closes =
+            compare_arms
+                .iter()
+                .any(|(left, right, left_epoch, right_epoch, negated)| {
+                    !*negated
+                        && compare_arms.iter().any(
+                            |(
+                                other_left,
+                                other_right,
+                                other_left_epoch,
+                                other_right_epoch,
+                                other_negated,
+                            )| {
+                                *other_negated
+                                    && left_epoch == other_left_epoch
+                                    && right_epoch == other_right_epoch
+                                    && same_coverage_subject(scope, *left, *other_left)
+                                    && same_coverage_subject(scope, *right, *other_right)
+                            },
+                        )
+                });
         if compare_pair_closes {
             return Ok(());
         }
 
-        let axes = finite_axes(program, &finite_arms, &uncounted_claims);
+        let axes = finite_axes(scope, &finite_arms, &uncounted_claims);
         if !axes.is_empty() {
-            match first_uncovered_assignment(program, &axes, &finite_arms) {
+            match first_uncovered_assignment(scope, &axes, &finite_arms) {
                 MatrixCoverage::Complete => return Ok(()),
                 MatrixCoverage::TooLarge => {
                     return Err(Diagnostic::error(format!(
@@ -1153,11 +1406,8 @@ pub(crate) mod exhaustiveness {
                             for constraint in constraints {
                                 if let FiniteConstraint::Case(claim) = constraint
                                     && claim.data_index == data_index
-                                    && expressions_structurally_equal(
-                                        program,
-                                        axes[0].subject,
-                                        claim.subject,
-                                    )
+                                    && claim.epoch == axes[0].epoch
+                                    && same_coverage_subject(scope, axes[0].subject, claim.subject)
                                     && let Some(variants) = &claim.covered
                                 {
                                     for variant in variants {
@@ -1205,6 +1455,7 @@ pub(crate) mod exhaustiveness {
 
     struct FiniteAxis {
         subject: ExpressionHandle,
+        epoch: usize,
         kind: FiniteAxisKind,
         possible_cases: Vec<usize>,
     }
@@ -1221,8 +1472,326 @@ pub(crate) mod exhaustiveness {
         TooLarge,
     }
 
-    fn finite_axes(
+    fn guard_may_change_storage(scope: &DispatchScope<'_>, root: ExpressionHandle) -> bool {
+        let program = scope.program;
+        let expressions = &program.tables.bodies.expressions;
+        let mut pending = vec![root];
+        while let Some(expression) = pending.pop() {
+            match expressions.expression(expression) {
+                ExpressionNode::Call(_) | ExpressionNode::Atomic(_) | ExpressionNode::Match(_) => {
+                    return true;
+                }
+                ExpressionNode::ArrayLiteral(elements) => {
+                    pending.extend(expressions.expression_handles(*elements));
+                }
+                ExpressionNode::StructLiteral(literal) => {
+                    pending.extend(
+                        expressions
+                            .struct_fields(literal.fields)
+                            .iter()
+                            .map(|field| field.value),
+                    );
+                }
+                ExpressionNode::Binary(binary) => {
+                    if binary.operator.is_comparison() {
+                        if !builtin_operand(scope, binary.left)
+                            || !builtin_operand(scope, binary.right)
+                        {
+                            return true;
+                        }
+                    } else if !builtin_binary_subject(scope, binary) {
+                        return true;
+                    }
+                    pending.extend([binary.left, binary.right]);
+                }
+                ExpressionNode::Unary(unary) => pending.push(unary.operand),
+                ExpressionNode::Cast(cast) => {
+                    if builtin_conversion_type(program, cast).is_none() {
+                        return true;
+                    }
+                    pending.push(cast.value);
+                }
+                ExpressionNode::Member(member) => {
+                    if !live_symbol(program, coverage_member_symbol(scope, member)) {
+                        return true;
+                    }
+                    pending.push(member.receiver);
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    if builtin_index_element_type(scope, indexed).is_none() {
+                        return true;
+                    }
+                    pending.extend([indexed.collection, indexed.index]);
+                }
+                ExpressionNode::Membership(membership) => pending.push(membership.value),
+                ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+                ExpressionNode::Range(range) => pending.extend(
+                    [range.start, range.end]
+                        .into_iter()
+                        .filter(|child| child.is_valid()),
+                ),
+                // Saved subjects were evaluated by their capture, not by this guard.
+                ExpressionNode::SavedSubject(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Name(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::TypeExpression(_)
+                | ExpressionNode::ZeroValue(_) => {}
+            }
+        }
+        false
+    }
+
+    /// Prepare binding evidence once for this scope. Storage versions can then
+    /// retain copied scalars without rescanning declarations per guard.
+    struct CoverageBinding {
+        symbol: (u32, u32),
+        primitive: bool,
+        snapshot: bool,
+    }
+
+    fn coverage_bindings(scope: &DispatchScope<'_>) -> Vec<CoverageBinding> {
+        let program = scope.program;
+        let parameters = program.state_parameters(scope.state.parameters);
+        let statements = program.state_statements(scope.state.statements);
+        let binding = |symbol, reference: &TypeReference, mutable: bool| CoverageBinding {
+            symbol: symbol_key(symbol),
+            primitive: comparison_primitive_type(program, reference).is_some(),
+            snapshot: live_symbol(program, symbol)
+                && !mutable
+                && scalar_value_type(program, reference).is_some(),
+        };
+        let mut bindings = parameters
+            .iter()
+            .map(|parameter| {
+                binding(
+                    parameter.symbol,
+                    &parameter.type_reference,
+                    parameter.is_mutable,
+                )
+            })
+            .chain(statements.iter().filter_map(|statement| {
+                let resolved::statement::Statement::LocalData(local) = statement else {
+                    return None;
+                };
+                let inferred = (local.is_operand_capture || local.type_is_inferred)
+                    .then(|| subject_declared_type(scope, local.initial_value))
+                    .flatten();
+                Some(binding(
+                    local.symbol,
+                    inferred.as_ref().unwrap_or(&local.type_reference),
+                    local.is_mutable,
+                ))
+            }))
+            .chain(
+                program
+                    .machine_type_parameters(scope.machine)
+                    .iter()
+                    .filter_map(|parameter| match &parameter.kind {
+                        resolved::data::TypeParameterKind::Const { type_reference }
+                        | resolved::data::TypeParameterKind::Value { type_reference } => {
+                            Some(binding(parameter.symbol, type_reference, false))
+                        }
+                        _ => None,
+                    }),
+            )
+            .collect::<Vec<_>>();
+        bindings.sort_unstable_by_key(|binding| binding.symbol);
+        let mut unique = Vec::with_capacity(bindings.len());
+        for group in bindings.chunk_by(|left, right| left.symbol == right.symbol) {
+            if let [binding] = group {
+                unique.push(CoverageBinding {
+                    symbol: binding.symbol,
+                    primitive: binding.primitive,
+                    snapshot: binding.snapshot,
+                });
+            }
+        }
+        unique
+    }
+
+    fn comparison_primitive_type<'program>(
+        program: &'program SymbolResolvedTrees,
+        mut reference: &'program TypeReference,
+    ) -> Option<symbols::PrimitiveType> {
+        loop {
+            match reference {
+                TypeReference::Reference(reference_) => {
+                    reference = program.child_type_reference(reference_.referee)
+                }
+                _ => return reference.primitive_type(&program.symbols),
+            }
+        }
+    }
+
+    fn builtin_operand(scope: &DispatchScope<'_>, expression: ExpressionHandle) -> bool {
+        let program = scope.program;
+        let bindings = &scope.bindings;
+        let expressions = &program.tables.bodies.expressions;
+        match expressions.expression(expression) {
+            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
+                true
+            }
+            ExpressionNode::Name(path) => {
+                !path.static_application.is_valid()
+                    && if let Ok(position) = bindings
+                        .binary_search_by_key(&symbol_key(path.symbol), |binding| binding.symbol)
+                    {
+                        (!path.head_symbol.is_valid() || path.head_symbol == path.symbol)
+                            && bindings[position].primitive
+                    } else {
+                        live_symbol(program, path.symbol)
+                            && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                            && program
+                                .const_declaration(path.symbol)
+                                .is_some_and(|declaration| {
+                                    declaration
+                                        .declared_type
+                                        .primitive_type(&program.symbols)
+                                        .is_some()
+                                })
+                    }
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                builtin_operand(scope, expressions.match_subject(saved.capture).subject)
+            }
+            // Only a saved subject uses this signature query: the call has
+            // already run once before its capture, never while testing a guard.
+            ExpressionNode::Call(call) => declared_call_return(program, call.target_symbol)
+                .is_some_and(|reference| reference.primitive_type(&program.symbols).is_some()),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                subject_declared_type(scope, expression).is_some_and(|reference| {
+                    comparison_primitive_type(program, &reference).is_some()
+                })
+            }
+            ExpressionNode::Cast(cast) => builtin_conversion_type(program, cast).is_some(),
+            ExpressionNode::Unary(unary) => builtin_operand(scope, unary.operand),
+            ExpressionNode::Binary(binary) => {
+                builtin_binary_subject(scope, binary)
+                    && builtin_operand(scope, binary.left)
+                    && builtin_operand(scope, binary.right)
+            }
+            _ => false,
+        }
+    }
+
+    fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+        (symbol.arena_index(), symbol.generation())
+    }
+
+    fn scalar_value_type<'program>(
+        program: &'program SymbolResolvedTrees,
+        mut reference: &'program TypeReference,
+    ) -> Option<symbols::PrimitiveType> {
+        loop {
+            match reference {
+                TypeReference::Constrained(constrained) => {
+                    reference = program.child_type_reference(constrained.base_type)
+                }
+                TypeReference::AliasUse { expansion, .. } => reference = expansion,
+                _ => return reference.primitive_type(&program.symbols),
+            }
+        }
+    }
+
+    /// Memory projections and borrowed captures retain a storage version;
+    /// copied scalar values retain their identity across an unrelated call.
+    fn snapshot_subject(scope: &DispatchScope<'_>, expression: ExpressionHandle) -> bool {
+        let program = scope.program;
+        let bindings = &scope.bindings;
+        match program.tables.bodies.expressions.expression(expression) {
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_) => true,
+            ExpressionNode::SavedSubject(saved) => {
+                saved.capture.is_valid()
+                    && subject_declared_type(
+                        scope,
+                        program
+                            .tables
+                            .bodies
+                            .expressions
+                            .match_subject(saved.capture)
+                            .subject,
+                    )
+                    .is_some_and(|reference| scalar_value_type(program, &reference).is_some())
+            }
+            ExpressionNode::Name(path) => {
+                !path.static_application.is_valid()
+                    && if let Ok(position) = bindings
+                        .binary_search_by_key(&symbol_key(path.symbol), |binding| binding.symbol)
+                    {
+                        (!path.head_symbol.is_valid() || path.head_symbol == path.symbol)
+                            && bindings[position].snapshot
+                    } else {
+                        live_symbol(program, path.symbol)
+                            && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
+                            && program
+                                .const_declaration(path.symbol)
+                                .is_some_and(|declaration| {
+                                    scalar_value_type(program, &declaration.declared_type).is_some()
+                                })
+                    }
+            }
+            ExpressionNode::Cast(cast) => {
+                builtin_conversion_type(program, cast).is_some()
+                    && snapshot_subject(scope, cast.value)
+            }
+            ExpressionNode::Unary(unary) => snapshot_subject(scope, unary.operand),
+            ExpressionNode::Binary(binary) => {
+                builtin_binary_subject(scope, binary)
+                    && snapshot_subject(scope, binary.left)
+                    && snapshot_subject(scope, binary.right)
+            }
+            _ => false,
+        }
+    }
+
+    fn builtin_binary_subject(
+        scope: &DispatchScope<'_>,
+        binary: &resolved::expression::TableBinaryExpression,
+    ) -> bool {
+        // A qualified operand may select an authored operation during typing;
+        // an unqualified builtin operand cannot acquire a foreign operator.
+        // Explicit policy/logical/bitwise operations also have builtin meaning.
+        binary.policy != numerics::arithmetic::ArithmeticDomain::Exact
+            || matches!(
+                binary.operator,
+                BinaryOperator::And
+                    | BinaryOperator::Or
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
+            )
+            || builtin_operand(scope, binary.left) && builtin_operand(scope, binary.right)
+    }
+
+    fn builtin_conversion_type(
         program: &SymbolResolvedTrees,
+        cast: &resolved::expression::TableCastExpression,
+    ) -> Option<symbols::PrimitiveType> {
+        if cast.form != language_core::cast_form::CastForm::Value
+            || !cast.semantic_domain.is_empty()
+            || cast.semantic_domain_symbol.is_valid()
+            || !cast.semantic_domain_arguments.is_empty()
+        {
+            return None;
+        }
+        let types = &program.tables.declarations.child_type_references;
+        types
+            .is_valid(cast.target_type)
+            .then(|| types.get(cast.target_type).primitive_type(&program.symbols))
+            .flatten()
+    }
+
+    fn finite_axes(
+        scope: &DispatchScope<'_>,
         arms: &[Vec<FiniteConstraint>],
         uncounted_claims: &[CaseClaim],
     ) -> Vec<FiniteAxis> {
@@ -1230,23 +1799,25 @@ pub(crate) mod exhaustiveness {
         for constraint in arms.iter().flatten() {
             match constraint {
                 FiniteConstraint::Case(claim) => push_axis(
-                    program,
+                    scope,
                     &mut axes,
                     claim.subject,
+                    claim.epoch,
                     FiniteAxisKind::Case {
                         data_index: claim.data_index,
                     },
                 ),
-                FiniteConstraint::Bool { subject, .. } => {
-                    push_axis(program, &mut axes, *subject, FiniteAxisKind::Bool)
+                FiniteConstraint::Bool { subject, epoch, .. } => {
+                    push_axis(scope, &mut axes, *subject, *epoch, FiniteAxisKind::Bool)
                 }
             }
         }
         for claim in uncounted_claims {
             push_axis(
-                program,
+                scope,
                 &mut axes,
                 claim.subject,
+                claim.epoch,
                 FiniteAxisKind::Case {
                     data_index: claim.data_index,
                 },
@@ -1256,14 +1827,17 @@ pub(crate) mod exhaustiveness {
     }
 
     fn push_axis(
-        program: &SymbolResolvedTrees,
+        scope: &DispatchScope<'_>,
         axes: &mut Vec<FiniteAxis>,
         subject: ExpressionHandle,
+        epoch: usize,
         kind: FiniteAxisKind,
     ) {
+        let program = scope.program;
         if axes.iter().any(|axis| {
-            axis_kinds_equal(axis.kind, kind)
-                && expressions_structurally_equal(program, axis.subject, subject)
+            axis.epoch == epoch
+                && axis_kinds_equal(axis.kind, kind)
+                && same_coverage_subject(scope, axis.subject, subject)
         }) {
             return;
         }
@@ -1275,6 +1849,7 @@ pub(crate) mod exhaustiveness {
         };
         axes.push(FiniteAxis {
             subject,
+            epoch,
             kind,
             possible_cases,
         });
@@ -1326,81 +1901,130 @@ pub(crate) mod exhaustiveness {
     }
 
     fn first_uncovered_assignment(
-        program: &SymbolResolvedTrees,
+        scope: &DispatchScope<'_>,
         axes: &[FiniteAxis],
         arms: &[Vec<FiniteConstraint>],
     ) -> MatrixCoverage {
-        const MAX_MATRIX_CELLS: usize = 65_536;
-
-        let arities: Vec<usize> = axes
+        const MAX_MATRIX_WORK: usize = 65_536;
+        let arities = axes
             .iter()
             .map(|axis| match axis.kind {
                 FiniteAxisKind::Case { .. } => axis.possible_cases.len(),
                 FiniteAxisKind::Bool => 2,
             })
-            .collect();
-        let Some(cell_count) = arities
-            .iter()
-            .try_fold(1usize, |product, arity| product.checked_mul(*arity))
-        else {
-            return MatrixCoverage::TooLarge;
-        };
-        if cell_count > MAX_MATRIX_CELLS {
-            return MatrixCoverage::TooLarge;
+            .collect::<Vec<_>>();
+        if arities.contains(&0) {
+            return MatrixCoverage::Complete;
         }
-
-        for ordinal in 0..cell_count {
-            let mut remainder = ordinal;
-            let mut assignment = Vec::with_capacity(axes.len());
-            for arity in &arities {
-                assignment.push(remainder % arity);
-                remainder /= arity;
+        // Bind each constraint to its exact subject/version once, before search.
+        // A malformed/unbound arm contributes no coverage.
+        let prepared = arms
+            .iter()
+            .filter_map(|arm| {
+                arm.iter()
+                    .map(|constraint| {
+                        constraint_axis(scope, axes, constraint).map(|axis| (axis, constraint))
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .collect::<Vec<_>>();
+        let mut assignment = vec![usize::MAX; axes.len()];
+        let mut depth = 0;
+        let mut work = 0;
+        loop {
+            work += 1;
+            if work > MAX_MATRIX_WORK {
+                return MatrixCoverage::TooLarge;
             }
-            if !arms
-                .iter()
-                .any(|arm| arm_matches(program, axes, &assignment, arm))
-            {
+            let mut covered = false;
+            let mut pending = false;
+            for arm in &prepared {
+                let mut possible = true;
+                let mut decided = true;
+                for (axis, constraint) in arm {
+                    work += 1;
+                    if work > MAX_MATRIX_WORK {
+                        return MatrixCoverage::TooLarge;
+                    }
+                    let value = assignment[*axis];
+                    if value == usize::MAX {
+                        decided = false;
+                    } else if !constraint_matches(&axes[*axis], value, constraint) {
+                        possible = false;
+                        break;
+                    }
+                }
+                if possible && decided {
+                    covered = true;
+                    break;
+                }
+                pending |= possible;
+            }
+            if !covered && !pending {
+                // All arms are already impossible under this prefix, so any
+                // completion is an actual uncovered assignment.
+                for value in &mut assignment[depth..] {
+                    *value = 0;
+                }
                 return MatrixCoverage::Uncovered(assignment);
             }
+            if !covered {
+                assignment[depth] = 0;
+                depth += 1;
+                continue;
+            }
+            // A satisfied arm covers every completion of this prefix. Explicit
+            // work frames avoid enumerating later storage epochs (or using the
+            // host stack) once an earlier dispatch prefix is already exhaustive.
+            loop {
+                if depth == 0 {
+                    return MatrixCoverage::Complete;
+                }
+                depth -= 1;
+                assignment[depth] += 1;
+                if assignment[depth] < arities[depth] {
+                    depth += 1;
+                    break;
+                }
+                assignment[depth] = usize::MAX;
+            }
         }
-        MatrixCoverage::Complete
     }
 
-    fn arm_matches(
-        program: &SymbolResolvedTrees,
+    fn constraint_axis(
+        scope: &DispatchScope<'_>,
         axes: &[FiniteAxis],
-        assignment: &[usize],
-        constraints: &[FiniteConstraint],
-    ) -> bool {
-        constraints.iter().all(|constraint| {
-            let (subject, kind) = match constraint {
-                FiniteConstraint::Case(claim) => (
-                    claim.subject,
-                    FiniteAxisKind::Case {
-                        data_index: claim.data_index,
-                    },
-                ),
-                FiniteConstraint::Bool { subject, .. } => (*subject, FiniteAxisKind::Bool),
-            };
-            let Some(axis_index) = axes.iter().position(|axis| {
-                axis_kinds_equal(axis.kind, kind)
-                    && expressions_structurally_equal(program, axis.subject, subject)
-            }) else {
-                return false;
-            };
-            match constraint {
-                FiniteConstraint::Case(claim) => {
-                    let variant = axes[axis_index].possible_cases[assignment[axis_index]];
-                    claim
-                        .covered
-                        .as_ref()
-                        .is_some_and(|variants| variants.contains(&variant))
-                }
-                FiniteConstraint::Bool { value, .. } => {
-                    assignment[axis_index] == usize::from(*value)
-                }
+        constraint: &FiniteConstraint,
+    ) -> Option<usize> {
+        let (subject, epoch, kind) = match constraint {
+            FiniteConstraint::Case(claim) => (
+                claim.subject,
+                claim.epoch,
+                FiniteAxisKind::Case {
+                    data_index: claim.data_index,
+                },
+            ),
+            FiniteConstraint::Bool { subject, epoch, .. } => {
+                (*subject, *epoch, FiniteAxisKind::Bool)
             }
+        };
+        axes.iter().position(|axis| {
+            axis.epoch == epoch
+                && axis_kinds_equal(axis.kind, kind)
+                && same_coverage_subject(scope, axis.subject, subject)
         })
+    }
+
+    fn constraint_matches(axis: &FiniteAxis, value: usize, constraint: &FiniteConstraint) -> bool {
+        match constraint {
+            FiniteConstraint::Case(claim) => claim
+                .covered
+                .as_ref()
+                .is_some_and(|variants| variants.contains(&axis.possible_cases[value])),
+            FiniteConstraint::Bool {
+                value: expected, ..
+            } => value == usize::from(*expected),
+        }
     }
 
     fn format_assignment(
@@ -1516,6 +2140,7 @@ pub(crate) mod exhaustiveness {
                         }
                         return ArmShape::Finite(vec![FiniteConstraint::Bool {
                             subject: binary.left,
+                            epoch: 0,
                             value,
                         }]);
                     }
@@ -1534,6 +2159,7 @@ pub(crate) mod exhaustiveness {
                         }
                         return ArmShape::Finite(vec![FiniteConstraint::Bool {
                             subject: binary.right,
+                            epoch: 0,
                             value,
                         }]);
                     }
@@ -1561,6 +2187,7 @@ pub(crate) mod exhaustiveness {
                     first_case_claim = Some(CaseClaim {
                         data_index: claim.data_index,
                         subject: claim.subject,
+                        epoch: 0,
                         covered: None,
                     });
                 }
@@ -1578,6 +2205,7 @@ pub(crate) mod exhaustiveness {
                     {
                         constraints.push(FiniteConstraint::Bool {
                             subject: binary.left,
+                            epoch: 0,
                             value: *value,
                         });
                         continue;
@@ -1587,6 +2215,7 @@ pub(crate) mod exhaustiveness {
                     {
                         constraints.push(FiniteConstraint::Bool {
                             subject: binary.right,
+                            epoch: 0,
                             value: *value,
                         });
                         continue;
@@ -1625,7 +2254,7 @@ pub(crate) mod exhaustiveness {
             };
 
             if subject.is_valid() {
-                if !expressions_structurally_equal(program, subject, membership.value) {
+                if !same_coverage_subject(scope, subject, membership.value) {
                     countable = false;
                 }
             } else {
@@ -1658,6 +2287,7 @@ pub(crate) mod exhaustiveness {
         Some(CaseClaim {
             data_index,
             subject,
+            epoch: 0,
             covered: countable.then_some(variants),
         })
     }
@@ -1880,15 +2510,17 @@ pub(crate) mod exhaustiveness {
         leaves.push(expression);
     }
 
-    fn expressions_structurally_equal(
-        program: &SymbolResolvedTrees,
+    fn same_coverage_subject(
+        scope: &DispatchScope<'_>,
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        if left == right {
-            return true;
-        }
-        if !left.is_valid() || !right.is_valid() {
+        let program = scope.program;
+        // An expression handle names syntax, not one runtime evaluation. In
+        // particular, even the same call node can run again in another guard.
+        if !program.tables.bodies.expressions.expression_is_valid(left)
+            || !program.tables.bodies.expressions.expression_is_valid(right)
+        {
             return false;
         }
 
@@ -1898,90 +2530,77 @@ pub(crate) mod exhaustiveness {
             (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
             (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
             (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
-            (ExpressionNode::ArrayLiteral(left), ExpressionNode::ArrayLiteral(right)) => {
-                let left = expressions.expression_handles(*left);
-                let right = expressions.expression_handles(*right);
-                left.len() == right.len()
-                    && left
-                        .iter()
-                        .zip(right)
-                        .all(|(left, right)| expressions_structurally_equal(program, *left, *right))
-            }
-            (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
-                let left_fields = expressions.struct_fields(left.fields);
-                let right_fields = expressions.struct_fields(right.fields);
-                left.type_symbol == right.type_symbol
-                    && left.case_symbol == right.case_symbol
-                    && left_fields.len() == right_fields.len()
-                    && left_fields.iter().zip(right_fields).all(|(left, right)| {
-                        left.field_symbol == right.field_symbol
-                            && left.name == right.name
-                            && expressions_structurally_equal(program, left.value, right.value)
-                    })
-            }
             (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-                left.symbol == right.symbol
-                    && name_paths_equal(
-                        expressions.name_path_members(left.members),
-                        expressions.name_path_members(right.members),
-                    )
+                live_symbol(program, left.symbol)
+                    && left.symbol == right.symbol
+                    && left.head_symbol == right.head_symbol
+                    && (left.head_symbol == left.symbol
+                        || left.members.count() == left.member_symbols.count()
+                            && right.members.count() == right.member_symbols.count()
+                            && expressions
+                                .name_path_member_symbols(left.member_symbols)
+                                .iter()
+                                .all(|symbol| live_symbol(program, *symbol)))
+                    && expressions.name_path_member_symbols(left.member_symbols)
+                        == expressions.name_path_member_symbols(right.member_symbols)
+                    && !left.static_application.is_valid()
+                    && !right.static_application.is_valid()
+                    && left.reserved_result_of == right.reserved_result_of
             }
             (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
-                left.member.as_str() == right.member.as_str()
-                    && expressions_structurally_equal(program, left.receiver, right.receiver)
+                let left_symbol = coverage_member_symbol(scope, left);
+                live_symbol(program, left_symbol)
+                    && left_symbol == coverage_member_symbol(scope, right)
+                    && left.case_variant == right.case_variant
+                    && same_coverage_subject(scope, left.receiver, right.receiver)
             }
             (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
-                expressions_structurally_equal(program, left.collection, right.collection)
-                    && expressions_structurally_equal(program, left.index, right.index)
+                builtin_index_element_type(scope, left).is_some()
+                    && same_coverage_subject(scope, left.collection, right.collection)
+                    && same_coverage_subject(scope, left.index, right.index)
             }
             (ExpressionNode::Unary(left), ExpressionNode::Unary(right)) => {
                 left.operator == right.operator
-                    && expressions_structurally_equal(program, left.operand, right.operand)
+                    && same_coverage_subject(scope, left.operand, right.operand)
             }
             (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
-                left.operator == right.operator
-                    && expressions_structurally_equal(program, left.left, right.left)
-                    && expressions_structurally_equal(program, left.right, right.right)
+                builtin_binary_subject(scope, left)
+                    && left.operator == right.operator
+                    && left.policy == right.policy
+                    && same_coverage_subject(scope, left.left, right.left)
+                    && same_coverage_subject(scope, left.right, right.right)
             }
             (ExpressionNode::Membership(left), ExpressionNode::Membership(right)) => {
                 left.domain_symbol == right.domain_symbol
-                    && name_paths_equal(
-                        expressions.name_path_members(left.domain),
-                        expressions.name_path_members(right.domain),
-                    )
-                    && expressions_structurally_equal(program, left.value, right.value)
+                    && left.case_type_symbol == right.case_type_symbol
+                    && left.case_symbol == right.case_symbol
+                    && (live_symbol(program, left.domain_symbol)
+                        || live_symbol(program, left.case_type_symbol)
+                            && live_symbol(program, left.case_symbol))
+                    && same_coverage_subject(scope, left.value, right.value)
             }
-            (ExpressionNode::Borrow(left), ExpressionNode::Borrow(right)) => {
-                left.access == right.access
-                    && expressions_structurally_equal(program, left.target, right.target)
+            (ExpressionNode::SavedSubject(left), ExpressionNode::SavedSubject(right)) => {
+                left.capture.is_valid()
+                    && left.capture == right.capture
+                    && left.component == right.component
+                    && left.pattern_head == right.pattern_head
             }
             (ExpressionNode::Cast(left), ExpressionNode::Cast(right)) => {
-                expressions_structurally_equal(program, left.value, right.value)
+                builtin_conversion_type(program, left).is_some_and(|left_type| {
+                    Some(left_type) == builtin_conversion_type(program, right)
+                }) && left.domain == right.domain
+                    && same_coverage_subject(scope, left.value, right.value)
             }
-            (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
-                left.target.as_str() == right.target.as_str()
-                    && expressions_structurally_equal(program, left.receiver, right.receiver)
-                    && {
-                        let left_arguments = expressions.expression_handles(left.arguments);
-                        let right_arguments = expressions.expression_handles(right.arguments);
-                        left_arguments.len() == right_arguments.len()
-                            && left_arguments.iter().zip(right_arguments.iter()).all(
-                                |(left, right)| {
-                                    expressions_structurally_equal(program, *left, *right)
-                                },
-                            )
-                    }
-            }
+            // A call's declaration and complete application identify what runs,
+            // never the value of two separate invocations. Bind its result or
+            // use a dispatch capture before asking coverage to share it.
+            (ExpressionNode::Call(_), ExpressionNode::Call(_)) => false,
             _ => false,
         }
     }
 
-    fn name_paths_equal(left: &[DiagnosticName], right: &[DiagnosticName]) -> bool {
-        left.len() == right.len()
-            && left
-                .iter()
-                .zip(right.iter())
-                .all(|(left, right)| left.as_str() == right.as_str())
+    fn live_symbol(program: &SymbolResolvedTrees, symbol: SymbolHandle) -> bool {
+        program.symbols.symbols().nodes().is_valid(symbol)
     }
 
     fn subject_data_index(scope: &DispatchScope<'_>, subject: ExpressionHandle) -> Option<usize> {
@@ -2000,28 +2619,108 @@ pub(crate) mod exhaustiveness {
         match expressions.expression(subject) {
             ExpressionNode::Member(member) => field_declared_type(scope, member.member_symbol)
                 .or_else(|| {
-                    let receiver = subject_declared_type(scope, member.receiver)?;
-                    let definition = &scope.program.data_definitions
-                        [data_index_for_type(scope.program, &receiver)?];
-                    scope
-                        .program
-                        .data_members(definition.members)
-                        .iter()
-                        .find_map(|member_| match member_ {
-                            DataMember::Field(field)
-                                if field.name.as_str() == member.member.as_str() =>
-                            {
-                                Some(field.type_reference.clone())
-                            }
-                            _ => None,
-                        })
+                    declared_member_field(scope, member).map(|field| field.type_reference.clone())
                 }),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Membership(_)
+            | ExpressionNode::Unary(resolved::expression::TableUnaryExpression {
+                operator: resolved::expression::UnaryOperator::LogicalNot,
+                ..
+            })
+            | ExpressionNode::Binary(resolved::expression::TableBinaryExpression {
+                operator:
+                    BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+                    | BinaryOperator::And
+                    | BinaryOperator::Or,
+                ..
+            }) => Some(TypeReference::Named {
+                symbol: scope
+                    .program
+                    .symbols
+                    .builtin_atom_symbol(symbols::BuiltinTypeAtom::Bool)?,
+                name: DiagnosticName::generated("bool"),
+                supplied_operand_owner: Default::default(),
+            }),
+            ExpressionNode::Indexed(indexed) => builtin_index_element_type(scope, indexed),
             ExpressionNode::Name(path) => name_declared_type(scope, path),
             ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
                 declared_call_return(scope.program, call.target_symbol).cloned()
             }
             ExpressionNode::SavedSubject(saved) => {
                 subject_declared_type(scope, expressions.match_subject(saved.capture).subject)
+            }
+            _ => None,
+        }
+    }
+
+    fn builtin_index_element_type(
+        scope: &DispatchScope<'_>,
+        indexed: &resolved::expression::TableIndexedExpression,
+    ) -> Option<TypeReference> {
+        let collection = subject_declared_type(scope, indexed.collection)?;
+        let mut reference = &collection;
+        loop {
+            match reference {
+                TypeReference::Reference(borrow) => {
+                    reference = scope.program.child_type_reference(borrow.referee)
+                }
+                TypeReference::AliasUse { expansion, .. } => reference = expansion,
+                TypeReference::FixedArray(array) => {
+                    let element = scope.program.child_type_reference(array.element_type);
+                    return (element.primitive_type(&scope.program.symbols).is_some()
+                        && builtin_operand(scope, indexed.index))
+                    .then(|| element.clone());
+                }
+                TypeReference::Slice(slice) => {
+                    let element = scope.program.child_type_reference(slice.element_type);
+                    return (element.primitive_type(&scope.program.symbols).is_some()
+                        && builtin_operand(scope, indexed.index))
+                    .then(|| element.clone());
+                }
+                _ => return None,
+            }
+        }
+    }
+
+    fn coverage_member_symbol(
+        scope: &DispatchScope<'_>,
+        member: &resolved::expression::TableMemberExpression,
+    ) -> SymbolHandle {
+        if live_symbol(scope.program, member.member_symbol) {
+            member.member_symbol
+        } else {
+            declared_member_field(scope, member)
+                .map_or_else(SymbolHandle::invalid, |field| field.symbol)
+        }
+    }
+
+    /// Typing supplies a receiver's selected carrier when resolution could not
+    /// name its member yet. Coverage and type discovery use that same unique
+    /// field declaration, never the member's leaf spelling as an identity.
+    fn declared_member_field<'program>(
+        scope: &DispatchScope<'program>,
+        member: &resolved::expression::TableMemberExpression,
+    ) -> Option<&'program resolved::data::DataField> {
+        let program = scope.program;
+        let receiver = subject_declared_type(scope, member.receiver)?;
+        let definition = &program.data_definitions[data_index_for_type(program, &receiver)?];
+        let mut fields = program
+            .data_members(definition.members)
+            .iter()
+            .filter_map(|member_| match member_ {
+                DataMember::Field(field) if field.name == member.member => Some(field),
+                _ => None,
+            });
+        match (fields.next(), fields.next()) {
+            (Some(field), None)
+                if !member.member_symbol.is_valid() || member.member_symbol == field.symbol =>
+            {
+                Some(field)
             }
             _ => None,
         }
@@ -2035,24 +2734,24 @@ pub(crate) mod exhaustiveness {
             if !symbol.is_valid() {
                 continue;
             }
-            if let Some(parameter) = scope
+            let parameters = scope.program.state_parameters(scope.state.parameters);
+            if let Some(position) = scope
                 .program
-                .state_parameters(scope.state.parameters)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol)
+                .resolution_indexes
+                .parameter_position(parameters, symbol)
+                && let Some(parameter) = parameters.get(position as usize)
+                && parameter.symbol == symbol
             {
                 return Some(parameter.type_reference.clone());
             }
-            if let Some(local) = scope
+            let statements = scope.program.state_statements(scope.state.statements);
+            if let Some(position) = scope
                 .program
-                .state_statements(scope.state.statements)
-                .iter()
-                .find_map(|statement| {
-                    let resolved::statement::Statement::LocalData(local) = statement else {
-                        return None;
-                    };
-                    (local.symbol == symbol).then_some(local)
-                })
+                .resolution_indexes
+                .local_statement_position(statements, symbol)
+                && let Some(resolved::statement::Statement::LocalData(local)) =
+                    statements.get(position as usize)
+                && local.symbol == symbol
             {
                 if local.is_operand_capture || matches!(local.type_reference, TypeReference::Unit) {
                     return subject_declared_type(scope, local.initial_value)
@@ -2082,21 +2781,40 @@ pub(crate) mod exhaustiveness {
                 return Some(owned.type_reference.clone());
             }
         }
-        for definition in &scope.program.data_definitions {
-            for member in scope.program.data_members(definition.members) {
-                match member {
-                    DataMember::Field(field) if field.symbol == symbol => {
-                        return Some(field.type_reference.clone());
-                    }
-                    DataMember::Variant(variant) => {
-                        for field in scope.program.data_payload_fields(variant.payload) {
-                            if field.symbol == symbol {
-                                return Some(field.type_reference.clone());
-                            }
-                        }
-                    }
-                    _ => {}
+        if !live_symbol(scope.program, symbol) {
+            return None;
+        }
+        let parent = scope.program.symbols.get(symbol).parent;
+        if !live_symbol(scope.program, parent) {
+            return None;
+        }
+        let owner = if scope.program.symbols.get(parent).kind == symbols::SymbolKind::Variant {
+            scope.program.symbols.get(parent).parent
+        } else {
+            parent
+        };
+        let position = scope
+            .program
+            .resolution_indexes
+            .data_definition_position(&scope.program.data_definitions, owner)?;
+        let definition = &scope.program.data_definitions[position as usize];
+        if definition.symbol != owner {
+            return None;
+        }
+        for member in scope.program.data_members(definition.members) {
+            match member {
+                DataMember::Field(field) if field.symbol == symbol && parent == owner => {
+                    return Some(field.type_reference.clone());
                 }
+                DataMember::Variant(variant) if variant.symbol == parent => {
+                    return scope
+                        .program
+                        .data_payload_fields(variant.payload)
+                        .iter()
+                        .find(|field| field.symbol == symbol)
+                        .map(|field| field.type_reference.clone());
+                }
+                _ => {}
             }
         }
         None
@@ -2108,9 +2826,9 @@ pub(crate) mod exhaustiveness {
     ) -> Option<usize> {
         match type_reference {
             TypeReference::Named { symbol, .. } => program
-                .data_definitions
-                .iter()
-                .position(|definition| definition.symbol == *symbol),
+                .resolution_indexes
+                .data_definition_position(&program.data_definitions, *symbol)
+                .map(|position| position as usize),
             TypeReference::Generic(generic) => {
                 program.data_definitions.iter().position(|definition| {
                     matches!(
