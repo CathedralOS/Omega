@@ -269,7 +269,7 @@ fn with_formation_conditions(summary: Proposition, id: MachineId) -> Checked<Pro
             .and_then(|goal| goal.map(|goal| goal.kernel_proposition()).transpose());
         match condition {
             Ok(Some(condition)) => {
-                if condition != Proposition::Truth && !conditions.contains(&condition) {
+                if condition != Proposition::Truth {
                     conditions.push(condition);
                 }
             }
