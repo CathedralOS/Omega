@@ -11,7 +11,7 @@ description: >-
 
 This skill contains **only** the step-by-step execution workflow for advancing a
 compiler capability. Common repository knowledge, the [law of completion](../../../AGENTS.md#law-of-completion),
-the nine-place sample loop, requirements and evidence, and decision-making
+the sample loop, requirements and evidence, and decision-making
 framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 (`#decision-making-framing-for-compiler-completion`, `#the-sample-loop`,
 `#requirements-and-evidence`, `#sessions-and-subagents`).

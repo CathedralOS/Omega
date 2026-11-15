@@ -25,8 +25,8 @@ Board tasks follow one flow:
    work through the lowered-form checker, Terminal Psi, and native/Psi
    execution (`omega run --both`). Use the current pipeline owners in
    [AGENTS.md](../../../AGENTS.md#law-of-completion); never send repairs back
-   through the frozen checker. The nine-place, four-target matrix describes
-   capability completion, not a fixture-generation plan or a gate for every PR.
+   through the frozen checker. Do not frame a task as a list of places to
+   cover one by one ([sample loop](../../../AGENTS.md#the-sample-loop)).
    `samples/cli/facts/` is frozen. New regression programs belong beside the
    changed code's test under `tests/fixtures/`, normally one focused
    positive/negative pair, within the repository's per-PR file limit.

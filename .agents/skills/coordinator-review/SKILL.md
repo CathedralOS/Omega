@@ -124,8 +124,9 @@ the five checks below fail:
   fallback routes through them; verify the lowered-form checker retains the
   required obligations and no production boundary check was bypassed.
 - **`TASKS.md` closure:** Delete a bullet only when its full stated acceptance
-  is demonstrated. For a fact row that is its existing nine places and reject
-  twins; other outcomes follow their own acceptance. This is the test for a
+  is demonstrated: its spec page's behavior, shown by the running program and
+  its negative twin
+  ([sample loop](../../../AGENTS.md#the-sample-loop)). This is the test for a
   pull request that deletes the bullet. A progress pull request toward it is
   judged on the repair it makes and the checks that establish that repair, not
   on the whole matrix. Never rewrite completed
