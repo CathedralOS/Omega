@@ -3003,7 +3003,7 @@ mod call_accesses {
                     .any(|action| {
                         matches!(
                             action,
-                            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                            terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
                         )
                     })
                 {
@@ -3118,10 +3118,10 @@ mod cleanup {
     use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralCaseId, StructuralTypeId};
     use std::collections::{BTreeMap, BTreeSet};
-    use terminal_psi::NominalAffineCleanup;
+    use terminal_psi::OwnedCleanupInvocation;
     use terminal_psi::{
-        StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+        StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalAffineCleanupAction,
     };
     use terminal_semantics::owned_structure::{
         contains_owned_boundary as contains_cleanup_boundary,
@@ -3332,17 +3332,18 @@ mod cleanup {
     }
 
     fn cleanup_subjects(
-        functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+        _functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         root: StructuralTypeId,
         place: PlaceId,
         membership: &CaseMembership<'_>,
         moved: Option<&BTreeSet<Vec<StructuralPathSegment>>>,
+        partitions: &BTreeSet<terminal_psi::StructuralAffineDiscard>,
         limit: usize,
     ) -> Option<Vec<CleanupSubject>> {
-        let nominal: BTreeSet<_> = functions
+        let nominal: BTreeSet<_> = types
             .values()
-            .filter_map(|function| function.nominal_cleanup_subject)
+            .filter_map(|declaration| declaration.nominal_cleanup.as_ref().map(|_| declaration.id))
             .collect();
         if let Some(moved) = moved {
             for path in moved {
@@ -3354,13 +3355,35 @@ mod cleanup {
                         continue;
                     }
                     let ancestor = resolve_structural_path(types, root, &path[..depth])?;
-                    if nominal.contains(&ancestor) {
+                    if nominal.contains(&ancestor)
+                        && !partitions.contains(&terminal_psi::StructuralAffineDiscard {
+                            place,
+                            path: path[..depth].to_vec(),
+                            structural_type: ancestor,
+                        })
+                    {
                         return None;
                     }
                 }
             }
         }
         let selected = |path: &[StructuralPathSegment], case| membership(place, path, case, true);
+        if partitions.iter().any(|partition| partition.place == place) {
+            let mut subjects = Vec::new();
+            append_partitioned_subjects(
+                types,
+                &nominal,
+                partitions,
+                place,
+                root,
+                Vec::new(),
+                moved,
+                &selected,
+                limit,
+                &mut subjects,
+            )?;
+            return Some(subjects);
+        }
         if moved.is_none()
             && !selected_contains_nominal_cleanup(
                 types,
@@ -3417,6 +3440,72 @@ mod cleanup {
             )?;
         }
         Some(subjects)
+    }
+
+    fn append_partitioned_subjects(
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        nominal: &BTreeSet<StructuralTypeId>,
+        partitions: &BTreeSet<terminal_psi::StructuralAffineDiscard>,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        path: Vec<StructuralPathSegment>,
+        moved: Option<&BTreeSet<Vec<StructuralPathSegment>>>,
+        selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+        limit: usize,
+        subjects: &mut Vec<CleanupSubject>,
+    ) -> Option<()> {
+        if moved.is_some_and(|moved| moved.iter().any(|missing| path.starts_with(missing))) {
+            return Some(());
+        }
+        let partitioned = partitions.contains(&terminal_psi::StructuralAffineDiscard {
+            place,
+            path: path.clone(),
+            structural_type,
+        });
+        let nested = partitions.iter().any(|partition| {
+            partition.place == place
+                && partition.path.len() > path.len()
+                && partition.path.starts_with(&path)
+        });
+        let partial =
+            moved.is_some_and(|moved| moved.iter().any(|missing| missing.starts_with(&path)));
+        if !partitioned && !nested && !partial {
+            let mut boundaries = nominal.clone();
+            boundaries.extend(types.iter().filter_map(|(identity, declaration)| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. }
+                )
+                .then_some(*identity)
+            }));
+            return append_cleanup_subjects(
+                types,
+                nominal,
+                &boundaries,
+                &mut BTreeMap::new(),
+                selected,
+                structural_type,
+                path,
+                limit,
+                subjects,
+            );
+        }
+        if nominal.contains(&structural_type) && !partitioned {
+            return None;
+        }
+        let declaration = types.get(&structural_type)?;
+        let budget = match &declaration.shape {
+            StructuralTypeShape::Record { fields, .. } => fields.len(),
+            _ => limit.checked_add(moved.map_or(0, BTreeSet::len))?,
+        };
+        let children = selected_children(types, structural_type, &path, budget, selected)?;
+        for (child_path, child) in children {
+            append_partitioned_subjects(
+                types, nominal, partitions, place, child, child_path, moved, selected, limit,
+                subjects,
+            )?;
+        }
+        Some(())
     }
 
     fn append_cleanup_subjects(
@@ -3515,6 +3604,9 @@ mod cleanup {
             }
             frontier.owned_places.remove(&place);
             frontier.partial_custody_paths.remove(&place);
+            frontier
+                .nominal_partitions
+                .retain(|partition| partition.place != place);
             return Ok(());
         }
         let Some(&multiplicity) = frontier.owned_places.get(&place) else {
@@ -3530,6 +3622,9 @@ mod cleanup {
                 return Err(mismatch());
             }
             frontier.partial_custody_paths.remove(&place);
+            frontier
+                .nominal_partitions
+                .retain(|partition| partition.place != place);
             return Ok(());
         };
         let root = place_structural_type(function, place).ok_or_else(mismatch)?;
@@ -3609,7 +3704,7 @@ mod cleanup {
             _ => (actions, false),
         };
         let intrinsic_retirement = matches!(actions, [TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
-            || matches!(actions, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.place == place && cleanup.path.is_empty() && !cleanup.retains_descendants);
+            || matches!(actions, [TerminalAffineCleanupAction::InvokeOwned(cleanup)] if cleanup.subject.place == place && cleanup.subject.path.is_empty());
         if !explicit_retirement && !intrinsic_retirement {
             return Err(mismatch());
         }
@@ -3620,6 +3715,7 @@ mod cleanup {
             place,
             membership,
             frontier.partial_custody_paths.get(&place),
+            &frontier.nominal_partitions,
             actions.len(),
         )
         .ok_or_else(mismatch)?;
@@ -3631,12 +3727,12 @@ mod cleanup {
                 return Err(mismatch());
             }
             match action {
-                TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                TerminalAffineCleanupAction::InvokeOwned(cleanup)
                     if subject.nominal
-                        && cleanup.path == subject.path
+                        && cleanup.subject.path == subject.path
                         && cleanup.structural_type == subject.structural_type =>
                 {
-                    consume_nominal_cleanup(function, functions, types, block, frontier, cleanup)?;
+                    consume_owned_cleanup(function, functions, types, block, frontier, cleanup)?;
                 }
                 TerminalAffineCleanupAction::DiscardRoot(_)
                     if !subject.nominal
@@ -3697,62 +3793,45 @@ mod cleanup {
         }
         frontier.owned_places.remove(&place);
         frontier.partial_custody_paths.remove(&place);
+        frontier
+            .nominal_partitions
+            .retain(|partition| partition.place != place);
         Ok(())
     }
 
-    pub(super) fn consume_nominal_cleanup(
+    pub(super) fn consume_owned_cleanup(
         function: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-        structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         block: BlockId,
         frontier: &mut CurrentOwnership,
-        cleanup: &NominalAffineCleanup,
+        cleanup: &OwnedCleanupInvocation,
     ) -> Result<(), OptimizationUnitValidationError> {
         let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
             machine: function.machine,
             block,
         };
-        let multiplicity = *frontier
-            .owned_places
-            .get(&cleanup.place)
-            .ok_or_else(mismatch)?;
-        let root = place_structural_type(function, cleanup.place).ok_or_else(mismatch)?;
-        let claims = frontier
-            .claims
-            .iter()
-            .filter(|(_, claim)| {
-                claim.input == Some(cleanup.place)
-                    && structural_paths_may_overlap(&claim.path, &cleanup.path)
-            })
-            .collect::<Vec<_>>();
-        let selected = resolve_structural_path(structural_types, root, &cleanup.path);
-        if !cleanup.requirement_obligations.is_empty()
-            || selected != Some(cleanup.structural_type)
-            || !valid_nominal_cleanup(function, functions, structural_types, cleanup)
+        let root = place_structural_type(function, cleanup.subject.place).ok_or_else(mismatch)?;
+        if !valid_owned_cleanup(function, functions, types, cleanup)
+            || resolve_structural_path(types, root, &cleanup.subject.path)
+                != Some(cleanup.structural_type)
+            || !frontier.owned_places.contains_key(&cleanup.subject.place)
             || frontier
                 .partial_custody_paths
-                .get(&cleanup.place)
+                .get(&cleanup.subject.place)
                 .is_some_and(|paths| {
                     paths
                         .iter()
-                        .any(|path| structural_paths_may_overlap(path, &cleanup.path))
+                        .any(|path| structural_paths_may_overlap(path, &cleanup.subject.path))
                 })
-            || claims.iter().any(|(_, claim)| {
-                claim.path != cleanup.path
-                    || claim.multiplicity != Some(StructuralMultiplicity::Linear)
+            || frontier.nominal_partitions.iter().any(|partition| {
+                partition.place == cleanup.subject.place
+                    && partition.path.starts_with(&cleanup.subject.path)
             })
-            || (cleanup.path.is_empty()
-                && match multiplicity {
-                    StructuralMultiplicity::Affine => !claims.is_empty(),
-                    StructuralMultiplicity::Linear => claims.len() != 1,
-                    StructuralMultiplicity::Unrestricted => true,
-                })
-            || (!cleanup.path.is_empty() && claims.len() > 1)
-            || cleanup.consumed_claims
-                != claims
-                    .iter()
-                    .map(|(identity, _)| **identity)
-                    .collect::<Vec<_>>()
+            || frontier.claims.values().any(|claim| {
+                claim.input == Some(cleanup.subject.place)
+                    && structural_paths_may_overlap(&claim.path, &cleanup.subject.path)
+            })
         {
             return Err(mismatch());
         }
@@ -3765,67 +3844,52 @@ mod cleanup {
             block,
             ordinal,
             &frontier.live_references,
-            cleanup.place,
-            &cleanup.path,
+            cleanup.subject.place,
+            &cleanup.subject.path,
         )?;
-        for claim in &cleanup.consumed_claims {
-            frontier.claims.remove(claim);
-        }
+        // A normal Unit completion owns disposal of transferred descriptors.
+        // They cease being caller names; no borrowed hook returns the subject.
+        super::references::discard_subtree(
+            function,
+            types,
+            block,
+            &mut frontier.live_references,
+            cleanup.subject.place,
+            &cleanup.subject.path,
+        )?;
         Ok(())
     }
 
-    pub(super) fn valid_nominal_cleanup(
+    pub(super) fn valid_owned_cleanup(
         caller: &PsiOptimizationFunction,
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-        structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        cleanup: &NominalAffineCleanup,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        cleanup: &OwnedCleanupInvocation,
     ) -> bool {
-        let Some(source) = structural_types.get(&cleanup.structural_type) else {
+        let Some(source) = types.get(&cleanup.structural_type) else {
             return false;
         };
         let Some(target) = functions.get(&cleanup.cleanup_machine).copied() else {
             return false;
         };
-        cleanup.cleanup_machine != caller.machine
-            && bounded_nominal_cleanup_receiver_shape(&source.shape)
-            && !cleanup.retains_descendants
-            && target.attachment == Some(cleanup.structural_type)
-            && target.nominal_cleanup_subject == Some(cleanup.structural_type)
-            && (cleanup.consumed_claims.is_empty() || target.published_service_ceiling.is_empty())
-            && functions
-                .values()
-                .filter(|candidate| {
-                    candidate.nominal_cleanup_subject == Some(cleanup.structural_type)
-                })
-                .count()
-                == 1
-            && cleanup
-                .consumed_claims
-                .windows(2)
-                .all(|pair| pair[0] < pair[1])
+        let Some(selection) = source.nominal_cleanup.as_ref() else {
+            return false;
+        };
+        let [parameter] = target.structural_parameters.as_slice() else {
+            return false;
+        };
+        selection.cleanup_machine == cleanup.cleanup_machine
+            && selection.declaration.identity() == source.identity
+            && cleanup.subject.access == terminal_psi::StructuralAccess::Owned
+            && cleanup.claim_transfers.is_empty()
+            && cleanup.requirement_obligations.is_empty()
             && matches!(target.result, AbstractFunctionResult::Unit)
             && target.parameters.is_empty()
-            && match target.structural_parameters.as_slice() {
-                [] => cleanup.cleanup_receiver.is_none() && target.structural_places.is_empty(),
-                [parameter] => {
-                    parameter.position == 0
-                        && parameter.structural_type == cleanup.structural_type
-                        && cleanup.cleanup_receiver == Some(parameter.place)
-                        && matches!(
-                            parameter.access,
-                            terminal_psi::StructuralAccess::MutableBorrow
-                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                        )
-                        && target.structural_places.iter().any(|place| {
-                            place.id == parameter.place
-                                && place.kind
-                                    == semantic_vocabulary::StructuralPlaceKind::Parameter {
-                                        position: parameter.position,
-                                    }
-                        })
-                }
-                _ => false,
-            }
+            && parameter.position == 0
+            && parameter.structural_type == cleanup.structural_type
+            && parameter.access == terminal_psi::StructuralAccess::Owned
+            && parameter.multiplicity
+                == terminal_semantics::plain_affine::declared_multiplicity(source, parameter.access)
             && target.entry_claim_declarations.is_empty()
             && target.content_entry_claims.is_empty()
             && target
@@ -3836,34 +3900,6 @@ mod cleanup {
                 .verified_contract
                 .as_ref()
                 .is_none_or(|contract| contract.crash_routes.is_empty())
-    }
-
-    pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape) -> bool {
-        let StructuralTypeShape::Record { fields, .. } = shape else {
-            return false;
-        };
-        fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && match field.field_type {
-                    StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Boolean) => true,
-                    StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(
-                        integer,
-                    )) => {
-                        matches!(integer.bits(), Some(8 | 16 | 32 | 64))
-                            && (!integer.is_address() || integer.bits() == Some(64))
-                    }
-                    StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::IeeeFloat(_))
-                    | StructuralFieldType::Atomic(_)
-                    | StructuralFieldType::AtomicBoundedInteger(_)
-                    | StructuralFieldType::IeeeFloat(_)
-                    | StructuralFieldType::ByteSequence(_)
-                    | StructuralFieldType::PredicateByteSequence { .. }
-                    | StructuralFieldType::Structural(_)
-                    | StructuralFieldType::Erased { .. }
-                    | StructuralFieldType::RefinedScalar(_)
-                    | StructuralFieldType::BoundedInteger(_) => false,
-                }
-        })
     }
 }
 pub(crate) use call_accesses::{CallAccesses, argument_storage_is_closed};
@@ -7919,6 +7955,9 @@ mod replay {
                     }
                     _ => None,
                 };
+                if let O::DecomposeStructuralValue { subject, .. } = &node.operation {
+                    value_use.decompose(&mut frontier, identities, subject)?;
+                }
                 value_use.observations(&frontier, &node.operation)?;
                 super::references::apply_operation(
                     function,
@@ -8405,11 +8444,9 @@ mod replay {
                         .filter_map(|declaration| {
                             declaration.owns_linear_claim.then_some(declaration.id)
                         })
-                        .chain(
-                            functions
-                                .values()
-                                .filter_map(|function| function.nominal_cleanup_subject),
-                        )
+                        .chain(structural_types.values().filter_map(|declaration| {
+                            declaration.nominal_cleanup.as_ref().map(|_| declaration.id)
+                        }))
                         .collect::<BTreeSet<_>>();
                     for parent in parents {
                         let root = structural_source_contract(function, parent.place)
@@ -9712,6 +9749,7 @@ mod value_custody {
     ) -> Option<bool> {
         if left.owned_places != right.owned_places
             || left.live_references != right.live_references
+            || left.nominal_partitions != right.nominal_partitions
             || left.partial_custody_paths.len() != right.partial_custody_paths.len()
         {
             return None;
@@ -9769,6 +9807,110 @@ mod value_custody {
     }
 
     impl ValueUse<'_> {
+        pub(super) fn decompose(
+            &self,
+            current: &mut CurrentOwnership,
+            identities: &terminal_psi::TerminalIdentityTable,
+            subject: &StructuralArgument,
+        ) -> Result<(), OptimizationUnitValidationError> {
+            let root = structural_source_contract(self.function, subject.place)
+                .ok_or_else(|| self.refusal(subject.place, "decomposition has no owned source"))?;
+            if subject.access != StructuralAccess::Owned
+                || root.access != StructuralAccess::Owned
+                || subject.path.contains(&StructuralPathSegment::Referent)
+                || subject
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+                || current.owned_places.get(&subject.place) != Some(&root.multiplicity)
+            {
+                return Err(self.refusal(
+                    subject.place,
+                    "decomposition needs live exact owned storage",
+                ));
+            }
+            // A nested wrapper cannot be opened through an intact nominal
+            // ancestor: the ancestor's complete partition must come first.
+            for depth in 0..subject.path.len() {
+                let ancestor_path = &subject.path[..depth];
+                let ancestor = terminal_semantics::runtime_structural_path_tip(
+                    self.types.iter(),
+                    root.structural_type,
+                    ancestor_path,
+                )
+                .ok_or_else(|| self.refusal(subject.place, "decomposition ancestor is untyped"))?;
+                if ancestor.nominal_cleanup.is_some()
+                    && !current.nominal_partitions.contains(
+                        &terminal_psi::StructuralAffineDiscard {
+                            place: subject.place,
+                            path: ancestor_path.to_vec(),
+                            structural_type: ancestor.id,
+                        },
+                    )
+                {
+                    return Err(self.refusal(
+                        subject.place,
+                        "decomposition crosses an intact nominal wrapper",
+                    ));
+                }
+            }
+            self.observing(current, subject.place, &subject.path)?;
+            let selected = terminal_semantics::runtime_structural_path_tip(
+                self.types.iter(),
+                root.structural_type,
+                &subject.path,
+            )
+            .ok_or_else(|| {
+                self.refusal(subject.place, "decomposition has no exact component type")
+            })?;
+            let selection = selected.nominal_cleanup.as_ref().ok_or_else(|| {
+                self.refusal(subject.place, "decomposition has no selected cleanup")
+            })?;
+            if selection.declaration.identity() != selected.identity
+                || !matches!(&selected.shape, terminal_psi::StructuralTypeShape::Record { fields, .. }
+                    if fields.iter().all(|field| !field.relevance.is_erased()))
+                || current.claims.values().any(|claim| {
+                    claim.input == Some(subject.place)
+                        && terminal_semantics::structural_paths_may_overlap(
+                            &claim.path,
+                            &subject.path,
+                        )
+                })
+            {
+                return Err(self.refusal(
+                    subject.place,
+                    "decomposition needs its complete independent claim correspondence",
+                ));
+            }
+            terminal_semantics::nominal_cleanup::decomposition_authorized(
+                identities,
+                selection,
+                self.function.machine,
+                self.function
+                    .verified_contract
+                    .as_ref()
+                    .and_then(|contract| contract.declaration.as_ref()),
+            )
+            .map_err(|reason| self.refusal(subject.place, reason))?;
+            super::references::check_region_access(
+                self.function,
+                self.block,
+                self.node,
+                &current.live_references,
+                subject.place,
+                &subject.path,
+            )?;
+            let partition = terminal_psi::StructuralAffineDiscard {
+                place: subject.place,
+                path: subject.path.clone(),
+                structural_type: selected.id,
+            };
+            if !current.nominal_partitions.insert(partition) {
+                return Err(self.refusal(subject.place, "nominal wrapper was already decomposed"));
+            }
+            Ok(())
+        }
+
         pub(super) fn receiving_store(
             &self,
             current: &CurrentOwnership,
@@ -9798,6 +9940,15 @@ mod value_custody {
                 )
             {
                 return Ok(());
+            }
+            if current.nominal_partitions.iter().any(|partition| {
+                partition.place == destination.place() && partition.path.starts_with(&hole)
+            }) {
+                return Err(self.refusal_at(
+                    destination.place(),
+                    &hole,
+                    "store cannot reconstruct a decomposed nominal wrapper",
+                ));
             }
             let missing = current.partial_custody_paths.get(&destination.place());
             if !current.owned_places.contains_key(&destination.place()) && missing.is_none() {
@@ -9882,6 +10033,15 @@ mod value_custody {
             current: &CurrentOwnership,
             argument: &StructuralArgument,
         ) -> Result<(), OptimizationUnitValidationError> {
+            if current.nominal_partitions.iter().any(|partition| {
+                partition.place == argument.place && partition.path.starts_with(&argument.path)
+            }) {
+                return Err(self.refusal_at(
+                    argument.place,
+                    &argument.path,
+                    "decomposed wrapper is not a whole owned value",
+                ));
+            }
             let root =
                 structural_source_contract(self.function, argument.place).ok_or_else(|| {
                     self.refusal(argument.place, "owned operand has no exact source contract")
@@ -9927,6 +10087,17 @@ mod value_custody {
             place: PlaceId,
             path: &[StructuralPathSegment],
         ) -> Result<(), OptimizationUnitValidationError> {
+            if current
+                .nominal_partitions
+                .iter()
+                .any(|partition| partition.place == place && partition.path.starts_with(path))
+            {
+                return Err(self.refusal_at(
+                    place,
+                    path,
+                    "decomposed wrapper is unavailable whole",
+                ));
+            }
             let root = structural_source_contract(self.function, place).ok_or_else(|| {
                 self.refusal(place, "observed value has no exact source contract")
             })?;
@@ -10216,6 +10387,7 @@ mod value_custody {
                     copyable: false,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     requires: Vec::new(),
                     shape: if raw == 1 {
@@ -10244,7 +10416,6 @@ mod value_custody {
             let function = PsiOptimizationFunction {
                 machine: id(1),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 entry: id(1),
                 parameters: Vec::new(),
                 structural_parameters: vec![parameter.clone()],
@@ -10270,6 +10441,7 @@ mod value_custody {
 
         fn current(missing: Vec<Vec<StructuralPathSegment>>) -> CurrentOwnership {
             CurrentOwnership {
+                nominal_partitions: BTreeSet::new(),
                 claims: BTreeMap::new(),
                 owned_places: BTreeMap::from([(id(1), StructuralMultiplicity::Affine)]),
                 partial_custody_paths: if missing.is_empty() {
@@ -10318,6 +10490,7 @@ mod value_custody {
                 )
             };
             let empty = || CurrentOwnership {
+                nominal_partitions: BTreeSet::new(),
                 claims: BTreeMap::new(),
                 owned_places: BTreeMap::new(),
                 partial_custody_paths: BTreeMap::new(),
@@ -10801,6 +10974,7 @@ struct CurrentOwnership {
     claims: BTreeMap<ClaimId, LiveClaim>,
     owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
+    nominal_partitions: BTreeSet<terminal_psi::StructuralAffineDiscard>,
     live_references: Vec<LiveReference>,
 }
 
@@ -10833,6 +11007,7 @@ impl CurrentOwnership {
                     moved_paths: moved_paths.iter().cloned().collect(),
                 })
                 .collect(),
+            nominal_partitions: self.nominal_partitions.iter().cloned().collect(),
         }
     }
 }
@@ -10868,6 +11043,7 @@ fn reconstruct_entry_ownership(
         });
     }
     Ok(CurrentOwnership {
+        nominal_partitions: BTreeSet::new(),
         claims,
         owned_places: function
             .structural_parameters

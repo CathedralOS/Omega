@@ -547,6 +547,9 @@ impl Storage<'_> {
                 // Payload writes are tracked by descriptor backing analysis.
                 // The descriptor itself retains its extent and initialization.
             }
+            // A checked decomposition ends the wrapper role, not its bytes.
+            // Shared affine replay authenticates the complete component roster.
+            OperationKind::DecomposeStructuralValue { .. } => {}
             // A comparison observes both views and stores nothing.
             OperationKind::ByteSequenceEqual { .. } => self.compared_byte_views(operation)?,
             // A fence orders observations without replacing any stored value.

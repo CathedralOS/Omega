@@ -1,7 +1,7 @@
 /*
 We define the immutable SHA-256-identified relocation-free object plan
 (`RelocationFreeObjectPlan`), its five-pair 64-bit target admission rules
-(`validate_relocation_free_object`), and its version-5 `OMGTRO` wire codec
+(`validate_relocation_free_object`), and its version-6 `OMGTRO` wire codec
 (`encode_relocation_free_object`, `decode_relocation_free_object`). We verify
 dense object-local function symbol intervals, unique semantic entry roles,
 canonical sorted foreign-import symbol sequences, and in-bounds foreign and
@@ -32,9 +32,9 @@ use target::{NativeTarget, TargetWireIdentityError};
 use target_operations::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v5\0";
+const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v6\0";
 const CONTAINER_MAGIC: &[u8; 8] = b"OMGTRO\0\0";
-const CONTAINER_VERSION: u32 = 5;
+const CONTAINER_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectLocalSymbolId(u64);
@@ -871,8 +871,16 @@ fn decode_boundary_invocation_site(
 ) -> Result<semantic_vocabulary::InvocationSite, RelocationFreeObjectDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
+    if tag == 3 {
+        let edge = semantic_vocabulary::EdgeId::new(identity)
+            .ok_or(RelocationFreeObjectDecodeError::InvalidInvocationSite)?;
+        return Ok(semantic_vocabulary::InvocationSite::Cleanup {
+            edge,
+            action_ordinal: cursor.u32()?,
+        });
+    }
     semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
-        0 | 1 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
+        0 | 1 | 2 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
         _ => RelocationFreeObjectDecodeError::UnknownInvocationSiteTag(tag),
     })
 }
@@ -1398,8 +1406,8 @@ mod tests {
 
     #[test]
     fn image_address_roster_rejects_the_old_split_container_version() {
-        assert_eq!(CONTAINER_VERSION, 5);
-        for version in [3_u32, 4] {
+        assert_eq!(CONTAINER_VERSION, 6);
+        for version in [3_u32, 4, 5] {
             let mut container = encode_relocation_free_object(&plan()).unwrap().bytes;
             container[8..12].copy_from_slice(&version.to_le_bytes());
             assert_eq!(

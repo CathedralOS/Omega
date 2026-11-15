@@ -2890,9 +2890,13 @@ impl<'t> Program<'t> {
                 {
                     // The marker reads nothing and binds nothing, so it
                     // leaves no statement; only the cursor moves on.
-                    self.record_pattern(id, &slots, local)?;
+                    let decomposition = self.record_pattern(id, &slots, local)?;
                     position += 1;
-                    continue;
+                    if let Some(statement) = decomposition {
+                        statement
+                    } else {
+                        continue;
+                    }
                 }
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::AtomicObservedResult =>

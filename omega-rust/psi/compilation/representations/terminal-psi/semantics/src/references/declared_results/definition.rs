@@ -339,6 +339,7 @@ mod tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             requires: Vec::new(),
         };

@@ -615,6 +615,7 @@ impl Program<'_> {
         let row = self.records.push(RecordType {
             owns_linear_claim: false,
             copyable: carrier.is_shared_readable_view(),
+            cleanup: None,
             identity,
             shape: StorageShape::ByteSequence(carrier),
             requires: Vec::new(),
@@ -697,6 +698,7 @@ impl Program<'_> {
         let row = self.records.push(RecordType {
             owns_linear_claim: false,
             copyable: true,
+            cleanup: None,
             // This text labels the structural type; it names no declaration.
             // Exact literal contents and origin belong to its producer below.
             identity: "immutable literal bytes".into(),

@@ -769,7 +769,6 @@ fn emit_ordinary_function(
     Ok(FunctionFragment {
         machine: selected.machine,
         attachment: selected.attachment,
-        nominal_cleanup_subject: selected.nominal_cleanup_subject,
         provenance: selected.provenance.clone(),
         byte_count,
         bytes,
@@ -1256,8 +1255,7 @@ fn check_ordinary_fragments(
         )?;
         require(
             claimed.machine == source.machine
-                && (claimed.attachment == source.attachment
-                    && claimed.nominal_cleanup_subject == source.nominal_cleanup_subject)
+                && claimed.attachment == source.attachment
                 && claimed.provenance == source.provenance
                 && claimed.byte_count == resolved.byte_count
                 && u64::try_from(claimed.bytes.len()).ok() == Some(claimed.byte_count)
@@ -1859,7 +1857,6 @@ mod tests {
             SelectedFunction {
                 machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: Default::default(),
                 structural: None,
                 local_storage_slots: Vec::new(),

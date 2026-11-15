@@ -39,7 +39,7 @@ pub(super) enum RuntimeArguments<'a> {
         scalar: &'a [ValueId],
         structural: &'a [StructuralArgument],
     },
-    Cleanup(&'a terminal_psi::NominalAffineCleanup),
+    Cleanup(&'a terminal_psi::OwnedCleanupInvocation),
 }
 
 impl<'a> From<ModuleInvocationInputs<'a>> for RuntimeArguments<'a> {
@@ -112,12 +112,16 @@ impl<'a> RuntimeCall<'a> {
                 })
             }
             RuntimeArguments::Cleanup(cleanup) => {
-                if !formal.is_cleanup_receiver(cleanup) || callee.structural_parameters.len() != 1 {
+                if formal.access != terminal_psi::StructuralAccess::Owned
+                    || cleanup.subject.access != terminal_psi::StructuralAccess::Owned
+                    || formal.structural_type != cleanup.structural_type
+                    || callee.structural_parameters.len() != 1
+                {
                     return Err("handle storage call changes its nominal cleanup receiver".into());
                 }
                 Ok(RuntimeStorageActual {
-                    place: cleanup.place,
-                    path: &cleanup.path,
+                    place: cleanup.subject.place,
+                    path: &cleanup.subject.path,
                     access: formal.access,
                 })
             }
@@ -287,12 +291,12 @@ impl<'a> HandleCallGraph<'a> {
                 }
                 for (edge, actions) in block.terminator.cleanup_rosters() {
                     for (ordinal, action) in actions.iter().enumerate() {
-                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-                            terminal_semantics::nominal_cleanup::target(
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                            terminal_semantics::nominal_cleanup::owned_target(
                                 context.input.module().structural_types.iter(),
                                 context.input.module().machines.iter(),
                                 cleanup,
-                            ).map_err(|reason| format!("native handle cleanup call has no canonical receiver contract: {reason}"))?;
+                            ).map_err(|reason| format!("native handle cleanup call has no canonical owned contract: {reason}"))?;
                             graph.insert(
                                 RuntimeCall {
                                     caller: Caller {

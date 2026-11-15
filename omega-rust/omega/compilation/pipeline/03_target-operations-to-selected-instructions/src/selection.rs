@@ -937,7 +937,6 @@ pub(crate) mod field_bytes {
                 let function = LegalizedScalarFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     call_plan: call_plan.clone(),
                     parameters: Vec::new(),

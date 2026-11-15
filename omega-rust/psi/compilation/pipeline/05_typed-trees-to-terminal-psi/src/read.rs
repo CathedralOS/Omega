@@ -194,6 +194,9 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    /// Resolve selected consumers after the current signature is registered;
+    /// a record used by its own cleanup must not allocate that machine twice.
+    pending_cleanup: Vec<(StructuralTypeId, SymbolHandle)>,
     /// Resolved domain declarations actually used by this verification unit.
     /// Lowering publishes these meanings, not just the carrier of their values.
     pub declared_domains: Vec<(crate::body::DomainInstance, ValueType)>,
@@ -370,6 +373,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            pending_cleanup: Vec::new(),
             declared_domains: Vec::new(),
             inhabitation: Default::default(),
             record_sources: IdTable::default(),
@@ -636,6 +640,7 @@ mod tests {
         RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),

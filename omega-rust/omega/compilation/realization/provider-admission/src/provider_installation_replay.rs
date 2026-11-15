@@ -501,6 +501,7 @@ mod external_completion_tests {
             copyable: true,
             no_code_affine_cleanup: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             shape: StructuralTypeShape::Record {
                 fields: Vec::new(),
                 storage: terminal_psi::StructuralRecordStorage::Packed,

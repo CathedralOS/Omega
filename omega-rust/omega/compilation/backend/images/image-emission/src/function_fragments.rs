@@ -1028,7 +1028,6 @@ mod attribution {
             let source = AbstractFunction {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 entry: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -1098,7 +1097,6 @@ mod attribution {
             let fragment = FunctionFragment {
                 machine: source.machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: Default::default(),
                 byte_count: 8,
                 bytes: vec![0x90; 8],
@@ -3675,8 +3673,7 @@ mod production {
         let mut semantic_code_attribution = Vec::new();
         let mut requires_graph_storage_replay = false;
         for placed in &text.functions {
-            let (attachment, nominal_cleanup_subject, provenance) =
-                source::fragment_metadata(source, placed.machine)?;
+            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
             let (abstracted, targeted) = source::function(source, placed.machine)?;
             requires_graph_storage_replay |=
                 source::requires_graph_storage_replay(abstracted.operations())
@@ -3750,7 +3747,6 @@ mod production {
             functions.push(ObjectFunction {
                 machine: placed.machine,
                 attachment,
-                nominal_cleanup_subject,
                 scalar_abi: targeted.scalar_abi.clone(),
                 mixed_structural_scalar_abi: targeted.mixed_structural_scalar_abi.clone(),
                 structural_call_scalar_return: None,
@@ -6046,7 +6042,6 @@ mod source {
                 SelectedFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: None,
                     local_storage_slots: vec![],
@@ -10685,7 +10680,7 @@ mod source {
                     actions
                         .iter()
                         .filter(|action| {
-                            matches!(action, TerminalAffineCleanupAction::InvokeNominal(_))
+                            matches!(action, TerminalAffineCleanupAction::InvokeOwned(_))
                         })
                         .count()
                 })
@@ -10727,7 +10722,7 @@ mod source {
                     TerminalAffineCleanupAction::DiscardRoot(_)
                     | TerminalAffineCleanupAction::RetireHome(_)
                     | TerminalAffineCleanupAction::DiscardResidual(_) => continue,
-                    TerminalAffineCleanupAction::InvokeNominal(nominal) => nominal,
+                    TerminalAffineCleanupAction::InvokeOwned(nominal) => nominal,
                 };
                 let Ok(action_ordinal) = u32::try_from(ordinal) else {
                     return false;
@@ -10742,46 +10737,55 @@ mod source {
                     })
                     || *callee != nominal.cleanup_machine
                     || !nominal.requirement_obligations.is_empty()
+                    || !nominal.claim_transfers.is_empty()
+                    || nominal.subject.access != terminal_psi::StructuralAccess::Owned
                     || call_plan.result.is_some()
-                    || arguments.len() != usize::from(nominal.cleanup_receiver.is_some())
+                    || arguments.len() != 1
                     || arguments.len() != call_plan.parameters.len()
                     || arguments
                         .iter()
                         .zip(&call_plan.parameters)
                         .any(|(argument, placement)| {
                             let projection = if argument.path.is_empty() {
-                                layouts.value_shape(argument.root_structural_type)
-                                    .map(|shape| (argument.root_structural_type, shape, 0, Vec::new()))
+                                layouts
+                                    .value_shape(argument.root_structural_type)
+                                    .map(|shape| {
+                                        (argument.root_structural_type, shape, 0, Vec::new())
+                                    })
                             } else {
                                 layouts.runtime_projection(
                                     argument.root_structural_type,
                                     &argument.path,
                                 )
                             };
-                            argument.place != nominal.place
+                            argument.place != nominal.subject.place
                                 || argument.structural_type != nominal.structural_type
-                                || argument.path != nominal.path
-                                || projection.is_none_or(|(leaf_type, leaf_shape, byte_offset, elements)| {
-                                    let selectors = argument.path.iter().filter_map(|segment| segment.runtime_index().map(|(value, _)| value)).collect::<Vec<_>>();
-                                    leaf_type != nominal.structural_type
-                                        || elements.len() != argument.indices.len()
-                                        || selectors.len() != argument.indices.len()
-                                        || elements.iter().zip(&argument.indices).zip(selectors).any(|(((_, stride), actual), selector)| {
-                                            actual.stride != *stride || actual.operand.source_value() != selector
-                                        })
-                                        || argument.source_byte_offset != byte_offset
-                                        || argument.shape != calling_conventions::ValueShape::borrowed_reference(
-                                            leaf_shape.byte_size,
-                                            leaf_shape.alignment,
-                                        )
-                                })
-                                || !matches!(
-                                    argument.access,
-                                    terminal_psi::StructuralAccess::MutableBorrow
-                                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                                || argument.path != nominal.subject.path
+                                || projection.is_none_or(
+                                    |(leaf_type, leaf_shape, byte_offset, elements)| {
+                                        let selectors = argument
+                                            .path
+                                            .iter()
+                                            .filter_map(|segment| {
+                                                segment.runtime_index().map(|(value, _)| value)
+                                            })
+                                            .collect::<Vec<_>>();
+                                        leaf_type != nominal.structural_type
+                                            || elements.len() != argument.indices.len()
+                                            || selectors.len() != argument.indices.len()
+                                            || elements
+                                                .iter()
+                                                .zip(&argument.indices)
+                                                .zip(selectors)
+                                                .any(|(((_, stride), actual), selector)| {
+                                                    actual.stride != *stride
+                                                        || actual.operand.source_value() != selector
+                                                })
+                                            || argument.source_byte_offset != byte_offset
+                                            || argument.shape != leaf_shape
+                                    },
                                 )
-                                || argument.shape.class
-                                    != calling_conventions::ValueClass::BorrowedReference
+                                || argument.access != terminal_psi::StructuralAccess::Owned
                                 || argument.shape != placement.shape
                                 || argument.destination != *placement
                         })
@@ -10796,18 +10800,16 @@ mod source {
         mod cleanup_tests {
             use super::{retained, return_cleanup_calls_match};
             use crate::object::object_artifact::test_support::structural_declaration;
-            use calling_conventions::{
-                CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
-            };
+            use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
             use semantic_vocabulary::{
                 BlockId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType,
                 StructuralFieldId, StructuralTypeId,
             };
             use target_operations::{CallSiteOwner, TargetStructuralArgument, TargetUnitOperation};
             use terminal_psi::{
-                BindingRelevance, NominalAffineCleanup, StructuralAccess, StructuralAffineDiscard,
-                StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-                StructuralTypeShape, TerminalAffineCleanupAction,
+                BindingRelevance, OwnedCleanupInvocation, StructuralAccess,
+                StructuralAffineDiscard, StructuralFieldDeclaration, StructuralFieldType,
+                StructuralPathSegment, StructuralTypeShape, TerminalAffineCleanupAction,
             };
 
             #[test]
@@ -10832,7 +10834,7 @@ mod source {
                     },
                 )];
                 let machine = MachineId::new(9).unwrap();
-                let shape = ValueShape::borrowed_reference(4, 4);
+                let shape = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(&structural_types).unwrap().value_shape(structural_type).unwrap();
                 let plan = evaluate_call_plan(
                     CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
                     &CallSignature {
@@ -10846,15 +10848,16 @@ mod source {
                 for (ordinal, place) in
                     [(0, PlaceId::new(1).unwrap()), (3, PlaceId::new(2).unwrap())]
                 {
-                    actions.push(TerminalAffineCleanupAction::InvokeNominal(
-                        NominalAffineCleanup {
-                            retains_descendants: false,
-                            place,
-                            path: Vec::new(),
+                    actions.push(TerminalAffineCleanupAction::InvokeOwned(
+                        OwnedCleanupInvocation {
+                            subject: terminal_psi::StructuralArgument {
+                                place,
+                                path: Vec::new(),
+                                access: terminal_psi::StructuralAccess::Owned,
+                            },
                             structural_type,
                             cleanup_machine: machine,
-                            consumed_claims: Vec::new(),
-                            cleanup_receiver: Some(PlaceId::new(3).unwrap()),
+                            claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
                         },
                     ));
@@ -10873,7 +10876,7 @@ mod source {
                         call_plan: plan.clone(),
                         arguments: vec![TargetStructuralArgument {
                             place,
-                            access: StructuralAccess::MutableBorrow,
+                            access: StructuralAccess::Owned,
                             path: Vec::new(),
                             root_structural_type: structural_type,
                             structural_type,
@@ -10955,7 +10958,6 @@ mod source {
                 target_operations::TargetFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     structural_contract: None,
@@ -11675,7 +11677,6 @@ mod source {
                                 functions: vec![AbstractFunction {
                                     machine,
                                     attachment: None,
-                                    nominal_cleanup_subject: None,
                                     entry: BlockId::new(10).unwrap(),
                                     parameters: Vec::new(),
                                     structural_parameters: Vec::new(),
@@ -14267,7 +14268,6 @@ mod source {
                 SelectedFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: None,
                     local_storage_slots: vec![],
@@ -15580,6 +15580,7 @@ mod source {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                 }
             }
@@ -15665,7 +15666,6 @@ mod source {
                 let function = AbstractFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: block,
                     parameters: vec![],
                     structural_parameters: vec![parameter],
@@ -15689,7 +15689,6 @@ mod source {
                 let target = TargetFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     scalar_abi: None,
                     mixed_structural_scalar_abi: None,
                     structural_contract: None,
@@ -19514,7 +19513,7 @@ mod source {
                 actions.iter().any(|action| {
                     matches!(
                         action,
-                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                        terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
                     )
                 })
             }) {
@@ -19577,6 +19576,7 @@ mod source {
                     | AbstractOperation::StructuralCaseMembership { .. }
                     | AbstractOperation::StructuralLeafCopy { .. }
                     | AbstractOperation::MoveStructuralValue { .. }
+                    | AbstractOperation::DecomposeStructuralValue { .. }
                     | AbstractOperation::TransformContent { .. }
                     | abstract_operations::move_or_store_structural_field_pattern!()
             )
@@ -19724,8 +19724,7 @@ mod source {
                 .next()
                 .ok_or(Error::Mismatch("missing canonical function declaration"))?;
             if declarations.next().is_some()
-                || (declaration.attachment != abstracted.attachment
-                    || declaration.nominal_cleanup_subject != abstracted.nominal_cleanup_subject)
+                || declaration.attachment != abstracted.attachment
                 || declaration.entry_claim_declarations != abstracted.entry_claims
                 || declaration.published_service_ceiling != abstracted.published_service_ceiling
             {
@@ -19733,8 +19732,7 @@ mod source {
                     "function declaration metadata differs from canonical source",
                 ));
             }
-            if (abstracted.attachment != fragment.attachment
-                || abstracted.nominal_cleanup_subject != fragment.nominal_cleanup_subject)
+            if abstracted.attachment != fragment.attachment
                 || targeted.provenance != fragment.provenance
                 || (!abstracted.structural_parameters.is_empty() && structural.is_none())
                 || (structural.is_some_and(|contract| !contract.parameters.is_empty())
@@ -19907,6 +19905,11 @@ mod source {
                             });
                         }
                         retained
+                    }
+                    AbstractOperation::DecomposeStructuralValue { psi_operation, .. } => {
+                        // This event changes checked custody only. It has no
+                        // value transfer or machine instruction to reconstruct.
+                        targeted.provenance.operations.contains(psi_operation)
                     }
                     AbstractOperation::StructuralCaseMembership { .. }
                     | abstract_operations::establish_record_or_case_pattern!(..)
@@ -20500,18 +20503,13 @@ mod source {
     ) -> Result<
         (
             Option<semantic_vocabulary::StructuralTypeId>,
-            Option<semantic_vocabulary::StructuralTypeId>,
             &target_operations::TerminalPsiProvenance,
         ),
         Error,
     > {
         let plan = fragments(source);
         if let Some(function) = plan.function(machine) {
-            return Ok((
-                function.attachment,
-                function.nominal_cleanup_subject,
-                &function.provenance,
-            ));
+            return Ok((function.attachment, &function.provenance));
         }
         Err(Error::Mismatch("missing placed fragment"))
     }
@@ -21117,7 +21115,6 @@ mod source {
                 SelectedFunction {
                     machine: MachineId::new(machine).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: None,
                     local_storage_slots: Vec::new(),
@@ -21622,7 +21619,6 @@ mod structural {
                 let mut function = AbstractFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: BlockId::new(1).unwrap(),
                     parameters: vec![],
                     structural_parameters: vec![],
@@ -21640,7 +21636,6 @@ mod structural {
                 let mut selected = SelectedFunction {
                     machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: target_operations::TerminalPsiProvenance {
                         operations: vec![],
                         edges: vec![],
@@ -22850,7 +22845,6 @@ mod structural {
                 let function = AbstractFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: BlockId::new(1).unwrap(),
                     parameters: vec![],
                     structural_parameters: vec![],
@@ -22900,7 +22894,6 @@ mod structural {
                 let selected = SelectedFunction {
                     machine: function.machine,
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: Some(legalized_operations::LegalizedStructuralContract {
                         result: None,
@@ -23146,7 +23139,7 @@ mod structural {
                     )
                 })
                 .collect::<Vec<_>>();
-                let shape = ValueShape::borrowed_reference(4, 4);
+                let shape = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(&structural_types).unwrap().value_shape(structural_type).unwrap();
                 let placement = evaluate_call_plan(
                     CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
                     &CallSignature {
@@ -25693,8 +25686,7 @@ pub(crate) mod validation {
             let fragment = fragments
                 .function(placed.machine)
                 .ok_or(Error::Mismatch("missing current fragment"))?;
-            let (attachment, nominal_cleanup_subject, provenance) =
-                source::fragment_metadata(source, placed.machine)?;
+            let (attachment, provenance) = source::fragment_metadata(source, placed.machine)?;
             let offset = host(placed.section_offset)?;
             let length = host(placed.byte_count)?;
             let entry = placed.machine == text.semantic_entry;
@@ -25713,7 +25705,6 @@ pub(crate) mod validation {
             };
             if function.machine != placed.machine
                 || function.attachment != attachment
-                || function.nominal_cleanup_subject != nominal_cleanup_subject
                 || function.provenance != *provenance
                 || function.scalar_abi != targeted.scalar_abi
                 || function.mixed_structural_scalar_abi != targeted.mixed_structural_scalar_abi

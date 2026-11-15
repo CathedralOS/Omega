@@ -882,7 +882,7 @@ impl<'a> Calls<'a> {
                 }
                 for (_, actions) in block.terminator.cleanup_rosters() {
                     for action in actions {
-                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
                             calls.push(Call {
                                 site: None,
                                 callees: vec![cleanup.cleanup_machine],

@@ -2380,6 +2380,9 @@ pub(crate) mod scalar_graph {
                             node, optimized, plan, unit, targeted,
                         )?
                     }
+                    AbstractOperation::DecomposeStructuralValue { .. } => {
+                        return Err(Error::custody());
+                    }
                     AbstractOperation::StructuralLeafCopy { .. }
                     | AbstractOperation::MoveStructuralValue { .. }
                     | AbstractOperation::TransformContent { .. } => {
@@ -3437,7 +3440,6 @@ pub(crate) mod scalar_graph {
         Ok(LegalizedScalarFunction {
             machine: target.machine,
             attachment: target.attachment,
-            nominal_cleanup_subject: target.nominal_cleanup_subject,
             provenance: target.provenance.clone(),
             call_plan,
             parameters,

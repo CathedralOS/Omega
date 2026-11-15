@@ -1237,7 +1237,6 @@ pub(crate) mod edge_values {
             SelectedFunction {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: target_operations::TerminalPsiProvenance {
                     operations: vec![operation],
                     edges: vec![returned],

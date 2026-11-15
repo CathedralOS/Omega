@@ -113,6 +113,9 @@ mod activation_storage {
                 source: source.clone(),
                 claim: *claim,
             },
+            A::DecomposeStructuralValue { subject, .. } => T::DecomposeStructuralValue {
+                subject: subject.clone(),
+            },
             A::MoveStructuralValue { source, .. } => T::MoveStructuralValue {
                 source: source.clone(),
             },
@@ -563,7 +566,7 @@ mod activation_storage {
             .filter(|f| f.block_nodes().any(|n| {
                 may(&n.operation, &machines) || n.operation.cleanup_rosters()
                     .flat_map(|(_, actions)| actions).any(|action| {
-                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        matches!(action, terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup)
                             if !known.contains(&cleanup.cleanup_machine) || machines.contains(&cleanup.cleanup_machine))
                     })
             }))
@@ -718,7 +721,7 @@ pub(crate) mod affine_authority {
                         partition
                     }
                     _ if matches!(group, [TerminalAffineCleanupAction::DiscardRoot(_)])
-                        || matches!(group, [TerminalAffineCleanupAction::InvokeNominal(cleanup)] if cleanup.path.is_empty()) =>
+                        || matches!(group, [TerminalAffineCleanupAction::InvokeOwned(cleanup)] if cleanup.subject.path.is_empty()) =>
                     {
                         group
                     }
@@ -728,12 +731,11 @@ pub(crate) mod affine_authority {
                     if matches!(action, TerminalAffineCleanupAction::RetireHome(_)) {
                         return None;
                     }
-                    if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
-                        for consumed in &cleanup.consumed_claims {
-                            let position = frontier.claims.iter().position(|claim| {
-                                claim.claim == *consumed && claim.input == Some(place)
-                            })?;
-                            frontier.claims.remove(position);
+                    if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                        if !cleanup.claim_transfers.is_empty()
+                            || !cleanup.requirement_obligations.is_empty()
+                        {
+                            return None;
                         }
                     }
                 }
@@ -1022,6 +1024,7 @@ pub(crate) mod affine_authority {
                         copyable: false,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         requires: Vec::new(),
                         shape: if raw == 1 {
@@ -1044,7 +1047,6 @@ pub(crate) mod affine_authority {
                 let function = PsiOptimizationFunction {
                     machine: id(1),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: id(1),
                     parameters: Vec::new(),
                     structural_parameters: vec![StructuralParameterDeclaration {
@@ -1077,6 +1079,7 @@ pub(crate) mod affine_authority {
                 let first = vec![Segment::FixedIndex(0), Segment::FixedIndex(0)];
                 let second = vec![Segment::FixedIndex(0), Segment::FixedIndex(1)];
                 let entry = OwnershipFrontierSnapshot {
+                    nominal_partitions: Vec::new(),
                     claims: Vec::new(),
                     owned_places: vec![OwnershipFrontierOwnedPlace {
                         place: id(1),
@@ -2868,7 +2871,10 @@ pub(crate) mod derived_metadata {
                 O::PrimitiveLocalStore { destination, .. } => require(*destination, known)?,
                 O::EstablishReference { source, .. }
                 | O::EstablishAccessReference { source, .. } => require(source.place, known)?,
-                O::MoveStructuralValue { source, .. } => require(source.place, known)?,
+                O::DecomposeStructuralValue {
+                    subject: source, ..
+                }
+                | O::MoveStructuralValue { source, .. } => require(source.place, known)?,
                 O::TransformContent {
                     source, parents, ..
                 } => {
@@ -9861,17 +9867,6 @@ pub(crate) mod function_structure {
         ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
         reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
     ) -> Result<(), OptimizationUnitValidationError> {
-        if let Some(subject) = function.nominal_cleanup_subject
-            && (function.attachment != Some(subject)
-                || !structural_types.contains_key(&subject)
-                || functions
-                    .values()
-                    .filter(|candidate| candidate.nominal_cleanup_subject == Some(subject))
-                    .count()
-                    != 1)
-        {
-            return Err(catalog_mismatch(function));
-        }
         if !valid_service_ceiling(&function.published_service_ceiling, services) {
             return Err(
                 OptimizationUnitValidationError::InvalidFunctionServiceCeiling(function.machine),
@@ -12355,6 +12350,7 @@ pub(crate) mod operation_contracts {
                 | O::StructuralByteViewFieldStore { .. }
                 | O::StructuralLeafCopy { .. }
                 | O::MoveStructuralValue { .. }
+                | O::DecomposeStructuralValue { .. }
                 | O::TransformContent { .. }
                 | O::PortWrite { .. }
                 | O::StructuralCase { .. }
@@ -16232,7 +16228,7 @@ pub(crate) mod services {
                         .cleanup_rosters()
                         .flat_map(|(_, actions)| actions)
                         .filter_map(|action| match action {
-                            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
                                 Some(cleanup.cleanup_machine)
                             }
                             _ => None,
@@ -17728,6 +17724,7 @@ pub(crate) mod structural_catalog {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: type_id(raw),
                     identity: terminal_psi::TerminalIdentityIndex(10 + raw as u32),

@@ -815,6 +815,7 @@ mod tests {
         let declaration = RecordType {
             owns_linear_claim: false,
             copyable: false,
+            cleanup: None,
             identity: "source-owned-storage".into(),
             shape: crate::StorageShape::Record(vec![
                 RecordField {

@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 103), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 104), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload. Native-binding receipts and hosted imports remain distinct from finite
@@ -54,9 +54,9 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-pub(super) const VERSION: u32 = 103;
+pub(super) const VERSION: u32 = 104;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v61\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v62\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {
@@ -619,10 +619,6 @@ pub(super) fn encode_function(
 ) -> Result<(), CodecError> {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     encode_option_u64(bytes, function.attachment.map(|value| value.get()));
-    encode_option_u64(
-        bytes,
-        function.nominal_cleanup_subject.map(|value| value.get()),
-    );
     encode_ids(
         bytes,
         function
@@ -657,12 +653,6 @@ pub(super) fn decode_function(
             StructuralTypeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
         ),
     };
-    let nominal_cleanup_subject = match decode_option_u64(cursor)? {
-        None => None,
-        Some(raw) => Some(
-            StructuralTypeId::new(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))?,
-        ),
-    };
     let operations = decode_ids(cursor, OperationId::new)?;
     let edges = decode_ids(cursor, EdgeId::new)?;
     let entry_block = SelectedBlockId(cursor.u32()?);
@@ -671,7 +661,6 @@ pub(super) fn decode_function(
     let mut function = SelectedFunction {
         machine,
         attachment,
-        nominal_cleanup_subject,
         provenance: target_operations::TerminalPsiProvenance { operations, edges },
         entry_block,
         virtual_registers,

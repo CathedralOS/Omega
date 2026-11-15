@@ -84,7 +84,6 @@ fn constant_artifact(through_boundary: bool) -> Arc<CanonicalTerminalArtifact> {
     module.machines.push(TerminalMachine {
         id: entry,
         attachment: None,
-        nominal_cleanup_subject: None,
         structural_places: Vec::new(),
         call_formations: Vec::new(),
         block_entry_claims: Vec::new(),

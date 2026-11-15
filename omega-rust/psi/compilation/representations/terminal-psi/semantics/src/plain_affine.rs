@@ -100,8 +100,16 @@ pub struct ReferenceEnd {
 /// ancestor stays unavailable whole while disjoint established siblings remain
 /// readable. Cached child counts make each mutation proportional to path depth,
 /// rather than scanning every earlier move on every later observation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Value,
+    Components,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Region {
+    mode: Mode,
+    partition_count: usize,
     base: bool,
     whole: bool,
     unavailable_children: usize,
@@ -111,6 +119,8 @@ struct Region {
 impl Region {
     fn new(available: bool) -> Self {
         Self {
+            mode: Mode::Value,
+            partition_count: 0,
             base: available,
             whole: available,
             unavailable_children: 0,
@@ -179,15 +189,85 @@ impl Region {
         };
         let child = &mut self.children[position].1;
         let was_unavailable = !child.whole;
+        let old_partitions = child.partition_count;
         child.set(tail, available);
+        self.partition_count = self.partition_count + child.partition_count - old_partitions;
         let now_unavailable = !child.whole;
         self.unavailable_children =
             self.unavailable_children + usize::from(now_unavailable) - usize::from(was_unavailable);
-        if child.base == self.base && child.children.is_empty() {
+        if child.mode == Mode::Value && child.base == self.base && child.children.is_empty() {
             self.unavailable_children -= usize::from(!child.whole);
             self.children.remove(position);
         }
-        self.whole = self.base && self.unavailable_children == 0;
+        self.whole = self.mode == Mode::Value && self.base && self.unavailable_children == 0;
+    }
+
+    fn partition(&mut self, path: &[Segment]) {
+        let Some((head, tail)) = path.split_first() else {
+            if self.mode != Mode::Components {
+                self.partition_count += 1;
+            }
+            self.mode = Mode::Components;
+            self.whole = false;
+            return;
+        };
+        let position = match self
+            .children
+            .binary_search_by_key(head, |(segment, _)| *segment)
+        {
+            Ok(position) => position,
+            Err(position) => {
+                self.children
+                    .insert(position, (*head, Self::new(self.base)));
+                self.unavailable_children += usize::from(!self.base);
+                position
+            }
+        };
+        let child = &mut self.children[position].1;
+        let before = !child.whole;
+        let old_partitions = child.partition_count;
+        child.partition(tail);
+        self.partition_count = self.partition_count + child.partition_count - old_partitions;
+        self.unavailable_children =
+            self.unavailable_children + usize::from(!child.whole) - usize::from(before);
+        self.whole = self.mode == Mode::Value && self.base && self.unavailable_children == 0;
+    }
+
+    fn partitions(&self, prefix: &mut Vec<Segment>, output: &mut Vec<Vec<Segment>>) {
+        if self.mode == Mode::Components {
+            output.push(prefix.clone());
+        }
+        for (segment, child) in &self.children {
+            if child.partition_count == 0 {
+                continue;
+            }
+            prefix.push(*segment);
+            child.partitions(prefix, output);
+            prefix.pop();
+        }
+    }
+
+    fn contains_partition(&self, path: &[Segment]) -> bool {
+        let Some((head, tail)) = path.split_first() else {
+            return self.partition_count != 0;
+        };
+        self.children
+            .binary_search_by_key(head, |(segment, _)| *segment)
+            .is_ok_and(|position| self.children[position].1.contains_partition(tail))
+    }
+
+    fn same_partitions(&self, other: &Region) -> bool {
+        if self.partition_count != other.partition_count {
+            return false;
+        }
+        if self.partition_count == 0 {
+            return true;
+        }
+        let mut mine = Vec::new();
+        let mut theirs = Vec::new();
+        self.partitions(&mut Vec::new(), &mut mine);
+        other.partitions(&mut Vec::new(), &mut theirs);
+        mine == theirs
     }
 
     /// What both regions hold available: every part either has vacated is
@@ -269,7 +349,14 @@ impl State {
             .iter()
             .zip(&other.regions)
             .map(|pair| match pair {
-                (Some(mine), Some(theirs)) => Ok(Some(mine.intersection(theirs))),
+                (Some(mine), Some(theirs)) => {
+                    if !mine.same_partitions(theirs) {
+                        return Err(Error::unsupported(
+                            "arrivals disagree on the nominal component partition",
+                        ));
+                    }
+                    Ok(Some(mine.intersection(theirs)))
+                }
                 _ => Ok(None),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -307,6 +394,7 @@ struct Residence {
 }
 
 struct Analysis<'a> {
+    module: Option<&'a terminal_psi::TerminalModule>,
     types: &'a [StructuralTypeDeclaration],
     roots: Vec<Option<Root>>,
     borrowed_headers: Vec<PlaceId>,
@@ -569,8 +657,8 @@ fn live_entries(
 
 /// Plans only no-code affine storage, including each receiving region's store
 /// disposition. The producer installs these dispositions before verification.
-/// Nominal hooks, conserved claims and borrowed extraction require their own
-/// contracts, rather than an empty plan.
+/// Selected owned consumers require the module-aware entry point. Conserved
+/// claims and borrowed extraction retain their independent contracts.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
     analyze(machine, types, false, None, None)
 }
@@ -670,7 +758,29 @@ fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error>
                 .ok()
                 .map(|position| plan.cleanup[position].1.as_slice())
                 .unwrap_or(&[]);
-            if !actual.eq(expected.iter()) {
+            if !actual
+                .zip(expected.iter())
+                .all(|(actual, expected)| match (actual, expected) {
+                    (
+                        TerminalAffineCleanupAction::InvokeOwned(actual),
+                        TerminalAffineCleanupAction::InvokeOwned(expected),
+                    ) => {
+                        // The ordinary call validator must authenticate the complete
+                        // proof count, site and correspondence. These IDs do not
+                        // grant disposition authority to the structural schedule.
+                        actual.subject == expected.subject
+                            && actual.structural_type == expected.structural_type
+                            && actual.cleanup_machine == expected.cleanup_machine
+                            && actual.claim_transfers == expected.claim_transfers
+                    }
+                    _ => actual == expected,
+                })
+                || actions
+                    .iter()
+                    .filter(|action| plan.affine_roots.contains(action.place()))
+                    .count()
+                    != expected.len()
+            {
                 return Err(Error::malformed(
                     "normal edge affine disposal differs from its canonical schedule",
                 ));
@@ -703,6 +813,75 @@ pub(crate) fn required_result_multiplicity(
         &operation.kind,
     ))
     .and_then(|row| row.schema().required_result_multiplicity())
+}
+
+fn disposition_supported(
+    types: &[StructuralTypeDeclaration],
+    module: Option<&terminal_psi::TerminalModule>,
+    ty: StructuralTypeId,
+    cache: &mut [Option<bool>],
+    visiting: &mut [bool],
+) -> Result<bool, Error> {
+    let raw = index(ty.get())?;
+    if let Some(answer) = cache.get(raw).copied().flatten() {
+        return Ok(answer);
+    }
+    if *visiting
+        .get(raw)
+        .ok_or(Error::malformed("disposition type is outside the catalog"))?
+    {
+        return Ok(false);
+    }
+    visiting[raw] = true;
+    let declaration = &types[raw];
+    let supported = if declaration.owns_linear_claim
+        || declaration.copyable && declaration.nominal_cleanup.is_some()
+    {
+        false
+    } else if let Some(selection) = &declaration.nominal_cleanup {
+        let module = module.ok_or(Error::unsupported(
+            "nominal disposition requires its exact module",
+        ))?;
+        let cleanup = terminal_psi::OwnedCleanupInvocation {
+            subject: StructuralArgument::whole(
+                PlaceId::new(1).ok_or(Error::malformed("zero disposition subject"))?,
+                StructuralAccess::Owned,
+            ),
+            structural_type: ty,
+            cleanup_machine: selection.cleanup_machine,
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+        };
+        crate::nominal_cleanup::owned_target(types.iter(), module.machines.iter(), &cleanup)
+            .map_err(Error::unsupported)?;
+        true
+    } else if declaration.no_code_affine_cleanup && declaration.descriptor_cleanup {
+        true
+    } else if let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape {
+        let mut complete = true;
+        let mut nontrivial_child = false;
+        for field in fields {
+            if field.relevance.is_erased() {
+                complete = false;
+                break;
+            }
+            if let Some(child) = field.field_type.as_structural() {
+                let child_decl = types
+                    .get(index(child.get())?)
+                    .ok_or(Error::malformed("disposition child is outside the catalog"))?;
+                nontrivial_child |= child_decl.nominal_cleanup.is_some()
+                    || !child_decl.no_code_affine_cleanup
+                    || !child_decl.descriptor_cleanup;
+                complete &= disposition_supported(types, module, child, cache, visiting)?;
+            }
+        }
+        complete && nontrivial_child
+    } else {
+        false
+    };
+    visiting[raw] = false;
+    cache[raw] = Some(supported);
+    Ok(supported)
 }
 
 fn analyze(
@@ -892,6 +1071,8 @@ fn analyze(
             terminal_psi::Terminator::EliminateEmpty { .. }
         )
     });
+    let mut disposition_cache = vec![None; types.len()];
+    let mut disposition_visiting = vec![false; types.len()];
     let mut roots = Vec::with_capacity(machine.structural_places.len());
     let mut copyable_owned_roots = IdSet::new();
     for place in &machine.structural_places {
@@ -986,6 +1167,7 @@ fn analyze(
         // Fresh permission ownership also owes a disposition; copyability
         // only permits later copies, not forgetting this producing root.
         let tracked = !declaration.copyable
+            || declaration.nominal_cleanup.is_some()
             || terminal_psi::structural_type_contains_reference_by(
                 |id| terminal_psi::find_structural_type(types, id),
                 ty,
@@ -995,9 +1177,13 @@ fn analyze(
             });
 
         if tracked
-            && (declaration.owns_linear_claim
-                || !declaration.no_code_affine_cleanup
-                || !declaration.descriptor_cleanup)
+            && !disposition_supported(
+                types,
+                module,
+                ty,
+                &mut disposition_cache,
+                &mut disposition_visiting,
+            )?
         {
             return Err(Error::unsupported(
                 "affine storage with nontrivial disposition",
@@ -1117,6 +1303,7 @@ fn analyze(
         .map(|parameter| parameter.place)
         .collect();
     let mut analysis = Analysis {
+        module,
         types,
         roots,
         borrowed_headers,
@@ -1664,7 +1851,11 @@ impl Analysis<'_> {
                 supplied
                     .iter()
                     .filter(|action| {
-                        matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+                        matches!(
+                            action,
+                            TerminalAffineCleanupAction::DiscardResidual(_)
+                                | TerminalAffineCleanupAction::InvokeOwned(_)
+                        )
                     })
                     .count()
             } else {
@@ -1834,7 +2025,11 @@ impl Analysis<'_> {
                         residual_budget -= disposal
                             .iter()
                             .filter(|action| {
-                                matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+                                matches!(
+                                    action,
+                                    TerminalAffineCleanupAction::DiscardResidual(_)
+                                        | TerminalAffineCleanupAction::InvokeOwned(_)
+                                )
                             })
                             .count();
                         actions.extend(disposal);
@@ -1977,6 +2172,60 @@ impl Analysis<'_> {
     ) -> Result<(), Error> {
         use terminal_psi::OperationKind as Op;
         let site = Site::Operation(operation.id);
+        if let Op::DecomposeStructuralValue { subject } = &operation.kind {
+            if operation.result != terminal_psi::OperationResult::Unit {
+                return Err(Error::malformed(
+                    "nominal decomposition has a non-Unit result",
+                ));
+            }
+            let module = self.module.ok_or(Error::unsupported(
+                "nominal decomposition requires its exact module",
+            ))?;
+            let current = self
+                .body
+                .ok_or(Error::malformed("decomposition has no machine"))?
+                .id;
+            crate::nominal_cleanup::decomposition(module, current, subject)
+                .map_err(Error::unsupported)?;
+            let root = self.root(subject.place)?.ok_or(Error::unsupported(
+                "decomposition requires tracked owned storage",
+            ))?;
+            if !root.owned || !root.affine || !root.whole_restoration {
+                return Err(Error::unsupported(
+                    "nominal decomposition requires claim-free unqualified owned custody",
+                ));
+            }
+            let path = self.canonical(subject.place, &subject.path)?;
+            // Independent claims and qualifications are not a wrapper's disposition.
+            // The bounded record operation serves no implicit claim settlement.
+            let region = state.regions[index(subject.place.get())?]
+                .as_mut()
+                .ok_or(Error::malformed("decomposition source home has ended"))?;
+            if !region.available(&path) {
+                return Err(Error::unsupported(
+                    "decomposition source is not a complete live value",
+                ));
+            }
+            // A projected wrapper cannot bypass an intact enclosing wrapper.
+            for depth in 0..path.len() {
+                if crate::canonical_structural_path_tip(
+                    self.types.iter(),
+                    root.structural_type,
+                    &path[..depth],
+                )
+                .is_some_and(|declaration| declaration.nominal_cleanup.is_some())
+                    && !region
+                        .selected(&path[..depth])
+                        .is_some_and(|region| region.mode == Mode::Components)
+                {
+                    return Err(Error::unsupported(
+                        "decomposition crosses an intact nominal wrapper",
+                    ));
+                }
+            }
+            region.partition(&path);
+            return Ok(());
+        }
         for argument in terminal_psi::call_structural_arguments(&operation.kind) {
             self.restore_reference_leaves(state, argument.place, &argument.path, site)?;
         }
@@ -2240,6 +2489,11 @@ impl Analysis<'_> {
                     if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, path, site)?;
                     } else if let Some(region) = &mut state.regions[index(destination.get())?] {
+                        if region.contains_partition(path) {
+                            return Err(Error::unsupported(
+                                "store cannot reconstruct a decomposed nominal wrapper",
+                            ));
+                        }
                         if !exact && !region.available(path) {
                             return Err(Error::unsupported(
                                 "runtime-indexed replacement in an incomplete affine array",
@@ -2310,7 +2564,7 @@ impl Analysis<'_> {
         };
         // A partially rebuilt missing ancestor needs its remaining missing
         // complement modeled explicitly; it cannot be collapsed to a hole.
-        if !selected.base && !selected.children.is_empty() {
+        if selected.mode == Mode::Components || !selected.base && !selected.children.is_empty() {
             return Ok(false);
         }
         let root = self
@@ -2338,6 +2592,122 @@ impl Analysis<'_> {
         ))
     }
 
+    fn dispose_components(
+        &self,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        region: &Region,
+        path: Vec<StructuralPathSegment>,
+        max_residuals: usize,
+        actions: &mut Vec<TerminalAffineCleanupAction>,
+    ) -> Result<(), Error> {
+        if !region.base && region.children.is_empty() {
+            return Ok(());
+        }
+        if region.has_rebuilt_hole() {
+            return Err(Error::unsupported(
+                "component cleanup of a partially rebuilt home",
+            ));
+        }
+        let declaration = self
+            .types
+            .get(index(structural_type.get())?)
+            .ok_or(Error::malformed(
+                "component disposition type is outside the catalog",
+            ))?;
+        if region.whole {
+            if let Some(selection) = &declaration.nominal_cleanup {
+                let module = self.module.ok_or(Error::unsupported(
+                    "owned cleanup requires its exact module",
+                ))?;
+                let cleanup = terminal_psi::OwnedCleanupInvocation {
+                    subject: StructuralArgument {
+                        place,
+                        path,
+                        access: StructuralAccess::Owned,
+                    },
+                    structural_type,
+                    cleanup_machine: selection.cleanup_machine,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                };
+                crate::nominal_cleanup::owned_target(
+                    self.types.iter(),
+                    module.machines.iter(),
+                    &cleanup,
+                )
+                .map_err(Error::unsupported)?;
+                if actions.len() >= max_residuals {
+                    return Err(Error::malformed(
+                        "component cleanup exceeds its supplied action bound",
+                    ));
+                }
+                actions.push(TerminalAffineCleanupAction::InvokeOwned(cleanup));
+                return Ok(());
+            }
+            if declaration.no_code_affine_cleanup && declaration.descriptor_cleanup {
+                if actions.len() >= max_residuals {
+                    return Err(Error::malformed(
+                        "component cleanup exceeds its supplied action bound",
+                    ));
+                }
+                actions.push(if path.is_empty() {
+                    TerminalAffineCleanupAction::DiscardRoot(place)
+                } else {
+                    TerminalAffineCleanupAction::DiscardResidual(
+                        terminal_psi::StructuralAffineDiscard {
+                            place,
+                            path,
+                            structural_type,
+                        },
+                    )
+                });
+                return Ok(());
+            }
+        }
+        if declaration.nominal_cleanup.is_some() && region.mode != Mode::Components {
+            return Err(Error::unsupported(
+                "partial nominal cleanup requires its authorized component partition",
+            ));
+        }
+        let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+            return Err(Error::unsupported(
+                "non-record component disposition is not served",
+            ));
+        };
+        // Exactly the declared relevant components, in the same reverse order
+        // as the ordinary residual family. The event never invents a new home.
+        for field in fields.iter().rev() {
+            if field.relevance.is_erased() {
+                return Err(Error::unsupported(
+                    "erased component disposition is not served",
+                ));
+            }
+            if let Some(child) = field.field_type.as_structural() {
+                let mut child_path = path.clone();
+                child_path.push(StructuralPathSegment::Field(field.identity));
+                let child_region = region.view(&[Segment::Field(field.id)]);
+                self.dispose_components(
+                    place,
+                    child,
+                    &child_region,
+                    child_path,
+                    max_residuals,
+                    actions,
+                )?;
+            } else if field
+                .field_type
+                .byte_sequence_carrier()
+                .is_some_and(|carrier| carrier.is_borrowed())
+            {
+                return Err(Error::unsupported(
+                    "inline descriptor component disposition requires its exact carrier type",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn dispose(
         &self,
         place: PlaceId,
@@ -2348,6 +2718,32 @@ impl Analysis<'_> {
         let info = self
             .root(place)?
             .ok_or(Error::malformed("missing affine owner"))?;
+        let declaration = &self.types[index(info.structural_type.get())?];
+        if region.contains_partition(&[])
+            || declaration.nominal_cleanup.is_some()
+            || !declaration.no_code_affine_cleanup
+            || !declaration.descriptor_cleanup
+        {
+            let mut actions = Vec::new();
+            if !info.whole_restoration {
+                return Err(Error::unsupported(
+                    "owned nominal cleanup requires an explicit independent claim correspondence",
+                ));
+            }
+            self.dispose_components(
+                place,
+                info.structural_type,
+                region,
+                Vec::new(),
+                max_residuals,
+                &mut actions,
+            )?;
+            if !matches!(actions.as_slice(), [TerminalAffineCleanupAction::InvokeOwned(cleanup)] if cleanup.subject.path.is_empty())
+            {
+                actions.push(TerminalAffineCleanupAction::RetireHome(place));
+            }
+            return Ok(actions);
+        }
         // Retire the unrestricted home after its last use. Each surviving
         // reference copy retains its own link to the checked backing.
         if info.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted {
@@ -2435,6 +2831,48 @@ impl Analysis<'_> {
                 .collect::<Option<BTreeSet<_>>>()
                 .ok_or(Error::malformed("moved region has no typed storage path"))
         };
+        let declaration = &self.types[index(info.structural_type.get())?];
+        if held.contains_partition(&[])
+            || declaration.nominal_cleanup.is_some()
+            || !declaration.no_code_affine_cleanup
+            || !declaration.descriptor_cleanup
+        {
+            if !held.same_partitions(joined) {
+                return Err(Error::unsupported(
+                    "affine reconvergence changes a nominal component partition",
+                ));
+            }
+            let mut scopes = Vec::new();
+            joined.vacancies(&mut Vec::new(), &mut scopes);
+            let mut actions = Vec::new();
+            for scope in scopes {
+                let selected = crate::canonical_structural_path_tip(
+                    self.types.iter(),
+                    info.structural_type,
+                    &scope,
+                )
+                .ok_or(Error::malformed(
+                    "component reconvergence has no selected type",
+                ))?;
+                let path = crate::canonical_structural_storage_path(
+                    self.types.iter(),
+                    info.structural_type,
+                    &scope,
+                )
+                .ok_or(Error::malformed(
+                    "component reconvergence has no exact storage path",
+                ))?;
+                self.dispose_components(
+                    place,
+                    selected.id,
+                    &held.view(&scope),
+                    path,
+                    max_residuals,
+                    &mut actions,
+                )?;
+            }
+            return Ok(actions);
+        }
         let residuals = crate::partial_affine_residuals_in_regions(
             self.types,
             info.structural_type,
@@ -2667,6 +3105,35 @@ impl Analysis<'_> {
         .map_err(|error| error.at(site))?;
         self.read(state, argument.place, &path, site)?;
         if consume && affine && argument.access == StructuralAccess::Owned {
+            if state.regions[index(argument.place.get())?]
+                .as_ref()
+                .is_some_and(|region| region.contains_partition(&path))
+            {
+                return Err(Error::unsupported(
+                    "a decomposed nominal wrapper is unavailable whole",
+                ));
+            }
+            let region = state.regions[index(argument.place.get())?].as_ref();
+            for depth in 0..path.len() {
+                if crate::canonical_structural_path_tip(
+                    self.types.iter(),
+                    self.root(argument.place)?
+                        .ok_or(Error::malformed("owned projection has no root"))?
+                        .structural_type,
+                    &path[..depth],
+                )
+                .is_some_and(|declaration| declaration.nominal_cleanup.is_some())
+                    && region.is_none_or(|region| {
+                        !region
+                            .selected(&path[..depth])
+                            .is_some_and(|selected| selected.mode == Mode::Components)
+                    })
+                {
+                    return Err(Error::unsupported(
+                        "projected owned transfer crosses an intact nominal wrapper",
+                    ));
+                }
+            }
             // ownership.md, "Borrowed-storage invariant windows": "An owned
             // move out of a place reached through `&mut` may temporarily
             // leave that place unestablished ... The move transfers the
@@ -2713,6 +3180,11 @@ impl Analysis<'_> {
             .get_mut(index(place.get())?)
             .ok_or(Error::malformed("vacated contents are outside the machine"))?;
         if let Some(region) = region {
+            if region.contains_partition(path) {
+                return Err(Error::unsupported(
+                    "a storage extraction cannot vacate an ended nominal wrapper",
+                ));
+            }
             region.set(path, false);
         }
         Ok(())
@@ -2809,7 +3281,6 @@ mod tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: id(1),
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places,
             call_formations: Vec::new(),
@@ -3302,6 +3773,87 @@ mod tests {
         assert_eq!(vacancies, [vec![field(1)], vec![field(2)]]);
     }
 
+    #[test]
+    fn a_component_partition_keeps_fields_live_without_recreating_the_wrapper() {
+        let field = |raw| Segment::Field(id(raw));
+        let mut region = Region::new(true);
+        region.partition(&[]);
+        assert!(!region.available(&[]));
+        assert!(region.available(&[field(1)]));
+        region.set(&[field(1)], false);
+        assert!(!region.available(&[field(1)]));
+        assert!(region.available(&[field(2)]));
+        let mut vacancies = Vec::new();
+        region.vacancies(&mut Vec::new(), &mut vacancies);
+        assert_eq!(vacancies, [vec![field(1)]]);
+        region.set(&[field(1)], true);
+        assert!(!region.available(&[]));
+        assert!(region.available(&[field(1)]));
+        assert_eq!(region.mode, Mode::Components);
+        assert_eq!(region.partition_count, 1);
+        assert!(!region.same_partitions(&Region::new(true)));
+        let active = vec![id(1)];
+        assert!(
+            State {
+                regions: vec![Some(region)],
+                active: active.clone()
+            }
+            .meet(&State {
+                regions: vec![Some(Region::new(true))],
+                active
+            })
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn ended_nominal_wrapper_disposes_only_remaining_components_in_reverse_order() {
+        let mut types = reconvergence_types();
+        types[0].nominal_cleanup = Some(terminal_psi::NominalCleanupSelection {
+            declaration: terminal_psi::NominalDeclarationIdentity::new(types[0].identity),
+            cleanup_machine: id(9),
+        });
+        types[0].no_code_affine_cleanup = false;
+        types[0].descriptor_cleanup = false;
+        let analysis = owned_analysis(&types);
+        let mut region = Region::new(true);
+        region.partition(&[]);
+        assert_eq!(
+            analysis.dispose(id(1), &region, 2).unwrap(),
+            vec![
+                TerminalAffineCleanupAction::DiscardResidual(
+                    terminal_psi::StructuralAffineDiscard {
+                        place: id(1),
+                        path: vec![StructuralPathSegment::Field(
+                            types[0].shape.direct_fields().unwrap()[1].identity
+                        )],
+                        structural_type: id(2),
+                    }
+                ),
+                TerminalAffineCleanupAction::DiscardResidual(
+                    terminal_psi::StructuralAffineDiscard {
+                        place: id(1),
+                        path: vec![StructuralPathSegment::Field(
+                            types[0].shape.direct_fields().unwrap()[0].identity
+                        )],
+                        structural_type: id(2),
+                    }
+                ),
+                TerminalAffineCleanupAction::RetireHome(id(1)),
+            ]
+        );
+        assert!(analysis.dispose(id(1), &region, 1).is_err());
+        region.set(&[Segment::Field(id(2))], false);
+        let disposal = analysis.dispose(id(1), &region, 1).unwrap();
+        assert!(
+            matches!(disposal.as_slice(), [TerminalAffineCleanupAction::DiscardResidual(discard), TerminalAffineCleanupAction::RetireHome(_)] if discard.path == [StructuralPathSegment::Field(types[0].shape.direct_fields().unwrap()[0].identity)])
+        );
+        assert!(
+            analysis.dispose(id(1), &Region::new(true), 1).is_err(),
+            "an intact wrapper requires its actual selected target, never a forged no-code discard"
+        );
+    }
+
     fn reconvergence_types() -> [StructuralTypeDeclaration; 3] {
         use terminal_psi::{
             BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
@@ -3323,6 +3875,7 @@ mod tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             quotient_carrier: None,
             scalar_restriction: None,
             requires: Vec::new(),
@@ -3340,6 +3893,7 @@ mod tests {
 
     fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
         Analysis {
+            module: None,
             types,
             borrowed_headers: Vec::new(),
             roots: vec![Some(Root {

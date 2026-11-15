@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v102), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v104), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use abstract_operations::StructuralTypeCatalog;
@@ -115,7 +115,6 @@ fn shared_function() -> SelectedFunction {
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
-        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),
@@ -328,7 +327,6 @@ pub(super) fn function_with_operand(access: RegisterOperandAccess) -> SelectedFu
     SelectedFunction {
         machine: MachineId::new(1).unwrap(),
         attachment: None,
-        nominal_cleanup_subject: None,
         provenance: Default::default(),
         structural: None,
         outgoing_arguments: Vec::new(),
@@ -436,7 +434,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &103_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &104_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }

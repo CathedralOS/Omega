@@ -1353,6 +1353,7 @@ pub(crate) mod call_foundations {
                 copyable: true,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::Record {
                     fields: Vec::new(),
                     storage: StructuralRecordStorage::Packed,
@@ -1890,6 +1891,7 @@ pub(crate) mod declaration_foundations {
                         copyable: true,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         shape: StructuralTypeShape::Record {
                             fields: Vec::new(),
                             storage: StructuralRecordStorage::Packed,
@@ -3021,6 +3023,7 @@ mod empty_elimination_foundations {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::Record {
                     fields: Vec::new(),
                     storage: StructuralRecordStorage::Packed,
@@ -3706,6 +3709,7 @@ pub(crate) mod machine_foundations {
                 copyable: true,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 shape: StructuralTypeShape::Record {
                     fields: Vec::new(),
                     storage: StructuralRecordStorage::Packed,
@@ -8719,6 +8723,7 @@ pub(crate) mod storage_foundations {
                     copyable: true,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     requires: Vec::new(),
                 });
@@ -9370,6 +9375,7 @@ pub(crate) mod structural_type_foundations {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: scalar_type,
                 identity: TerminalIdentityIndex(77),
@@ -9420,6 +9426,7 @@ pub(crate) mod structural_type_foundations {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: element,
                 identity: TerminalIdentityIndex(599),
@@ -9434,6 +9441,7 @@ pub(crate) mod structural_type_foundations {
                 no_code_affine_cleanup: false,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: array,
                 identity: TerminalIdentityIndex(941),
@@ -10107,7 +10115,10 @@ pub(crate) mod unoptimized_behavior {
                     }
                     Operation::BoundaryInvocation { site, boundary, .. } => {
                         if module.boundary_machine(*boundary).is_none()
-                            || matches!(site, InvocationSite::InvokeNoNormal(_))
+                            || matches!(
+                                site,
+                                InvocationSite::InvokeNoNormal(_) | InvocationSite::Cleanup { .. }
+                            )
                         {
                             return malformed(
                                 "unoptimized boundary invocation has an unknown declaration or wrong site role",
@@ -11210,6 +11221,8 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
 
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     validate_callable_contracts(module)?;
+    terminal_semantics::nominal_cleanup::validate_selections(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module
@@ -11964,6 +11977,18 @@ fn validate_operation_foundation(
         structural_leaf_copy_pair_pattern!() => {
             storage_foundations::validate_structural_leaf_copy(transfers, machine, operation)?
         }
+        OperationKind::DecomposeStructuralValue { subject } => {
+            if operation.result != OperationResult::Unit
+                || subject.access != terminal_psi::StructuralAccess::Owned
+                || subject.path.contains(&StructuralPathSegment::Referent)
+            {
+                return malformed(
+                    "consuming decomposition requires a Unit result and an owned subject",
+                );
+            }
+            terminal_semantics::nominal_cleanup::decomposition(module, machine.id, subject)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
         OperationKind::MoveStructuralValue { .. } => {
             storage_foundations::validate_move_structural_value(transfers, machine, operation)?
         }
@@ -12668,6 +12693,7 @@ fn shared_storage_graph_preserves_codec_cycle_rejection() {
         no_code_affine_cleanup: false,
         copyable: false,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         scalar_restriction: None,
         shape: StructuralTypeShape::FixedArray {
             element: id,

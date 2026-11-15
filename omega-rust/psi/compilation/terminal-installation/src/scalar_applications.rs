@@ -1257,6 +1257,7 @@ pub(crate) mod abi_storage_tests {
                         copyable: true,
                         no_code_affine_cleanup: true,
                         descriptor_cleanup: true,
+                        nominal_cleanup: None,
                         scalar_restriction: None,
                         shape,
                     });

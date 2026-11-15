@@ -306,6 +306,7 @@ pub struct RecordType {
     /// Actual source linear custody, including owned nested claims.
     pub owns_linear_claim: bool,
     pub copyable: bool,
+    pub cleanup: Option<RecordCleanup>,
     pub identity: String,
     pub shape: StorageShape,
     /// The clauses of the declaration's `requires`, in authored order: the
@@ -321,6 +322,14 @@ pub struct RecordType {
     /// whether the place is that case, before it states a goal
     /// (`terminal-psi-to-terminal-psi`).
     pub requires: Vec<Proposition>,
+}
+
+/// The source declaration's selected ordinary consumer. Discovery closes its
+/// body with the other callees before this record is lowered to Terminal Psi.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordCleanup {
+    pub declaration_identity: String,
+    pub machine: MachineId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -885,6 +894,11 @@ pub enum Statement {
         slot: usize,
         home: Option<String>,
         source: SourceOrigin,
+    },
+    /// End the nominal wrapper at a complete consuming pattern. The following
+    /// field bindings transfer its components under ordinary ownership rules.
+    Decompose {
+        subject: Expression,
     },
     /// Capture the existing destination expression as a place, then evaluate
     /// `value` and store it there. Field and index expressions retain the

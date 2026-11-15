@@ -198,9 +198,9 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
             };
             let at = match call.site {
                 InvocationSite::Operation(operation) => Construct::Operation(operation),
-                InvocationSite::ExternalCompletion(edge) | InvocationSite::InvokeNoNormal(edge) => {
-                    Construct::Edge(edge)
-                }
+                InvocationSite::ExternalCompletion(edge)
+                | InvocationSite::InvokeNoNormal(edge)
+                | InvocationSite::Cleanup { edge, .. } => Construct::Edge(edge),
             };
             contribution(
                 module,

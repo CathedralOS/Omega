@@ -1246,8 +1246,7 @@ fn validate_function(
     if prologue.is_empty() != epilogue.is_empty()
         || source.machine != candidate.machine
         || source.machine != application.machine
-        || (source.attachment != candidate.attachment
-            || source.nominal_cleanup_subject != candidate.nominal_cleanup_subject)
+        || source.attachment != candidate.attachment
         || source.provenance != candidate.provenance
         || source.blocks.len() != candidate.blocks.len()
         || application.prologue_function_offset != 0
@@ -1821,7 +1820,6 @@ mod tests {
             functions: vec![FunctionFragment {
                 machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 provenance: TerminalPsiProvenance::default(),
                 byte_count: 6,
                 bytes: vec![0xe8, 0, 0, 0, 0, 0xc3],

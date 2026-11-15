@@ -382,8 +382,24 @@ impl Minted<'_> {
                 // against the place where loans are judged (`places::loans`).
                 Actual::Place(place) => records.next().is_some_and(|argument| {
                     if argument.access == terminal_psi::StructuralAccess::Owned {
-                        argument.path.is_empty()
-                            && self.tables.roots.get(argument.place) == Some(place)
+                        if matches!(site, InvocationSite::Cleanup { .. }) {
+                            self.module
+                                .machine(self.machine)
+                                .and_then(|machine| {
+                                    crate::owned_cleanup::exact_place(
+                                        self.module,
+                                        machine,
+                                        self.tables,
+                                        argument,
+                                    )
+                                    .ok()
+                                })
+                                .as_ref()
+                                == Some(place)
+                        } else {
+                            argument.path.is_empty()
+                                && self.tables.roots.get(argument.place) == Some(place)
+                        }
                     } else {
                         self.root_of(*place) == Some(argument.place)
                     }
@@ -653,6 +669,31 @@ pub(crate) fn follow_the_lowered_form(
         }
         if let Some((site, inputs)) = block.terminator.declared_invocation() {
             minted.call(site, inputs, before, Construct::Block(block.id))?;
+        }
+        for (edge, actions) in block.terminator.cleanup_rosters() {
+            for (ordinal, action) in actions.iter().enumerate() {
+                if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                    let action_ordinal = crate::position(ordinal, id)?;
+                    terminal_semantics::nominal_cleanup::owned_target(
+                        module.structural_types.iter(),
+                        module.machines.iter(),
+                        cleanup,
+                    )
+                    .map_err(|detail| minted.foreign(Construct::Edge(edge), detail))?;
+                    minted.call(
+                        InvocationSite::Cleanup {
+                            edge,
+                            action_ordinal,
+                        },
+                        crate::owned_cleanup::inputs(cleanup),
+                        ProgramPoint::BeforeCleanup {
+                            edge,
+                            action_ordinal,
+                        },
+                        Construct::Edge(edge),
+                    )?;
+                }
+            }
         }
         // A crashing terminator owes coverage at the point before it: its one
         // cause, or each cause among a no-normal call's continuations.

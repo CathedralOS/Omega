@@ -411,7 +411,8 @@ impl<'b> Walk<'b> {
         let mut normal = false;
         for statement in statements {
             match statement {
-                Statement::Bind { value, .. } => {
+                Statement::Bind { value, .. }
+                | Statement::Decompose { subject: value } => {
                     if !self.expression(machine, value)? {
                         return Ok(normal);
                     }

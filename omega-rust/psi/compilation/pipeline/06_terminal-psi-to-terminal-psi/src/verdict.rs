@@ -913,6 +913,8 @@ fn examine(
             "implementation rows without their refinement witnesses",
         ))));
     }
+    crate::owned_cleanup::materialize(&mut elaboration)
+        .map_err(|refused| fall_back_or_defect(refused))?;
     let mut affine_unestablished = Vec::new();
     let reference_ends = terminal_semantics::reference_ends::candidates(&elaboration.module)
         .map_err(|error| {

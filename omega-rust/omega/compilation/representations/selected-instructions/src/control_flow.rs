@@ -23,7 +23,6 @@ use target_operations::TerminalPsiProvenance;
 pub struct SelectedFunction {
     pub machine: MachineId,
     pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>, // Exact owner-designated cleanup subject, independent of attachment or call sites.
     pub provenance: TerminalPsiProvenance,
     pub structural: Option<legalized_operations::LegalizedStructuralContract>,
     pub local_storage_slots: Vec<super::SelectedLocalStorageSlot>,

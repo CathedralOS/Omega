@@ -3154,7 +3154,8 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::EstablishReference { source, .. } => {
+            OperationKind::DecomposeStructuralValue { subject: source }
+            | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -3313,6 +3314,9 @@ impl<'a> Storage<'a> {
             .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
         {
             changes.push(StorageEffect::Storage(self.argument(argument, concerns)?));
+        }
+        if let OperationKind::DecomposeStructuralValue { subject } = &operation.kind {
+            changes.push(StorageEffect::Storage(self.argument(subject, concerns)?));
         }
         if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
             && value.access == terminal_psi::StructuralAccess::Owned

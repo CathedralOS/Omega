@@ -776,6 +776,12 @@ pub(crate) mod operations {
             AbstractOperation::MoveStructuralField { .. } => {
                 super::borrowed_windows::move_field(operation, site, prepared)
             }
+            AbstractOperation::DecomposeStructuralValue { psi_operation, .. } => {
+                // Partitioning custody does not move the allocation or emit
+                // bytes. The retained abstract operation owns its checked event.
+                site.provenance.operations.push(*psi_operation);
+                Ok(())
+            }
             AbstractOperation::StoreStructuralField { .. } => {
                 super::borrowed_windows::store_field(operation, site, prepared)
             }

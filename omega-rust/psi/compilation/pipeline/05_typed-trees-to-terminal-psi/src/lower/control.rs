@@ -325,6 +325,7 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = bound;
                 Ok(Reached::Value(()))
             }
+            Statement::Decompose { subject } => self.decompose(subject),
             Statement::Witness { slot, term } => {
                 let witness = self.witness(term)?;
                 *self.slot_mut(*slot)? = Some(Bound::Erased(witness));

@@ -945,7 +945,6 @@ pub mod normalized_foreign {
                 let function = SelectedFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: None,
                     local_storage_slots: vec![crate::SelectedLocalStorageSlot {
@@ -1074,7 +1073,6 @@ pub mod normalized_foreign {
                 let mut function = SelectedFunction {
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     provenance: Default::default(),
                     structural: None,
                     local_storage_slots: Vec::new(),

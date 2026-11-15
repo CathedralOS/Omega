@@ -331,26 +331,20 @@ pub(super) fn encode_cleanup_action(
             encode_structural_path(bytes, &discard.path);
             crate::codec_bytes::push_encoded(bytes, discard.structural_type.get().to_le_bytes());
         }
-        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-            bytes.push(if cleanup.retains_descendants { 5 } else { 3 });
-            crate::codec_bytes::push_encoded(bytes, cleanup.place.get().to_le_bytes());
-            encode_structural_path(bytes, &cleanup.path);
+        terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+            bytes.push(6);
+            super::structural_types::encode_structural_argument(bytes, &cleanup.subject);
             crate::codec_bytes::push_encoded(bytes, cleanup.structural_type.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, cleanup.cleanup_machine.get().to_le_bytes());
+            encode_len(bytes, cleanup.claim_transfers.len());
+            for transfer in &cleanup.claim_transfers {
+                crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
+                encode_structural_path(bytes, &transfer.path);
+            }
             encode_ids(
                 bytes,
-                cleanup.consumed_claims.iter().map(|claim| claim.get()),
-            );
-            optimization_core::encode_option_u64(
-                bytes,
-                cleanup.cleanup_receiver.map(|place| place.get()),
-            );
-            encode_ids(
-                bytes,
-                cleanup
-                    .requirement_obligations
-                    .iter()
-                    .map(|obligation| obligation.get()),
+                cleanup.requirement_obligations.iter().map(|id| id.get()),
             );
         }
     }
@@ -397,7 +391,7 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
     use terminal_psi::{
-        NominalAffineCleanup, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        OwnedCleanupInvocation, StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralPathSegment, StructuralReferenceResultSource, TerminalAffineCleanupAction,
     };
 
@@ -414,14 +408,15 @@ mod tests {
                 StructuralPathSegment::FixedIndex(1),
             ],
         ] {
-            let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                retains_descendants: false,
-                place: PlaceId::new(1).unwrap(),
-                path,
+            let action = TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                subject: StructuralArgument {
+                    place: PlaceId::new(1).unwrap(),
+                    path,
+                    access: StructuralAccess::Owned,
+                },
                 structural_type: StructuralTypeId::new(2).unwrap(),
                 cleanup_machine: MachineId::new(3).unwrap(),
-                consumed_claims: Vec::new(),
-                cleanup_receiver: None,
+                claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
             });
             let mut encoded = Vec::new();

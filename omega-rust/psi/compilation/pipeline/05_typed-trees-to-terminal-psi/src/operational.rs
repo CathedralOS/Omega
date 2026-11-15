@@ -45,6 +45,7 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
     for statement in &body.statements {
         match statement {
             Statement::Bind { value, .. }
+            | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..
             }

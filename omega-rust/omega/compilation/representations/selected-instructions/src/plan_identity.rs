@@ -2,9 +2,9 @@
   Canonical SHA-256 identity producer for `SelectedInstructionPlan`.
 
   Owns the byte-stable encoding over which `SelectedInstructionPlanIdentity` is
-  derived (`omega.terminal-selected-instructions.v55\0`). The identity is
+  derived (`omega.terminal-selected-instructions.v56\0`). The identity is
   hierarchical: `Sha256` over the plan's roots and the ordered digests of its
-  functions, each function digest (`omega.terminal-selected-instruction-function.v2\0`)
+  functions, each function digest (`omega.terminal-selected-instruction-function.v3\0`)
   retaining its static metadata, 64-register pages, local frame storage slots,
   boundary settlements, and ordered block digests (`omega.terminal-selected-instruction-block.v2\0`).
   Every field of every function reaches the identity, while `SelectedFunctions`
@@ -40,7 +40,7 @@ pub(crate) struct RetainedPlanPrefix {
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v55\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v56\0".as_slice();
     let mut header_bytes = Vec::with_capacity(128);
     header_bytes.extend_from_slice(domain);
     header_bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -102,7 +102,6 @@ const REGISTER_PAGE_SIZE: usize = 64;
 struct RetainedHeaderKey {
     machine: semantic_vocabulary::MachineId,
     attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
     entry_block: crate::SelectedBlockId,
     provenance: target_operations::TerminalPsiProvenance,
     structural: Option<legalized_operations::LegalizedStructuralContract>,
@@ -117,7 +116,6 @@ impl RetainedHeaderKey {
         Self {
             machine: function.machine,
             attachment: function.attachment,
-            nominal_cleanup_subject: function.nominal_cleanup_subject,
             entry_block: function.entry_block,
             provenance: function.provenance.clone(),
             structural: function.structural.clone(),
@@ -131,7 +129,6 @@ impl RetainedHeaderKey {
     fn matches(&self, function: &SelectedFunction) -> bool {
         self.machine == function.machine
             && self.attachment == function.attachment
-            && self.nominal_cleanup_subject == function.nominal_cleanup_subject
             && self.entry_block == function.entry_block
             && self.provenance == function.provenance
             && self.structural == function.structural
@@ -167,17 +164,11 @@ macro_rules! ids {
 }
 
 fn encode_static_header(bytes: &mut Vec<u8>, function: &SelectedFunction) {
-    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v3\0");
     push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(
         bytes,
         function.attachment.map(|attachment| attachment.get()),
-    );
-    optimization_core::encode_option_u64(
-        bytes,
-        function
-            .nominal_cleanup_subject
-            .map(|attachment| attachment.get()),
     );
     ids!(bytes => function.provenance.operations);
     ids!(bytes => function.provenance.edges);
@@ -1449,7 +1440,6 @@ mod function_digest_tests {
         SelectedFunction {
             machine: MachineId::new(machine).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             provenance: Default::default(),
             structural: None,
             local_storage_slots: Vec::new(),

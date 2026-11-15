@@ -158,6 +158,14 @@ pub(crate) mod identity_encoding {
         site: InvocationSite,
     ) {
         match site {
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => {
+                bytes.identity_bytes(&[3]);
+                bytes.identity_bytes(&edge.get().to_le_bytes());
+                bytes.identity_bytes(&action_ordinal.to_le_bytes());
+            }
             InvocationSite::Operation(operation) => {
                 bytes.identity_bytes(&[0]);
                 bytes.identity_bytes(&operation.get().to_le_bytes());

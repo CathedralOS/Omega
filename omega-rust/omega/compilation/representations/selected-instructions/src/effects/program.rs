@@ -236,7 +236,7 @@ mod tests {
             }
             source.identity = pre_allocation_machine_effect_identity(&source);
             let encoded = source.encode();
-            assert_eq!(&encoded[8..12], &49_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &50_u32.to_le_bytes());
             assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
             for version in (0_u32..49).chain([50]) {
                 let mut wrong_version = encoded.clone();
@@ -1151,7 +1151,7 @@ mod tests {
             MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
         source.identity = pre_allocation_machine_effect_identity(&source);
         let mut bytes = source.encode();
-        assert_eq!(&bytes[8..12], &49_u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &50_u32.to_le_bytes());
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
             source

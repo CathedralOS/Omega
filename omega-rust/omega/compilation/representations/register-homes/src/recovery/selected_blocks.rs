@@ -1296,7 +1296,7 @@ mod tests {
             ClaimId, MachineId, ObligationId, PlaceId, StructuralCaseId, StructuralTypeId,
         };
         use terminal_psi::{
-            NominalAffineCleanup, StructuralAffineDiscard, StructuralPathSegment,
+            OwnedCleanupInvocation, StructuralAffineDiscard, StructuralPathSegment,
             TerminalAffineCleanupAction,
         };
 
@@ -1312,17 +1312,22 @@ mod tests {
             payloads: Vec::new(),
             cleanup_actions: vec![
                 TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(13).unwrap()),
-                TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                    retains_descendants: false,
-                    place: PlaceId::new(14).unwrap(),
-                    path: vec![
-                        StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(3)),
-                        StructuralPathSegment::FixedIndex(1),
-                    ],
+                TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                    subject: terminal_psi::StructuralArgument {
+                        place: PlaceId::new(14).unwrap(),
+                        path: vec![
+                            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(3)),
+                            StructuralPathSegment::FixedIndex(1),
+                        ],
+                        access: terminal_psi::StructuralAccess::Owned,
+                    },
                     structural_type: StructuralTypeId::new(15).unwrap(),
                     cleanup_machine: MachineId::new(16).unwrap(),
-                    consumed_claims: vec![ClaimId::new(17).unwrap()],
-                    cleanup_receiver: Some(PlaceId::new(18).unwrap()),
+                    claim_transfers: vec![terminal_psi::ClaimTransfer {
+                        claim: ClaimId::new(17).unwrap(),
+                        argument_index: 0,
+                        path: vec![StructuralPathSegment::FixedIndex(2)],
+                    }],
                     requirement_obligations: vec![ObligationId::new(19).unwrap()],
                 }),
                 TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {

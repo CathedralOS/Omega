@@ -24,7 +24,6 @@ fn fixture(count: usize, edges: &[(usize, usize)]) -> (TerminalMachine, MachineT
         assembly_target_requirement: Default::default(),
         id: MachineId::new(1).unwrap(),
         attachment: None,
-        nominal_cleanup_subject: None,
         ranked_scc: None,
         structural_places: Vec::new(),
         block_entry_claims: Vec::new(),

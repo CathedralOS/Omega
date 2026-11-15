@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 274`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 275`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -662,6 +662,16 @@ pub(crate) mod canonical_order {
                 "call acknowledgements by canonical call site",
             )?;
             for block in &machine.blocks {
+                for (_, actions) in block.terminator.cleanup_rosters() {
+                    for action in actions {
+                        if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                            require_increasing(
+                                cleanup.claim_transfers.iter(),
+                                "cleanup claim transfers by claim and argument index",
+                            )?;
+                        }
+                    }
+                }
                 if let Some(invocation) = block.terminator.module_invocation() {
                     require_increasing(
                         invocation.claim_transfers.iter(),
@@ -1579,6 +1589,7 @@ pub(crate) mod machine_wire {
                 owns_linear_claim: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 copyable: true,
                 scalar_restriction: None,
                 id: structural_type,
@@ -1835,7 +1846,6 @@ pub(crate) mod machine_wire {
             id: Id,
             assembly_target_requirement: AssemblyTarget,
             attachment: OptionalId,
-            nominal_cleanup_subject: OptionalId,
             ranked_scc: RankedScc,
             structural_places: List<Place>,
             block_entry_claims: List<Claim>,
@@ -3245,6 +3255,7 @@ mod reference_transport_tests {
             copyable: true,
             no_code_affine_cleanup: false,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Reference {
                 referent: StructuralTypeId::new(1).unwrap(),
@@ -3297,6 +3308,7 @@ mod reference_transport_tests {
                 copyable: false,
                 no_code_affine_cleanup: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
@@ -3355,6 +3367,7 @@ mod reference_transport_tests {
             copyable: true,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         };
@@ -4523,7 +4536,6 @@ pub(crate) mod entry_tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),
@@ -4731,6 +4743,9 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 275 replaces borrowed cleanup with ordinary owned-call transfers,
+// retains exact nominal cleanup selections, and adds consuming decomposition.
+// Earlier cleanup rows cannot acquire owned-transfer meaning; tags 3/5 retire.
 // Marker 274 adds authenticated hosted-primitive requirement links to the
 // machine contract layout retained by marker 273. A 273 artifact has no such
 // execution link and cannot be read as this declaration grammar.
@@ -4755,7 +4770,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 274;
+pub(crate) const FORMAT_MARKER: u16 = 275;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4991,6 +5006,7 @@ mod normal_qualification_tests {
                 no_code_affine_cleanup: position != 2,
                 copyable: false,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });
@@ -5097,6 +5113,7 @@ mod normal_qualification_tests {
             no_code_affine_cleanup: true,
             copyable: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -5337,6 +5354,7 @@ mod global_descriptor_table_tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
                 capacity: 10,
@@ -5492,6 +5510,7 @@ mod descriptor_operation_tests {
                 copyable: false,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 shape,
             });
@@ -5754,6 +5773,7 @@ mod opaque_value_tests {
             copyable: false,
             no_code_affine_cleanup: true,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape: StructuralTypeShape::Opaque,
         });

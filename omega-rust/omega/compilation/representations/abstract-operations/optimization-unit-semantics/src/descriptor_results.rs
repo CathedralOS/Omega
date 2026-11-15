@@ -340,7 +340,6 @@ mod scalar_expressions {
                 AbstractFunction {
                     machine: MachineId::new(machine).unwrap(),
                     attachment: None,
-                    nominal_cleanup_subject: None,
                     entry: blocks[0].block,
                     parameters: Vec::new(),
                     structural_parameters: parameters,
@@ -472,6 +471,7 @@ mod scalar_expressions {
                     no_code_affine_cleanup: false,
                     copyable: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                 }];
                 crate::descriptor_results::optimized_reference_catalog_graph(

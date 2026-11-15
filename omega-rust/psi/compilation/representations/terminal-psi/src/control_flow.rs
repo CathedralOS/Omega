@@ -806,7 +806,6 @@ pub(crate) mod machines {
         pub assembly_target_requirement: crate::RegisterTargetApplicability,
         pub id: MachineId,
         pub attachment: Option<StructuralTypeId>,
-        pub nominal_cleanup_subject: Option<StructuralTypeId>,
         pub ranked_scc: Option<TerminalRankedScc>,
         pub structural_places: Vec<StructuralPlaceDeclaration>,
         pub block_entry_claims: Vec<EntryClaim>,
@@ -1375,6 +1374,12 @@ pub(crate) mod operations {
         },
         MoveStructuralValue {
             source: StructuralArgument,
+        },
+        /// End an authorized nominal wrapper while its complete components
+        /// remain owned at the same captured home. This does not relocate
+        /// bytes, transfer a component, or consume an independent claim.
+        DecomposeStructuralValue {
+            subject: StructuralArgument,
         },
         TransformContent {
             source: StructuralArgument,

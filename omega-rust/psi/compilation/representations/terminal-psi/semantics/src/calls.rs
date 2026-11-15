@@ -1433,6 +1433,16 @@ pub mod closed_conformances {
         module: &TerminalModule,
         identity: TerminalIdentityIndex,
     ) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, &'static str> {
+        identity_package(&module.identities, identity)
+    }
+
+    /// Read the same canonical declaration coordinate after a consumer has
+    /// retained the identity table without the source module. This lookup
+    /// alone does not authorize an operation on a foreign declaration.
+    pub fn identity_package(
+        identities: &terminal_psi::TerminalIdentityTable,
+        identity: TerminalIdentityIndex,
+    ) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, &'static str> {
         use language_semantics::type_identity::{
             TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError,
             visit_type_identity_package_owners,
@@ -1472,8 +1482,7 @@ pub mod closed_conformances {
                 Err(TypeIdentityVisitError::UnsupportedEmbeddedName)
             }
         }
-        let text = module
-            .identities
+        let text = identities
             .text(identity)
             .ok_or("selected declaration has no canonical identity")?;
         let mut owner = Owner {

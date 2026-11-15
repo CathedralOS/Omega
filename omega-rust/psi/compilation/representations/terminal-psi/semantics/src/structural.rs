@@ -181,6 +181,7 @@ pub(crate) mod inline_carriers {
                 copyable: true,
                 no_code_affine_cleanup: true,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 quotient_carrier: None,
                 scalar_restriction: None,
                 shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -456,54 +457,180 @@ pub(crate) mod inline_carriers {
 pub mod nominal_cleanup {
 
     use terminal_psi::{
-        NominalAffineCleanup, StructuralTypeDeclaration, TerminalMachine, TerminalMachineResult,
+        StructuralTypeDeclaration, TerminalMachine, TerminalMachineResult,
     };
 
-    pub fn target<'a>(
+    /// Authenticate declaration selections once before replaying operations.
+    /// A claimed hook cannot make copyable or no-code storage acquire a new
+    /// disposition, and an absent identity supplies no declaration evidence.
+    pub fn validate_selections(
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<(), &'static str> {
+        for declaration in &module.structural_types {
+            let Some(selection) = &declaration.nominal_cleanup else {
+                continue;
+            };
+            if selection.declaration.identity() != declaration.identity
+                || declaration.copyable
+                || declaration.no_code_affine_cleanup
+                || module
+                    .identities
+                    .text(selection.declaration.identity())
+                    .is_none_or(str::is_empty)
+            {
+                return Err("nominal cleanup lost its exact carrier declaration or disposition");
+            }
+            crate::closed_conformances::identity_package(
+                &module.identities,
+                selection.declaration.identity(),
+            )?;
+            let target = module
+                .machine(selection.cleanup_machine)
+                .ok_or("selected owned cleanup target is absent")?;
+            validate_owned_target(declaration, target)?;
+        }
+        Ok(())
+    }
+
+    /// An owned cleanup is selected by the exact carrier declaration, not by
+    /// an attached method name or by a special kind of value parameter.
+    pub fn owned_target<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration>,
-        machines: impl Iterator<Item = &'a TerminalMachine> + Clone,
-        cleanup: &NominalAffineCleanup,
+        machines: impl Iterator<Item = &'a TerminalMachine>,
+        cleanup: &terminal_psi::OwnedCleanupInvocation,
     ) -> Result<&'a TerminalMachine, &'static str> {
-        if !types
+        use terminal_psi::StructuralAccess;
+        let declaration = types
             .into_iter()
-            .any(|declaration| declaration.id == cleanup.structural_type)
+            .find(|declaration| declaration.id == cleanup.structural_type)
+            .ok_or("owned cleanup subject declaration is absent")?;
+        let selection = declaration
+            .nominal_cleanup
+            .as_ref()
+            .ok_or("owned cleanup subject has no selected consumer")?;
+        if selection.cleanup_machine != cleanup.cleanup_machine
+            || selection.declaration.identity() != declaration.identity
+            || cleanup.subject.access != StructuralAccess::Owned
         {
-            return Err("nominal cleanup subject declaration is absent");
+            return Err("owned cleanup does not match its retained carrier selection");
         }
         let target = machines
-            .clone()
+            .into_iter()
             .find(|machine| machine.id == cleanup.cleanup_machine)
-            .ok_or("nominal cleanup target is absent")?;
-        if target.attachment != Some(cleanup.structural_type)
-            || target.nominal_cleanup_subject != Some(cleanup.structural_type)
-            || machines
-                .filter(|machine| machine.nominal_cleanup_subject == Some(cleanup.structural_type))
-                .count()
-                != 1
-        {
-            return Err("nominal cleanup lacks its exact unique owner designation");
-        }
-        if target.result != TerminalMachineResult::Unit
-            || !target.parameters.is_empty()
-            || !target.entry_claims.is_empty()
-            || !target.content_entry_claims.is_empty()
-            || target.structural_parameters.len() > 1
-            || target
-                .structural_parameters
-                .iter()
-                .any(|parameter| !parameter.is_cleanup_receiver(cleanup))
-        {
-            return Err("nominal cleanup target has an incompatible receiver or result");
-        }
-        if cleanup
-            .consumed_claims
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
-            return Err("nominal cleanup claim roster is not strictly canonical");
-        }
+            .ok_or("owned cleanup target is absent")?;
+        validate_owned_target(declaration, target)?;
         Ok(target)
     }
+
+    fn validate_owned_target(
+        declaration: &StructuralTypeDeclaration,
+        target: &TerminalMachine,
+    ) -> Result<(), &'static str> {
+        use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+        let [parameter] = target.structural_parameters.as_slice() else {
+            return Err("owned cleanup needs its one actual value parameter");
+        };
+        if target.result != TerminalMachineResult::Unit
+            || !target.parameters.is_empty()
+            || parameter.position != 0
+            || parameter.structural_type != declaration.id
+            || parameter.access != StructuralAccess::Owned
+            || parameter.multiplicity
+                != if declaration.owns_linear_claim {
+                    StructuralMultiplicity::Linear
+                } else if declaration.copyable {
+                    StructuralMultiplicity::Unrestricted
+                } else {
+                    StructuralMultiplicity::Affine
+                }
+        {
+            return Err("owned cleanup target has an incompatible value parameter or result");
+        }
+        Ok(())
+    }
+
+    /// Only the actual selected consumer or the original declaration's package
+    /// may end the wrapper. Missing package identities never compare equal.
+    pub fn decomposition_authorized(
+        identities: &terminal_psi::TerminalIdentityTable,
+        selection: &terminal_psi::NominalCleanupSelection,
+        current: semantic_vocabulary::MachineId,
+        declaration: Option<&terminal_psi::CheckedMachineDeclaration>,
+    ) -> Result<(), &'static str> {
+        if current == selection.cleanup_machine {
+            return Ok(());
+        }
+        let declaration = declaration.ok_or("decomposition lost its original machine declaration")?;
+        let carrier_owner = crate::closed_conformances::identity_package(
+            identities,
+            selection.declaration.identity(),
+        )?;
+        let machine_owner = crate::closed_conformances::identity_package(
+            identities,
+            declaration.semantic_declaration,
+        )?;
+        if carrier_owner.is_some() && carrier_owner == machine_owner {
+            Ok(())
+        } else {
+            Err("only the carrier's declaring package or selected cleanup may decompose it")
+        }
+    }
+
+    /// Reconstruct the declaration and complete component shape. A caller must
+    /// separately prove live whole custody, loans and independent claims before
+    /// committing the event; this static relationship supplies none of them.
+    pub fn decomposition(
+        module: &terminal_psi::TerminalModule,
+        current: semantic_vocabulary::MachineId,
+        subject: &terminal_psi::StructuralArgument,
+    ) -> Result<semantic_vocabulary::StructuralTypeId, &'static str> {
+        use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeShape};
+        if subject.access != StructuralAccess::Owned
+            || subject.path.contains(&StructuralPathSegment::Referent)
+        {
+            return Err("nominal decomposition requires owned storage without a borrow crossing");
+        }
+        if subject.path.iter().any(|segment| {
+            matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
+        }) {
+            return Err("runtime-indexed nominal decomposition is not served");
+        }
+        let machine = module.machine(current).ok_or("decomposition machine is absent")?;
+        let root = machine
+            .structural_place_type(subject.place)
+            .ok_or("decomposition subject has no exact declared type")?;
+        let declaration = crate::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            root,
+            &subject.path,
+        )
+        .ok_or("decomposition subject has no exact component shape")?;
+        let selection = declaration
+            .nominal_cleanup
+            .as_ref()
+            .ok_or("decomposition subject has no selected nominal disposition")?;
+        if selection.declaration.identity() != declaration.identity {
+            return Err("decomposition carrier declaration relation is not served");
+        }
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+            return Err("nominal decomposition of a non-record is not served");
+        };
+        if fields.iter().any(|field| field.relevance.is_erased()) {
+            return Err("nominal decomposition of erased components is not served");
+        }
+        if !declaration.requires.is_empty() {
+            return Err("nominal decomposition with carrier predicates is not served");
+        }
+        decomposition_authorized(
+            &module.identities,
+            selection,
+            current,
+            machine.declaration.as_ref(),
+        )?;
+        Ok(declaration.id)
+    }
+
+
 }
 pub mod owned_structure {
     use crate::exactly_one::exactly_one;

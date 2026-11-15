@@ -547,6 +547,8 @@ pub(crate) mod operation_tags {
 
     pub(crate) const RELOAD_SEGMENT_DESCRIPTORS: u8 = 136;
     pub(crate) const READ_SEGMENT_SELECTOR: u8 = 137;
+
+    pub(crate) const DECOMPOSE_STRUCTURAL_VALUE: u8 = 138;
 }
 pub(crate) mod scalar_operations {
 
@@ -1102,6 +1104,40 @@ mod owned_value_tests {
     }
 
     #[test]
+    fn consuming_decomposition_has_its_own_tag_and_exact_subject() {
+        let mut encodings = Vec::new();
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field(TerminalIdentityIndex(4))],
+        ] {
+            let subject = StructuralArgument {
+                place: PlaceId::new(2).unwrap(),
+                path,
+                access: StructuralAccess::Owned,
+            };
+            let kind = OperationKind::DecomposeStructuralValue {
+                subject: subject.clone(),
+            };
+            let mut writer = Writer::default();
+            super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
+            let bytes = writer.finish();
+            assert_eq!(bytes[0], 138);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
+            assert_eq!(reader.remaining(), 0);
+            let mut moved = Writer::default();
+            super::encode_operation_kind(
+                &mut moved,
+                OperationKind::MoveStructuralValue { source: subject },
+            )
+            .unwrap();
+            assert_ne!(bytes, moved.finish());
+            assert!(!encodings.contains(&bytes));
+            encodings.push(bytes);
+        }
+    }
+
+    #[test]
     fn owned_value_wire_preserves_projected_source_and_claim_identity() {
         let path = vec![StructuralPathSegment::Field(TerminalIdentityIndex(4))];
         let operation = Operation {
@@ -1428,6 +1464,7 @@ operation_wire! {
         STRUCTURAL_CASE_MEMBERSHIP => StructuralCaseMembership { source: Id, path: Path, case: Id },
         STRUCTURAL_LEAF_COPY => StructuralLeafCopy { source: Id, path: Path },
         MOVE_STRUCTURAL_VALUE => MoveStructuralValue { source: Argument },
+        DECOMPOSE_STRUCTURAL_VALUE => DecomposeStructuralValue { subject: Argument },
         BYTE_SEQUENCE_SUBSLICE => ByteSequenceSubslice {
             source: Argument,
             start: Id,

@@ -1364,7 +1364,6 @@ pub(crate) mod byte_sequence_predicates {
                 assembly_target_requirement: RegisterTargetApplicability::Any,
                 id: MachineId::new(1).unwrap(),
                 attachment: None,
-                nominal_cleanup_subject: None,
                 ranked_scc: None,
                 structural_places: Vec::new(),
                 call_formations: Vec::new(),

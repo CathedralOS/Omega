@@ -169,6 +169,7 @@ mod tests {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             shape,
         }

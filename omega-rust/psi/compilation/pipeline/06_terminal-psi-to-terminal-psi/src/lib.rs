@@ -64,6 +64,7 @@ mod joins;
 mod known;
 mod machine_inputs;
 mod minted;
+mod owned_cleanup;
 mod operational;
 mod places;
 mod prove;
@@ -1037,7 +1038,7 @@ fn fill_knowledge(
         // knowledge.
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
-            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
+            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) | InvocationSite::Cleanup { .. } => continue,
         };
         let callee = callee(module, id, invocation, row)?;
         let erased = callable_erased_actuals(
@@ -1895,6 +1896,7 @@ fn stated_goal(
                     site,
                     concerns,
                 )?),
+                InvocationSite::Cleanup { edge, action_ordinal } => over_actuals(&mut storage.at_cleanup_call(tables, &row.actuals, formals, edge, action_ordinal, concerns)?),
                 InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
                     let actuals = scalar_actuals(&row.actuals);
                     over_actuals(&mut ScalarActuals {

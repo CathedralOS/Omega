@@ -441,6 +441,7 @@ fn ownership_frontier_fact_identities_bind_the_plan_identity() {
             id(1),
             site,
             optimization_unit::OwnershipFrontierSnapshot {
+                nominal_partitions: Vec::new(),
                 claims: Vec::new(),
                 owned_places: Vec::new(),
                 partial_custody: Vec::new(),
@@ -523,6 +524,7 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
         no_code_affine_cleanup: false,
         copyable: false,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         scalar_restriction: None,
         id: argument.structural_type,
         identity: terminal_psi::TerminalIdentityIndex(1),

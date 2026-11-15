@@ -407,13 +407,11 @@ pub(crate) mod structural_place_wire {
     use crate::codec_error::CodecError;
     use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use crate::sections::semantic_module::structural_signature_wire;
-    use crate::sections::semantic_module::wire::{
-        Reader, Writer, decode_counted, decode_ids, decode_optional_id, encode_optional_id,
-    };
+    use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted, decode_ids};
 
     use semantic_vocabulary::{ObligationId, StructuralPlaceKind};
     use terminal_psi::{
-        NominalAffineCleanup, StructuralAffineDiscard, StructuralArgument, StructuralPathSegment,
+        OwnedCleanupInvocation, StructuralAffineDiscard, StructuralArgument, StructuralPathSegment,
         TerminalAffineCleanupAction, TerminalIdentityIndex,
     };
 
@@ -449,14 +447,15 @@ pub(crate) mod structural_place_wire {
                 encode_structural_path(writer, "affine cleanup residual path", &discard.path)?;
                 writer.id(discard.structural_type);
             }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                writer.u8(if cleanup.retains_descendants { 5 } else { 3 });
-                writer.id(cleanup.place);
-                encode_structural_path(writer, "nominal cleanup path", &cleanup.path)?;
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                // Borrowed-cleanup tags 3 and 5 remain retired. An owned call
+                // keeps its exact source, access, path and claim correspondence.
+                writer.u8(6);
+                use crate::wire_fields::{Argument, ClaimTransfers, Field};
+                Argument::write(writer, &cleanup.subject)?;
                 writer.id(cleanup.structural_type);
                 writer.id(cleanup.cleanup_machine);
-                writer.ids("nominal cleanup consumed claims", &cleanup.consumed_claims)?;
-                encode_optional_id(writer, cleanup.cleanup_receiver);
+                ClaimTransfers::write(writer, &cleanup.claim_transfers)?;
                 encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
             }
         }
@@ -597,18 +596,18 @@ pub(crate) mod structural_place_wire {
                     structural_type: reader.id("StructuralTypeId")?,
                 },
             )),
-            tag @ (3 | 5) => Ok(TerminalAffineCleanupAction::InvokeNominal(
-                NominalAffineCleanup {
-                    retains_descendants: tag == 5,
-                    place: reader.id("PlaceId")?,
-                    path: decode_structural_path(reader)?,
-                    structural_type: reader.id("StructuralTypeId")?,
-                    cleanup_machine: reader.id("MachineId")?,
-                    consumed_claims: decode_ids(reader, "ClaimId")?,
-                    cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
-                    requirement_obligations: decode_ids(reader, "ObligationId")?,
-                },
-            )),
+            6 => {
+                use crate::wire_fields::{Argument, ClaimTransfers, Field};
+                Ok(TerminalAffineCleanupAction::InvokeOwned(
+                    OwnedCleanupInvocation {
+                        subject: Argument::read(reader)?,
+                        structural_type: reader.id("StructuralTypeId")?,
+                        cleanup_machine: reader.id("MachineId")?,
+                        claim_transfers: ClaimTransfers::read(reader)?,
+                        requirement_obligations: decode_ids(reader, "ObligationId")?,
+                    },
+                ))
+            }
             tag => Err(CodecError::InvalidTag("TerminalAffineCleanupAction", tag)),
         }
     }
@@ -908,55 +907,60 @@ pub(crate) mod structural_place_wire {
         }
 
         #[test]
-        fn nominal_cleanup_round_trip_retains_path_and_descendant_custody() {
-            let mut previous_encoding = None;
-            for (path, retains_descendants) in [
-                (Vec::new(), false),
-                (Vec::new(), true),
-                (
-                    vec![StructuralPathSegment::Field(
-                        terminal_psi::TerminalIdentityIndex(14),
-                    )],
-                    false,
-                ),
-                (
-                    vec![
-                        StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(14)),
-                        StructuralPathSegment::FixedIndex(1),
-                    ],
-                    false,
-                ),
+        fn owned_cleanup_round_trip_retains_source_path_transfers_and_proofs() {
+            let mut encodings = Vec::new();
+            for path in [
+                Vec::new(),
+                vec![StructuralPathSegment::Field(TerminalIdentityIndex(14))],
+                vec![
+                    StructuralPathSegment::Field(TerminalIdentityIndex(14)),
+                    StructuralPathSegment::FixedIndex(1),
+                ],
             ] {
-                let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
-                    retains_descendants,
-                    place: PlaceId::new(1).unwrap(),
-                    path,
+                let action = TerminalAffineCleanupAction::InvokeOwned(OwnedCleanupInvocation {
+                    subject: StructuralArgument {
+                        place: PlaceId::new(1).unwrap(),
+                        access: terminal_psi::StructuralAccess::Owned,
+                        path,
+                    },
                     structural_type: StructuralTypeId::new(2).unwrap(),
                     cleanup_machine: MachineId::new(3).unwrap(),
-                    consumed_claims: vec![ClaimId::new(4).unwrap()],
-                    cleanup_receiver: Some(PlaceId::new(5).unwrap()),
+                    claim_transfers: vec![terminal_psi::ClaimTransfer {
+                        claim: ClaimId::new(4).unwrap(),
+                        argument_index: 0,
+                        path: vec![StructuralPathSegment::FixedIndex(2)],
+                    }],
                     requirement_obligations: vec![ObligationId::new(6).unwrap()],
                 });
                 let mut writer = Writer::default();
                 encode_affine_cleanup_action(&mut writer, &action).unwrap();
                 let encoded = writer.finish();
+                assert_eq!(encoded[0], 6);
                 let mut reader = Reader::new(&encoded);
                 assert_eq!(decode_affine_cleanup_action(&mut reader).unwrap(), action);
                 assert_eq!(reader.remaining(), 0);
-                if let Some(previous) = previous_encoding {
-                    assert_ne!(encoded, previous);
-                }
-                previous_encoding = Some(encoded);
+                assert!(!encodings.contains(&encoded));
+                encodings.push(encoded);
             }
         }
 
         #[test]
-        fn nominal_cleanup_path_wire_change_rejects_previous_module_version() {
+        fn borrowed_cleanup_tags_are_retired() {
+            for tag in [3, 5] {
+                assert_eq!(
+                    decode_affine_cleanup_action(&mut Reader::new(&[tag])),
+                    Err(CodecError::InvalidTag("TerminalAffineCleanupAction", tag)),
+                );
+            }
+        }
+
+        #[test]
+        fn owned_cleanup_wire_change_rejects_previous_module_version() {
             let mut encoded = super::super::MAGIC.to_vec();
-            crate::codec_bytes::push_encoded(&mut encoded, 120_u16.to_le_bytes());
+            crate::codec_bytes::push_encoded(&mut encoded, 274_u16.to_le_bytes());
             assert!(matches!(
                 super::super::decode_module(&encoded),
-                Err(CodecError::UnsupportedFormatMarker(120))
+                Err(CodecError::UnsupportedFormatMarker(274))
             ));
         }
     }
@@ -1902,6 +1906,11 @@ pub(crate) mod structural_type_wire {
         writer.boolean(declaration.no_code_affine_cleanup);
         writer.boolean(declaration.descriptor_cleanup);
         writer.boolean(declaration.copyable);
+        writer.boolean(declaration.nominal_cleanup.is_some());
+        if let Some(selection) = &declaration.nominal_cleanup {
+            writer.u32(selection.declaration.identity().0);
+            writer.id(selection.cleanup_machine);
+        }
         match &declaration.shape {
             StructuralTypeShape::Opaque => {
                 if declaration.quotient_carrier.is_some()
@@ -2059,6 +2068,16 @@ pub(crate) mod structural_type_wire {
         let no_code_affine_cleanup = reader.boolean()?;
         let descriptor_cleanup = reader.boolean()?;
         let copyable = reader.boolean()?;
+        let nominal_cleanup = if reader.boolean()? {
+            Some(terminal_psi::NominalCleanupSelection {
+                declaration: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                    reader.u32()?,
+                )),
+                cleanup_machine: reader.id("MachineId")?,
+            })
+        } else {
+            None
+        };
         let mut scalar_restriction = None;
         let tag = reader.u8()?;
         let declares_requires = matches!(tag, RECORD_WITH_REQUIRES | SUM_WITH_REQUIRES);
@@ -2192,6 +2211,7 @@ pub(crate) mod structural_type_wire {
             no_code_affine_cleanup,
             copyable,
             descriptor_cleanup,
+            nominal_cleanup,
             scalar_restriction,
             id,
             identity,
@@ -2313,6 +2333,7 @@ pub(crate) mod structural_type_wire {
                 no_code_affine_cleanup: true,
                 copyable: true,
                 descriptor_cleanup: false,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),
@@ -2328,10 +2349,35 @@ pub(crate) mod structural_type_wire {
             assert!(!reader.boolean().unwrap());
             let _: StructuralTypeId = reader.id("StructuralTypeId").unwrap();
             reader.u32().unwrap();
-            for _ in 0..4 {
+            for _ in 0..5 {
                 reader.boolean().unwrap();
             }
             bytes.len() - reader.remaining()
+        }
+
+        #[test]
+        fn selected_cleanup_retains_exact_declaration_and_application() {
+            let mut encodings = Vec::new();
+            for selected in [None, Some((2, 3)), Some((4, 3)), Some((2, 5))] {
+                let mut declaration = invariant_record(StructuralRecordStorage::Packed);
+                declaration.nominal_cleanup =
+                    selected.map(
+                        |(identity, machine)| terminal_psi::NominalCleanupSelection {
+                            declaration: terminal_psi::NominalDeclarationIdentity::new(
+                                TerminalIdentityIndex(identity),
+                            ),
+                            cleanup_machine: semantic_vocabulary::MachineId::new(machine).unwrap(),
+                        },
+                    );
+                let mut writer = Writer::default();
+                encode_structural_type(&mut writer, &declaration).unwrap();
+                let bytes = writer.finish();
+                let mut reader = Reader::new(&bytes);
+                assert_eq!(decode_structural_type(&mut reader).unwrap(), declaration);
+                assert_eq!(reader.remaining(), 0);
+                assert!(!encodings.contains(&bytes));
+                encodings.push(bytes);
+            }
         }
 
         #[test]
@@ -2426,6 +2472,7 @@ pub(crate) mod structural_type_wire {
                     owns_linear_claim: false,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: true,
+                    nominal_cleanup: None,
                     copyable,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
@@ -2463,6 +2510,7 @@ pub(crate) mod structural_type_wire {
                     no_code_affine_cleanup: false,
                     copyable: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     scalar_restriction: None,
                     id: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
                     identity: terminal_psi::TerminalIdentityIndex(1),
@@ -2503,6 +2551,7 @@ pub(crate) mod structural_type_wire {
                 no_code_affine_cleanup: true,
                 copyable: false,
                 descriptor_cleanup: true,
+                nominal_cleanup: None,
                 scalar_restriction: None,
                 id: StructuralTypeId::new(1).expect("record identity"),
                 identity: terminal_psi::TerminalIdentityIndex(15),

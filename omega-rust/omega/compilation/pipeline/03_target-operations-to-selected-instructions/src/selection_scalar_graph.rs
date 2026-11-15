@@ -7671,7 +7671,6 @@ pub(crate) fn select_function(
     let mut selected = SelectedFunction {
         machine: source.machine,
         attachment: source.attachment,
-        nominal_cleanup_subject: source.nominal_cleanup_subject,
         provenance: source.provenance.clone(),
         structural: source.structural.clone(),
         outgoing_arguments: builder.transport.slots,

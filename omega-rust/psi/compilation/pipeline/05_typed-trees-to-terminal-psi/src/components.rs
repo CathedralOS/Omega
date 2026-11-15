@@ -180,6 +180,7 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
     for statement in statements {
         match statement {
             Statement::Bind { value, .. }
+            | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..
             } => expression(value, false, sites),

@@ -430,7 +430,6 @@ mod carriers {
     pub struct ObjectFunction {
         pub machine: MachineId,
         pub attachment: Option<semantic_vocabulary::StructuralTypeId>,
-        pub nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
         pub scalar_abi: Option<target_operations::ScalarFunctionAbi>,
         pub mixed_structural_scalar_abi:
             Option<target_operations::MixedStructuralScalarFunctionAbi>,
@@ -5759,6 +5758,7 @@ pub(crate) mod test_support {
             no_code_affine_cleanup: false,
             copyable: false,
             descriptor_cleanup: false,
+            nominal_cleanup: None,
             scalar_restriction: None,
             id,
             identity,

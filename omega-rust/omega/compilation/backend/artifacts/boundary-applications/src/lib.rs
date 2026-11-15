@@ -453,7 +453,6 @@ mod comparison_tests {
                 assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
                 id: machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 ranked_scc: None,
                 structural_places: Vec::new(),
                 call_formations: Vec::new(),

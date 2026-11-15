@@ -696,7 +696,11 @@ fn finish_reading<'source>(
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
-    while bodies.len() < program.symbols.len() {
+    loop {
+        program.finish_cleanup_selections()?;
+        if bodies.len() == program.symbols.len() {
+            break;
+        }
         let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 diagnostic,
@@ -713,6 +717,7 @@ fn finish_reading<'source>(
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
+    program.finish_cleanup_selections()?;
     let PreparedProgram {
         program: mut elaboration,
         mut source,

@@ -45,6 +45,7 @@ pub struct OwnershipFrontierSnapshot {
     pub claims: Vec<OwnershipFrontierLiveClaim>,
     pub owned_places: Vec<OwnershipFrontierOwnedPlace>,
     pub partial_custody: Vec<OwnershipFrontierPartialCustody>,
+    pub nominal_partitions: Vec<terminal_psi::StructuralAffineDiscard>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,7 +87,7 @@ pub(crate) fn ownership_frontier_fact_identity(
     snapshot: &OwnershipFrontierSnapshot,
 ) -> OwnershipFrontierFactIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v2\0");
+    canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v3\0");
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
     crate::codec_bytes::push_encoded(&mut canonical, psi.vocabulary_marker.get().to_le_bytes());
     crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
@@ -127,6 +128,12 @@ fn encode_frontier_snapshot_identity(bytes: &mut Vec<u8>, snapshot: &OwnershipFr
         for path in &partial.moved_paths {
             encode_frontier_path(bytes, path);
         }
+    }
+    encode_frontier_len(bytes, snapshot.nominal_partitions.len());
+    for partition in &snapshot.nominal_partitions {
+        crate::codec_bytes::push_encoded(bytes, partition.place.get().to_le_bytes());
+        encode_frontier_path(bytes, &partition.path);
+        crate::codec_bytes::push_encoded(bytes, partition.structural_type.get().to_le_bytes());
     }
 }
 
@@ -221,6 +228,10 @@ pub fn canonical_ownership_frontier_snapshot(snapshot: &OwnershipFrontierSnapsho
     strictly_ordered_by(&snapshot.claims, |claim| claim.claim)
         && strictly_ordered_by(&snapshot.owned_places, |place| place.place)
         && strictly_ordered_by(&snapshot.partial_custody, |partial| partial.place)
+        && snapshot
+            .nominal_partitions
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
         && snapshot
             .partial_custody
             .iter()

@@ -10,6 +10,29 @@ pub enum CallSite {
     Edge(EdgeId),
 }
 
+/// The exact executable owner of an invocation. Cleanup belongs to its
+/// selected edge and action ordinal, independently of ordinary operation IDs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InvocationOwner {
+    Operation(OperationId),
+    Cleanup { edge: EdgeId, action_ordinal: u32 },
+}
+
+impl From<InvocationOwner> for semantic_vocabulary::InvocationSite {
+    fn from(owner: InvocationOwner) -> Self {
+        match owner {
+            InvocationOwner::Operation(operation) => Self::Operation(operation),
+            InvocationOwner::Cleanup {
+                edge,
+                action_ordinal,
+            } => Self::Cleanup {
+                edge,
+                action_ordinal,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallOrigin {
     #[default]

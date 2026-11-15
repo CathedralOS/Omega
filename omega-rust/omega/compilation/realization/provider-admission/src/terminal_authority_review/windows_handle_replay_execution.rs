@@ -564,7 +564,7 @@ impl<'a, 'module> Execution<'a, 'module> {
             };
             if matches!(
                 action,
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
             ) {
                 return self.call(
                     work,
@@ -1066,7 +1066,6 @@ mod tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: MachineId::new(1).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),

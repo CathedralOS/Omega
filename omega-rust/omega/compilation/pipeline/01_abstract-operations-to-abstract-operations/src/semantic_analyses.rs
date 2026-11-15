@@ -322,6 +322,7 @@ pub(crate) mod effect_summaries {
             | abstract_operations::move_or_store_structural_field_pattern!()
             | O::StructuralLeafCopy { .. }
             | O::MoveStructuralValue { .. }
+            | O::DecomposeStructuralValue { .. }
             | O::TransformContent { .. }
             | O::EstablishScalarArray { .. }
             | abstract_operations::structural_array_or_case_pattern!(..)
@@ -883,8 +884,13 @@ pub(crate) mod place_access_summaries {
                             AccessKind::Write,
                         );
                     }
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        pending.attribute(context, cleanup.place, Vec::new(), AccessKind::Write);
+                    TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                        pending.attribute(
+                            context,
+                            cleanup.subject.place,
+                            Vec::new(),
+                            AccessKind::Write,
+                        );
                         pending.push_reach(machines, cleanup.cleanup_machine);
                     }
                 }

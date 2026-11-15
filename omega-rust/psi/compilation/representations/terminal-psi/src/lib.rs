@@ -29,7 +29,9 @@ target-neutral abstract operations by `00_terminal-psi-to-abstract-operations`.
 pub mod artifacts;
 pub mod boundary;
 mod call_contexts;
-pub use call_contexts::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
+pub use call_contexts::{
+    CallAcknowledgement, CallFormation, CallOrigin, CallSite, InvocationOwner,
+};
 #[macro_use]
 pub mod control_flow;
 pub use control_flow::ExecutionSite;
@@ -776,7 +778,7 @@ pub mod unoptimized_behavior {
                 }
                 for (_, actions) in block.terminator.cleanup_rosters() {
                     for action in actions {
-                        if let crate::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                        if let crate::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
                             operations.push(UnoptimizedBehaviorOperation::NominalCleanup {
                                 block: block.id,
                                 callee: cleanup.cleanup_machine,

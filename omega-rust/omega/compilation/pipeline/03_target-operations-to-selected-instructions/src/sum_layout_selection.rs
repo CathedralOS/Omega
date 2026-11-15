@@ -1279,6 +1279,7 @@ fn sum_inside_record() -> String {
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Packed,
             fields: vec![
@@ -1863,7 +1864,6 @@ fn function_with_body(
     AbstractFunction {
         machine: machine(),
         attachment: None,
-        nominal_cleanup_subject: None,
         entry: block_id(1),
         parameters: Vec::new(),
         structural_parameters,
@@ -1977,7 +1977,6 @@ fn target_plan(
         functions: vec![TargetFunction {
             machine: function.machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
             structural_contract: (!function.structural_parameters.is_empty()
@@ -2140,6 +2139,7 @@ fn sum_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Sum {
             cases: vec![
                 StructuralCaseDeclaration {
@@ -2172,6 +2172,7 @@ fn reference_type(
         copyable: true,
         no_code_affine_cleanup: true,
         descriptor_cleanup: false,
+        nominal_cleanup: None,
         shape: StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::SharedBorrow,

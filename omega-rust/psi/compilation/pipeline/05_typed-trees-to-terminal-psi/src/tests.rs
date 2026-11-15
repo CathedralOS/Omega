@@ -2279,6 +2279,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![
             field(1, "x", ValueType::Scalar(u32_type(), Qualification::NONE)),
@@ -2289,6 +2290,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Line"),
         shape: crate::StorageShape::Record(vec![
             field(3, "from", point()),
@@ -2961,6 +2963,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
     records.push(RecordType {
         owns_linear_claim: false,
         copyable: false,
+        cleanup: None,
         identity: "Envelope".into(),
         shape: crate::StorageShape::Record(vec![
             RecordField {
@@ -3351,6 +3354,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
@@ -3358,6 +3362,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         owns_linear_claim: false,
         copyable: true,
+        cleanup: None,
         identity: String::from("Shape"),
         shape: crate::StorageShape::Sum(vec![
             case(1, "Dot", vec![field(3, "at", scalar)]),

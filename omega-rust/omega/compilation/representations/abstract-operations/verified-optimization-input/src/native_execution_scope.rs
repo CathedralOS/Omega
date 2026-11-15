@@ -313,7 +313,7 @@ impl NativeExecutionScope {
                 }
                 for (_, cleanup) in block.terminator.cleanup_rosters() {
                     for action in cleanup {
-                        if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
+                        if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
                             action
                         {
                             pending.push(cleanup.cleanup_machine);
@@ -713,7 +713,6 @@ mod scope_tests {
         TerminalMachine {
             id: machine_id(identity),
             attachment: None,
-            nominal_cleanup_subject: None,
             structural_places: Vec::new(),
             call_formations: Vec::new(),
             block_entry_claims: Vec::new(),

@@ -23,7 +23,6 @@ use terminal_psi::{EntryClaim, StructuralParameterDeclaration as ParameterDeclar
 pub struct AbstractFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
-    pub nominal_cleanup_subject: Option<StructuralTypeId>, // Owner-designated cleanup subject, independent of attachment or call sites.
     pub entry: BlockId,
     pub parameters: Vec<AbstractParameter>, // Runtime values supplied by the caller in declared Terminal Psi order.
     pub structural_parameters: Vec<ParameterDeclaration>,

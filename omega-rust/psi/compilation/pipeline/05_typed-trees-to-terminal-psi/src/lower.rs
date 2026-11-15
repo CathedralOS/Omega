@@ -988,6 +988,7 @@ impl<'a> Lowering<'a> {
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
                 Statement::Bind { value, .. }
+            | Statement::Decompose { subject: value }
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),
@@ -1308,7 +1309,6 @@ impl<'a> Lowering<'a> {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places,
             call_formations: std::mem::take(&mut self.call_formations),

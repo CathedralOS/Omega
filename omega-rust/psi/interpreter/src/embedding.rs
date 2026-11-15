@@ -1225,6 +1225,7 @@ pub(crate) mod instance {
                     copyable: true,
                     no_code_affine_cleanup: true,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
                     scalar_restriction: None,
                     requires: Vec::new(),

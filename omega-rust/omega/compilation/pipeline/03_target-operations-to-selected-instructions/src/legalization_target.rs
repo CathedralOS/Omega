@@ -1295,8 +1295,7 @@ pub(crate) mod control_flow {
         crate::legalization::scalar_graph_input::validate_structural_contract(
             function, abstracted, optimized, plan,
         )?;
-        if (function.attachment != optimized.attachment
-            || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
+        if function.attachment != optimized.attachment
             || graph.structural_types != plan.structural_types
             || graph.structural_types != unit.structural_types
             || graph.entry != optimized.entry

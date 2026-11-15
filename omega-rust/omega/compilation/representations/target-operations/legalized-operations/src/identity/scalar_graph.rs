@@ -43,10 +43,6 @@ pub(super) fn encode(
 ) {
     crate::codec_bytes::push_encoded(bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(bytes, function.attachment.map(|value| value.get()));
-    optimization_core::encode_option_u64(
-        bytes,
-        function.nominal_cleanup_subject.map(|value| value.get()),
-    );
     encode_ids(
         bytes,
         function

@@ -537,6 +537,7 @@ pub(crate) mod frames {
                 result,
                 SuspendedCallResult::ExternalCompletion { .. }
                     | SuspendedCallResult::NoNormal { .. }
+                    | SuspendedCallResult::OwnedCleanups { .. }
             ) {
                 (Vec::new(), self.next_operation)
             } else {
@@ -602,6 +603,36 @@ pub(crate) mod frames {
                 prepared_arguments,
                 claim_transfers,
                 SuspendedCallResult::Unit,
+            )
+        }
+
+        pub(crate) fn begin_owned_cleanup_call(
+            &mut self,
+            cleanup: &terminal_psi::OwnedCleanupInvocation,
+            remaining: std::vec::IntoIter<terminal_psi::TerminalAffineCleanupAction>,
+            continuation: crate::engine::execution::CleanupContinuation,
+        ) -> Result<(), TerminalInterpretError> {
+            let program = std::sync::Arc::clone(&self.program);
+            let callee = terminal_semantics::nominal_cleanup::owned_target(
+                program.structural_types().values(),
+                program.machines().values(),
+                cleanup,
+            )
+            .map_err(|_| malformed())?;
+            let arguments = std::slice::from_ref(&cleanup.subject);
+            let prepared =
+                self.prepare_structural_call_arguments(cleanup.cleanup_machine, arguments)?;
+            self.enter_call(
+                cleanup.cleanup_machine,
+                callee,
+                &[],
+                arguments,
+                prepared,
+                &cleanup.claim_transfers,
+                SuspendedCallResult::OwnedCleanups {
+                    remaining,
+                    continuation,
+                },
             )
         }
 
@@ -823,8 +854,8 @@ pub(crate) mod frames {
         use semantic_vocabulary::{BlockId, ClaimId, ContractId, EdgeId, StructuralTypeId};
         use std::sync::Arc;
         use terminal_psi::{
-            Block, MachineContract, NominalAffineCleanup, RegisterTargetApplicability,
-            StructuralResultClaimBinding, TerminalMachine, TerminalModule, Terminator,
+            Block, MachineContract, RegisterTargetApplicability, StructuralResultClaimBinding,
+            TerminalMachine, TerminalModule, Terminator,
         };
 
         pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
@@ -835,7 +866,6 @@ pub(crate) mod frames {
                 assembly_target_requirement: RegisterTargetApplicability::Any,
                 id: machine,
                 attachment: None,
-                nominal_cleanup_subject: None,
                 structural_places: Vec::new(),
                 call_formations: Vec::new(),
                 block_entry_claims: Vec::new(),
@@ -920,21 +950,10 @@ pub(crate) mod frames {
             outgoing.byte_sequence = Some(ByteSequenceBinding::Immutable(ByteSequenceView::new(
                 ByteSequenceStorage::copy(b"retained", Some(&account)).unwrap(),
             )));
-            let cleanup = NominalAffineCleanup {
-                retains_descendants: false,
-                place: PlaceId::new(2).unwrap(),
-                path: Vec::new(),
-                structural_type,
-                cleanup_machine: MachineId::new(1).unwrap(),
-                consumed_claims: Vec::new(),
-                cleanup_receiver: None,
-                requirement_obligations: Vec::new(),
-            };
             assert_eq!(sponsor.live_payload_bytes(), 8);
             assert!(matches!(
                 execution.suspend_with(
-                    SuspendedCallResult::NominalCleanups {
-                        completed: (cleanup, value),
+                    SuspendedCallResult::OwnedCleanups {
                         remaining: Vec::new().into_iter(),
                         continuation: CleanupContinuation::Return(outgoing),
                     },
@@ -952,7 +971,7 @@ pub(crate) mod frames {
             assert_eq!(sponsor.live_storage_cells(), 1);
             assert!(execution.call_stack.is_empty());
             assert_eq!(execution.next_operation, 0);
-            let Some(SuspendedCallResult::NominalCleanups {
+            let Some(SuspendedCallResult::OwnedCleanups {
                 continuation: CleanupContinuation::Return(retained),
                 ..
             }) = &execution.failed_call_result
@@ -2011,6 +2030,7 @@ pub(crate) mod component_contents {
                             copyable: true,
                             no_code_affine_cleanup: true,
                             descriptor_cleanup: false,
+                            nominal_cleanup: None,
                             scalar_restriction: None,
                             shape,
                         }

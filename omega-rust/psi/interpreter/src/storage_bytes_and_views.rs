@@ -5396,6 +5396,7 @@ pub(crate) mod element_views {
                     copyable: true,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     shape: StructuralTypeShape::Record {
                         fields,
                         storage: StructuralRecordStorage::Packed,
@@ -5413,6 +5414,7 @@ pub(crate) mod element_views {
                     copyable: true,
                     no_code_affine_cleanup: false,
                     descriptor_cleanup: false,
+                    nominal_cleanup: None,
                     shape: StructuralTypeShape::PrimitiveScalar(unserved),
                     scalar_restriction: None,
                     requires: Vec::new(),
