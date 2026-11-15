@@ -1561,6 +1561,21 @@ pub fn same_access_policy(
 pub fn validate(module: &TerminalModule) -> Judged<()> {
     for domain in &module.structural_domains {
         validate_access_policy(module, domain)?;
+        // A received program can already hold a qualified input. Source
+        // formation refusal alone cannot protect its operations while read,
+        // write, observation and reach rules have no enforcing consumer.
+        // Description-only plans can still be validated separately.
+        if domain.access_policy.as_ref().is_some_and(|plan| {
+            !plan.readers.is_empty()
+                || !plan.writers.is_empty()
+                || !plan.observations.is_empty()
+                || !plan.reach.services().is_empty()
+        }) {
+            return malformed(
+                None,
+                "domain access operations require an enforcing consumer",
+            );
+        }
     }
     for machine in &module.machines {
         validate_machine(module, machine)?;
