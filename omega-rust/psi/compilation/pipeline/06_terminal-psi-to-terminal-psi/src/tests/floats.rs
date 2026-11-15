@@ -55,6 +55,11 @@ machine use(value: f32) { }",
     use(match flag { true -> left false -> right }, values[0]);
 }
 machine use(chosen: f32, first: f32) { }",
+        "data Calibration { magnitude: f32; }
+machine build_entry() { let calibration: Calibration; use(calibration.magnitude); }
+machine use(value: f32) { }",
+        "machine build_entry() { let narrow: f32; let wide: f64; use(narrow, wide); }
+machine use(narrow: f32, wide: f64) { }",
     ] {
         assert_eq!(verdict(program), "accepted", "{program}");
     }
@@ -127,12 +132,6 @@ machine build_entry(value: f32) { need(value); }",
 machine build_entry(value: f32) { use(make(value)); }
 machine use(value: f32) { }",
             "contract IEEE comparison without its selected declaration while reading the signature of `make`",
-        ),
-        (
-            "data Calibration { magnitude: f32; }
-machine build_entry() { let calibration: Calibration; use(calibration.magnitude); }
-machine use(value: f32) { }",
-            "completion a float local reached lowering",
         ),
     ] {
         assert_eq!(verdict(program), refusal, "{program}");
