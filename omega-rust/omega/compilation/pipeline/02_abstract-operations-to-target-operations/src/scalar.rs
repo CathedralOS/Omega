@@ -2039,6 +2039,7 @@ pub(crate) mod element_views {
                     region,
                     element_stride,
                     source: source_home,
+                    source_argument: source.clone(),
                 },
                 result.structural_type,
                 source.access,

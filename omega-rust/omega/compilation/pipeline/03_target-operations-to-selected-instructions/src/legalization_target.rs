@@ -2047,6 +2047,7 @@ pub(crate) mod element_view {
                     region,
                     element_stride,
                     source: established_source,
+                    source_argument,
                 } => {
                     let Some((argument, expected_region)) =
                         self.optimized.block_nodes().find_map(|node| {
@@ -2076,6 +2077,9 @@ pub(crate) mod element_view {
                     else {
                         return Err("view result does not match an exact declared establishment");
                     };
+                    if source_argument != argument {
+                        return Err("view source argument differs from its establishment");
+                    }
                     let backing = match established_source {
                         TargetStructuralArgumentSource::Placement(placement) => {
                             self.optimized
@@ -2559,13 +2563,7 @@ pub(crate) mod expressions {
             value: ValueId,
             aliases: &[(ValueId, ValueId)],
         ) -> bool {
-            matches!(
-                expression,
-                Expression::Immediate { .. }
-                    | Expression::Parameter { .. }
-                    | Expression::ScalarHome(_)
-                    | Expression::BlockParameter(_)
-            ) && self.expression(expression, value, aliases)
+            expression.operand_value().is_some() && self.expression(expression, value, aliases)
         }
 
         pub(crate) fn boolean_source(
