@@ -98,10 +98,16 @@ pub fn substitute_clause<Error: From<&'static str>>(
             substitute_clause_term(left, bindings)?,
             substitute_clause_term(right, bindings)?,
         ),
-        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
-        ),
+        Proposition::IntegerMathEqual(left, right) => {
+            let mut left = bound_mathematical(left, bindings)?;
+            let mut right = bound_mathematical(right, bindings)?;
+            // Substituting a literal can change the canonical order of this
+            // symmetric relation; keep its operands ordered after binding.
+            if left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::IntegerMathEqual(left, right)
+        }
         Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
             bound_mathematical(left, bindings)?,
             bound_mathematical(right, bindings)?,
@@ -439,19 +445,20 @@ mod tests {
             )
         };
         let clause = Proposition::IntegerMathEqual(
-            expression(1, 2),
             IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+            expression(1, 2),
         );
+        clause.validate().unwrap();
         assert_eq!(
             substitute_clause(&clause, &mut Inputs),
             Ok(Proposition::IntegerMathEqual(
-                expression(2, 1),
-                IntegerMathTerm::literal(IntegerValue::Unsigned(0))
+                IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                expression(2, 1)
             ))
         );
         let foreign = Proposition::IntegerMathEqual(
-            expression(1, 99),
             IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+            expression(1, 99),
         );
         assert_eq!(
             substitute_clause(&foreign, &mut Inputs),

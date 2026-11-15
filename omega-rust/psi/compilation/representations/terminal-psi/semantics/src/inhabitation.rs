@@ -1112,6 +1112,7 @@ mod tests {
             Proposition::Equal(value.clone(), zero.clone()),
             Proposition::LessOrEqual(value.clone(), zero.clone()),
             Proposition::IntegerMathEqual(
+                IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
                 IntegerMathTerm::Add(
                     Box::new(IntegerMathTerm::MathValue {
                         source_type: integer,
@@ -1119,7 +1120,6 @@ mod tests {
                     }),
                     Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
                 ),
-                IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
             ),
             Proposition::Equal(
                 ScalarTerm::IntegerEqual {
@@ -1131,6 +1131,7 @@ mod tests {
             ),
         ];
         for clause in clauses {
+            clause.validate().unwrap();
             for actual in [0, 1] {
                 assert_eq!(
                     predicates_are_false_with(std::slice::from_ref(&clause), |id| {
@@ -1144,6 +1145,19 @@ mod tests {
                 );
             }
         }
+        // Binding zero reverses the original symbolic equality's operand
+        // order. The substituted relation must remain canonical and false.
+        let reverses = Proposition::IntegerMathEqual(
+            IntegerMathTerm::literal(IntegerValue::Unsigned(1)),
+            IntegerMathTerm::MathValue {
+                source_type: integer,
+                value: formal,
+            },
+        );
+        reverses.validate().unwrap();
+        assert!(predicates_are_false_with(&[reverses], |_| {
+            Some((ScalarType::Integer(integer), IntegerValue::Unsigned(0)))
+        }));
     }
 
     #[test]
@@ -1291,12 +1305,13 @@ mod tests {
     fn a_closed_integer_resource_limit_does_not_prove_a_predicate_false() {
         use semantic_vocabulary::{IntegerMathTerm, IntegerValue};
         let condition = Proposition::IntegerMathEqual(
+            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
             IntegerMathTerm::ShiftLeft {
                 value: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1))),
                 count: Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(1_000_000))),
             },
-            IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
         );
+        condition.validate().unwrap();
         assert!(!predicates_are_false(&[condition]));
     }
 }
