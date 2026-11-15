@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Record application tests name symbols absent from their fixture table
+- Category: tests that pin the bug
+- Where: [record application fixture](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/source_records.rs#L715)
+- Saw: At clean `76788db41d9` on macOS arm64, `an_application_retains_its_source_reference_and_proven_empty_bindings` and `missing_wrong_owner_and_unbound_applications_do_not_gain_identities` panic on unresolved arena handles with indices 1 and 2 at generation 1. The fixture gives its declarations numeric symbol handles and leaves the typed trees' symbol table empty.
+- Cost: Both tests stop before checking source identity and substitutions. Build live owner and different-owner symbols in the fixture so the original refusal and acceptance controls reach their intended checks.
+- Reported: 2026-11-14, Codex, while checking shared formal write diagnostics
+
 ### Model-audit attribution uses a moving main timestamp
 - Category: knowledge crossing a boundary
 - Where: [global cutoff](tools/xtask/src/provenance.rs#L134), [default audit interval](tools/xtask/src/provenance.rs#L556)
@@ -114,13 +121,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On clean `f5ed845ea2f` on macOS arm64, the two reads of `p.x` in the shaped `p.x - p.x` control cite `ValueId(5)` and `ValueId(2)` before any intervening write. The fixture previously observed the one entry content value on `59b8d53b729`. This assertion stops before the same-field and distinct-field proof outcomes.
 - Cost: The test can no longer verify which stable observation justifies the subtraction. Trace the retained identities and keep the two-same-leaf positive and different-leaf negative.
 - Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
-
-### Writes through shared formals report a binding mutability gap
-- Category: a verdict with nothing behind it
-- Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L50), [whole replacement control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/mutable_formals.rs#L352), [field store control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_views.rs#L125)
-- Saw: The existing whole-record replacement and field-store controls through `&T` demand unavailable `immutable binding` refusals. These checks still pass with the owned-binding repair on `315ea16cc38`. The formal's slot already carries shared access, and the reference-crossing reader reports a positioned authority violation for structurally stored shared references.
-- Cost: A write through a shared formal lacks exclusive authority regardless of binding mutability. Authors see an unavailable operation with no source span instead of the loan rule that forbids the write.
-- Reported: 2026-11-14, Codex, while checking writes to immutable owned bindings
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
