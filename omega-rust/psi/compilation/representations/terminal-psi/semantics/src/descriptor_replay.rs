@@ -1270,7 +1270,12 @@ pub(crate) mod analysis {
                         if strong
                             && match origin {
                                 DescriptorStoredOrigin::Parameter { projection, .. } => {
-                                    projection.exact
+                                    // A reference to parameter storage is a
+                                    // newly retained call loan. Existing
+                                    // descriptor custody arrives as an exact
+                                    // IncomingSlot instead of this address.
+                                    self.replay.slot_kind != DescriptorSlotKind::References
+                                        && projection.exact
                                         && !projection.indirect
                                         && projection.window.is_none()
                                         && projection.captured_at.is_none()

@@ -457,11 +457,14 @@ pub mod descriptor_lifetimes {
             rules: &DescriptorResidenceRules,
             birth: DescriptorPosition,
             residence: &DescriptorLocation,
+            at_entry: bool,
             observes: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
         ) -> BTreeSet<DescriptorPosition> {
             type Occurrence = (DescriptorPosition, ResidenceName);
             let mut pending = Vec::new();
-            if let Some(step) = steps.get(&birth) {
+            if at_entry {
+                pending.push((birth, ResidenceName::Storage(residence.clone())));
+            } else if let Some(step) = steps.get(&birth) {
                 for edge in &step.successors {
                     pending.push((edge.target, ResidenceName::Storage(residence.clone())));
                 }
@@ -492,7 +495,7 @@ pub mod descriptor_lifetimes {
                 let mut outputs = Vec::new();
                 match name {
                     ResidenceName::Storage(_) => {
-                        if *position != birth || location != residence {
+                        if at_entry || *position != birth || location != residence {
                             outputs.push(name.clone());
                         }
                         for (source, destination) in &step.derivations {
@@ -705,7 +708,12 @@ pub mod descriptor_lifetimes {
         birth: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> BTreeSet<DescriptorPosition> {
-        location_live_positions(steps, birth, descriptor, false)
+        location_live_positions(steps, birth, descriptor, false).live
+    }
+
+    struct DescriptorDemand {
+        live: BTreeSet<DescriptorPosition>,
+        names: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
     }
 
     fn location_live_positions(
@@ -713,7 +721,7 @@ pub mod descriptor_lifetimes {
         birth: DescriptorPosition,
         descriptor: &DescriptorLocation,
         at_entry: bool,
-    ) -> BTreeSet<DescriptorPosition> {
+    ) -> DescriptorDemand {
         type Occurrence = (DescriptorPosition, DescriptorLocation);
         let mut pending = Vec::new();
         if at_entry {
@@ -795,11 +803,22 @@ pub mod descriptor_lifetimes {
                 escaped.extend(step.successors.iter().map(|edge| edge.target));
             }
         }
-        live
+        let mut names = BTreeMap::<DescriptorPosition, BTreeSet<DescriptorLocation>>::new();
+        for (position, name) in observed.into_iter().chain(
+            visited
+                .into_iter()
+                .filter(|(position, _)| escaped_positions.contains(position)),
+        ) {
+            names.entry(position).or_default().insert(name);
+        }
+        DescriptorDemand { live, names }
     }
 
     pub struct DescriptorLifetime {
         pub live: BTreeSet<DescriptorPosition>,
+        /// Future demand of each actual carrier spelling. A dead copy can
+        /// be released without rewalking the graph from every possible cut.
+        pub demanded: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
         pub authorized: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
         /// All carrier names that can still own this resource on any arrival.
         /// Unlike `authorized`, absence of a common name at a join does not
@@ -812,9 +831,10 @@ pub mod descriptor_lifetimes {
         entry: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> DescriptorLifetime {
-        let live = location_live_positions(steps, entry, descriptor, true);
+        let demand = location_live_positions(steps, entry, descriptor, true);
         DescriptorLifetime {
-            live,
+            live: demand.live,
+            demanded: demand.names,
             authorized: transported_locations(steps, entry, descriptor, true, false, false),
             surviving: transported_locations(steps, entry, descriptor, true, false, true),
         }
@@ -825,15 +845,16 @@ pub mod descriptor_lifetimes {
         birth: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> DescriptorLifetime {
-        let live = descriptor_location_live_positions(steps, birth, descriptor);
-        let authorized = authorized_locations(steps, birth, descriptor, &live);
+        let demand = location_live_positions(steps, birth, descriptor, false);
+        let authorized = authorized_locations(steps, birth, descriptor, &demand.live);
         let surviving = if authorized.is_empty() {
             BTreeMap::new()
         } else {
             transported_locations(steps, birth, descriptor, false, false, true)
         };
         DescriptorLifetime {
-            live,
+            live: demand.live,
+            demanded: demand.names,
             authorized,
             surviving,
         }
@@ -10375,6 +10396,75 @@ pub mod descriptor_results {
             }
 
             #[test]
+            fn borrowing_a_carrier_slot_does_not_copy_its_existing_permission() {
+                use crate::descriptor_lifetimes::{
+                    descriptor_entry_lifetime, descriptor_location_lifetime,
+                };
+                let mut module = reference_flow_module(false);
+                let reference = StructuralTypeId::new(2).unwrap();
+                let child_type = StructuralTypeId::new(3).unwrap();
+                module.structural_types[2].shape = StructuralTypeShape::Reference {
+                    referent: reference,
+                    access: StructuralAccess::SharedBorrow,
+                };
+                module.structural_types[2].copyable = true;
+                let body = &mut module.machines[0];
+                let source = PlaceId::new(1).unwrap();
+                let child = PlaceId::new(2).unwrap();
+                body.structural_places.pop();
+                body.structural_places[1].kind = StructuralPlaceKind::OperationResult {
+                    producer: OperationId::new(1).unwrap(),
+                    structural_type: child_type,
+                };
+                let mut formation = sequence_result(
+                    1,
+                    2,
+                    child_type,
+                    OperationKind::EstablishReference {
+                        source: terminal_psi::StructuralArgument::whole(
+                            source,
+                            StructuralAccess::SharedBorrow,
+                        ),
+                        storage: None,
+                    },
+                );
+                let OperationResult::Structural(result) = &mut formation.result else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+                body.blocks[0].operations = vec![formation];
+                let identity = body.id;
+                let graph =
+                    crate::descriptor_results::terminal_reference_graph_from(&module, [identity])
+                        .unwrap();
+                let row = &graph[0];
+                let after = (row.entry.0, 1);
+                let parent = descriptor_entry_lifetime(
+                    &row.flow,
+                    row.entry,
+                    &DescriptorLocation::whole(source),
+                );
+                let child_life = descriptor_location_lifetime(
+                    &row.flow,
+                    row.entry,
+                    &DescriptorLocation::whole(child),
+                );
+                assert_eq!(
+                    parent.surviving[&after],
+                    BTreeSet::from([DescriptorLocation::whole(source)])
+                );
+                assert_eq!(
+                    child_life.surviving[&after],
+                    BTreeSet::from([DescriptorLocation::whole(child)])
+                );
+                assert!(row.flow[&row.entry].authority_derivations.is_empty());
+                assert!(
+                    !row.flow[&row.entry].derivations.is_empty(),
+                    "the child still captures its real carrier storage"
+                );
+            }
+
+            #[test]
             fn projected_release_retires_only_its_reference_leaf() {
                 use crate::descriptor_lifetimes::descriptor_location_lifetime;
                 let mut module = reference_flow_module(true);
@@ -14596,7 +14686,18 @@ pub mod descriptor_results {
                         _ => {}
                     }
                     record_owned_consumption(module, machine, operation, &mut step)?;
-                    step.authority_derivations = step.derivations.clone();
+                    // Borrowing a carrier slot makes a child resource, not
+                    // another spelling of the parent's permission. Payload
+                    // and residence still follow the captured address.
+                    if !matches!(
+                        operation.kind,
+                        OperationKind::EstablishReference { .. }
+                            | OperationKind::EstablishAccessReference { .. }
+                            | OperationKind::EstablishElementView { .. }
+                            | OperationKind::EstablishMutableElementView { .. }
+                    ) {
+                        step.authority_derivations = step.derivations.clone();
+                    }
                     step.successors.push(DescriptorFlowEdge {
                         definitions: Vec::new(),
                         target: (block.id, position.1 + 1),

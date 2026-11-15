@@ -63,6 +63,7 @@ mod policy;
 mod proof_scope;
 mod qualifications;
 mod read;
+mod reference_release_lowering;
 mod reference_results;
 mod suspension;
 
@@ -982,6 +983,7 @@ fn lower_generic_for<'source>(
     }
     module.identities = qualifications.identities.build();
     module.scalar_qualifications = qualifications.catalog;
+    reference_release_lowering::publish(&mut module, &mut tables, &mut sources)?;
     for ordinal in 0..module.machines.len() {
         let machine = &module.machines[ordinal];
         let plan =

@@ -2468,7 +2468,16 @@ fn adapt(
                     .collect::<Option<Vec<_>>>()?;
                 graph.case_successors.insert(position, predicates);
             }
-            step.authority_derivations = step.derivations.clone();
+            // Capturing a descriptor's slot forms a child loan; it does not
+            // transport the permission already stored in that slot.
+            if !matches!(
+                operation,
+                O::EstablishAccessReference { .. }
+                    | O::EstablishElementView { .. }
+                    | O::EstablishReference { .. }
+            ) {
+                step.authority_derivations = step.derivations.clone();
+            }
             if graph.normal_exits.contains(&position) {
                 for parameter in &function.structural_parameters {
                     if matches!(

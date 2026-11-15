@@ -53,6 +53,102 @@ const NOT_RESTORED: &str =
     "the place does not hold a value again where the machine returns the borrow";
 const USED_VACANT: &str = "owned storage is used after its value was transferred or consumed";
 
+#[test]
+fn a_local_owned_field_is_restored_before_its_reference_is_released() {
+    let program = |restore: &str| {
+        format!(
+            "machine take(value: Holder, next: Inner) -> Inner {{\n\
+         let mut owner: Holder = value;\n\
+         let local: &mut Holder = &mut owner;\n\
+         let taken: Inner = move local.inner;\n\
+         {restore}\n\
+         taken\n}}\n"
+        )
+    };
+    accepted(&program("local.inner = next;"));
+    // No later observation of owner can stand in for the loan's repair debt:
+    // discarding its incomplete owned complement must still reject.
+    rejected(&program(""), NOT_RESTORED);
+    rejected(&program("local.tag = 2;"), NOT_RESTORED);
+}
+
+#[test]
+fn an_ordinary_owned_partial_move_owes_no_borrowed_storage_repair() {
+    accepted(
+        "machine take(value: Holder) -> Inner {\n\
+         let mut owner: Holder = value;\n\
+         let taken: Inner = move owner.inner;\n\
+         taken\n}\n",
+    );
+}
+
+#[test]
+fn an_owned_field_window_keeps_its_loan_after_the_carrier_moves() {
+    let program = |restore: &str| {
+        format!(
+            "machine take(value: Holder, next: Inner) -> Inner {{\n\
+         let mut owner: Holder = value;\n\
+         let local: &mut Holder = &mut owner;\n\
+         let taken: Inner = move local.inner;\n\
+         let repair: &mut Holder = move local;\n\
+         {restore}\n\
+         taken\n}}\n"
+        )
+    };
+    accepted(&program("repair.inner = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+#[test]
+fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
+    let source = format!(
+        "{DATA}machine read(value: Holder, next: Inner) -> u32 {{\n\
+         let mut owner: Holder = value;\n\
+         let local: &mut Holder = &mut owner;\n\
+         let taken: Inner = move local.inner;\n\
+         local.inner = next;\n\
+         owner.tag\n}}\n"
+    );
+    let RouteVerdict::Accepted(accepted) = super::entryless::judged(&source, false) else {
+        panic!("the original restored source must be accepted");
+    };
+    let mut elaboration = accepted.elaboration;
+    let block = elaboration.module.machines[0]
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block
+                .operations
+                .iter()
+                .any(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
+        })
+        .expect("the source contains an actual release");
+    let release = block
+        .operations
+        .iter()
+        .position(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
+        .unwrap();
+    assert!(matches!(
+        block.operations[release + 1].kind,
+        OperationKind::ScalarStructuralField { .. }
+    ));
+    // Keep the same operations, custody and final cleanup, but move the
+    // release after the parent observation. Future-use liveness is identical
+    // at that observation; actual permission custody is not.
+    block.operations.swap(release, release + 1);
+    elaboration.module.unoptimized_behavior = elaboration
+        .module
+        .machines
+        .iter()
+        .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+        .collect();
+    let outcome = judge(Ok(elaboration)).unwrap();
+    assert!(
+        matches!(outcome, RouteVerdict::Rejected { ref conflicts, .. } if !conflicts.is_empty()),
+        "{outcome:?}"
+    );
+}
+
 /// The window is opened by the move and closed by the store into the same
 /// field; the twin never stores, so the caller would get its `Holder` back
 /// with nothing in `inner`.
@@ -228,6 +324,14 @@ fn execute_restoration(source: &str) {
 #[test]
 fn a_whole_borrowed_window_publishes_and_executes_the_original_storage() {
     execute_restoration(ROOT_RESTORATION);
+}
+
+#[test]
+fn an_owned_field_window_publishes_and_executes_the_original_local_storage() {
+    execute_restoration(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/ownership/owned_borrowed_field_restoration/main.omg"
+    )));
 }
 
 #[test]

@@ -70,6 +70,7 @@ impl Resource {
     fn lifetime(&self, flow: &Flow) -> DescriptorLifetime {
         let mut result = DescriptorLifetime {
             live: BTreeSet::new(),
+            demanded: BTreeMap::new(),
             authorized: BTreeMap::new(),
             surviving: BTreeMap::new(),
         };
@@ -80,6 +81,9 @@ impl Resource {
                 descriptor_location_lifetime(flow, self.birth, seed)
             };
             result.live.extend(lifetime.live);
+            for (at, names) in lifetime.demanded {
+                result.demanded.entry(at).or_default().extend(names);
+            }
             for (at, names) in lifetime.authorized {
                 result.authorized.entry(at).or_default().extend(names);
             }
@@ -139,29 +143,31 @@ fn owned_reference(
     .is_some_and(|row| matches!(row.shape, StructuralTypeShape::Reference { .. }))
 }
 
-fn operation_at(machine: &TerminalMachine, at: DescriptorPosition) -> Option<&Operation> {
+fn block_at(
+    machine: &TerminalMachine,
+    identity: semantic_vocabulary::BlockId,
+) -> Option<&terminal_psi::Block> {
+    let position = usize::try_from(identity.get()).ok()?.checked_sub(1)?;
     machine
         .blocks
-        .iter()
-        .find(|block| block.id == at.0)?
-        .operations
-        .get(at.1 as usize)
+        .get(position)
+        .filter(|block| block.id == identity)
+}
+
+fn operation_at(machine: &TerminalMachine, at: DescriptorPosition) -> Option<&Operation> {
+    block_at(machine, at.0)?.operations.get(at.1 as usize)
 }
 
 fn normal_return(machine: &TerminalMachine, at: DescriptorPosition) -> bool {
-    machine
-        .blocks
-        .iter()
-        .find(|block| block.id == at.0)
-        .is_some_and(|block| {
-            at.1 as usize == block.operations.len()
-                && matches!(
-                    block.terminator,
-                    Terminator::Return { .. }
-                        | Terminator::ReturnUnit { .. }
-                        | Terminator::ReturnStructural { .. }
-                )
-        })
+    block_at(machine, at.0).is_some_and(|block| {
+        at.1 as usize == block.operations.len()
+            && matches!(
+                block.terminator,
+                Terminator::Return { .. }
+                    | Terminator::ReturnUnit { .. }
+                    | Terminator::ReturnStructural { .. }
+            )
+    })
 }
 
 fn prepare(
@@ -530,28 +536,35 @@ fn consuming_call(
     }
 }
 
+type ReverseFlow = BTreeMap<DescriptorPosition, Vec<DescriptorPosition>>;
+
+fn reverse_flow(flow: &Flow) -> ReverseFlow {
+    let mut reverse = ReverseFlow::new();
+    for (position, step) in flow {
+        for edge in &step.successors {
+            reverse.entry(edge.target).or_default().push(*position);
+        }
+    }
+    reverse
+}
+
 fn predecessors(
-    flow: &Flow,
+    reverse: &ReverseFlow,
     seeds: impl Iterator<Item = DescriptorPosition>,
 ) -> BTreeSet<DescriptorPosition> {
     let mut pending = seeds.collect::<Vec<_>>();
     let mut reached = BTreeSet::new();
     while let Some(at) = pending.pop() {
-        if !reached.insert(at) {
-            continue;
+        if reached.insert(at) {
+            pending.extend(reverse.get(&at).into_iter().flatten().copied());
         }
-        pending.extend(
-            flow.iter()
-                .filter(|(_, step)| step.successors.iter().any(|edge| edge.target == at))
-                .map(|(position, _)| *position),
-        );
     }
     reached
 }
 
 fn output_protection(
     machine: &TerminalMachine,
-    flow: &Flow,
+    reverse: &ReverseFlow,
     lifetimes: &[DescriptorLifetime],
     parents: &[Vec<usize>],
 ) -> Vec<BTreeSet<DescriptorPosition>> {
@@ -559,7 +572,7 @@ fn output_protection(
         .iter()
         .map(|lifetime| {
             predecessors(
-                flow,
+                reverse,
                 machine.blocks.iter().filter_map(|block| {
                     let Terminator::ReturnStructural { source, .. } = block.terminator else {
                         return None;
@@ -751,6 +764,7 @@ fn closure_demand(
     machine: &TerminalMachine,
     analysis: &mut DescriptorAnalysis<'_>,
     flow: &Flow,
+    reverse: &ReverseFlow,
     resources: &[Resource],
     lifetimes: &[DescriptorLifetime],
     parents: &[Vec<usize>],
@@ -804,7 +818,7 @@ fn closure_demand(
     }
     Ok(demands
         .into_iter()
-        .map(|demand| predecessors(flow, demand.into_iter()))
+        .map(|demand| predecessors(reverse, demand.into_iter()))
         .collect())
 }
 
@@ -884,12 +898,14 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
         .into_iter()
         .filter(|name| owned_reference(module, machine, name))
         .collect::<Names>();
-    let protected = output_protection(machine, &original, &original_lifetimes, &parents);
+    let reverse = reverse_flow(&original);
+    let protected = output_protection(machine, &reverse, &original_lifetimes, &parents);
     let demand = closure_demand(
         module,
         machine,
         &mut analysis,
         &original,
+        &reverse,
         &resources,
         &original_lifetimes,
         &parents,
@@ -937,9 +953,10 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
                     .iter()
                     .filter(|name| {
                         owned_names.contains(*name)
-                            && !descriptor_entry_lifetime(&flow, at, name)
-                                .live
-                                .contains(&at)
+                            && !lifetime
+                                .demanded
+                                .get(&at)
+                                .is_some_and(|demanded| demanded.contains(*name))
                     })
                     .cloned()
                     .collect::<Vec<_>>();
@@ -974,13 +991,38 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
             releases.push(release);
         }
     }
+    let proposed_lifetimes = resources
+        .iter()
+        .map(|resource| resource.lifetime(&flow))
+        .collect::<Vec<_>>();
+    releases.retain(|release| {
+        proposed_lifetimes.iter().any(|lifetime| {
+            lifetime.surviving.get(&release.at).is_some_and(|names| {
+                names.contains(&release.descriptor)
+                    && lifetime.authorized.get(&release.at) == Some(names)
+            })
+        })
+    });
+    // A virtual definition at a later redundant cut is not a disposition.
+    // Remove it before auditing the actual returned proposal, including a
+    // branch where only one arrival had already closed this resource.
+    flow = original.clone();
+    for release in &releases {
+        flow.get_mut(&release.at)
+            .ok_or(Error::at(
+                release.at,
+                "retained reference release has no cut",
+            ))?
+            .definitions
+            .push(release.descriptor.clone());
+    }
     let final_lifetimes = resources
         .iter()
         .map(|resource| resource.lifetime(&flow))
         .collect::<Vec<_>>();
     // A retained exclusive resource must have an actual local disposition
     // before an operation resumes access to its captured lender storage.
-    for (&at, _) in &flow {
+    for &at in flow.keys() {
         let Some(operation) = operation_at(machine, at) else {
             continue;
         };
@@ -1116,10 +1158,7 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
                     if !arrived.is_empty() {
                         continue;
                     }
-                    let cleanup = machine
-                        .blocks
-                        .iter()
-                        .find(|block| block.id == at.0)
+                    let cleanup = block_at(machine, at.0)
                         .filter(|block| at.1 as usize == block.operations.len())
                         .and_then(|block| block.terminator.cleanup_rosters().nth(ordinal));
                     let disposed = cleanup.is_some_and(|(_, actions)| {
