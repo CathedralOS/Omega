@@ -486,6 +486,47 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         error.detail,
         "machine caller describes another source declaration or revision"
     );
+    // An incoming program may already hold a qualified value. Refusing new
+    // source plans is insufficient until operations enforce the same rules.
+    let reader = restored.machine(number).unwrap();
+    assert!(reader.structural_parameters.iter().any(|parameter| {
+        parameter
+            .qualifications
+            .contains(&restored.structural_domains[domain].id)
+    }));
+    assert!(reader.operations().any(|operation| {
+        operation
+            .kind
+            .storage_uses()
+            .iter()
+            .any(|(_, access)| matches!(access, Some(access_plans::AccessOperation::Read)))
+    }));
+    let mut denied_read = restored.clone();
+    let policy = denied_read.structural_domains[domain]
+        .access_policy
+        .as_mut()
+        .unwrap();
+    policy
+        .readers
+        .push(((policy.schema.root(), Some(Vec::new())), Vec::new()));
+    terminal_semantics::structural_qualifications::validate_access_policy(
+        &denied_read,
+        &denied_read.structural_domains[domain],
+    )
+    .expect("the denied whole-subject row still names its genuine declaration");
+    let denied_bytes = terminal_codec::encode_module(&denied_read)
+        .expect("serialize the actual program with its added deny-all read rule");
+    let Err(error) = terminal_codec::decode_module(&denied_bytes) else {
+        panic!(
+            "received program with a deny-all read rule was admitted without operation enforcement"
+        );
+    };
+    assert!(matches!(
+        error,
+        terminal_codec::CodecError::MalformedStructuralFoundation(
+            "domain access operations require an enforcing consumer"
+        )
+    ));
     // This is an ordinary program with an authored Trap ceiling. Execute its
     // accepted product; constant evaluation has a separate no-crash condition.
     let produced = accepted
