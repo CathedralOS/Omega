@@ -128,11 +128,57 @@ enum StorageEffect {
 }
 
 impl Lineage {
+    fn byte_predicate_term(
+        &self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let path = self
+            .segments
+            .iter()
+            .map(|segment| match segment {
+                Segment::Field(field) => Ok(CanonicalStructuralPathSegment::Field(*field)),
+                Segment::Case(case) => Ok(CanonicalStructuralPathSegment::Case(*case)),
+                Segment::FixedIndex(index) => {
+                    Ok(CanonicalStructuralPathSegment::FixedIndex(*index))
+                }
+                Segment::Referent => Ok(CanonicalStructuralPathSegment::Referent),
+                _ => Err(crate::Unbound::Unsupported(
+                    "a byte clause without a finite exact path",
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate, self.root, path,
+        ))
+    }
+
     fn descriptor_location(
         &self,
     ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
         use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
         DescriptorLocation::captured(self.root, &self.segments)
+    }
+}
+
+impl Storage<'_> {
+    fn byte_clause_subject(
+        &self,
+        place: &Lineage,
+        concerns: Construct,
+    ) -> Result<(), crate::Unbound> {
+        let shape = self
+            .shape(place, concerns)
+            .map_err(crate::Unbound::Refused)?;
+        if matches!(shape, Shape::View)
+            || matches!(shape, Shape::Typed(carrier)
+                if terminal_semantics::byte_predicate_carrier(self.types.iter(), carrier))
+        {
+            Ok(())
+        } else {
+            Err(crate::Unbound::Unsupported(
+                "a byte clause observes non-byte storage",
+            ))
+        }
     }
 }
 
@@ -3600,44 +3646,46 @@ impl<'a> Storage<'a> {
     /// `&[u8] in Utf8`): a record or case literal naming the field, a whole
     /// store into it, or a view store into it.
     ///
-    /// The predicates are decided by the bytes the view shows, so each is
-    /// judged from the bytes its source supplies. byte_views.md: "Checking
-    /// rejoins the source's declared predicates or literal contents";
-    /// structural_access.md: "Primitive byte predicates replay independently
-    /// from exact literal octets". A source is served when it is, whole, the
-    /// home of one literal established by the one
-    /// `EstablishByteSequenceLiteral` that names it: a shared view never
-    /// writes its backing, so those octets are what every later read sees.
-    /// Bytes some predicate does not hold of are `Unestablished`, a compile
-    /// error of the program: the field's domain was never established for
-    /// that value. Any other source is refused as unsupported, never judged
-    /// true.
-    pub(crate) fn byte_predicate_stores(&self) -> Checked<Vec<StorageUse>> {
+    /// Every store supplies the same current observation as a clause: exact
+    /// literal bytes, or an established shared-view condition whose version
+    /// still reaches this use. A type tag alone and an unresolved source
+    /// supply no evidence. A false condition rejects the store.
+    pub(crate) fn byte_predicate_stores(&self, tables: &MachineTables) -> Checked<Vec<StorageUse>> {
         let mut verdicts = Vec::new();
         for block in &self.lowered.blocks {
-            for operation in &block.operations {
+            for (position, operation) in block.operations.iter().enumerate() {
                 let concerns = Construct::Operation(operation.id);
                 for (predicates, source) in self.predicate_view_sources(operation, concerns)? {
-                    let bytes = if source.path.is_empty() {
-                        self.literal_bytes(source.place, concerns)?
-                    } else {
-                        None
+                    let actual = self.argument(&source, concerns)?;
+                    let held = Held {
+                        storage: self,
+                        tables,
+                        place: &actual,
+                        block: block.id,
+                        up_to: position,
+                        concerns,
                     };
-                    let verdict = match bytes {
-                        Some(bytes) if predicates.holds_for(bytes) => Ok(()),
-                        Some(_) => Err(refusal(
-                            RefusalReason::Unestablished,
-                            self.machine,
-                            concerns,
-                            "a byte view is stored into a field of a byte domain, and the bytes \
+                    let mut verdict = Ok(());
+                    for predicate in predicates.predicates() {
+                        verdict = match held.byte_observation(&actual, predicate) {
+                            Ok(ScalarTerm::Boolean(true)) => Ok(()),
+                            Ok(ScalarTerm::Boolean(false)) => Err(refusal(
+                                RefusalReason::Unestablished,
+                                self.machine,
+                                concerns,
+                                "a byte view is stored into a field of a byte domain, and the bytes \
                              it shows are not in that domain",
-                        )),
-                        None => Err(self.unsupported(
-                            concerns,
-                            "a byte view stored into a field of a byte domain from other than a \
-                             literal",
-                        )),
-                    };
+                            )),
+                            Err(unbound) => Err(unbound.refusal(self.machine, concerns)),
+                            Ok(_) => Err(self.unsupported(
+                                concerns,
+                                "the current byte observation does not decide the field predicate",
+                            )),
+                        };
+                        if verdict.is_err() {
+                            break;
+                        }
+                    }
                     if let Err(refused) = verdict {
                         verdicts.push(StorageUse {
                             at: concerns,
@@ -4293,6 +4341,23 @@ fn extended(
 }
 
 impl Held<'_, '_> {
+    /// Graph edges use an end-of-block sentinel. Descriptor replay instead
+    /// names the finite cut after that block's final operation.
+    fn position(
+        &self,
+    ) -> Result<terminal_semantics::descriptor_lifetimes::DescriptorPosition, crate::Unbound> {
+        let block = self
+            .storage
+            .block(self.block)
+            .map_err(crate::Unbound::Refused)?;
+        let cut = self.up_to.min(block.operations.len());
+        Ok((
+            self.block,
+            u32::try_from(cut)
+                .map_err(|_| crate::Unbound::Unsupported("storage observation cut exceeds u32"))?,
+        ))
+    }
+
     /// The place a clause's path names beneath the value the clause is
     /// about. The clause's root stands for `self` and for nothing else.
     fn beneath(
@@ -4382,6 +4447,27 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
 
 impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
     type Error = crate::Unbound;
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        if self
+            .structural
+            .as_ref()
+            .is_some_and(|(declared, _)| *declared == root)
+        {
+            let subject = terminal_check_tables::program::self_place()
+                .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
+            return self.held()?.byte_predicate(predicate, subject, path);
+        }
+        if self.formal_access(root)? == StructuralAccess::Owned {
+            return self.inputs.byte_predicate(predicate, root, path);
+        }
+        let actual = self.inputs.input_place(root, path)?;
+        self.held_at(&actual)?.byte_observation(&actual, predicate)
+    }
     fn value(
         &mut self,
         id: ValueId,
@@ -4539,6 +4625,17 @@ impl AtEntry<'_, '_> {
 
 impl crate::Bindings for AtEntry<'_, '_> {
     type Error = crate::Unbound;
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        let place = self.input_place(root, path)?;
+        self.storage
+            .byte_clause_subject(&place, Construct::Machine)?;
+        place.byte_predicate_term(predicate)
+    }
     fn value(
         &mut self,
         id: ValueId,
@@ -4676,6 +4773,15 @@ impl<'a> AtCall<'_, 'a> {
 
 impl crate::Bindings for AtCall<'_, '_> {
     type Error = crate::Unbound;
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        let actual = self.actual(root, path)?;
+        self.held_at(&actual).byte_observation(&actual, predicate)
+    }
     fn value(
         &mut self,
         id: ValueId,
@@ -4726,6 +4832,33 @@ pub(crate) struct AtJoin<'s, 'a> {
 
 impl crate::Bindings for AtJoin<'_, '_> {
     type Error = crate::Unbound;
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        if self
+            .inputs
+            .callee_formals
+            .iter()
+            .any(|formal| formal.place == root)
+        {
+            self.inputs.byte_predicate(predicate, root, path)
+        } else {
+            let actual = extended(
+                Lineage {
+                    root,
+                    segments: Vec::new(),
+                },
+                path,
+            )?;
+            self.inputs
+                .held_at(&actual)
+                .byte_observation(&actual, predicate)
+        }
+    }
 
     fn value(
         &mut self,
@@ -4867,6 +5000,221 @@ impl InputPlaces for AtCall<'_, '_> {
 }
 
 impl Held<'_, '_> {
+    fn byte_observation(
+        &self,
+        place: &Lineage,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let storage = self.storage;
+        storage.byte_clause_subject(place, self.concerns)?;
+        if place.segments.is_empty()
+            && let Some(bytes) = storage
+                .literal_bytes(place.root, self.concerns)
+                .map_err(crate::Unbound::Refused)?
+        {
+            return Ok(ScalarTerm::Boolean(predicate.holds_for(bytes)));
+        }
+        let location = place
+            .descriptor_location()
+            .ok_or(crate::Unbound::Unsupported(
+                "a byte clause without a resolved descriptor location",
+            ))?;
+        let point = self.position()?;
+        let payload =
+            terminal_semantics::descriptor_results::DescriptorPayloadTarget::current(location);
+        let established = match storage
+            .root_kind(place.root, self.concerns)
+            .map_err(crate::Unbound::Refused)?
+        {
+            StructuralPlaceKind::Parameter { .. } => None,
+            StructuralPlaceKind::BlockParameter { block, .. } => Some((block, 0)),
+            StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            } if place.segments.is_empty()
+                && storage
+                    .declaration(structural_type, self.concerns)
+                    .map_err(crate::Unbound::Refused)?
+                    .shape
+                    .is_shared_readable_byte_view() =>
+            {
+                let (block, after) = storage
+                    .graph
+                    .locate(ProgramPoint::AfterOperation(producer))
+                    .map_err(crate::Unbound::Refused)?;
+                let before = after.checked_sub(1).ok_or(crate::Unbound::Unproved(
+                    "the byte producer has no preceding operation cut",
+                ))?;
+                let producer = (
+                    block,
+                    u32::try_from(before).map_err(|_| {
+                        crate::Unbound::Unsupported("byte producer cut exceeds u32")
+                    })?,
+                );
+                let captured = (
+                    block,
+                    u32::try_from(after)
+                        .map_err(|_| crate::Unbound::Unsupported("byte capture cut exceeds u32"))?,
+                );
+                storage
+                    .references
+                    .borrow_mut()
+                    .require_unchanged_produced_payload(
+                        storage.machine,
+                        producer,
+                        point,
+                        &place
+                            .descriptor_location()
+                            .ok_or(crate::Unbound::Unsupported(
+                                "a byte producer without a resolved descriptor location",
+                            ))?,
+                    )
+                    .map_err(crate::Unbound::Unproved)?;
+                let location = place
+                    .descriptor_location()
+                    .ok_or(crate::Unbound::Unsupported(
+                        "a byte capture without a resolved descriptor location",
+                    ))?;
+                {
+                    let mut analysis = storage.references.borrow_mut();
+                    let origins = analysis
+                        .symbolic_source_origins(storage.machine, captured, &location)
+                        .filter(|origins| !origins.is_empty())
+                        .ok_or(crate::Unbound::Unproved(
+                            "the byte capture has no exact backing or window",
+                        ))?;
+                    if analysis.symbolic_source_origins(storage.machine, point, &location)
+                        != Some(origins)
+                    {
+                        return Err(crate::Unbound::Unproved(
+                            "the byte view no longer names its captured backing and window",
+                        ));
+                    }
+                }
+                // Full origin equality keeps the descriptor's exact window.
+                // The loan owner separately resolves its enclosing backing;
+                // overlap with that backing invalidates contents, never proves
+                // that two windows have the same predicate.
+                let loans::LoanRegion::Storage(backing) = storage
+                    .borrow_backing(place, captured, self.concerns)
+                    .map_err(crate::Unbound::Refused)?
+                else {
+                    return Err(crate::Unbound::Unproved(
+                        "the byte capture has no versioned storage backing",
+                    ));
+                };
+                let backing = backing
+                    .descriptor_location()
+                    .ok_or(crate::Unbound::Unsupported(
+                        "a byte capture backing without a resolved storage location",
+                    ))?;
+                storage
+                    .references
+                    .borrow_mut()
+                    .require_unchanged_observed_storage(
+                        storage.machine,
+                        producer,
+                        point,
+                        &terminal_semantics::descriptor_results::DescriptorPayloadTarget::current(
+                            backing,
+                        ),
+                    )
+                    .map_err(crate::Unbound::Unproved)?;
+                // The shared source query authenticates call results and
+                // captures the exact copied field or subslice. Its predicates
+                // apply here only after the completed-value version check;
+                // an overlapping write cannot reuse that producer's facts.
+                if terminal_semantics::byte_sequence_source_predicates(
+                    storage.module,
+                    storage.lowered,
+                    place.root,
+                )
+                .is_some_and(|predicates| predicates.predicates().any(|held| held == predicate))
+                {
+                    return Ok(ScalarTerm::Boolean(true));
+                }
+                return place.byte_predicate_term(predicate);
+            }
+            _ => {
+                return Err(crate::Unbound::Unproved(
+                    "the byte clause has no exact current source observation",
+                ));
+            }
+        };
+        let version = match established {
+            Some(established) => storage
+                .references
+                .borrow_mut()
+                .require_unchanged_storage_since(storage.machine, established, point, &payload),
+            None => storage
+                .references
+                .borrow_mut()
+                .require_unchanged_entry_storage(storage.machine, point, &payload),
+        };
+        version.map_err(crate::Unbound::Unproved)?;
+        // An input or proved block header may carry a byte domain, but a
+        // fresh constructor cannot prove its own clause from its type.
+        // Require the exact current typed value and shared backing: mutable
+        // buffers need evidence for their current bytes instead.
+        if place.segments.is_empty()
+            && matches!(
+                storage
+                    .root_kind(place.root, self.concerns)
+                    .map_err(crate::Unbound::Refused)?,
+                StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. }
+            )
+            && let Some(parameter) =
+                terminal_semantics::structural_argument_source(storage.lowered, place.root, 0)
+            && storage
+                .declaration(parameter.structural_type, self.concerns)
+                .map_err(crate::Unbound::Refused)?
+                .shape
+                .is_shared_readable_byte_view()
+            && terminal_semantics::byte_parameter_predicates(storage.module, &parameter)
+                .is_some_and(|predicates| predicates.predicates().any(|held| held == predicate))
+        {
+            let term = place.byte_predicate_term(predicate)?;
+            let condition = Proposition::Equal(term, ScalarTerm::Boolean(true));
+            if let Some((header, _)) = established
+                // The producer emits this roster in machine/header order;
+                // foreign receiving validates that same strict ordering.
+                // Each observation needs only its own header's predicate.
+                && let Ok(index) = storage.module.scalar_block_invariants.binary_search_by_key(
+                    &(storage.machine, header),
+                    |invariant| (invariant.machine, invariant.header),
+                )
+                && terminal_semantics::scalar_qualifications::retains_conjunct(
+                    &storage.module.scalar_block_invariants[index].predicate,
+                    &condition,
+                )
+            {
+                // This is the proved header condition at its retained
+                // version, not evidence manufactured from the new type tag.
+                return Ok(ScalarTerm::Boolean(true));
+            }
+            let mut budget = storage.budget();
+            if matches!(
+                storage
+                    .reaching(
+                        self.tables,
+                        Asked::Contents(place),
+                        self.block,
+                        self.up_to,
+                        &mut budget,
+                        self.concerns
+                    )
+                    .map_err(crate::Unbound::Refused)?
+                    .within(0),
+                Reached::Established(_)
+            ) {
+                return Ok(ScalarTerm::Boolean(true));
+            }
+        }
+        // Only the version check allows this entry/header subject to stand
+        // for current bytes. Replacement never inherits its old predicate.
+        place.byte_predicate_term(predicate)
+    }
+
     /// Scalar fields and descriptor lengths both use the contents reaching
     /// this observation point. A descriptor producer can supply its exact
     /// endpoint term without a new runtime measurement.
@@ -4899,12 +5247,11 @@ impl Held<'_, '_> {
             .map_err(crate::Unbound::Refused)?;
         if let Reached::Extent(producer) = reached {
             let block = storage.block(self.block).map_err(crate::Unbound::Refused)?;
-            let point = self
-                .up_to
-                .min(block.operations.len())
+            let (_, cut) = self.position()?;
+            let point = cut
                 .checked_sub(1)
                 .map_or(ProgramPoint::BlockEntry(self.block), |previous| {
-                    ProgramPoint::AfterOperation(block.operations[previous].id)
+                    ProgramPoint::AfterOperation(block.operations[previous as usize].id)
                 });
             return storage
                 .extent_contents(producer, point, scalar_type, &budget)
@@ -4981,6 +5328,14 @@ impl Held<'_, '_> {
 
 impl crate::Bindings for Held<'_, '_> {
     type Error = crate::Unbound;
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        self.byte_observation(&self.beneath(root, path)?, predicate)
+    }
     fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::Unbound> {
         Err(crate::Unbound::Unsupported(
             "a data clause names a value that is no field of its own value",
@@ -5073,6 +5428,19 @@ impl Named<'_> {
 
 impl crate::Bindings for Named<'_> {
     type Error = crate::Unbound;
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        self.beneath(root, path)?;
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            path.to_vec(),
+        ))
+    }
     fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::Unbound> {
         Err(crate::Unbound::Unsupported(
             "a data clause names a value that is no field of its own value",

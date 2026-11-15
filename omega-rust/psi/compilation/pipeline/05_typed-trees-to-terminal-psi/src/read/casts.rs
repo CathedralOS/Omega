@@ -186,7 +186,7 @@ impl Program<'_> {
         // variable its use decides, as a literal takes the lifetime its use
         // requires.
         let elision = std::mem::replace(&mut self.elision, super::regions::Elision::Variables);
-        let result = self.qualified_view_type(id, cast.result_type);
+        let result = self.value_type(id, cast.result_type);
         self.elision = elision;
         let result = result?;
         // A literal lands in the carrier of the type the cast gives it
@@ -272,32 +272,6 @@ impl Program<'_> {
                             },
                             carrier,
                         )?,
-                        // `"text" as +Utf8`: a primitive byte predicate is
-                        // decided by the bytes the view shows, and a view in
-                        // a domain is served only as a data field's type
-                        // (`view_type`), so this value is stored into
-                        // such a field or dropped. The checker judges each
-                        // store into a predicate field from the octets of
-                        // the literal it supplies (byte_views.md: "Checking
-                        // rejoins the source's declared predicates or
-                        // literal contents"), so the cast states no clause.
-                        // Its operand is a quoted literal, the one source
-                        // whose bytes that judgment reads.
-                        (ValueType::Record(row, _, _), Some(_))
-                            if self.is_view(id, row)?
-                                && typed_trees::byte_predicates::domain_byte_predicate(
-                                    self.typed,
-                                    domain.declaration,
-                                )
-                                .is_some() =>
-                        {
-                            if !matches!(operand.kind, ExpressionKind::ByteLiteral(_)) {
-                                return unserved(
-                                    "cast that adds a byte predicate to other than a quoted literal",
-                                );
-                            }
-                            (Vec::new(), String::new())
-                        }
                         // An array or record, or a reference displaying a
                         // domain on its referent (`&text as +Terminated`):
                         // the clauses are stated over the plain value at one
@@ -338,21 +312,6 @@ impl Program<'_> {
                     }
                 }
                 _ => {
-                    // `("text" as +Utf8) as -Utf8`: the predicate a literal
-                    // was given is judged only where a field stores it
-                    // (`domain_entry`, the `Add` arm), so removing it again
-                    // before any store would leave it judged nowhere.
-                    let mut beneath: &Expression = &operand;
-                    while let ExpressionKind::Requalify(inner) = &beneath.kind {
-                        beneath = inner.as_ref();
-                    }
-                    if !std::ptr::eq(beneath, &operand)
-                        && matches!(beneath.kind, ExpressionKind::ByteLiteral(_))
-                    {
-                        return unserved(
-                            "removal of a byte predicate a quoted literal was just given",
-                        );
-                    }
                     self.domain_removal(id, domain, operand_type)?;
                 }
             }
@@ -590,14 +549,6 @@ impl Program<'_> {
                 self.typed.expression_table.expression(expression),
                 typed_trees::expression::ExpressionNode::String(_)
             )
-    }
-
-    /// Whether the record row `row` is a shared byte view.
-    fn is_view(&self, id: MachineId, row: semantic_vocabulary::StructuralTypeId) -> Checked<bool> {
-        Ok(matches!(
-            self.data_type(id, row)?.shape,
-            crate::StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view()
-        ))
     }
 }
 

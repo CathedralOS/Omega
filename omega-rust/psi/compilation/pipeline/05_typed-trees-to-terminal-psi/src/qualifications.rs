@@ -516,7 +516,10 @@ impl Qualifications {
             )
         };
         let definition = source.domain_theory(diagnostic, symbol)?;
-        let predicate = if crate::read::has_predicates(definition) {
+        let byte_predicate =
+            typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition)
+                .map(|(_, predicate)| predicate);
+        let predicate = if byte_predicate.is_none() && crate::read::has_predicates(definition) {
             let domains = DomainSet::EMPTY
                 .with(symbol)
                 .ok_or_else(|| unavailable("record domain subject"))?;
@@ -592,14 +595,14 @@ impl Qualifications {
         };
         self.structural.push(StructuralDomainDeclaration {
             required_memberships: Some(Vec::new()),
-            complete_predicate_theory: false,
+            complete_predicate_theory: byte_predicate.is_some(),
             predicate,
             id,
             semantic_domain: DomainSemanticId::new(id.get()).expect("a domain identity is nonzero"),
             identity,
             carrier,
             content_projection: None,
-            byte_predicate: None,
+            byte_predicate,
             establishment_routes,
         });
         self.structural_domains.push((symbol, id));

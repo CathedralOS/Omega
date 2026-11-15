@@ -37,6 +37,19 @@ pub trait ClauseBindings {
             "clause extent has no descriptor observation",
         ))
     }
+    /// The primitive evaluated over this exact descriptor's current bytes.
+    /// A consumer must retain the observed window and its storage version;
+    /// backing overlap alone cannot supply an equal byte sequence.
+    fn byte_predicate(
+        &mut self,
+        _predicate: semantic_vocabulary::ByteSequencePredicate,
+        _root: PlaceId,
+        _path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Err(Self::Error::from(
+            "clause byte predicate has no current byte observation",
+        ))
+    }
     /// Whether the sum at `path` beneath `root` is `case`, by structure.
     fn case(
         &mut self,
@@ -219,6 +232,11 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
                     path,
                     scalar_type,
                 } => bindings.extent(root, &path, scalar_type)?,
+                ScalarTerm::ByteSequencePredicate {
+                    predicate,
+                    root,
+                    path,
+                } => bindings.byte_predicate(predicate, root, &path)?,
                 ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)
                 | ScalarTerm::IeeeFloatLiteral(_) => term,
@@ -390,6 +408,21 @@ mod tests {
 
     fn scalar_type() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+    }
+
+    #[test]
+    fn a_byte_clause_requires_its_consumers_exact_observation() {
+        let term = ScalarTerm::byte_sequence_predicate(
+            semantic_vocabulary::ByteSequencePredicate::NoNul,
+            PlaceId::new(1).unwrap(),
+            vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(2).unwrap(),
+            )],
+        );
+        assert_eq!(
+            substitute_clause_term(&term, &mut Inputs),
+            Err("clause byte predicate has no current byte observation")
+        );
     }
 
     impl ClauseBindings for Inputs {

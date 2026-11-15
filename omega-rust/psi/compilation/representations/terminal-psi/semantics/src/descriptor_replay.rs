@@ -429,6 +429,98 @@ pub(crate) mod analysis {
             self.replay
                 .canonical_storage(machine, states.get(&position)?, location, None)
         }
+
+        /// Keep a current observation tied to the entry contents of the
+        /// same storage. Replacement and overlapping payload writes refuse
+        /// that correspondence, even when the final value looks equal.
+        pub fn require_unchanged_entry_storage(
+            &mut self,
+            identity: MachineId,
+            observation: DescriptorPosition,
+            payload: &super::DescriptorPayloadTarget,
+        ) -> Result<(), &'static str> {
+            let types = self.replay.types;
+            let machines = self.replay.machines;
+            crate::descriptor_results::require_unchanged_entry_storage(
+                types,
+                machines,
+                self,
+                identity,
+                observation,
+                payload,
+            )
+        }
+
+        pub fn require_unchanged_storage_since(
+            &mut self,
+            identity: MachineId,
+            established: DescriptorPosition,
+            observation: DescriptorPosition,
+            payload: &super::DescriptorPayloadTarget,
+        ) -> Result<(), &'static str> {
+            let types = self.replay.types;
+            let machines = self.replay.machines;
+            crate::descriptor_results::require_unchanged_storage_since(
+                types,
+                machines,
+                self,
+                identity,
+                established,
+                observation,
+                payload,
+            )
+        }
+
+        /// A completed producer's value must still reach the consumer.
+        /// This checks the supplied storage, not a descriptor's referent;
+        /// callers observing payload bytes must also retain their backing.
+        pub fn require_unchanged_produced_payload(
+            &mut self,
+            identity: MachineId,
+            producer: DescriptorPosition,
+            observation: DescriptorPosition,
+            payload: &DescriptorLocation,
+        ) -> Result<(), &'static str> {
+            let machines = self.replay.machines;
+            let machine = machines
+                .iter()
+                .find(|machine| machine.id == identity)
+                .ok_or("produced payload machine is absent")?;
+            crate::descriptor_results::payload_versions::require_version(
+                machine,
+                self,
+                producer,
+                observation,
+                payload,
+            )
+        }
+
+        /// Keep the same observed backing through the existing alias-aware
+        /// version flow. Descriptor identity is checked separately: overlap
+        /// invalidates contents but never establishes window equality.
+        pub fn require_unchanged_observed_storage(
+            &mut self,
+            identity: MachineId,
+            completed_observation: DescriptorPosition,
+            use_position: DescriptorPosition,
+            storage: &super::DescriptorPayloadTarget,
+        ) -> Result<(), &'static str> {
+            if completed_observation == use_position {
+                return Err("storage observation has not completed before its use");
+            }
+            let machines = self.replay.machines;
+            let machine = machines
+                .iter()
+                .find(|machine| machine.id == identity)
+                .ok_or("observed storage machine is absent")?;
+            crate::descriptor_results::payload_versions::require_unchanged_between(
+                machine,
+                self,
+                completed_observation,
+                use_position,
+                storage,
+            )
+        }
         pub fn storage_origins(
             &mut self,
             identity: MachineId,

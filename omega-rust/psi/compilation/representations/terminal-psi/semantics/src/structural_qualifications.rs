@@ -199,7 +199,19 @@ fn judged_elsewhere(module: &TerminalModule, id: StructuralDomainId) -> bool {
 /// restriction and no prerequisite. Its predicates, if any, are clauses of the
 /// owning type, which the proof kernel owes at the provisioning operation
 /// exactly as for a scalar field.
-fn zero_admits(module: &TerminalModule, row: &StructuralPathQualification) -> bool {
+fn zero_admits(
+    module: &TerminalModule,
+    carrier: semantic_vocabulary::StructuralTypeId,
+    row: &StructuralPathQualification,
+) -> bool {
+    if domain(module, row.domain).is_some_and(|domain| domain.byte_predicate.is_some()) {
+        return crate::zeroed_projected_byte_qualifications_hold(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            carrier,
+            std::slice::from_ref(row),
+        );
+    }
     domain(module, row.domain).is_some_and(|domain| {
         domain.byte_predicate.is_none()
             && domain.content_projection.is_none()
@@ -320,6 +332,19 @@ impl Rerooted {
 impl crate::substitution::clauses::ClauseBindings for Rerooted {
     type Error = &'static str;
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            self.root,
+            self.path(root, path)?,
+        ))
+    }
+
     fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, Self::Error> {
         Err("a structural domain predicate names a value")
     }
@@ -428,16 +453,46 @@ fn validate_change(
                 "a structural qualification change adds an absent domain",
             );
         };
-        if declared.byte_predicate.is_some() || declared.content_projection.is_some() {
+        if declared.content_projection.is_some() {
             return malformed(
                 machine,
-                "a structural cast cannot prove a byte predicate or content projection",
+                "a structural cast cannot prove a content projection",
             );
         }
         // `value as +D` proves the predicates of `D` of the operand on the
         // edge into the block the cast continues in: that block's invariant
         // states them of its parameter, as a scalar coercion's does
         // (`scalar_qualifications`).
+        let mut conditions = Vec::new();
+        if let Some(predicate) = declared.byte_predicate {
+            let mut required = terminal_psi::ByteSequencePredicateSet::EMPTY;
+            required.insert(predicate);
+            let path = if *referent {
+                vec![CanonicalStructuralPathSegment::Referent]
+            } else {
+                Vec::new()
+            };
+            let carrier = places
+                .machine
+                .structural_place_type(change.destination)
+                .and_then(|root| {
+                    crate::canonical_structural_path_tip(
+                        module.structural_types.iter(),
+                        root,
+                        &path,
+                    )
+                })
+                .map(|row| row.id);
+            if carrier != Some(declared.carrier) {
+                return malformed(machine, "a byte cast's domain has another carrier");
+            }
+            conditions.push(crate::byte_predicate_requirement(
+                required,
+                terminal_psi::ByteSequencePredicateSet::EMPTY,
+                change.destination,
+                &path,
+            ));
+        }
         if let Some(predicate) = &declared.predicate {
             let Ok(expected) = crate::substitution::clauses::substitute_clause(
                 &predicate.proposition,
@@ -452,6 +507,9 @@ fn validate_change(
                     "a structural cast's domain predicate cannot be restated",
                 );
             };
+            conditions.push(expected);
+        }
+        for expected in conditions {
             let retained = module.scalar_block_invariants.iter().any(|invariant| {
                 Some(invariant.machine) == machine
                     && invariant.header == target
@@ -795,10 +853,9 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                 OperationKind::EstablishStructuralLocal {} => {}
                 OperationKind::EstablishZeroedStructural {} => {
                     if !produced.whole.is_empty()
-                        || produced
-                            .projected
-                            .iter()
-                            .any(|row| !zero_admits(module, row))
+                        || produced.projected.iter().any(|row| {
+                            result_type.is_none_or(|carrier| !zero_admits(module, carrier, row))
+                        })
                     {
                         return malformed(
                             id,

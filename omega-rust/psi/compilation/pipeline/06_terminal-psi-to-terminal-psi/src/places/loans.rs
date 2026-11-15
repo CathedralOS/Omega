@@ -130,7 +130,7 @@ pub(super) enum BorrowedResource {
 }
 
 #[derive(Debug)]
-enum LoanRegion {
+pub(super) enum LoanRegion {
     Storage(super::Lineage),
     /// An admitted provider establishes a stable shared permission. Its input
     /// loans are retained separately; its address remains unavailable.
@@ -280,7 +280,7 @@ impl Storage<'_> {
             BorrowedResource::Storage
         }
     }
-    fn borrow_backing(
+    pub(super) fn borrow_backing(
         &self,
         raw: &super::Lineage,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,

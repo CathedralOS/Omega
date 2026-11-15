@@ -731,10 +731,6 @@ impl Records<'_> {
         }
         let declaration =
             terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
-        // Byte predicates belong to the storage the byte judgment sees.
-        if matches!(declaration.shape, StorageShape::ByteSequence(_)) {
-            return Ok(());
-        }
         // A reference's source qualification belongs to its referent. The
         // same path also carries the referent's field qualifications.
         if let StorageShape::Reference { referent, .. } = declaration.shape
@@ -828,12 +824,6 @@ impl Records<'_> {
             let ValueType::Record(inner, qualification, _) = field.value_type else {
                 continue;
             };
-            // A byte view's domain is decided by the bytes it shows: the
-            // field's own type carries its predicates (`read::bytes`), and
-            // the byte judgment holds every store to them.
-            if !field.byte_predicates.is_empty() || self.is_byte_sequence(inner) {
-                continue;
-            }
             let depth = prefix.len();
             if let Some(case) = case {
                 prefix.push(StructuralPathSegment::Case(case));
@@ -850,12 +840,6 @@ impl Records<'_> {
             prefix.truncate(depth);
         }
         Ok(())
-    }
-
-    pub(crate) fn is_byte_sequence(&self, record: StructuralTypeId) -> bool {
-        self.types
-            .get(record)
-            .is_some_and(|row| matches!(row.shape, StorageShape::ByteSequence(_)))
     }
 
     pub(crate) fn primitive_types(
@@ -1422,11 +1406,7 @@ impl<'a> Lowering<'a> {
             .result
             .map_or(Qualification::NONE, ValueType::qualification);
         let (whole, projected) = self.memberships(record, after)?;
-        let held = if self.is_byte_sequence(record) {
-            Vec::new()
-        } else {
-            self.qualifications.structural(self.id, record, before)?
-        };
+        let held = self.qualifications.structural(self.id, record, before)?;
         let (shown, displayed) = if matches!(
             self.record_type(record)?.shape,
             StorageShape::Reference { .. }
@@ -1578,13 +1558,6 @@ impl<'a> Lowering<'a> {
             }
         }
         self.records.multiplicity(record, self.id)
-    }
-
-    /// A byte view or sequence: its domains are primitive byte predicates,
-    /// which the byte judgment decides from the bytes it shows
-    /// (`read::bytes`), not memberships this one carries.
-    fn is_byte_sequence(&self, record: StructuralTypeId) -> bool {
-        self.records.is_byte_sequence(record)
     }
 
     /// The memberships of a root holding a value of `record` in
@@ -2455,7 +2428,7 @@ impl<'a> Lowering<'a> {
                 root,
                 Vec::new(),
                 self.exact_root(root)?,
-                ValueType::record(record),
+                value_type,
                 Some(root),
             )
         } else if matches!(value_type, ValueType::Record(..)) {

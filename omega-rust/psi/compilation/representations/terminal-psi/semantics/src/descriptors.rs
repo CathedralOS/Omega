@@ -8576,7 +8576,7 @@ pub mod descriptor_results {
             require_version(machine, &mut analysis, producer, observation, payload)
         }
 
-        fn require_version(
+        pub(crate) fn require_version(
             machine: &DescriptorMachine,
             analysis: &mut DescriptorAnalysis<'_>,
             producer: DescriptorPosition,
@@ -8621,7 +8621,7 @@ pub mod descriptor_results {
             )
         }
 
-        fn require_unchanged_between(
+        pub(crate) fn require_unchanged_between(
             machine: &DescriptorMachine,
             analysis: &mut DescriptorAnalysis<'_>,
             producer: DescriptorPosition,
@@ -8650,12 +8650,46 @@ pub mod descriptor_results {
             }
             let machine =
                 descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
-            require_unchanged_from(machine, analysis, VersionStart::Entry, observation, payload)
+            require_unchanged_from(
+                machine,
+                analysis,
+                VersionStart::Before(machine.entry),
+                observation,
+                payload,
+            )
+        }
+
+        /// Retain contents established at the given pre-operation cut. The
+        /// caller owns that establishment (for example a proved header);
+        /// this query proves only that no intervening path changes it.
+        pub fn require_unchanged_storage_since(
+            types: &[StructuralTypeDeclaration],
+            graph: &[DescriptorMachine],
+            analysis: &mut DescriptorAnalysis<'_>,
+            identity: MachineId,
+            established: DescriptorPosition,
+            observation: DescriptorPosition,
+            payload: &DescriptorPayloadTarget,
+        ) -> Result<(), &'static str> {
+            if !analysis.uses_source_graph(types, graph) {
+                return Err(
+                    "storage observation analysis belongs to another immutable source graph",
+                );
+            }
+            let machine =
+                descriptor_machine(graph, identity).ok_or("observed payload machine is absent")?;
+            require_unchanged_from(
+                machine,
+                analysis,
+                VersionStart::Before(established),
+                observation,
+                payload,
+            )
         }
 
         #[derive(Clone, Copy)]
         enum VersionStart {
-            Entry,
+            Before(DescriptorPosition),
             Completed(DescriptorPosition),
         }
 
@@ -8811,19 +8845,27 @@ pub mod descriptor_results {
             };
             let entry_index = position_index(entry)?;
             let observation_index = position_index(observation)?;
-            if let VersionStart::Completed(producer) = start {
-                position_index(producer)?;
-            }
+            let producer = match start {
+                VersionStart::Before(producer) | VersionStart::Completed(producer) => producer,
+            };
+            position_index(producer)?;
             let mut versions = vec![None; positions.len()];
             let mut writes = vec![None; positions.len()];
-            versions[entry_index] = Some(matches!(start, VersionStart::Entry));
+            versions[entry_index] =
+                Some(matches!(start, VersionStart::Before(producer) if producer == entry));
             let mut pending = VecDeque::from([entry_index]);
             while let Some(current_index) = pending.pop_front() {
                 let current = positions[current_index];
                 let step = flow
                     .get(&current)
                     .ok_or("payload version flow lost its step")?;
-                let before = versions[current_index].ok_or("payload version arrival is absent")?;
+                let arrived = versions[current_index].ok_or("payload version arrival is absent")?;
+                // Invocation entry supplies one original version. A
+                // proved non-entry header supplies its new version on
+                // each arrival, before even its first operation writes.
+                let before = arrived
+                    || matches!(start,
+                    VersionStart::Before(producer) if producer == current && producer != entry);
                 let after = if matches!(start, VersionStart::Completed(producer) if current == producer)
                 {
                     true
@@ -8855,7 +8897,10 @@ pub mod descriptor_results {
                     }
                 }
             }
-            Ok(versions[observation_index] == Some(true))
+            Ok(versions[observation_index].is_some()
+                && (versions[observation_index] == Some(true)
+                    || matches!(start, VersionStart::Before(producer)
+                        if producer == observation && producer != entry)))
         }
 
         pub fn unchanged_stored_scalar_sources(
@@ -9009,7 +9054,7 @@ pub mod descriptor_results {
         mod tests {
             use super::*;
             use crate::descriptors::descriptor_lifetimes::{
-                DescriptorFlowBinding, DescriptorFlowEdge,
+                DescriptorFlowBinding, DescriptorFlowEdge, DescriptorPathSegment,
             };
             use semantic_vocabulary::BlockId;
 
@@ -9112,14 +9157,23 @@ pub mod descriptor_results {
                     let graph = std::slice::from_ref(machine);
                     let mut analysis =
                         DescriptorAnalysis::with_borrowed_storage_slots(&types, graph);
-                    require_unchanged_entry_storage(
+                    let original = require_unchanged_entry_storage(
                         &types,
                         graph,
                         &mut analysis,
                         machine.id,
                         position(4),
                         &DescriptorPayloadTarget::current(original.clone()),
-                    )
+                    );
+                    assert_eq!(
+                        original,
+                        analysis.require_unchanged_entry_storage(
+                            machine.id,
+                            position(4),
+                            &DescriptorPayloadTarget::current(payload())
+                        )
+                    );
+                    original
                 };
                 let writes = |machine: &DescriptorMachine, at| {
                     let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
@@ -9257,9 +9311,180 @@ pub mod descriptor_results {
                     )
                     .unwrap()
                 };
-                assert!(observe(VersionStart::Entry, false));
-                assert!(!observe(VersionStart::Entry, true));
+                assert!(observe(VersionStart::Before(machine.entry), false));
+                assert!(!observe(VersionStart::Before(machine.entry), true));
                 assert!(observe(VersionStart::Completed(machine.entry), true));
+            }
+
+            #[test]
+            fn a_retained_descriptor_does_not_prove_its_backing_unchanged() {
+                let (types, mut machine) = copy_graph();
+                let backing = payload();
+                let descriptor =
+                    DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
+                let identity = machine.id;
+                for changed in [false, true] {
+                    if changed {
+                        machine.payload_invalidations.insert(
+                            position(4),
+                            vec![Some(DescriptorContentsQuery::from_location(&backing))],
+                        );
+                    }
+                    let graph = std::slice::from_ref(&machine);
+                    let mut analysis =
+                        DescriptorAnalysis::with_borrowed_storage_slots(&types, graph);
+                    assert!(
+                        analysis
+                            .require_unchanged_produced_payload(
+                                identity,
+                                position(3),
+                                position(5),
+                                &descriptor,
+                            )
+                            .is_ok(),
+                        "the descriptor home itself is unchanged",
+                    );
+                    assert_eq!(
+                        analysis
+                            .require_unchanged_observed_storage(
+                                identity,
+                                position(3),
+                                position(5),
+                                &DescriptorPayloadTarget::current(backing.clone()),
+                            )
+                            .is_ok(),
+                        !changed,
+                        "its separately captured backing must keep its own version",
+                    );
+                }
+            }
+
+            #[test]
+            fn header_versions_start_before_their_first_write_and_renew_only_at_the_header() {
+                let entry = position(1);
+                let header = position(2);
+                let observation = position(3);
+                let graph = flow(&[(1, &[2]), (2, &[1, 3]), (3, &[])]);
+                let observe = |start, writes_at| {
+                    version_flow_from(
+                        &graph,
+                        entry,
+                        start,
+                        observation,
+                        |_, _| true,
+                        |at, _| Ok(writes_at == Some(at)),
+                        |_| false,
+                    )
+                    .unwrap()
+                };
+                assert!(observe(VersionStart::Before(header), None));
+                assert!(!observe(VersionStart::Before(header), Some(header)));
+                assert!(observe(VersionStart::Before(header), Some(entry)));
+                assert!(!observe(VersionStart::Before(entry), Some(header)));
+                assert!(observe(VersionStart::Completed(header), Some(header)));
+                assert!(
+                    version_flow_from(
+                        &graph,
+                        entry,
+                        VersionStart::Before(header),
+                        header,
+                        |_, _| true,
+                        |at, _| Ok(at == header),
+                        |_| false
+                    )
+                    .unwrap()
+                );
+                let loop_flow = flow(&[(1, &[2]), (2, &[3]), (3, &[4]), (4, &[2])]);
+                assert!(
+                    version_flow_from(
+                        &loop_flow,
+                        entry,
+                        VersionStart::Before(header),
+                        observation,
+                        |_, _| true,
+                        |at, _| Ok(at == position(4)),
+                        |_| false
+                    )
+                    .unwrap()
+                );
+                let bypassed_header = flow(&[(1, &[2]), (2, &[3]), (3, &[4]), (4, &[3])]);
+                assert!(
+                    !version_flow_from(
+                        &bypassed_header,
+                        entry,
+                        VersionStart::Before(header),
+                        observation,
+                        |_, _| true,
+                        |at, _| Ok(at == position(4)),
+                        |_| false
+                    )
+                    .unwrap()
+                );
+                let bypassed_initial_header = flow(&[(1, &[2, 3]), (2, &[3]), (3, &[])]);
+                assert!(
+                    !version_flow_from(
+                        &bypassed_initial_header,
+                        entry,
+                        VersionStart::Before(header),
+                        observation,
+                        |_, _| true,
+                        |_, _| Ok(false),
+                        |_| false
+                    )
+                    .unwrap()
+                );
+                let without_header = flow(&[(1, &[3]), (2, &[3]), (3, &[])]);
+                assert!(
+                    !version_flow_from(
+                        &without_header,
+                        entry,
+                        VersionStart::Before(header),
+                        observation,
+                        |_, _| true,
+                        |_, _| Ok(false),
+                        |_| false
+                    )
+                    .unwrap()
+                );
+                let watched = DescriptorLocation {
+                    root: payload().root,
+                    path: vec![DescriptorPathSegment::Field(
+                        semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                    )],
+                };
+                let sibling = DescriptorLocation {
+                    root: watched.root,
+                    path: vec![DescriptorPathSegment::Field(
+                        semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+                    )],
+                };
+                for (replacement, retained) in [(sibling, true), (watched.clone(), false)] {
+                    let mut straight = flow(&[(1, &[2]), (2, &[3]), (3, &[])]);
+                    let edge = &mut straight.get_mut(&header).unwrap().successors[0];
+                    edge.parameters.push(replacement.clone());
+                    edge.bindings.push(
+                        DescriptorFlowBinding::new(
+                            payload(),
+                            replacement,
+                            terminal_psi::StructuralAccess::Owned,
+                            terminal_psi::StructuralAccess::Owned,
+                        )
+                        .unwrap(),
+                    );
+                    assert_eq!(
+                        version_flow_from(
+                            &straight,
+                            entry,
+                            VersionStart::Before(header),
+                            observation,
+                            |_, _| true,
+                            |_, _| Ok(false),
+                            |edge| joins(edge, &watched),
+                        )
+                        .unwrap(),
+                        retained,
+                    );
+                }
             }
 
             #[test]
@@ -13158,9 +13383,9 @@ pub mod descriptor_results {
         ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,
         projected_stored_sources_in, require_completed_scalar_capture,
         require_unchanged_entry_storage, require_unchanged_observed_storage,
-        require_unchanged_produced_payload, unchanged_payload_producer,
-        unchanged_stored_projection_sources_in, unchanged_stored_scalar_sources,
-        unchanged_stored_sources,
+        require_unchanged_produced_payload, require_unchanged_storage_since,
+        unchanged_payload_producer, unchanged_stored_projection_sources_in,
+        unchanged_stored_scalar_sources, unchanged_stored_sources,
     };
     pub(crate) use scalar_captures::scalar_storage_writes;
     pub use scalar_captures::{

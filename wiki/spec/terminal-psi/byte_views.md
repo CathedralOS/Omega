@@ -72,15 +72,19 @@ Primitive byte predicates are reconstructed from the exact source of a
 subslice, without result qualification annotations. `no_nul` and `ascii_only`
 hold for every contiguous window, including empty windows, and survive repeated
 subslicing. `valid_utf8` and `non_empty` do not survive arbitrary subslicing.
-An ordinary or boundary shared-byte argument may satisfy its formal's primitive
-byte domains from these reconstructed predicates; unrelated, routed, projected,
-and non-primitive domains still require their own qualification evidence.
+After source typing has established the formal's exact domain set, an ordinary
+or boundary shared-byte call checks its primitive domain obligations from these
+reconstructed predicates. This reconstruction inserts no source-level domain
+cast: quoted bytes and other expressions acquire a domain only through the
+explicit cast required by [domain typing](../language/domains.md#literals-and-expected-types).
+Unrelated, routed, projected, and non-primitive domains still require their own
+qualification evidence.
 Checking rejoins the source's declared predicates
 or literal contents and every exact subslice producer. Cycles, substituted
 sources, invented result qualifications, and missing establishment grant no
 membership. Omega's current-graph validator repeats this derivation after
-lowering and optimization; the corpus runner and the tests run it, not the
-default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Bounds, dominance, access, and custody remain independently
+lowering and optimization; tests and explicit receiving validation run it, not
+the default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Bounds, dominance, access, and custody remain independently
 required.
 
 A shared byte or element descriptor may be returned through `ReturnStructural`.

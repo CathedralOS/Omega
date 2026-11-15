@@ -277,7 +277,10 @@ impl Program<'_> {
                     conclusion: Box::new(Proposition::Falsehood),
                 });
             }
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Call(_) => {
                 let (term, value_type) =
                     self.term(id, scope, expression, Some(ScalarType::Boolean))?;
                 if self.clause_operand_type(id, value_type)? != ScalarType::Boolean {
@@ -644,6 +647,81 @@ impl Program<'_> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
             return unserved("missing term");
+        }
+        // A byte predicate in a contract observes the bytes at its exact
+        // subject, just as a field term names the storage it reads. Keep
+        // that subject for checked substitution; its declared domain does
+        // not prove the predicate for the argument supplied by a caller.
+        if let Some((predicate, argument)) =
+            typed_trees::byte_predicates::byte_predicate_call(typed, expression)
+        {
+            // A byte-valued number alone does not establish byte storage:
+            // `[1u64]` retains its wider element carrier. Read literal
+            // elements with the same u8 context as a byte operand.
+            if let ExpressionNode::ArrayLiteral(elements) =
+                typed.expression_table.expression(argument)
+            {
+                let byte = ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        8,
+                    )
+                    .expect("u8 is valid"),
+                );
+                for element in typed.expression_table.expression_handles(*elements) {
+                    let ExpressionNode::Integer(literal) =
+                        typed.expression_table.expression(*element)
+                    else {
+                        return unserved("byte predicate without literal byte elements");
+                    };
+                    self.literal(id, literal, Some(byte))?;
+                }
+            }
+            let term = if let Some(bytes) =
+                typed_trees::byte_predicates::literal_bytes(typed, argument)
+            {
+                ScalarTerm::Boolean(predicate.holds_for(&bytes))
+            } else {
+                let Some((root, mut path, value_type)) = self.projected(id, scope, argument)?
+                else {
+                    return unserved("byte predicate without its exact storage subject");
+                };
+                let Some(record) = self.opened(id, Some(value_type), Access::Read)? else {
+                    let mut refusal = refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("byte predicate of a value that is not byte storage"),
+                    );
+                    refusal.detail.push_str(&format!(": {value_type:?}"));
+                    return Err(refusal);
+                };
+                let record = self.through_shared_referent(id, &mut path, record)?;
+                let bytes = match self.data_type(id, record.record())?.shape {
+                    StorageShape::ByteSequence(_) => true,
+                    StorageShape::FixedArray { element, .. } => matches!(
+                        self.data_type(id, element)?.shape,
+                        StorageShape::PrimitiveScalar {
+                            scalar_type: ScalarType::Integer(integer), ..
+                        } if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                            && integer.bits() == Some(8) && !integer.is_address()
+                    ),
+                    _ => false,
+                };
+                if !bytes {
+                    let mut refusal = refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("byte predicate of a value that is not byte storage"),
+                    );
+                    refusal.detail.push_str(&format!(
+                        ": {:?}",
+                        self.data_type(id, record.record())?.shape
+                    ));
+                    return Err(refusal);
+                }
+                ScalarTerm::byte_sequence_predicate(predicate, root, path)
+            };
+            return Ok((term, ValueType::plain(ScalarType::Boolean)));
         }
         if let Some(logical) = &scope.logical
             && let Some((term, scalar)) = logical.term(typed, expression)?

@@ -1702,3 +1702,157 @@ fn an_empty_record_is_a_record_with_no_field() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+fn judge_byte_contract_source(
+    source: &str,
+) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
+    let frontier = unbuilt_frontier::staged_frontier("byte-domain-input", source);
+    terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            Compilation {
+                declaration_metadata: &[],
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
+    )
+}
+
+/// A byte-domain formal owes the predicate on its actual input bytes. The
+/// same primitive must reject a NUL-bearing argument, rather than becoming
+/// an assumed property of the parameter's declared type.
+#[test]
+fn a_byte_domain_input_keeps_its_primitive_contract() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    const SOURCE: &str = r#"
+domain [u8]::Path requires no_nul(self);
+machine inspect(path: &[u8] in Path) -> u64 { path.len }
+machine main() crashes Trap {
+    let size: u64 = inspect("safe");
+    transition size == 4 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    // A receiving type never supplies a missing cast, even when the bytes
+    // satisfy its predicate. Keep the original uncast input as this refusal.
+    let implicit = judge_byte_contract_source(SOURCE);
+    assert!(
+        implicit.iter().any(|verdict| matches!(verdict,
+            Ok(RouteVerdict::Rejected { violations, .. }) if violations.iter().any(|failure|
+                failure.statement.contains("parameter it is passed for declares `[u8]::Path`"))
+        )),
+        "an argument cannot acquire Path implicitly: {implicit:?}"
+    );
+    for (qualified, nul) in [(false, false), (false, true), (true, false), (true, true)] {
+        let source = if qualified {
+            SOURCE.replace("inspect(\"safe\")", "inspect(\"safe\" as +Path)")
+        } else {
+            SOURCE
+                .replace("path: &[u8] in Path", "path: &[u8]")
+                .replace("-> u64 {", "-> u64 requires no_nul(path) {")
+        };
+        let source = if nul {
+            source.replace("\"safe\"", "\"sa\\0e\"")
+        } else {
+            source
+        };
+        let verdicts = judge_byte_contract_source(&source);
+        if nul {
+            assert!(verdicts.iter().any(|verdict| {
+                let unproved = match verdict {
+                    Ok(RouteVerdict::Rejected { unproved, .. } | RouteVerdict::Incomplete(unproved)) => unproved,
+                    _ => return false,
+                };
+                unproved.iter().any(|failure| failure.statement.contains("no_nul") &&
+                    if qualified {
+                        matches!(failure.kind, terminal_check_tables::obligations::ObligationKind::ArrivalInvariant { .. })
+                    } else {
+                        matches!(failure.kind, terminal_check_tables::obligations::ObligationKind::CallRequirement { .. })
+                    })
+            }), "the NUL-bearing input must fail its own byte obligation (cast={qualified}): {verdicts:?}");
+        } else {
+            assert!(!verdicts.is_empty());
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "the actual NUL-free bytes must meet the input contract: {verdicts:?}"
+            );
+        }
+    }
+    for wider in [false, true] {
+        let elements = if wider { "[1u64, 2u64]" } else { "[1u8, 2u8]" };
+        let source = SOURCE
+            .replace("path: &[u8] in Path", "path: &[u8]")
+            .replace(
+                "-> u64 {",
+                &format!("-> u64 requires no_nul({elements}) {{"),
+            );
+        let found = judge_byte_contract_source(&source);
+        if wider {
+            assert!(found.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::FallBack(refusal)) if refusal.detail.contains("typing literal landed type")
+            )), "a wider literal array is not byte storage: {found:?}");
+        } else {
+            assert!(
+                !found.is_empty()
+                    && found
+                        .iter()
+                        .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "{found:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_byte_requirement_keeps_a_sibling_write_but_not_replacement() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    const SOURCE: &str = r#"
+data Text<'a> { watched: &'a [u8]; sibling: &'a [u8]; }
+machine inspect(text: &Text) -> u64 requires no_nul(text.watched) { text.watched.len }
+machine change(text: &mut Text) requires no_nul(text.watched) {
+    text.sibling = "sa\0e";
+    let count: u64 = inspect(text);
+}
+machine main() {}
+"#;
+    for replaced in [false, true] {
+        let source = if replaced {
+            SOURCE.replace("text.sibling =", "text.watched =")
+        } else {
+            SOURCE.to_owned()
+        };
+        let found = judge_byte_contract_source(&source);
+        if replaced {
+            assert!(found.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|failure|
+                    matches!(failure.kind, terminal_check_tables::obligations::ObligationKind::CallRequirement { .. })
+                    && failure.statement.contains("no_nul"))
+            )), "replacement must not reuse the entry byte fact: {found:?}");
+        } else {
+            assert!(
+                !found.is_empty()
+                    && found
+                        .iter()
+                        .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "a disjoint sibling write preserves the byte fact: {found:?}"
+            );
+        }
+    }
+}

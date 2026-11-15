@@ -590,19 +590,6 @@ impl Program<'_> {
         }
     }
 
-    /// `value_type` where a byte view in a domain is served: a data field's
-    /// type and a cast's result type (`view_type`).
-    pub(super) fn qualified_view_type(
-        &mut self,
-        id: MachineId,
-        handle: TypeReferenceHandle,
-    ) -> Checked<ValueType> {
-        let outer = std::mem::replace(&mut self.qualified_views, true);
-        let read = self.value_type(id, handle);
-        self.qualified_views = outer;
-        read
-    }
-
     pub(super) fn value_type(
         &mut self,
         id: MachineId,

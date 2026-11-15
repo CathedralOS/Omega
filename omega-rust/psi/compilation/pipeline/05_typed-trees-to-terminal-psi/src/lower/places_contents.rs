@@ -32,6 +32,21 @@ fn path(path: &[CanonicalStructuralPathSegment]) -> Result<Vec<Segment>, &'stati
 impl ClauseBindings for Named {
     type Error = &'static str;
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        selected: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        // The predicate reads a descriptor, not a scalar field. Its cut is
+        // resolved by the checker without allocating a pretend bool leaf.
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            root,
+            selected.to_vec(),
+        ))
+    }
+
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error> {
         Ok(ScalarTerm::value(id, scalar_type))
     }

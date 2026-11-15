@@ -228,10 +228,6 @@ pub(crate) struct Program<'t> {
     /// before reading anything nested (`regions`: a call instantiates its
     /// callee's lifetimes from it first).
     expected: Option<ValueType>,
-    /// Whether the type being read may be a byte view in a domain: true
-    /// while a data field's type or a cast's result type is read, the two
-    /// places such a view is served (`view_type`).
-    qualified_views: bool,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -391,7 +387,6 @@ impl<'t> Program<'t> {
             elision: regions::Elision::Declaration,
             elided_lifetimes: Vec::new(),
             expected: None,
-            qualified_views: false,
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -576,6 +571,52 @@ mod tests {
 
     fn machine() -> MachineId {
         MachineId::new(1).unwrap()
+    }
+
+    #[test]
+    fn a_qualified_slice_formal_keeps_its_reference_carrier() {
+        let mut typed = TypedTrees::default();
+        let scalar = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let slice = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: scalar,
+        });
+        let qualified_slice = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: slice,
+                constraints: arena::HandleSpan::empty(),
+            });
+        let qualified_scalar = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: scalar,
+                constraints: arena::HandleSpan::empty(),
+            });
+        for access in [ReferenceAccess::Shared, ReferenceAccess::Mutable] {
+            for (referee, expected) in [
+                (slice, crate::body::BorrowedReferent::Slice),
+                (qualified_slice, crate::body::BorrowedReferent::Slice),
+                (qualified_scalar, crate::body::BorrowedReferent::Value),
+            ] {
+                let reference = typed
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Reference {
+                        referee,
+                        access,
+                        lifetime: None,
+                    });
+                let program = Program::new(&typed, false);
+                let expected_carrier = if expected == crate::body::BorrowedReferent::Slice {
+                    reference
+                } else {
+                    referee
+                };
+                assert_eq!(
+                    program.borrowed_formal_carrier(reference, referee),
+                    (expected_carrier, expected)
+                );
+            }
+        }
     }
 
     fn refused(typed: &TypedTrees, node: ExpressionNode) -> String {

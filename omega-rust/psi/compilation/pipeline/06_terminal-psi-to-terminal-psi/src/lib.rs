@@ -835,7 +835,7 @@ fn machine(
     let mut uses = storage.uses(tables, empty_contracts, inhabitation)?;
     // A store into a field of a byte domain is judged by the bytes it
     // supplies; a refused store is that operation's verdict.
-    for judged in storage.byte_predicate_stores()? {
+    for judged in storage.byte_predicate_stores(tables)? {
         match uses.iter_mut().find(|used| used.at == judged.at) {
             Some(used) if used.verdict.is_ok() => used.verdict = judged.verdict,
             Some(_) => {}
@@ -1217,7 +1217,10 @@ pub(crate) fn prepare_with_inhabitation(
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
-    let context = PropositionContext::from_value_types(
+    // Storage predicates keep their canonical roots after substitution.
+    // The kernel needs those same declarations to validate the terms; a
+    // declaration supplies identity and kind, never a predicate premise.
+    let context = PropositionContext::from_value_types_and_places(
         types
             .iter()
             .filter(|(value, _)| {
@@ -1227,13 +1230,17 @@ pub(crate) fn prepare_with_inhabitation(
                     .is_none_or(|row| row.rigid.is_none())
             })
             .map(|(value, scalar_type)| (value, *scalar_type)),
+        lowered
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind)),
     )
-    .map_err(|_| {
+    .map_err(|error| {
         refusal(
             RefusalReason::Unsupported,
             id,
             Construct::Machine,
-            "value types do not form a proposition context",
+            &format!("machine declarations do not form a proposition context: {error:?}"),
         )
     })?;
     Ok(Prepared {
@@ -1620,6 +1627,15 @@ pub(crate) struct ErasedTerms<'a> {
 
 impl Bindings for ErasedTerms<'_> {
     type Error = Unbound;
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.byte_predicate(predicate, root, path)
+    }
+
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         let Some((_, supplied)) = self.terms.iter().find(|(formal, _)| *formal == id) else {
             return self.runtime.value(id, scalar_type);

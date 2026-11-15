@@ -1541,7 +1541,7 @@ pub fn validate(module: &TerminalModule) -> Result<(), ScalarQualificationError>
     Ok(())
 }
 
-pub(crate) fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
+pub fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
     actual == expected
         || reordered_predicate(actual) == reordered_predicate(expected)
         || matches!(actual, Proposition::Conjunction(children)

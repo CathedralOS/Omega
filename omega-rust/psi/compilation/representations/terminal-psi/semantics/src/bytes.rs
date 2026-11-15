@@ -276,6 +276,8 @@ pub(crate) mod byte_sequence_predicates {
         {
             return None;
         }
+        // Fields retain their own qualifications on this root. Their byte predicates come
+        // from the selected field's declared type, rather than a qualification of the root.
         let place = machine.structural_place(source)?;
         let parameter = match place.kind {
             StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
@@ -294,7 +296,6 @@ pub(crate) mod byte_sequence_predicates {
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                     )
                     && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
                     && result.qualification_establishments.is_empty()
                     && result.claims.is_empty())
                 .then_some((structural_type, StructuralAccess::Owned));
@@ -304,8 +305,7 @@ pub(crate) mod byte_sequence_predicates {
         (matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ) && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
+        ) && parameter.qualifications.is_empty())
         .then_some((parameter.structural_type, parameter.access))
     }
 

@@ -2574,9 +2574,12 @@ impl<'t> Program<'t> {
         referee: TypeReferenceHandle,
     ) -> (TypeReferenceHandle, BorrowedReferent) {
         let types = &self.typed.type_reference_table;
+        // A domain on the slice does not turn its reference into a loan of
+        // an access-unspecified value. Keep the complete reference so the
+        // view owner reads its access, region and qualifications together.
         if types.contains_type_reference(referee)
             && matches!(
-                types.type_reference(referee),
+                types.type_reference(types.unconstrained_type_reference(referee)),
                 TypeReferenceNode::Slice { .. }
             )
         {

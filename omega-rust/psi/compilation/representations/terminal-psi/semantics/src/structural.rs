@@ -6375,6 +6375,13 @@ pub(crate) mod zeroed_structural {
                 }
             }
             let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, &row.path) else { return false; };
+            if carrier.shape.is_shared_readable_byte_view() {
+                return domain.carrier == carrier.id
+                    && domain.content_projection.is_none()
+                    && domain.establishment_routes.is_none()
+                    && domain.has_no_required_memberships()
+                    && predicate.holds_for(&[]);
+            }
             let StructuralTypeShape::FixedArray { element, length: terminal_psi::ArrayExtent::Literal(length) } = carrier.shape else { return false; };
             if !types.clone().any(|ty| ty.id == element && matches!(ty.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))

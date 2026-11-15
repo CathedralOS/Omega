@@ -328,19 +328,6 @@ impl Program<'_> {
         result: ValueType,
     ) -> Checked<(Vec<Proposition>, String)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
-        // A byte view's domains are its primitive byte predicates, judged
-        // at each store from the bytes supplied (`field_predicates`), never
-        // a clause a cast states.
-        if let ValueType::Record(row, _, _) = result
-            && matches!(
-                self.data_type(id, row)?.shape,
-                crate::StorageShape::ByteSequence(_)
-            )
-        {
-            return Err(unserved(
-                "cast that adds a domain with predicates to a byte sequence",
-            ));
-        }
         let Some(root) = crate::body::self_place() else {
             return Err(unserved("cast subject place identity"));
         };

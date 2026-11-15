@@ -64,24 +64,134 @@ machine build_entry() {{
     )
 }
 
-const NOT_IN_DOMAIN: &str = "a byte view is stored into a field of a byte domain, and the \
-                             bytes it shows are not in that domain";
+fn rejects_byte_cast(source: &str, predicate: &str) {
+    let found = judge_build(source);
+    // False Boolean equalities currently produce an incomplete proof verdict.
+    // Require the actual cast obligation so a source error cannot stand in
+    // for checking the bytes.
+    let unproved = match &found {
+        Ok(RouteVerdict::Rejected { unproved, .. } | RouteVerdict::Incomplete(unproved)) => {
+            unproved
+        }
+        _ => panic!("{source}\n{found:?}"),
+    };
+    assert!(
+        unproved.iter().any(|failure| matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::ArrivalInvariant { .. }
+        ) && failure.statement.contains(predicate)),
+        "{source}\n{found:?}"
+    );
+}
+
+#[test]
+fn forming_a_byte_qualification_does_not_prove_its_contents() {
+    let declarations = "domain [u8]::Text requires no_nul(self);\n";
+    for body in [
+        "machine build_entry() { let bytes: &[u8] in Text = \"safe\" as +Text; }",
+        "machine text() -> &[u8] in Text { \"safe\" as +Text }\nmachine build_entry() { let bytes: &[u8] in Text = text(); }",
+    ] {
+        for nul in [false, true] {
+            let source = format!("{declarations}{body}");
+            let source = if nul {
+                source.replace("\"safe\"", "\"sa\\0e\"")
+            } else {
+                source
+            };
+            if nul {
+                rejects_byte_cast(&source, "no_nul");
+            } else {
+                let found = judge_build(&source);
+                let Ok(RouteVerdict::Accepted(accepted)) = found else {
+                    panic!("{source}\n{found:?}");
+                };
+                accepted.publish_invocation().unwrap();
+                let mut forged = accepted.elaboration.module.clone();
+                let invariant = forged
+                    .scalar_block_invariants
+                    .iter_mut()
+                    .find(|invariant| {
+                        let mut observes_bytes = false;
+                        invariant.predicate.visit_scalar_terms(|term| {
+                            observes_bytes |=
+                                matches!(term, ScalarTerm::ByteSequencePredicate { .. });
+                        });
+                        observes_bytes
+                    })
+                    .expect("the cast retains its actual byte obligation");
+                invariant.predicate = Proposition::Truth;
+                assert_eq!(
+                    terminal_semantics::structural_qualifications::validate(&forged)
+                        .unwrap_err()
+                        .detail,
+                    "a structural cast lost its declared predicate arrival obligation"
+                );
+            }
+        }
+    }
+    let implicit =
+        format!("{declarations}machine build_entry() {{ let bytes: &[u8] in Text = \"safe\"; }}");
+    let found = judge_build(&implicit);
+    assert!(
+        matches!(&found, Ok(RouteVerdict::Rejected { violations, .. }) if violations.iter().any(|failure|
+        failure.statement.contains("the local it initializes declares"))),
+        "{found:?}"
+    );
+    let unsupported = verdict(
+        "domain [u8]::Text requires non_empty(self); machine keep(bytes: &[u8] in Text) {} machine build_entry() {}",
+    );
+    assert!(
+        unsupported.starts_with("type byte view in a domain the empty view is not in"),
+        "{unsupported}"
+    );
+    let mutable = verdict(
+        "domain [u8]::Text requires no_nul(self); machine keep(bytes: &mut [u8] in Text) {} machine build_entry() {}",
+    );
+    assert!(
+        mutable.starts_with("type mutable byte view that carries a domain"),
+        "{mutable}"
+    );
+}
+
+#[test]
+fn a_zeroed_shared_byte_field_retains_only_conditions_of_the_empty_view() {
+    let source = r#"
+domain [u8]::Text requires no_nul(self);
+data Message<'a> { bytes: &'a [u8] in Text; }
+machine build_entry() { let message: Message; let length: u64 = message.bytes.len; }
+"#;
+    let found = judge_build(source);
+    let Ok(RouteVerdict::Accepted(accepted)) = found else {
+        panic!("{found:?}");
+    };
+    accepted.publish_invocation().unwrap();
+    let mut forged = accepted.elaboration.module.clone();
+    let domain = forged
+        .structural_domains
+        .iter_mut()
+        .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::NoNul))
+        .expect("the field and whole descriptor use the same primitive domain row");
+    domain.byte_predicate = Some(ByteSequencePredicate::NonEmpty);
+    assert_eq!(
+        terminal_semantics::structural_qualifications::validate(&forged)
+            .unwrap_err()
+            .detail,
+        "zero provisioning cannot establish a structural domain"
+    );
+}
 
 #[test]
 fn valid_text_is_stored_and_invalid_bytes_are_rejected() {
     assert_eq!(verdict(&rejection("valid_utf8", "no plan")), "accepted");
-    assert_eq!(
-        verdict(&rejection("valid_utf8", r"no \xff plan")),
-        NOT_IN_DOMAIN
-    );
+    rejects_byte_cast(&rejection("valid_utf8", r"no \xff plan"), "valid_utf8");
 }
 
 #[test]
 fn ascii_text_is_stored_and_other_text_is_rejected() {
     assert_eq!(verdict(&rejection("ascii_only", "plain")), "accepted");
-    assert_eq!(verdict(&rejection("ascii_only", "café")), NOT_IN_DOMAIN);
+    rejects_byte_cast(&rejection("ascii_only", "café"), "ascii_only");
     assert_eq!(verdict(&rejection("no_nul", "plain")), "accepted");
-    assert_eq!(verdict(&rejection("no_nul", r"pla\x00in")), NOT_IN_DOMAIN);
+    rejects_byte_cast(&rejection("no_nul", r"pla\x00in"), "no_nul");
 }
 
 /// The field is the view's own byte field with the domain's predicate on
@@ -113,11 +223,9 @@ fn the_field_carries_its_predicates_on_its_type() {
     );
 }
 
-/// What this slice does not judge is refused by name, never accepted: the
-/// literal without the cast that would give it the domain, a view in a
-/// domain anywhere but a field, a domain that is no primitive byte
-/// predicate, one the empty view is not in, and a store whose bytes come
-/// from another field rather than a literal.
+/// Forwarding a qualified byte field also needs the declared payload lifetime.
+/// Byte truth supplies neither that relation nor an implicit source cast.
+/// Domains that exclude the empty default view remain unsupported.
 #[test]
 fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
@@ -141,12 +249,20 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
     let formal = format!(
         "{declarations}machine keep(text: &[u8] in Text) {{ }}\nmachine build_entry() {{ keep(\"x\" as +Text); }}"
     );
-    assert_ne!(verdict(&formal), "accepted");
+    assert_eq!(verdict(&formal), "accepted");
     let copied = format!(
         "{declarations}machine copy(from: &Rejection, into: &mut Rejection) {{ into.reason = from.reason; }}\n\
          machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(&a, &mut b); }}"
     );
-    assert_ne!(verdict(&copied), "accepted");
+    assert_eq!(
+        verdict(&copied),
+        "typing assigned value type while reading the body of `copy`"
+    );
+    let related = copied.replace(
+        "machine copy(from: &Rejection, into: &mut Rejection)",
+        "machine copy<'reason>(from: &Rejection<'reason>, into: &mut Rejection<'reason>)",
+    );
+    assert_eq!(verdict(&related), "accepted");
     // Given the domain and at once relieved of it, the literal would reach a
     // plain field with its predicate judged nowhere.
     let laundered = r#"
@@ -156,11 +272,7 @@ requires
 data Plain<'reason> { reason: &'reason [u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
-    assert_eq!(
-        verdict(laundered),
-        "expression removal of a byte predicate a quoted literal was just given while reading the \
-         local binding of `build_entry::entry::p` while reading the body of `build_entry`"
-    );
+    rejects_byte_cast(laundered, "valid_utf8");
     let non_empty = r#"
 domain [u8]::Filled
 requires
@@ -182,12 +294,23 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
         "domain [u8]::Text requires missing_byte_predicate(self); machine build_entry() {}"
             .to_owned(),
         "domain [u8]::Text requires valid_utf8<u8>(self); machine build_entry() {}".to_owned(),
-        "domain u64::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
-        "machine build_entry(bytes: &[u8]) { let valid: bool = valid_utf8(bytes); }".to_owned(),
     ] {
         let reason = verdict(&source);
         assert!(reason.starts_with(UNKNOWN), "{source}\n{reason}");
     }
+
+    assert_eq!(
+        verdict("domain u64::Text requires valid_utf8(self); machine build_entry() {}"),
+        "contract byte predicate without its exact storage subject"
+    );
+    // Primitive identity permits contract reading; it does not provide a
+    // runtime implementation for an ordinary Boolean expression.
+    let runtime =
+        verdict("machine build_entry(bytes: &[u8]) { let valid: bool = valid_utf8(bytes); }");
+    assert!(
+        runtime.starts_with("call without a bound target"),
+        "{runtime}"
+    );
 
     let shadowed = format!(
         "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",

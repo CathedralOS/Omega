@@ -627,20 +627,11 @@ impl Program<'_> {
                 None => Ok(None),
             };
         };
-        // A view in a domain is served where the checker judges what it
-        // holds: a data field, whose every store it judges from the bytes
-        // supplied, and the cast that makes a value for one
-        // (`QualifiedViews`). A local, formal or result of such a type would
-        // owe its predicates at moves and calls that nothing judges yet.
+        // Qualification belongs to the view's complete type. Its caller,
+        // store or return must establish the corresponding byte condition;
+        // forming the type here supplies no predicate fact.
         let mut qualification = Qualification::NONE;
         if !domains.is_empty() {
-            if !self.qualified_views {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("byte view in a domain outside a data field"),
-                ));
-            }
             for domain in domains {
                 qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
                     refuse(
@@ -679,27 +670,40 @@ impl Program<'_> {
             });
             (view && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
         });
-        if let Some(row) = row {
-            return Ok(typed_view(row));
+        let row = if let Some(row) = row {
+            row
+        } else {
+            let row = self.records.push(RecordType {
+                owns_linear_claim: false,
+                copyable: carrier.is_shared_readable_view(),
+                identity,
+                shape: StorageShape::ByteSequence(carrier),
+                requires: Vec::new(),
+            });
+            self.record_sources.push(RecordSource {
+                declaration: SymbolHandle::invalid(),
+                application: Some(typed_trees::SourceTypeApplication {
+                    reference,
+                    substitutions: Vec::new(),
+                }),
+                region_owner: lexical_owner,
+                fields: Vec::new(),
+                cases: Vec::new(),
+            });
+            row
+        };
+        // The byte-view owner authenticated these exact primitive domain
+        // applications above. Whole descriptors need their canonical rows
+        // for calls and casts, just as stored fields retain their predicates.
+        for domain in qualification.domains.members() {
+            if !self
+                .declared_domains
+                .iter()
+                .any(|(declared, _)| *declared == domain)
+            {
+                self.declared_domains.push((domain, ValueType::record(row)));
+            }
         }
-        let row = self.records.push(RecordType {
-            owns_linear_claim: false,
-            copyable: carrier.is_shared_readable_view(),
-            identity,
-            shape: StorageShape::ByteSequence(carrier),
-            requires: Vec::new(),
-            authored_layout: false,
-        });
-        self.record_sources.push(RecordSource {
-            declaration: SymbolHandle::invalid(),
-            application: Some(typed_trees::SourceTypeApplication {
-                reference,
-                substitutions: Vec::new(),
-            }),
-            region_owner: lexical_owner,
-            fields: Vec::new(),
-            cases: Vec::new(),
-        });
         Ok(typed_view(row))
     }
 

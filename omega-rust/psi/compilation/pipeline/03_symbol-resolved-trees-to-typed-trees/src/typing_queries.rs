@@ -726,9 +726,12 @@ pub(crate) fn defer_unbound_calls(
             // `size_of<T>()` and `align_of<T>()` name no declaration by
             // construction: typing recognized the compiler-known query and
             // retained its operand, and Terminal Psi production reads that
-            // request as a layout observation. It is not a call awaiting a
-            // target.
-            if call.layout_query.is_some() {
+            // request as a layout observation. Primitive byte predicates use
+            // their existing authenticated call shape too: their consumers
+            // must judge the operand, not look up an ordinary callable.
+            if call.layout_query.is_some()
+                || typed_trees::byte_predicates::byte_predicate_call(program, handle).is_some()
+            {
                 continue;
             }
             let receiver = if !call.receiver.is_valid() {
@@ -844,20 +847,6 @@ pub(crate) fn defer_unbound_calls(
                     .filter(|owner| owner.is_valid())
                 {
                     owned = true;
-                    // This exact fact selects the byte predicate even though
-                    // lexical lookup found no ordinary callable for its name.
-                    if bare == symbols::UnresolvedName::NoVisibleDeclaration
-                        && program
-                            .domain_definition(owner)
-                            .and_then(|domain| {
-                                typed_trees::byte_predicates::byte_slice_domain_predicate(
-                                    program, domain,
-                                )
-                            })
-                            .is_some_and(|(predicate, _)| predicate == handle)
-                    {
-                        continue;
-                    }
                     in_declarations.push((owner, request, source_span, bare));
                 }
                 if !owned {

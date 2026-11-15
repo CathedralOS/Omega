@@ -255,6 +255,19 @@ impl ScalarFormals<'_> {
 impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals<'_> {
     type Error = &'static str;
 
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Self::Error> {
+        Ok(ScalarTerm::byte_sequence_predicate(
+            predicate,
+            self.place(root)?,
+            path.to_vec(),
+        ))
+    }
+
     fn value(
         &mut self,
         formal: ValueId,
