@@ -2940,7 +2940,48 @@ pub(crate) mod tests {
         assert_eq!(original.1[1], invoked_identity.as_bytes());
         // Use the actual generated body and its checked argument account.
         // A matching template or argument count cannot hide a changed value.
-        let mut module = used_entry.accepted().module().clone();
+        let entries = [used];
+        let request = terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        let (portable, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source.clone(),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("prepare the same original source for ordinary portable publication");
+        let portable = terminal_production::AcceptedTerminalSource::judge(
+            std::sync::Arc::new(portable),
+            request,
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .expect("normally judge the same selected call as an ordinary product");
+        let bytes = terminal_codec::encode_module(portable.module())
+            .expect("encode the actual typed const account with the ordinary source program");
+        let mut module = terminal_codec::decode_module(&bytes)
+            .expect("the independent receiver checks the same actual application");
+        let received = terminal_interpreter::TerminalProgram::load(&bytes)
+            .expect("execute the actual received bytes rather than the source product");
+        let mut instance = received
+            .instantiate(Default::default())
+            .expect("the original scalar program needs no external supply");
+        let terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Scalar(value),
+        ) = instance
+            .invoke(&mut terminal_work::WorkMeter::unbounded())
+            .expect("run the same original selected call after transport")
+        else {
+            panic!("the original selected call completes with its scalar result")
+        };
+        assert_eq!(
+            crate::terminal_values::scalar_result(instance.program(), value).unwrap(),
+            BuildTimeValue::Int(7)
+        );
         let mut bodies = module.machines.iter().filter(|machine| {
             machine
                 .declaration
