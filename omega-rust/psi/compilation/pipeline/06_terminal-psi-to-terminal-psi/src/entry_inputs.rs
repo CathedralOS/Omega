@@ -148,6 +148,7 @@ fn describe_calls(
             types: &prepared.types,
             graph: &prepared.graph,
             context: &prepared.context,
+            ranking_bindings: &prepared.ranking_bindings,
             declared: &declared,
             unreached: &beyond,
         },

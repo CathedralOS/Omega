@@ -52,7 +52,7 @@ fn ranking_defaults_follow_typed_carriers_and_selected_length() {
         ("natural", RankingViewId::NAT_DESCENDING),
         ("slice", RankingViewId::SLICE_LENGTH),
         ("length", RankingViewId::NAT_DESCENDING),
-        ("explicit", RankingViewId::NAT_DESCENDING),
+        ("explicit", RankingViewId::NULL),
         ("distance", RankingViewId::NAT_BOUNDED_DISTANCE),
         ("signed", RankingViewId::NULL),
         ("field", RankingViewId::NULL),
@@ -61,7 +61,11 @@ fn ranking_defaults_follow_typed_carriers_and_selected_length() {
         assert_eq!(witness.ranking_view, expected, "{name}");
         assert_eq!(
             witness.view_path,
-            expected.canonical_path().unwrap_or_default(),
+            if name == "explicit" {
+                "Nat::Descending"
+            } else {
+                expected.canonical_path().unwrap_or_default()
+            },
             "{name}"
         );
     }

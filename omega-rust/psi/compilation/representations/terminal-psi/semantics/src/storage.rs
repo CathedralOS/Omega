@@ -1749,6 +1749,82 @@ pub(crate) mod arrival_storage {
         }))
     }
 
+    /// The permission whose storage a projection actually reaches. Crossing
+    /// a reference uses that reference's permission, not ownership of its home.
+    pub fn structural_projection_authority(
+        machine: &TerminalMachine,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Option<terminal_psi::StructuralAccess> {
+        let source = structural_argument_source(machine, argument.place, 0)?;
+        let mut access = source.access;
+        for (position, step) in argument.path.iter().enumerate() {
+            if *step == terminal_psi::StructuralPathSegment::Referent {
+                let terminal_psi::StructuralTypeShape::Reference { access: parent, .. } =
+                    &crate::runtime_structural_path_tip(
+                        types.iter(),
+                        source.structural_type,
+                        &argument.path[..position],
+                    )?
+                    .shape
+                else {
+                    return None;
+                };
+                access = *parent;
+            }
+        }
+        let selected = crate::runtime_structural_path_tip(
+            types.iter(),
+            source.structural_type,
+            &argument.path,
+        );
+        let Some(selected) = selected else {
+            let carrier = crate::runtime_structural_field(
+                types.iter(),
+                source.structural_type,
+                &argument.path,
+            )?
+            .field_type
+            .byte_sequence_carrier()?;
+            return match carrier {
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(retained),
+                }
+                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(retained),
+                    ..
+                } => Some(retained),
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { access: None, .. } => None,
+                _ => Some(access),
+            };
+        };
+        match &selected.shape {
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(retained),
+                }
+                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(retained),
+                    ..
+                },
+            )
+            | terminal_psi::StructuralTypeShape::ElementView {
+                access: Some(retained),
+                ..
+            } => access = *retained,
+            _ if crate::descriptor_results::is_descriptor(types.iter(), selected.id) => {
+                access = crate::descriptor_results::descriptor_value_access(
+                    types.iter(),
+                    selected.id,
+                    source.multiplicity,
+                )?;
+            }
+            _ => {}
+        }
+        Some(access)
+    }
+
     pub fn root_before_edge(
         machine: &TerminalMachine,
         block: BlockId,
@@ -1806,6 +1882,10 @@ pub(crate) mod arrival_storage {
     impl StorageNames {
         pub fn in_block(&self, block: BlockId) -> impl Iterator<Item = PlaceId> + '_ {
             self.behind.get(&block).into_iter().flatten().copied()
+        }
+
+        pub fn captured_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
+            self.behind.values().flat_map(|roots| roots.iter().copied())
         }
     }
 
@@ -2092,11 +2172,19 @@ pub mod borrowed_storage {
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct Projection {
         address: Option<Vec<AddressStep>>,
+        descriptor: DescriptorPrefix,
         pub path: Vec<StructuralPathSegment>,
         pub exact: bool,
         pub indirect: bool,
         pub window: Option<(ValueId, ValueId)>,
         pub captured_at: Option<Position>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    enum DescriptorPrefix {
+        Open(Vec<StructuralPathSegment>),
+        Closed(Vec<StructuralPathSegment>),
+        Unknown,
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -2131,6 +2219,11 @@ pub mod borrowed_storage {
                     )
                 ));
             Self {
+                descriptor: if length == path.len() {
+                    DescriptorPrefix::Open(path.to_vec())
+                } else {
+                    DescriptorPrefix::Unknown
+                },
                 address: Some(if path.is_empty() {
                     Vec::new()
                 } else {
@@ -2170,6 +2263,12 @@ pub mod borrowed_storage {
         }
 
         pub fn with_window(mut self, start: ValueId, end: ValueId, position: Position) -> Self {
+            if self.original_descriptor_path().is_none() {
+                self.descriptor = DescriptorPrefix::Unknown;
+            }
+            if let DescriptorPrefix::Open(path) = &self.descriptor {
+                self.descriptor = DescriptorPrefix::Closed(path.clone());
+            }
             if let Some(steps) = &mut self.address {
                 steps.push(AddressStep::Window {
                     start,
@@ -2230,8 +2329,33 @@ pub mod borrowed_storage {
         }
 
         pub fn forget_address(&mut self) {
+            if self.original_descriptor_path().is_none() {
+                self.descriptor = DescriptorPrefix::Unknown;
+            }
+            if let DescriptorPrefix::Open(path) = &self.descriptor {
+                self.descriptor = DescriptorPrefix::Closed(path.clone());
+            }
             self.exact = false;
             self.address = None;
+        }
+
+        /// Keep the input field that supplied a view after its address is
+        /// forgotten. Selecting another field after slicing loses that
+        /// identity, even though `path` still describes overlapping storage.
+        pub fn original_descriptor_path(&self) -> Option<&[StructuralPathSegment]> {
+            match &self.descriptor {
+                DescriptorPrefix::Open(path)
+                    if self.exact && *path == self.path && !self.indirect =>
+                {
+                    Some(path)
+                }
+                DescriptorPrefix::Closed(path)
+                    if !self.exact && *path == self.path && !self.indirect =>
+                {
+                    Some(path)
+                }
+                _ => None,
+            }
         }
 
         pub fn fixed_address(
@@ -2311,6 +2435,24 @@ pub mod borrowed_storage {
 
         pub fn then(&self, suffix: &Self) -> Self {
             let mut composed = self.clone();
+            composed.descriptor = match (
+                self.original_descriptor_path(),
+                suffix.original_descriptor_path(),
+            ) {
+                (Some(prefix), Some(tail)) => match (&self.descriptor, &suffix.descriptor) {
+                    (DescriptorPrefix::Open(_), DescriptorPrefix::Open(_)) => {
+                        DescriptorPrefix::Open(prefix.iter().chain(tail).cloned().collect())
+                    }
+                    (DescriptorPrefix::Open(_), DescriptorPrefix::Closed(_)) => {
+                        DescriptorPrefix::Closed(prefix.iter().chain(tail).cloned().collect())
+                    }
+                    (DescriptorPrefix::Closed(_), _) if tail.is_empty() => {
+                        DescriptorPrefix::Closed(prefix.to_vec())
+                    }
+                    _ => DescriptorPrefix::Unknown,
+                },
+                _ => DescriptorPrefix::Unknown,
+            };
             composed.address =
                 self.address
                     .as_ref()
@@ -2498,6 +2640,50 @@ pub mod borrowed_storage {
             });
         }
         result
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use terminal_psi::TerminalIdentityIndex;
+
+        #[test]
+        fn a_slice_keeps_its_input_field_but_not_a_later_field_or_index() {
+            let first = StructuralPathSegment::Field(TerminalIdentityIndex(7));
+            let projection = Projection::new(std::slice::from_ref(&first))
+                .with_window(
+                    ValueId::new(1).unwrap(),
+                    ValueId::new(2).unwrap(),
+                    (semantic_vocabulary::BlockId::new(1).unwrap(), 0),
+                )
+                .without_runtime_coordinates();
+            assert_eq!(
+                projection.original_descriptor_path(),
+                Some(std::slice::from_ref(&first))
+            );
+            assert_eq!(
+                projection
+                    .then(&Projection::new(&[]))
+                    .original_descriptor_path(),
+                Some(std::slice::from_ref(&first))
+            );
+            for later in [
+                StructuralPathSegment::Field(TerminalIdentityIndex(8)),
+                StructuralPathSegment::FixedIndex(0),
+            ] {
+                let changed = projection
+                    .then(&Projection::new(&[later]))
+                    .without_runtime_coordinates();
+                assert_eq!(
+                    changed.path.as_slice(),
+                    std::slice::from_ref(&first),
+                    "the overlap path stays conservative"
+                );
+                assert!(
+                    changed.original_descriptor_path().is_none(),
+                    "the old overlap path cannot identify a later borrowed field"
+                );
+            }
+        }
     }
 }
 pub(crate) mod calling_storage {

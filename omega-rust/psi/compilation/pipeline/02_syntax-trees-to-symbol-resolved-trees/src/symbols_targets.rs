@@ -1072,6 +1072,7 @@ mod static_namespaces {
         if !call.target_is_static || !call.receiver.is_valid() {
             return None;
         }
+        let receiver_handle = call.receiver;
         let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
             return None;
         };
@@ -1110,6 +1111,10 @@ mod static_namespaces {
                 module,
             );
         }
+        // The proven static qualifier is no longer a value operand. Retain its
+        // scoped lookup outcome on the whole call, not as a missing value read
+        // on the detached receiver (a leaf import need not expose that module).
+        expressions.set_unresolved_name(receiver_handle, Default::default());
         if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
             call.receiver = ExpressionHandle::invalid();
             call.target = DiagnosticName::from_str(&name, reference);
@@ -1235,6 +1240,13 @@ mod transitions {
 
         let path = statement_path_members.span_or_empty(named.path);
         let target_name = path.last().cloned();
+        named.unresolved_name = if let Some((target, receiver)) = path.split_last() {
+            crate::symbols::expressions::unresolved_call_name(
+                symbols, machine, parameters, receiver, target,
+            )
+        } else {
+            Default::default()
+        };
 
         if path.len() == 1
             && let Some(target_name) = target_name.as_ref()

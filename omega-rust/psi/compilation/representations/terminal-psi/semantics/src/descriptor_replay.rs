@@ -529,6 +529,51 @@ pub(crate) mod analysis {
                     .read(machine, states.get(&position)?, location)?,
             )
         }
+
+        /// Preserve the failing stage when an operation requires an exact
+        /// origin. Optional discovery queries can still use the Option API.
+        pub fn try_symbolic_source_origins(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+        ) -> Result<Vec<DescriptorSourceOrigin>, String> {
+            let context =
+                || format!("view loan in {identity:?} at {position:?}, descriptor {location:?}");
+            self.replay.prepare_states(identity).ok_or_else(|| {
+                format!(
+                    "{}: descriptor snapshots cannot be reconstructed",
+                    context()
+                )
+            })?;
+            let machine = self
+                .replay
+                .machine(identity)
+                .ok_or_else(|| format!("{}: descriptor machine is absent", context()))?;
+            let states = self
+                .replay
+                .snapshots
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| format!("{}: descriptor snapshots are absent", context()))?;
+            let state = states
+                .get(&position)
+                .ok_or_else(|| format!("{}: the query point is unreachable", context()))?;
+            let value = self.replay.read(machine, state, location);
+            let missing_value = value.is_none();
+            if let Some(value) = value
+                && let Some(origins) = self.replay.symbolic(machine, value)
+            {
+                return Ok(origins);
+            }
+            let detail = if missing_value {
+                "the descriptor has no established value at this point"
+            } else {
+                "the descriptor's original borrow cannot be represented"
+            };
+            Err(format!("{}: {detail}", context()))
+        }
+
         pub fn substitute_call_source(
             &mut self,
             identity: MachineId,
@@ -1038,14 +1083,6 @@ pub(crate) mod analysis {
                     continue;
                 };
                 let summary = self.replay.cached_invocation_summary(call)?;
-                if summary
-                    .effects
-                    .iter()
-                    .flat_map(|effect| &effect.origins)
-                    .any(|origin| matches!(origin, DescriptorStoredOrigin::Provider(_)))
-                {
-                    return None;
-                }
                 step.may_escape |= summary.invalidates_contents;
                 let mut outputs = Vec::new();
                 for effect in &summary.effects {
@@ -1169,16 +1206,20 @@ pub(crate) mod analysis {
                             step.definitions.push(location.clone());
                         }
                     }
-                    // Provider debts preserve liveness only. Their inputs do
-                    // not locate the provider's result or grant alias authority.
-                    let mut pending: Vec<_> = origins.iter().map(|origin| (origin, true)).collect();
-                    while let Some((origin, backing)) = pending.pop() {
+                    // A provider's inputs constrain the result's lifetime,
+                    // not its address. Keep those loans alive without making
+                    // any input the provider view's spatial source.
+                    let mut pending = origins
+                        .iter()
+                        .map(|origin| (origin, true))
+                        .collect::<Vec<_>>();
+                    while let Some((origin, spatial)) = pending.pop() {
                         if let DescriptorStoredOrigin::Provider(provider) = origin {
                             pending.extend(
                                 provider
                                     .lifetime_dependencies
                                     .iter()
-                                    .map(|debt| (&debt.origin, false)),
+                                    .map(|dependency| (&dependency.origin, false)),
                             );
                             continue;
                         }
@@ -1250,7 +1291,7 @@ pub(crate) mod analysis {
                                 .canonical_storage(machine, before, &source, None)?,
                             destination.clone(),
                         );
-                        if backing
+                        if spatial
                             && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
                             && let Some(rules) = residence_rules.as_deref_mut()
                         {
@@ -1266,8 +1307,8 @@ pub(crate) mod analysis {
                             }
                         }
                         step.derivations.push(pair.clone());
-                        if strong
-                            && backing
+                        if spatial
+                            && strong
                             && match origin {
                                 DescriptorStoredOrigin::Parameter { projection, .. } => {
                                     projection.exact
@@ -4401,10 +4442,21 @@ pub(crate) mod engine {
                 };
                 if let Some(query) = query {
                     let structural_type = *machine.place_types.get(&binding.parameter.root)?;
-                    let mut captured = Slots::from([(
-                        binding.parameter.clone(),
-                        self.read_contents_with_depth(machine, before, &query, reads),
-                    )]);
+                    // A borrowed header names the actual's storage, rather
+                    // than a copied descriptor value held in that storage.
+                    // Capture before installing any destination names.
+                    let value = if binding.access != StructuralAccess::Owned
+                        && !is_descriptor(self.types.iter(), structural_type)
+                    {
+                        binding.source.exact_location().and_then(|source| {
+                            self.canonical_storage(machine, before, source, None)
+                                .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
+                        })
+                    } else {
+                        self.read_contents_with_depth(machine, before, &query, reads)
+                    };
+                    let mut captured = Slots::from([(binding.parameter.clone(), value)]);
+
                     for slot in self.slot_kind.owned_slots(
                         self.types,
                         binding.parameter.root,

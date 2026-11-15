@@ -286,7 +286,7 @@ pub(crate) mod aggregate_results {
     use calling_conventions::terminal_layout::StructuralLayouts;
     use semantic_vocabulary::{OperationId, StructuralTypeId};
     use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-    use terminal_semantics::{canonical_static_projection, view_descriptor_parameter};
+    use terminal_semantics::canonical_static_projection;
 
     pub(crate) fn value_input(
         function: &abstract_operations::AbstractFunction,
@@ -357,7 +357,10 @@ pub(crate) mod aggregate_results {
                 })?;
                 if parameter.access != terminal_psi::StructuralAccess::Owned
                     && (!argument.path.is_empty()
-                        || !view_descriptor_parameter(parameter, types.values().copied())
+                        || !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                            parameter,
+                            |identity| types.get(identity).copied(),
+                        )
                         || live.structural_observation_type(function, argument.place)
                             != Some(parameter.structural_type))
                 {

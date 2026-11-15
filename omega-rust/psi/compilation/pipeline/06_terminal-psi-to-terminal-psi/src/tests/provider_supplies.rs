@@ -1,8 +1,6 @@
-//! A chosen provider is judged against the slot it supplies. Each test reads
-//! one program from source: a boundary trait, a provider whose machine states
-//! `satisfies` for the trait's requirement, and an entry that calls the
-//! requirement. The roster names the supply; the verdicts are the closure's
-//! and the refinement witness's.
+//! A supplied provider is judged against its exact requirement. The main
+//! controls nominate a named implementation and check both the runtime
+//! closure and its separate refinement witness.
 
 use super::*;
 
@@ -27,8 +25,9 @@ boundary trait Other {{
 boundary trait Service {{
     machine go(value: u32) -> u32 {required};
 }}
-data Native {{}}
-machine Native::go(value: u32) -> u32 satisfies Service::go {supplied} {{ {body} }}
+Native satisfies Service {{
+    machine go(value: u32) -> u32 {supplied} {{ {body} }}
+}}
 machine entry() {{
     let reply: u32 = Service::go(3);
 }}
@@ -46,6 +45,12 @@ fn declared(typed: &typed_trees::TypedTrees, name: &str) -> symbols::SymbolHandl
                 .data_definitions()
                 .iter()
                 .map(|declared| (declared.name.as_str(), declared.symbol)),
+        )
+        .chain(
+            typed
+                .conformances()
+                .iter()
+                .map(|declared| (typed.symbols.name(declared.symbol), declared.symbol)),
         )
         .find(|(declared, _)| *declared == name)
         .unwrap()
@@ -88,33 +93,36 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
         )
         .program,
     );
-    let mut machines = Vec::new();
+    let mut closure = None;
     for (part, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
             Ok(RouteVerdict::Accepted(accepted)) => {
                 if part == 0 {
-                    machines = accepted
-                        .elaboration
-                        .machines
-                        .iter()
-                        .map(|(_, symbol)| typed.symbols.display_path(*symbol, "::"))
-                        .collect();
+                    closure = Some(accepted);
                 }
             }
             Ok(RouteVerdict::Rejected {
-                unproved, exceeded, ..
+                formations,
+                violations,
+                unproved,
+                unestablished,
+                conflicts,
+                exceeded,
             }) => {
-                return Err(unproved
+                let messages = formations
                     .iter()
                     .map(|entry| entry.reject_diagnostic().message)
-                    .chain(
-                        exceeded
-                            .iter()
-                            .map(|entry| entry.reject_diagnostic().message),
-                    )
-                    .next()
-                    .map(|message| format!("part {part} rejected: {message}"))
-                    .unwrap_or_else(|| format!("part {part} rejected")));
+                    .chain(violations.iter().map(crate::RuleViolation::message))
+                    .chain(unproved.iter().map(crate::UnprovedObligation::message))
+                    .chain(unestablished.iter().map(crate::UnestablishedUse::message))
+                    .chain(conflicts.iter().map(crate::ConflictingUse::message))
+                    .chain(exceeded.iter().map(crate::ExceededReach::message))
+                    .collect::<Vec<_>>();
+                assert!(
+                    !messages.is_empty(),
+                    "part {part} rejection names no failure"
+                );
+                return Err(format!("part {part} rejected: {}", messages.join("\n")));
             }
             Ok(RouteVerdict::Incomplete(_)) => return Err(format!("part {part} incomplete")),
             Ok(RouteVerdict::FallBack(refusal)) => {
@@ -123,10 +131,37 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
             Err(refusal) => return Err(format!("part {part} refused: {refusal:?}")),
         }
     }
-    Ok(machines)
+    let closure = closure.expect("a successful supply includes its runtime closure");
+    closure
+        .publish()
+        .expect("an accepted supply can publish its runtime module");
+    Ok(closure
+        .elaboration
+        .machines
+        .iter()
+        .map(|(_, symbol)| typed.symbols.display_path(*symbol, "::"))
+        .collect())
 }
 
 const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none crashes none";
+
+#[test]
+fn a_data_owned_provider_reports_the_attachment_violation() {
+    let text = format!(
+        r#"
+boundary trait Service {{
+    machine go(value: u32) -> u32 {CONTRACT};
+}}
+data Native {{}}
+machine Native::go(value: u32) -> u32 satisfies Service::go {CONTRACT} {{ value + 1 }}
+machine entry() {{ let reply: u32 = Service::go(3); }}
+"#
+    );
+    assert_eq!(
+        supplied(&text, "Service::go").unwrap_err(),
+        "part 0 rejected: a data declaration cannot own a machine; declare an ordinary static machine"
+    );
+}
 
 /// An inherited-only schema must not become an empty accepted supply merely
 /// because its own declaration lists no machine signatures.
@@ -134,8 +169,7 @@ const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none c
 fn an_unserved_inherited_whole_trait_supply_is_not_vacuously_accepted() {
     let text = "boundary trait Parent { machine go() reaches none crashes none; }
         boundary trait Service: Parent {}
-        data Native {}
-        machine Native::go() satisfies Parent::go reaches none crashes none {}
+        Native satisfies Parent { machine go() reaches none crashes none {} }
         machine entry() {}";
     let error = supplied(text, "Service").unwrap_err();
     assert!(
@@ -172,11 +206,11 @@ boundary trait Console {{
 boundary trait Service {{
     machine go(value: u32) -> u32 {required};
 }}
-data Native {{}}
-machine Native::go(value: u32) -> u32 satisfies Service::go
-    reaches Output crashes none invokes Handler {{
-    {body}
-    value
+Native satisfies Service {{
+    machine go(value: u32) -> u32 reaches Output crashes none invokes Handler {{
+        {body}
+        value
+    }}
 }}
 machine entry() {{ let reply: u32 = Service::go(3); }}
 "#
@@ -321,7 +355,7 @@ fn a_supply_without_one_machine_per_requirement_is_refused_by_name() {
         "{uncovered}"
     );
     // A data type is not a slot.
-    let no_slot = supplied(&text, "Native").unwrap_err();
+    let no_slot = supplied(&format!("data NotSlot {{}}\n{text}"), "NotSlot").unwrap_err();
     assert!(
         no_slot.contains("slot that is not a trait or one of its requirements"),
         "{no_slot}"
@@ -344,7 +378,7 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
     let member = typed
         .machines()
         .iter()
-        .find(|machine| !machine.satisfies.is_empty())
+        .find(|machine| typed.symbols.display_path(machine.symbol, "::") == "Native::go")
         .unwrap()
         .symbol;
     let supplies = [typed_trees_to_terminal_psi::Supply {

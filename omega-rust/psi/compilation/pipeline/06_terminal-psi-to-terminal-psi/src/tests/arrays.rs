@@ -323,6 +323,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
+        ranking: None,
     });
     assert!(
         matches!(typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &types),

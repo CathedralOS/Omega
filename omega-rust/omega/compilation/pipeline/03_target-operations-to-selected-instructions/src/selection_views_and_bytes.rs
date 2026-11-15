@@ -1645,7 +1645,14 @@ pub(crate) mod element_establishment {
             terminal_semantics::view_descriptor_parameter(
                 parameter,
                 signature.structural_types.iter(),
-            )
+            ) || function
+                .blocks
+                .iter()
+                .any(|block| block.structural_parameters.contains(parameter))
+                && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                    parameter,
+                    &signature.structural_types,
+                )
         });
         let Some(root) = parameter
             .or(local_root.as_ref())

@@ -835,6 +835,12 @@ pub mod types {
         }
 
         impl StructuralTypeShape {
+            /// A view value carries its descriptor, including retained payload
+            /// access. A reference to descriptor storage has a Reference shape.
+            pub const fn is_view_descriptor(&self) -> bool {
+                self.is_borrowed_byte_carrier() || matches!(self, Self::ElementView { .. })
+            }
+
             pub fn is_canonical_view_descriptor(&self) -> bool {
                 matches!(
                     self,

@@ -476,6 +476,15 @@ mod contracts {
                         );
                     }
                 }
+                super::expressions::retain_unresolved_call(
+                    symbols,
+                    machine,
+                    parameters,
+                    expression_table,
+                    &call,
+                    target_symbol,
+                    expression,
+                );
             }
             ExpressionNode::Indexed(indexed) => {
                 for child in [indexed.collection, indexed.index] {
@@ -1257,14 +1266,24 @@ mod domain_facts {
                 let mut matches = self
                     .local_symbols
                     .iter()
-                    .filter(|(candidate, symbol)| candidate == name.as_str() && symbol.is_valid());
+                    .filter(|(candidate, _)| candidate == name.as_str());
                 match (matches.next(), matches.next()) {
-                    (Some((_, symbol)), None) => Some(*symbol),
-                    _ => None,
+                    (Some((_, symbol)), None) => Some(Ok(*symbol)),
+                    (Some(_), Some(_)) => Some(Err(symbols::UnresolvedName::Ambiguous)),
+                    (None, _) => None,
                 }
             };
             let Some(symbol) = matching else {
                 return false;
+            };
+            let symbol = match symbol {
+                Ok(symbol) if symbol.is_valid() => symbol,
+                Ok(_) => return true,
+                Err(outcome) => {
+                    self.expression_table
+                        .set_unresolved_name(expression, outcome);
+                    return true;
+                }
             };
             if let ExpressionNode::Name(path) = self.expression_table.expression_mut(expression) {
                 path.head_symbol = symbol;
@@ -1345,13 +1364,32 @@ mod domain_facts {
                             .local_symbols
                             .iter()
                             .filter(|(name, _)| name == call.target.as_str());
-                        let target_symbol = match (lexical_matches.next(), lexical_matches.next()) {
-                            (Some((_, symbol)), None) => *symbol,
-                            (Some(_), Some(_)) => SymbolHandle::invalid(),
-                            (None, _) => {
-                                resolve_free_call_target_symbol(self.symbols, &call.target)
-                            }
-                        };
+                        let (target_symbol, unresolved_name) =
+                            match (lexical_matches.next(), lexical_matches.next()) {
+                                (Some((_, symbol)), None) => {
+                                    (*symbol, symbols::UnresolvedName::Unserved)
+                                }
+                                (Some(_), Some(_)) => {
+                                    (SymbolHandle::invalid(), symbols::UnresolvedName::Ambiguous)
+                                }
+                                (None, _) => {
+                                    let selected =
+                                        resolve_free_call_target_symbol(self.symbols, &call.target);
+                                    let outcome = if selected.is_valid() {
+                                        Default::default()
+                                    } else {
+                                        super::scoped_paths::unresolved_scoped_call_name(
+                                            self.symbols,
+                                            SymbolHandle::invalid(),
+                                            &[],
+                                            &call.target,
+                                        )
+                                    };
+                                    (selected, outcome)
+                                }
+                            };
+                        self.expression_table
+                            .set_unresolved_name(expression, unresolved_name);
                         if let ExpressionNode::Call(call) =
                             self.expression_table.expression_mut(expression)
                         {
@@ -1546,6 +1584,14 @@ mod domain_facts {
                         (head, symbol, members)
                     };
                     if !symbol.is_valid() {
+                        let outcome = super::scoped_paths::unresolved_scoped_name(
+                            self.symbols,
+                            SymbolHandle::invalid(),
+                            SymbolHandle::invalid(),
+                            self.expression_table.name_path_members(path.members),
+                        );
+                        self.expression_table
+                            .set_unresolved_name(expression, outcome);
                         return;
                     }
                     for (offset, selected) in (0u32..).zip(member_symbols) {
@@ -2826,6 +2872,15 @@ mod propositions {
                         assign_static_argument_symbols(symbols, owner_symbol, &[], argument, true);
                     }
                 }
+                if !target_symbol.is_valid() && !call.receiver.is_valid() {
+                    let outcome = super::scoped_paths::unresolved_scoped_call_name(
+                        symbols,
+                        owner_symbol,
+                        &[],
+                        &call.target,
+                    );
+                    expressions.set_unresolved_name(expression, outcome);
+                }
             }
             ExpressionNode::Indexed(indexed) => {
                 recurse!(indexed.collection);
@@ -2904,6 +2959,15 @@ mod propositions {
                 if let ExpressionNode::Name(path) = expressions.expression_mut(expression) {
                     path.head_symbol = head_symbol;
                     path.symbol = symbol;
+                }
+                if !symbol.is_valid() && !path.reserved_result_of.is_valid() {
+                    let outcome = super::scoped_paths::unresolved_scoped_name(
+                        symbols,
+                        owner_symbol,
+                        SymbolHandle::invalid(),
+                        expressions.name_path_members(path.members),
+                    );
+                    expressions.set_unresolved_name(expression, outcome);
                 }
             }
             ExpressionNode::Range(range) => {
@@ -3234,6 +3298,7 @@ pub(crate) mod recursive_tail_calls {
         Some(TransitionTargetNode::Named {
             operational_acknowledgement: call.operational_acknowledgement,
             path: TableNamePath {
+                unresolved_name: Default::default(),
                 receiver_symbol: Default::default(),
                 members: statements.insert_name_path_members(std::slice::from_ref(&call.target)),
                 head_symbol: identity.machine,
@@ -4714,9 +4779,21 @@ mod scoped_paths {
         state_symbol: SymbolHandle,
         members: &[symbol_resolved_trees::name::DiagnosticName],
     ) -> (SymbolHandle, usize) {
+        let (lookup, prefix_length) =
+            resolve_path_head_lookup(symbols, machine_symbol, state_symbol, members);
+        (lookup.unique().unwrap_or_default(), prefix_length)
+    }
+
+    fn resolve_path_head_lookup(
+        symbols: &SymbolTable,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+    ) -> (SymbolLookup, usize) {
         match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &members[0]) {
-            SymbolLookup::Unique(head) => return (head, 1),
-            SymbolLookup::Ambiguous { .. } => return (SymbolHandle::invalid(), 1),
+            lookup @ (SymbolLookup::Unique(_) | SymbolLookup::Ambiguous { .. }) => {
+                return (lookup, 1);
+            }
             SymbolLookup::NotFound => {}
         }
         for prefix_length in (2..=members.len()).rev() {
@@ -4726,12 +4803,60 @@ mod scoped_paths {
                 super::lookup::diagnostic_path_source_span(prefix),
             );
             match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name) {
-                SymbolLookup::Unique(selected) => return (selected, prefix_length),
-                SymbolLookup::Ambiguous { .. } => return (SymbolHandle::invalid(), 1),
+                lookup @ (SymbolLookup::Unique(_) | SymbolLookup::Ambiguous { .. }) => {
+                    return (lookup, prefix_length);
+                }
                 SymbolLookup::NotFound => {}
             }
         }
-        (SymbolHandle::invalid(), 1)
+        (SymbolLookup::NotFound, 1)
+    }
+
+    /// Preserve the ordinary lookup's absence or ambiguity while its exact source
+    /// and lexical frontier are available. A value's unresolved member needs type
+    /// selection; only a static namespace can establish a missing member here.
+    pub(in crate::symbols) fn unresolved_scoped_name(
+        symbols: &SymbolTable,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+    ) -> symbols::UnresolvedName {
+        let Some(_) = members.first() else {
+            return Default::default();
+        };
+        let (lookup, prefix_length) =
+            resolve_path_head_lookup(symbols, machine_symbol, state_symbol, members);
+        let SymbolLookup::Unique(head) = lookup else {
+            return lookup.into();
+        };
+        if symbols.get(head).kind != SymbolKind::Module || prefix_length == members.len() {
+            return Default::default();
+        }
+        let name = symbol_resolved_trees::name::DiagnosticName::new(
+            members.joined_path(),
+            super::lookup::diagnostic_path_source_span(members),
+        );
+        base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name).into()
+    }
+
+    pub(in crate::symbols) fn unresolved_scoped_call_name(
+        symbols: &SymbolTable,
+        owner: SymbolHandle,
+        receiver: &[symbol_resolved_trees::name::DiagnosticName],
+        target: &symbol_resolved_trees::name::DiagnosticName,
+    ) -> symbols::UnresolvedName {
+        if receiver.is_empty() {
+            return unresolved_scoped_name(
+                symbols,
+                owner,
+                SymbolHandle::invalid(),
+                std::slice::from_ref(target),
+            );
+        }
+        let mut members = Vec::with_capacity(receiver.len() + 1);
+        members.extend_from_slice(receiver);
+        members.push(target.clone());
+        unresolved_scoped_name(symbols, owner, SymbolHandle::invalid(), &members)
     }
 
     pub(super) fn invalid_symbol_pair() -> (SymbolHandle, SymbolHandle) {

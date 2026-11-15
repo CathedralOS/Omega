@@ -246,6 +246,64 @@ mod references {
                 &mut call.machine_arguments,
             );
         }
+        retain_unresolved_call(
+            symbols,
+            machine,
+            parameters,
+            expression_table,
+            call,
+            target_symbol,
+            expression,
+        );
+    }
+
+    /// Signature clauses and bodies retain the same occurrence-level lookup evidence.
+    pub(in crate::symbols) fn retain_unresolved_call(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        parameters: &[StateParameter],
+        expression_table: &mut ExpressionTable,
+        call: &TableCallExpression,
+        target_symbol: SymbolHandle,
+        expression: ExpressionHandle,
+    ) {
+        let unresolved_name = if target_symbol.is_valid() {
+            Default::default()
+        } else if !call.receiver.is_valid() {
+            unresolved_call_name(symbols, machine, parameters, &[], &call.target)
+        } else if let ExpressionNode::Name(path) = expression_table.expression(call.receiver) {
+            unresolved_call_name(
+                symbols,
+                machine,
+                parameters,
+                expression_table.name_path_members(path.members),
+                &call.target,
+            )
+        } else {
+            Default::default()
+        };
+        expression_table.set_unresolved_name(expression, unresolved_name);
+    }
+
+    /// Calls and values share the same lexical frontier. A retained callable
+    /// value is an unserved selection, never evidence that its name is absent.
+    pub(in crate::symbols) fn unresolved_call_name(
+        symbols: &SymbolTable,
+        machine: &MachineScope<'_>,
+        parameters: &[StateParameter],
+        receiver: &[DiagnosticName],
+        target: &DiagnosticName,
+    ) -> symbols::UnresolvedName {
+        let head = receiver.first().unwrap_or(target);
+        if lexical_value_head(machine, parameters, head.as_str(), !receiver.is_empty()).is_valid() {
+            return Default::default();
+        }
+        super::super::scoped_paths::unresolved_scoped_call_name(
+            symbols,
+            machine.symbol,
+            receiver,
+            target,
+        )
     }
 
     pub(in crate::symbols) fn assign_member_symbol(
@@ -538,6 +596,23 @@ mod references {
             path.head_symbol = head_symbol;
             path.symbol = symbol;
         }
+        let predicate_subject = matches!(expression_table.name_path_members(path.members), [name] if name.as_str() == "self")
+            && matches!(
+                symbols.get(machine.symbol).kind,
+                SymbolKind::Data | SymbolKind::Domain
+            );
+        let unresolved_name =
+            if symbol.is_valid() || path.reserved_result_of.is_valid() || predicate_subject {
+                Default::default()
+            } else {
+                super::super::scoped_paths::unresolved_scoped_name(
+                    symbols,
+                    machine.symbol,
+                    lookup_state,
+                    expression_table.name_path_members(path.members),
+                )
+            };
+        expression_table.set_unresolved_name(expression, unresolved_name);
     }
 
     /*
@@ -1389,6 +1464,7 @@ pub(crate) use references::reject_unqualified_case_values;
 pub(super) use references::{
     NameRole, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_struct_literal_symbols, lexical_value_head, normalize_qualified_case_value,
+    retain_unresolved_call, unresolved_call_name,
 };
 pub(super) use traversal::{
     assign_expression_span_symbols, assign_expression_table_symbols,

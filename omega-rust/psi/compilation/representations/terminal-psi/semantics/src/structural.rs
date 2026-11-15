@@ -1535,7 +1535,8 @@ pub(crate) mod primitive_place {
     use crate::exactly_one::exactly_one;
     use crate::structural::static_path::canonical_structural_path_tip;
     use semantic_vocabulary::{
-        CanonicalStructuralPathSegment, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
+        CanonicalStructuralPathSegment, IntegerSign, IntegerType, ObligationId, Proposition,
+        ScalarType, StructuralTypeId,
     };
     use terminal_psi::{
         ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
@@ -2224,22 +2225,41 @@ pub(crate) mod primitive_place {
         })
     }
 
+    type TypeDependencies = std::collections::BTreeSet<StructuralTypeId>;
+
     fn walk_primitive_projection_with_policy<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
+        step: impl FnMut(Option<CanonicalStructuralPathSegment>),
+        may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
+        dependencies: Option<&mut TypeDependencies>,
+    ) -> Option<ProjectionTip<'a>> {
+        let unique = |id| exactly_one(declarations.clone(), |row| row.id == id);
+        walk_primitive_projection_with_lookup(
+            (declarations.clone(), unique),
+            root,
+            path,
+            scalar_field,
+            step,
+            may_step,
+            dependencies,
+        )
+    }
+
+    fn walk_primitive_projection_with_lookup<'a>(
+        (declarations, unique): (
+            impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+            impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+        ),
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
         mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
         mut may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
-        mut dependencies: Option<&mut std::collections::BTreeSet<StructuralTypeId>>,
+        mut dependencies: Option<&mut TypeDependencies>,
     ) -> Option<ProjectionTip<'a>> {
-        let unique = |id: StructuralTypeId| {
-            let mut matching = declarations
-                .clone()
-                .filter(move |declaration| declaration.id == id);
-            let declaration = matching.next()?;
-            matching.next().is_none().then_some(declaration)
-        };
         let mut position = Position::Declared(root);
         let mut payload_fields = None;
         for (ordinal, segment) in path.iter().enumerate() {
@@ -2417,6 +2437,67 @@ pub(crate) mod primitive_place {
             Position::ScalarField((_, scalar)) => Some(ProjectionTip::ScalarField(scalar)),
             Position::ByteElement => Some(ProjectionTip::ByteElement),
         }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum RuntimeIndexGoalError {
+        InvalidPath,
+        OpenExtent,
+        MissingSelector,
+        UnsupportedSelector,
+    }
+
+    /// Recover each bound from the array reached immediately before its index.
+    /// The enclosing operation checks the path after its last index separately.
+    /// Use the visited goals only when the indexed prefix is valid.
+    pub fn visit_runtime_index_goals<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        declaration: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        values: &impl crate::ValueTypes,
+        mut visit: impl FnMut(ObligationId, Proposition),
+    ) -> Result<(), RuntimeIndexGoalError> {
+        let Some(last_index) = path.iter().rposition(|step| step.runtime_index().is_some()) else {
+            return Ok(());
+        };
+        let mut error = RuntimeIndexGoalError::InvalidPath;
+        let walked = walk_primitive_projection_with_lookup(
+            (declarations, &declaration),
+            root,
+            &path[..=last_index],
+            plain_scalar_field,
+            |_| {},
+            |owner, step| {
+                let Some((index, obligation)) = step.runtime_index() else {
+                    return true;
+                };
+                let Some(array) = owner.and_then(&declaration) else {
+                    return false;
+                };
+                let StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(extent),
+                    ..
+                } = array.shape
+                else {
+                    error = RuntimeIndexGoalError::OpenExtent;
+                    return false;
+                };
+                let Some(carrier) = values.value_type(index) else {
+                    error = RuntimeIndexGoalError::MissingSelector;
+                    return false;
+                };
+                let Some(goal) = super::static_path::runtime_index_bound(index, carrier, extent)
+                else {
+                    error = RuntimeIndexGoalError::UnsupportedSelector;
+                    return false;
+                };
+                visit(obligation, goal);
+                true
+            },
+            None,
+        );
+        walked.ok_or(error).map(|_| ())
     }
 
     pub(crate) fn projection_tip_with_policy<'a>(

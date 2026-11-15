@@ -652,6 +652,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     let closure = match terminal_psi_to_terminal_psi::judge(
@@ -966,6 +967,7 @@ mod transferred_on_one_path {
                 invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
                 crashes: CrashCeiling::Authored(Vec::new()),
                 termination: Termination::Silent,
+                ranking: None,
             });
         }
         terminal_psi_to_terminal_psi::judge(typed_trees_to_terminal_psi::lower_bodies(

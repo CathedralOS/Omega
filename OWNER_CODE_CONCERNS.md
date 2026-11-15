@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An indexed dispatch discriminator has no canonical seal owner
+- Category: knowledge crossing a boundary
+- Where: [terminator path ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L2384), [native proof provenance](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs#L20)
+- Saw: A hosted machine matching a case of `table.choices[index]` in a two-element array with `requires index < 2` reaches `UnownedSeal` on clean `8db72a0c99` and the operation-owner repair `de996b3d9aa`. Its twin changes only the contract to `index < 3` and both versions refuse at `cannot prove storage index bounds` on the match.
+- Cost: Stage 06 proves the indexed discriminator at its block terminator, before a case chooses an outgoing edge. Canonical receiving provenance names operations and edges. Preserve the existing pre-dispatch execution site through evidence attachment and realization so a chosen edge cannot stand in for the shared read.
+- Reported: 2026-11-14, Codex, while repairing ordinary indexed operation evidence on macOS arm64
+
 ### An explicit undeclared lifetime is reported as a byte-view type gap
 - Category: a verdict with nothing behind it
 - Where: [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L115), [static lifetime controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/machine_lifetimes.rs)
@@ -80,12 +87,33 @@ framework or a list of features that remain unimplemented.
 - Cost: An author sees an unavailable byte-view type when the written signature breaks a binder rule. Preserve an explicit undeclared tag as a source violation while keeping genuinely incomplete region identities fail-closed.
 - Reported: 2026-11-14, Codex, while restoring the Stage 06 machine lifetime control
 
-### The post-merge sample stops in byte-window formation before either engine runs
+### An alias's undeclared lifetime takes its meaning from the caller
+- Category: a fact with no owner
+- Where: [alias lifetime substitution](omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs#L4664), [byte-view region identity](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L107)
+- Saw: At `7a8a75d5256`, `data View = &'capture [u8]; machine build_entry(view: View) { }` refuses because the expanded byte view has no owned region identity. Adding only `<'capture>` to `build_entry` changes the verdict to the later `declaration type alias` refusal, the same verdict as an alias that declares and substitutes its own lifetime explicitly. Alias expansion skips its undeclared spelling, which the signature reader then looks up in the receiving machine.
+- Cost: A caller can satisfy a lifetime use written in an unrelated declaration. The current subject gate still refuses the alias overall. Establish the alias's lifetime bindings before substitution so the use site supplies only the alias's declared arguments.
+- Reported: 2026-11-14, Codex, while tracing undeclared lifetime diagnostics
+
+### A direct partial view of a fixed byte array never reaches endpoint checking
 - Category: tests that pin the bug
-- Where: [post-merge runtime step](.github/workflows/post-merge-check.yml#L97), [length sample](samples/cli/facts/length/local/main.omg#L6), [array view reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L180)
-- Saw: The [sample job](https://github.com/CathedralOS/Omega/actions/runs/43664409560/job/132661175144) at `d75251ea39f` exits 1 in `mbx xtask sample-gate --filter samples/cli/facts/length/local`. Package checking refuses `&items[0..count]` with `partial array views need their endpoint and window correspondence` while reading `window` in `last_byte`.
-- Cost: The configured post-merge runtime witness never checks the length of a borrowed byte window or reaches native/Psi comparison. Preserve the window and its result oracle when tracing receiver selection and endpoint proof ownership.
-- Reported: 2026-11-14, Codex, while verifying the main compiler and native jobs
+- Where: [const-length sample](samples/cli/facts/length/const_name/main.omg#L12), [target-body sample](samples/cli/facts/length/target_body/main.omg#L49), [array range reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs)
+- Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives and their authored source twins with bound entries still refuse `&items[0..3]` with `partial array views need their endpoint and window correspondence` on macOS arm64. Here `items` is a fixed `[u8; 4]`. Each sample's dynamic range over an existing view proceeds through ordinary range checking.
+- Cost: A checked direct array window cannot reach its last-byte check. Use the fixed storage's exact extent and projected window when checking a direct range and establishing its loan.
+- Reported: 2026-11-14, Codex, while restoring the post-merge runtime sample
+
+### A match loses a byte window's length when its arms name equivalent values
+- Category: tests that pin the bug
+- Where: [match length sample](samples/cli/facts/length/match_join/main.omg#L7)
+- Saw: On `ef7d7a17936` with the shared-view range repair, the macOS arm64 check for `let length: u64 = match flag { true -> window.len, false -> count };` refuses the last-byte read at `8:11` because it cannot prove operation safety. `window` was formed from `items[0..count]` with positive `count`. The control whose false arm uses the backing length also fails to establish the operation.
+- Cost: A match arm that uses the endpoint by which the window was formed cannot carry the same bound as an arm that reads its length. Retain the shared equality at the join and keep the backing-length twin unsafe.
+- Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
+
+### A shared byte window loses its completion observation across a length call
+- Category: a verdict with nothing behind it
+- Where: [length result sample](samples/cli/facts/length/call_result/main.omg#L11), [forwarded length sample](samples/cli/facts/length/other_machine/main.omg#L14), [completion observation reader](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L3851)
+- Saw: On `ef7d7a17936` with the shared-view range repair, both unchanged positives stop on macOS arm64 at `borrowed completion storage has no post-call observation`. Their shared view already passed formation, and each length call's result guarantee names the view given as input. The nested state control keeps the matching length and executes.
+- Cost: Code cannot use the result guarantee to index the same existing shared window after an ordinary call. Keep the unchanged actual observation attached to the shared parameter in the ordinary completion mechanism.
+- Reported: 2026-11-14, Codex, while checking length transport through a borrowed byte window
 
 ### Compiler subject fixtures still expect earlier refusal reasons and outcomes
 - Category: tests that pin the bug
@@ -101,13 +129,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Whether an unused declaration stops resolution depends on an inaccessible case spelling. Classify the exact authored occurrence through ordinary scoped lookup and preserve the deferred violation on its holder.
 - Reported: 2026-11-14, Codex, while tracing scoped unbound-name verdicts on macOS arm64
 
-### Runtime array index proofs cannot attach to their canonical operations
-- Category: knowledge crossing a boundary
-- Where: [checked index goals](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs#L1770), [seal owner reconstruction](omega-rust/psi/compilation/representations/terminal-psi/codec/src/obligation_evidence.rs#L244)
-- Saw: The [lent indexed record control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/runtime_indexed_elements.rs#L64) publishes its checked invocation. With a hosted entry, the scalar-policy fix at `3fe15f1a32c` and the provisional universe admission repair, both `omega run --both` and Psi-only execution refuse the in-bounds program at `UnownedSeal`. Bare element types with an explicit saturating add reach the same error. The out-of-bounds twin still rejects each unsafe access.
-- Cost: Checked dynamic reads and writes cannot run through the product path. Stage 06 certifies each runtime path step, while the codec reconstructs only operation-local scalar and byte goals. Reuse each stored path step's exact array extent and obligation in the shared semantic query so several bounds on one operation remain attributable.
-- Reported: 2026-11-14, Codex, while validating mixed policy operands through hosted execution on macOS arm64
-
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
@@ -115,12 +136,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### Provider-selection fixtures find no authored selection to test
+### Build-time access fixtures stop at the data-owner check
 - Category: tests that pin the bug
-- Where: [Build-time provider fixture](omega-rust/psi/compilation/build-time-evaluation/src/product/provider_selection_tests.rs#L150)
-- Saw: On macOS arm64 at base `69ec9aa5bd8`, seven tests fail before collector assertions because the fixture's typed `Build::select_provider` produces zero provider-selection occurrences. The mismatch persists with and without the universe-level admission repair.
-- Cost: The fixture cannot check occurrence rejoining, private-provider visibility, operand validation, or ordering. Restore the authored Build protocol inputs and verify that the controls reach those judgments.
-- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
+- Where: [borrowed view fixtures](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L9), [access plan constructors](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.omg#L9), [checked callee ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L898)
+- Saw: On macOS arm64 at clean `59b8d53b729`, both closed-borrow controls refuse `Access::view_mut` in `relay`, and the access-plan control refuses `AccessPlan::new` in `construct_restricted_plan`. All three stop at `a data declaration cannot own a machine; declare an ordinary static machine` during Build-time source preparation.
+- Cost: These controls cannot check original backing and exclusive-loan behavior, invalid view interpretation, or complete access-plan construction. Trace the exact library call owners and preserve those acceptance and rejection judgments.
+- Reported: 2026-11-15, Codex, while running the Build-time evaluator suite on macOS arm64
 
 ### The Build-time sequence fixtures stop at reference result correspondence
 - Category: tests that pin the bug
@@ -129,12 +150,12 @@ framework or a list of features that remain unimplemented.
 - Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
 - Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
 
-### Provider-supply controls lose the reasons their runtime module is rejected
-- Category: tests that pin the bug
-- Where: [Stage 06 provider supply harness](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/provider_supplies.rs#L80)
-- Saw: At `7f12cb9f722` five provider-supply tests fail with `part 0 rejected`, including the provider that should refine its requirement and the controls for reach and invocation ceilings. The harness formats only unproved and exceeded rows and omits the other evidence of rejection.
-- Cost: A runtime rejection can hide the failure that prevented the suite from reaching its intended refinement, effect ceiling, or publication check. Recover the actual rejection evidence while keeping the matching positive and negative supply programs.
-- Reported: 2026-11-14, Codex, while rerunning the Stage 06 refusal controls on macOS arm64
+### Provider supply ignores named implementations' selection rows
+- Category: a fact with no owner
+- Where: [provider realization](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1618), [provider declaration identity](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L212)
+- Saw: At `7fca4c49c98` the Stage 06 supply harness finds one typed reference row for `Native satisfies Service { Service::go = provider_go; }`, and that row retains the exact `provider_go` machine. Nominating `Native` for `Service::go` or for the whole `Service` still refuses with `provider does not give the supplied requirement exactly one machine`. The inline implementation of the same contract passes and publishes.
+- Cost: Provider admission looks for a machine owned by the implementation. A selection row keeps the existing machine's original declaration. Resolve the named implementation's exact row and check its body against the nominated requirement.
+- Reported: 2026-11-14, Codex, while restoring the Stage 06 provider-supply controls
 
 ### The selected reference result control stops before checking its public contract
 - Category: tests that pin the bug
@@ -163,13 +184,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `declared_binding_type_by_symbol` scans a state's parameters and local statements to find one unique resolved symbol; `exact_declared_field` scans all data definitions and fields for one field symbol. Constructor/place/callable type queries use these scanning routes even though the representation also maintains local and field relationships indexed by symbol. The scans deliberately detect duplicates and enforce owner/type constraints, so replacing them with a first match would weaken the contract.
 - Cost: Repeated uses revisit unrelated locals or records. Provide owner-aware, uniqueness-preserving borrowed lookup through the existing relationship owner; during mutable construction, maintain the relevant body's binding index instead of repeatedly rebuilding a global one. Return a row or compact coordinate without allocating candidate vectors on successful queries. Acceptance holds queried identities fixed while growing unrelated records, and grows locals/uses independently while counting visits. Preserve duplicate-binder, foreign-state, stale-generation and case/constructor-owner refusals, with cold and retained-snapshot controls.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
-
-### Typing classifies unbound value and call names by global leaf spelling
-- Category: knowledge crossing a boundary
-- Where: [typing's unbound-value classification](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L808), [global spelling query](omega-rust/psi/compilation/representations/typed-trees/src/deferred_refusals.rs#L274)
-- Saw: typing classifies its batch of unbound value names and bare call names with `names_nothing_has`, which walks every symbol and compares only its final name segment, regardless of namespace, visibility or declaration kind. A parameter or local of an unrelated machine, or an unimported library declaration, sharing the spelling turns an unknown name (`UndeclaredValueName`/`UndeclaredCallName`, a violation) into no row or an unserved request. `invokes` rows and domain names no longer use it: typing records the ordinary scoped lookup's outcome on them (`AuthoredInvocationTarget::Undeclared`, `DomainConstraint::names_no_visible_domain`) and Psi 05 reads that. This observation is not evidence that the final checker accepts an invalid program.
-- Cost: A scoped replacement needs resolution to say, per value/call occurrence, that no local, parameter, import or qualified path visible there has the name, rather than typing re-deriving it; narrowing the global query to visible top-level kinds alone would misclassify names typing leaves unbound but readers still resolve (fields, cases, callable locals). Acceptance needs same-leaf names in other machines and declaration kinds, inaccessible imports, qualified unknown names and unreachable malformed uses.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; narrowed 2026-11-15 by Claude Code after the `invokes` and domain readers moved to typing's scoped outcome
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving

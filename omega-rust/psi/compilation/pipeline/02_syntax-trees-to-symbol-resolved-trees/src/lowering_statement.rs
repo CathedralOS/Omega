@@ -1178,6 +1178,7 @@ mod statement_nodes {
                     target: lower_name(syntax_trees, &call.target),
                     storage: CallStorage {
                         target_is_static: call.target_is_static,
+                        unresolved_name: Default::default(),
                         receiver_root_symbol: SymbolHandle::invalid(),
                         receiver,
                         machine_arguments: call
@@ -1686,6 +1687,7 @@ mod statement_nodes {
                     head_symbol: SymbolHandle::invalid(),
                     symbol: SymbolHandle::invalid(),
                     storage: NamedTransitionTargetStorage {
+                        unresolved_name: Default::default(),
                         operational_acknowledgement: Default::default(),
                         path: lower_statement_path_members(lowerer, syntax_trees, *path),
                         arguments,
