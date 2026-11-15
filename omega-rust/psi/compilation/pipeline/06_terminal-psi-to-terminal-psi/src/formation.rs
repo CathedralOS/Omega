@@ -386,6 +386,12 @@ impl ClauseBindings for Scope<'_> {
     fn requires_complete_terms(&self) -> bool {
         true
     }
+    fn validate_float_meaning_source(&mut self, _source: &ScalarTerm) -> Result<(), Self::Error> {
+        // Formation checks a symbolic declaration equation. It mints no
+        // concrete projection or runtime owner. Actual call imports perform
+        // source correspondence after their ordinary argument substitution.
+        Ok(())
+    }
     fn value(&mut self, id: ValueId, ty: ScalarType) -> Result<ScalarTerm, BindingError> {
         let mut candidates = self
             .inputs

@@ -5734,6 +5734,9 @@ pub(crate) mod scalar_observations {
                         }
                     }
                 }
+                Proposition::FloatMeaningEqual(clause) => {
+                    scalars.extend(clause.sources().map(|source| (source, false)));
+                }
                 Proposition::Equal(a, b)
                 | Proposition::LessThan(a, b)
                 | Proposition::LessOrEqual(a, b)

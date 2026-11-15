@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
-use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -1900,8 +1900,10 @@ impl<'t> Program<'t> {
             .operand
             .scalar_type()
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
+        let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
+            .map_err(unavailable)?;
         if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
-            || result != Some(ValueType::plain(ScalarType::Boolean))
+            || result != Some(ValueType::plain(expected_result))
         {
             return Err(unavailable(
                 "numeric primitive differs from its canonical scalar signature",

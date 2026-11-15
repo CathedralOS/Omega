@@ -21,6 +21,11 @@ pub fn substitute_proposition_values(
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> Proposition {
     match proposition {
+        Proposition::FloatMeaningEqual(clause) => {
+            Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
+                substitute_scalar_term_values(source, substitutions)
+            }))
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
@@ -121,6 +126,11 @@ pub fn substitute_proposition_structural_places(
     substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Proposition {
     match proposition {
+        Proposition::FloatMeaningEqual(clause) => {
+            Proposition::FloatMeaningEqual(clause.map_sources_or_invalid(|source| {
+                substitute_scalar_term_places(source, substitutions)
+            }))
+        }
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),

@@ -128,3 +128,195 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
         }).unwrap().join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     });
 }
+
+#[test]
+fn canonical_float_arithmetic_keeps_meaning_contracts_and_actual_source_classes() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            use language_semantics::numeric_intrinsics::{
+                NumericIntrinsic, PrimitiveFloatBinaryOperation as Operation,
+            };
+            use semantic_vocabulary::{
+                FloatMeaningClauseOperand, FloatMeaningClauseValue, ScalarTerm, ScalarType,
+            };
+            let main = repository().join("tests/fixtures/run/float/canonical_arithmetic/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let publication = checked
+                .terminal_publication()
+                .accepted()
+                .unwrap()
+                .closure()
+                .publish()
+                .unwrap();
+            terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                publication.artifact.semantic_bytes(),
+            )
+            .unwrap();
+            let module = publication.artifact.semantic_module();
+            let arithmetic = module
+                .boundary_machines
+                .iter()
+                .filter(|boundary| {
+                    matches!(
+                        boundary.numeric_intrinsic,
+                        Some(NumericIntrinsic::FloatBinary {
+                            operation: Operation::Add
+                                | Operation::Subtract
+                                | Operation::Multiply
+                                | Operation::Divide,
+                            ..
+                        })
+                    )
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(arithmetic.len(), 8);
+            for boundary in &arithmetic {
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .unwrap();
+                assert_eq!(boundary.scalar_ensures.len(), 1);
+                let semantic_vocabulary::Proposition::FloatMeaningEqual(clause) =
+                    &boundary.scalar_ensures[0]
+                else {
+                    panic!("arithmetic needs meaning equality, not IEEE equality or Truth")
+                };
+                clause.validate().unwrap();
+                let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
+                    panic!("scalar arithmetic result")
+                };
+                assert!(matches!(result.scalar_type, ScalarType::IeeeFloat(_)));
+            }
+            let subtract = arithmetic
+                .iter()
+                .copied()
+                .find(|boundary| {
+                    matches!(
+                        boundary.numeric_intrinsic,
+                        Some(NumericIntrinsic::FloatBinary {
+                            operation: Operation::Subtract,
+                            ..
+                        })
+                    )
+                })
+                .unwrap();
+            let mut reversed = module.clone();
+            let changed = reversed
+                .boundary_machines
+                .iter_mut()
+                .find(|row| row.id == subtract.id)
+                .unwrap();
+            let semantic_vocabulary::Proposition::FloatMeaningEqual(clause) =
+                &mut changed.scalar_ensures[0]
+            else {
+                unreachable!()
+            };
+            let application = clause
+                .values
+                .iter_mut()
+                .find_map(|row| match row {
+                    FloatMeaningClauseValue::Application { operands, .. } => Some(operands),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(matches!(
+                application[0],
+                FloatMeaningClauseOperand::Format(_)
+            ));
+            application.swap(1, 2);
+            clause.validate().unwrap();
+            let error = receiving_error(reversed);
+            assert!(error.contains("full canonical result contract"), "{error}");
+
+            // Corrupt a real catalog signature commitment in encoded bytes,
+            // so the receiving codec, rather than the producer, refuses it.
+            let semantic_vocabulary::Proposition::FloatMeaningEqual(clause) =
+                &subtract.scalar_ensures[0]
+            else {
+                unreachable!()
+            };
+            let commitment = clause
+                .values
+                .iter()
+                .find_map(|row| match row {
+                    FloatMeaningClauseValue::Application { contract, .. } => {
+                        Some(contract.commitment)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            let mut bytes = publication.artifact.semantic_bytes().to_vec();
+            let position = bytes
+                .windows(commitment.len())
+                .position(|window| window == commitment)
+                .unwrap();
+            bytes[position] ^= 1;
+            assert!(terminal_codec::ClosedTerminalModule::from_semantic_bytes(&bytes).is_err());
+
+            let (machine, operation, result) = module
+                .machines
+                .iter()
+                .find_map(|machine| {
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .find_map(|operation| {
+                            let result = operation.result.scalar_ref()?;
+                            (matches!(result.scalar_type, ScalarType::IeeeFloat(_))
+                                && operation.declared_invocation().is_some())
+                            .then_some((machine, operation, result))
+                        })
+                })
+                .unwrap();
+            let sources =
+                terminal_semantics::float_meaning_sources::Sources::for_machine(machine).unwrap();
+            let term = ScalarTerm::value(result.id, result.scalar_type);
+            let actual = sources.source(&term).unwrap();
+            let terminal_psi::FloatMeaningSource::DirectCallResult(actual) = actual else {
+                panic!("boundary results are call results")
+            };
+            assert_eq!(actual.producer, operation.id);
+            let mut wrong_owner = actual;
+            wrong_owner.owner = semantic_vocabulary::MachineId::new(u64::MAX).unwrap();
+            assert!(
+                sources
+                    .validate_source(
+                        &term,
+                        &terminal_psi::FloatMeaningSource::DirectCallResult(wrong_owner)
+                    )
+                    .is_err()
+            );
+            let wrong_class = terminal_psi::FloatMeaningSource::DirectOperationResult(
+                terminal_psi::DirectOperationFloatResult {
+                    owner: actual.owner,
+                    producer: actual.producer,
+                    result: actual.result,
+                    format: actual.format,
+                },
+            );
+            assert!(sources.validate_source(&term, &wrong_class).is_err());
+
+            let invalid =
+                repository().join("tests/fixtures/fail/float/canonical_arithmetic/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&invalid, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("f64 cannot silently enter f32 arithmetic")
+            .into_diagnostics();
+            let message = format!("{diagnostics:?}");
+            assert!(
+                message.contains("float arithmetic operand types differ: f32 and f64"),
+                "{message}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}
