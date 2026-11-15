@@ -907,7 +907,25 @@ impl Storage<'_> {
                     super::Shape::Atomic(cell) => {
                         expected.shape == StructuralTypeShape::AtomicCell(cell)
                     }
-                    super::Shape::Typed(actual) => actual == referent,
+                    // A reference to a direct byte window's own descriptor
+                    // names the view its parameter's access grants.
+                    super::Shape::Typed(actual) => {
+                        actual == referent
+                            || raw.segments.is_empty()
+                                && terminal_semantics::structural_argument_source(
+                                    self.lowered,
+                                    raw.root,
+                                    0,
+                                )
+                                .is_some_and(|formal| {
+                                    terminal_semantics::formal_accepts_actual_type(
+                                        self.types.iter(),
+                                        actual,
+                                        formal.access,
+                                        referent,
+                                    )
+                                })
+                    }
                     super::Shape::View | super::Shape::Payload(_) => false,
                 }
             };

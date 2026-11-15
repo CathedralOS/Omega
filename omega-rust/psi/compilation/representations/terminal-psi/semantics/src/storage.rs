@@ -1916,6 +1916,18 @@ pub(crate) mod arrival_storage {
                 access: Some(retained),
                 ..
             } => access = *retained,
+            // A canonical view formal carries no access of its own: the
+            // parameter grants it.
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+            ) if argument.path.is_empty()
+                && source.access != terminal_psi::StructuralAccess::Owned =>
+            {
+                if !view_descriptor_parameter(&source, types.iter()) {
+                    return None;
+                }
+                access = source.access;
+            }
             _ if crate::descriptor_results::is_descriptor(types.iter(), selected.id) => {
                 access = crate::descriptor_results::descriptor_value_access(
                     types.iter(),
