@@ -11,6 +11,9 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
     machine bind(activation: u64) reaches none crashes none;
 }
+public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+    builder
+}
 "#;
 
 const BUILD: &str = r#"
