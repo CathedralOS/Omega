@@ -292,13 +292,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
-### Typing lets a bare literal be stored into a field declared in a domain
-- Category: one idea built twice
-- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/rejections.rs` (`mistyped`)
-- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };`, a plain argument for a qualified parameter and a plain value for a qualified result all pass typing. The lowered-form reader now rejects each by the rule (one carrier, two domain sets), so nothing is accepted, but typing checks the rule for one form and the reader for all of them
-- Cost: "the supplied expression's static type must carry exactly the domains the destination declares" has two owners with different coverage and different wording, so the same mistake reads differently by where it is written
-- Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
-
 ### Build selection calls are found and published by the spelling of their protocol operation
 - Category: one idea built twice
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `terminal-production/src/build_companions.rs` (`binding`, matches the same names again)

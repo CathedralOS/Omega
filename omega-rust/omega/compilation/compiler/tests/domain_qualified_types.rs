@@ -208,6 +208,40 @@ fn a_plain_value_for_a_qualified_result_is_rejected() {
     );
 }
 
+/// A record literal is its bare carrier, so storing one into a field
+/// declared in a domain breaks the same rule as a plain argument: the field
+/// initializer, the annotated local and the assigned place read it from the
+/// one owner, in the same words, with their own destination named.
+#[test]
+fn a_bare_literal_for_a_qualified_field_is_rejected() {
+    violates(
+        "plain_field",
+        "machine wrong() -> Sample {\n    Sample { reading: Reading { value: 1 }, count: 0 }\n}\n",
+        "this value's type carries no domain and the field it initializes declares \
+         `Reading::Checked`",
+    );
+}
+
+#[test]
+fn a_plain_value_for_a_qualified_local_is_rejected() {
+    violates(
+        "plain_local",
+        "machine wrong(distance: i32) -> i32 in Km {\n    let kept: i32 in Km = distance;\n    \
+         kept\n}\n",
+        "this value's type carries no domain and the local it initializes declares `i32::Km`",
+    );
+}
+
+#[test]
+fn a_bare_literal_assigned_to_a_qualified_field_is_rejected() {
+    violates(
+        "plain_assigned",
+        "machine wrong(sample: &mut Sample) {\n    sample.reading = Reading { value: 1 };\n}\n",
+        "this value's type carries no domain and the place it is assigned to declares \
+         `Reading::Checked`",
+    );
+}
+
 #[test]
 fn a_qualified_value_for_a_plain_result_is_rejected() {
     violates(
