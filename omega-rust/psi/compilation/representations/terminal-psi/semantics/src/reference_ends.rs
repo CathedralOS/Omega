@@ -49,6 +49,25 @@ impl Error {
     }
 }
 
+/// The owned path of `location` when it names a borrowed descriptor the
+/// planner can end with an inline `ReleaseReference`: a reference or view
+/// leaf in its root's own inline storage. A descriptor held anywhere else
+/// has no release operation; its loan closes after its last use.
+pub fn releasable_reference_path(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    root_type: semantic_vocabulary::StructuralTypeId,
+    location: &DescriptorLocation,
+) -> Result<Option<Vec<terminal_psi::StructuralPathSegment>>, &'static str> {
+    let path = descriptor_path(types, root_type, &location.path)
+        .ok_or("reference disposition has no exact owned path")?;
+    if !crate::projection_stays_in_inline_storage(types.iter(), root_type, &path) {
+        return Ok(None);
+    }
+    let tip = crate::runtime_structural_path_tip(types.iter(), root_type, &path)
+        .ok_or("reference disposition lost its leaf type")?;
+    Ok(tip.shape.is_borrowed_descriptor().then_some(path))
+}
+
 pub fn candidates(module: &TerminalModule) -> Result<IdTable<MachineId, Candidates>, Error> {
     let has_borrowed_storage = |machine: &terminal_psi::TerminalMachine| {
         machine
@@ -284,35 +303,12 @@ fn machine_candidates(
                 .ok_or_else(|| {
                     Error::local(machine.id, None, "reference disposition lost its root type")
                 })?;
-            let path = descriptor_path(&module.structural_types, root_type, &location.path)
-                .ok_or_else(|| {
-                    Error::local(
-                        machine.id,
-                        None,
-                        "reference disposition has no exact owned path",
-                    )
-                })?;
-            if !crate::projection_stays_in_inline_storage(
-                module.structural_types.iter(),
-                root_type,
-                &path,
-            ) {
+            let Some(path) =
+                releasable_reference_path(&module.structural_types, root_type, &location)
+                    .map_err(|detail| Error::local(machine.id, None, detail))?
+            else {
                 continue;
-            }
-            let Some(tip) = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
-                root_type,
-                &path,
-            ) else {
-                return Err(Error::local(
-                    machine.id,
-                    None,
-                    "reference disposition lost its leaf type",
-                ));
             };
-            if !tip.shape.is_borrowed_descriptor() {
-                continue;
-            }
             for (position, segment) in location.path.iter().enumerate() {
                 let crate::descriptor_lifetimes::DescriptorPathSegment::Case(case) = segment else {
                     continue;

@@ -686,11 +686,15 @@ pub(crate) mod reference_completion {
                     retained,
                     position,
                     argument.path.clone(),
+                    // The view keeps the input loan live for its own use
+                    // (lifetimes.md, "Returned views") without carrying it:
+                    // a provider's view is not a reborrow of that loan, so
+                    // no result name authorizes or survives as one.
                     crate::descriptor_lifetimes::DescriptorLifetime {
                         live: lifetime.live.clone(),
                         demanded: lifetime.demanded.clone(),
-                        surviving: lifetime.surviving.clone(),
                         authorized: Default::default(),
+                        surviving: Default::default(),
                     },
                 );
             }

@@ -5430,7 +5430,20 @@ pub(crate) mod engine {
                     let mut origins = BTreeSet::new();
                     for exit in &machine.normal_exits {
                         if let Some(state) = states.get(exit) {
-                            origins.extend(self.read(machine, state, &slot)?);
+                            let value = self.read(machine, state, &slot);
+                            // The caller cannot see an owned formal's own
+                            // carrier, only storage behind a reference it
+                            // was given. Once the body moves that carrier on,
+                            // its name is dead, but the storage behind it is
+                            // still published from `state.contents` below,
+                            // keyed by the incoming reference.
+                            if value.is_none()
+                                && access == StructuralAccess::Owned
+                                && consumed_reference_carrier(state, &slot)
+                            {
+                                continue;
+                            }
+                            origins.extend(value?);
                         }
                     }
                     if origins.is_empty() {
@@ -5573,6 +5586,24 @@ pub(crate) mod engine {
                 .map(|origin| self.flatten(machine, origin))
                 .collect()
         }
+    }
+
+    /// Whether the reference that leads to `slot` is a dead carrier in
+    /// `state`: the slot crosses a reference, and that reference's own
+    /// slot holds no known value.
+    fn consumed_reference_carrier(state: &State, slot: &DescriptorLocation) -> bool {
+        let Some(referent) = slot
+            .path
+            .iter()
+            .position(|segment| *segment == DescriptorPathSegment::Referent)
+        else {
+            return false;
+        };
+        let carrier = DescriptorLocation {
+            root: slot.root,
+            path: slot.path[..referent].to_vec(),
+        };
+        matches!(state.slots.get(&carrier), Some(None))
     }
 
     pub(crate) fn merge_value(state: &mut Slots, location: DescriptorLocation, value: Value) {

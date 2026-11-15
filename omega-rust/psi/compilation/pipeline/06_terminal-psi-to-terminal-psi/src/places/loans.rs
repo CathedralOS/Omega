@@ -1024,6 +1024,24 @@ impl Storage<'_> {
         }
     }
 
+    /// Whether the release planner can end `name` with a `ReleaseReference`.
+    /// A name it cannot judge counts as releasable, which keeps its loan
+    /// held longer, never shorter.
+    fn releasable_carrier(
+        &self,
+        name: &terminal_semantics::descriptor_lifetimes::DescriptorLocation,
+    ) -> bool {
+        self.lowered
+            .structural_place_type(name.root)
+            .and_then(|root| {
+                terminal_semantics::reference_ends::releasable_reference_path(
+                    self.types, root, name,
+                )
+                .ok()
+            })
+            .is_none_or(|path| path.is_some())
+    }
+
     /// A retained loan constrains every use of its backing until its actual
     /// carriers are disposed, even after their last observation. Future-use
     /// liveness can propose a release, but cannot itself return custody.
@@ -1066,9 +1084,7 @@ impl Storage<'_> {
                     {
                         for child in formed {
                             if child.lifetime.as_ref().is_some_and(|life| {
-                                life.surviving
-                                    .get(&at)
-                                    .is_some_and(|names| !names.is_empty())
+                                life.holds_at(&at, |name| self.releasable_carrier(name))
                             }) && self.descends(child, loan.obligation, formed)?
                             {
                                 return Ok(Some((concerns, LoanConflict::ReleaseBeforeChildren)));
@@ -1076,11 +1092,7 @@ impl Storage<'_> {
                         }
                     }
                 }
-                if !lifetime
-                    .surviving
-                    .get(&at)
-                    .is_some_and(|names| !names.is_empty())
-                {
+                if !lifetime.holds_at(&at, |name| self.releasable_carrier(name)) {
                     continue;
                 }
                 for effect in self.operation_read_effects(operation)? {
@@ -1235,9 +1247,7 @@ impl Storage<'_> {
                 continue;
             }
             if candidate.lifetime.as_ref().is_some_and(|life| {
-                life.surviving
-                    .get(&at)
-                    .is_some_and(|names| !names.is_empty())
+                life.holds_at(&at, |name| self.releasable_carrier(name))
                     && life
                         .authorized
                         .get(&at)
@@ -1939,14 +1949,10 @@ impl Storage<'_> {
                     }
                     (earlier.invocation.is_some() && earlier.invocation == loan.invocation)
                         || earlier.lifetime.as_ref().is_some_and(|life| {
-                            life.surviving
-                                .get(&loan.at)
-                                .is_some_and(|names| !names.is_empty())
+                            life.holds_at(&loan.at, |name| self.releasable_carrier(name))
                         })
                         || loan.lifetime.as_ref().is_some_and(|life| {
-                            life.surviving
-                                .get(&earlier.at)
-                                .is_some_and(|names| !names.is_empty())
+                            life.holds_at(&earlier.at, |name| self.releasable_carrier(name))
                         })
                 }) {
                     if self.descends(loan, earlier.obligation, &formed)?

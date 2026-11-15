@@ -892,6 +892,26 @@ pub mod descriptor_lifetimes {
         pub surviving: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
     }
 
+    impl DescriptorLifetime {
+        /// Whether this loan is still held at `at`. A carrier the release
+        /// planner can end (`releasable`) holds it until that release, even
+        /// after its last use. Any other carrier, such as a descriptor held
+        /// outside its root's inline storage, has no release operation, so
+        /// the loan closes after its last use (ownership.md, "Borrows and
+        /// aliases").
+        pub fn holds_at(
+            &self,
+            at: &DescriptorPosition,
+            releasable: impl Fn(&DescriptorLocation) -> bool,
+        ) -> bool {
+            self.live.contains(at)
+                || self
+                    .surviving
+                    .get(at)
+                    .is_some_and(|names| names.iter().any(releasable))
+        }
+    }
+
     pub fn descriptor_entry_lifetime(
         steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
         entry: DescriptorPosition,
