@@ -716,23 +716,59 @@ mod tests {
         SymbolHandle::from_parts(raw, 1)
     }
 
-    fn application_fixture() -> (typed_trees::TypedTrees, DataDefinition, TypeReferenceHandle) {
-        let mut typed = typed_trees::TypedTrees::default();
+    fn application_fixture() -> (
+        typed_trees::TypedTrees,
+        DataDefinition,
+        TypeReferenceHandle,
+        TypeReferenceHandle,
+    ) {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let mut declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("Storage")),
+                (SymbolKind::Module, SymbolNameRef::Static("other")),
+            ],
+        ));
+        let owner = declarations.next().unwrap();
+        let other_module = declarations.next().unwrap();
+        let other_owner = SymbolTableBuilder::child_handles(builder.insert_children(
+            other_module,
+            [(SymbolKind::Data, SymbolNameRef::Static("Storage"))],
+        ))
+        .next()
+        .unwrap();
+        let mut typed = typed_trees::TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
         let data = DataDefinition {
-            symbol: symbol(1),
+            symbol: owner,
+            name: "Storage".into(),
             ..Default::default()
         };
         let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
             symbol: data.symbol,
-            name: "Storage".into(),
+            name: data.name.clone(),
+        });
+        let other_reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: other_owner,
+            name: data.name.clone(),
         });
         typed.push_data_definition(data.clone());
-        (typed, data, reference)
+        typed.push_data_definition(DataDefinition {
+            symbol: other_owner,
+            ..data.clone()
+        });
+        (typed, data, reference, other_reference)
     }
 
     #[test]
     fn an_application_retains_its_source_reference_and_proven_empty_bindings() {
-        let (typed, data, reference) = application_fixture();
+        let (typed, data, reference, _) = application_fixture();
         let application = source_application(&typed, &data, reference, machine()).unwrap();
         assert_eq!(application.reference, reference);
         assert!(application.substitutions.is_empty());
@@ -740,17 +776,15 @@ mod tests {
 
     #[test]
     fn missing_wrong_owner_and_unbound_applications_do_not_gain_identities() {
-        let (mut typed, mut data, reference) = application_fixture();
+        let (typed, mut data, reference, other) = application_fixture();
         assert!(
             source_application(&typed, &data, TypeReferenceHandle::invalid(), machine()).is_err()
         );
-        let other = typed.type_reference_table.insert(TypeReferenceNode::Named {
-            symbol: symbol(2),
-            name: "Storage".into(),
-        });
-        assert!(
-            source_application(&typed, &data, other, machine()).is_err(),
-            "same spelling is not the owner"
+        let wrong_owner = source_application(&typed, &data, other, machine()).unwrap_err();
+        assert_eq!(wrong_owner.reason, RefusalReason::ForeignIdentity);
+        assert_eq!(
+            wrong_owner.detail,
+            "record application selects another retained declaration"
         );
         data.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
         assert!(
@@ -760,7 +794,7 @@ mod tests {
     }
 
     fn record_fixture() -> (RecordType, RecordSource) {
-        let (_, data, reference) = application_fixture();
+        let (_, data, reference, _) = application_fixture();
         let scalar = ValueType::plain(ScalarType::Integer(
             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
         ));

@@ -73,12 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Record application tests name symbols absent from their fixture table
+### The comparison reader test expects carrier arithmetic to stop before formation
 - Category: tests that pin the bug
-- Where: [record application fixture](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/source_records.rs#L715)
-- Saw: At clean `76788db41d9` on macOS arm64, `an_application_retains_its_source_reference_and_proven_empty_bindings` and `missing_wrong_owner_and_unbound_applications_do_not_gain_identities` panic on unresolved arena handles with indices 1 and 2 at generation 1. The fixture gives its declarations numeric symbol handles and leaves the typed trees' symbol table empty.
-- Cost: Both tests stop before checking source identity and substitutions. Build live owner and different-owner symbols in the fixture so the original refusal and acceptance controls reach their intended checks.
-- Reported: 2026-11-14, Codex, while checking shared formal write diagnostics
+- Where: [comparison reader test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L2485)
+- Saw: At clean `8b547065679` on macOS arm64, `a_comparison_of_embedded_integers_is_a_mathematical_proposition` calls `unwrap_err` expecting `contract carrier arithmetic in a clause term`. Since #3338, the same carrier clause produces `LessOrEqual(ExactIntegerAdd(... ExactIntegerMultiply(...)), 99)` for subsequent formation checks.
+- Cost: The outdated oracle fails the owning suite and prevents later mathematical division, mixed-term, and guard controls in the same test from running. Pin the retained carrier proposition and keep the separate formation safety controls.
+- Reported: 2026-11-14, Codex, while validating record application fixtures
 
 ### Model-audit attribution uses a moving main timestamp
 - Category: knowledge crossing a boundary
