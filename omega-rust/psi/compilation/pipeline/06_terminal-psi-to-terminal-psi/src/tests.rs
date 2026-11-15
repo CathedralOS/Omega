@@ -124,6 +124,7 @@ fn strict(operation: Strict, left: Expression, right: Expression) -> Expression 
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },
@@ -628,6 +629,7 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
                     guard: Some(expression(
                         ExpressionKind::Strict {
                             operation: Strict::Equal,
+                            policy: None,
                             left: Box::new(slot(0, u32_type())),
                             right: Box::new(unsigned(0)),
                         },
@@ -700,6 +702,7 @@ fn compare(operation: Strict, left: Expression, right: Expression) -> Expression
     expression(
         ExpressionKind::Strict {
             operation,
+            policy: None,
             left: Box::new(left),
             right: Box::new(right),
         },
