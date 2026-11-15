@@ -22,6 +22,49 @@ pub enum DirectBoundaryExecution {
 }
 
 impl DirectBoundaryLeaf {
+    /// Bind the projected callable to its exact receiving declaration before
+    /// deriving any schema-keyed permission or executable realization.
+    /// A retained but unused source declaration may be absent from this module.
+    pub fn bind_to_terminal(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<bool, String> {
+        let mut declarations = module.boundary_machines.iter().filter(|boundary| {
+            boundary.declaration.as_ref().is_some_and(|declaration| {
+                module
+                    .identities
+                    .text(declaration.source.semantic_declaration)
+                    == Some(self.declaration_identity.as_str())
+                    && module.identities.text(declaration.source.callable)
+                        == Some(self.callable_identity.as_str())
+            })
+        });
+        let Some(boundary) = declarations.next() else {
+            return Ok(false);
+        };
+        if declarations.next().is_some() {
+            return Err("direct boundary leaf has multiple exact Terminal declarations".into());
+        }
+        self.validate_calling_custody()?;
+        let identity = module
+            .identities
+            .text(boundary.identity)
+            .filter(|text| !text.is_empty())
+            .ok_or("direct boundary leaf has no Terminal boundary identity")?;
+        let declaration = std::sync::Arc::make_mut(&mut self.plan.schema.declaration);
+        let terminal_requirement = declaration.identities.intern(identity);
+        declaration.trait_name = terminal_requirement;
+        self.plan.rows[0].requirement_identity = self.plan.identities.intern(identity);
+        self.plan.rows[0].declared_requirement_identity = self.plan.rows[0].requirement_identity;
+        declaration.methods[0].requirement_identity = terminal_requirement;
+        if let DirectBoundaryExecution::Foreign(Ok(binding)) = &mut self.execution {
+            binding.trait_name = identity.to_owned();
+            binding.requirement_identity = identity.to_owned();
+        }
+        self.validate_bound_calling_custody(module)?;
+        Ok(true)
+    }
+
     pub fn validate_calling_custody(&self) -> Result<(), String> {
         self.satisfied_schema
             .declaration

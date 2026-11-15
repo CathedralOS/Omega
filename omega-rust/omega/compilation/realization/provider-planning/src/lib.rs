@@ -19,6 +19,7 @@ pub use language_semantics::declaration_selection::CompositionMode;
 pub(crate) use provider_planning::DerivedProviderPlan;
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, ProviderPlanCandidate,
+    direct_hosted_primitive_leaves,
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
