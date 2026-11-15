@@ -83,7 +83,9 @@ fn psi_runs_the_bundled_atomic_fence_in_its_module() {
 use omega::language::core::Atomic::fence;
 use omega::language::core::FenceOrdering;
 machine main() {
-    Atomic::fence(FenceOrdering::Receive);
+    let ordering: FenceOrdering = FenceOrdering::Receive;
+    let alias: FenceOrdering = ordering;
+    Atomic::fence(alias);
     fence(FenceOrdering::Publish);
     Atomic::fence(FenceOrdering::ReceivePublish);
 }

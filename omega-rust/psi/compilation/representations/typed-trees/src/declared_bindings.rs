@@ -10,7 +10,7 @@ use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::machine::Machine;
 use crate::signature::StateParameter;
 use crate::state::State;
-use crate::statement::StatementNode;
+use crate::statement::{StatementNode, TableLocalData};
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
@@ -385,50 +385,11 @@ impl TypedTrees {
         state: &State,
         symbol: SymbolHandle,
     ) -> Option<TypeReferenceHandle> {
-        if !self.symbols.symbols().nodes().is_valid(symbol) {
-            return None;
-        }
         let parameters = self.tables.state_parameters.span(state.parameters)?;
         let statements = self
             .statement_table
             .checked_statements(state.statement_nodes)?;
-        // The measured tiny-body route costs less than preparing or locking an
-        // index. Bound its inspected rows so growth cannot make queries quadratic.
-        if parameters.len() + statements.len() <= DIRECT_BINDING_ROWS {
-            let mut declarations = parameters
-                .iter()
-                .filter(|parameter| parameter.symbol == symbol)
-                .map(|parameter| parameter.type_reference)
-                .chain(
-                    statements
-                        .iter()
-                        .filter_map(StatementNode::as_local_data)
-                        .filter(|local| local.symbol == symbol)
-                        .map(|local| local.type_reference),
-                );
-            let reference = declarations.next()?;
-            return (declarations.next().is_none()
-                && self.type_reference_table.contains_type_reference(reference))
-            .then_some(reference);
-        }
-        // Ready immutable roots use the sealed owner without taking its mutex.
-        // Mutable construction prepares only the selected missing body.
-        let ready = self.declaration_indexes.state_declarations.with(
-            self.binding_scope(),
-            StateDeclarationIndex::default,
-            |index| index.ready_position(self, state, symbol),
-        );
-        let position = match ready {
-            Some(position) => position,
-            None => self.declaration_indexes.state_declarations.with_mut(
-                self.binding_scope(),
-                StateDeclarationIndex::default,
-                |index| match index.body(state, parameters, statements).rows.get(symbol) {
-                    [position] => Some(*position),
-                    _ => None,
-                },
-            ),
-        }?;
+        let position = self.binding_position(state, parameters, statements, symbol)?;
         let declared = match position {
             BindingPosition::Parameter(ordinal) => parameters.get(ordinal as usize)?.type_reference,
             BindingPosition::Local(ordinal) => {
@@ -441,6 +402,76 @@ impl TypedTrees {
         self.type_reference_table
             .contains_type_reference(declared)
             .then_some(declared)
+    }
+
+    pub fn state_local_declaration(
+        &self,
+        state: &State,
+        symbol: SymbolHandle,
+    ) -> Option<(usize, &TableLocalData)> {
+        let parameters = self.tables.state_parameters.span(state.parameters)?;
+        let statements = self
+            .statement_table
+            .checked_statements(state.statement_nodes)?;
+        let BindingPosition::Local(ordinal) =
+            self.binding_position(state, parameters, statements, symbol)?
+        else {
+            return None;
+        };
+        let ordinal = ordinal as usize;
+        Some((ordinal, statements.get(ordinal)?.as_local_data()?))
+    }
+
+    fn binding_position(
+        &self,
+        state: &State,
+        parameters: &[StateParameter],
+        statements: &[StatementNode],
+        symbol: SymbolHandle,
+    ) -> Option<BindingPosition> {
+        if !self.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
+        }
+        // The measured tiny-body route costs less than preparing or locking an
+        // index. Bound its inspected rows so growth cannot make queries quadratic.
+        if parameters.len() + statements.len() <= DIRECT_BINDING_ROWS {
+            let mut declarations = parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| parameter.symbol == symbol)
+                .map(|(position, _)| BindingPosition::Parameter(position as u32))
+                .chain(
+                    statements
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, statement)| {
+                            statement
+                                .as_local_data()
+                                .is_some_and(|local| local.symbol == symbol)
+                        })
+                        .map(|(position, _)| BindingPosition::Local(position as u32)),
+                );
+            let position = declarations.next()?;
+            return declarations.next().is_none().then_some(position);
+        }
+        // Ready immutable roots use the sealed owner without taking its mutex.
+        // Mutable construction prepares only the selected missing body.
+        let ready = self.declaration_indexes.state_declarations.with(
+            self.binding_scope(),
+            StateDeclarationIndex::default,
+            |index| index.ready_position(self, state, symbol),
+        );
+        match ready {
+            Some(position) => position,
+            None => self.declaration_indexes.state_declarations.with_mut(
+                self.binding_scope(),
+                StateDeclarationIndex::default,
+                |index| match index.body(state, parameters, statements).rows.get(symbol) {
+                    [position] => Some(*position),
+                    _ => None,
+                },
+            ),
+        }
     }
 
     pub fn local_data_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<(u32, u32, u32)> {

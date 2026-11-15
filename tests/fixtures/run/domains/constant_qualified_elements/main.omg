@@ -1,0 +1,29 @@
+// Expected exit: 0
+// A constant keeps the domains on its elements. `Ticket::Stamped` restricts
+// no issuer, so the constant's value is rebuilt as `ticket as +Stamped`
+// and both the computed and the literal constant reach `number` as
+// `Ticket in Stamped`. The twin `fail/domains/constant_issued_elements`
+// gives the domain an issuer, which a constant cannot stand in for.
+
+data Ticket [copy] { number: u32; }
+domain Ticket::Stamped;
+machine make() -> [Ticket in Stamped; 2] {
+    [Ticket { number: 4 } as +Stamped, Ticket { number: 9 } as +Stamped]
+}
+const ISSUED: [Ticket in Stamped; 2] = make();
+const WRITTEN: [Ticket in Stamped; 1] = [Ticket { number: 2 } as +Stamped];
+machine number(ticket: Ticket in Stamped) -> u32 {
+    let bare: Ticket = ticket as -Stamped;
+    bare.number
+}
+machine complete() { }
+machine fail() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let first: u32 = number(ISSUED[0u64]);
+    let second: u32 = number(ISSUED[1u64]);
+    let written: u32 = number(WRITTEN[0u64]);
+    transition first == 4 && second == 9 && written == 2 {
+        true -> complete()
+        _ -> fail()
+    }
+}

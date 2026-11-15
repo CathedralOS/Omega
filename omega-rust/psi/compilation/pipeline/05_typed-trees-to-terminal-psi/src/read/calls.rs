@@ -1885,7 +1885,7 @@ impl<'t> Program<'t> {
             (machine, boundary)
         };
         self.visible_to(id, target)?;
-        if let Some(fence) = self.atomic_fence(id, target, arguments, source)? {
+        if let Some(fence) = self.atomic_fence(id, slots, target, arguments, source)? {
             return Ok(fence);
         }
         if boundary_call {

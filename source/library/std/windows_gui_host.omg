@@ -27,13 +27,13 @@ public data WindowsRectangle { left: i32; top: i32; right: i32; bottom: i32; }
 
 // Win64 MSG stores HWND at byte 0, UINT message at byte 8 (followed by
 // padding), and WPARAM at byte 16. Inspect only after a successful pump.
-public machine WindowsMessage::window(message: &WindowsMessage) -> u64 {
+public machine windows_message_window(message: &WindowsMessage) -> u64 {
     message.words[0]
 }
-public machine WindowsMessage::kind(message: &WindowsMessage) -> u64 {
+public machine windows_message_kind(message: &WindowsMessage) -> u64 {
     message.words[1] & 0xFFFF_FFFF
 }
-public machine WindowsMessage::word_parameter(message: &WindowsMessage) -> u64 {
+public machine windows_message_word_parameter(message: &WindowsMessage) -> u64 {
     message.words[2]
 }
 

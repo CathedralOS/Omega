@@ -812,8 +812,19 @@ fn analyze(
             None,
         )?;
     }
+    // Copyable storage joins the region walk when a disposition affects it.
+    // Borrowed names without a release keep their existing arrival semantics.
+    let mut descriptor_releases = IdSet::new();
+    if let Some(candidates) = reference_candidates {
+        for candidate in candidates.values().flatten() {
+            descriptor_releases.insert(candidate.argument.place);
+        }
+    }
     let mut has_borrowed_windows = false;
     for operation in machine.operations() {
+        if let terminal_psi::OperationKind::ReleaseReference { source, .. } = operation.kind {
+            descriptor_releases.insert(source);
+        }
         has_borrowed_windows |= matches!(
             operation.kind,
             terminal_psi::OperationKind::MoveStructuralField { .. }
@@ -1013,15 +1024,20 @@ fn analyze(
         }
         let (_, multiplicity, _, _) = contracts[roots.len()]
             .ok_or(Error::malformed("tracked storage has no custody contract"))?;
-        roots.push((tracked || observe_copyable).then_some(Root {
-            structural_type: ty,
-            owned,
-            affine: tracked,
-            multiplicity,
-            whole_restoration: owned && whole_restoration[roots.len()],
-            parameter,
-            exclusive,
-        }));
+        // A shared descriptor may be copied, but releasing one copy
+        // still vacates its own storage region.
+        let descriptor_region = owned && descriptor_releases.contains(place.id);
+        roots.push(
+            (tracked || observe_copyable || descriptor_region).then_some(Root {
+                structural_type: ty,
+                owned,
+                affine: tracked,
+                multiplicity,
+                whole_restoration: owned && whole_restoration[roots.len()],
+                parameter,
+                exclusive,
+            }),
+        );
     }
     // Access is independent of whether the referent has affine contents.
     // Check every successor telescope before the copyable-storage fast path.
@@ -2095,6 +2111,37 @@ impl Analysis<'_> {
                 path.push(Segment::Field(*field));
                 self.read(state, *source, &path, site)?;
             }
+            Op::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                ..
+            }
+            | Op::StructuralByteSequenceFieldLength {
+                source,
+                path,
+                field,
+            }
+            | Op::StructuralByteSequenceFieldByteStore {
+                destination: source,
+                path,
+                field,
+                ..
+            } => {
+                if let Some(root) = self.root(*source)? {
+                    let selected = crate::projected_field_declaration(
+                        self.types.iter(),
+                        root.structural_type,
+                        path,
+                        *field,
+                    )
+                    .ok_or(Error::malformed("byte access has no declared field"))?;
+                    let mut path = path.clone();
+                    path.push(StructuralPathSegment::Field(selected.identity));
+                    let (path, _) = self.observed(*source, &path)?;
+                    self.read(state, *source, &path, site)?;
+                }
+            }
             // A store requires a live receiving home, not a value in its hole.
             Op::StructuralScalarFieldStore {
                 destination,
@@ -2135,6 +2182,9 @@ impl Analysis<'_> {
                 }
             }
             Op::StoreStructuralField { value, .. } => self.argument(state, value, site, false)?,
+            Op::StructuralByteViewFieldStore { source, .. } => {
+                self.read(state, *source, &[], site)?;
+            }
             kind => {
                 for used in kind.storage_uses() {
                     self.storage_use(state, used, site)?;
@@ -2142,6 +2192,9 @@ impl Analysis<'_> {
             }
         }
         match &operation.kind {
+            Op::EstablishByteSequenceLiteral { destination, .. } => {
+                self.establish(state, *destination, true)?;
+            }
             Op::MoveStructuralValue { source } => {
                 if self.root(source.place)?.is_some_and(|root| !root.owned) {
                     return Err(Error::unsupported("owned extraction from borrowed storage"));
@@ -2149,17 +2202,13 @@ impl Analysis<'_> {
                 self.argument(state, source, site, true)?;
             }
             Op::ReleaseReference { source, path } => {
-                self.restore_reference(state, *source, path, site)?;
-                self.argument(
-                    state,
-                    &StructuralArgument {
-                        place: *source,
-                        path: path.clone(),
-                        access: StructuralAccess::Owned,
-                    },
-                    site,
-                    true,
-                )?;
+                if !self.root(*source)?.is_some_and(|root| root.owned) {
+                    return Err(Error::unsupported("owned extraction from borrowed storage"));
+                }
+                let region = self.canonical(*source, path)?;
+                self.read(state, *source, &region, site)?;
+                self.restore_reference_leaves(state, *source, path, site)?;
+                self.vacate(state, *source, &region)?;
             }
             kind if kind.constructor_arguments().next().is_some() => {
                 // Every constructor transfers its actual owned children. The
@@ -2170,13 +2219,28 @@ impl Analysis<'_> {
                 }
             }
             Op::StoreStructuralField {
-                disposition,
                 destination,
                 path,
                 field,
-                value,
+                ..
+            }
+            | Op::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field,
+                ..
             } => {
-                self.argument(state, value, site, true)?;
+                let declared_disposition =
+                    if let Op::StoreStructuralField {
+                        disposition, value, ..
+                    } = &operation.kind
+                    {
+                        self.argument(state, value, site, true)?;
+                        Some(*disposition)
+                    } else {
+                        // Storing a shared byte view copies its descriptor.
+                        None
+                    };
                 let (backing, projection) = if self.references.is_some() {
                     self.backing(state, *destination, path, site)?
                 } else {
@@ -2208,9 +2272,9 @@ impl Analysis<'_> {
                             .any(|segment| matches!(segment, StructuralPathSegment::Referent))
                     {
                         self.read(state, *destination, &receiving, site)?;
-                        if settled {
+                        if settled && let Some(disposition) = declared_disposition {
                             let required = StructuralStoreDisposition::ReplaceDiscardable;
-                            if self.verify_stores && *disposition != required {
+                            if self.verify_stores && disposition != required {
                                 return Err(Error::malformed(
                                     "a vacant store targets established storage behind a reference",
                                 ));
@@ -2259,17 +2323,19 @@ impl Analysis<'_> {
                                     "replacement of a partially moved region",
                                 ));
                             };
-                            if self.verify_stores && *disposition != required {
-                                return Err(Error::malformed(match required {
-                                    StructuralStoreDisposition::Vacant => {
-                                        "an occupied replacement store targets vacated affine contents"
-                                    }
-                                    StructuralStoreDisposition::ReplaceDiscardable => {
-                                        "a vacant store displaces established affine contents"
-                                    }
-                                }));
+                            if let Some(disposition) = declared_disposition {
+                                if self.verify_stores && disposition != required {
+                                    return Err(Error::malformed(match required {
+                                        StructuralStoreDisposition::Vacant => {
+                                            "an occupied replacement store targets vacated affine contents"
+                                        }
+                                        StructuralStoreDisposition::ReplaceDiscardable => {
+                                            "a vacant store displaces established affine contents"
+                                        }
+                                    }));
+                                }
+                                self.stores.push((operation.id, required));
                             }
-                            self.stores.push((operation.id, required));
                         }
                         if !region.base && !path.is_empty() {
                             return Err(Error::unsupported(

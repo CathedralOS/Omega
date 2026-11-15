@@ -1513,8 +1513,41 @@ pub(crate) mod byte_sequences {
                 }
                 match destination_field {
                     Some(destination_field) => {
+                        let types = self.structural_types();
+                        let selected = terminal_semantics::projected_field_declaration(
+                            types.values(),
+                            self.live_structural_type(*destination)?,
+                            path,
+                            destination_field.field,
+                        )
+                        .ok_or_else(malformed)?;
+                        let restored = if let Some(carrier) =
+                            terminal_semantics::inline_carrier_declaration(types.values(), selected)
+                        {
+                            // The resolved receiver still owns its physical field path.
+                            let mut hole = destination_field.parent.clone();
+                            if let Some(StructuralPathSegment::Case(case)) = path.last() {
+                                hole.path.push(StructuralPathSegment::Case(*case));
+                            }
+                            hole.path
+                                .push(StructuralPathSegment::Field(selected.identity));
+                            let mut frontier = self.live_affine_frontier.clone();
+                            self.restore_store_frontier(
+                                &mut frontier,
+                                *destination,
+                                path,
+                                &hole,
+                                carrier.id,
+                            )?;
+                            Some(frontier)
+                        } else {
+                            None
+                        };
                         self.structural_byte_sequence_fields
                             .insert(destination_field, view)?;
+                        if let Some(frontier) = restored {
+                            self.live_affine_frontier = frontier;
+                        }
                     }
                     None => {
                         let home = self.structural_value(*destination)?;

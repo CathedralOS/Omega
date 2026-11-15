@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A saved console program cannot reopen its calling signature
+- Category: knowledge crossing a boundary
+- Where: [console fixture](tests/fixtures/run/providers/default_console_provider_reached/main.omg#L10), [calling signature validation](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L1528)
+- Saw: On macOS arm64, the console fixture prints `K` and exits 0 in native and Psi with the sum-constant candidate based on `b69c1d4b661`, the service-diagnostics candidate based on `e3225ca05fa`, and the fence candidate based on `0c1f2e23aec`. In all three builds, opening the same run's saved `program.oterm` with `omega psi inspect --artifact` exits 1 with “calling signature substitutes a structural carrier or access.” The native process-ID fixture executes and its saved artifact reopens with the first two binaries.
+- Cost: The running console program's accepted storage can differ from the calling signature saved to Psi. Find the exact boundary parameter and retain its carrier and access through publication. Keep the independent decoder's mismatch check.
+- Reported: 2026-11-15, Codex, while checking that service diagnostics preserve valid Console and native bindings.
+
 ### A fixed-layout record constant loses its target selection
 - Category: knowledge crossing a boundary
 - Where: [constant initializer](samples/cli/facts/fixed_layout_storage/const_name/main.omg#L28), [constant evaluation request](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L662), [interpreter layout admission](omega-rust/psi/interpreter/src/embedding.rs#L2398)
@@ -87,26 +94,12 @@ framework or a list of unimplemented features.
 - Cost: The field placement cannot check either the authored byte offsets or the invalid 41 cast. Make the existing affine projection check recognize the field's exact selected storage path. Once the negative reaches the cast, verify and refresh its `expected.txt` and `sample.json`, which still use the earlier range wording.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
 
-### A failed constant cast loses its original location
-- Category: knowledge crossing a boundary
-- Where: [failing cast in make](samples/cli/facts/fixed_layout_storage/invalid_const_name/main.omg#L24), [constant error wrapper](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L699)
-- Saw: On clean `15145194c7d` on macOS arm64, `--check` reports the `Delivered` cast in `make` for `invalid_const_name` but prints `source-unit 241, bytes 1336..1341`, the span of the `SAVED` identifier at 28:7. The `invalid_call_result` control reports the same failure at its authored cast at 24:25.
-- Cost: Reading the diagnostic takes the user to the constant name without locating the failing operation. Keep the checked error's original location alongside the constant declaration context.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
-
 ### Package review refuses the fixed-layout target-body boundary
 - Category: knowledge crossing a boundary
 - Where: [Delivery boundary](samples/cli/facts/fixed_layout_storage/target_body/main.omg#L28), [review capture](omega-rust/omega/packages/review-evidence/src/capture/policy.rs#L209)
 - Saw: On clean `15145194c7d` on macOS arm64, `fixed_layout_storage/target_body` reaches package review projection and refuses with `package review cannot retain trait and boundary declaration contracts from the accepted declaration`. Its invalid twin reaches the authored `Delivered` cast under `--check`.
 - Cost: Package review stops execution before the original provider markers and byte offsets can be observed. Retain the accepted `Delivery` contract in the existing review record and keep incomplete contracts refused.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles.
-
-### A fence loses the ordering known from a local initializer
-- Category: branch per shape
-- Where: [fence argument reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L196), [ordering rules](wiki/spec/language/concurrency.md#orderings)
-- Saw: On macOS arm64, the bundled-fence repair runs a direct `FenceOrdering::Receive` in both engines. Binding that same case to an immutable local immediately before the call makes checked compilation refuse at `main.omg:6:5` with “an atomic fence needs a known case of FenceOrdering.” The reader looks for the variant symbol on the argument expression itself.
-- Cost: A refactor from an explicit case to a local loses a statically determined order. Use existing proof facts to select the exact normalized fence event when they establish one case. Keep a runtime choice and an unrelated declaration from supplying ordering or proof authority.
-- Reported: 2026-11-15, Codex, while restoring the bundled atomic fence.
 
 ### A descriptor length premise cannot cross the loop join
 - Category: knowledge crossing a boundary
@@ -121,20 +114,6 @@ framework or a list of unimplemented features.
 - Saw: On clean macOS arm64 `4d76bebd83e` and `781f2f5cb50`, the same 14 Stage06 tests fail. Two byte-view cohort positives reject, ten returned-view checks diverge from their verdicts, and two owned record transfers refuse incomplete reference disposition. The unknown-origin returned-view control is accepted where it expects one conflicting loan.
 - Cost: The suite no longer establishes when a returned descriptor keeps or retires its exact loan. Reproduce the accepted and rejected cases through their actual authored source and distinguish stale artifact fixtures from changes to the loan and disposition checks before changing their oracles.
 - Reported: 2026-11-15, Codex, while comparing the stored-length repair with an unchanged Stage06 test baseline.
-
-### Build-time returned views keep their caller loans past last use
-- Category: knowledge crossing a boundary
-- Where: [shared returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L576), [exclusive returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L631)
-- Saw: On clean `781f2f5cb50` on macOS arm64, the shared positive refuses its write after `see(view)` as a conflicting loan. The exclusive positive refuses its array read after `fill(view)` as observation outside a live exclusive reference. The controls call `run()` with no host inputs and both passed on clean `a225808b7c9`.
-- Cost: Build-time source judgment cannot reuse the backing after these returned references' last use. Keep the exact call result origin and end its loan at the existing caller frontier. The twins that use the view after accessing the backing must still refuse.
-- Reported: 2026-11-15, Codex, while verifying closed Build-time arguments against current main.
-
-### A constant snapshot loses a checked element qualification
-- Category: knowledge crossing a boundary
-- Where: [constant reconstruction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L674), [Product judgment](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L277), [collection membership check](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L589)
-- Saw: On macOS arm64 at clean `637ee209d8a`, the checked `make()` result has the `Stamped` qualification on every element and returns `Ticket.number` values 3 and 5. The constant receipt validates, then Product refuses the reconstructed `issued_tickets` array at `typing array literal element`. An unrestricted `Stamped` tag produces the same refusal. Both direct calls and both plain record-array constants run in native and Psi.
-- Cost: A named constant loses the checked facts carried by its initializer's result. Rejoin the existing accepted result to checked constant construction so portable validation can verify the exact value and nested qualifications. Preserve the issuer checks and refuse runtime authority at the constant boundary.
-- Reported: 2026-11-15, Codex, while carrying evaluated record-array constants to named use. Reproduced and traced again at `637ee209d8a`.
 
 ### A textual merge can pass Admission with a Rust type error
 - Category: verifying costs more than writing
@@ -192,26 +171,12 @@ framework or a list of unimplemented features.
 - Cost: Test edits also change the compiler-version key for accepted packages, forcing compilation and review as the test tree grows. Derive the key from production inputs and configuration. Still invalidate uncommitted implementation changes; ignoring required source or using only Git HEAD would miss changes.
 - Reported: 2026-11-14, Codex, while checking actual project publication of native calling metadata
 
-### The service-contract reader hides why it refused a declaration
-- Category: verifying costs more than writing
-- Where: [full service projection](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L555), [boundary publication](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L623)
-- Saw: At `9101613dfcd`, both `native_boundary_supply` and `default_console_provider_reached` stop during source discovery with `boundary declaration has no complete service contract`. The reader returns `None` for a wrong source scope, an unavailable receiver application, or a method it cannot read. This repair fixes the Build-scope lookup; the API still drops the cause and declaring requirement.
-- Cost: Each later failure looks like an unsupported language construct, even when the compiler used the wrong context. Return the reason and declaring requirement from the shared reader so callers can explain the refusal.
-- Reported: 2026-11-14, Codex, while carrying Build native bindings through console execution
-
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
 - Saw: At `1897804e0dbd`, ordinary Omega 03 construction receives target operations with abstract operations and the optimized executable unit. It pairs optimized blocks and operation nodes with target rows (`legalization_source.rs:3101`) and rebuilds structural-call indices from optimized definitions, path geometry and accepted obligation facts. Target arguments already keep index operands and strides but omit the extent and proof facts this rebuild supplies, so the target handoff is incomplete. Call results that carry descriptors can rebuild an optimized catalog graph and selected boundary operations to find origins. These are production paths, not only explicit independent validators or shared immutable type-catalog queries; this audit measured no miscompile or runtime cost.
 - Cost: Target operands still depend on earlier executable bodies and their matching operation list, so adding a value form or changing target operations can require matching recognizers in several stages. Make the producer write the needed runtime-index evidence and descriptor-origin records into the target representation, sharing immutable catalogs rather than copying them; have ordinary selection read that product and keep earlier bodies for independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
-
-### A returned reference keeps its whole call argument borrowed
-- Category: a verdict with nothing behind it
-- Where: [call lifetimes](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs) (`reference_call_lifetimes`, `retain_call_lifetime`), [retained call loans](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/reference_results.rs), [loan formation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs) (`lent`)
-- Saw: `bind_reference_call_results` narrows each returned reference to the argument storage its published origin names, such as `grid.cells` for `pick(&mut grid, i)` returning `&mut grid.cells[i].x`. `reference_call_lifetimes` then retains the argument's own `Loan` row, which captures all of `grid`, for the result's whole life. Stage 05 forms Loan rows only for actual call arguments, so no row exists for the narrower path.
-- Cost: while a returned reference is live, the caller cannot write any disjoint field of the argument, such as `grid.tag`, even when the reference's origin is exact. A repair forms a narrower retained Loan row at the call for the bound source path and ends the argument's own loan at the return. It must carry that row through Terminal Psi validation, the Psi interpreter's loan frontier and native lowering.
-- Reported: 2026-11-15, Claude Code, after returned runtime-element references started publishing their exact element path. Replaces the stripped-window entry, whose publication half is fixed.
 
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving

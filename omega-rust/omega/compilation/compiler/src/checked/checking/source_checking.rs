@@ -19,6 +19,7 @@ pub(crate) fn check_product_source(
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, CompileFailure> {
     let build_accounting = source.build_accounting.clone();
+    let symbol_sources = source.typed.symbols.source_map();
     let mut accounting = source.source_completion_accounting.clone();
     let result = (|| -> Result<CheckedProductSource, Vec<Diagnostic>> {
         let PreparedProductSource {
@@ -34,7 +35,6 @@ pub(crate) fn check_product_source(
             .validate_charges()
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let build = &computed_build_config.config;
-        let symbol_sources = typed.symbols.source_map();
         // A dependency's provider defaults are laid out only for the targets
         // that choose them, and targets choose from the judged module. The
         // first pass lays out the entries and the Build's own selections. When
@@ -48,7 +48,6 @@ pub(crate) fn check_product_source(
             rollback,
             inspection,
             frontier,
-            symbol_sources,
             build_accounting: &build_accounting,
             initial_accounting: accounting.clone(),
             accounting: &mut accounting,
@@ -98,7 +97,12 @@ pub(crate) fn check_product_source(
     })();
     let mut spent = build_accounting;
     spent.append(accounting);
-    result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))
+    result.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        CompileFailure::source_completion(diagnostics, spent)
+    })
 }
 
 /// What every preparation of one Product source shares.
@@ -109,7 +113,6 @@ struct ProductSourcePass<'a, 'f> {
     /// The source machine `omega psi inspect --machine` names, if any.
     inspection: Option<&'a str>,
     frontier: Option<&'f mut Option<super::typed_frontier::TypedFrontier>>,
-    symbol_sources: Option<Arc<source::SourceMap>>,
     build_accounting: &'a products::SourceCompletionAccounting,
     /// The usage the unprepared source arrived with; each pass starts from it.
     initial_accounting: build_time_evaluation::SourceCompletionAccounting,
@@ -270,12 +273,7 @@ fn prepare_and_judge(
             .effective()
             .clone(),
     );
-    let terminal_publication = Arc::new(judged.map_err(|mut diagnostics| {
-        if let Some(sources) = pass.symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, pass.package_inputs);
-        }
-        diagnostics
-    })?);
+    let terminal_publication = Arc::new(judged?);
     let mut provider_defaults =
         build_time_evaluation::provider_declarations::retain_provider_defaults(
             build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
@@ -305,12 +303,6 @@ fn prepare_and_judge(
         defaults: &provider_defaults,
         layout_deferred: &build.default_provider_selections,
         layout_prepared: chosen_defaults,
-    })
-    .map_err(|mut diagnostics| {
-        if let Some(sources) = pass.symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, pass.package_inputs);
-        }
-        diagnostics
     })?;
     Ok(JudgedSource {
         program,
