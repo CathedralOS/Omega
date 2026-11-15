@@ -143,3 +143,64 @@ fn a_field_membership_cannot_be_dropped_from_one_formal() {
     // with the forged formal; whichever machine is judged first refuses it.
     refused(elaboration, "exact domains");
 }
+
+#[test]
+fn a_move_cannot_carry_an_unchecked_operation_issuer_row() {
+    let source = STAMPED
+        .replace("machine holder(stub:", "machine transport(ticket: Ticket) -> Ticket in Stamped { stamp(ticket) }\nmachine holder(stub:")
+        .replace("stamp(Ticket { number: 7u32 })", "transport(Ticket { number: 7u32 })");
+    let mut elaboration = invocation(&source).unwrap();
+    let domain = elaboration.module.structural_domains[0].id;
+    let caller = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| elaboration.module.identities.text(declaration.callable))
+                .is_some_and(|identity| identity.contains("transport"))
+        })
+        .unwrap();
+    let operation = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::MoveStructuralValue { .. }
+            )
+        })
+        .expect("the ordinary caller moves the plain ticket to the issuer");
+    let terminal_psi::OperationResult::Structural(result) = &mut operation.result else {
+        panic!("the move has a structural result");
+    };
+    assert!(result.qualifications.is_empty() && result.qualification_establishments.is_empty());
+    result
+        .qualification_establishments
+        .push(terminal_psi::ResultQualificationEstablishment { domain, route: 0 });
+    let operation = operation.id;
+    let encoded = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone()).unwrap();
+    let Err(error) =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes())
+    else {
+        panic!("artifact ingress must refuse the unchecked claim");
+    };
+    assert!(
+        matches!(
+            error,
+            terminal_codec::CodecError::MalformedOperationFoundation {
+                operation: received,
+                reason: "owned value transfer requires owned custody and cannot issue authority",
+                ..
+            } if received == operation
+        ),
+        "{error:?}"
+    );
+    refused(
+        elaboration,
+        "a structural issuer claim on an operation requires a boundary completion",
+    );
+}

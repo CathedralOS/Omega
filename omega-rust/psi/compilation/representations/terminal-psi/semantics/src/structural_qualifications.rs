@@ -478,6 +478,16 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
         }
         for operation in &block.operations {
             let result = operation.result.structural();
+            // Ordinary record casts establish membership at a checked edge.
+            // A provider may establish membership when its boundary completes.
+            if result.is_some_and(|result| !result.qualification_establishments.is_empty())
+                && !matches!(operation.kind, OperationKind::BoundaryCall { .. })
+            {
+                return malformed(
+                    id,
+                    "a structural issuer claim on an operation requires a boundary completion",
+                );
+            }
             let produced = result.map(|result| {
                 Memberships::of(&result.qualifications, &result.projected_qualifications)
             });
