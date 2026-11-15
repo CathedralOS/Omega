@@ -81,9 +81,7 @@ pub(crate) mod scalar_graph {
             LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
         };
         use scalar_graph_input::aggregate_results::home_layout;
-        use scalar_graph_input::structural_fields::{
-            byte_index_operands, view_slot_index_operands,
-        };
+        use scalar_graph_input::structural_fields::view_slot_index_operands;
         pub(crate) mod call_instructions {
             use super::super::{Error, TargetOperationPlan};
             use crate::LegalizationError;
@@ -721,7 +719,7 @@ pub(crate) mod scalar_graph {
             };
             use abstract_operations::AbstractOperation;
             use legalized_operations::LegalizedScalarInstructionKind;
-            use semantic_vocabulary::ScalarType;
+            use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
             macro_rules! o {
                 ($optimized:expr => $unit:expr => $operation:expr => $elements:expr) => {
@@ -856,6 +854,110 @@ pub(crate) mod scalar_graph {
                         *psi_operation,
                         indices,
                     )?,
+                })
+            }
+
+            /// Length observations use the source, offset and selectors retained
+            /// by target lowering. The independent audit reconstructs the carrier
+            /// and geometry from the earlier program.
+            pub(crate) fn project_sequence_length(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
+                operation: semantic_vocabulary::OperationId,
+                targeted: &target_operations::TargetUnitOperation,
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+                use target_operations::{
+                    TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
+                };
+
+                if let TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    psi_operation,
+                    source,
+                    field,
+                    indices,
+                    ..
+                } = targeted
+                {
+                    if *psi_operation != operation {
+                        return Err(Error::custody());
+                    }
+                    return Ok(
+                        LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
+                            source: source.clone(),
+                            field: *field,
+                            indices: crate::legalization::runtime_indices::retained_operands(
+                                facts, machine, operation, indices,
+                            )?,
+                        },
+                    );
+                }
+                let TargetUnitOperation::ScalarDefinition {
+                    result_home,
+                    expression:
+                        TargetScalarExpression::Integer {
+                            scalar_type,
+                            expression,
+                        },
+                } = targeted
+                else {
+                    return Err(Error::custody());
+                };
+                if result_home.defining_operation != operation
+                    || result_home.scalar_type != ScalarType::Integer(*scalar_type)
+                    || scalar_type.sign() != IntegerSign::Unsigned
+                    || scalar_type.bits() != Some(64)
+                {
+                    return Err(Error::custody());
+                }
+
+                let retained_indices =
+                    |indices: &[target_operations::TargetStructuralRuntimeIndex]| {
+                        crate::legalization::runtime_indices::retained_operands(
+                            facts, machine, operation, indices,
+                        )
+                    };
+                Ok(match expression {
+                    TargetIntegerExpression::Immediate {
+                        source_value,
+                        value: IntegerValue::Unsigned(value),
+                    } if *source_value == result_home.source_value
+                        && u64::try_from(*value).is_ok() =>
+                    {
+                        LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(*value))
+                    }
+                    TargetIntegerExpression::ByteSequenceLength {
+                        psi_operation,
+                        source_value,
+                        source,
+                        indices,
+                        length_byte_offset,
+                    } if *psi_operation == operation
+                        && *source_value == result_home.source_value
+                        && matches!(*length_byte_offset, 0 | 8) =>
+                    {
+                        LegalizedScalarInstructionKind::ByteSequenceLength {
+                            source: source.clone(),
+                            indices: retained_indices(indices)?,
+                            length_byte_offset: *length_byte_offset,
+                        }
+                    }
+                    TargetIntegerExpression::ElementViewLength {
+                        psi_operation,
+                        source_value,
+                        source,
+                        indices,
+                        length_byte_offset,
+                    } if *psi_operation == operation
+                        && *source_value == result_home.source_value
+                        && *length_byte_offset == 8 =>
+                    {
+                        LegalizedScalarInstructionKind::ElementViewLength {
+                            source: source.clone(),
+                            indices: retained_indices(indices)?,
+                            length_byte_offset: *length_byte_offset,
+                        }
+                    }
+                    _ => return Err(Error::custody()),
                 })
             }
 
@@ -1731,6 +1833,21 @@ pub(crate) mod scalar_graph {
             let targeted = &instruction.kind;
             let kind = if matches!(
                 targeted,
+                target_operations::TargetUnitOperation::StructuralByteSequenceFieldLength { .. }
+                    | target_operations::TargetUnitOperation::ScalarDefinition {
+                        expression: target_operations::TargetScalarExpression::Integer {
+                            expression: target_operations::TargetIntegerExpression::ByteSequenceLength { .. }
+                                | target_operations::TargetIntegerExpression::ElementViewLength { .. },
+                            ..
+                        },
+                        ..
+                    }
+            ) {
+                storage_instructions::project_sequence_length(
+                    optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+                )?
+            } else if matches!(
+                targeted,
                 target_operations::TargetUnitOperation::EstablishElementView { .. }
             ) {
                 storage_instructions::project_established_view(
@@ -2032,23 +2149,6 @@ pub(crate) mod scalar_graph {
                             field_byte_offset: access.field_byte_offset,
                             event: access.event,
                             outcome: access.outcome,
-                        }
-                    }
-                    AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
-                        let target_operations::TargetUnitOperation::StructuralByteSequenceFieldLength {
-                            source,
-                            field,
-                            ..
-                        } = targeted
-                        else {
-                            return Err(Error::custody());
-                        };
-                        LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
-                            indices: byte_index_operands(
-                                optimized, unit, operation, source, *field,
-                            )?,
-                            source: source.clone(),
-                            field: *field,
                         }
                     }
                     AbstractOperation::StructuralScalarFieldRead { .. } => {
@@ -2558,64 +2658,12 @@ pub(crate) mod scalar_graph {
                             right: right.clone(),
                         }
                     }
-                    AbstractOperation::ByteSequenceLength { source, .. } => {
-                        if let Some(length) = scalar_graph_input::element_views::fixed_byte_length(
-                            optimized,
-                            source,
-                            unit.geometry(),
-                        ) {
-                            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(
-                                u128::from(length),
-                            ))
-                        } else {
-                            let (geometry, carrier) =
-                            crate::legalization::scalar_graph_input::element_views::byte_length_geometry(
-                                optimized,
-                                source,
-                                unit.geometry(),
-                            )
-                            .ok_or(LegalizationError::custody())?;
-                            LegalizedScalarInstructionKind::ByteSequenceLength {
-                                source: source.clone(),
-                                indices: crate::legalization::runtime_indices::operands(
-                                    optimized,
-                                    unit,
-                                    node.operation
-                                        .psi_operation()
-                                        .ok_or(LegalizationError::custody())?,
-                                    &geometry.elements,
-                                )?,
-                                length_byte_offset: if matches!(
-                                    carrier,
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                ) {
-                                    8
-                                } else {
-                                    0
-                                },
-                            }
-                        }
-                    }
-                    AbstractOperation::ElementViewLength { source, .. } => {
-                        let geometry =
-                            crate::legalization::scalar_graph_input::element_views::length_geometry(
-                                optimized,
-                                source,
-                                unit.geometry(),
-                            )
-                            .ok_or(LegalizationError::custody())?;
-                        LegalizedScalarInstructionKind::ElementViewLength {
-                            source: source.clone(),
-                            indices: crate::legalization::runtime_indices::operands(
-                                optimized,
-                                unit,
-                                node.operation
-                                    .psi_operation()
-                                    .ok_or(LegalizationError::custody())?,
-                                &geometry.elements,
-                            )?,
-                            length_byte_offset: 8,
-                        }
+                    // A folded byte length uses the same immediate row as
+                    // other scalar observations. The opcode only dispatches it.
+                    AbstractOperation::ByteSequenceLength { .. } => {
+                        storage_instructions::project_sequence_length(
+                            optimized.machine, &unit.accepted_obligation_facts, operation, targeted,
+                        )?
                     }
                     AbstractOperation::ElementViewRead { .. } => {
                         storage_instructions::project_element_view_read(node, optimized, unit)?
