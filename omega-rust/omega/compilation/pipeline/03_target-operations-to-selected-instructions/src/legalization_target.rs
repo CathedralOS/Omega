@@ -1514,7 +1514,8 @@ pub(crate) mod control_flow {
                         }
                         && declaration.completion
                             == semantic_vocabulary::BoundaryCompletion::External(*kind)
-                        && declaration.result.is_unit()
+                        // External completion has no physical result, including
+                        // when its checked declaration names an empty result.
                         && arguments.len() == expected_arguments.len()
                         && arguments.len() == expected_plan.parameters.len()
                         && structural_arguments.len() == declaration.structural_parameters.len()
