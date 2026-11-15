@@ -94,13 +94,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The compiler refuses the unchanged layout before checking size 24, alignment 8, and offsets `[0, 8, 16]`. The scalar and nested-representation samples use this field walk at all nine placements. Preserve the same rank, field order, bounds, and invalid-layout controls through the existing terminal proof mechanisms.
 - Reported: 2026-11-15, Codex, after the Build-time reflection and field lifetime repairs
 
-### The padding value match loses its strict result bound
-- Category: knowledge crossing a boundary
-- Where: [padding contract](source/library/core/c_layout.omg#L25), [inferred join predicates](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L226)
-- Saw: At `01ee33b7779`, the scalar padding body by itself computes `r = offset % alignment` and returns zero if `r == 0`, or `alignment - r` otherwise. With `1 <= alignment <= 16`, Stage 06 refuses its published `result < alignment` after the value match. Returning the remainder directly proves `result < alignment`, and returning the subtraction directly with `0 < r < alignment` proves the same bound. A terminal branch that selects subtraction for `r > 0` and zero otherwise also proves the original guarantee.
-- Cost: A checked arithmetic bound is lost when the padding branches produce a joined value. Keep the result relation through the existing join and arithmetic proofs.
-- Reported: 2026-11-15, Codex, while restoring the C ABI field walk
-
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L216), [generated caller](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L198)
