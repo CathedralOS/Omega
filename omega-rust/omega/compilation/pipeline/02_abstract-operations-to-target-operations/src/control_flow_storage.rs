@@ -3394,6 +3394,19 @@ pub(crate) mod records {
             {
                 Vec::new()
             }
+            // An owned sequence's elements live in the read-only literal pool, so its
+            // descriptor stays valid after the creating machine returns. Only a roster of
+            // constant scalar records has pool bytes; anything else is refused here.
+            (StructuralTypeShape::ElementView { access: None, .. }, None)
+                if target_operations::constant_element_roster(
+                    function.blocks.iter().flat_map(|block| &block.operations),
+                    operation,
+                    &**types,
+                )
+                .is_some() =>
+            {
+                Vec::new()
+            }
             _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
         if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
@@ -3403,7 +3416,8 @@ pub(crate) mod records {
         let mut relocations = Vec::new();
         let mut moved_leaves = BTreeSet::new();
         let element_type = match shape {
-            StructuralTypeShape::FixedArray { element, .. } => {
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element, .. } => {
                 Some(StructuralFieldType::Structural(*element))
             }
             _ => None,

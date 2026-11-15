@@ -736,9 +736,15 @@ pub(crate) mod structural_reference_input {
         structural_type: StructuralTypeId,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
+        // An owned element sequence moves as its stored-length descriptor; the roster it
+        // names is read-only image storage that no move copies or frees.
         find_structural_type(declarations, structural_type).filter(|declaration| {
             declaration.shape.is_composite_shape()
                 || declaration.shape.is_bounded_owned_byte_sequence()
+                || matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ElementView { access: None, .. }
+                )
         })?;
         stored_value_shape(structural_type, declarations)
     }

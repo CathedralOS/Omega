@@ -427,8 +427,12 @@ descriptor homes and reference origins retain their ordinal paths. This form
 admits no linear claims or executable affine cleanup. The source/Psi route
 supports construction, read-only transport and complete result snapshots;
 source indexing still requires the same view's live length and bounds proof.
-Mutable typed views and native zero layout for typed descriptors remain
-unsupported.
+Native code places a roster of constant scalar records in the image's
+read-only literal pool, aligned to its element, and represents the sequence by
+its stored-length descriptor (pool address, element count), so the descriptor
+stays valid after the creating machine returns. Native lowering refuses a
+roster with a runtime element. Mutable typed views and native zero layout for
+typed descriptors remain unsupported.
 
 An array introduces no fresh linear claim. Its result continues every live
 operand claim beneath `FixedIndex(ordinal)` followed by that claim's original
