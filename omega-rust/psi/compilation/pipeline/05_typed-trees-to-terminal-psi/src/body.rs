@@ -897,9 +897,7 @@ pub enum Statement {
     },
     /// End the nominal wrapper at a complete consuming pattern. The following
     /// field bindings transfer its components under ordinary ownership rules.
-    Decompose {
-        subject: Expression,
-    },
+    Decompose { subject: Expression },
     /// Capture the existing destination expression as a place, then evaluate
     /// `value` and store it there. Field and index expressions retain the
     /// same meaning as in a read or loan; no second destination path exists.

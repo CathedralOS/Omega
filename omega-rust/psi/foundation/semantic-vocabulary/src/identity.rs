@@ -80,6 +80,12 @@ impl fmt::Display for InvocationSite {
             Self::Operation(operation) => write!(formatter, "operation {operation}"),
             Self::ExternalCompletion(edge) => write!(formatter, "completion edge {edge}"),
             Self::InvokeNoNormal(edge) => write!(formatter, "no-normal invocation edge {edge}"),
+            Self::Cleanup {
+                edge,
+                action_ordinal,
+            } => {
+                write!(formatter, "cleanup action {action_ordinal} on edge {edge}")
+            }
         }
     }
 }

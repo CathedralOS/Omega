@@ -718,6 +718,31 @@ pub(crate) mod invocations {
                             inputs,
                         }),
                 )
+                .chain(
+                    self.terminator
+                        .cleanup_rosters()
+                        .flat_map(|(edge, actions)| {
+                            actions
+                                .iter()
+                                .enumerate()
+                                .filter_map(move |(ordinal, action)| {
+                                    let crate::TerminalAffineCleanupAction::InvokeOwned(cleanup) =
+                                        action
+                                    else {
+                                        return None;
+                                    };
+                                    Some(ModuleInvocation {
+                            site: semantic_vocabulary::InvocationSite::Cleanup {
+                                edge,
+                                action_ordinal: u32::try_from(ordinal)
+                                    .expect("cleanup action ordinal exceeds its portable identity"),
+                            },
+                            static_reach_binding: None,
+                            inputs: cleanup.module_invocation(),
+                        })
+                                })
+                        }),
+                )
         }
     }
 
@@ -734,6 +759,54 @@ pub(crate) mod invocations {
         use super::*;
         use crate::{Block, Operation, OperationResult};
         use semantic_vocabulary::{EdgeId, OperationId};
+
+        #[test]
+        fn cleanup_calls_keep_their_real_action_positions_and_owned_actuals() {
+            let edge = EdgeId::new(9).unwrap();
+            let place = semantic_vocabulary::PlaceId::new(3).unwrap();
+            let callee = MachineId::new(2).unwrap();
+            let subject = crate::StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: crate::StructuralAccess::Owned,
+            };
+            let cleanup = crate::OwnedCleanupInvocation {
+                subject: subject.clone(),
+                structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                cleanup_machine: callee,
+                claim_transfers: Vec::new(),
+                requirement_obligations: vec![semantic_vocabulary::ObligationId::new(7).unwrap()],
+            };
+            let block = Block::plain(
+                BlockId::new(1).unwrap(),
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge,
+                    cleanup_actions: vec![
+                        crate::TerminalAffineCleanupAction::RetireHome(place),
+                        crate::TerminalAffineCleanupAction::InvokeOwned(cleanup.clone()),
+                        crate::TerminalAffineCleanupAction::InvokeOwned(cleanup),
+                    ],
+                },
+            );
+            let calls = block.module_invocations().collect::<Vec<_>>();
+            assert_eq!(calls.len(), 2);
+            for (call, action_ordinal) in calls.iter().zip([1, 2]) {
+                assert_eq!(
+                    call.site,
+                    InvocationSite::Cleanup {
+                        edge,
+                        action_ordinal
+                    }
+                );
+                assert_eq!(call.inputs.callee, callee);
+                assert_eq!(
+                    call.inputs.structural_arguments,
+                    std::slice::from_ref(&subject)
+                );
+                assert_eq!(call.inputs.requirement_obligations.len(), 1);
+            }
+        }
 
         #[test]
         fn repeated_boundary_keeps_distinct_operands_and_completions() {
@@ -1969,6 +2042,7 @@ pub(crate) mod operations {
                 | Self::PrimitiveScalarRead { .. }
                 | Self::MoveStructuralField { .. }
                 | Self::MoveStructuralValue { .. }
+                | Self::DecomposeStructuralValue { .. }
                 | Self::TransformContent { .. }
                 | Self::StoreStructuralField { .. }
                 | Self::StructuralCaseMembership { .. }

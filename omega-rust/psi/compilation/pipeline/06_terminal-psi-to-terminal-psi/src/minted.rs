@@ -251,6 +251,8 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
 struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
+    lowered: &'a TerminalMachine,
+    cleanup_catalog: crate::owned_cleanup::Catalog<'a>,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -383,18 +385,14 @@ impl Minted<'_> {
                 Actual::Place(place) => records.next().is_some_and(|argument| {
                     if argument.access == terminal_psi::StructuralAccess::Owned {
                         if matches!(site, InvocationSite::Cleanup { .. }) {
-                            self.module
-                                .machine(self.machine)
-                                .and_then(|machine| {
-                                    crate::owned_cleanup::exact_place(
-                                        self.module,
-                                        machine,
-                                        self.tables,
-                                        argument,
-                                    )
-                                    .ok()
-                                })
-                                .as_ref()
+                            crate::owned_cleanup::exact_place(
+                                self.module,
+                                self.lowered,
+                                self.tables,
+                                argument,
+                            )
+                            .ok()
+                            .as_ref()
                                 == Some(place)
                         } else {
                             argument.path.is_empty()
@@ -478,6 +476,15 @@ pub(crate) fn follow_the_lowered_form(
     let mut minted = Minted {
         machine: id,
         module,
+        lowered,
+        cleanup_catalog: crate::owned_cleanup::Catalog::new(module).map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?,
         tables,
         obligations: vec![false; tables.obligations.len()],
         invocations: vec![false; tables.invocations.len()],
@@ -674,12 +681,18 @@ pub(crate) fn follow_the_lowered_form(
             for (ordinal, action) in actions.iter().enumerate() {
                 if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
                     let action_ordinal = crate::position(ordinal, id)?;
-                    terminal_semantics::nominal_cleanup::owned_target(
-                        module.structural_types.iter(),
-                        module.machines.iter(),
-                        cleanup,
-                    )
-                    .map_err(|detail| minted.foreign(Construct::Edge(edge), detail))?;
+                    let target = minted
+                        .cleanup_catalog
+                        .target(cleanup)
+                        .map_err(|detail| minted.foreign(Construct::Edge(edge), detail))?;
+                    if !target.erased_scalar_formals.is_empty()
+                        || !target.erased_proof_formals.is_empty()
+                    {
+                        return Err(minted.foreign(
+                            Construct::Edge(edge),
+                            "owned cleanup has no explicit erased argument correspondence",
+                        ));
+                    }
                     minted.call(
                         InvocationSite::Cleanup {
                             edge,

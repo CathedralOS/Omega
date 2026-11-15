@@ -568,6 +568,7 @@ impl Program<'_> {
         let id = self.records.push(RecordType {
             owns_linear_claim,
             copyable,
+            cleanup: None,
             identity,
             shape,
             requires: Vec::new(),

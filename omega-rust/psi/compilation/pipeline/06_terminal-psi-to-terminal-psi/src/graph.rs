@@ -90,6 +90,9 @@ impl Graph {
         let mut cleanup_counts = vec![0; tables_edges.len()];
         for block in &lowered.blocks {
             for (edge, actions) in block.terminator.cleanup_rosters() {
+                if actions.is_empty() {
+                    continue;
+                }
                 let count = cleanup_counts
                     .get_mut(index(edge.get()))
                     .ok_or_else(|| refuse("cleanup edge is outside the graph"))?;
@@ -264,11 +267,15 @@ impl Graph {
             _ => None,
         };
         if let Some((edge, ordinal, after)) = cleanup(available) {
-            if let Some((used_edge, used_ordinal, used_after)) = cleanup(used) {
-                return Ok(edge == used_edge && (ordinal, after) <= (used_ordinal, used_after));
+            if let Some((used_edge, used_ordinal, used_after)) = cleanup(used)
+                && edge == used_edge
+            {
+                return Ok((ordinal, after) <= (used_ordinal, used_after));
             }
-            if let ProgramPoint::Edge(used_edge) = used {
-                return Ok(edge == used_edge);
+            if let ProgramPoint::Edge(used_edge) = used
+                && edge == used_edge
+            {
+                return Ok(true);
             }
             if block == used_block {
                 return Ok(false);

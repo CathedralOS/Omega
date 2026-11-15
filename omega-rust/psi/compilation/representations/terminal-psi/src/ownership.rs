@@ -301,7 +301,9 @@ pub(crate) mod claims {
     }
 }
 pub(crate) mod cleanup {
-    use crate::{ClaimTransfer, NominalDeclarationIdentity, StructuralArgument, StructuralPathSegment};
+    use crate::{
+        ClaimTransfer, NominalDeclarationIdentity, StructuralArgument, StructuralPathSegment,
+    };
     use semantic_vocabulary::{MachineId, ObligationId, PlaceId, StructuralTypeId};
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -310,8 +312,6 @@ pub(crate) mod cleanup {
         pub path: Vec<StructuralPathSegment>,
         pub structural_type: StructuralTypeId,
     }
-
-
 
     /// The carrier's declaration selects an exact ordinary cleanup machine.
     /// Keep the original declaration separate from a closed type application:
@@ -332,6 +332,23 @@ pub(crate) mod cleanup {
         pub cleanup_machine: MachineId,
         pub claim_transfers: Vec<ClaimTransfer>,
         pub requirement_obligations: Vec<ObligationId>,
+    }
+
+    impl OwnedCleanupInvocation {
+        pub fn module_invocation(&self) -> crate::ModuleInvocationInputs<'_> {
+            crate::ModuleInvocationInputs {
+                callee: self.cleanup_machine,
+                required_contract: None,
+                arguments: &[],
+                erased_arguments: &[],
+                erased_proof_arguments: &[],
+                structural_arguments: std::slice::from_ref(&self.subject),
+                claim_transfers: &self.claim_transfers,
+                completion_receipts: &[],
+                requirement_obligations: &self.requirement_obligations,
+                crash_continuations: &[],
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

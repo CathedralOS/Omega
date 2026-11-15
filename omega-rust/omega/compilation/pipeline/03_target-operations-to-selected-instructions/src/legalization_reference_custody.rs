@@ -3182,7 +3182,7 @@ pub(crate) mod stored_calls {
                     invocations: provider
                         .invocations
                         .iter()
-                        .map(|site| (site.machine, site.operation))
+                        .map(|site| (site.machine, site.owner))
                         .collect(),
                     referent,
                     access,

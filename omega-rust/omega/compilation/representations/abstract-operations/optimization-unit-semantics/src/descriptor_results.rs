@@ -23,7 +23,8 @@ use terminal_semantics::descriptor_lifetimes::{
     DescriptorLocation, descriptor_location,
 };
 use terminal_semantics::descriptor_results::{
-    self as kernel, DescriptorDefinition, DescriptorInvocation, DescriptorMachine, DescriptorPlace,
+    self as kernel, DescriptorDefinition, DescriptorInvocationOwner, DescriptorMachine,
+    DescriptorMachineSignature, DescriptorPlace, machine_invocation_for_signature,
     writable_descriptor_slots,
 };
 
@@ -1395,6 +1396,22 @@ fn adapt(
             }
         }
     }
+    for place in &function.structural_places {
+        if graph.place_types.contains_key(&place.id) {
+            continue;
+        }
+        if let StructuralPlaceKind::TrivialAffineLocal {
+            structural_type, ..
+        } = place.kind
+        {
+            types.iter().find(|row| row.id == structural_type)?;
+            graph.place_types.insert(place.id, structural_type);
+            graph.places.push(DescriptorPlace {
+                place: place.id,
+                definition: DescriptorDefinition::Local,
+            });
+        }
+    }
     let location = |root, path: &[StructuralPathSegment], field| {
         descriptor_location(types, root, *graph.place_types.get(&root)?, path, field)
     };
@@ -1647,6 +1664,14 @@ fn adapt(
                 graph.payload_invalidations.insert(position, payload_writes);
             }
             match operation {
+                O::DecomposeStructuralValue { subject, .. } => {
+                    if subject.access != StructuralAccess::Owned
+                        || subject.path.contains(&StructuralPathSegment::Referent)
+                    {
+                        return None;
+                    }
+                    step.inputs = vec![location(subject.place, &subject.path, None)?];
+                }
                 O::ReleaseReference { source, path, .. } => {
                     let source = location(*source, path, None)?;
                     step.inputs = vec![source.clone()];
@@ -2167,7 +2192,7 @@ fn adapt(
                         graph.unresolved_contents_writes.insert(position);
                         step.may_escape = true;
                     }
-                    graph.calls.insert(position, call);
+                    kernel::insert_invocation(&mut graph.calls, position, call)?;
                 }
                 O::CallStructural {
                     callee,
@@ -2185,62 +2210,21 @@ fn adapt(
                         {
                             return None;
                         }
-                        let mut arguments = Vec::new();
-                        let mut argument_contents = Vec::new();
-                        let mut exact_arguments = true;
-                        for (actual, formal) in structural_arguments
-                            .iter()
-                            .zip(&callee.structural_parameters)
-                        {
-                            if actual.access != formal.access {
-                                return None;
-                            }
-                            argument_contents.push(graph.place_types.get(&actual.place).and_then(
-                                |root_type| {
-                                    kernel::descriptor_contents_query(
-                                        types,
-                                        actual.place,
-                                        *root_type,
-                                        &actual.path,
-                                        None,
-                                    )
-                                },
-                            ));
-                            let actual = location(actual.place, &actual.path, None);
-                            exact_arguments &= actual.is_some();
-                            arguments.push(actual);
-                        }
-                        let descriptor_result = result.filter(|result| {
-                            slot_kind.tracks_returned_value(
-                                types,
-                                result.place,
-                                result.structural_type,
-                            )
-                        });
-                        if let Some(result) = descriptor_result {
-                            let expected = callee.result.structural()?;
-                            if result.structural_type != expected.structural_type
-                                || result.multiplicity != expected.multiplicity
-                                || result.qualifications != expected.qualifications
-                                || !expected
-                                    .projected_qualifications
-                                    .iter()
-                                    .all(|row| result.projected_qualifications.contains(row))
-                            {
-                                return None;
-                            }
-                        }
-                        graph.calls.insert(
-                            position,
-                            DescriptorInvocation {
-                                operation: node.operation.psi_operation()?,
-                                target: kernel::DescriptorInvocationTarget::Machine(callee.machine),
-                                arguments,
-                                argument_contents,
-                                result: descriptor_result
-                                    .map(|result| DescriptorLocation::whole(result.place)),
+                        let call = machine_invocation_for_signature(
+                            DescriptorInvocationOwner::Operation(node.operation.psi_operation()?),
+                            types,
+                            slot_kind,
+                            DescriptorMachineSignature {
+                                machine: callee.machine,
+                                structural_parameters: &callee.structural_parameters,
+                                result: callee.result.structural(),
                             },
-                        );
+                            structural_arguments,
+                            result,
+                            &graph.place_types,
+                        )?;
+                        let exact_arguments = call.arguments.iter().all(Option::is_some);
+                        kernel::insert_invocation(&mut graph.calls, position, call)?;
                         if !exact_arguments {
                             step.may_escape = true;
                             record_escaped_invocation(
@@ -2378,7 +2362,8 @@ fn adapt(
                                     == Some(terminal_psi::TerminalAccessLifecycleOperation::View)
                             }))
                     {
-                        graph.calls.insert(
+                        kernel::insert_invocation(
+                            &mut graph.calls,
                             position,
                             kernel::provider_invocation(
                                 node.operation.psi_operation()?,
@@ -2394,7 +2379,7 @@ fn adapt(
                                 },
                                 &graph.place_types,
                             )?,
-                        );
+                        )?;
                     }
                 }
                 O::InvokeNoNormal {
@@ -2484,6 +2469,99 @@ fn adapt(
             ) {
                 step.authority_derivations = step.derivations.clone();
             }
+            let cleanup_rosters: Vec<_> = if node.successors.is_empty() {
+                if graph.normal_exits.contains(&position) {
+                    operation.cleanup_rosters().collect()
+                } else {
+                    Vec::new()
+                }
+            } else {
+                node.successors
+                    .iter()
+                    .map(|edge| (edge.psi_edge, edge.cleanup_actions.as_slice()))
+                    .collect()
+            };
+            for (edge, actions) in cleanup_rosters {
+                for (action_ordinal, action) in actions.iter().enumerate() {
+                    let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    else {
+                        continue;
+                    };
+                    let declaration = types.iter().find(|row| row.id == cleanup.structural_type)?;
+                    let selection = declaration.nominal_cleanup.as_ref()?;
+                    if selection.declaration.identity() != declaration.identity
+                        || selection.cleanup_machine != cleanup.cleanup_machine
+                        || cleanup.subject.access != StructuralAccess::Owned
+                        || cleanup
+                            .subject
+                            .path
+                            .contains(&StructuralPathSegment::Referent)
+                        || !cleanup.claim_transfers.is_empty()
+                    {
+                        return None;
+                    }
+                    if runtime_structural_path_tip(
+                        types.iter(),
+                        *graph.place_types.get(&cleanup.subject.place)?,
+                        &cleanup.subject.path,
+                    )?
+                    .id != cleanup.structural_type
+                    {
+                        return None;
+                    }
+                    let mut candidates = functions
+                        .iter()
+                        .copied()
+                        .filter(|candidate| candidate.machine == cleanup.cleanup_machine);
+                    let callee = candidates.next()?;
+                    if candidates.next().is_some()
+                        || !matches!(
+                            callee.result,
+                            abstract_operations::AbstractFunctionResult::Unit
+                        )
+                        || !callee.parameters.is_empty()
+                    {
+                        return None;
+                    }
+                    let [formal] = callee.structural_parameters.as_slice() else {
+                        return None;
+                    };
+                    if formal.position != 0
+                        || formal.structural_type != cleanup.structural_type
+                        || formal.access != StructuralAccess::Owned
+                        || formal.multiplicity
+                            != terminal_semantics::plain_affine::declared_multiplicity(
+                                declaration,
+                                formal.access,
+                            )
+                    {
+                        return None;
+                    }
+                    let call = machine_invocation_for_signature(
+                        DescriptorInvocationOwner::Cleanup {
+                            edge,
+                            action_ordinal: u32::try_from(action_ordinal).ok()?,
+                        },
+                        types,
+                        slot_kind,
+                        DescriptorMachineSignature {
+                            machine: callee.machine,
+                            structural_parameters: &callee.structural_parameters,
+                            result: callee.result.structural(),
+                        },
+                        std::slice::from_ref(&cleanup.subject),
+                        None,
+                        &graph.place_types,
+                    )?;
+                    if call.arguments.iter().any(Option::is_none)
+                        || call.argument_contents.iter().any(Option::is_none)
+                    {
+                        return None;
+                    }
+                    step.inputs.extend(call.arguments.iter().flatten().cloned());
+                    kernel::insert_invocation(&mut graph.calls, position, call)?;
+                }
+            }
             if graph.normal_exits.contains(&position) {
                 for parameter in &function.structural_parameters {
                     if matches!(
@@ -2501,6 +2579,8 @@ fn adapt(
             if node.successors.is_empty() {
                 if index + 1 < block.nodes.len() {
                     step.successors.push(DescriptorFlowEdge {
+                        edge: None,
+                        effects: Vec::new(),
                         definitions: Vec::new(),
                         target: (block.id, position.1 + 1),
                         parameters: Vec::new(),
@@ -2630,7 +2710,12 @@ fn adapt(
                             parameter.access,
                         )?);
                     }
+                    for action in &edge.cleanup_actions {
+                        definitions.push(location(action.place(), action.path(), None)?);
+                    }
                     step.successors.push(DescriptorFlowEdge {
+                        edge: Some(edge.psi_edge),
+                        effects: Vec::new(),
                         definitions,
                         target: (edge.target, 0),
                         parameters,
@@ -2937,4 +3022,272 @@ fn selected_effects_machine(
         return None;
     }
     Some(target)
+}
+
+#[cfg(test)]
+mod owned_cleanup_graph_tests {
+    use super::*;
+    use abstract_operations::{
+        AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractSuccessor,
+    };
+    use semantic_vocabulary::{
+        BlockId, EdgeId, OperationId, StructuralFieldId, StructuralTypeId, ValueId,
+    };
+    use terminal_psi::{
+        BindingRelevance, NominalCleanupSelection, NominalDeclarationIdentity,
+        OwnedCleanupInvocation, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralRecordStorage,
+        TerminalAffineCleanupAction as Cleanup, TerminalIdentityIndex,
+    };
+
+    fn place(value: u64) -> PlaceId {
+        PlaceId::new(value).unwrap()
+    }
+    fn machine(value: u64) -> MachineId {
+        MachineId::new(value).unwrap()
+    }
+    fn edge(value: u64) -> EdgeId {
+        EdgeId::new(value).unwrap()
+    }
+    fn block(value: u64) -> BlockId {
+        BlockId::new(value).unwrap()
+    }
+    fn op(value: u64) -> OperationId {
+        OperationId::new(value).unwrap()
+    }
+    fn ty(value: u64) -> StructuralTypeId {
+        StructuralTypeId::new(value).unwrap()
+    }
+    fn parameter(value: u64, position: u32) -> StructuralParameterDeclaration {
+        StructuralParameterDeclaration {
+            place: place(value),
+            position,
+            structural_type: ty(3),
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        }
+    }
+    fn function(
+        value: u64,
+        parameters: Vec<StructuralParameterDeclaration>,
+        blocks: Vec<AbstractBlock>,
+    ) -> AbstractFunction {
+        AbstractFunction {
+            machine: machine(value),
+            attachment: None,
+            entry: blocks[0].block,
+            parameters: Vec::new(),
+            structural_parameters: parameters,
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            block_entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            blocks,
+        }
+    }
+    fn body(value: u64, operations: Vec<O>) -> AbstractBlock {
+        AbstractBlock {
+            block: block(value),
+            structural_parameters: Vec::new(),
+            parameters: Vec::new(),
+            operations,
+        }
+    }
+    fn cleanup(value: u64) -> Vec<Cleanup> {
+        vec![
+            Cleanup::InvokeOwned(OwnedCleanupInvocation {
+                subject: StructuralArgument::whole(place(value), StructuralAccess::Owned),
+                structural_type: ty(3),
+                cleanup_machine: machine(2),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            }),
+            Cleanup::RetireHome(place(value)),
+        ]
+    }
+    fn types() -> Vec<StructuralTypeDeclaration> {
+        let declaration = |value, shape| StructuralTypeDeclaration {
+            requires: Vec::new(),
+            quotient_carrier: None,
+            id: ty(value),
+            identity: TerminalIdentityIndex(value as u32),
+            owns_linear_claim: false,
+            copyable: value == 1,
+            no_code_affine_cleanup: value == 1,
+            descriptor_cleanup: value == 2,
+            nominal_cleanup: None,
+            shape,
+            scalar_restriction: None,
+        };
+        let mut resource = declaration(
+            3,
+            StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(4),
+                    relevance: BindingRelevance::Relevant,
+                    storage: None,
+                    field_type: StructuralFieldType::Structural(ty(2)),
+                    inline_carrier: None,
+                }],
+                storage: StructuralRecordStorage::Packed,
+            },
+        );
+        resource.nominal_cleanup = Some(NominalCleanupSelection {
+            declaration: NominalDeclarationIdentity::new(resource.identity),
+            cleanup_machine: machine(2),
+        });
+        vec![
+            declaration(
+                1,
+                StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Boolean),
+            ),
+            declaration(
+                2,
+                StructuralTypeShape::Reference {
+                    referent: ty(1),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+            resource,
+        ]
+    }
+
+    #[test]
+    fn native_cleanup_calls_keep_edge_action_owners_and_normal_return_calls() {
+        let mut forward = cleanup(1);
+        forward.extend(cleanup(2));
+        let mut reverse = cleanup(2);
+        reverse.extend(cleanup(1));
+        let successor = |identity, target, cleanup_actions| AbstractSuccessor {
+            psi_edge: edge(identity),
+            target: block(target),
+            bindings: Vec::new(),
+            structural_bindings: Vec::new(),
+            cleanup_actions,
+        };
+        let caller = function(
+            1,
+            vec![parameter(1, 0), parameter(2, 1)],
+            vec![
+                body(
+                    1,
+                    vec![
+                        O::BooleanConstant {
+                            psi_operation: op(10),
+                            result: ValueId::new(1).unwrap(),
+                            value: true,
+                        },
+                        O::Conditional {
+                            condition: ValueId::new(1).unwrap(),
+                            when_true: successor(1, 2, forward),
+                            when_false: successor(2, 3, reverse),
+                        },
+                    ],
+                ),
+                body(
+                    2,
+                    vec![O::ReturnUnit {
+                        psi_edge: edge(4),
+                        cleanup_actions: Vec::new(),
+                    }],
+                ),
+                body(
+                    3,
+                    vec![O::ReturnUnit {
+                        psi_edge: edge(5),
+                        cleanup_actions: Vec::new(),
+                    }],
+                ),
+            ],
+        );
+        let consumer = function(
+            2,
+            vec![parameter(1, 0)],
+            vec![body(
+                1,
+                vec![
+                    O::DecomposeStructuralValue {
+                        psi_operation: op(1),
+                        subject: StructuralArgument::whole(place(1), StructuralAccess::Owned),
+                    },
+                    O::ReleaseReference {
+                        psi_operation: op(2),
+                        source: place(1),
+                        path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(4))],
+                    },
+                    O::ReturnUnit {
+                        psi_edge: edge(3),
+                        cleanup_actions: vec![Cleanup::RetireHome(place(1))],
+                    },
+                ],
+            )],
+        );
+        let returning = function(
+            3,
+            vec![parameter(1, 0)],
+            vec![body(
+                1,
+                vec![O::ReturnUnit {
+                    psi_edge: edge(6),
+                    cleanup_actions: cleanup(1),
+                }],
+            )],
+        );
+        let types = types();
+        let graphs = abstract_borrowed_storage_catalog_graph(
+            [&caller, &consumer, &returning],
+            [],
+            &types,
+            &Default::default(),
+        )
+        .unwrap();
+        let caller = graphs.iter().find(|graph| graph.id == machine(1)).unwrap();
+        let position = (block(1), 1);
+        assert_eq!(caller.calls_at(position).len(), 4);
+        for (identity, ordinal) in [(1, 0), (1, 2), (2, 0), (2, 2)] {
+            assert!(
+                caller
+                    .invocation(
+                        position,
+                        DescriptorInvocationOwner::Cleanup {
+                            edge: edge(identity),
+                            action_ordinal: ordinal
+                        }
+                    )
+                    .is_some()
+            );
+        }
+        assert_eq!(
+            caller.flow[&position]
+                .successors
+                .iter()
+                .map(|edge| edge.edge)
+                .collect::<Vec<_>>(),
+            [Some(edge(1)), Some(edge(2))]
+        );
+        let consumer = graphs.iter().find(|graph| graph.id == machine(2)).unwrap();
+        let decomposition = &consumer.flow[&(block(1), 0)];
+        assert_eq!(decomposition.inputs, [DescriptorLocation::whole(place(1))]);
+        assert!(decomposition.definitions.is_empty());
+        assert!(decomposition.derivations.is_empty());
+        assert!(!consumer.payload_invalidations.contains_key(&(block(1), 0)));
+        let returning = graphs.iter().find(|graph| graph.id == machine(3)).unwrap();
+        assert_eq!(returning.calls_at((block(1), 0)).len(), 1);
+        assert!(
+            returning
+                .invocation(
+                    (block(1), 0),
+                    DescriptorInvocationOwner::Cleanup {
+                        edge: edge(6),
+                        action_ordinal: 0
+                    }
+                )
+                .is_some()
+        );
+        assert!(returning.flow[&(block(1), 0)].definitions.is_empty());
+    }
 }

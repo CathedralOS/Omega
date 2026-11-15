@@ -3882,7 +3882,6 @@ mod cleanup {
             && selection.declaration.identity() == source.identity
             && cleanup.subject.access == terminal_psi::StructuralAccess::Owned
             && cleanup.claim_transfers.is_empty()
-            && cleanup.requirement_obligations.is_empty()
             && matches!(target.result, AbstractFunctionResult::Unit)
             && target.parameters.is_empty()
             && parameter.position == 0

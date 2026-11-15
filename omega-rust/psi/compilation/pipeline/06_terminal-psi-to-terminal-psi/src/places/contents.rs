@@ -162,6 +162,7 @@ impl Storage<'_> {
             };
             for clause in self.clauses_of(data, concerns)? {
                 let mut held = Held {
+                    point: Some(ProgramPoint::AfterOperation(operation.id)),
                     storage: self,
                     tables,
                     place: &owner,

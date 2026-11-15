@@ -325,7 +325,13 @@ pub(crate) fn declare<'a>(
             .direct_fields()
             .unwrap_or(&[])
             .iter()
-            .chain(shape.sum_cases().unwrap_or(&[]).iter().flat_map(|case| &case.fields))
+            .chain(
+                shape
+                    .sum_cases()
+                    .unwrap_or(&[])
+                    .iter()
+                    .flat_map(|case| &case.fields),
+            )
             .filter_map(|field| match field.field_type {
                 StructuralFieldType::Structural(child) => Some(child),
                 _ => None,
@@ -337,20 +343,33 @@ pub(crate) fn declare<'a>(
         let mut no_code = !record.owns_linear_claim && record.cleanup.is_none();
         let mut descriptor_cleanup = no_code;
         for child in children {
-            let raw = usize::try_from(child.get() - 1)
-                .map_err(|_| refuse(entry, Construct::Machine, Unserved::Type("cleanup child identity")))?;
+            let raw = usize::try_from(child.get() - 1).map_err(|_| {
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child identity"),
+                )
+            })?;
             let child = structural_types.get(raw).ok_or_else(|| {
-                refuse(entry, Construct::Machine, Unserved::Type("cleanup child declaration is not established"))
+                refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Type("cleanup child declaration is not established"),
+                )
             })?;
             no_code &= child.no_code_affine_cleanup;
             descriptor_cleanup &= child.descriptor_cleanup;
         }
-        let nominal_cleanup = record.cleanup.as_ref().map(|cleanup| terminal_psi::NominalCleanupSelection {
-            declaration: terminal_psi::NominalDeclarationIdentity::new(
-                identities.intern(&cleanup.declaration_identity),
-            ),
-            cleanup_machine: cleanup.machine,
-        });
+        let nominal_cleanup =
+            record
+                .cleanup
+                .as_ref()
+                .map(|cleanup| terminal_psi::NominalCleanupSelection {
+                    declaration: terminal_psi::NominalDeclarationIdentity::new(
+                        identities.intern(&cleanup.declaration_identity),
+                    ),
+                    cleanup_machine: cleanup.machine,
+                });
         structural_types.push(StructuralTypeDeclaration {
             requires: record.requires.clone(),
             quotient_carrier: None,
@@ -572,7 +591,7 @@ fn append_scalar_type(
 fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Option<&'b String>)>) {
     match statement {
         Statement::Bind { value, .. }
-            | Statement::Decompose { subject: value }
+        | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
         } => expression_homes(value, homes),
@@ -1095,11 +1114,8 @@ impl<'a> Lowering<'a> {
     pub(super) fn decompose(&mut self, subject: &Expression) -> Evaluation<()> {
         let (root, steps, _, _) = continuing!(self.capture_place(subject, None));
         let operation = self.operation_identity(subject.source);
-        let path = self.storage_path(
-            &steps,
-            ExecutionSite::Operation(operation),
-            subject.source,
-        )?;
+        let path =
+            self.storage_path(&steps, ExecutionSite::Operation(operation), subject.source)?;
         self.emit(
             operation,
             None,

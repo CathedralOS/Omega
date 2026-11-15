@@ -10714,7 +10714,8 @@ mod source {
                     callee,
                     arguments,
                     call_plan,
-                } => Some((owner, callee, arguments, call_plan)),
+                    requirement_obligations,
+                } => Some((owner, callee, arguments, call_plan, requirement_obligations)),
                 _ => None,
             });
             for (ordinal, action) in actions.iter().enumerate() {
@@ -10727,7 +10728,9 @@ mod source {
                 let Ok(action_ordinal) = u32::try_from(ordinal) else {
                     return false;
                 };
-                let Some((owner, callee, arguments, call_plan)) = calls.next() else {
+                let Some((owner, callee, arguments, call_plan, requirement_obligations)) =
+                    calls.next()
+                else {
                     return false;
                 };
                 if *owner
@@ -10736,7 +10739,7 @@ mod source {
                         action_ordinal,
                     })
                     || *callee != nominal.cleanup_machine
-                    || !nominal.requirement_obligations.is_empty()
+                    || *requirement_obligations != nominal.requirement_obligations
                     || !nominal.claim_transfers.is_empty()
                     || nominal.subject.access != terminal_psi::StructuralAccess::Owned
                     || call_plan.result.is_some()
@@ -10858,7 +10861,10 @@ mod source {
                             structural_type,
                             cleanup_machine: machine,
                             claim_transfers: Vec::new(),
-                            requirement_obligations: Vec::new(),
+                            requirement_obligations: vec![
+                                semantic_vocabulary::ObligationId::new(u64::from(ordinal) + 1)
+                                    .unwrap(),
+                            ],
                         },
                     ));
                     if ordinal == 0 {
@@ -10874,6 +10880,9 @@ mod source {
                         },
                         callee: machine,
                         call_plan: plan.clone(),
+                        requirement_obligations: vec![
+                            semantic_vocabulary::ObligationId::new(u64::from(ordinal) + 1).unwrap(),
+                        ],
                         arguments: vec![TargetStructuralArgument {
                             place,
                             access: StructuralAccess::Owned,
@@ -10896,7 +10905,7 @@ mod source {
                     &structural_types,
                     edge
                 ));
-                for mutation in 0..7 {
+                for mutation in 0..8 {
                     let mut hostile = calls.clone();
                     match mutation {
                         0 => {
@@ -10907,6 +10916,24 @@ mod source {
                         }
                         2 => {
                             hostile.swap(0, 1);
+                        }
+                        7 => {
+                            let TargetUnitOperation::CleanupCall {
+                                requirement_obligations: first,
+                                ..
+                            } = &hostile[0]
+                            else {
+                                unreachable!()
+                            };
+                            let copied = first.clone();
+                            let TargetUnitOperation::CleanupCall {
+                                requirement_obligations: second,
+                                ..
+                            } = &mut hostile[1]
+                            else {
+                                unreachable!()
+                            };
+                            *second = copied;
                         }
                         _ => {
                             let TargetUnitOperation::CleanupCall {

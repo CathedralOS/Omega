@@ -396,9 +396,9 @@ pub mod provenance {
     pub fn semantic_code_site(site: InvocationSite) -> SemanticCodeSite {
         match site {
             InvocationSite::Operation(operation) => SemanticCodeSite::Operation(operation),
-            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
-                SemanticCodeSite::Edge(edge)
-            }
+            InvocationSite::InvokeNoNormal(edge)
+            | InvocationSite::ExternalCompletion(edge)
+            | InvocationSite::Cleanup { edge, .. } => SemanticCodeSite::Edge(edge),
         }
     }
 

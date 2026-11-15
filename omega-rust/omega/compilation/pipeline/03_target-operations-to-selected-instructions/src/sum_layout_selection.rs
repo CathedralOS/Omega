@@ -158,6 +158,7 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
                 callee: machine(),
                 call_plan: target.functions[0].graph.call_plan.clone(),
                 arguments: Vec::new(),
+                requirement_obligations: Vec::new(),
             },
         });
     let failure = crate::legalization_control::project(machine(), &annotated_cleanup, &[], &[])

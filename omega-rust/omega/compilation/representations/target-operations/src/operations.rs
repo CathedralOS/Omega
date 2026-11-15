@@ -473,6 +473,8 @@ pub enum TargetUnitOperation {
         callee: MachineId,
         call_plan: CallPlan,
         arguments: Vec<TargetStructuralArgument>,
+        // Exact source-checked prerequisites authenticated at native receiving.
+        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
     },
     Call {
         origin: NativeCallOrigin,

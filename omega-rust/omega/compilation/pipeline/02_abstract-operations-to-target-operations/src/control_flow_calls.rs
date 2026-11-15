@@ -1820,7 +1820,6 @@ pub(crate) mod calls {
                     || parameter.position != 0
                     || parameter.structural_type != cleanup.structural_type
                     || parameter.access != StructuralAccess::Owned
-                    || !cleanup.requirement_obligations.is_empty()
                     || !cleanup.claim_transfers.is_empty()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1858,6 +1857,7 @@ pub(crate) mod calls {
                     callee: cleanup.cleanup_machine,
                     call_plan: signature.call_plan.into_call_plan(),
                     arguments,
+                    requirement_obligations: cleanup.requirement_obligations.clone(),
                 });
             }
         }

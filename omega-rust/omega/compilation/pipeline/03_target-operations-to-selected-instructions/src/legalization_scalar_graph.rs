@@ -1132,7 +1132,6 @@ pub(crate) mod aggregate_results {
                             && cleanup.subject.access == terminal_psi::StructuralAccess::Owned
                             && selected_type(structural_type) == Some(cleanup.structural_type)
                     }) && cleanup.claim_transfers.is_empty()
-                        && cleanup.requirement_obligations.is_empty()
                 }
             }
         })
@@ -2860,7 +2859,6 @@ pub(crate) mod cleanup_calls {
                     || parameter.position != 0
                     || parameter.structural_type != cleanup.structural_type
                     || parameter.access != terminal_psi::StructuralAccess::Owned
-                    || !cleanup.requirement_obligations.is_empty()
                     || !cleanup.claim_transfers.is_empty()
                 {
                     return Err(LegalizationError::custody());
@@ -2929,7 +2927,7 @@ pub(crate) mod cleanup_calls {
                         descriptor_origins: Vec::new(),
                         access_bindings: Vec::new(),
                         claim_transfers: Vec::new(),
-                        requirement_obligations: Vec::new(),
+                        requirement_obligations: cleanup.requirement_obligations.clone(),
                         crash_continuations: Vec::new(),
                     },
                 ));
@@ -2956,6 +2954,7 @@ pub(crate) mod cleanup_calls {
                 callee,
                 call_plan,
                 arguments,
+                requirement_obligations,
             } = &row.kind
             else {
                 return Err(LegalizationError::custody());
@@ -2975,6 +2974,7 @@ pub(crate) mod cleanup_calls {
                 || Some(*callee) != call.target.machine()
                 || *call_plan != call.call_plan
                 || *arguments != expected_arguments
+                || *requirement_obligations != call.requirement_obligations
             {
                 return Err(LegalizationError::custody());
             }

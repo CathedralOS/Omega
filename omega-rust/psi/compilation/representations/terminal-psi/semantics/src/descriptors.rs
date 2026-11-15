@@ -669,6 +669,24 @@ pub mod descriptor_lifetimes {
         pub successors: Vec<DescriptorFlowEdge>,
     }
 
+    impl DescriptorFlowStep {
+        pub fn transport_authority(
+            &self,
+            before: &BTreeSet<DescriptorLocation>,
+            may: bool,
+        ) -> BTreeSet<DescriptorLocation> {
+            transport_authority(
+                before,
+                &self.definitions,
+                self.authority_derivations
+                    .iter()
+                    .map(|(source, destination)| (source, destination)),
+                false,
+                may,
+            )
+        }
+    }
+
     #[derive(Clone)]
     pub struct DescriptorFlowEdge {
         /// Sources consumed on this selected edge. Destination parameters
@@ -12413,6 +12431,7 @@ pub mod descriptor_results {
                     InvocationSite::ExternalCompletion(_) | InvocationSite::InvokeNoNormal(_) => {
                         self.terminal_positions.get(&site).copied()
                     }
+                    InvocationSite::Cleanup { .. } => None,
                 }
             }
 
@@ -12422,6 +12441,12 @@ pub mod descriptor_results {
                 invocation: InvocationSite,
                 actual: &StructuralArgument,
             ) -> QueryResult<()> {
+                // Several cleanup actions share one terminator coordinate.
+                // This identity walk has no action-prefix state, so the
+                // pre-terminator value cannot prove an unchanged-value claim.
+                if matches!(invocation, InvocationSite::Cleanup { .. }) {
+                    return Err("unchanged-value proof at an ordered cleanup action is not served");
+                }
                 let observation = self
                     .observation_position(invocation)
                     .ok_or("value identity observation is absent")?;
@@ -13028,6 +13053,12 @@ pub mod descriptor_results {
         use terminal_psi::BoundaryMachineResult;
         use terminal_psi::TerminalDynamicReferenceOrigin;
 
+        pub struct DescriptorMachineSignature<'a> {
+            pub machine: MachineId,
+            pub structural_parameters: &'a [terminal_psi::StructuralParameterDeclaration],
+            pub result: Option<&'a terminal_psi::StructuralResultDeclaration>,
+        }
+
         pub fn machine_invocation(
             owner: DescriptorInvocationOwner,
             types: &[StructuralTypeDeclaration],
@@ -13037,12 +13068,36 @@ pub mod descriptor_results {
             result: Option<&terminal_psi::StructuralOperationResult>,
             place_types: &BTreeMap<PlaceId, StructuralTypeId>,
         ) -> Option<DescriptorInvocation> {
+            machine_invocation_for_signature(
+                owner,
+                types,
+                slot_kind,
+                DescriptorMachineSignature {
+                    machine: callee.id,
+                    structural_parameters: &callee.structural_parameters,
+                    result: callee.result.structural(),
+                },
+                actuals,
+                result,
+                place_types,
+            )
+        }
+
+        pub fn machine_invocation_for_signature(
+            owner: DescriptorInvocationOwner,
+            types: &[StructuralTypeDeclaration],
+            slot_kind: DescriptorSlotKind,
+            callee: DescriptorMachineSignature<'_>,
+            actuals: &[StructuralArgument],
+            result: Option<&terminal_psi::StructuralOperationResult>,
+            place_types: &BTreeMap<PlaceId, StructuralTypeId>,
+        ) -> Option<DescriptorInvocation> {
             if callee.structural_parameters.len() != actuals.len() {
                 return None;
             }
             let mut arguments = Vec::with_capacity(actuals.len());
             let mut argument_contents = Vec::with_capacity(actuals.len());
-            for (actual, formal) in actuals.iter().zip(&callee.structural_parameters) {
+            for (actual, formal) in actuals.iter().zip(callee.structural_parameters) {
                 if actual.access != formal.access {
                     return None;
                 }
@@ -13066,7 +13121,7 @@ pub mod descriptor_results {
                 slot_kind.tracks_returned_value(types, result.place, result.structural_type)
             });
             if let Some(result) = result {
-                let expected = callee.result.structural()?;
+                let expected = callee.result?;
                 if result.structural_type != expected.structural_type
                     || result.multiplicity != expected.multiplicity
                     || result.qualifications != expected.qualifications
@@ -13080,7 +13135,7 @@ pub mod descriptor_results {
             }
             Some(DescriptorInvocation {
                 owner,
-                target: DescriptorInvocationTarget::Machine(callee.id),
+                target: DescriptorInvocationTarget::Machine(callee.machine),
                 arguments,
                 argument_contents,
                 result: result.map(|result| DescriptorLocation::whole(result.place)),
@@ -14913,7 +14968,7 @@ pub mod descriptor_results {
                                 graph.unresolved_contents_writes.insert(position);
                                 step.may_escape = true;
                             }
-                            graph.insert_call(position, call)?;
+                            insert_invocation(&mut graph.calls, position, call)?;
                         }
                         _ if direct_call.is_some() => {
                             let (callee, structural_arguments) = direct_call?;
@@ -14990,7 +15045,7 @@ pub mod descriptor_results {
                                 {
                                     *effects_machine = (complete && implemented).then_some(callee);
                                 }
-                                graph.insert_call(position, call)?;
+                                insert_invocation(&mut graph.calls, position, call)?;
                             } else {
                                 let mut matching = module
                                     .machines
@@ -15023,7 +15078,7 @@ pub mod descriptor_results {
                                         structural_arguments,
                                     )?;
                                 }
-                                graph.insert_call(position, call)?;
+                                insert_invocation(&mut graph.calls, position, call)?;
                             }
                         }
                         OperationKind::BoundaryCall {
@@ -15112,7 +15167,8 @@ pub mod descriptor_results {
                                 (declarations.next(), declarations.next())
                                 && slot_kind != DescriptorSlotKind::AccessOrigins
                             {
-                                graph.insert_call(
+                                insert_invocation(
+                                    &mut graph.calls,
                                     position,
                                     provider_invocation(
                                         operation.id,
@@ -15393,7 +15449,7 @@ pub mod descriptor_results {
                                 return None;
                             }
                             step.inputs.extend(call.arguments.iter().flatten().cloned());
-                            graph.insert_call(position, call)?;
+                            insert_invocation(&mut graph.calls, position, call)?;
                         }
                     }
                 }
@@ -15705,8 +15761,8 @@ pub mod descriptor_results {
         }
     }
     pub use invocation::{
-        machine_invocation, public_invocation, public_realizations, public_result_slots,
-        writable_descriptor_slots,
+        DescriptorMachineSignature, machine_invocation, machine_invocation_for_signature,
+        public_invocation, public_realizations, public_result_slots, writable_descriptor_slots,
     };
     pub use replay::{
         DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind,
@@ -16097,6 +16153,25 @@ pub mod descriptor_results {
         pub normal_exits: Vec<DescriptorPosition>,
     }
 
+    pub fn insert_invocation(
+        calls: &mut BTreeMap<DescriptorPosition, Vec<DescriptorInvocation>>,
+        position: DescriptorPosition,
+        call: DescriptorInvocation,
+    ) -> Option<()> {
+        let calls = calls.entry(position).or_default();
+        if !calls.is_empty()
+            && (matches!(call.owner, DescriptorInvocationOwner::Operation(_))
+                || matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)))
+        {
+            return None;
+        }
+        let insertion = calls
+            .binary_search_by_key(&call.owner, |existing| existing.owner)
+            .err()?;
+        calls.insert(insertion, call);
+        Some(())
+    }
+
     impl DescriptorMachine {
         pub fn calls_at(&self, position: DescriptorPosition) -> &[DescriptorInvocation] {
             self.calls.get(&position).map_or(&[], Vec::as_slice)
@@ -16132,18 +16207,7 @@ pub mod descriptor_results {
             position: DescriptorPosition,
             call: DescriptorInvocation,
         ) -> Option<()> {
-            let calls = self.calls.entry(position).or_default();
-            if !calls.is_empty()
-                && (matches!(call.owner, DescriptorInvocationOwner::Operation(_))
-                    || matches!(calls[0].owner, DescriptorInvocationOwner::Operation(_)))
-            {
-                return None;
-            }
-            let insertion = calls
-                .binary_search_by_key(&call.owner, |existing| existing.owner)
-                .err()?;
-            calls.insert(insertion, call);
-            Some(())
+            insert_invocation(&mut self.calls, position, call)
         }
 
         pub(crate) fn validate_invocation_owners(&self) -> Option<()> {
@@ -16161,10 +16225,10 @@ pub mod descriptor_results {
                 let mut exit_edge = None;
                 let mut successor_edges = BTreeSet::new();
                 for edge in &step.successors {
-                    if let Some(edge) = edge.edge {
-                        if !successor_edges.insert(edge) {
-                            return None;
-                        }
+                    if let Some(edge) = edge.edge
+                        && !successor_edges.insert(edge)
+                    {
+                        return None;
                     }
                 }
                 for call in calls {

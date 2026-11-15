@@ -732,9 +732,7 @@ pub(crate) mod affine_authority {
                         return None;
                     }
                     if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                        if !cleanup.claim_transfers.is_empty()
-                            || !cleanup.requirement_obligations.is_empty()
-                        {
+                        if !cleanup.claim_transfers.is_empty() {
                             return None;
                         }
                     }
@@ -1431,6 +1429,10 @@ mod catalogs {
         unit: &'unit PsiOptimizationUnit,
         cycle_policy: &function_structure::ControlCyclePolicy,
     ) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
+        // Authenticate carried cleanup requirements before deriving any
+        // ownership frontier or call effect from the current functions.
+        optimization_unit::validate_owned_cleanup_evidence(unit)
+            .map_err(|reason| OptimizationUnitValidationError::InvalidRuntimeEvidence { reason })?;
         if let Some(pair) = unit
             .functions
             .windows(2)
@@ -15788,6 +15790,7 @@ mod runtime_evidence {
             .map_err(|reason| OptimizationUnitValidationError::InvalidRuntimeEvidence { reason })
     }
     fn validate_current(unit: &PsiOptimizationUnit) -> Result<(), &'static str> {
+        optimization_unit::validate_owned_cleanup_evidence(unit)?;
         let Some(catalog) = &unit.runtime_evidence else {
             if unit
                 .functions

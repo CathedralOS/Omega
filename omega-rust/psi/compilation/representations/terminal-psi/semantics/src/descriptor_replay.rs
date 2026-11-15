@@ -424,6 +424,22 @@ pub(crate) mod analysis {
             self.replay
                 .canonical_storage(machine, states.get(&position)?, location, None)
         }
+        pub fn location_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+            location: &DescriptorLocation,
+        ) -> Option<DescriptorLocation> {
+            self.replay.prepare_states(identity)?;
+            let machine = self.replay.machine(identity)?;
+            self.replay.canonical_storage(
+                machine,
+                self.replay.invocation_state(identity, position, owner)?,
+                location,
+                None,
+            )
+        }
         pub fn storage_origins(
             &mut self,
             identity: MachineId,
@@ -457,15 +473,47 @@ pub(crate) mod analysis {
         pub fn write_frame(
             &mut self,
             identity: MachineId,
-        ) -> Result<Option<&[DescriptorLocation]>, &'static str> {
+        ) -> Result<Option<Vec<DescriptorLocation>>, &'static str> {
             self.replay.prepare_write_frame(identity)?;
-            Ok(self
+            let Some(frame) = self
                 .replay
                 .summaries
                 .get(&identity)
                 .and_then(Option::as_ref)
                 .and_then(|summary| summary.write_frame.as_ref())
-                .and_then(Option::as_deref))
+                .and_then(Option::as_ref)
+            else {
+                return Ok(None);
+            };
+            // Keep precise crossings in the internal transitive frame. Only
+            // publication widens to the existing field-only contract shape.
+            let mut published = frame
+                .iter()
+                .cloned()
+                .map(|mut write| {
+                    write.path.truncate(
+                        write
+                            .path
+                            .iter()
+                            .take_while(|segment| {
+                                matches!(segment, DescriptorPathSegment::Field(_))
+                            })
+                            .count(),
+                    );
+                    write
+                })
+                .collect::<Vec<_>>();
+            published.sort_unstable();
+            let mut normalized: Vec<DescriptorLocation> = Vec::with_capacity(published.len());
+            for write in published {
+                if normalized
+                    .last()
+                    .is_none_or(|prior| !prior.contains(&write))
+                {
+                    normalized.push(write);
+                }
+            }
+            Ok(Some(normalized))
         }
 
         pub fn payload_targets(
@@ -580,6 +628,15 @@ pub(crate) mod analysis {
                 .machine(identity)?
                 .operation_call(position)?
                 .owner;
+            self.substitute_call_source_at(identity, position, owner, origin)
+        }
+        pub fn substitute_call_source_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+            origin: &DescriptorSourceOrigin,
+        ) -> Option<Vec<DescriptorSourceOrigin>> {
             self.substitute_call_source_with_target(identity, position, owner, origin, false)
         }
         pub fn substitute_stored_effect_source(
@@ -1011,6 +1068,42 @@ pub(crate) mod analysis {
                     })
                 })
                 .collect()
+        }
+        pub fn invocation_flow_at(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            owner: DescriptorInvocationOwner,
+        ) -> Result<DescriptorFlowStep, DescriptorGraphError> {
+            self.replay.prepare_states(identity).ok_or(
+                DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: Some(position),
+                    detail: None,
+                },
+            )?;
+            let machine = self
+                .replay
+                .machine(identity)
+                .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+            let call = machine.invocation(position, owner).ok_or(
+                DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: Some(position),
+                    detail: None,
+                },
+            )?;
+            let before = self
+                .replay
+                .invocation_state(identity, position, owner)
+                .ok_or(DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: Some(position),
+                    detail: None,
+                })?;
+            let mut step = DescriptorFlowStep::default();
+            self.append_invocation_flow(machine, position, call, before, &mut step, None)?;
+            Ok(step)
         }
         pub fn flow(
             &mut self,
@@ -3871,7 +3964,7 @@ pub(crate) mod engine {
                         writes.push(actual);
                     }
                 }
-                for mut write in writes {
+                for write in writes {
                     let Some(place) =
                         exactly_one(machine.places.iter(), |row| row.place == write.root)
                     else {
@@ -3897,19 +3990,6 @@ pub(crate) mod engine {
                             return Ok(None);
                         }
                     }
-                    // Published paths contain fields only. An indexed or sum
-                    // write covers that collection or sum as a whole. A
-                    // reference origin not yet representable here retains its
-                    // enclosing region instead of inventing a narrower path.
-                    write.path.truncate(
-                        write
-                            .path
-                            .iter()
-                            .take_while(|segment| {
-                                matches!(segment, DescriptorPathSegment::Field(_))
-                            })
-                            .count(),
-                    );
                     frame.push(write);
                 }
             }
@@ -6648,6 +6728,102 @@ pub(crate) mod engine {
         }
 
         #[test]
+        fn a_transferred_reference_keeps_its_write_crossing_until_caller_substitution() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, OperationId};
+            let caller_id = MachineId::new(1).unwrap();
+            let callee_id = MachineId::new(2).unwrap();
+            let scalar = StructuralTypeId::new(1).unwrap();
+            let reference = StructuralTypeId::new(2).unwrap();
+            let types = [
+                scalar_type(1),
+                reference_type(2, scalar, StructuralAccess::MutableBorrow),
+            ];
+            let entry = (BlockId::new(1).unwrap(), 0);
+            let call_at = (entry.0, 1);
+            let parameter = |place, structural_type, access| DescriptorPlace {
+                place,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    structural_type,
+                    access,
+                },
+            };
+            let mut caller = bare_machine(
+                caller_id,
+                vec![
+                    parameter(location(1).root, scalar, StructuralAccess::MutableBorrow),
+                    DescriptorPlace {
+                        place: location(2).root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                ],
+                BTreeMap::from([(location(1).root, scalar), (location(2).root, reference)]),
+                BTreeSet::from([(entry, location(1), location(2))]),
+            );
+            caller.flow = BTreeMap::from([
+                (
+                    entry,
+                    DescriptorFlowStep {
+                        definitions: vec![location(2)],
+                        successors: vec![DescriptorFlowEdge {
+                            definitions: Vec::new(),
+                            edge: None,
+                            effects: Vec::new(),
+                            target: call_at,
+                            parameters: Vec::new(),
+                            bindings: Vec::new(),
+                        }],
+                        ..Default::default()
+                    },
+                ),
+                (call_at, DescriptorFlowStep::default()),
+            ]);
+            caller.normal_exits = vec![call_at];
+            caller
+                .insert_call(
+                    call_at,
+                    DescriptorInvocation {
+                        owner: DescriptorInvocationOwner::Operation(OperationId::new(1).unwrap()),
+                        target: DescriptorInvocationTarget::Machine(callee_id),
+                        arguments: vec![Some(location(2))],
+                        argument_contents: vec![Some(DescriptorContentsQuery::from_location(
+                            &location(2),
+                        ))],
+                        result: None,
+                    },
+                )
+                .unwrap();
+            let mut callee = bare_machine(
+                callee_id,
+                vec![parameter(
+                    location(1).root,
+                    reference,
+                    StructuralAccess::Owned,
+                )],
+                BTreeMap::from([(location(1).root, reference)]),
+                BTreeSet::new(),
+            );
+            let mut written = location(1);
+            written.path.push(DescriptorPathSegment::Referent);
+            callee.flow = BTreeMap::from([(
+                entry,
+                DescriptorFlowStep {
+                    definitions: vec![written.clone()],
+                    ..Default::default()
+                },
+            )]);
+            let graph = [caller, callee];
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
+            assert_eq!(
+                analysis.write_frame(caller_id).unwrap(),
+                Some(vec![location(1)])
+            );
+        }
+
+        #[test]
         fn cleanup_actions_replay_in_order_at_their_real_edge_and_normal_exit() {
             use crate::descriptors::descriptor_lifetimes::{
                 DescriptorFlowEdge, DescriptorFlowStep,
@@ -6733,7 +6909,31 @@ pub(crate) mod engine {
             machine.insert_call(entry, copy(owner(1, 2), 3, 1)).unwrap();
             machine.insert_call(entry, copy(owner(2, 0), 3, 1)).unwrap();
             machine.insert_call(right, copy(owner(3, 0), 1, 2)).unwrap();
-            let graph = [machine];
+            let consumer_id = MachineId::new(2).unwrap();
+            let mut consumer = bare_machine(
+                consumer_id,
+                vec![DescriptorPlace {
+                    place: location(1).root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 0,
+                        structural_type: reference,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                }],
+                BTreeMap::from([(location(1).root, reference)]),
+                BTreeSet::new(),
+            );
+            consumer.flow.insert(entry, DescriptorFlowStep::default());
+            let observe = |owner| DescriptorInvocation {
+                owner,
+                target: DescriptorInvocationTarget::Machine(consumer_id),
+                arguments: vec![Some(location(1))],
+                argument_contents: vec![Some(DescriptorContentsQuery::from_location(&location(1)))],
+                result: None,
+            };
+            machine.insert_call(entry, observe(owner(1, 3))).unwrap();
+            machine.insert_call(entry, observe(owner(2, 1))).unwrap();
+            let graph = [machine, consumer];
             let mut replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             replay.prepare_states(identity).unwrap();
             let expected = |raw| Some(BTreeSet::from([Origin::Incoming(location(raw))]));
@@ -6777,6 +6977,20 @@ pub(crate) mod engine {
                 .unwrap();
             assert_eq!(value(completed.get(&right).unwrap(), 1), expected(2));
             let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            let incoming = DescriptorSourceOrigin::IncomingSlot(location(1));
+            assert_eq!(
+                analysis.substitute_call_source_at(identity, entry, owner(1, 3), &incoming),
+                Some(vec![DescriptorSourceOrigin::IncomingSlot(location(2))])
+            );
+            assert_eq!(
+                analysis.substitute_call_source_at(identity, entry, owner(2, 1), &incoming),
+                Some(vec![DescriptorSourceOrigin::IncomingSlot(location(1))])
+            );
+            assert!(
+                analysis
+                    .substitute_call_source(identity, entry, &incoming)
+                    .is_none()
+            );
             let flow = analysis.flow(identity).unwrap();
             let edges = &flow.get(&entry).unwrap().successors;
             assert_eq!(
@@ -6785,7 +6999,7 @@ pub(crate) mod engine {
                     .iter()
                     .map(|(owner, _)| *owner)
                     .collect::<Vec<_>>(),
-                [owner(1, 0), owner(1, 2)]
+                [owner(1, 0), owner(1, 2), owner(1, 3)]
             );
             assert_eq!(
                 edges[1]
@@ -6793,7 +7007,7 @@ pub(crate) mod engine {
                     .iter()
                     .map(|(owner, _)| *owner)
                     .collect::<Vec<_>>(),
-                [owner(2, 0)]
+                [owner(2, 0), owner(2, 1)]
             );
         }
 

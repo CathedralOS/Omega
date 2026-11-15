@@ -57,6 +57,7 @@ mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
 mod operational_effects;
+mod owned_cleanup;
 mod owned_dispatch;
 mod owned_match_results;
 mod proof_scope;

@@ -1435,7 +1435,6 @@ pub(crate) mod abi_storage_tests {
         module.machines.push(terminal_psi::TerminalMachine {
             id: machine,
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             structural_places: Vec::new(),

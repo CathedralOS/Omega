@@ -369,7 +369,6 @@ pub fn integer_width_parameters(
             width_scalar(machine.id, formal.scalar_type, &mut widths)?;
         }
         roots.extend(machine.attachment);
-        roots.extend(machine.nominal_cleanup_subject);
         roots.extend(
             machine
                 .structural_parameters
@@ -627,7 +626,6 @@ mod width_inventory_tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: MachineId::new(raw).unwrap(),
             attachment: None,
-            nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places: Vec::new(),
             block_entry_claims: Vec::new(),

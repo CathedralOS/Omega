@@ -831,6 +831,12 @@ pub(crate) mod runtime_evidence_encoding {
                 );
             });
         });
+        bytes.slice(catalog.owned_cleanups(), |bytes, row| {
+            bytes.id(row.machine);
+            bytes.id(row.edge);
+            bytes.u32(row.action_ordinal);
+            super::structural_encoding::encode_owned_cleanup(bytes, &row.invocation);
+        });
         bytes.slice(catalog.applications(), |bytes, application| {
             bytes.id(application.id);
             bytes.id(application.declaration);
@@ -2006,6 +2012,22 @@ pub(crate) mod structural_encoding {
         bytes.id(discard.structural_type);
     }
 
+    pub(super) fn encode_owned_cleanup(
+        bytes: &mut CanonicalBytes,
+        cleanup: &terminal_psi::OwnedCleanupInvocation,
+    ) {
+        bytes.u8(6);
+        super::carrier_encoding::encode_structural_argument(bytes, &cleanup.subject);
+        bytes.id(cleanup.structural_type);
+        bytes.id(cleanup.cleanup_machine);
+        bytes.slice(&cleanup.claim_transfers, |bytes, transfer| {
+            bytes.id(transfer.claim);
+            bytes.u32(transfer.argument_index);
+            bytes.slice(&transfer.path, encode_structural_path_segment);
+        });
+        encode_ids(bytes, &cleanup.requirement_obligations);
+    }
+
     pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffineCleanupAction) {
         match action {
             TerminalAffineCleanupAction::RetireHome(place) => {
@@ -2021,16 +2043,7 @@ pub(crate) mod structural_encoding {
                 encode_residual_cleanup(bytes, discard);
             }
             TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
-                bytes.u8(6);
-                super::carrier_encoding::encode_structural_argument(bytes, &cleanup.subject);
-                bytes.id(cleanup.structural_type);
-                bytes.id(cleanup.cleanup_machine);
-                bytes.slice(&cleanup.claim_transfers, |bytes, transfer| {
-                    bytes.id(transfer.claim);
-                    bytes.u32(transfer.argument_index);
-                    bytes.slice(&transfer.path, encode_structural_path_segment);
-                });
-                encode_ids(bytes, &cleanup.requirement_obligations);
+                encode_owned_cleanup(bytes, cleanup)
             }
         }
     }

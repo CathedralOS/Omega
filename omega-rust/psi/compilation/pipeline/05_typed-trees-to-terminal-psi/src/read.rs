@@ -2148,7 +2148,7 @@ mod tests {
                 },
             )
         };
-        assert_eq!(read(point, full, subject), Ok(()));
+        assert!(matches!(read(point, full, subject), Ok(None)));
         let mut detail = |pattern_subject, pattern_fields, initial_value| {
             read(pattern_subject, pattern_fields, initial_value)
                 .unwrap_err()

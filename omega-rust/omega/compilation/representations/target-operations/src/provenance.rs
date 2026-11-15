@@ -68,6 +68,13 @@ impl From<InvocationSite> for CallSiteOwner {
             InvocationSite::InvokeNoNormal(edge) => Self::InvokeNoNormal(edge),
             InvocationSite::Operation(operation) => Self::Operation(operation),
             InvocationSite::ExternalCompletion(edge) => Self::ExternalCompletion(edge),
+            InvocationSite::Cleanup {
+                edge,
+                action_ordinal,
+            } => Self::CleanupAction {
+                edge,
+                action_ordinal,
+            },
         }
     }
 }
@@ -110,6 +117,20 @@ mod tests {
         assert_eq!(edge_owner.cleanup_action_ordinal(), Some(3));
         assert_eq!(operation_owner.cleanup_action_ordinal(), None);
         assert_ne!(operation_owner, edge_owner);
+        assert_eq!(
+            CallSiteOwner::from(semantic_vocabulary::InvocationSite::Cleanup {
+                edge,
+                action_ordinal: 3,
+            }),
+            edge_owner,
+        );
+        assert_ne!(
+            CallSiteOwner::from(semantic_vocabulary::InvocationSite::Cleanup {
+                edge,
+                action_ordinal: 4,
+            }),
+            edge_owner,
+        );
     }
 
     #[test]

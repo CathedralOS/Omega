@@ -811,7 +811,10 @@ impl<'a> Calls<'a> {
                         site: Some(invocation.site),
                         callees: vec![callee.id],
                         arguments: invocation.inputs.structural_arguments,
-                        normal_return: matches!(invocation.site, InvocationSite::Operation(_))
+                        normal_return: matches!(
+                            invocation.site,
+                            InvocationSite::Operation(_) | InvocationSite::Cleanup { .. }
+                        )
                             && callee.result == TerminalMachineResult::Unit
                             && invocation.inputs.crash_continuations.is_empty(),
                     });

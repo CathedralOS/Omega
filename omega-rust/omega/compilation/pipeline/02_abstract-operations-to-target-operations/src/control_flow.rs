@@ -1440,12 +1440,11 @@ mod terminator {
                     if owned_root_type(live, function, cleanup.subject.place)
                         .and_then(|root| structural_types.subtree(root, &cleanup.subject.path))
                         != Some(cleanup.structural_type)
-                        || !cleanup.requirement_obligations.is_empty()
                     {
                         return Err(LoweringError::InvalidStructuralValueInput {
                             machine: function.machine,
                             place: cleanup.subject.place,
-                            reason: "nominal cleanup receiver or requirement obligations are not realized",
+                            reason: "owned cleanup subject differs from the current storage subtree",
                         });
                     }
                     super::references::discard_subtree(

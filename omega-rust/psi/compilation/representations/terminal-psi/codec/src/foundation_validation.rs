@@ -11223,6 +11223,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     validate_callable_contracts(module)?;
     terminal_semantics::nominal_cleanup::validate_selections(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::nominal_cleanup::validate_normal_returns(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module

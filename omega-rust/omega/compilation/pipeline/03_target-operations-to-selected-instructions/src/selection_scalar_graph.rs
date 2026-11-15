@@ -2455,7 +2455,6 @@ pub(crate) mod cleanup_call {
             || call.result_placement.is_some()
             || call.structural_result.is_some()
             || !call.claim_transfers.is_empty()
-            || !call.requirement_obligations.is_empty()
             || !call.crash_continuations.is_empty()
             || call.arguments.len() > 1
         {

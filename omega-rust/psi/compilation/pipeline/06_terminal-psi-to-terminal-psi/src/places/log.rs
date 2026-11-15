@@ -686,6 +686,9 @@ impl Storage<'_> {
         // order.
         let mut stated: Vec<Vec<(Lineage, Content)>> = Vec::new();
         for (_, row) in tables.writes.iter() {
+            if matches!(row.at, ProgramPoint::AfterCleanup { .. }) {
+                continue;
+            }
             let ProgramPoint::AfterOperation(operation) = row.at else {
                 return Err(self.foreign(
                     Construct::Place(row.place),

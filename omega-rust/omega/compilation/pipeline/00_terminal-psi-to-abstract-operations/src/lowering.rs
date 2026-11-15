@@ -1647,17 +1647,9 @@ mod machine {
             _module: &terminal_psi::TerminalModule,
             actions: &[TerminalAffineCleanupAction],
         ) -> Vec<TerminalAffineCleanupAction> {
-            actions
-                .iter()
-                .cloned()
-                .map(|action| match action {
-                    TerminalAffineCleanupAction::InvokeOwned(mut cleanup) => {
-                        cleanup.requirement_obligations.clear();
-                        TerminalAffineCleanupAction::InvokeOwned(cleanup)
-                    }
-                    action => action,
-                })
-                .collect()
+            // Requirements retain their exact checked source action until
+            // native receiving authenticates them against the authorized module.
+            actions.to_vec()
         }
     }
     use abstract_operations::{

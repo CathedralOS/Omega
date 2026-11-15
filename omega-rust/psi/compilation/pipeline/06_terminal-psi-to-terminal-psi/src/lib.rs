@@ -64,8 +64,8 @@ mod joins;
 mod known;
 mod machine_inputs;
 mod minted;
-mod owned_cleanup;
 mod operational;
+mod owned_cleanup;
 mod places;
 mod prove;
 mod rankings;
@@ -404,6 +404,21 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
+    terminal_semantics::nominal_cleanup::validate_normal_returns(&elaboration.module).map_err(
+        |detail| {
+            refusal(
+                RefusalReason::Unsupported,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is nonzero")),
+                Construct::Machine,
+                &detail,
+            )
+        },
+    )?;
     // A caller may retain old contents only outside the callee's actual
     // writes. Check every published frame before summaries or knowledge can
     // use it. Low-level proof reconstruction still states a conditional
@@ -930,6 +945,7 @@ fn fill_knowledge(
     types: &IdTable<ValueId, ScalarType>,
     storage: &places::Storage<'_>,
 ) -> Checked<()> {
+    let edge_entries = owned_cleanup::edge_entry_points(lowered);
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
@@ -998,7 +1014,10 @@ fn fill_knowledge(
                         ScalarTerm::value(*condition, ScalarType::Boolean),
                         ScalarTerm::Boolean(holds),
                     ),
-                    ProgramPoint::Edge(edge),
+                    edge_entries
+                        .get(&edge)
+                        .copied()
+                        .unwrap_or(ProgramPoint::Edge(edge)),
                     Justification::BranchCondition { edge, holds },
                 );
             }
@@ -1031,6 +1050,64 @@ fn fill_knowledge(
             id,
             Construct::Invocation(invocation),
         )?;
+        if let InvocationSite::Cleanup {
+            edge,
+            action_ordinal,
+        } = row.site
+        {
+            let callee = callee(module, id, invocation, row)?;
+            let formals = module
+                .invocation_structural_parameters(callee, row.required_contract)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Invocation(invocation),
+                        "cleanup has no exact formal contract",
+                    )
+                })?;
+            let ensures = module
+                .invocation_ensures(callee, row.required_contract)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Invocation(invocation),
+                        "cleanup has no exact guarantee contract",
+                    )
+                })?;
+            let mut inputs = storage.at_cleanup_call(
+                tables,
+                &row.actuals,
+                formals,
+                edge,
+                action_ordinal,
+                Construct::Invocation(invocation),
+            )?;
+            // Cleanup is Unit and its actual is Owned. As for an ordinary
+            // owned input, guarantees denote the captured invocation inputs.
+            let propositions = ensures
+                .map(|clause| {
+                    substitute(clause, &mut inputs)
+                        .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            for (clause, proposition) in propositions.into_iter().enumerate() {
+                push_knowledge(
+                    tables,
+                    proposition,
+                    ProgramPoint::AfterCleanup {
+                        edge,
+                        action_ordinal,
+                    },
+                    Justification::CalleeGuarantee {
+                        invocation,
+                        clause: position(clause, id)?,
+                    },
+                );
+            }
+            continue;
+        }
         // A call with no normal completion is a terminator. Its callee's
         // guarantees "apply only on normal return; external exit neither
         // establishes them nor necessarily violates them"
@@ -1038,7 +1115,9 @@ fn fill_knowledge(
         // knowledge.
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
-            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) | InvocationSite::Cleanup { .. } => continue,
+            InvocationSite::InvokeNoNormal(_)
+            | InvocationSite::ExternalCompletion(_)
+            | InvocationSite::Cleanup { .. } => continue,
         };
         let callee = callee(module, id, invocation, row)?;
         let erased = callable_erased_actuals(
@@ -1896,7 +1975,17 @@ fn stated_goal(
                     site,
                     concerns,
                 )?),
-                InvocationSite::Cleanup { edge, action_ordinal } => over_actuals(&mut storage.at_cleanup_call(tables, &row.actuals, formals, edge, action_ordinal, concerns)?),
+                InvocationSite::Cleanup {
+                    edge,
+                    action_ordinal,
+                } => over_actuals(&mut storage.at_cleanup_call(
+                    tables,
+                    &row.actuals,
+                    formals,
+                    edge,
+                    action_ordinal,
+                    concerns,
+                )?),
                 InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
                     let actuals = scalar_actuals(&row.actuals);
                     over_actuals(&mut ScalarActuals {

@@ -988,7 +988,7 @@ impl<'a> Lowering<'a> {
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
                 Statement::Bind { value, .. }
-            | Statement::Decompose { subject: value }
+                | Statement::Decompose { subject: value }
                 | Statement::Evaluate {
                     expression: value, ..
                 } => Some(value.source),

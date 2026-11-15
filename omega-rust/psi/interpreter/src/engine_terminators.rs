@@ -1097,7 +1097,6 @@ pub(crate) mod block_bindings {
 pub(crate) mod completion {
     use super::*;
     use crate::boundary::errors::malformed;
-    use crate::boundary::values::TerminalStructuralValue;
     use crate::engine::execution::FailedReturn;
     use terminal_psi::TerminalAffineCleanupAction;
 

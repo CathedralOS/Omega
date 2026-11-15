@@ -492,14 +492,26 @@ impl Program<'_> {
         while let Some((record, executable)) = self.pending_cleanup.pop() {
             let diagnostic = self.next_identity()?;
             let definition = self.typed.machine_by_symbol(executable).ok_or_else(|| {
-                refuse(diagnostic, Construct::Machine, Unserved::Declaration("selected cleanup has no machine body"))
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("selected cleanup has no machine body"),
+                )
             })?;
             if crate::is_generic_template(self.typed, definition) {
-                return Err(refuse(diagnostic, Construct::Machine, Unserved::Declaration("selected cleanup needs a closed ordinary application")));
+                return Err(refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("selected cleanup needs a closed ordinary application"),
+                ));
             }
             let machine = self.machine(executable)?;
             let declaration = self.records.get_mut(record).ok_or_else(|| {
-                refuse(diagnostic, Construct::Machine, Unserved::Type("cleanup carrier identity"))
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Type("cleanup carrier identity"),
+                )
             })?;
             declaration.cleanup = Some(crate::body::RecordCleanup {
                 declaration_identity: declaration.identity.clone(),
@@ -805,16 +817,19 @@ impl Program<'_> {
         }
         let nominal = self
             .typed
-            .data_definition(source.declaration)
+            .unique_data_definition_by_symbol(source.declaration)
             .is_some_and(|definition| definition.cleanup_selection.is_some());
         let owned = match place.kind {
-            ExpressionKind::Slot(slot) => slots
-                .get(slot)
-                .is_some_and(|slot| slot.borrowed.is_none()),
+            ExpressionKind::Slot(slot) => {
+                slots.get(slot).is_some_and(|slot| slot.borrowed.is_none())
+            }
             _ => false,
         };
         if nominal && owned {
-            if !subject.result.is_some_and(|value| value.qualification().is_none()) {
+            if !subject
+                .result
+                .is_some_and(|value| value.qualification().is_none())
+            {
                 return Err(refused(Unserved::Statement(
                     "nominal decomposition with qualified subject obligations",
                 )));
@@ -1351,9 +1366,8 @@ fn record_shape_for<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Body reading requires supported disposition contracts. Descriptor mode
-    // may retain a real linear claim's geometry but cannot execute cleanup;
-    // selected cleanup and carry still require their own source projections.
+    // Descriptor mode may retain a linear claim's geometry. Executable
+    // linear disposition and carry still need their own checked projections.
     if data.properties.multiplicity == language_semantics::Multiplicity::Linear
         && !descriptor_storage
     {

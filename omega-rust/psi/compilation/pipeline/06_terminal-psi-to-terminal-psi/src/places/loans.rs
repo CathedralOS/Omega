@@ -55,12 +55,15 @@ certificate, as the initialization judgment has none. Two refusals, each
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{InvocationSite, ObligationId};
-use terminal_check_tables::edges::{Actual, Destination, Fate};
+use terminal_check_tables::edges::{Actual, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::StructuralAccess;
+use terminal_semantics::descriptor_lifetimes::{
+    DescriptorFlowStep, DescriptorLocation, descriptor_path,
+};
 
 use super::{Storage, index, lineage, overlap};
 
@@ -115,6 +118,16 @@ struct Formed {
     at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
     lifetime: Option<terminal_semantics::descriptor_lifetimes::DescriptorLifetime>,
 }
+
+/// Action prestates are projections of the existing lifetime authority flow.
+/// Cache each prefix once; no cleanup action creates a new loan occurrence.
+#[derive(Default)]
+struct CleanupCohort {
+    surviving: std::collections::BTreeSet<DescriptorLocation>,
+    authorized: std::collections::BTreeSet<DescriptorLocation>,
+}
+type CleanupCohorts =
+    std::collections::BTreeMap<(ObligationId, semantic_vocabulary::EdgeId, u32), CleanupCohort>;
 
 #[derive(Clone, Copy)]
 pub(super) enum BorrowedResource {
@@ -379,7 +392,7 @@ impl Storage<'_> {
 
     /// The access a root's storage is held with here, when it is a borrowed
     /// formal: the declared access of its structural parameter.
-    fn incoming(&self, root: semantic_vocabulary::PlaceId) -> Option<StructuralAccess> {
+    pub(super) fn incoming(&self, root: semantic_vocabulary::PlaceId) -> Option<StructuralAccess> {
         terminal_semantics::structural_argument_source(self.lowered, root, 0)
             .filter(|parameter| parameter.access != StructuralAccess::Owned)
             .map(|parameter| parameter.access)
@@ -978,6 +991,7 @@ impl Storage<'_> {
         &self,
         loan: &Formed,
         formed: &[Formed],
+        cleanup_cohorts: &CleanupCohorts,
     ) -> Checked<Option<(Construct, LoanConflict)>> {
         let Some(lifetime) = &loan.lifetime else {
             return Ok(None);
@@ -1096,25 +1110,19 @@ impl Storage<'_> {
             }
             for (edge, actions) in block.terminator.cleanup_rosters() {
                 let concerns = Construct::Edge(edge);
-                let at = self.loan_position(ProgramPoint::Edge(edge), concerns)?;
-                if !lifetime.live.contains(&at) && !(loan.at == at && !lifetime.live.is_empty()) {
-                    continue;
-                }
-                // The condition runs before either edge. Cleanup runs only
-                // on its selected edge, where the other path's later uses
-                // no longer keep the borrow live. Returning or escaping a
-                // view still has no successor and keeps the terminal check.
-                if let Destination::Block(target) = self.graph.edge_destination(edge)?
-                    && !lifetime.live.contains(&(target, 0))
-                {
-                    continue;
-                }
-                for action in actions {
+                for (ordinal, action) in actions.iter().enumerate() {
+                    let ordinal = crate::position(ordinal, self.machine)?;
+                    if !cleanup_cohorts
+                        .get(&(loan.obligation, edge, ordinal))
+                        .is_some_and(|cohort| !cohort.surviving.is_empty())
+                    {
+                        continue;
+                    }
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
                     let backing = LoanRegion::Storage(self.backing(
                         &cleaned,
                         block.id,
-                        usize::MAX,
+                        block.operations.len(),
                         concerns,
                     )?);
                     if competing_borrows(
@@ -1127,10 +1135,240 @@ impl Storage<'_> {
                     {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
                     }
+                    if let terminal_psi::TerminalAffineCleanupAction::InvokeOwned(cleanup) = action
+                    {
+                        for (raw, backing, access) in
+                            self.cleanup_reference_accesses(block.id, edge, ordinal, cleanup)?
+                        {
+                            if competing_borrows(
+                                loan.access,
+                                &loan.lineage,
+                                access,
+                                &LoanRegion::Storage(backing),
+                            )
+                            .is_some()
+                                && ((access.is_exclusive() && !loan.access.is_exclusive())
+                                    || !self.authorized_cleanup_reference(
+                                        loan,
+                                        &raw,
+                                        edge,
+                                        ordinal,
+                                        formed,
+                                        cleanup_cohorts,
+                                    )?)
+                            {
+                                return Ok(Some((
+                                    concerns,
+                                    if access.is_exclusive() {
+                                        LoanConflict::ChangeWhileBorrowed
+                                    } else {
+                                        LoanConflict::ObserveWhileExclusive
+                                    },
+                                )));
+                            }
+                        }
+                    }
                 }
             }
         }
         Ok(None)
+    }
+
+    fn cleanup_cohorts(
+        &self,
+        formed: &[Formed],
+        flow: &std::collections::BTreeMap<(semantic_vocabulary::EdgeId, u32), DescriptorFlowStep>,
+    ) -> Checked<CleanupCohorts> {
+        let mut rosters = Vec::new();
+        for block in &self.lowered.blocks {
+            let at = (
+                block.id,
+                crate::position(block.operations.len(), self.machine)?,
+            );
+            for (edge, actions) in block.terminator.cleanup_rosters() {
+                let mut killed = Vec::with_capacity(actions.len());
+                for action in actions {
+                    killed.push(
+                        self.stored_at(action.place(), action.path(), Construct::Edge(edge))?
+                            .descriptor_location()
+                            .ok_or_else(|| {
+                                self.unsupported(
+                                    Construct::Edge(edge),
+                                    "cleanup consumption has no exact carrier spelling",
+                                )
+                            })?,
+                    );
+                }
+                rosters.push((edge, at, killed));
+            }
+        }
+        let mut result = CleanupCohorts::new();
+        for loan in formed {
+            let Some(life) = &loan.lifetime else {
+                continue;
+            };
+            for (edge, at, killed) in &rosters {
+                let mut surviving = life.surviving.get(at).cloned().unwrap_or_default();
+                let mut authorized = life.authorized.get(at).cloned().unwrap_or_default();
+                for (ordinal, consumed) in killed.iter().enumerate() {
+                    if surviving.is_empty() && authorized.is_empty() {
+                        break;
+                    }
+                    let ordinal = crate::position(ordinal, self.machine)?;
+                    result.insert(
+                        (loan.obligation, *edge, ordinal),
+                        CleanupCohort {
+                            surviving: surviving.clone(),
+                            authorized: authorized.clone(),
+                        },
+                    );
+                    if let Some(step) = flow.get(&(*edge, ordinal)) {
+                        // A payload formation is not a carrier transfer. Both
+                        // rosters follow authority derivations, with MAY union
+                        // and MUST requiring every inverse source spelling.
+                        surviving = step.transport_authority(&surviving, true);
+                        authorized = step.transport_authority(&authorized, false);
+                    }
+                    surviving.retain(|name| !consumed.contains(name));
+                    authorized.retain(|name| !consumed.contains(name));
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    fn authorized_cleanup_reference(
+        &self,
+        loan: &Formed,
+        raw: &super::Lineage,
+        edge: semantic_vocabulary::EdgeId,
+        ordinal: u32,
+        formed: &[Formed],
+        cohorts: &CleanupCohorts,
+    ) -> Checked<bool> {
+        let Some(crossing) = raw
+            .segments
+            .iter()
+            .rposition(|segment| *segment == terminal_check_tables::bindings::Segment::Referent)
+        else {
+            return Ok(false);
+        };
+        let descriptor = DescriptorLocation::captured(raw.root, &raw.segments[..crossing])
+            .ok_or_else(|| {
+                self.unsupported(
+                    Construct::Edge(edge),
+                    "cleanup access has no retained descriptor identity",
+                )
+            })?;
+        for candidate in formed {
+            if candidate.obligation != loan.obligation
+                && !self.descends(candidate, loan.obligation, formed)?
+            {
+                continue;
+            }
+            if cohorts
+                .get(&(candidate.obligation, edge, ordinal))
+                .is_some_and(|cohort| {
+                    !cohort.surviving.is_empty() && cohort.authorized.contains(&descriptor)
+                })
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn cleanup_reference_accesses(
+        &self,
+        block: semantic_vocabulary::BlockId,
+        edge: semantic_vocabulary::EdgeId,
+        ordinal: u32,
+        cleanup: &terminal_psi::OwnedCleanupInvocation,
+    ) -> Checked<Vec<(super::Lineage, super::Lineage, ReferenceAccess)>> {
+        let concerns = Construct::Edge(edge);
+        let mut accesses = self
+            .cleanup_writes
+            .iter()
+            .filter(|write| {
+                write.edge == edge
+                    && write.action_ordinal == ordinal
+                    && write.content == terminal_check_tables::bindings::Content::Overwritten
+            })
+            .map(|write| {
+                (
+                    super::Lineage {
+                        root: write.captured.root,
+                        segments: write.captured.path.clone(),
+                    },
+                    super::Lineage {
+                        root: write.backing.root,
+                        segments: write.backing.path.clone(),
+                    },
+                    ReferenceAccess::Mutable,
+                )
+            })
+            .collect::<Vec<_>>();
+        let root = self
+            .lowered
+            .structural_place_type(cleanup.subject.place)
+            .ok_or_else(|| self.foreign(concerns, "cleanup subject has no type"))?;
+        let inventory = terminal_semantics::descriptor_results::DescriptorSlotKind::References
+            .inventory(self.types, cleanup.subject.place, cleanup.structural_type)
+            .ok_or_else(|| {
+                self.unsupported(concerns, "cleanup has no finite reference access inventory")
+            })?;
+        for leaf in inventory.slots {
+            let path = descriptor_path(self.types, cleanup.structural_type, &leaf.path)
+                .ok_or_else(|| self.unsupported(concerns, "cleanup reference access is untyped"))?;
+            let mut actual = cleanup.subject.path.clone();
+            actual.extend(path);
+            actual.push(terminal_psi::StructuralPathSegment::Referent);
+            if !terminal_semantics::reference_source_projection_accessible(
+                self.types.iter(),
+                root,
+                terminal_psi::StructuralMultiplicity::Affine,
+                StructuralAccess::Owned,
+                &actual,
+                StructuralAccess::SharedBorrow,
+            ) {
+                continue;
+            }
+            let raw = self.stored_at(cleanup.subject.place, &actual, concerns)?;
+            let descriptor = raw.descriptor_location().ok_or_else(|| {
+                self.unsupported(concerns, "cleanup read has no exact captured path")
+            })?;
+            let at = (
+                block,
+                crate::position(self.block(block)?.operations.len(), self.machine)?,
+            );
+            let backing = self
+                .references
+                .borrow_mut()
+                .location_at(
+                    self.machine,
+                    at,
+                    terminal_psi::InvocationOwner::Cleanup {
+                        edge,
+                        action_ordinal: ordinal,
+                    },
+                    &descriptor,
+                )
+                .ok_or_else(|| {
+                    self.unsupported(
+                        concerns,
+                        "cleanup read has no actual owner-prestate backing",
+                    )
+                })?;
+            accesses.push((
+                raw,
+                super::Lineage {
+                    root: backing.root,
+                    segments: backing.path,
+                },
+                ReferenceAccess::Shared,
+            ));
+        }
+        Ok(accesses)
     }
 
     fn authorized_reference(
@@ -1855,10 +2093,48 @@ impl Storage<'_> {
         self.successor_borrows(&formed)?;
         self.reference_completions(module, &formed)?;
         self.retain_ancestors(&mut formed)?;
+        let mut cleanup_flow = std::collections::BTreeMap::new();
+        if formed.iter().any(|loan| loan.lifetime.is_some()) {
+            for block in &self.lowered.blocks {
+                let position = (
+                    block.id,
+                    crate::position(block.operations.len(), self.machine)?,
+                );
+                for (edge, actions) in block.terminator.cleanup_rosters() {
+                    for (ordinal, action) in actions.iter().enumerate() {
+                        if matches!(
+                            action,
+                            terminal_psi::TerminalAffineCleanupAction::InvokeOwned(_)
+                        ) {
+                            let ordinal = crate::position(ordinal, self.machine)?;
+                            let effect = self
+                                .references
+                                .borrow_mut()
+                                .invocation_flow_at(
+                                    self.machine,
+                                    position,
+                                    terminal_psi::InvocationOwner::Cleanup {
+                                        edge,
+                                        action_ordinal: ordinal,
+                                    },
+                                )
+                                .map_err(|_| {
+                                    self.unsupported(
+                                        Construct::Edge(edge),
+                                        "cleanup has no exact call-flow effects",
+                                    )
+                                })?;
+                            cleanup_flow.insert((edge, ordinal), effect);
+                        }
+                    }
+                }
+            }
+        }
+        let cleanup_cohorts = self.cleanup_cohorts(&formed, &cleanup_flow)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {
-            let used = self.uses_retained_loan(loan, &formed)?;
+            let used = self.uses_retained_loan(loan, &formed, &cleanup_cohorts)?;
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));

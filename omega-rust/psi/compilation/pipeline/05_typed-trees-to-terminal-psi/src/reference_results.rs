@@ -868,6 +868,10 @@ fn formation_position(
     point: terminal_check_tables::ProgramPoint,
 ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorPosition> {
     match point {
+        // Cleanup invokes a Unit consumer; it is not a source descriptor
+        // formation. Its ordered state belongs to invocation replay.
+        terminal_check_tables::ProgramPoint::BeforeCleanup { .. }
+        | terminal_check_tables::ProgramPoint::AfterCleanup { .. } => None,
         terminal_check_tables::ProgramPoint::BlockEntry(block) => Some((block, 0)),
         terminal_check_tables::ProgramPoint::AfterOperation(operation) => {
             machine.blocks.iter().find_map(|block| {
