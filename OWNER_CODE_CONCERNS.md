@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An ordinary move can retain an unchecked structural issuer claim
+- Category: a verdict with nothing behind it
+- Where: [shared structural qualification judgment](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs), [owned transfer ingress](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs)
+- Saw: At `294241784f4` on macOS arm64, adding only a `Ticket::Stamped` issuer row to the ordinary move before `transport` calls `stamp` still receives an accepted lowered verdict. The actual move's domain sets and the issuer's checked cast edge are unchanged.
+- Cost: The lowered checker accepts an authority claim on an operation with no boundary completion. Have the existing structural membership judgment reject that claim while retaining checked cast edges and provider result paths.
+- Reported: 2026-11-15, Codex, while auditing the record domains accepted after #3392.
+
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L216), [generated caller](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L198)
