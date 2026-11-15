@@ -46,7 +46,7 @@ Write each item so any agent can start from it alone: current state, files and e
   - Finish const-expression closure, package projection, calling policies and `source/psi/` evidence-binder parity.
   - Qualify `positional_implementation_binder`/`open_const_implementation`/`open_record_const_implementation`/`named_conformance_dispatch`/`generic_calling_policy`/`domain_selected_cleanup` on all hosts.
   - Move Build facets to `Build::*`, retire `machine Data::operation`/attached helpers; finish suspension loans, markers and conditional carry.
-  - Migrate the samples: most non-`facts` samples that the route rejects stop on `a data declaration cannot own a machine` from an attached machine such as `machine Main::main(main: &mut Main)` (`samples/cli/algorithms/bubble_sort/main.omg:34`). `route_probe` on `source/library/std/main.omg` reports the same refusal, so `std` may need it too.
+  - Migrate the samples: most non-`facts` samples that the route rejects stop on `a data declaration cannot own a machine` from an attached machine such as `machine Main::main(main: &mut Main)` (`samples/cli/algorithms/bubble_sort/main.omg:34`). In `std`, only `targets/uefi_x86_64/` (`UefiOsHandoff*`, `UefiX86_64::plan`), the `std/tests/` fixtures and the target-prefixed `FilesystemProviderDefaults::provider_defaults` still attach.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Replace `dyn` with [machine values and some](wiki/drafts/designs/machine_values_some.md).
   - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.

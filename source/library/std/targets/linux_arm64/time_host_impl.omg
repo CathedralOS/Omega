@@ -37,7 +37,7 @@ boundary trait LinuxArm64TimeRead {
 }
 
 // `seconds * 1_000_000_000 + nanoseconds` in the Wrapping spelling
-// `Time::now` already uses for the same reason: the interval fold cannot
+// `instant_now` already uses for the same reason: the interval fold cannot
 // multiply variable bounds, so a proven-in-range multiply is not expressible
 // here. The product cannot wrap for any real clock — u64 holds 18_446_744_073
 // seconds of nanoseconds — and a kernel reporting more reads as a degraded
@@ -51,7 +51,7 @@ public machine linux_arm64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u6
 }
 
 public LinuxArm64TimeHost satisfies TimeHost {
-    // Failed reads return zero; Time owns degraded-clock handling.
+    // Failed reads return zero; the std clock reads own degraded-clock handling.
     machine monotonic_ticks() -> u64
     reaches TimeHost
     invokes LinuxArm64TimeRead

@@ -43,7 +43,7 @@ boundary trait LinuxX64TimeRead {
 }
 
 // `seconds * 1_000_000_000 + nanoseconds` in the Wrapping spelling
-// `Time::now` already uses for the same reason: the interval fold cannot
+// `instant_now` already uses for the same reason: the interval fold cannot
 // multiply variable bounds, so a proven-in-range multiply is not expressible
 // here. The product cannot wrap for any real clock — u64 holds 18_446_744_073
 // seconds of nanoseconds, past year 2554 for CLOCK_REALTIME and 584 years of
@@ -58,7 +58,7 @@ public machine linux_x86_64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u
 }
 
 public LinuxX8664TimeHost satisfies TimeHost {
-    // Failed reads return zero; Time owns degraded-clock handling.
+    // Failed reads return zero; the std clock reads own degraded-clock handling.
     machine monotonic_ticks() -> u64
     reaches TimeHost
     invokes LinuxX64TimeRead
