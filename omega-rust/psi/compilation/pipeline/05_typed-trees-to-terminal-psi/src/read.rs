@@ -1740,6 +1740,7 @@ mod tests {
                 }],
                 designated: None,
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
             },
             result: None,

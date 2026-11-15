@@ -216,6 +216,7 @@ impl Program<'_> {
                 callee: semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
                 required_contract: None,
                 source_call: None,
+                static_reach_binding: None,
                 arguments: vec![operand],
                 designated: None,
             },

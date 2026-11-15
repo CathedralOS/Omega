@@ -1065,7 +1065,10 @@ impl<'t> Program<'t> {
                 for parameter in parameters {
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Implementation
-                        | typed_trees::data::TypeParameterKind::Const { .. } => {}
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                        | typed_trees::data::TypeParameterKind::Machine {
+                            contract: typed_trees::data::MachineParameterContract::Structural(_),
+                        } => {}
                         typed_trees::data::TypeParameterKind::Type
                             if parameter.bounds.multiplicity
                                 != language_core::Multiplicity::Linear => {}
@@ -1074,7 +1077,7 @@ impl<'t> Program<'t> {
                         }
                         _ => {
                             return unserved_parameters(
-                                "parameter that is no type, value or implementation",
+                                "parameter without a supported static contract",
                             );
                         }
                     }

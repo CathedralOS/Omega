@@ -1732,7 +1732,13 @@ when present, by the call application.
 | 0 | Type | argument string |
 | 1 | Const | argument string |
 | 2 | Proposition | argument string |
-| 3 | Machine | machine binding |
+| 3 | Machine with an authored reach bound | machine binding |
+| 4 | Machine with open reach | machine binding without its upper-bound service ceiling |
+
+Tag 3 encodes an explicit empty bound as a zero-length service row. Tag 4
+defers to the selected callable's published reach. The template commitment
+binds the authored bound at each machine binder position, including whether
+the bound was omitted and the exact service identities of a finite bound.
 
 <!-- reach-argument-tags -->
 | Tag | Reach argument | Fields after the tag |

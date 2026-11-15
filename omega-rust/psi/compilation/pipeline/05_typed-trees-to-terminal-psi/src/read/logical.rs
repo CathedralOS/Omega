@@ -1444,6 +1444,7 @@ pub(crate) fn projected_arrival(
                 // requirement. There is no source call or selected member whose
                 // separate contract must be substituted into this proof call.
                 required_contract: None,
+                static_reach_binding: None,
                 source_call: None,
                 arguments,
                 designated: None,

@@ -2354,7 +2354,7 @@ pub(crate) mod reach_application_wire {
                     writer.string("reach proposition argument", argument)?;
                 }
                 ClosedReachParameter::Machine(binding) => {
-                    writer.u8(3);
+                    writer.u8(if binding.upper_bound.is_some() { 3 } else { 4 });
                     writer.boolean(binding.nominal_requirement.is_some());
                     if let Some(requirement) = &binding.nominal_requirement {
                         writer.string("reach requirement", requirement)?;
@@ -2367,7 +2367,9 @@ pub(crate) mod reach_application_wire {
                     for argument in &binding.requirement_arguments {
                         writer.u32(argument.0);
                     }
-                    encode_service_ceiling(writer, &binding.upper_bound)?;
+                    if let Some(upper_bound) = &binding.upper_bound {
+                        encode_service_ceiling(writer, upper_bound)?;
+                    }
                     writer.boolean(binding.upper_bound_may_suspend);
                     writer.boolean(binding.upper_bound_may_block);
                     writer.boolean(binding.selected_may_suspend);
@@ -2470,7 +2472,7 @@ pub(crate) mod reach_application_wire {
                 2 => ClosedReachParameter::Proposition {
                     argument: reader.string("reach requirement")?,
                 },
-                3 => {
+                tag @ (3 | 4) => {
                     let nominal_requirement = if reader.boolean()? {
                         Some(reader.string("reach selected identity")?)
                     } else {
@@ -2482,7 +2484,11 @@ pub(crate) mod reach_application_wire {
                         requirement_arguments: decode_counted(reader, |reader| {
                             Ok(TerminalIdentityIndex(reader.u32()?))
                         })?,
-                        upper_bound: decode_ids(reader, "ServiceId")?,
+                        upper_bound: if tag == 3 {
+                            Some(decode_ids(reader, "ServiceId")?)
+                        } else {
+                            None
+                        },
                         upper_bound_may_suspend: reader.boolean()?,
                         upper_bound_may_block: reader.boolean()?,
                         selected_may_suspend: reader.boolean()?,
@@ -4236,12 +4242,13 @@ mod routed_scalar_tests {
         module.machines[0].closed_reach_application = Some(ClosedReachApplication {
             template_identity: TerminalIdentityIndex(1),
             template_base_commitment: [7; 32],
-            template_commitment: terminal_psi::template_contract_commitment(
+            template_commitment: terminal_psi::closed_reach_template_commitment(
                 [7; 32],
-                0,
+                [],
                 &false.into(),
                 &false.into(),
                 &[],
+                |_| None,
             )
             .unwrap(),
             suspension_dependency: false.into(),
@@ -4305,7 +4312,7 @@ mod routed_scalar_tests {
                     nominal_requirement: None,
                     requirement_parameter_kinds: Vec::new(),
                     requirement_arguments: Vec::new(),
-                    upper_bound: Vec::new(),
+                    upper_bound: Some(Vec::new()),
                     upper_bound_may_suspend: true,
                     upper_bound_may_block: false,
                     selected_may_suspend: false,
@@ -4351,12 +4358,13 @@ mod routed_scalar_tests {
                 }],
                 condition: application.suspension_dependency.clone(),
             }];
-            application.template_commitment = terminal_psi::template_contract_commitment(
+            application.template_commitment = terminal_psi::closed_reach_template_commitment(
                 application.template_base_commitment,
-                1,
+                application.parameters(),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                |_| None,
             )
             .unwrap();
         }
@@ -4369,12 +4377,16 @@ mod routed_scalar_tests {
                 .unwrap();
             application.suspension_dependency.parameters = vec![1];
             application.conditional_carry[0].condition.parameters = vec![1];
-            let capture_commitment = terminal_psi::template_contract_commitment(
+            let capture_telescope = vec![terminal_psi::ClosedReachParameter::Type {
+                argument: "u32".into(),
+            }];
+            let capture_commitment = terminal_psi::closed_reach_template_commitment(
                 [8; 32],
-                2,
+                capture_telescope.iter().chain(&application.telescope),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                |_| None,
             )
             .unwrap();
             application.capture = Some(terminal_psi::ClosedReachCapture {
@@ -4386,16 +4398,15 @@ mod routed_scalar_tests {
                 conditional_carry: application.conditional_carry.clone(),
                 specialization_commitment: [6; 32],
                 parameter_kinds: vec![0],
-                telescope: vec![terminal_psi::ClosedReachParameter::Type {
-                    argument: "u32".into(),
-                }],
+                telescope: capture_telescope,
             });
-            application.template_commitment = terminal_psi::template_contract_commitment(
+            application.template_commitment = terminal_psi::closed_reach_template_commitment(
                 application.template_base_commitment,
-                2,
+                application.parameters(),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
                 &application.conditional_carry,
+                |_| None,
             )
             .unwrap();
             capture_commitment

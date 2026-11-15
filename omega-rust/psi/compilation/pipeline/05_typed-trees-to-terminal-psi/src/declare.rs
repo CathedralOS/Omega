@@ -67,13 +67,26 @@ impl Hasher for Commitment {
     }
 }
 
+pub(crate) type BinderReach = Vec<(SymbolHandle, Option<Vec<semantic_vocabulary::ServiceId>>)>;
+
 /// Bindings for the generated body or its enclosing map. Retain them until
 /// the exact source template forms supply the application contract.
 pub(crate) struct PreparedApplication {
     template: SymbolHandle,
     enclosing_capture: bool,
+    fixed: Option<Vec<semantic_vocabulary::ServiceId>>,
     parameter_kinds: Vec<u8>,
-    telescope: Vec<ClosedReachParameter>,
+    telescope: Vec<PreparedParameter>,
+}
+
+enum PreparedParameter {
+    Ready(ClosedReachParameter),
+    Machine {
+        selected: terminal_psi::TerminalIdentityIndex,
+        upper_bound: Option<Vec<semantic_vocabulary::ServiceId>>,
+        upper_bound_may_suspend: bool,
+        upper_bound_may_block: bool,
+    },
 }
 
 /// Callable headers retain exact source identities after source is released.
@@ -82,6 +95,8 @@ pub(crate) struct PreparedApplication {
 pub(crate) fn declare(
     typed: &TypedTrees,
     program: &crate::read::Program<'_>,
+    outcomes: &semantic_vocabulary::IdTable<MachineId, crate::outcome::Outcome>,
+    binder_reach: &semantic_vocabulary::IdTable<MachineId, BinderReach>,
     elaboration: &mut Elaboration,
 ) -> Result<Vec<(MachineId, PreparedApplication)>, &'static str> {
     let machines = &program.symbols;
@@ -148,14 +163,19 @@ pub(crate) fn declare(
                         *symbol,
                         signature,
                         machine,
-                        Published {
-                            reach: &reach,
-                            entries: &entries,
-                            operational: [
-                                machine.published_may_suspend,
-                                machine.published_may_block,
-                            ],
-                        },
+                        (
+                            Published {
+                                reach: &reach,
+                                entries: &entries,
+                                operational: [
+                                    machine.published_may_suspend,
+                                    machine.published_may_block,
+                                ],
+                            },
+                            binder_reach
+                                .get(machine.id)
+                                .ok_or("a machine has no prepared binder reach row")?,
+                        ),
                         &mut identities,
                     )
                 })
@@ -166,7 +186,12 @@ pub(crate) fn declare(
         match stated {
             Ok((declaration, application)) => {
                 machine.declaration = Some(declaration);
-                if let Some(application) = application {
+                if let Some(mut application) = application {
+                    application.fixed = outcomes
+                        .get(machine.id)
+                        .ok_or("a prepared application has no exact reach outcome")?
+                        .fixed_service_reach
+                        .clone();
                     prepared.push((machine.id, application));
                 }
             }
@@ -389,7 +414,7 @@ fn declaration(
     symbol: SymbolHandle,
     signature: &Signature,
     machine: &TerminalMachine,
-    published: Published<'_>,
+    (published, binder_reach): (Published<'_>, &BinderReach),
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<(CheckedMachineDeclaration, Option<PreparedApplication>), &'static str> {
     let declared = typed
@@ -422,7 +447,7 @@ fn declaration(
     let (specialization, prepared) = match typed.executable_application_template(symbol)? {
         Some(template) => {
             let (specialization, prepared) =
-                application(typed, sources, symbol, template, identities)?;
+                application(typed, sources, symbol, template, binder_reach, identities)?;
             (Some(specialization), prepared)
         }
         None => (None, None),
@@ -474,14 +499,14 @@ fn declaration(
 /// digest of the generic machine's callable identity and the identity of
 /// each type and implementation the application binds, in parameter order.
 /// Two machines generated from one generic machine at the same arguments
-/// commit alike, and no other pair does. Type, implementation and value
-/// arguments are stated; an application that binds anything else is left
-/// undeclared.
+/// commit alike, and no other pair does. Type, implementation, callable
+/// and scalar value arguments each retain their own identity.
 fn application(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     instance: SymbolHandle,
     template: SymbolHandle,
+    binder_reach: &BinderReach,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<
     (
@@ -548,11 +573,15 @@ fn application(
     };
     let mut prepared = (declared.conformance_bounds.is_empty()
         && parameters.iter().all(|parameter| {
-            matches!(parameter.kind, TypeParameterKind::Type) || parameter.kind.is_const_or_value()
+            matches!(
+                parameter.kind,
+                TypeParameterKind::Type | TypeParameterKind::Machine { .. }
+            ) || parameter.kind.is_const_or_value()
         }))
     .then(|| PreparedApplication {
         template,
         enclosing_capture,
+        fixed: None,
         parameter_kinds: Vec::with_capacity(bindings.len()),
         telescope: Vec::with_capacity(bindings.len()),
     });
@@ -565,12 +594,16 @@ fn application(
                             matches!(parameter.kind, TypeParameterKind::Type)
                         }
                         StaticMachineBindingValue::Const(_) => parameter.kind.is_const_or_value(),
+                        StaticMachineBindingValue::Machine(_) => {
+                            matches!(parameter.kind, TypeParameterKind::Machine { .. })
+                        }
                         _ => false,
                     }
             }))
     {
         return Err("a checked specialization lost its complete template binder roster");
     }
+    let mut binder_reach = binder_reach.iter();
     for binding in bindings {
         match &binding.value {
             StaticMachineBindingValue::Type(type_reference) => {
@@ -580,7 +613,9 @@ fn application(
                     prepared.parameter_kinds.push(0);
                     prepared
                         .telescope
-                        .push(ClosedReachParameter::Type { argument });
+                        .push(PreparedParameter::Ready(ClosedReachParameter::Type {
+                            argument,
+                        }));
                 }
             }
             // conformances.md, "Resulting-value identity": a name "creates
@@ -618,17 +653,55 @@ fn application(
                 ("value", carrier.as_str(), value.as_str()).hash(&mut commitment);
                 if let Some(prepared) = &mut prepared {
                     prepared.parameter_kinds.push(1);
-                    prepared.telescope.push(ClosedReachParameter::Const {
-                        // The length keeps the carrier and literal distinct.
-                        argument: format!("{}:{carrier}{value}", carrier.len()),
+                    prepared.telescope.push(PreparedParameter::Ready(
+                        ClosedReachParameter::Const {
+                            // The length keeps the carrier and literal distinct.
+                            argument: format!("{}:{carrier}{value}", carrier.len()),
+                        },
+                    ));
+                }
+            }
+            StaticMachineBindingValue::Machine(argument) => {
+                if argument.application.is_some() {
+                    return Err(
+                        "an application's callable argument must select its declared machine",
+                    );
+                }
+                let machine = typed
+                    .machine_by_symbol(argument.symbol)
+                    .or_else(|| {
+                        typed
+                            .unique_machine_by_entry_state_symbol(argument.symbol)
+                            .map(|(machine, _)| machine)
+                    })
+                    .ok_or("an application's callable argument has no exact named machine")?;
+                let identity = semantic_identity(typed, machine.symbol, identities)?;
+                (
+                    "machine",
+                    identities
+                        .text(identity)
+                        .ok_or("an application's callable identity is absent from its table")?,
+                )
+                    .hash(&mut commitment);
+                if let Some(prepared) = &mut prepared {
+                    let contract = typed
+                        .retained_static_machine_contract(binding.parameter)
+                        .ok_or("an application's callable binder lost its requirement")?;
+                    let (_, upper_bound) = binder_reach
+                        .next()
+                        .filter(|(parameter, _)| *parameter == binding.parameter)
+                        .ok_or("an application's callable binder lost its reach ceiling")?;
+                    prepared.parameter_kinds.push(3);
+                    prepared.telescope.push(PreparedParameter::Machine {
+                        selected: identity,
+                        upper_bound: upper_bound.clone(),
+                        upper_bound_may_suspend: contract.signature().suspends,
+                        upper_bound_may_block: contract.signature().blocks,
                     });
                 }
             }
-            StaticMachineBindingValue::RuntimeValue { .. }
-            | StaticMachineBindingValue::Machine(_) => {
-                return Err(
-                    "a generated machine's application binds something other than a type, an implementation or a value",
-                );
+            StaticMachineBindingValue::RuntimeValue { .. } => {
+                return Err("a generated machine's application binds a runtime value");
             }
         }
     }
@@ -703,6 +776,53 @@ pub(crate) fn close_specializations(
         .iter()
         .map(|generic| (generic.template, template_commitment(generic)))
         .collect();
+    let mut chosen = applications
+        .iter()
+        .flat_map(|(_, application)| {
+            application
+                .telescope
+                .iter()
+                .filter_map(|parameter| match parameter {
+                    PreparedParameter::Machine { selected, .. } => Some(*selected),
+                    _ => None,
+                })
+        })
+        .collect::<Vec<_>>();
+    chosen.sort_unstable();
+    chosen.dedup();
+    let mut selections = if chosen.is_empty() {
+        Vec::new()
+    } else {
+        closure
+            .module
+            .machines
+            .iter()
+            .filter_map(|machine| {
+                let declaration = machine.declaration.as_ref()?;
+                chosen
+                    .binary_search(&declaration.semantic_declaration)
+                    .ok()?;
+                Some((
+                    declaration.semantic_declaration,
+                    ReachSelection {
+                        callee: machine.id,
+                        contract: declaration.contract,
+                        reach: machine.published_service_ceiling.clone(),
+                        may_suspend: declaration.published_may_suspend,
+                        may_block: declaration.published_may_block,
+                    },
+                ))
+            })
+            .collect::<Vec<_>>()
+    };
+    selections.sort_unstable_by_key(|(identity, _)| *identity);
+    let service_identity = |id| {
+        let services = &closure.module.services;
+        let position = services
+            .binary_search_by_key(&id, |service| service.id)
+            .ok()?;
+        closure.module.identities.text(services[position].identity)
+    };
     let mut machines = closure.module.machines.iter_mut();
     for (owner, application) in applications {
         let result = (|| {
@@ -721,21 +841,29 @@ pub(crate) fn close_specializations(
             };
             let suspension_dependency = machine.published_may_suspend.into();
             let blocking_dependency = machine.published_may_block.into();
-            let template_commitment = terminal_psi::template_contract_commitment(
-                template_base_commitment,
-                application.telescope.len(),
-                &suspension_dependency,
-                &blocking_dependency,
-                &[],
-            )?;
-            let fixed = machine.published_service_ceiling.clone();
+            let has_static_calls = application.fixed.is_some();
+            let fixed = application
+                .fixed
+                .unwrap_or_else(|| machine.published_service_ceiling.clone());
             let specialization = machine
                 .declaration
                 .as_mut()
                 .and_then(|declaration| declaration.specialization.as_mut())
                 .ok_or("a prepared application has no checked declaration")?;
             let mut parameter_kinds = application.parameter_kinds;
-            let mut telescope = application.telescope;
+            let mut telescope = application
+                .telescope
+                .into_iter()
+                .map(|parameter| parameter.close(&selections))
+                .collect::<Result<Vec<_>, _>>()?;
+            let template_commitment = terminal_psi::closed_reach_template_commitment(
+                template_base_commitment,
+                &telescope,
+                &suspension_dependency,
+                &blocking_dependency,
+                &[],
+                service_identity,
+            )?;
             let capture = application.enclosing_capture.then(|| {
                 let template_identity = specialization.template_callable;
                 // The map supplied all the bindings. The owned method has
@@ -757,26 +885,140 @@ pub(crate) fn close_specializations(
                     telescope: std::mem::take(&mut telescope),
                 }
             });
+            let template_identity = specialization.template_semantic_declaration;
+            let specialization_commitment = specialization.commitment;
+            let mut calls = Vec::new();
+            for invocation in machine.module_invocations() {
+                let Some(binder) = invocation.static_reach_binding else {
+                    continue;
+                };
+                let Some(ClosedReachParameter::Machine(binding)) = telescope.get(binder as usize)
+                else {
+                    return Err("a static callback invocation lost its exact application binder");
+                };
+                if binding.callee != Some(invocation.inputs.callee) {
+                    return Err("a static callback invocation changed its selected machine");
+                }
+                calls.push(terminal_psi::ClosedReachCall {
+                    site: invocation.site,
+                    binder,
+                    application: None,
+                });
+            }
+            calls.sort_unstable_by_key(|call| call.site);
+            if has_static_calls == calls.is_empty() {
+                return Err("a static callback reach dependency lost its invocation");
+            }
+            let mut dependencies = calls.iter().map(|call| call.binder).collect::<Vec<_>>();
+            dependencies.sort_unstable();
+            dependencies.dedup();
+            let mut derived = fixed.clone();
+            for position in &dependencies {
+                let ClosedReachParameter::Machine(binding) = &telescope[*position as usize] else {
+                    return Err("a static reach dependency is not a machine binder");
+                };
+                derived.extend(&binding.selected_reach);
+            }
+            derived.sort_unstable();
+            derived.dedup();
+            if derived != machine.published_service_ceiling {
+                return Err(
+                    "static callback reach differs from the checked machine's published reach",
+                );
+            }
             machine.closed_reach_application = Some(ClosedReachApplication {
-                template_identity: specialization.template_semantic_declaration,
+                template_identity,
                 template_base_commitment,
                 template_commitment,
                 suspension_dependency,
                 blocking_dependency,
                 conditional_carry: Vec::new(),
-                specialization_commitment: specialization.commitment,
+                specialization_commitment,
                 parameter_kinds,
                 telescope,
                 capture,
                 fixed,
-                dependencies: Vec::new(),
-                calls: Vec::new(),
+                dependencies,
+                calls,
             });
             Ok(())
         })();
         result.map_err(|reason| (owner, reason))?;
     }
     Ok(())
+}
+
+struct ReachSelection {
+    callee: MachineId,
+    contract: [u8; 32],
+    reach: Vec<semantic_vocabulary::ServiceId>,
+    may_suspend: bool,
+    may_block: bool,
+}
+
+impl PreparedParameter {
+    fn close(
+        self,
+        selections: &[(terminal_psi::TerminalIdentityIndex, ReachSelection)],
+    ) -> Result<ClosedReachParameter, &'static str> {
+        let (selected, upper_bound, upper_bound_may_suspend, upper_bound_may_block) = match self {
+            Self::Ready(parameter) => return Ok(parameter),
+            Self::Machine {
+                selected,
+                upper_bound,
+                upper_bound_may_suspend,
+                upper_bound_may_block,
+            } => (
+                selected,
+                upper_bound,
+                upper_bound_may_suspend,
+                upper_bound_may_block,
+            ),
+        };
+        let first = selections.partition_point(|(identity, _)| *identity < selected);
+        let Some((_, callee)) = selections
+            .get(first)
+            .filter(|(identity, _)| *identity == selected)
+        else {
+            return Err("a selected static callback has no admitted executable declaration");
+        };
+        if selections
+            .get(first + 1)
+            .is_some_and(|(identity, _)| *identity == selected)
+        {
+            return Err("a selected static callback has multiple admitted executable declarations");
+        }
+        if upper_bound.as_ref().is_some_and(|upper_bound| {
+            callee
+                .reach
+                .iter()
+                .any(|service| upper_bound.binary_search(service).is_err())
+        }) {
+            return Err("a selected static callback exceeds its authored reach bound");
+        }
+        if (callee.may_suspend && !upper_bound_may_suspend)
+            || (callee.may_block && !upper_bound_may_block)
+        {
+            return Err("a selected static callback exceeds its operational bound");
+        }
+        Ok(ClosedReachParameter::Machine(
+            terminal_psi::ClosedReachMachineBinding {
+                nominal_requirement: None,
+                requirement_parameter_kinds: Vec::new(),
+                requirement_arguments: Vec::new(),
+                upper_bound,
+                upper_bound_may_suspend,
+                upper_bound_may_block,
+                selected_may_suspend: callee.may_suspend,
+                selected_may_block: callee.may_block,
+                selected_identity: selected,
+                selected_contract_commitment: callee.contract,
+                selected_reach: callee.reach.clone(),
+                callee: Some(callee.callee),
+                schema: None,
+            },
+        ))
+    }
 }
 
 /// Rigid and finite check forms share the same template owner. Commit the

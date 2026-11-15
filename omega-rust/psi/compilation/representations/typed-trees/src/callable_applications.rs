@@ -2084,14 +2084,14 @@ pub(crate) mod machine_instances {
     }
 
     impl TypedTrees {
-        pub fn static_machine_binding_selects_target(
+        pub fn static_machine_binding_position(
             &self,
             mut owner: SymbolHandle,
             binder: SymbolHandle,
             target: SymbolHandle,
-        ) -> Result<bool, &'static str> {
+        ) -> Result<Option<u32>, &'static str> {
             if !binder.is_valid() || self.retained_static_machine_contract(binder).is_none() {
-                return Ok(false);
+                return Ok(None);
             }
             let entry = |symbol| {
                 if self.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
@@ -2110,7 +2110,7 @@ pub(crate) mod machine_instances {
                 visited.push(owner);
                 let mut instances = self.machine_specializations.for_instance(owner);
                 let Some(instance) = instances.next() else {
-                    return Ok(false);
+                    return Ok(None);
                 };
                 if instances.next().is_some() {
                     return Err("static call has ambiguous invocation ownership");
@@ -2119,21 +2119,26 @@ pub(crate) mod machine_instances {
                     argument,
                 )) = self.specialization_binding(instance, binder)
                 {
-                    let declared = self
+                    if argument.application.is_some()
+                        || entry(argument.symbol)
+                            .is_none_or(|selected| entry(target) != Some(selected))
+                    {
+                        return Ok(None);
+                    }
+                    return self
                         .data_type_parameters
                         .span_or_empty(instance.template_parameters)
                         .iter()
-                        .any(|parameter| {
+                        .position(|parameter| {
                             parameter.symbol == binder
                                 && matches!(
                                     parameter.kind,
                                     crate::data::TypeParameterKind::Machine { .. }
                                 )
-                        });
-                    return Ok(declared
-                        && argument.application.is_none()
-                        && entry(argument.symbol)
-                            .is_some_and(|selected| entry(target) == Some(selected)));
+                        })
+                        .map(u32::try_from)
+                        .transpose()
+                        .map_err(|_| "static call has too many application binders");
                 }
                 owner = instance.template;
             }
