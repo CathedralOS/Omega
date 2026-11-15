@@ -102,7 +102,10 @@ impl<'a> PackageReviewInput<'a> {
     fn type_identity_with_lifetimes(
         &self,
         reference: TypeReferenceHandle,
-        lifetime_binders: Option<&[(typed_trees::type_identity::LifetimeParameterIdentity, usize)]>,
+        lifetime_scope: Option<(
+            SymbolHandle,
+            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        )>,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         if !reference.is_valid() {
             return Err(unavailable("an absent declared type"));
@@ -112,7 +115,7 @@ impl<'a> PackageReviewInput<'a> {
             .typed()
             .exact_owner_type_identity(typed_trees::type_identity::ExactOwnerTypeIdentityRequest {
                 type_reference: reference,
-                lifetime_binders,
+                lifetime_scope,
                 binders: &[],
                 substitutions: &[],
                 exact_toolchain_sources: self.compilation().sources().exact_toolchain_sources(),
@@ -174,7 +177,10 @@ impl<'a> PackageReviewInput<'a> {
     fn field(
         &self,
         field: &DataField,
-        lifetimes: &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        lifetimes: (
+            SymbolHandle,
+            &[(typed_trees::type_identity::LifetimeParameterIdentity, usize)],
+        ),
     ) -> Result<PackageReviewDataField, Vec<Diagnostic>> {
         Ok(PackageReviewDataField {
             identity: field.identity,
@@ -227,9 +233,9 @@ impl<'a> PackageReviewInput<'a> {
             let mut members = Vec::new();
             for member in self.typed().data_members(definition) {
                 members.push(match member {
-                    DataMember::Field(field) => {
-                        PackageReviewDataMember::Field(self.field(field, &lifetimes)?)
-                    }
+                    DataMember::Field(field) => PackageReviewDataMember::Field(
+                        self.field(field, (definition.symbol, &lifetimes))?,
+                    ),
                     DataMember::Variant(variant) => {
                         let mut retired = variant.retired_payload_identities.clone();
                         retired.sort_unstable();
@@ -241,7 +247,7 @@ impl<'a> PackageReviewInput<'a> {
                                 .typed()
                                 .data_payload_fields(variant)
                                 .iter()
-                                .map(|field| self.field(field, &lifetimes))
+                                .map(|field| self.field(field, (definition.symbol, &lifetimes)))
                                 .collect::<Result<_, _>>()?,
                             retired_payload_identities: retired,
                         }

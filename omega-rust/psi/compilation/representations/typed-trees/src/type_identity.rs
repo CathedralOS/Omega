@@ -4188,7 +4188,7 @@ pub(crate) mod package_policy_reading_tests {
                     .program
                     .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
                         type_reference: reference,
-                        lifetime_binders: None,
+                        lifetime_scope: None,
                         binders,
                         substitutions,
                         exact_toolchain_sources: &self.toolchain,
@@ -7688,9 +7688,10 @@ impl TypeIdentityRequest<'_> {
 #[derive(Clone, Copy)]
 pub struct ExactOwnerTypeIdentityRequest<'a> {
     pub type_reference: TypeReferenceHandle,
-    /// A supplied roster retains declared lifetime relationships. Absence
-    /// keeps the existing carrier-only identity request.
-    pub lifetime_binders: Option<&'a [(LifetimeParameterIdentity, usize)]>,
+    /// The actual lexical declaration and its retained binder roster let
+    /// unresolved lifetime names use the same exact scope as resolved IDs.
+    /// Absence keeps the existing carrier-only identity request.
+    pub lifetime_scope: Option<(SymbolHandle, &'a [(LifetimeParameterIdentity, usize)])>,
     pub binders: &'a [(SymbolHandle, String)],
     pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
@@ -8536,7 +8537,13 @@ impl TypedTrees {
     ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
         let invalid = Cell::new(false);
-        if request.lifetime_binders.is_some_and(|binders| {
+        let (lifetime_owner, lifetime_binders) = request
+            .lifetime_scope
+            .unwrap_or((SymbolHandle::INVALID, &[]));
+        if request.lifetime_scope.is_some() && !lifetime_owner.is_valid() {
+            return None;
+        }
+        if request.lifetime_scope.is_some_and(|(_, binders)| {
             binders
                 .iter()
                 .any(|(region, _)| lifetime_parameter_name(self, *region).is_none())
@@ -8548,9 +8555,11 @@ impl TypedTrees {
             request.type_reference,
             &TypeIdentityContext {
                 binders: request.binders,
-                lifetime_binders: request.lifetime_binders.unwrap_or(&[]),
-                invalid_application: request.lifetime_binders.map(|_| &invalid),
-                encountered_elided_regions: request.lifetime_binders.map(|_| &invalid),
+                application_owner: lifetime_owner,
+                application_argument_owner: lifetime_owner,
+                lifetime_binders,
+                invalid_application: request.lifetime_scope.map(|_| &invalid),
+                encountered_elided_regions: request.lifetime_scope.map(|_| &invalid),
                 substitutions: request.substitutions,
                 substitution_semantics: SubstitutionSemantics::Transitive,
                 active_const_substitutions: &[],
