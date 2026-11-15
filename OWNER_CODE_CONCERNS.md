@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A named-map specialization loses its captured application at Psi publication
+- Category: knowledge crossing a boundary
+- Where: [named-map fixture](tests/fixtures/run/generics/named_map_own_telescope/main.omg#L4), [captured source application](omega-rust/psi/compilation/representations/typed-trees/src/access_views_and_commitments.rs#L1556), [artifact validation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L1858)
+- Saw: On macOS arm64, `named_map_own_telescope` runs to exit 0 in native and Psi. Reloading its retained `program.oterm` refuses with `checked specialization has no retained application`. Its two selected implementations bind the same value type and different unused map arguments, which the already-accepted source and in-process execution distinguish.
+- Cost: Standalone Psi consumers cannot reload either capture in the same checked module. Carry the exact retained map telescope and any method application through the existing capture/application records. Keep different captured arguments distinct and preserve the codec's missing and mismatched capture refusals.
+- Reported: 2026-11-15, Codex, while restoring publication of ordinary generic specializations.
+
 ### Psi refuses an owned sequence at a by-value argument
 - Category: knowledge crossing a boundary
 - Where: [immutable sequence backing](omega-rust/psi/interpreter/src/storage_bytes_and_views.rs#L3391), [argument admission](omega-rust/psi/interpreter/src/engine_calls.rs#L390)
@@ -121,13 +128,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On clean `30ae6323d4b` on macOS arm64, preparing the unchanged case-selected probe from `main` rejects `Storage::select` with `a data declaration cannot own a machine`. The unchanged byte-window probe refuses `dyn Payload` on line 21 with `dyn types are retired`. The kept `run/views/byte_subslice` is accepted through the same Stage 06 source path. Existing selected and rigid `Handoff` controls still retain their real declared source loan and reject a live overlapping write.
 - Cost: The two probes stop before their intended returned-window checks. Migrate the callable forms while preserving the typed slice's selected and rebound cells and both byte decoders' written ranges, values, and exit oracles. Then check both engines and keep the independent projection-bound concern open.
 - Reported: 2026-11-15, Codex, while reproducing retained result-window bounds
-
-### An ordinary generic specialization publishes Psi bytes that cannot be reloaded
-- Category: knowledge crossing a boundary
-- Where: [specialization declaration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs#L454), [artifact validation](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/calls.rs#L1858), [anonymous source fixture](samples/cli/facts/nominal_declaration_owner/library/library.omg#L4)
-- Saw: The unchanged `library::read` body calls `identity<Token>`. Both an ordinary entryless Check publication and the named `library::read` publication succeed, but their emitted bytes are refused by canonical decoding with `checked specialization has no retained application`. The ordinary Check probe observes the same failure with no inspection root.
-- Cost: Producers can emit portable bytes that the receiving trust boundary rejects. Carry the concrete source specialization through the existing declaration/application correspondence and preserve rejection for a genuinely missing or mismatched application.
-- Reported: 2026-11-15, Codex, on macOS arm64 with the source-inspection candidate on `30ae6323d4b`.
 
 ### Eight host access-view controls stop before any domain access view exists
 - Category: zombie machinery

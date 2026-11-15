@@ -664,18 +664,19 @@ fn finish_reading<'source>(
     )?;
     calling_abis.publish(&mut elaboration.module)?;
     program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
-    declare::declare(program.typed(), &program, &mut elaboration)
-        .and_then(|()| {
+    let ordinary_applications = declare::declare(program.typed(), &program, &mut elaboration)
+        .and_then(|ordinary_applications| {
             declare::provider_candidates(
                 program.typed(),
                 &program.symbols,
                 &program.boundary_symbols,
                 &program.supplied,
                 &mut elaboration.module,
-            )
+            )?;
+            // Last, over the finished operations and published contracts.
+            suspension::publish_crossings(&mut elaboration.module)?;
+            Ok(ordinary_applications)
         })
-        // Last, over the finished operations and published contracts.
-        .and_then(|()| suspension::publish_crossings(&mut elaboration.module))
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -720,6 +721,7 @@ fn finish_reading<'source>(
         program: elaboration,
         source,
         selected_calls: Vec::new(),
+        ordinary_applications,
     })
 }
 
@@ -1063,6 +1065,7 @@ fn lower_generic_for<'source>(
     let mut prepared = PreparedProgram {
         source,
         selected_calls: Vec::new(),
+        ordinary_applications: Vec::new(),
         program: Elaboration {
             module,
             tables,

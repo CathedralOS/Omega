@@ -41,8 +41,8 @@ use optimization::digest_encoder::DomainDigestEncoder;
 use semantic_vocabulary::{IdTable, MachineId};
 use symbols::SymbolHandle;
 use terminal_psi::{
-    CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalIdentityTableBuilder,
-    TerminalMachine,
+    CheckedMachineDeclaration, ClosedReachApplication, ClosedReachParameter,
+    NominalDeclarationIdentity, TerminalIdentityTableBuilder, TerminalMachine,
 };
 use typed_trees::TypedTrees;
 
@@ -65,6 +65,14 @@ impl Hasher for Commitment {
     }
 }
 
+/// The ordinary arguments declared beside an exact generated machine. These
+/// stay in preparation until its template forms supply the contract.
+pub(crate) struct OrdinaryApplication {
+    template: SymbolHandle,
+    parameter_kinds: Vec<u8>,
+    telescope: Vec<ClosedReachParameter>,
+}
+
 /// Callable headers retain exact source identities after source is released.
 /// Prepare the source and service identities once, then stamp real bodies and
 /// requirement descriptions without giving a requirement an executable body.
@@ -72,7 +80,7 @@ pub(crate) fn declare(
     typed: &TypedTrees,
     program: &crate::read::Program<'_>,
     elaboration: &mut Elaboration,
-) -> Result<(), &'static str> {
+) -> Result<Vec<(MachineId, OrdinaryApplication)>, &'static str> {
     let machines = &program.symbols;
     let signatures = &program.signatures;
     let requirement_sources = &program.declaration_sources;
@@ -117,6 +125,7 @@ pub(crate) fn declare(
         Err(_) if identities.is_invocation_scoped() => Ok(Vec::new()),
         sources => sources,
     };
+    let mut ordinary = Vec::new();
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -152,7 +161,12 @@ pub(crate) fn declare(
             _ => Err("the machine has no typed-tree declaration"),
         };
         match stated {
-            Ok(declaration) => machine.declaration = Some(declaration),
+            Ok((declaration, application)) => {
+                machine.declaration = Some(declaration);
+                if let Some(application) = application {
+                    ordinary.push((machine.id, application));
+                }
+            }
             Err(reason) => elaboration.undeclared.push((machine.id, reason)),
         }
     }
@@ -245,7 +259,7 @@ pub(crate) fn declare(
         Ok(())
     })();
     elaboration.module.identities = identities.build();
-    result
+    result.map(|()| ordinary)
 }
 
 /// States, for each requirement a chosen provider supplies
@@ -374,7 +388,7 @@ fn declaration(
     machine: &TerminalMachine,
     published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
-) -> Result<CheckedMachineDeclaration, &'static str> {
+) -> Result<(CheckedMachineDeclaration, Option<OrdinaryApplication>), &'static str> {
     let declared = typed
         .machine_by_symbol(symbol)
         .ok_or("the machine has no typed-tree declaration")?;
@@ -402,9 +416,13 @@ fn declaration(
         .ok_or("the machine has no complete declared signature identity")?;
     // A machine stage 04 generated for a static application also names the
     // generic machine it was generated from and commits to the application.
-    let specialization = match typed.executable_application_template(symbol)? {
-        Some(template) => Some(application(typed, sources, symbol, template, identities)?),
-        None => None,
+    let (specialization, ordinary) = match typed.executable_application_template(symbol)? {
+        Some(template) => {
+            let (specialization, ordinary) =
+                application(typed, sources, symbol, template, identities)?;
+            (Some(specialization), ordinary)
+        }
+        None => (None, None),
     };
     let machine_identity = nominal(typed, sources, symbol, identities)?;
     let state_identity = nominal(typed, sources, state.symbol, identities)?;
@@ -425,21 +443,24 @@ fn declaration(
         published,
     );
 
-    Ok(CheckedMachineDeclaration {
-        machine: NominalDeclarationIdentity::new(machine_identity),
-        state: NominalDeclarationIdentity::new(state_identity),
-        semantic_declaration: semantic,
-        parameter_types: parameter_types
-            .iter()
-            .map(|text| identities.intern(text))
-            .collect(),
-        callable: identities.intern(&callable),
-        result_type: identities.intern(&result_type),
-        contract,
-        published_may_suspend: machine.published_may_suspend,
-        published_may_block: machine.published_may_block,
-        specialization,
-    })
+    Ok((
+        CheckedMachineDeclaration {
+            machine: NominalDeclarationIdentity::new(machine_identity),
+            state: NominalDeclarationIdentity::new(state_identity),
+            semantic_declaration: semantic,
+            parameter_types: parameter_types
+                .iter()
+                .map(|text| identities.intern(text))
+                .collect(),
+            callable: identities.intern(&callable),
+            result_type: identities.intern(&result_type),
+            contract,
+            published_may_suspend: machine.published_may_suspend,
+            published_may_block: machine.published_may_block,
+            specialization,
+        },
+        ordinary,
+    ))
 }
 
 /// What the declaration of `instance`, a machine stage 04 generated from the
@@ -459,7 +480,14 @@ fn application(
     instance: SymbolHandle,
     template: SymbolHandle,
     identities: &mut TerminalIdentityTableBuilder,
-) -> Result<terminal_psi::CheckedMachineSpecialization, &'static str> {
+) -> Result<
+    (
+        terminal_psi::CheckedMachineSpecialization,
+        Option<OrdinaryApplication>,
+    ),
+    &'static str,
+> {
+    use typed_trees::data::TypeParameterKind;
     use typed_trees::static_applications::StaticMachineBindingValue;
     let declared = typed
         .machine_by_symbol(template)
@@ -499,13 +527,44 @@ fn application(
             "a generated machine's application binds other than one argument per parameter",
         );
     }
+    let parameters = typed.machine_type_parameters(declared);
+    let mut ordinary = (typed.machine_specialization(instance).is_some()
+        && declared.conformance_bounds.is_empty()
+        && parameters.iter().all(|parameter| {
+            matches!(parameter.kind, TypeParameterKind::Type) || parameter.kind.is_const_or_value()
+        }))
+    .then(|| OrdinaryApplication {
+        template,
+        parameter_kinds: Vec::with_capacity(bindings.len()),
+        telescope: Vec::with_capacity(bindings.len()),
+    });
+    if ordinary.is_some()
+        && (parameters.len() != bindings.len()
+            || !parameters.iter().zip(bindings).all(|(parameter, binding)| {
+                parameter.symbol == binding.parameter
+                    && match binding.value {
+                        StaticMachineBindingValue::Type(_) => {
+                            matches!(parameter.kind, TypeParameterKind::Type)
+                        }
+                        StaticMachineBindingValue::Const(_) => parameter.kind.is_const_or_value(),
+                        _ => false,
+                    }
+            }))
+    {
+        return Err("a checked specialization lost its complete template binder roster");
+    }
     for binding in bindings {
         match &binding.value {
-            StaticMachineBindingValue::Type(type_reference) => typed
-                .type_identity_text(typed.package_qualified_type_identity(*type_reference))
-                .filter(|text| !text.is_empty())
-                .ok_or("an application's type argument has no identity")?
-                .hash(&mut commitment),
+            StaticMachineBindingValue::Type(type_reference) => {
+                let argument = type_argument(typed, *type_reference)?;
+                argument.hash(&mut commitment);
+                if let Some(ordinary) = &mut ordinary {
+                    ordinary.parameter_kinds.push(0);
+                    ordinary
+                        .telescope
+                        .push(ClosedReachParameter::Type { argument });
+                }
+            }
             // conformances.md, "Resulting-value identity": a name "creates
             // no additional identity", so the implementation is stated by
             // the declaration that stands for its value, whichever name the
@@ -537,38 +596,14 @@ fn application(
             // Boolean is stated the same way, by `true` or `false`: its
             // parameter's type is `bool`, which no integer literal lands in.
             StaticMachineBindingValue::Const(value_reference) => {
-                let parameter = typed
-                    .data_type_parameter_by_symbol(binding.parameter)
-                    .ok_or("an application's value binder has no declaration")?;
-                let carrier_reference = match parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                        type_reference
-                    }
-                    _ => {
-                        return Err(
-                            "an application's value binding belongs to another binder kind",
-                        );
-                    }
-                };
-                let carrier = typed
-                    .type_identity_text(typed.package_qualified_type_identity(carrier_reference))
-                    .filter(|text| !text.is_empty())
-                    .ok_or("an application's value parameter type has no identity")?;
-                let primitive = typed
-                    .primitive_type_reference(carrier_reference)
-                    .ok_or("an application's value binder needs its admitted scalar carrier")?;
-                let value = typed.static_operand_from_type_reference(*value_reference)?;
-                match typed.prepare_callable_scalar_argument(primitive, &value)? {
-                    typed_trees::expression::ExpressionNode::Integer(literal) => {
-                        ("value", carrier, literal.canonical_spelling().as_str())
-                            .hash(&mut commitment);
-                    }
-                    typed_trees::expression::ExpressionNode::Boolean(value) => {
-                        ("value", carrier, if value { "true" } else { "false" })
-                            .hash(&mut commitment);
-                    }
-                    _ => return Err("an application's value binding has no admitted scalar value"),
+                let (carrier, value) = const_argument(typed, binding.parameter, *value_reference)?;
+                ("value", carrier.as_str(), value.as_str()).hash(&mut commitment);
+                if let Some(ordinary) = &mut ordinary {
+                    ordinary.parameter_kinds.push(1);
+                    ordinary.telescope.push(ClosedReachParameter::Const {
+                        // The length keeps the carrier and literal distinct.
+                        argument: format!("{}:{carrier}{value}", carrier.len()),
+                    });
                 }
             }
             StaticMachineBindingValue::RuntimeValue { .. }
@@ -579,13 +614,161 @@ fn application(
             }
         }
     }
-    Ok(terminal_psi::CheckedMachineSpecialization {
-        capture: None,
-        template: NominalDeclarationIdentity::new(nominal(typed, sources, template, identities)?),
-        template_callable: identities.intern(&callable),
-        template_semantic_declaration: semantic,
-        commitment: commitment.0.finish(),
-    })
+    Ok((
+        terminal_psi::CheckedMachineSpecialization {
+            capture: None,
+            template: NominalDeclarationIdentity::new(nominal(
+                typed, sources, template, identities,
+            )?),
+            template_callable: identities.intern(&callable),
+            template_semantic_declaration: semantic,
+            commitment: commitment.0.finish(),
+        },
+        ordinary,
+    ))
+}
+
+fn type_argument(
+    typed: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Result<String, &'static str> {
+    typed
+        .type_identity_text(typed.package_qualified_type_identity(reference))
+        .filter(|text| !text.is_empty())
+        .ok_or("an application's type argument has no identity")
+}
+
+fn const_argument(
+    typed: &TypedTrees,
+    binder: SymbolHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Result<(String, String), &'static str> {
+    use typed_trees::data::TypeParameterKind;
+    use typed_trees::expression::ExpressionNode;
+
+    let parameter = typed
+        .data_type_parameter_by_symbol(binder)
+        .ok_or("an application's value binder has no declaration")?;
+    let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
+        parameter.kind
+    else {
+        return Err("an application's value binding belongs to another binder kind");
+    };
+    let carrier = typed
+        .type_identity_text(typed.package_qualified_type_identity(type_reference))
+        .filter(|text| !text.is_empty())
+        .ok_or("an application's value parameter type has no identity")?;
+    let primitive = typed
+        .primitive_type_reference(type_reference)
+        .ok_or("an application's value binder needs its admitted scalar carrier")?;
+    let value = typed.static_operand_from_type_reference(reference)?;
+    let value = match typed.prepare_callable_scalar_argument(primitive, &value)? {
+        ExpressionNode::Integer(literal) => literal.canonical_spelling().as_str().to_owned(),
+        ExpressionNode::Boolean(value) => if value { "true" } else { "false" }.to_owned(),
+        _ => return Err("an application's value binding has no admitted scalar value"),
+    };
+    Ok((carrier, value))
+}
+
+/// Connect an ordinary generated body to the template contract the same
+/// compilation judges. Its type and const arguments cannot contribute
+/// callable reach. The generated body already owns its fixed service and
+/// operational rows.
+pub(crate) fn close_ordinary_specializations(
+    generic: &[terminal_check_tables::compilation::GenericForms],
+    applications: Vec<(MachineId, OrdinaryApplication)>,
+    closure: &mut Elaboration,
+) -> Result<(), (MachineId, &'static str)> {
+    if applications.is_empty() {
+        return Ok(());
+    }
+    let bases: symbols::SymbolMap<_> = generic
+        .iter()
+        .map(|generic| (generic.template, template_commitment(generic)))
+        .collect();
+    let mut machines = closure.module.machines.iter_mut();
+    for (owner, application) in applications {
+        let result = (|| {
+            // Both rosters were produced in machine order by declaration.
+            let machine = machines
+                .find(|machine| machine.id == owner)
+                .ok_or("an ordinary application has no exact emitted owner")?;
+            let specialization = machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| declaration.specialization.as_ref())
+                .ok_or("an ordinary application has no checked declaration")?;
+            let Some(template_base_commitment) = bases
+                .get(&application.template)
+                .copied()
+                .ok_or("a checked specialization has no prepared template contract")??
+            else {
+                // The template's own failed check form reports its reason and
+                // prevents the compilation from reaching publication.
+                return Ok(());
+            };
+            let suspension_dependency = machine.published_may_suspend.into();
+            let blocking_dependency = machine.published_may_block.into();
+            let template_commitment = terminal_psi::template_contract_commitment(
+                template_base_commitment,
+                application.telescope.len(),
+                &suspension_dependency,
+                &blocking_dependency,
+                &[],
+            )?;
+            machine.closed_reach_application = Some(ClosedReachApplication {
+                template_identity: specialization.template_semantic_declaration,
+                template_base_commitment,
+                template_commitment,
+                suspension_dependency,
+                blocking_dependency,
+                conditional_carry: Vec::new(),
+                specialization_commitment: specialization.commitment,
+                parameter_kinds: application.parameter_kinds,
+                telescope: application.telescope,
+                capture: None,
+                fixed: machine.published_service_ceiling.clone(),
+                dependencies: Vec::new(),
+                calls: Vec::new(),
+            });
+            Ok(())
+        })();
+        result.map_err(|reason| (owner, reason))?;
+    }
+    Ok(())
+}
+
+/// Rigid and finite check forms share the same template owner. Commit the
+/// complete ordered contract roster so no representative can hide a form.
+fn template_commitment(
+    generic: &terminal_check_tables::compilation::GenericForms,
+) -> Result<Option<[u8; 32]>, &'static str> {
+    use terminal_psi::TargetMachineCallable;
+
+    let Ok(forms) = &generic.forms else {
+        return Ok(None);
+    };
+    if forms.is_empty() {
+        return Err("a specialization's template has no check form");
+    }
+    let mut digest =
+        DomainDigestEncoder::new(b"omega.lowered-machine-template-contract-forms.v1\0");
+    digest.len(forms.len());
+    for form in forms {
+        let Some(TargetMachineCallable::Machine(entry)) = form.module.entry else {
+            return Err("a specialization's template check form has no machine entry");
+        };
+        if form.machines.get(entry) != Some(&generic.template) {
+            return Err("a specialization's template check form belongs to another declaration");
+        }
+        let declaration = form
+            .module
+            .machine(entry)
+            .and_then(|machine| machine.declaration.as_ref())
+            .ok_or("a specialization's template check form has no exact contract")?;
+        digest.raw(&declaration.contract);
+    }
+    Ok(Some(digest.finish()))
 }
 
 /// A bodyless trait method retains its actual nominal owner and signature.
