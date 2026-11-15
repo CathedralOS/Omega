@@ -10,9 +10,10 @@ We support two entry points:
 - `run_project`: compiles the project into a temporary `probe` directory (removed
   on return unless `keep_artifacts` is set) and runs it according to
   `ExecutionSelection`:
-  - `Native`: emits and publishes the native executable (`NativeDestination::Retained`)
-    and spawns it on the host, or stops at `ExecutionOutcome::TargetOnly` when
-    `target_name` names a foreign target.
+  An explicit target makes `Native` and `Both` stop after publication
+  (`ExecutionOutcome::TargetOnly`), even when the target matches the host.
+  - `Native`: emits and publishes the native executable
+    (`NativeDestination::Retained`) and spawns it on the host.
   - `Terminal`: stops compilation after Build, package, trust, provider, and
     entry admission (`NativeDestination::RuntimeAdmission`) without emitting any
     object file or native executable, and runs the admitted Terminal Psi program

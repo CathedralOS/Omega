@@ -73,12 +73,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Run help omits that an explicit host target skips execution
+### Standalone Psi reports its exits as terminal
 - Category: the documents disagree
-- Where: [run usage](omega-rust/omega/application/src/arguments/run.rs#L23), [native and Psi selection](omega-rust/omega/application/src/execution/mod.rs#L219), [target-only result](omega-rust/omega/application/src/execution/mod.rs#L247)
-- Saw: On macOS arm64 at `2de81092693`, `omega run --both --keep --target macos_arm64` on the kept fixed-layout field sample exits 0 with only “compiled for target” and saves an inspectable artifact. Omitting `--target` runs both engines and reports both exits. The usage lists `--both` and `--target` together without explaining that an explicit target means emission only.
-- Cost: A caller can request both engines, name the host, and mistake a successful compile for an execution comparison. Explain when the command emits without running, and make the success report explicit about which engines ran.
-- Reported: 2026-11-15, Codex, while independently opening the fixed-layout field program's saved Psi artifact.
+- Where: [public naming](wiki/README.md#public-names), [Psi exit reporting](omega-rust/omega/application/src/commands/run.rs#L177), [execution test](omega-rust/omega/application/tests/psi_runtime_admission.rs#L45)
+- Saw: On macOS arm64 at `1bf1f6299d2`, `omega run --engine psi --target macos_arm64` executes the unchanged fixed-layout field sample successfully and prints `terminal exit 0`. The flag and help call the engine Psi, but the success report and existing tests use an internal stage label.
+- Cost: The flag and status use different names for the same engine. Bring the public report and its test expectations into the Psi naming contract together.
+- Reported: 2026-11-15, Codex, while verifying the target exception in run help.
 
 ### A last-use ownership refusal drops its source site
 - Category: knowledge crossing a boundary

@@ -6,9 +6,10 @@ We run a program in one of two shapes:
 - Single run (`run_project`): compiles the root program once and executes it
   natively (`ExecutionSelection::Native`), in the Terminal Psi interpreter
   (`ExecutionSelection::Terminal`), or in both engines with differential
-  comparison (`ExecutionSelection::Both`). When `--target` names a foreign
-  target without `--engine psi`, compilation stops after producing the
-  target artifact (`ExecutionOutcome::TargetOnly`).
+  comparison (`ExecutionSelection::Both`). Any explicit `--target` selects
+  artifact emission when using the native default, `--engine native`, or
+  `--both` (`ExecutionOutcome::TargetOnly`). `--engine psi` uses the
+  selected target environment for execution.
 - Case batch (`run_cases`, selected when `--outputs` is present): compiles the
   program once on the host and runs every `*.stdin` file in `--inputs` (sorted
   lexicographically) or each explicit `--input` file in argument order. Per-case
@@ -96,7 +97,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         ExecutionOutcome::Terminal(terminal) => present_terminal(terminal),
         ExecutionOutcome::TargetOnly { target_name } => {
             eprintln!(
-                "compiled for target `{target_name}` OK ({})",
+                "compiled for target `{target_name}` OK ({}). The program did not run.",
                 outcome.build_dir.display()
             );
             0
