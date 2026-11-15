@@ -220,10 +220,12 @@ pub(crate) mod reference_completion {
         Ok(None)
     }
 
-    /// A reference returned by a call keeps its input loan until every
-    /// transported result descriptor ends. Reconstruct the callee's actual
-    /// origins before using the existing call binding; a result header alone
-    /// cannot extend a loan or supply an unrelated backing resource.
+    /// A reference or view returned by a call keeps its input loan until
+    /// every transported result descriptor ends (lifetimes.md, "Returned
+    /// views": the source must "remain live for the result's use").
+    /// Reconstruct the callee's actual origins before using the existing call
+    /// binding; a result header alone cannot extend a loan or supply an
+    /// unrelated backing resource.
     pub fn reference_call_lifetimes(
         module: &terminal_psi::TerminalModule,
         caller: &terminal_psi::TerminalMachine,
@@ -233,28 +235,44 @@ pub(crate) mod reference_completion {
         use super::reference_origins::{
             ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
         };
-        use crate::descriptor_lifetimes::{descriptor_location, descriptor_location_lifetime};
+        use crate::descriptor_lifetimes::{
+            DescriptorLocation, descriptor_location, descriptor_location_lifetime,
+            descriptor_location_type,
+        };
 
         let Some(result) = operation.result.as_structural().filter(|result| {
-            terminal_psi::structural_type_contains_reference_by(
+            terminal_psi::structural_type_has_borrowed_storage_by(
                 |id| module.structural_type(id),
                 result.structural_type,
             )
         }) else {
             return Ok(Vec::new());
         };
+        let returns_reference = terminal_psi::structural_type_contains_reference_by(
+            |id| module.structural_type(id),
+            result.structural_type,
+        );
         let Some(call) = operation.declared_invocation() else {
-            return if matches!(
-                operation.kind,
-                terminal_psi::OperationKind::CallDynamic { .. }
-            ) {
+            return if returns_reference
+                && matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::CallDynamic { .. }
+                ) {
                 Err("returned dynamic reference needs its admitted completion resource")
             } else {
                 Ok(Vec::new())
             };
         };
         let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee else {
-            return Err("returned boundary reference needs its admitted completion resource");
+            // A view from a boundary relates to its inputs only through the
+            // boundary's declared result lifetimes, which are not published
+            // yet (OWNER_CODE_CONCERNS.md). Its descriptor flow still keeps
+            // every view passed in live for the result's use.
+            return if returns_reference {
+                Err("returned boundary reference needs its admitted completion resource")
+            } else {
+                Ok(Vec::new())
+            };
         };
         let callee = module
             .machine(callee)
@@ -271,17 +289,22 @@ pub(crate) mod reference_completion {
         let slots = analysis
             .result_slots(callee.id)
             .ok_or("returned reference callee has no complete actual source correspondence")?;
-        let actual = super::reference_origins::reference_result_sources(
-            &module.structural_types,
-            &callee.structural_parameters,
-            signature,
-            &slots,
-        )?;
+        let actual = if returns_reference {
+            super::reference_origins::reference_result_sources(
+                &module.structural_types,
+                &callee.structural_parameters,
+                signature,
+                &slots,
+            )?
+        } else {
+            Vec::new()
+        };
         if actual != signature.reference_sources {
             return Err("returned reference header differs from its actual body origins");
         }
         let public = call
             .required_contract
+            .filter(|_| returns_reference)
             .map(|required| {
                 super::selected_reference_result(module, caller.id, callee.id, required)
             })
@@ -294,7 +317,9 @@ pub(crate) mod reference_completion {
             .map_or(callee.structural_parameters.as_slice(), |public| {
                 public.contract().structural_parameters.as_slice()
             });
-        let bindings = if let Some(public) = &public {
+        let bindings = if !returns_reference {
+            Vec::new()
+        } else if let Some(public) = &public {
             super::reference_origins::bind_public_reference_call_results(
                 module.structural_types.iter(),
                 public,
@@ -335,6 +360,25 @@ pub(crate) mod reference_completion {
             .ok_or("returned reference caller has no complete descriptor flow")?;
         let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
             (0..parameters.len()).map(|_| None).collect();
+        let retain =
+            |retained: &mut [Option<crate::descriptor_lifetimes::DescriptorLifetime>],
+             position: usize,
+             lifetime: crate::descriptor_lifetimes::DescriptorLifetime| {
+                if let Some(previous) = &mut retained[position] {
+                    previous.live.extend(lifetime.live);
+                    for (at, names) in lifetime.demanded {
+                        previous.demanded.entry(at).or_default().extend(names);
+                    }
+                    for (at, names) in lifetime.surviving {
+                        previous.surviving.entry(at).or_default().extend(names);
+                    }
+                    for (at, names) in lifetime.authorized {
+                        previous.authorized.entry(at).or_default().extend(names);
+                    }
+                } else {
+                    retained[position] = Some(lifetime);
+                }
+            };
         for (mapping_index, binding) in bindings.into_iter().enumerate() {
             let source_positions = if let Some(public) = &public {
                 use terminal_psi::ReferenceResultShape;
@@ -407,20 +451,79 @@ pub(crate) mod reference_completion {
                 if lifetime.live.contains(&at) {
                     return Err("returned reference loan crosses its own call formation");
                 }
-                if let Some(previous) = &mut retained[position] {
-                    previous.live.extend(lifetime.live);
-                    for (at, names) in lifetime.demanded {
-                        previous.demanded.entry(at).or_default().extend(names);
-                    }
-                    for (at, names) in lifetime.authorized {
-                        previous.authorized.entry(at).or_default().extend(names);
-                    }
-                    for (at, names) in lifetime.surviving {
-                        previous.surviving.entry(at).or_default().extend(names);
-                    }
-                } else {
-                    retained[position] = Some(lifetime);
+                retain(&mut retained, position, lifetime);
+            }
+        }
+        // A view leaf has no published header row: its origins are the
+        // callee body's actual return slots. A view into a borrowed formal's
+        // own storage keeps the argument's loan for the view's use. One that
+        // reaches through a reference held by the input points into that
+        // reference's original backing, whose own loan the descriptor flow
+        // already transports; it is not a borrow of the caller's carrier.
+        let is_view = |shape: &StructuralTypeShape| {
+            matches!(
+                shape,
+                StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    )
+            )
+        };
+        for slot in &slots {
+            let leaf = descriptor_location_type(
+                &module.structural_types,
+                result.structural_type,
+                &slot.path,
+            )
+            .and_then(|leaf| module.structural_type(leaf))
+            .ok_or("returned view slot has no typed result leaf")?;
+            if !is_view(&leaf.shape) {
+                continue;
+            }
+            let descriptor = DescriptorLocation {
+                root: result.place,
+                path: slot.path.clone(),
+            };
+            for origin in &slot.origins {
+                let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
+                    position,
+                    projection,
+                } = origin
+                else {
+                    continue;
+                };
+                // A formal that is itself a view hands back the descriptor
+                // it was given, or a window of it: that view's backing is
+                // the original one, not the argument's storage.
+                let formal = callee
+                    .structural_parameters
+                    .get(*position)
+                    .and_then(|formal| module.structural_type(formal.structural_type))
+                    .ok_or("returned view input has no typed formal")?;
+                if is_view(&formal.shape)
+                    || projection
+                        .path
+                        .contains(&terminal_psi::StructuralPathSegment::Referent)
+                {
+                    continue;
                 }
+                let argument = call
+                    .structural_arguments
+                    .get(*position)
+                    .ok_or("returned view input has no actual argument")?;
+                if argument.access == StructuralAccess::Owned {
+                    // An owned input moves into the callee, so a view it
+                    // returns is a descriptor the input carried, as when a
+                    // view passed by value comes back. The descriptor flow
+                    // transports that view's own loan; the call lends none.
+                    continue;
+                }
+                let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                if lifetime.live.contains(&at) {
+                    return Err("returned view loan crosses its own call formation");
+                }
+                retain(&mut retained, *position, lifetime);
             }
         }
         Ok(retained

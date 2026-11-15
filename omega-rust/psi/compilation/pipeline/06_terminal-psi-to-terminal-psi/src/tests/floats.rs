@@ -84,7 +84,7 @@ machine use(value: {received}) {{ }}"
             format!(
                 "rejected: this value has scalar carrier `{passed}` but the parameter it is \
                  passed for requires `{received}`: there is no implicit scalar conversion at a \
-                 receiving type"
+                 receiving type while reading the body of `build_entry`"
             )
         );
     }
@@ -101,38 +101,39 @@ fn what_is_not_computed_with_a_float_is_refused_by_name() {
         (
             "machine build_entry() { use(1.5); }
 machine use(value: f32) { }",
-            "expression float literal",
+            "expression float literal while reading the body of `build_entry`",
         ),
         (
             "machine build_entry(value: f32) { use(value + value); }
 machine use(value: f32) { }",
-            "typing operand types",
+            "typing operand types while reading the body of `build_entry`",
         ),
         (
             "machine build_entry(value: f32) { check(value == value); }
 machine check(same: bool) { }",
-            "typing operand types",
+            "typing operand types while reading the body of `build_entry`",
         ),
         (
             "machine build_entry(value: f32) { check(value < value); }
 machine check(less: bool) { }",
-            "typing operand types",
+            "typing operand types while reading the body of `build_entry`",
         ),
         (
             "machine build_entry(value: f32) { use(value as f64); }
 machine use(value: f64) { }",
-            "expression cast between carriers that are not integers",
+            "expression cast between carriers that are not integers \
+             while reading the body of `build_entry`",
         ),
         (
             "machine need(value: f32) requires value == value { }
 machine build_entry(value: f32) { need(value); }",
-            "contract comparison of floats in a clause",
+            "contract comparison of floats in a clause while reading the signature of `need`",
         ),
         (
             "machine make(value: f32) -> f32 ensures result == value { value }
 machine build_entry(value: f32) { use(make(value)); }
 machine use(value: f32) { }",
-            "contract comparison of floats in a clause",
+            "contract comparison of floats in a clause while reading the signature of `make`",
         ),
         (
             "data Calibration { magnitude: f32; }

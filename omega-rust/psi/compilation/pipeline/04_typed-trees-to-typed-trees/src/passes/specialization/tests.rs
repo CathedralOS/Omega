@@ -810,12 +810,16 @@ fn generated_entry_ownership_refuses_missing_foreign_and_ambiguous_correspondenc
         Some(relay.state)
     );
 
-    program.machine_specializations[position].states = HandleSpan::empty();
+    program
+        .machine_specializations
+        .edit(|rows| rows[position].states = HandleSpan::empty());
     assert!(
         program.executable_callable_template(entry).is_err(),
         "symbol provenance must not repair missing application ownership"
     );
-    program.machine_specializations[position].states = row.states;
+    program
+        .machine_specializations
+        .edit(|rows| rows[position].states = row.states);
     program
         .captured_machine_states
         .get_mut(row.states.start())
@@ -1258,12 +1262,12 @@ fn an_existing_nested_copy_does_not_accept_another_argument_or_source_selection(
                 .find(|row| row.template == forward.machine)
                 .unwrap()
                 .binding_application;
-            program
-                .machine_specializations
-                .iter_mut()
-                .find(|row| row.instance == child)
-                .unwrap()
-                .binding_application = foreign;
+            program.machine_specializations.edit(|rows| {
+                rows.iter_mut()
+                    .find(|row| row.instance == child)
+                    .unwrap()
+                    .binding_application = foreign
+            });
         }
         let symbols = program.symbols.symbols().len();
         prepare(&mut program).unwrap();

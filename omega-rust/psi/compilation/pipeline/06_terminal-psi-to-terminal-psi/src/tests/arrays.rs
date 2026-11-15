@@ -80,6 +80,52 @@ fn equal_selectors_do_not_share_bounds_between_different_extents() {
 }
 
 #[test]
+fn every_bound_in_a_long_short_circuit_guard_reaches_its_array_read() {
+    for last_bound in [4, 5] {
+        let selector_count = 10;
+        let guard = (1..=selector_count)
+            .map(|selector| {
+                let upper = if selector == selector_count {
+                    last_bound
+                } else {
+                    4
+                };
+                compare(Strict::Less, slot(selector, u32_type()), unsigned(upper))
+            })
+            .reduce(|left, right| either(true, left, right))
+            .unwrap();
+        let read = (1..=selector_count)
+            .map(|selector| {
+                index(
+                    place(0, array(2)),
+                    slot(selector, u32_type()),
+                    u32_type().into(),
+                )
+            })
+            .reduce(|left, right| strict(Strict::BitwiseOr, left, right))
+            .unwrap();
+        let program = caller(
+            std::iter::once(array(2))
+                .chain(std::iter::repeat_n(u32_type().into(), selector_count))
+                .collect(),
+            Vec::new(),
+            vec![guarded(guard, read), returns(unsigned(0))],
+        );
+        let mut elaboration = elaborate_over(vec![program], &array_types());
+        let result = discharge(&mut elaboration).unwrap();
+        let obligations = verdicts(&elaboration, &result, 1, safety);
+        assert_eq!(obligations.len(), selector_count);
+        for (position, (obligation, verdict)) in obligations.into_iter().enumerate() {
+            if last_bound == 5 && position + 1 == selector_count {
+                assert_unproved(verdict);
+            } else {
+                assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+            }
+        }
+    }
+}
+
+#[test]
 fn nested_index_bounds_follow_each_actual_array_prefix() {
     for (outer, inner, accepted) in [(1, 3, true), (3, 1, false)] {
         let nested = index(place(0, array(4)), slot(1, u32_type()), array(2));

@@ -581,28 +581,10 @@ impl<'t> Program<'t> {
         })
     }
 
-    /// The place a projected assignment target names. A member that holds a
-    /// reference is that descriptor's own place here, not its referent's:
-    /// the receiver before it is still read as a value, so
-    /// `configuration.builder.subsystem` crosses `builder`, and
-    /// `configuration.builder` does not.
-    pub(super) fn assigned_place(
-        &mut self,
-        id: MachineId,
-        slots: &[Slot],
-        target: ExpressionHandle,
-    ) -> Checked<Expression> {
-        self.place(id, slots, target, None, Access::Write)
-    }
-
-    /// The place `target` names, read for `access` to its contents: a
-    /// member or an element of a value is a path into it, and every value
-    /// the path goes through is opened for that same access. A value read
-    /// opens each for reading; a store's destination opens each for writing
-    /// ("Changing contents, including projected writes ... requires write
-    /// authority", domains.md), and reads nothing it only names. Anything
-    /// else is an ordinary value: the root of a path, or a value it is
-    /// computed from.
+    /// Read a place for the access its caller needs. Each receiver of a
+    /// projected write is opened for writing and crosses any reference it
+    /// holds. The final destination of a replacement keeps its own type so
+    /// assigning to a reference field replaces the descriptor.
     pub(super) fn place(
         &mut self,
         id: MachineId,
@@ -614,16 +596,20 @@ impl<'t> Program<'t> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
         }
-        match self.node(id, target)? {
+        let value = match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source, access)
+                self.member(id, slots, member, source, Access::Write)?
             }
             ExpressionNode::Indexed(indexed) => {
-                self.indexed(id, slots, indexed, target, expected, access)
+                self.indexed(id, slots, indexed, target, expected, Access::Write)?
             }
-            _ => self.expression(id, slots, target, expected),
+            _ => return self.expression(id, slots, target, expected),
+        };
+        if access == Access::Replace {
+            return Ok(value);
         }
+        self.observed(id, value, expected)
     }
 
     /// Value-position `match` over a sum with scalar arms. The subject must
@@ -1451,6 +1437,72 @@ mod tests {
 
     fn carrier() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+    }
+
+    #[test]
+    fn suffix_policy_belongs_to_the_operation_not_its_values() {
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let plain = ValueType::plain(carrier());
+        let operand = |slot, result| Expression {
+            call_context: None,
+            kind: ExpressionKind::Slot(slot),
+            result: Some(result),
+            source,
+        };
+        let suffixed = |operator, policy, left, right| {
+            binary_expression(
+                MachineId::new(1).unwrap(),
+                operator,
+                operand(0, left),
+                operand(1, right),
+                (false, false),
+                Some(policy),
+                source,
+            )
+        };
+        for operator in [
+            BinaryOperator::Add,
+            BinaryOperator::Subtract,
+            BinaryOperator::Multiply,
+            BinaryOperator::Divide,
+            BinaryOperator::Modulo,
+            BinaryOperator::ShiftLeft,
+            BinaryOperator::ShiftRight,
+        ] {
+            let mut operations = Vec::new();
+            for policy in [Policy::Wrapping, Policy::Saturating, Policy::Trapping] {
+                let expression = suffixed(operator, policy, plain, plain).unwrap();
+                assert_eq!(expression.result, Some(plain));
+                let ExpressionKind::Strict {
+                    policy: selected,
+                    left,
+                    right,
+                    ..
+                } = &expression.kind
+                else {
+                    panic!("a suffix must select a strict operation");
+                };
+                assert_eq!(*selected, Some(policy));
+                assert_eq!(left.result, Some(plain));
+                assert_eq!(right.result, Some(plain));
+                assert!(matches!(left.kind, ExpressionKind::Slot(0)));
+                assert!(matches!(right.kind, ExpressionKind::Slot(1)));
+                assert!(same_computation(&expression, &expression.clone()));
+                for previous in &operations {
+                    assert!(!same_computation(previous, &expression));
+                }
+                operations.push(expression);
+
+                let qualified = ValueType::Scalar(carrier(), Qualification::of_policy(policy));
+                // A shift count is an operand too: no suffix removes its domain.
+                for (left, right) in [(qualified, plain), (plain, qualified)] {
+                    assert_eq!(
+                        suffixed(operator, policy, left, right).unwrap_err().detail,
+                        crate::policy::QUALIFIED_OPERAND,
+                    );
+                }
+            }
+        }
     }
 
     /// The type `operator` gives two operands of these types, or why it is
