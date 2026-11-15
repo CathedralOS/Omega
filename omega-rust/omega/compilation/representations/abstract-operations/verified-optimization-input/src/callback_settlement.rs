@@ -77,7 +77,6 @@ mod placement {
 
     pub fn settle_native_callback_placements(
         module: &TerminalModule,
-        targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
         selected: &effects::SelectedProviderPlanFacts,
         calling: &[BoundaryCallingApplication],
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
@@ -118,10 +117,8 @@ mod placement {
                     .into(),
             );
             }
-            let (inbound_boundary, inbound) =
-                inbound_application(module, targets, calling, application)?;
-            let registrar_boundary =
-                ::provider_admission::selected_calling_boundary(module, targets, boundary)?;
+            let (inbound_boundary, inbound) = inbound_application(module, calling, application)?;
+            let registrar_boundary = boundary;
             let registrar_abi = module.calling_abi_identity(registrar_boundary)?;
             let selected_calling = selected_plan
                 .schema
@@ -145,7 +142,6 @@ mod placement {
 
     pub(super) fn inbound_application<'plans>(
         module: &TerminalModule,
-        targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
         calling: &'plans [BoundaryCallingApplication],
         application: &TerminalCallbackApplication,
     ) -> Result<
@@ -158,7 +154,6 @@ mod placement {
         let boundary = application
             .boundary
             .ok_or("admitted callback lost its exact inbound declaration")?;
-        let boundary = ::provider_admission::selected_calling_boundary(module, targets, boundary)?;
         let inbound = calling_application(
             calling,
             &module.calling_abi_identity(boundary)?,
@@ -388,16 +383,11 @@ mod installed_placement {
     pub fn settle_installed_callback_placements(
         module: &TerminalModule,
         target_profile: target::TargetProfile,
-        targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
         calling: &[BoundaryCallingApplication],
     ) -> Result<Vec<NativeCallbackPlacement>, String> {
         let mut placements = Vec::new();
         for registration in &module.installed_interrupt_registrations {
-            let registrar_boundary = ::provider_admission::selected_calling_boundary(
-                module,
-                targets,
-                registration.registrar_boundary,
-            )?;
+            let registrar_boundary = registration.registrar_boundary;
             let registrar = calling_application(
                 calling,
                 &module.calling_abi_identity(registrar_boundary)?,
@@ -414,8 +404,7 @@ mod installed_placement {
                         "installed callback lost its checked occurrence or entry contract".into(),
                     );
                 }
-                let (inbound_boundary, inbound) =
-                    inbound_application(module, targets, calling, callback)?;
+                let (inbound_boundary, inbound) = inbound_application(module, calling, callback)?;
                 if inbound.target != registrar.target {
                     return Err(
                         "installed callback entry and registrar plans select different targets"
@@ -495,7 +484,6 @@ mod registrar_imports {
 
     pub fn settle_callback_registrar_imports(
         terminal_module: &TerminalModule,
-        targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
         selected: &effects::SelectedProviderPlanFacts,
         callback_placements: &[NativeCallbackPlacement],
         callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
@@ -552,11 +540,7 @@ mod registrar_imports {
                 "callback registrar import closure names an absent Terminal boundary".to_owned()
             })?;
             let selected_requirement = selected.selected_requirement_identity(requirement);
-            let calling_boundary = ::provider_admission::selected_calling_boundary(
-                terminal_module,
-                targets,
-                *boundary,
-            )?;
+            let calling_boundary = *boundary;
             let abi = terminal_module.calling_abi_identity(calling_boundary)?;
 
             let matching_realizations = calling_applications

@@ -501,7 +501,7 @@ pub(crate) mod calling_signature_wire {
         PolicyInstance: CallingPolicyInstance {
             declaring_application: Index,
             policy_declaration: ResultField<ProofDeclaration, Text>,
-            policy: ResultField<super::target_family_wire::Callable, Text>,
+            policy: ResultField<super::callable_wire::Callable, Text>,
             signatures: ResultField<List<Id>, Text>,
         }
         Declaration: CallingSignatureDeclaration {
@@ -2439,7 +2439,7 @@ pub(crate) mod closed_conformance_wire {
         Bytes, Commitment, Digest, Id, Index, LifetimeDependency, List, Nominal, Optional, Path,
         ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum, wire_record,
     };
-    use super::target_family_wire::Callable;
+    use super::callable_wire::Callable;
     use terminal_psi::{
         ClosedConformanceApplication, ClosedConformanceCallableResult,
         ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
@@ -3369,7 +3369,7 @@ pub(crate) mod proof_scope_wire {
                 ));
             };
             writer.u32(declaration.0);
-            super::target_family_wire::encode_callable(writer, *callable);
+            super::callable_wire::encode_callable(writer, *callable);
         }
         let plan = &scope.plan;
         writer.boolean(plan.has_obligations);
@@ -3623,7 +3623,7 @@ pub(crate) mod proof_scope_wire {
         for _ in 0..reader.count()? {
             result.callables.insert(ProofCallableAssociation::Callable {
                 declaration: ProofDeclarationId(reader.u32()?),
-                callable: super::target_family_wire::decode_callable(reader)?,
+                callable: super::callable_wire::decode_callable(reader)?,
             });
         }
         let plan = &mut result.plan;
@@ -3872,7 +3872,7 @@ pub(crate) mod scalar_application_wire {
     use super::super::CodecError;
     use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::super::wire::{Reader, Writer};
-    use super::target_family_wire::{decode_callable, encode_callable};
+    use super::callable_wire::{decode_callable, encode_callable};
     use terminal_psi::{LayoutMeasurement, ScalarApplication, ScalarApplications};
 
     pub(crate) fn encode(
@@ -4695,13 +4695,11 @@ pub(crate) mod scalar_predicate_wire {
         }
     }
 }
-pub(crate) mod target_family_wire {
+pub(crate) mod callable_wire {
 
     use super::super::CodecError;
-    use super::super::wire::{Reader, Writer, decode_counted};
-    use terminal_psi::{
-        TargetMachineCallable, TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply,
-    };
+    use super::super::wire::{Reader, Writer};
+    use terminal_psi::TargetMachineCallable;
 
     pub(crate) fn encode_callable(writer: &mut Writer, callable: TargetMachineCallable) {
         match callable {
@@ -4723,52 +4721,6 @@ pub(crate) mod target_family_wire {
             1 => TargetMachineCallable::Machine(reader.id("MachineId")?),
             2 => TargetMachineCallable::Boundary(reader.id("BoundaryMachineId")?),
             tag => return Err(CodecError::InvalidTag("TargetMachineCallable", tag)),
-        })
-    }
-
-    pub(crate) fn encode_family(
-        writer: &mut Writer,
-        family: &TargetMachineFamily,
-    ) -> Result<(), CodecError> {
-        encode_callable(writer, family.canonical);
-        writer.bytes(&family.head_contract);
-        writer.len("target-family members", family.members.len())?;
-        for member in &family.members {
-            writer.string("target-family deployment tag", &member.target)?;
-            encode_callable(writer, member.callable);
-            writer.u8(match member.supply {
-                TargetMachineSupply::CheckedBody => 1,
-                TargetMachineSupply::Requirement => 2,
-                TargetMachineSupply::TopLevelRequirement => 3,
-                TargetMachineSupply::Boundary => 4,
-                TargetMachineSupply::AdmissionClaim => 5,
-                TargetMachineSupply::ExternalRealization => 6,
-            });
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_family(
-        reader: &mut Reader<'_>,
-    ) -> Result<TargetMachineFamily, CodecError> {
-        Ok(TargetMachineFamily {
-            canonical: decode_callable(reader)?,
-            head_contract: reader.array()?,
-            members: decode_counted(reader, |reader| {
-                Ok(TargetMachineFamilyMember {
-                    target: reader.string("target-family deployment tag")?,
-                    callable: decode_callable(reader)?,
-                    supply: match reader.u8()? {
-                        1 => TargetMachineSupply::CheckedBody,
-                        2 => TargetMachineSupply::Requirement,
-                        3 => TargetMachineSupply::TopLevelRequirement,
-                        4 => TargetMachineSupply::Boundary,
-                        5 => TargetMachineSupply::AdmissionClaim,
-                        6 => TargetMachineSupply::ExternalRealization,
-                        tag => return Err(CodecError::InvalidTag("TargetMachineSupply", tag)),
-                    },
-                })
-            })?,
         })
     }
 
@@ -5052,8 +5004,6 @@ delegated_fields! {
            carry_and_suspension_wire::decode_suspension_call_plan;
     Machine: terminal_psi::TerminalMachine
         => super::machine_wire::encode_machine, super::machine_wire::decode_machine;
-    TargetFamily: terminal_psi::TargetMachineFamily
-        => target_family_wire::encode_family, target_family_wire::decode_family;
     BoundaryDemand: terminal_psi::TerminalBoundaryApplicationDemand
         => boundary_application_wire::encode_demand, boundary_application_wire::decode_demand;
     BoundaryCandidate: terminal_psi::BoundaryApplicationCandidate
@@ -5063,7 +5013,7 @@ delegated_fields! {
 wire_record! {
     Module: TerminalModule {
         vocabulary_marker: Vocabulary,
-        entry: Optional<target_family_wire::Callable>,
+        entry: Optional<callable_wire::Callable>,
         identities: Identities,
         indexed_theorems: List<IndexedTheorem>,
         mathematical_carriers: List<MathematicalCarrier>,
@@ -5107,7 +5057,6 @@ wire_record! {
         operation_crash_contracts: List<operation_crash_contract_wire::Contract>,
         declaration_contracts: List<super::contract_wire::Contract>,
         machines: List<Machine>,
-        target_machine_families: List<TargetFamily>,
         target_layout_applications: List<target_layout_wire::Application>,
         native_layouts: native_layout_wire::Catalog,
         boundary_application_demands: List<BoundaryDemand>,

@@ -101,13 +101,34 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     .or_insert(Some(index));
             }
             indexed = program.machine_specializations.len();
-            let served =
-                named_conformances::serve(program, site, &mut captures).and_then(|handled| {
+            let served = named_conformances::serve(program, site, &mut captures)
+                .and_then(|handled| {
                     if handled {
                         Ok(())
                     } else {
                         serve(program, site, &mut generated, &instances)
                     }
+                })
+                .and_then(|()| {
+                    let Some(call) = site.call(program) else {
+                        return Ok(());
+                    };
+                    let dispatch = match call {
+                        StaticArgumentCall::Expression(_, call) => {
+                            call.static_requirement_dispatch.clone()
+                        }
+                        StaticArgumentCall::Statement(call) => {
+                            call.static_requirement_dispatch.clone()
+                        }
+                    };
+                    let Some(dispatch) = dispatch else {
+                        return Ok(());
+                    };
+                    let application = call.application();
+                    let original = call.registration_operation(program);
+                    program
+                        .prepare_selected_requirement_application(application, &dispatch, original)
+                        .map_err(|reason| Stop::Unserved(Some(reason)))
                 });
             match served {
                 Ok(()) => {}
@@ -569,6 +590,7 @@ fn bind_requirement(
     let Ok(Some(requirement)) = program.evidence_requirement_declaration(applied.target) else {
         return Ok(());
     };
+    let declaration = requirement.symbol;
     let parameters = program
         .data_type_parameters
         .span_or_empty(requirement.type_parameters)
@@ -588,6 +610,10 @@ fn bind_requirement(
     for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
+    program
+        .expression_table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = declaration;
     bind(program, applied.application, &operands);
     Ok(())
 }
@@ -1128,7 +1154,7 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
         {
             return Err(Stop::Unserved(None));
         }
-        if holds_expression(program, &types) {
+        if has_unserved_type_expression(program, &types) {
             return Err(Stop::Unserved(None));
         }
         for owner in [machine.symbol, state.symbol] {
@@ -1346,9 +1372,9 @@ fn copy_contract(
     copied
 }
 
-/// Whether any type among `references` holds an expression, which
-/// specialization does not evaluate.
-fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
+/// Canonical value operands are carried by the shared type copier, not
+/// evaluated again here. Other embedded expressions still need an evaluator.
+fn has_unserved_type_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
     for reference in references.iter().filter(|reference| reference.is_valid()) {
@@ -1360,7 +1386,11 @@ fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) ->
             &mut embedded,
         );
     }
-    !embedded.is_empty()
+    embedded.iter().any(|copied| {
+        program
+            .static_operand_from_type_reference(copied.source)
+            .is_err()
+    })
 }
 
 /// Structural result of the one declaration copier. This mapping names
@@ -1432,7 +1462,11 @@ fn copy_declarations(
             &mut embedded,
         ));
     }
-    if !embedded.is_empty() {
+    if embedded.iter().any(|copied| {
+        program
+            .static_operand_from_type_reference(copied.source)
+            .is_err()
+    }) {
         return Err(Stop::Unserved(None));
     }
     let type_start = program.type_reference_table.type_reference_count() + 1;

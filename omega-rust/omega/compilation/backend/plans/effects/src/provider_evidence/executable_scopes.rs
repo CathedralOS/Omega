@@ -18,8 +18,8 @@ use semantic_vocabulary::{
 };
 use std::collections::VecDeque;
 use terminal_psi::{
-    CrashCause, ProviderCandidateConformance, TargetMachineCallable, TargetMachineSupply,
-    TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior,
+    CrashCause, ProviderCandidateConformance, TerminalModule, UnoptimizedBehaviorOperation,
+    UnoptimizedMachineBehavior,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,8 +241,8 @@ pub enum EvidenceGapKind {
     UnknownCallee(MachineId),
     UnknownBoundary(BoundaryMachineId),
     UnknownBoundaryService(BoundaryMachineId),
-    TargetFamilySelection {
-        head: BoundaryMachineId,
+    ProviderRealization {
+        boundary: BoundaryMachineId,
         target: String,
         reason: String,
     },
@@ -268,13 +268,13 @@ impl EvidenceGapKind {
             EvidenceGapKind::MissingUnoptimizedBehavior(machine) => {
                 format!("machine {machine} has no retained unoptimized semantic operations")
             }
-            EvidenceGapKind::TargetFamilySelection {
-                head,
+            EvidenceGapKind::ProviderRealization {
+                boundary,
                 target,
                 reason,
             } => {
                 format!(
-                    "target-family head {head} has incomplete member evidence for deployment `{target}`: {reason}"
+                    "boundary {boundary} has incomplete provider evidence for deployment `{target}`: {reason}"
                 )
             }
         }
@@ -371,7 +371,6 @@ pub fn establish_behavior_exclusions(
 
 fn boundary_realization_coverage(
     module: &TerminalModule,
-    boundary: BoundaryMachineId,
     candidates: &[&ProviderCandidateConformance],
     selected_provider_plans: &crate::SelectedProviderPlanFacts,
     deployment_target: &str,
@@ -393,39 +392,6 @@ fn boundary_realization_coverage(
         identities
     };
     for requirement_identity in requirement_identities {
-        if let Some(family_row) =
-            selected_provider_plans.family_realization_row(requirement_identity)
-        {
-            let head = module.boundary_machine(family_row.head);
-            let member = module.boundary_machine(family_row.member);
-            let selected_member = terminal_installation::resolve_target_machine_member(
-                module,
-                TargetMachineCallable::Boundary(family_row.head),
-                deployment_target,
-            )
-            .map_err(|error| error.to_string())?;
-            if family_row.target != deployment_target
-                || head.is_none_or(|declaration| {
-                    module.identities.text(declaration.identity)
-                        != selected_provider_plans
-                            .identities()
-                            .text(family_row.head_identity)
-                })
-                || member.is_none_or(|declaration| {
-                    module.identities.text(declaration.identity)
-                        != selected_provider_plans
-                            .identities()
-                            .text(family_row.member_identity)
-                })
-                || selected_member.is_none_or(|selected| {
-                    selected.callable != TargetMachineCallable::Boundary(family_row.member)
-                        || selected.supply == TargetMachineSupply::CheckedBody
-                        || family_row.member != boundary
-                })
-            {
-                return Err("selected provider family row disagrees with the exact catalog member or deployment".to_owned());
-            }
-        }
         let mut constrained = false;
         let specialization =
             selected_provider_plans.specialized_requirement_row(requirement_identity);
@@ -639,52 +605,7 @@ fn inspect_boundary<'module>(
     report: &mut BehaviorExclusionReport,
     pending: &mut VecDeque<&'module UnoptimizedMachineBehavior>,
 ) {
-    let selected_member = terminal_installation::resolve_target_machine_member(
-        module,
-        TargetMachineCallable::Boundary(called_boundary),
-        deployment_target,
-    );
-    let family_gap = |reason| EvidenceGap {
-        entry,
-        machine,
-        block: Some(block),
-        operation: invocation.operation(),
-        kind: EvidenceGapKind::TargetFamilySelection {
-            head: called_boundary,
-            target: deployment_target.to_owned(),
-            reason,
-        },
-    };
-    let boundary = match selected_member {
-        Ok(Some(member)) => match (member.callable, member.supply) {
-            (
-                TargetMachineCallable::Machine(callee),
-                TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary,
-            ) => {
-                inspect_callee(
-                    module, entry, machine, block, invocation, callee, report, pending,
-                );
-                return;
-            }
-            (TargetMachineCallable::Boundary(member), supply)
-                if supply != TargetMachineSupply::CheckedBody =>
-            {
-                member
-            }
-            _ => {
-                report.gaps.push(family_gap(format!(
-                    "selected callable {:?} has unsupported supply {:?}",
-                    member.callable, member.supply,
-                )));
-                return;
-            }
-        },
-        Ok(None) => called_boundary,
-        Err(error) => {
-            report.gaps.push(family_gap(error.to_string()));
-            return;
-        }
-    };
+    let boundary = called_boundary;
     let Some(declaration) =
         terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
     else {
@@ -741,7 +662,6 @@ fn inspect_boundary<'module>(
         .collect();
     let coverage = boundary_realization_coverage(
         module,
-        boundary,
         &candidates,
         selected_provider_plans,
         deployment_target,
@@ -749,7 +669,17 @@ fn inspect_boundary<'module>(
     let (realizations, needs_contract) = match coverage {
         Ok(coverage) => coverage,
         Err(reason) => {
-            report.gaps.push(family_gap(reason));
+            report.gaps.push(EvidenceGap {
+                entry,
+                machine,
+                block: Some(block),
+                operation: invocation.operation(),
+                kind: EvidenceGapKind::ProviderRealization {
+                    boundary,
+                    target: deployment_target.to_owned(),
+                    reason,
+                },
+            });
             return;
         }
     };

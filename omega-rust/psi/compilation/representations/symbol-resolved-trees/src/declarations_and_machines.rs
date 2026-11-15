@@ -661,7 +661,7 @@ pub mod machine_declarations {
         }
 
         #[test]
-        fn replacing_equal_revision_arena_replaces_derived_relationships() {
+        fn replacing_arena_storage_replaces_derived_relationships() {
             let original = SymbolHandle::from_parts(1, 1);
             let replacement = SymbolHandle::from_parts(2, 1);
             let mut declarations = MachineDeclarations::default();
@@ -669,7 +669,7 @@ pub mod machine_declarations {
             assert!(declarations.by_symbol(original).is_some());
             let mut unrelated = OrderedRootArena::default();
             unrelated.push(machine(replacement, true));
-            assert_eq!(declarations.revision(), unrelated.revision());
+            assert_ne!(declarations.revision(), unrelated.revision());
             *declarations = unrelated;
             assert!(declarations.by_symbol(original).is_none());
             assert!(declarations.by_symbol(replacement).unwrap().is_public);

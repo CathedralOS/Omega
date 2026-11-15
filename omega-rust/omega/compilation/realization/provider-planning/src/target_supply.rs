@@ -156,7 +156,7 @@ impl PreparedTargetSupply {
         let mut resolved = Vec::<(BoundaryMachineId, MachineId)>::new();
         let mut requirements = Vec::<DemandedRequirement>::new();
         loop {
-            let graph = terminal_installation::SynchronousCallGraph::new(module, None, None)
+            let graph = terminal_installation::SynchronousCallGraph::new(module, None)
                 .and_then(|graph| graph.with_boundary_calls(resolved.iter().copied()))
                 .map_err(defect)?;
             let mut reached = Vec::new();
@@ -666,10 +666,6 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
         (
             !module.task_activation_demands.demands.is_empty(),
             "a task activation",
-        ),
-        (
-            !module.target_machine_families.is_empty(),
-            "a Build-selected target implementation",
         ),
     ]
     .into_iter()

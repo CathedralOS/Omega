@@ -80,7 +80,7 @@ machine build_entry(session: &mut Session, other: &Session) { session.name = sam
 machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
 "#
         ),
-        "typing call that gives one lifetime two regions"
+        "typing call that gives one lifetime two regions while reading the body of `build_entry`"
     );
     assert_eq!(
         verdict(
@@ -90,7 +90,7 @@ machine build_entry(session: &mut Session, name: &[u8]) { session.name = same(na
 machine same<'a>(view: &'a [u8]) -> &'a [u8] { view }
 "#
         ),
-        "typing call that gives one lifetime two regions"
+        "typing call that gives one lifetime two regions while reading the body of `build_entry`"
     );
 }
 
@@ -118,7 +118,7 @@ machine build_entry<'s>(session: &mut Session<'s>, other: &Session<'s>, name: &[
 {both}
 "#
         )),
-        "typing call that gives one lifetime two regions"
+        "typing call that gives one lifetime two regions while reading the body of `build_entry`"
     );
 }
 
@@ -145,7 +145,8 @@ machine build_entry(name: &[u8], second: &[u8]) { let kept: &[u8] = pick(name, s
 machine pick(view: &[u8], other: &[u8]) -> &[u8] { other }
 "#
         ),
-        "typing result without a lifetime of a signature with several input lifetimes"
+        "typing result without a lifetime of a signature with several input lifetimes while reading \
+         the signature of `pick`"
     );
     // Two regions among the views passed matter to nothing else.
     assert_eq!(
@@ -233,7 +234,7 @@ machine build_entry(name: &[u8]) { take(name); }
 machine take(view: &'missing [u8]) { }
 "#
         ),
-        "type byte view has no complete owned region identity"
+        "type byte view has no complete owned region identity while reading the signature of `take`"
     );
     assert_eq!(
         verdict(
@@ -305,7 +306,8 @@ machine whole_source(source: &Source, description: Description) {{ }}
     // against transferring that same storage in another argument.
     assert_eq!(
         verdict(&program("whole_source(&description.source, description);")),
-        "call argument that names storage another argument lends"
+        "call argument that names storage another argument lends while reading the body of \
+         `register`"
     );
 }
 
@@ -338,7 +340,7 @@ machine with_alias<'storage, 'other>(description: &mut Description<'storage>, al
 }
 "#
         ),
-        "typing assigned value type"
+        "typing assigned value type while reading the body of `with_alias`"
     );
 }
 
@@ -360,4 +362,24 @@ machine weigh(shape: Shape) -> u32 {
         ),
         "accepted"
     );
+}
+
+/// Elision is judged at the declaration that owns it. lifetimes.md:
+/// "Ambiguous elision requires an explicit relation, not a guess by name or
+/// position." Each elided input is its own lifetime of `pick`, so `pick`
+/// alone, never called, is refused whichever input it returns; the
+/// diagnostic does not wait for a caller that passes two regions.
+#[test]
+fn an_ambiguous_elided_result_is_refused_without_a_caller() {
+    for returned in ["view", "other"] {
+        assert_eq!(
+            verdict(&format!(
+                "machine build_entry() {{ }}\n\
+                 machine pick(view: &[u8], other: &[u8]) -> &[u8] {{ {returned} }}\n"
+            )),
+            "typing result without a lifetime of a signature with several input lifetimes while \
+             reading the signature of `pick`",
+            "{returned}"
+        );
+    }
 }

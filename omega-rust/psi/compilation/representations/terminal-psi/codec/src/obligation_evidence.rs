@@ -868,7 +868,7 @@ mod projection_tests {
         let mut seals = Vec::new();
         for number in 1..=2 {
             let machine = machine_id(number);
-            let mut body = crate::semantic_module::target_family_tests::unit_machine(machine);
+            let mut body = crate::semantic_module::entry_tests::unit_machine(machine);
             body.declaration = None;
             body.contract.id = ContractId::new(number).unwrap();
             let value = |offset| ValueDeclaration {
@@ -946,7 +946,7 @@ mod projection_tests {
             StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
         };
         let mut module = TerminalModule::for_entry(machine_id(1));
-        let mut body = crate::semantic_module::target_family_tests::unit_machine(machine_id(1));
+        let mut body = crate::semantic_module::entry_tests::unit_machine(machine_id(1));
         let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
         let value = |raw| ValueId::new(raw).unwrap();
         let operation = |raw| OperationId::new(raw).unwrap();

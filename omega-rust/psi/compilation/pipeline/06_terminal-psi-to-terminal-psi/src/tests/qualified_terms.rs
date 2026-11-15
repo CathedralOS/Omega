@@ -260,7 +260,8 @@ fn a_bare_qualified_comparison_does_not_become_a_builtin_comparison() {
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the signature of `consume` while reading the body of `entry`"
+        "contract builtin operator on a value with a declared domain in a clause while reading the \
+         signature of `consume` while reading the body of `entry`"
     );
 }
 
@@ -319,7 +320,8 @@ machine entry(handle: i64 in Classified & Other) {{
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the signature of `consume` while reading the body of `entry`"
+        "contract builtin operator on a value with a declared domain in a clause while reading the \
+         signature of `consume` while reading the body of `entry`"
     );
 }
 
@@ -428,7 +430,8 @@ machine entry() {{
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "declaration holding a domain cast through a reference, which no pass accounts for yet while reading the signature of `borrow_remove` while reading the body of `entry`"
+        "declaration holding a domain cast through a reference, which no pass accounts for yet \
+         while reading the signature of `borrow_remove` while reading the body of `entry`"
     );
 }
 
@@ -457,7 +460,8 @@ machine entry() -> i64 {{ observe(issue(7)) }}
     assert_eq!(qualified.reason, RefusalReason::Unsupported);
     assert_eq!(
         qualified.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the signature of `observe` while reading the body of `entry`"
+        "contract builtin operator on a value with a declared domain in a clause while reading the \
+         signature of `observe` while reading the body of `entry`"
     );
 
     let wrong_value = judge(invocation(&source(guarantee, "0"))).unwrap();

@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI25`) for retained native
+  Compiler-private binary persistence (`OMGNTI26`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -994,7 +994,6 @@ mod selection {
         installation_reach_resolutions,
         specialized_requirement_rows,
         external_requirement_applications,
-        family_realization_rows,
         toolchain_settled_identities,
         identities,
     });
@@ -1450,7 +1449,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI25";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI26";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1505,6 +1504,7 @@ mod tests {
             b"OMGNTI22",
             b"OMGNTI23",
             b"OMGNTI24",
+            b"OMGNTI25",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1528,7 +1528,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI26", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI27", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };
@@ -1577,7 +1577,6 @@ fn capture(
         evaluated_binding_identities,
         direct_boundary_leaves,
         target_profile,
-        family_realizations,
         boundaries,
         native_target,
         program_entry,
@@ -1600,7 +1599,6 @@ fn capture(
         leaf.write(&mut output)?;
     }
     target_profile.write(&mut output)?;
-    write_values(family_realizations, &mut output)?;
     boundaries
         .selected_provider_plans
         .clone()
@@ -1664,7 +1662,6 @@ struct DerivationInputs {
     provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
     leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     profile: Option<target::TargetProfile>,
-    families: Vec<backend_plan::SelectedFamilyRealizationSource>,
     selected: effects::SelectedProviderPlanFacts,
     intrinsic_provenance: Vec<IntrinsicPlanRecord>,
     calling: Vec<calling_conventions::BoundaryCallingApplication>,
@@ -1703,7 +1700,6 @@ impl DerivationInputs {
             provider_proposals: RecordValue::read(input)?,
             leaves: RecordValue::read(input)?,
             profile: RecordValue::read(input)?,
-            families: RecordValue::read(input)?,
             selected: RecordValue::read(input)?,
             intrinsic_provenance: RecordValue::read(input)?,
             calling: RecordValue::read(input)?,
@@ -1753,7 +1749,6 @@ pub fn recover_native_derivation_inputs(
         provider_proposals,
         leaves,
         profile,
-        families,
         selected,
         intrinsic_provenance,
         calling,
@@ -1789,7 +1784,6 @@ pub fn recover_native_derivation_inputs(
         evaluated_binding_identities: &evaluated_binding_identities,
         direct_boundary_leaves: leaves.iter().collect(),
         target_profile: profile,
-        family_realizations: &families,
         boundaries: crate::BoundaryApplicationSettlement {
             selected_provider_plans: &selected,
             selected_provider_provenance: intrinsic_provenance

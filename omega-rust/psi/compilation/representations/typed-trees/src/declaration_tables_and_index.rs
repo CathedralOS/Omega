@@ -197,7 +197,7 @@ pub(crate) mod data_definitions {
             let mut incoming_roster = HandleSpan::empty();
             let incoming_handle = incoming
                 .append_to_span(&mut incoming_roster, definition(replacement, "Replacement"));
-            assert_eq!(
+            assert_ne!(
                 incoming.revision(),
                 program.tables.data_definitions.revision()
             );
@@ -452,7 +452,6 @@ pub mod declaration_index {
     };
     pub(crate) mod relationships {
 
-        use super::roster_marker;
         use crate::{data::DataMember, signature::StateParameter, statement::StatementNode};
         use symbols::SymbolHandle;
 
@@ -544,6 +543,15 @@ pub mod declaration_index {
             }
         }
 
+        /// Every input the data-member index reads: each arena's freshness stamp and the
+        /// complete root roster, generation included.
+        pub(crate) type DataMemberScope = (
+            u64,
+            u64,
+            u64,
+            arena::HandleSpan<crate::data::DataDefinition>,
+        );
+
         pub(crate) type StateDeclarationRevision = (
             u64,
             u64,
@@ -587,6 +595,15 @@ pub mod declaration_index {
         }
 
         impl crate::TypedTrees {
+            pub(crate) fn data_member_scope(&self) -> DataMemberScope {
+                (
+                    self.tables.data_definitions.revision(),
+                    self.tables.data_members.revision(),
+                    self.tables.data_payload_fields.revision(),
+                    self.roots.data_definitions,
+                )
+            }
+
             pub(crate) fn with_state_declarations<R>(
                 &self,
                 run: impl FnOnce(&StateDeclarationIndex) -> R,
@@ -743,15 +760,8 @@ pub mod declaration_index {
                 &self,
                 run: impl FnOnce(&DataMemberIndex) -> R,
             ) -> R {
-                let revision = self
-                    .tables
-                    .data_definitions
-                    .revision()
-                    .wrapping_add(self.tables.data_members.revision())
-                    .wrapping_add(self.tables.data_payload_fields.revision())
-                    .wrapping_add(roster_marker(self.roots.data_definitions));
                 self.declaration_indexes.data_members.with(
-                    revision,
+                    self.data_member_scope(),
                     || {
                         let (mut fields, mut variants) = (Vec::new(), Vec::new());
                         let mut variant_names: Vec<(Box<str>, (u32, u32))> = Vec::new();
@@ -971,7 +981,9 @@ pub mod declaration_index {
         }
     }
     use crate::types::TypeReferenceHandle;
-    use relationships::{DataMemberIndex, StateDeclarationIndex, StateDeclarationRevision};
+    use relationships::{
+        DataMemberIndex, DataMemberScope, StateDeclarationIndex, StateDeclarationRevision,
+    };
     use requirement_applications::RequirementApplicationIndex;
 
     #[cfg(test)]
@@ -987,6 +999,95 @@ pub mod declaration_index {
                 kind,
                 ..TypeParameter::default()
             }
+        }
+
+        /// The call-target index is keyed on every input it reads, so a warmed index
+        /// agrees with a cold rebuild after its trait storage is replaced at the same
+        /// row count, after a same-length symbol edit and after a roster generation
+        /// change. Statement edits are not inputs, so they keep the warmed index.
+        #[test]
+        fn call_target_index_follows_storage_generation_and_same_length_edits() {
+            use crate::trait_definition::TraitDefinition;
+            let first = SymbolHandle::from_parts(21, 1);
+            let second = SymbolHandle::from_parts(22, 1);
+            let replaced = SymbolHandle::from_parts(23, 1);
+            let trait_row = |symbol| TraitDefinition {
+                symbol,
+                ..TraitDefinition::default()
+            };
+            let agrees = |program: &TypedTrees, symbols: &[SymbolHandle]| {
+                let cold = program.build_call_target_index();
+                for symbol in symbols {
+                    assert_eq!(
+                        program.with_call_target_index(|index| {
+                            index.trait_by_symbol.get(symbol).copied()
+                        }),
+                        cold.trait_by_symbol.get(symbol).copied()
+                    );
+                }
+            };
+            let symbols = [first, second, replaced];
+            let mut program = TypedTrees::default();
+            let mut roster = arena::HandleSpan::empty();
+            program
+                .tables
+                .traits
+                .append_to_span(&mut roster, trait_row(first));
+            program
+                .tables
+                .traits
+                .append_to_span(&mut roster, trait_row(second));
+            program.roots.traits = roster;
+            agrees(&program, &symbols);
+            assert_eq!(
+                program.with_call_target_index(|index| index.trait_by_symbol.get(&second).copied()),
+                Some(1)
+            );
+
+            let warmed = program.call_target_scope();
+            program
+                .statement_table
+                .insert(crate::statement::StatementNode::default());
+            assert!(program.call_target_scope() == warmed);
+
+            let mut replacement = arena::Arena::default();
+            let mut replacement_roster = arena::HandleSpan::empty();
+            replacement.append_to_span(&mut replacement_roster, trait_row(replaced));
+            replacement.append_to_span(&mut replacement_roster, trait_row(second));
+            assert_eq!(replacement_roster, roster);
+            program.tables.traits = replacement;
+            agrees(&program, &symbols);
+            assert_eq!(
+                program.with_call_target_index(|index| index.trait_by_symbol.get(&first).copied()),
+                None
+            );
+
+            program.tables.traits.get_mut(roster.start()).symbol = first;
+            agrees(&program, &symbols);
+            assert_eq!(
+                program.with_call_target_index(|index| index.trait_by_symbol.get(&first).copied()),
+                Some(0)
+            );
+
+            program.roots.traits = arena::HandleSpan::from_parts(
+                arena::Handle::from_parts(roster.start().arena_index(), 2),
+                roster.count(),
+            );
+            assert!(program.call_target_scope() != warmed);
+            agrees(&program, &symbols);
+        }
+
+        /// The data-member scope names the complete roster, so a roster at the same
+        /// start and count but another generation is a different input.
+        #[test]
+        fn data_member_scope_distinguishes_roster_generation() {
+            let mut program = TypedTrees::default();
+            program.roots.data_definitions =
+                arena::HandleSpan::from_parts(arena::Handle::from_parts(1, 1), 1);
+            let warmed = program.data_member_scope();
+            program.roots.data_definitions =
+                arena::HandleSpan::from_parts(arena::Handle::from_parts(1, 2), 1);
+            assert!(program.data_member_scope() != warmed);
         }
 
         #[test]
@@ -1291,7 +1392,7 @@ pub mod declaration_index {
         }
 
         #[test]
-        fn named_value_types_refresh_equal_revision_parameter_replacement() {
+        fn named_value_types_refresh_after_parameter_storage_replacement() {
             let symbol = SymbolHandle::from_parts(7, 3);
             let first_type = TypeReferenceHandle::from_parts(1, 1);
             let replacement_type = TypeReferenceHandle::from_parts(2, 1);
@@ -1311,7 +1412,7 @@ pub mod declaration_index {
             let mut replacement = arena::Arena::default();
             let replacement_handle = replacement.insert(parameter(replacement_type));
             assert_eq!(original_handle, replacement_handle);
-            assert_eq!(program.state_parameters.revision(), replacement.revision());
+            assert_ne!(program.state_parameters.revision(), replacement.revision());
 
             program.state_parameters = replacement;
             assert_eq!(
@@ -1380,7 +1481,7 @@ pub mod declaration_index {
             );
             let revision = program.tables.machines.revision();
             let mut replacement = arena::Arena::new();
-            let replacement_root = replacement.insert(Machine {
+            replacement.insert(Machine {
                 symbol: next_root,
                 ..Default::default()
             });
@@ -1388,10 +1489,7 @@ pub mod declaration_index {
                 symbol: next_retained,
                 ..Default::default()
             });
-            while replacement.revision() < revision {
-                let _ = replacement.get_mut(replacement_root);
-            }
-            assert_eq!(replacement.revision(), revision);
+            assert_ne!(replacement.revision(), revision);
             program.tables.machines = replacement.into();
             assert!(program.machine_by_symbol(root).is_none());
             assert_eq!(
@@ -1485,6 +1583,19 @@ pub mod declaration_index {
 
     type DomainPositionIndex = SymbolRows<usize>;
 
+    /// Every input the call-target index reads: each arena's freshness stamp and the
+    /// complete machine and trait rosters, generation included. Statement and expression
+    /// storage is absent, so body edits keep this signature-only index.
+    pub(crate) type CallTargetScope = (
+        u64,
+        u64,
+        u64,
+        u64,
+        u64,
+        HandleSpan<machine::Machine>,
+        HandleSpan<crate::trait_definition::TraitDefinition>,
+    );
+
     #[derive(Clone, Default)]
     pub struct CallTargetIndex {
         pub boundary_machine_by_state: symbols::SymbolKeyMap<SymbolHandle, u32>,
@@ -1531,9 +1642,9 @@ pub mod declaration_index {
     pub struct DeclarationIndexes {
         states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
         state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
-        data_members: OwnedIndex<DataMemberIndex>,
+        data_members: OwnedIndex<DataMemberIndex, DataMemberScope>,
         domains: OwnedIndex<DomainPositionIndex, DomainDeclarationScope>,
-        call_targets: OwnedIndex<CallTargetIndex>,
+        call_targets: OwnedIndex<CallTargetIndex, CallTargetScope>,
         requirement_applications: OwnedIndex<RequirementApplicationIndex>,
         domain_candidates: OwnedIndex<DomainCandidateIndex, DomainDeclarationScope>,
         operator_spellings: OwnedIndex<OperatorSpellingIndex, OperatorSpellingScope>,
@@ -1924,20 +2035,22 @@ pub mod declaration_index {
         }
 
         pub fn with_call_target_index<R>(&self, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
-            let revision = self
-                .tables
-                .machines
-                .revision()
-                .wrapping_add(self.tables.machine_states.revision())
-                .wrapping_add(self.tables.data_type_parameters.revision())
-                .wrapping_add(self.tables.traits.revision())
-                .wrapping_add(self.tables.trait_machine_signatures.revision())
-                .wrapping_add(roster_marker(self.roots.machines))
-                .wrapping_add(roster_marker(self.roots.traits));
             self.declaration_indexes.call_targets.with(
-                revision,
+                self.call_target_scope(),
                 || self.build_call_target_index(),
                 run,
+            )
+        }
+
+        pub(crate) fn call_target_scope(&self) -> CallTargetScope {
+            (
+                self.tables.machines.revision(),
+                self.tables.machine_states.revision(),
+                self.tables.data_type_parameters.revision(),
+                self.tables.traits.revision(),
+                self.tables.trait_machine_signatures.revision(),
+                self.roots.machines,
+                self.roots.traits,
             )
         }
 
@@ -5672,7 +5785,7 @@ pub(crate) mod type_parameters {
         }
 
         #[test]
-        fn contract_index_follows_mutation_clone_and_equal_revision_replacement() {
+        fn contract_index_follows_mutation_clone_and_storage_replacement() {
             let first = SymbolHandle::from_parts(11, 1);
             let other = SymbolHandle::from_parts(12, 1);
             let symbols = [first, other];
@@ -5688,7 +5801,7 @@ pub(crate) mod type_parameters {
             assert_queries(&p, &symbols);
             let mut replacement = Arena::default();
             replacement.insert(callable(other, "replacement"));
-            assert_eq!(
+            assert_ne!(
                 replacement.revision(),
                 p.tables.data_type_parameters.revision()
             );

@@ -329,7 +329,7 @@ mod native_providers {
     }
 }
 
-pub use backend_plan::{SelectedFamilyRealizationSource, TerminalTargetProviderProposal};
+pub use backend_plan::TerminalTargetProviderProposal;
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{
     PreparedNativeExecution, PreparedNativeWork, PreparedRetainedNativeProviders,

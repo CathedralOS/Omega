@@ -14,6 +14,15 @@ Moving, lending and passing a whole value on is none of these ("Moving an
 intact governed value transports its policy and custody"), so those sites
 keep the value's complete type and ask nothing.
 
+The record lookups that look inside a value (`member_of`, `case_position`,
+`field_type`, `payload_type`, `case_pattern`, `array_element`) take an
+`Opened` rather than a bare record, and an `Opened` comes only from here: from
+`opened`, which asks, or from `constructing`, which names a fresh carrier
+that owes nothing. A new site that projects, tests a case or indexes cannot
+skip the question by matching the record out of a qualified type with `_`.
+Shape metadata (`data_type`) stays open: "Type/field metadata and already
+established proof facts are not new runtime reads".
+
 Who may read or write a governed value is stated by its policy's plan
 (`wiki/spec/resources/access.md`), and no pass evaluates a plan. A domain
 with a policy therefore admits no reader or writer this checker can name,
@@ -39,6 +48,26 @@ pub(super) enum Access {
     /// Changes part of it: a store into a field or an element, or an
     /// exclusive loan of one.
     Write,
+}
+
+/// A record whose contents the site holding it may look inside: either the
+/// machine being read was authorized for the access it does, or the record
+/// is a carrier being constructed. Only this module makes one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Opened(StructuralTypeId);
+
+impl Opened {
+    /// The record of a carrier being constructed, which no domain governs
+    /// yet: "Constructing a fresh valid carrier precedes establishing its
+    /// qualification" (domains.md), and "it does not retroactively require
+    /// a constructor to read or write an already-protected value".
+    pub(super) fn constructing(record: StructuralTypeId) -> Self {
+        Self(record)
+    }
+
+    pub(super) fn record(self) -> StructuralTypeId {
+        self.0
+    }
 }
 
 impl Program<'_> {
@@ -86,12 +115,12 @@ impl Program<'_> {
         id: MachineId,
         value_type: Option<ValueType>,
         access: Access,
-    ) -> Checked<Option<StructuralTypeId>> {
+    ) -> Checked<Option<Opened>> {
         let Some(value_type @ ValueType::Record(record, _, _)) = value_type else {
             return Ok(None);
         };
         self.authorized(id, value_type, access)?;
-        Ok(Some(record))
+        Ok(Some(Opened(record)))
     }
 
     /// Authorizes a partial write through `place`, a slot or a path of

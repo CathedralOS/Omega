@@ -319,7 +319,7 @@ impl Program<'_> {
                 return unserved("case test of something that is not a sum");
             };
             let case = self.case_position(id, sum, case)?;
-            let case = self.data_type(id, sum)?.cases()[case].id;
+            let case = self.data_type(id, sum.record())?.cases()[case].id;
             return Ok(Proposition::StructuralCaseMembership {
                 subject: StructuralCaseSubject::new(root, path),
                 case,
@@ -678,7 +678,10 @@ impl Program<'_> {
                 else {
                     return unserved("extent without an exact formal descriptor");
                 };
-                let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
+                let Some(record) = self
+                    .opened(id, Some(receiver), Access::Read)?
+                    .map(super::authority::Opened::record)
+                else {
                     return unserved("extent of non-collection storage");
                 };
                 if !matches!(
@@ -908,9 +911,8 @@ impl Program<'_> {
     /// type, and the result is the bare carrier. contracts.md, "Total
     /// arithmetic": "Wrapping and Saturating discharge primitive definedness
     /// not resolved by their overflow policy, such as a nonzero divisor." A
-    /// divide or remainder therefore owes a condition before it forms a term;
-    /// no slice states that obligation for a clause yet, so both are refused
-    /// by name, as Exact arithmetic is.
+    /// divide or remainder therefore owes a condition before it forms a term.
+    /// Declaration formation checks that condition before using the clause.
     fn arithmetic_term(
         &self,
         id: MachineId,
@@ -928,7 +930,7 @@ impl Program<'_> {
         if suffix.is_some() && anonymous == (true, true) {
             return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
         }
-        let ((left, mut left_type), (right, mut right_type)) = if anonymous.0 {
+        let ((left, left_type), (right, right_type)) = if anonymous.0 {
             let right = self.term(id, scope, binary.right, expected)?;
             (self.term(id, scope, binary.left, right.1.scalar())?, right)
         } else {
@@ -936,34 +938,14 @@ impl Program<'_> {
             let right = self.term(id, scope, binary.right, left.1.scalar())?;
             (left, right)
         };
-        if let Some(policy) = suffix {
-            let operation = crate::policy::suffixed(binary.operator).map_err(unserved)?;
-            // Validate both authored operands, including a shift's count;
-            // only the value operand chooses a shift's policy.
-            let under_left =
-                super::expressions::policy_operand(id, Some(left_type), policy, source)?;
-            let under_right =
-                super::expressions::policy_operand(id, Some(right_type), policy, source)?;
-            if !crate::policy::shifts(operation) && left_type.scalar() != right_type.scalar() {
-                return Err(crate::reject(
-                    id,
-                    crate::SourceOrigin::of(self.typed.expression_table.source_span(binary.right)),
-                    "policy operator operand types differ",
-                ));
-            }
-            if !anonymous.0 {
-                left_type = under_left;
-            }
-            if !anonymous.1 && !crate::policy::shifts(operation) {
-                right_type = under_right;
-            }
-        }
-        let (operation, selected) = super::expressions::binary_selection(
+        let (operation, policy, selected) = super::expressions::binary_selection(
             id,
             binary.operator,
             Some(left_type),
             Some(right_type),
             anonymous,
+            suffix,
+            source,
         )?;
         let operation = operation
             .ok_or_else(|| unserved("short-circuit expression is not a scalar arithmetic term"))?;
@@ -972,22 +954,11 @@ impl Program<'_> {
                 "arithmetic contract term has no selected integer carrier",
             ));
         };
-        let policy = selected.qualification().policy;
-        if suffix.is_some() && policy != suffix {
-            return Err(unserved(
-                "policy operator whose operands select no policy operation",
-            ));
-        }
         let term =
             crate::policy::term(operation, policy, carrier, left, right).ok_or_else(|| {
                 unserved("selected arithmetic operator has no canonical contract term")
             })?;
-        let result = if suffix.is_some() {
-            ValueType::plain(ScalarType::Integer(carrier))
-        } else {
-            selected
-        };
-        Ok((term, result))
+        Ok((term, selected))
     }
 
     /// Whether `call` is the builtin integer embedding applied to one value:
@@ -1350,7 +1321,7 @@ impl Program<'_> {
                         return Ok(None);
                     };
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((root, Vec::new(), ValueType::record(record))));
+                    return Ok(Some((root, Vec::new(), ValueType::record(record.record()))));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((
@@ -1359,13 +1330,14 @@ impl Program<'_> {
                         subject.value_type,
                     )));
                 }
-                // A field named bare is that field of `self`.
-                let ValueType::Record(record, _, _) = subject.value_type else {
-                    return Ok(None);
-                };
+                // A field named bare is that field of `self`, read inside
+                // `self`'s value as a member of it is.
                 if !subject.bare_fields {
                     return Ok(None);
                 }
+                let Some(record) = self.opened(id, Some(subject.value_type), Access::Read)? else {
+                    return Ok(None);
+                };
                 (subject.root, subject.path.to_vec(), record, path.symbol)
             }
             ExpressionNode::Member(member) => {
@@ -1448,7 +1420,7 @@ impl Program<'_> {
             | ExpressionNode::ZeroValue(_) => return Ok(None),
         };
         let mut path = base;
-        let data = self.data_type(id, record)?;
+        let data = self.data_type(id, record.record())?;
         let value_type = match self.member_of(id, record, symbol)? {
             Member::Field(field) => {
                 path.push(CanonicalStructuralPathSegment::Field(

@@ -388,7 +388,7 @@ machine entry() -> u32 {{ Probe::read(1) }}
     assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert_eq!(
         refusal.detail,
-        "call boundary requirement must declare its crash ceiling"
+        "call boundary requirement must declare its crash ceiling while reading the body of `entry`"
     );
     assert!(call("\n    crashes none").is_ok());
 }

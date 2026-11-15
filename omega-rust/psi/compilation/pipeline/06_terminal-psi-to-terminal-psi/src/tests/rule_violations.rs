@@ -60,7 +60,49 @@ fn a_type_naming_a_domain_nothing_declares_is_rejected() {
     accepted(&program("Km"));
     rejected(
         &program("Nowhere"),
-        "this type names the domain `Nowhere`, which nothing in the program declares",
+        "this type names the domain `Nowhere`, but no domain of that name is visible here",
+    );
+}
+
+/// modules.md, "Resolution", and effects.md: "A row names a parameter path
+/// or a requirement identity". Typing decides whether a written domain or
+/// `invokes` name names nothing from what the use's own source can see, not
+/// from any symbol anywhere that shares its last segment. Here a state of a
+/// trait and another machine's parameter are spelled `Nowhere`; neither is
+/// a domain or a requirement visible to the use, so both uses stay unknown
+/// names. The twins make the spelling name something visible that is not
+/// served there: a domain of another carrier, a machine in `invokes`.
+#[test]
+fn an_unrelated_declaration_sharing_a_spelling_does_not_make_a_name_known() {
+    let masks = "boundary trait Registry {\n    machine Nowhere() reaches none crashes none;\n}\n\
+                 machine holder(Nowhere: u32) { }\n";
+    let domain = |declared: &str| {
+        format!(
+            "{masks}{declared}machine carry(value: i32 in Nowhere) -> i32 in Nowhere {{\n    \
+             value\n}}\n"
+        )
+    };
+    rejected(
+        &domain(""),
+        "this type names the domain `Nowhere`, but no domain of that name is visible here",
+    );
+    assert!(
+        violations(&domain("domain u8::Nowhere;\n"))
+            .unwrap_err()
+            .starts_with("not supported"),
+        "a domain of another carrier is a request, not an unknown name"
+    );
+    let invokes =
+        |declared: &str| format!("{masks}{declared}machine entry() invokes Nowhere {{ }}\n");
+    rejected(
+        &invokes(""),
+        "`invokes Nowhere` names no parameter and no requirement",
+    );
+    assert!(
+        violations(&invokes("machine Nowhere() { }\n"))
+            .unwrap_err()
+            .starts_with("not supported"),
+        "a visible machine in `invokes` is a request, not an unknown name"
     );
 }
 

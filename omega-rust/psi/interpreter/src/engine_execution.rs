@@ -40,7 +40,7 @@ pub(crate) mod atomic_operations {
                         && structural_type == root.structural_type)
                         .then_some(StructuralAccess::Owned)
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if access == StructuralAccess::WriteOnlyBorrow || !event.ordering_is_legal() {
                 return Err(malformed());
             }
@@ -77,8 +77,8 @@ pub(crate) mod atomic_operations {
                     operand: value,
                     ..
                 } => Some(
-                    read_modify_write(arithmetic, prior.ok_or_else(malformed)?, operand(value)?)
-                        .ok_or_else(malformed)?,
+                    read_modify_write(arithmetic, prior.ok_or(malformed())?, operand(value)?)
+                        .ok_or(malformed())?,
                 ),
                 AtomicAccessEvent::CompareExchange {
                     expected,
@@ -90,7 +90,7 @@ pub(crate) mod atomic_operations {
                     replacement,
                     ..
                 } => {
-                    let matched = prior.ok_or_else(malformed)? == operand(expected)?;
+                    let matched = prior.ok_or(malformed())? == operand(expected)?;
                     matched.then(|| operand(replacement)).transpose()?
                 }
             };
@@ -108,7 +108,7 @@ pub(crate) mod atomic_operations {
                 (Some(prior), OperationResult::Structural(result))
                     if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) =>
                 {
-                    let custody = event.single_attempt_custody().ok_or_else(malformed)?;
+                    let custody = event.single_attempt_custody().ok_or(malformed())?;
                     if !terminal_psi::types::atomic_once_result_is_plain(result, custody) {
                         return Err(malformed());
                     }
@@ -118,7 +118,7 @@ pub(crate) mod atomic_operations {
                         scalar_type,
                         custody,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     let index = usize::from(replacement.is_some());
                     let result_case = cases[index].id;
                     let fields = match custody.outcome_identity.cases()[index].payload {
@@ -129,7 +129,7 @@ pub(crate) mod atomic_operations {
                                 AtomicCompareExchangeOutcomePayload::Observed
                                 | AtomicCompareExchangeOutcomePayload::Displaced => prior,
                                 AtomicCompareExchangeOutcomePayload::Proposed => {
-                                    proposed.ok_or_else(malformed)?
+                                    proposed.ok_or(malformed())?
                                 }
                             };
                             vec![(
@@ -215,11 +215,6 @@ pub(crate) mod capabilities {
         RegisterAccess {
             operation: terminal_psi::RegisterOperation,
         },
-        TargetMachineMemberSupply {
-            head: terminal_psi::TargetMachineCallable,
-            callable: terminal_psi::TargetMachineCallable,
-            supply: terminal_psi::TargetMachineSupply,
-        },
         ExternalCompletionInvocation {
             boundary: BoundaryMachineId,
             kind: ExternalCompletionKind,
@@ -276,7 +271,6 @@ pub(crate) mod capabilities {
         let mut imports = BTreeSet::new();
         let mut missing_providers = BTreeSet::new();
         let mut access_candidates = Vec::new();
-        let mut selected_calls = Vec::new();
         let mut external_completion = None;
         let mut external_demands = BTreeSet::new();
         let mut scalar_applications = BTreeSet::new();
@@ -446,35 +440,13 @@ pub(crate) mod capabilities {
                             }
                             for table in &catalog.tables {
                                 if table.interface == *interface {
-                                    let row = table.rows.get(slot_index).ok_or_else(malformed)?;
+                                    let row = table.rows.get(slot_index).ok_or(malformed())?;
                                     pending.extend(*row);
                                 }
                             }
                             None
                         }
                         OperationKind::BoundaryCall { boundary, .. } => {
-                            if program.is_target_family_head(*boundary) {
-                                let member =
-                                    crate::engine::calls::target_families::selected_member(
-                                        program,
-                                        installation.and_then(|installation| {
-                                            installation.target_machines.as_ref()
-                                        }),
-                                        *boundary,
-                                    )?;
-                                if let terminal_psi::TargetMachineCallable::Machine(member) = member
-                                {
-                                    if !selected_calls.contains(&(*boundary, member)) {
-                                        selected_calls.push((*boundary, member));
-                                    }
-                                    crate::engine::calls::target_families::validate_result_transport(
-                                    operation,
-                                    program.verified_machine(member)?,
-                                )?;
-                                    pending.push(member);
-                                    continue;
-                                }
-                            }
                             let declaration = program.verified_boundary_machine(boundary)?;
                             if crate::embedding::program::compiler_owns_boundary_execution(
                                 declaration,
@@ -499,9 +471,8 @@ pub(crate) mod capabilities {
                                     machine_id,
                                     (
                                         block.id,
-                                        u32::try_from(operation_index).map_err(|_| {
-                                            TerminalInterpretError::VerifiedOperationMalformed
-                                        })?,
+                                        u32::try_from(operation_index)
+                                            .map_err(|_| crate::boundary::errors::malformed())?,
                                     ),
                                     *boundary,
                                     structural_arguments.clone(),
@@ -549,9 +520,8 @@ pub(crate) mod capabilities {
                 match &block.terminator {
                     Terminator::InvokeNoNormal { callee, .. } => pending.push(*callee),
                     Terminator::ExternalCompletion { boundary, kind, .. } => {
-                        let callee = crate::engine::calls::target_families::completion_callee(
+                        let callee = crate::engine::calls::boundary_calls::completion_callee(
                             program,
-                            installation.and_then(|row| row.target_machines.as_ref()),
                             installation
                                 .and_then(|row| row.supplies.get(boundary))
                                 .copied(),
@@ -589,7 +559,7 @@ pub(crate) mod capabilities {
             }
         }
         if !access_candidates.is_empty() {
-            let graph = terminal_access_origin_graph(&program.catalogs, &selected_calls);
+            let graph = terminal_access_origin_graph(&program.catalogs, &[]);
             if let Some(graph) = graph {
                 let mut origins =
                     AccessRamOriginAnalysis::new(&program.catalogs, &graph, &visited, entry)
@@ -630,29 +600,17 @@ pub(crate) mod capabilities {
             let terminal_psi::ScalarApplication::Evaluate { entry, .. } = declaration else {
                 continue;
             };
-            let callable = match entry {
-                terminal_psi::TargetMachineCallable::Machine(_) => Some(*entry),
-                terminal_psi::TargetMachineCallable::Boundary(_) => installation
-                    .and_then(|installation| installation.target_machines.as_ref())
-                    .and_then(|targets| {
-                        targets
-                            .selections()
-                            .iter()
-                            .find(|selection| selection.head() == *entry)
-                    })
-                    .map(|selection| selection.callable()),
-            };
-            let Some(terminal_psi::TargetMachineCallable::Machine(machine)) = callable else {
+            let terminal_psi::TargetMachineCallable::Machine(machine) = entry else {
                 continue;
             };
-            if !visited.contains(&machine) {
+            if !visited.contains(machine) {
                 continue;
             }
             let application = u64::try_from(position)
                 .ok()
                 .and_then(|position| position.checked_add(1))
                 .and_then(semantic_vocabulary::ScalarApplicationId::new)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let subject = terminal_psi::ScalarConditionSubject::Application(application);
             if catalog.conditions.contains_subject(subject) {
                 scalar_entry_conditions.push(application);
@@ -1793,7 +1751,6 @@ pub(crate) mod execution {
         pub(crate) memory_ordering: Option<crate::TerminalMemoryOrderingEnvironment>,
         pub(crate) boundary_supplies:
             BTreeMap<BoundaryMachineId, crate::boundary::effects::AdmittedBoundarySupply>,
-        pub(crate) target_machines: Option<terminal_installation::AdmittedTargetMachineSelections>,
         pub(crate) native_code_layouts:
             Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
         pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
@@ -1925,10 +1882,6 @@ pub(crate) mod execution {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ResultClaimOrigin {
         CalleeReturn,
-        TargetFamilyReturn {
-            head: BoundaryMachineId,
-            member: MachineId,
-        },
         CheckedProvider,
     }
 
@@ -1938,12 +1891,6 @@ pub(crate) mod execution {
             result: &terminal_psi::StructuralOperationResult,
             declared: &[semantic_vocabulary::StructuralDomainId],
         ) -> bool {
-            if matches!(self, Self::TargetFamilyReturn { .. }) {
-                return result
-                    .qualifications
-                    .iter()
-                    .all(|domain| declared.contains(domain));
-            }
             let mut expected = declared.to_vec();
             if self == Self::CheckedProvider {
                 for establishment in &result.qualification_establishments {
@@ -1965,10 +1912,7 @@ pub(crate) mod execution {
             if self != Self::CalleeReturn && !preserved.is_empty() {
                 return false;
             }
-            if matches!(
-                self,
-                Self::TargetFamilyReturn { .. } | Self::CheckedProvider
-            ) {
+            if self == Self::CheckedProvider {
                 result
                     .projected_qualifications
                     .iter()
@@ -2104,7 +2048,7 @@ pub(crate) mod execution {
                 &mut $execution
                     .call_stack
                     .get_mut($depth)
-                    .ok_or_else($crate::boundary::errors::malformed)?
+                    .ok_or($crate::boundary::errors::malformed())?
                     .$field
             }
         };
@@ -2275,8 +2219,6 @@ pub(crate) mod execution {
                     .unwrap_or_default(),
                 native_code_layouts: installation
                     .and_then(|supplies| supplies.native_code_layouts.clone()),
-                target_machines: installation
-                    .and_then(|installation| installation.target_machines.clone()),
                 assumed_bindings: installation
                     .map(|installation| installation.assumed_bindings.clone())
                     .unwrap_or_default(),
@@ -2363,10 +2305,10 @@ pub(crate) mod execution {
                             .iter()
                             .map(|segment| identities.index_of(segment))
                             .collect::<Option<Vec<_>>>()
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         let carrier_type_identity = identities
                             .index_of(&field.carrier_type_identity)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         Ok(terminal_semantics::EstablishedErasedStructuralField {
                             field_path,
                             carrier_type_identity,
@@ -2725,7 +2667,7 @@ pub(crate) mod execution {
                                             let value = self.scalar_applications.as_ref()
                                                 .and_then(|values| values.value(application))
                                                 .ok_or(TerminalInterpretError::UnclosedScalarApplication(application))?;
-                                            let result = operation.result.scalar().ok_or_else(crate::boundary::errors::malformed)?;
+                                            let result = operation.result.scalar().ok_or(crate::boundary::errors::malformed())?;
                                             if result.scalar_type != value.scalar_type() {
                                                 return Err(crate::boundary::errors::malformed());
                                             }
@@ -3039,7 +2981,7 @@ pub(crate) mod native_code_layouts {
                     crate::TerminalUnsupportedCapability::NativeCodeLayout { machine },
                 ),
             )?;
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()
@@ -3555,7 +3497,8 @@ pub(crate) mod scalar_operations {
                 else {
                     return Err(malformed());
                 };
-                let value = cast(source_type, target_type, value).ok_or(malformed())?;
+                let value = cast(source_type, target_type, value)
+                    .ok_or_else(|| Self::unrepresentable_result(operation))?;
                 self.store_scalar(
                     operation,
                     TerminalScalarValue::Integer {
@@ -3658,7 +3601,7 @@ pub(crate) mod scalar_operations {
                     }
                     _ => unreachable!(),
                 }
-                .ok_or(malformed())?;
+                .ok_or_else(|| Self::unrepresentable_result(operation))?;
                 self.store_scalar(
                     operation,
                     TerminalScalarValue::Integer {
@@ -3737,7 +3680,7 @@ pub(crate) mod scalar_operations {
                     }
                     _ => unreachable!(),
                 }
-                .ok_or(malformed())?;
+                .ok_or_else(|| Self::unrepresentable_result(operation))?;
                 self.store_scalar(
                     operation,
                     TerminalScalarValue::Integer { scalar_type, value },
@@ -3760,6 +3703,34 @@ pub(crate) mod scalar_operations {
                 Ok(())
             }
 
+            /// The error for an integer operation whose result does not exist for
+            /// its operands. A proof-bearing operation names the range obligation
+            /// the checker discharged, because reaching here means that proof was
+            /// false; any other operation's result always exists for well-typed
+            /// operands, so its absence is a malformed artifact.
+            #[track_caller]
+            pub(crate) fn unrepresentable_result(
+                operation: &terminal_psi::Operation,
+            ) -> TerminalInterpretError {
+                match operation.kind {
+                    OperationKind::IntegerExactCast { obligation, .. }
+                    | OperationKind::ExactIntegerShiftLeft { obligation, .. }
+                    | OperationKind::ExactIntegerShiftRight { obligation, .. }
+                    | OperationKind::ExactIntegerAdd { obligation, .. }
+                    | OperationKind::ExactIntegerSubtract { obligation, .. }
+                    | OperationKind::ExactIntegerMultiply { obligation, .. }
+                    | OperationKind::ExactIntegerDivide { obligation, .. }
+                    | OperationKind::ExactIntegerRemainder { obligation, .. }
+                    | OperationKind::WrappingIntegerDivide { obligation, .. }
+                    | OperationKind::WrappingIntegerRemainder { obligation, .. }
+                    | OperationKind::SaturatingIntegerDivide { obligation, .. }
+                    | OperationKind::SaturatingIntegerRemainder { obligation, .. } => {
+                        TerminalInterpretError::ScalarObligationViolated { obligation }
+                    }
+                    _ => malformed(),
+                }
+            }
+
             pub(crate) fn store_scalar(
                 &mut self,
                 operation: &terminal_psi::Operation,
@@ -3768,6 +3739,91 @@ pub(crate) mod scalar_operations {
                 self.values
                     .insert(operation.result.expect_scalar().id, value)?;
                 Ok(OperationFlow::Advance)
+            }
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use crate::boundary::errors::{TerminalInterpretError, malformed};
+            use crate::engine::execution::TerminalExecution;
+            use semantic_vocabulary::{ObligationId, OperationId, ScalarType, ValueId};
+            use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+            fn operation(kind: OperationKind) -> Operation {
+                Operation {
+                    static_reach_binding: None,
+                    required_contract: None,
+                    suspension_crossing: None,
+                    id: OperationId::new(1).unwrap(),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: ValueId::new(3).unwrap(),
+                        scalar_type: ScalarType::Boolean,
+                        qualifications: Default::default(),
+                    }),
+                    kind,
+                }
+            }
+
+            #[test]
+            fn exact_arithmetic_without_a_result_reports_its_false_obligation() {
+                let left = ValueId::new(1).unwrap();
+                let right = ValueId::new(2).unwrap();
+                let obligation = ObligationId::new(7).unwrap();
+                for kind in [
+                    OperationKind::ExactIntegerAdd {
+                        left,
+                        right,
+                        obligation,
+                    },
+                    OperationKind::ExactIntegerMultiply {
+                        left,
+                        right,
+                        obligation,
+                    },
+                    OperationKind::ExactIntegerDivide {
+                        left,
+                        right,
+                        obligation,
+                    },
+                    OperationKind::WrappingIntegerDivide {
+                        left,
+                        right,
+                        obligation,
+                    },
+                    OperationKind::IntegerExactCast {
+                        operand: left,
+                        obligation,
+                    },
+                ] {
+                    let error = TerminalExecution::unrepresentable_result(&operation(kind));
+                    assert_eq!(
+                        error,
+                        TerminalInterpretError::ScalarObligationViolated { obligation }
+                    );
+                    assert!(error.to_string().contains("proof does not hold"));
+                }
+            }
+
+            #[test]
+            fn wrapping_arithmetic_without_a_result_is_malformed() {
+                let left = ValueId::new(1).unwrap();
+                let right = ValueId::new(2).unwrap();
+                let error = TerminalExecution::unrepresentable_result(&operation(
+                    OperationKind::WrappingIntegerAdd { left, right },
+                ));
+                assert!(matches!(
+                    error,
+                    TerminalInterpretError::VerifiedOperationMalformed { .. }
+                ));
+            }
+
+            #[test]
+            fn each_malformed_refusal_names_its_own_check() {
+                let first = malformed();
+                let second = malformed();
+                assert_ne!(first, second);
+                let report = first.to_string();
+                assert!(report.contains("engine_execution.rs:"), "{report}");
             }
         }
     }

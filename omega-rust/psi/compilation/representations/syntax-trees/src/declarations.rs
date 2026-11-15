@@ -27,7 +27,12 @@ pub mod item {
         use super::*;
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct OperatorDefinition {
             pub is_public: bool,
@@ -42,13 +47,25 @@ pub mod item {
             pub token_count: usize,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct CapabilityDefinition {
             pub name: Identifier,
             pub members: HandleSpan<CapabilityMember>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum CapabilityMember {
             Field(CapabilityField),
             State(CapabilityState),
@@ -61,21 +78,37 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct CapabilityField {
             pub name: Identifier,
             pub type_reference: crate::types::TypeReferenceHandle,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct CapabilityState {
             pub signature: StateSignature,
             pub contracts: HandleSpan<CapabilityContract>,
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct CapabilityContract {
             pub kind: CapabilityContractKind,
@@ -92,6 +125,7 @@ pub mod item {
             Eq,
             Default,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub enum CapabilityContractKind {
@@ -106,7 +140,15 @@ pub mod item {
             },
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub enum CrashCause {
             Trap,
             Abort,
@@ -115,7 +157,13 @@ pub mod item {
     pub(crate) mod data_items {
         use super::*;
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct DataDefinition {
             pub name: Identifier,
             pub is_public: bool,
@@ -131,14 +179,26 @@ pub mod item {
             pub members: HandleSpan<DataMember>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct QuotientDefinition {
             pub carrier: crate::types::TypeReferenceHandle,
             pub relation: HandleSpan<Identifier>,
             pub equivalence: Option<QuotientEquivalenceSelection>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct QuotientEquivalenceSelection {
             pub relation: HandleSpan<Identifier>,
             pub trait_name: Identifier,
@@ -147,7 +207,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct ConformanceItem {
             pub is_public: bool,
@@ -160,7 +225,13 @@ pub mod item {
             pub members: HandleSpan<ConformanceMember>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum ConformanceMember {
             Machine(Machine),
             TraitDefault {
@@ -198,6 +269,7 @@ pub mod item {
             PartialEq,
             Eq,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct DataProperties {
@@ -206,7 +278,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct TypeParameter {
             pub name: Identifier,
@@ -215,7 +292,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub enum TypeParameterKind {
             #[default]
@@ -241,7 +323,13 @@ pub mod item {
             }
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum MachineParameterContract {
             /// An authored `const F: machine`; exact typed uses must supply its type.
             Inferred,
@@ -254,14 +342,25 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct PropositionParameterSignature {
             pub name: Identifier,
             pub parameters: HandleSpan<StateParameterHandle>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum DataMember {
             Field(DataField),
             Variant(DataVariant),
@@ -275,7 +374,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct DataField {
             pub identity: Option<u64>,
@@ -285,7 +389,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct DataVariant {
             pub identity: Option<u64>,
@@ -295,7 +404,13 @@ pub mod item {
             pub retired_payload_identities: Vec<u64>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct DomainDefinition {
             pub name: Identifier,
             pub type_parameters: HandleSpan<TypeParameter>,
@@ -322,6 +437,7 @@ pub mod item {
             PartialEq,
             Eq,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct DomainAliasDefinition {
@@ -353,7 +469,12 @@ pub mod item {
         use super::*;
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct Machine {
             pub name: Identifier,
@@ -397,7 +518,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct State {
             pub name: Identifier,
@@ -407,7 +533,13 @@ pub mod item {
             pub statements: HandleSpan<crate::statement::StatementHandle>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TraitDefinition {
             pub is_boundary: bool,
             pub is_public: bool,
@@ -422,14 +554,25 @@ pub mod item {
             pub refinement_clauses: Vec<TraitRefinementClause>,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TraitRefinementClause {
             pub requirement: Option<Identifier>,
             pub signature: StateSignature,
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct StateSignature {
             pub name: Identifier,
@@ -462,7 +605,13 @@ pub mod item {
     pub(crate) mod proof_items {
         use super::*;
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct PropositionDefinition {
             pub name: Identifier,
             pub is_public: bool,
@@ -478,6 +627,7 @@ pub mod item {
             PartialEq,
             Eq,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub enum PropositionBody {
@@ -487,7 +637,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct MathematicalDefinition {
             pub name: Identifier,
@@ -504,6 +659,7 @@ pub mod item {
             PartialEq,
             Eq,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub enum MathematicalDefinitionBody {
@@ -518,7 +674,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct MathematicalParameterNode {
             pub name: Identifier,
@@ -526,7 +687,13 @@ pub mod item {
             pub ty: MathematicalTypeHandle,
         }
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub enum MathematicalTypeNode {
             Ordinary(TypeReferenceHandle),
             Arrow {
@@ -553,6 +720,7 @@ pub mod item {
             Eq,
             Default,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub struct MeasureDefinition {
@@ -570,6 +738,7 @@ pub mod item {
             PartialEq,
             Eq,
             syntax_trees_derive::PlainSyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
             compiler_storage::Record,
         )]
         pub enum ProofFact {
@@ -583,7 +752,16 @@ pub mod item {
             }
         }
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Default,
+            compiler_storage::Record,
+            syntax_trees_derive::SyntaxRelocate,
+        )]
         pub struct ProofMembershipFact {
             pub value: ExpressionHandle,
             pub domain: HandleSpan<Identifier>,
@@ -591,7 +769,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct SatisfiesClause {
             pub trait_name: Identifier,
@@ -605,7 +788,12 @@ pub mod item {
         }
 
         #[derive(
-            Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+            Debug,
+            Clone,
+            Default,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
         )]
         pub struct GenericConformanceBound {
             pub binder: Identifier,
@@ -620,7 +808,13 @@ pub mod item {
         use crate::types::TypeReferenceHandle;
         use arena::HandleSpan;
 
-        #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+        #[derive(
+            Debug,
+            Clone,
+            syntax_trees_derive::SyntaxEquivalent,
+            syntax_trees_derive::SyntaxRelocate,
+            compiler_storage::Record,
+        )]
         pub struct TypeAliasDefinition {
             pub name: Identifier,
             pub is_public: bool,
@@ -637,7 +831,13 @@ pub mod item {
     pub use proof_items::*;
     pub use type_aliases::*;
 
-    #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+    #[derive(
+        Debug,
+        Clone,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
+    )]
     pub enum Item {
         Capability(CapabilityDefinition),
         Conformance(ConformanceItem),
@@ -686,7 +886,12 @@ pub mod item {
     }
 
     #[derive(
-        Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+        Debug,
+        Clone,
+        Default,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
     )]
     pub struct ConstDefinition {
         pub scope: Identifier,
@@ -706,6 +911,7 @@ pub mod item {
         PartialEq,
         Eq,
         syntax_trees_derive::PlainSyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
         compiler_storage::Record,
     )]
     pub struct ConstQualification {
@@ -719,6 +925,7 @@ pub mod item {
         PartialEq,
         Eq,
         syntax_trees_derive::PlainSyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
         compiler_storage::Record,
     )]
     pub struct ConstDestinationObligation {
@@ -727,7 +934,15 @@ pub mod item {
         pub initializer: ExpressionHandle,
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(
+        Debug,
+        Clone,
+        Default,
+        PartialEq,
+        Eq,
+        compiler_storage::Record,
+        syntax_trees_derive::SyntaxRelocate,
+    )]
     pub struct ConstInitializerCustody {
         pub selections: Vec<crate::types::ConstArgumentOrigin>,
         pub builtin_operators: Vec<source::SourceSpan>,
@@ -741,6 +956,7 @@ pub mod item {
         PartialEq,
         Eq,
         syntax_trees_derive::PlainSyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
         compiler_storage::Record,
     )]
     pub struct ConstInitializerNormalization {
@@ -753,7 +969,13 @@ pub mod item {
         pub call_selections: Vec<(source::SourceSpan, source::SourceSpan)>,
     }
 
-    #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
+    #[derive(
+        Debug,
+        Clone,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
+    )]
     pub enum ExternalBinding {
         Syscall { number: i64 },
         CompilerIntrinsic,
@@ -781,6 +1003,7 @@ pub mod item {
         Eq,
         Default,
         syntax_trees_derive::PlainSyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
         compiler_storage::Record,
     )]
     pub struct UseItem {
@@ -794,6 +1017,7 @@ pub mod item {
         Eq,
         Default,
         syntax_trees_derive::PlainSyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
         compiler_storage::Record,
     )]
     pub struct ModuleDeclaration {
@@ -807,6 +1031,7 @@ pub mod item {
         Eq,
         Default,
         syntax_trees_derive::PlainSyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
         compiler_storage::Record,
     )]
     pub struct PackageDeclaration {
@@ -863,6 +1088,10 @@ pub mod item {
 
         pub(crate) fn page_count(&self) -> usize {
             self.items.page_count()
+        }
+
+        pub(crate) fn first_generation(&self) -> u32 {
+            self.items.first_generation()
         }
 
         pub fn state_parameter(&self, handle: StateParameterHandle) -> &StateParameterNode {
@@ -1282,7 +1511,12 @@ pub mod item {
     }
 
     #[derive(
-        Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+        Debug,
+        Clone,
+        Default,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
     )]
     pub struct StateParameterNode {
         pub name: Identifier,
@@ -1293,7 +1527,12 @@ pub mod item {
     }
 
     #[derive(
-        Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+        Debug,
+        Clone,
+        Default,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
     )]
     pub struct NativeCallbackParameterNode {
         pub name: Identifier,
@@ -1302,7 +1541,12 @@ pub mod item {
     }
 
     #[derive(
-        Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+        Debug,
+        Clone,
+        Default,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
     )]
     pub struct MachineNode {
         pub name: Identifier,
@@ -1319,7 +1563,12 @@ pub mod item {
     }
 
     #[derive(
-        Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record,
+        Debug,
+        Clone,
+        Default,
+        syntax_trees_derive::SyntaxEquivalent,
+        syntax_trees_derive::SyntaxRelocate,
+        compiler_storage::Record,
     )]
     pub struct TraitNode {
         pub is_boundary: bool,

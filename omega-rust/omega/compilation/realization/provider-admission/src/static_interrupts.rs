@@ -54,7 +54,7 @@ pub(super) fn require_helper_associations(
     } else {
         let calls = super::selected_synchronous_call_graph(
             artifact.view(),
-            input.target_machine_selections(),
+            input.target_context(),
             None,
             installation,
             request.profile,
@@ -230,11 +230,7 @@ pub(super) fn admit(
             {
                 return Err("entry changed its independently selected registrar plan".into());
             }
-            let registrar_boundary = super::super::selected_calling_boundary(
-                module,
-                input.target_machine_selections(),
-                registration.registrar_boundary,
-            )?;
+            let registrar_boundary = registration.registrar_boundary;
             let registrar_parameters =
                 calling_conventions::TerminalCallingTelescope::for_application(
                     module,

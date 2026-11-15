@@ -737,7 +737,7 @@ pub(crate) mod identity {
 }
 pub(crate) mod receipt {
     use crate::rewrites::pressure_rematerialization_identity;
-    use crate::{PressureRematerializationPlan, PressureRematerializationValidationReceipt};
+    use crate::{PressureRematerializationPlan, PressureRematerializationReceipt};
 
     pub(crate) fn bind(
         plan: &PressureRematerializationPlan,
@@ -745,8 +745,8 @@ pub(crate) mod receipt {
         function_count: usize,
         applied_count: usize,
         rewritten_use_count: usize,
-    ) -> PressureRematerializationValidationReceipt {
-        PressureRematerializationValidationReceipt {
+    ) -> PressureRematerializationReceipt {
+        PressureRematerializationReceipt {
             identity: pressure_rematerialization_identity(plan),
             source_selected: plan.source_selected,
             spill_choices: plan.spill_choices,
@@ -1005,7 +1005,7 @@ pub struct PressureRematerializationRewrite {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PressureRematerializationValidationReceipt {
+pub struct PressureRematerializationReceipt {
     pub(crate) identity: PressureRematerializationIdentity,
     pub(crate) source_selected: SelectedInstructionPlanIdentity,
     pub(crate) spill_choices: SpillChoiceIdentity,
@@ -1024,8 +1024,8 @@ pub struct PressureRematerializationValidationReceipt {
     pub(crate) rewritten_use_count: usize,
 }
 
-impl PressureRematerializationValidationReceipt {
-    receipt_accessor_rows!(PressureRematerializationValidationReceipt {
+impl PressureRematerializationReceipt {
+    receipt_accessor_rows!(PressureRematerializationReceipt {
         identity: PressureRematerializationIdentity,
         spill_choices: SpillChoiceIdentity,
         recovery_classifications: RecoveryClassificationIdentity,
@@ -1044,7 +1044,7 @@ impl PressureRematerializationValidationReceipt {
 pub struct ValidatedPressureRematerialization {
     pub(crate) plan: PressureRematerializationPlan,
     pub(crate) transformed: std::sync::Arc<SelectedInstructionPlan>,
-    pub(crate) receipt: PressureRematerializationValidationReceipt,
+    pub(crate) receipt: PressureRematerializationReceipt,
 }
 
 impl ValidatedPressureRematerialization {
@@ -1059,7 +1059,7 @@ impl ValidatedPressureRematerialization {
         &self.transformed
     }
     receipt_accessor_rows!(ref ValidatedPressureRematerialization {
-        receipt: PressureRematerializationValidationReceipt,
+        receipt: PressureRematerializationReceipt,
     });
 }
 

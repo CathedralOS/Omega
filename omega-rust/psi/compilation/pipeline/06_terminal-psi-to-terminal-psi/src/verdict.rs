@@ -909,32 +909,32 @@ fn examine(
     }
     let mut affine_unestablished = Vec::new();
     for machine in &elaboration.module.machines {
-        let plan = match terminal_semantics::plain_affine::verify(
-            machine,
-            &elaboration.module.structural_types,
-        ) {
-            Ok(plan) => plan,
-            Err(error) => {
-                let concerns = match error.site() {
-                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
-                        Construct::Operation(at)
-                    }
-                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-                    None => Construct::Machine,
-                };
-                let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                        (RefusalReason::Unsupported, detail)
-                    }
-                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-                        (RefusalReason::ForeignIdentity, detail)
-                    }
-                };
-                return Err(fall_back_or_defect(refusal(
-                    reason, machine.id, concerns, detail,
-                )));
-            }
-        };
+        let plan =
+            match terminal_semantics::plain_affine::verify_in(&elaboration.module, machine.id) {
+                Ok(plan) => plan,
+                Err(error) => {
+                    let concerns = match error.site() {
+                        Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                            Construct::Operation(at)
+                        }
+                        Some(terminal_semantics::plain_affine::Site::Edge(at)) => {
+                            Construct::Edge(at)
+                        }
+                        None => Construct::Machine,
+                    };
+                    let (reason, detail) = match error {
+                        terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                            (RefusalReason::Unsupported, detail)
+                        }
+                        terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                            (RefusalReason::ForeignIdentity, detail)
+                        }
+                    };
+                    return Err(fall_back_or_defect(refusal(
+                        reason, machine.id, concerns, detail,
+                    )));
+                }
+            };
         let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
             Err(refusal(
                 RefusalReason::ForeignIdentity,

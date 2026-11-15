@@ -80,7 +80,7 @@ pub(crate) mod record {
                         child.structural_type,
                         &child.qualifications,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     if !child.path.is_empty()
                         || !self
                             .structural_types()
@@ -98,7 +98,7 @@ pub(crate) mod record {
                     let declaration_type = self.structural_types();
                     let actual = declaration_type
                         .get(&child.structural_type)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let expected =
                         inline_carrier_declaration(declaration_type.values(), declaration)
                             .ok_or_else(|| {
@@ -143,7 +143,7 @@ pub(crate) mod record {
                             child.structural_type,
                             &child.qualifications,
                         )
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .implies(declaration.field_type.byte_predicates())
                     {
                         return Err(malformed());
@@ -695,7 +695,7 @@ pub(crate) mod record {
                                 aggregate.structural_type,
                                 path,
                             )
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                         );
                         Ok::<_, TerminalInterpretError>(destination)
                     };
@@ -759,7 +759,7 @@ pub(crate) mod record {
                                 )
                             }
                         };
-                        let (_, scalar) = fields.next().ok_or_else(malformed)?;
+                        let (_, scalar) = fields.next().ok_or(malformed())?;
                         self.stage_scalar_endpoint(&endpoint, *scalar)
                     })?;
                     if fields.next().is_some() {
@@ -803,10 +803,10 @@ pub(crate) mod record {
                         let start = usize::try_from(index)
                             .map_err(|_| malformed())?
                             .checked_mul(count)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         elements = elements
-                            .get(start..start.checked_add(count).ok_or_else(malformed)?)
-                            .ok_or_else(malformed)?;
+                            .get(start..start.checked_add(count).ok_or(malformed())?)
+                            .ok_or(malformed())?;
                         structural_type = element;
                     }
                     let (qualifications, projected_qualifications) =
@@ -920,8 +920,8 @@ pub(crate) mod record {
                 for leaf_ordinal in 0..count {
                     let mut remaining = leaf_ordinal;
                     for (selector, length) in selectors.iter_mut().zip(&dimensions).rev() {
-                        *selector = remaining.checked_rem(*length).ok_or_else(malformed)?;
-                        remaining = remaining.checked_div(*length).ok_or_else(malformed)?;
+                        *selector = remaining.checked_rem(*length).ok_or(malformed())?;
+                        remaining = remaining.checked_div(*length).ok_or(malformed())?;
                     }
                     let path = selectors
                         .iter()
@@ -931,7 +931,7 @@ pub(crate) mod record {
                     let value = match self {
                         Self::PackedScalars { elements, .. } => elements
                             .get(usize::try_from(leaf_ordinal).map_err(|_| malformed())?)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .read()?,
                         Self::Access(value) => {
                             execution.read_primitive_argument(source, value, &path, scalar_type)?
@@ -1044,7 +1044,7 @@ pub(crate) mod record {
                 self.scalars.commit(&mut storage.scalars)?;
                 self.primitives.commit(&mut storage.primitives)?;
                 for (home, replacement) in self.byte_arrays {
-                    *storage.byte_arrays.get_mut(&home).ok_or_else(malformed)? =
+                    *storage.byte_arrays.get_mut(&home).ok_or(malformed())? =
                         replacement.commit()?;
                 }
                 Ok(())
@@ -1216,7 +1216,7 @@ pub(crate) mod record {
                 }
                 for (home, binding) in &original.activation_descriptors {
                     let target = relocate(home)?;
-                    let mut descriptor = binding.descriptor_home().ok_or_else(malformed)?.clone();
+                    let mut descriptor = binding.descriptor_home().ok_or(malformed())?.clone();
                     descriptor.opaque_identity = target.opaque_identity;
                     descriptor.path = target.path.clone();
                     self.activation_descriptors
@@ -1509,7 +1509,7 @@ pub(crate) mod record {
                                 execution.structural_types().values(),
                                 structural_type,
                             )
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         if u64::try_from(elements.len()).ok() != Some(leaf_count) {
                             return Err(malformed());
                         }
@@ -1563,7 +1563,7 @@ pub(crate) mod record {
                                         execution.structural_types().values(),
                                         element,
                                     )
-                                    .ok_or_else(malformed)?
+                                    .ok_or(malformed())?
                                     .1
                                 }
                             };
@@ -1571,21 +1571,21 @@ pub(crate) mod record {
                                 let start = usize::try_from(
                                     element_index
                                         .checked_mul(element_count)
-                                        .ok_or_else(malformed)?,
+                                        .ok_or(malformed())?,
                                 )
                                 .map_err(|_| malformed())?;
                                 let end = start
                                     .checked_add(
                                         usize::try_from(element_count).map_err(|_| malformed())?,
                                     )
-                                    .ok_or_else(malformed)?;
+                                    .ok_or(malformed())?;
                                 let mut home = destination.clone();
                                 home.path
                                     .push(StructuralPathSegment::FixedIndex(element_index));
                                 self.stage_array(
                                     execution,
                                     element,
-                                    elements.get(start..end).ok_or_else(malformed)?,
+                                    elements.get(start..end).ok_or(malformed())?,
                                     &home,
                                 )?;
                             }
@@ -1782,7 +1782,7 @@ pub(crate) mod record {
                     source,
                 ) {
                     if let Some(target) = relocate(home) {
-                        let old = binding.descriptor_home().ok_or_else(malformed)?;
+                        let old = binding.descriptor_home().ok_or(malformed())?;
                         if !transfers_custody
                             || !execution.is_live_activation_descriptor(binding, old)
                         {
@@ -1994,7 +1994,7 @@ pub(crate) mod record {
                     root,
                 ) {
                     if original.has_residents() {
-                        let incoming = self.byte_arrays.get(home).ok_or_else(malformed)?;
+                        let incoming = self.byte_arrays.get(home).ok_or(malformed())?;
                         if let Some(replacement) = original.prepare_replacement(incoming)? {
                             byte_arrays.push((home.clone(), replacement));
                         }
@@ -2246,7 +2246,7 @@ pub(crate) mod record {
             ) -> Result<crate::engine::execution::OperationFlow, TerminalInterpretError>
             {
                 operation_kind!(operation => EstablishStructuralArray { elements });
-                let result = operation.result.structural().ok_or_else(malformed)?;
+                let result = operation.result.structural().ok_or(malformed())?;
                 if let StructuralTypeShape::ElementView {
                     element,
                     access: None | Some(StructuralAccess::SharedBorrow),
@@ -2370,7 +2370,7 @@ pub(crate) mod record {
                 }
                 match &binding.value {
                     terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
-                        let scalar = self.values.get(operand).copied().ok_or_else(malformed)?;
+                        let scalar = self.values.get(operand).copied().ok_or(malformed())?;
                         if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
                             || !terminal_scalar_belongs_to_type(scalar)
                         {
@@ -2607,7 +2607,7 @@ pub(crate) mod scalar_array {
                 place: PlaceId,
                 value: TerminalScalarArrayValue,
             ) -> Result<(), TerminalInterpretError> {
-                let live_count = self.live_count.checked_add(1).ok_or_else(malformed)?;
+                let live_count = self.live_count.checked_add(1).ok_or(malformed())?;
                 self.rows.insert_vacant(
                     place,
                     PackedBinding {
@@ -3205,7 +3205,7 @@ pub(crate) mod scalar_array {
                     presented.structural_type = structural_type;
                     let loan = loan
                         .subslice(0, length, argument.access)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .with_descriptor_home(presented.clone());
                     return Ok(Some(CapturedArrayLoan {
                         value: presented,
@@ -3355,7 +3355,7 @@ pub(crate) mod scalar_array {
                 let length = usize::try_from(count).map_err(|_| malformed())?;
                 let requested_bytes = length
                     .checked_mul(std::mem::size_of::<Element>())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let mut elements = Vec::new();
                 elements.try_reserve_exact(length).map_err(|reason| {
                     TerminalInterpretError::StorageAllocationFailed {
@@ -3365,7 +3365,7 @@ pub(crate) mod scalar_array {
                 })?;
                 let mut values = values.into_iter();
                 for _ in 0..length {
-                    elements.push(values.next().ok_or_else(malformed)??);
+                    elements.push(values.next().ok_or(malformed())??);
                 }
                 if values.next().is_some() {
                     return Err(malformed());
@@ -3405,7 +3405,7 @@ pub(crate) mod scalar_array {
                     .elements
                     .len()
                     .checked_mul(std::mem::size_of::<ScalarCell>())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let mut cells = Vec::new();
                 cells
                     .try_reserve_exact(self.elements.len())
@@ -3578,7 +3578,7 @@ pub(crate) mod scalar_array {
             index: usize,
             value: TerminalScalarValue,
         ) -> Result<(), TerminalInterpretError> {
-            if self.cell(index).ok_or_else(malformed)?.scalar_type() != value.scalar_type()
+            if self.cell(index).ok_or(malformed())?.scalar_type() != value.scalar_type()
                 || !crate::engine::scalar_operations::terminal_scalar_belongs_to_type(value)
             {
                 return Err(malformed());
@@ -3591,7 +3591,7 @@ pub(crate) mod scalar_array {
             index: usize,
             resident: &ScalarCell,
         ) -> Result<(), TerminalInterpretError> {
-            let previous = self.cell(index).ok_or_else(malformed)?;
+            let previous = self.cell(index).ok_or(malformed())?;
             if !matches!(resident, ScalarCell::Resident { .. })
                 || previous.scalar_type() != resident.scalar_type()
                 || previous.read()? != resident.read()?
@@ -3610,7 +3610,7 @@ pub(crate) mod scalar_array {
         ) -> Result<(), TerminalInterpretError> {
             self.prepare_resident_install(index, &resident)?;
             Rc::get_mut(&mut self.elements)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .cells_mut()[index] = resident;
             Ok(())
         }
@@ -3649,7 +3649,7 @@ pub(crate) mod scalar_array {
             if Rc::get_mut(&mut self.elements).is_none() {
                 self.elements = Rc::new(self.elements.copy_for_mutation()?);
             }
-            Rc::get_mut(&mut self.elements).ok_or_else(malformed)
+            Rc::get_mut(&mut self.elements).ok_or(malformed())
         }
     }
 
@@ -3708,7 +3708,7 @@ pub(crate) mod scalar_array {
                 self.structural_types().values(),
                 structural_type,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             if u64::try_from(elements.len()).ok() != Some(count)
                 || elements.any(|element_type| element_type != scalar_type)
                 || qualifications.iter().any(|domain| {
@@ -3736,7 +3736,7 @@ pub(crate) mod scalar_array {
                 self.structural_types().values(),
                 structural_type,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let Some(value) = argument
                 .path
                 .is_empty()
@@ -3859,12 +3859,12 @@ pub(crate) mod scalar_array {
             operation: &terminal_psi::Operation,
             elements: &[ValueId],
         ) -> Result<(), TerminalInterpretError> {
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
                 self.structural_types().values(),
                 result.structural_type,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             if result.multiplicity != StructuralMultiplicity::Unrestricted
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
@@ -4470,7 +4470,7 @@ pub(crate) mod structural_storage {
                 &mut Vec::new(),
                 &mut leaves,
             )?;
-            let (root, prefix) = leaves.observation_root.ok_or_else(malformed)?;
+            let (root, prefix) = leaves.observation_root.ok_or(malformed())?;
             let Some(mut leaf) = leaves
                 .leaves
                 .into_iter()
@@ -4564,7 +4564,7 @@ pub(crate) mod structural_storage {
                             selected.structural_type,
                             &suffix,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                         if tip.id != *element {
                             return Err(malformed());
                         }
@@ -4671,7 +4671,7 @@ pub(crate) mod structural_storage {
                     let selected = cases
                         .iter()
                         .find(|selected| selected.id == case)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     leaves.leaves.push(StorageLeaf {
                         path: path.clone(),
                         kind: StorageLeafKind::Case {
@@ -4835,7 +4835,7 @@ pub(crate) mod structural_storage {
                     referent.structural_type,
                     &leaf.path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if let Some(region) = backing.region {
                     execution.aggregate_view_primitive_access(
                         &backing.value,
@@ -4848,7 +4848,7 @@ pub(crate) mod structural_storage {
                         matches!(access, terminal_psi::exclusive_borrow_pair_pattern!()),
                     )
                 } else {
-                    let region = backing.byte_region.as_ref().ok_or_else(malformed)?;
+                    let region = backing.byte_region.as_ref().ok_or(malformed())?;
                     let (storage, scalar) =
                         execution.captured_byte_region_access(&backing.value, region, &path)?;
                     Ok((storage, scalar, access == StructuralAccess::SharedBorrow))
@@ -4976,7 +4976,7 @@ pub(crate) mod structural_storage {
                                 referent.structural_type,
                                 &leaf.path,
                             )
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                             loan.initialized_empty_scalar_array(
                                 execution,
                                 &selected,

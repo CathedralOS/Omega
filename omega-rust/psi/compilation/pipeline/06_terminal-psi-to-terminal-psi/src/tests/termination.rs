@@ -117,6 +117,7 @@ fn lower_ranked(
     let positive = expression(
         ExpressionKind::Strict {
             operation: Strict::Greater,
+            policy: None,
             left: Box::new(slot(0, u32_type())),
             right: Box::new(unsigned(0)),
         },
@@ -265,7 +266,8 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
                  }\n\
              }\n"
         ),
-        "contract ranking subject that is not an unsigned fixed-width integer formal while reading the signature of `sink`"
+        "contract ranking subject that is not an unsigned fixed-width integer formal while reading \
+         the signature of `sink`"
     );
     // Two machines that call each other: one joint ranking, whose spelling
     // for differently shaped members the specification leaves open.

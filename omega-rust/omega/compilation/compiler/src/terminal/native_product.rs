@@ -130,7 +130,6 @@ pub(crate) fn prepare(
         evaluated_binding_identities: &module.identities,
         direct_boundary_leaves: Vec::new(),
         target_profile: Some(profile),
-        family_realizations: &[],
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: checked.execution().plans(),
             selected_provider_provenance: Vec::new(),

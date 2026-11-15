@@ -2232,7 +2232,7 @@ pub mod invocations {
         let mut targets = Vec::new();
         for declaration in declarations {
             let target = match declaration.target {
-                AuthoredInvocationTarget::Unresolved => None,
+                AuthoredInvocationTarget::Unresolved | AuthoredInvocationTarget::Undeclared => None,
                 AuthoredInvocationTarget::Parameter { ordinal, symbol } => parameters
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.symbol == symbol)

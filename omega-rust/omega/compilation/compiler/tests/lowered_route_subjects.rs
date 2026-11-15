@@ -1285,15 +1285,29 @@ fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() 
         ),
         Verdict::Rejected
     );
+    // Unlike a by-value name, the supplied reference observes its referent
+    // at completion. Explicit old keeps the entry observation instead.
+    let borrowed = "machine spare(position: &mut u32) -> u32 ensures result == position { \
+                    position = 0; position }";
     assert_eq!(
-        verdict_on_unused(
-            "borrowed_completion_not_input_snapshot",
-            "machine spare(position: &mut u32) -> u32 ensures result == position { \
-             position = 0; position }"
-        ),
-        Verdict::FallsBack(
-            "contract clause that names a borrowed formal outside requires".to_owned()
-        )
+        verdict_on_unused("borrowed_completion_not_input_snapshot", borrowed),
+        Verdict::Accepted(2)
+    );
+    // Entry three makes the incorrect old-input promise differ from zero.
+    let old = borrowed
+        .replace("ensures", "requires position == 3u32 ensures")
+        .replace("result == position", "result == old(position)");
+    let frontier = staged_unused("borrowed_old_not_completion", &old);
+    let verdict = route_verdict(&frontier).1;
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        panic!("the cleared result must not equal the entry observation: {verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|failure| matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+        )),
+        "the old-input guarantee must fail: {unproved:?}"
     );
 }
 

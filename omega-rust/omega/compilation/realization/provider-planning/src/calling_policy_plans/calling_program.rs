@@ -80,7 +80,7 @@ impl CallingProgram {
         let account = sponsor
             .begin_invocation(measurement, limits.work_budget())
             .map_err(|error| error.to_string())?;
-        let selected = terminal_installation::admit_target_machine_selections(
+        let selected = terminal_installation::terminal_target_context(
             self.artifact.view(),
             target.target_name(),
         );

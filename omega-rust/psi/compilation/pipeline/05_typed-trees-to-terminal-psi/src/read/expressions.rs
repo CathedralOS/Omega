@@ -398,6 +398,7 @@ impl<'t> Program<'t> {
                         call_context: None,
                         kind: ExpressionKind::Strict {
                             operation: Strict::Equal,
+                            policy: None,
                             left: Box::new(left),
                             right: Box::new(right),
                         },
@@ -441,18 +442,15 @@ impl<'t> Program<'t> {
                 {
                     return unserved("arithmetic on an address");
                 }
-                return match suffix {
-                    None => binary_expression(id, binary.operator, left, right, anonymous, source),
-                    Some(policy) => suffixed_expression(
-                        id,
-                        binary.operator,
-                        policy,
-                        left,
-                        right,
-                        anonymous,
-                        source,
-                    ),
-                };
+                return binary_expression(
+                    id,
+                    binary.operator,
+                    left,
+                    right,
+                    anonymous,
+                    suffix,
+                    source,
+                );
             }
             ExpressionNode::Call(call) => {
                 self.expected = expected;
@@ -495,10 +493,10 @@ impl<'t> Program<'t> {
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => {
-                return self.indexed(id, slots, indexed, handle, expected);
+                return self.indexed(id, slots, indexed, handle, expected, Access::Read);
             }
             ExpressionNode::Member(member) => {
-                let value = self.member(id, slots, member, source)?;
+                let value = self.member(id, slots, member, source, Access::Read)?;
                 return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
@@ -594,12 +592,37 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         target: ExpressionHandle,
     ) -> Checked<Expression> {
+        self.place(id, slots, target, None, Access::Write)
+    }
+
+    /// The place `target` names, read for `access` to its contents: a
+    /// member or an element of a value is a path into it, and every value
+    /// the path goes through is opened for that same access. A value read
+    /// opens each for reading; a store's destination opens each for writing
+    /// ("Changing contents, including projected writes ... requires write
+    /// authority", domains.md), and reads nothing it only names. Anything
+    /// else is an ordinary value: the root of a path, or a value it is
+    /// computed from.
+    pub(super) fn place(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: ExpressionHandle,
+        expected: Option<ValueType>,
+        access: Access,
+    ) -> Checked<Expression> {
+        if access == Access::Read {
+            return self.expression(id, slots, target, expected);
+        }
         match self.node(id, target)? {
             ExpressionNode::Member(member) => {
                 let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
-                self.member(id, slots, member, source)
+                self.member(id, slots, member, source, access)
             }
-            _ => self.expression(id, slots, target, None),
+            ExpressionNode::Indexed(indexed) => {
+                self.indexed(id, slots, indexed, target, expected, access)
+            }
+            _ => self.expression(id, slots, target, expected),
         }
     }
 
@@ -681,7 +704,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         matched: &typed_trees::expression::TableMatchExpression,
-        record: semantic_vocabulary::StructuralTypeId,
+        record: super::authority::Opened,
         subject: &Expression,
         expected: Option<ValueType>,
     ) -> Checked<(Vec<(usize, Expression)>, Option<Box<Expression>>, ValueType)> {
@@ -1026,12 +1049,16 @@ fn binary_expression(
     left: Expression,
     right: Expression,
     anonymous: (bool, bool),
+    suffix: Option<Policy>,
     source: SourceOrigin,
 ) -> Checked<Expression> {
-    let (operation, result) = binary_selection(id, operator, left.result, right.result, anonymous)?;
+    let (operation, policy, result) = binary_selection(
+        id, operator, left.result, right.result, anonymous, suffix, source,
+    )?;
     let kind = match operation {
         Some(operation) => ExpressionKind::Strict {
             operation,
+            policy,
             left: Box::new(left),
             right: Box::new(right),
         },
@@ -1050,15 +1077,17 @@ fn binary_expression(
 }
 
 /// A contract and an executable expression select the same operator from
-/// the same operand types. This query describes that selection; it neither
-/// constructs a runtime operation nor proves its formation condition.
+/// the same operand types. The selected policy belongs to the operation;
+/// this query neither builds an operation nor proves its formation condition.
 pub(super) fn binary_selection(
     id: MachineId,
     operator: BinaryOperator,
     left: Option<ValueType>,
     right: Option<ValueType>,
     anonymous: (bool, bool),
-) -> Checked<(Option<Strict>, ValueType)> {
+    suffix: Option<Policy>,
+    source: SourceOrigin,
+) -> Checked<(Option<Strict>, Option<Policy>, ValueType)> {
     enum Operands {
         /// Same integer type; the result has it.
         Arithmetic,
@@ -1069,6 +1098,24 @@ pub(super) fn binary_selection(
         Equality,
         /// Same integer type; the result is Boolean.
         Ordering,
+    }
+    let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+    if suffix.is_some() {
+        crate::policy::suffixed(operator).map_err(unserved)?;
+        if anonymous == (true, true) {
+            return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
+        }
+        for operand in [left, right] {
+            match operand {
+                Some(ValueType::Scalar(ScalarType::Integer(_), Qualification::NONE)) => {}
+                Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+                    return Err(crate::reject(id, source, crate::policy::QUALIFIED_OPERAND));
+                }
+                Some(ValueType::Rigid(_)) | None => {
+                    return Err(unserved(crate::policy::QUALIFIED_OPERAND));
+                }
+            }
+        }
     }
     let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
     let (Some(left_type), Some(right_type)) = (left, right) else {
@@ -1109,7 +1156,7 @@ pub(super) fn binary_selection(
             ),
         ));
     };
-    let policy = match (left_policy, right_policy) {
+    let operand_policy = match (left_policy, right_policy) {
         (Some(left), Some(right)) if left != right => {
             return Err(typing("operands under two arithmetic policies"));
         }
@@ -1140,10 +1187,7 @@ pub(super) fn binary_selection(
             if left_type != ScalarType::Boolean || right_type != ScalarType::Boolean {
                 return Err(typing("short-circuit operand is not bool"));
             }
-            return Ok((
-                None,
-                ValueType::Scalar(ScalarType::Boolean, Qualification::NONE),
-            ));
+            return Ok((None, None, ValueType::plain(ScalarType::Boolean)));
         }
         BinaryOperator::CaseMembership => {
             return Err(refuse(
@@ -1169,15 +1213,15 @@ pub(super) fn binary_selection(
         BinaryOperator::Greater => (Strict::Greater, Operands::Ordering),
         BinaryOperator::GreaterOrEqual => (Strict::GreaterOrEqual, Operands::Ordering),
     };
-    let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     let integer = |scalar_type| matches!(scalar_type, ScalarType::Integer(_));
-    let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
-    // The type an arithmetic or shift result has: its value operand's
-    // carrier, under the operation's policy when it has one.
-    let computed = |carrier| match policy {
-        Some(policy) => ValueType::Scalar(carrier, Qualification::of_policy(policy)),
-        None => ValueType::Scalar(carrier, Qualification::NONE),
+    let boolean = ValueType::plain(ScalarType::Boolean);
+    // Only an operand's qualification carries through to the computed value.
+    // A suffix selects the operation at this node and leaves the type bare.
+    let computed = |carrier| {
+        let qualifications = operand_policy.map_or(Qualification::NONE, Qualification::of_policy);
+        ValueType::Scalar(carrier, qualifications)
     };
+    let policy = suffix.or(operand_policy);
     let result = match operands {
         // The policy catalog has no bitwise row: `&`, `|` and `^` cannot
         // overflow, and whether core declares them for a policy-qualified
@@ -1214,97 +1258,14 @@ pub(super) fn binary_selection(
             return Err(typing("operand types"));
         }
     };
-    Ok((Some(operation), result))
-}
-
-/// `left <op><suffix> right`, the operator under `policy` at this one node.
-///
-/// numeric_values.md, "Policy operators": "`a +% b` on two `u32` values is
-/// exactly what `+` means for two `u32 in Wrapping` operands, and likewise
-/// for every form", and "The result is the bare carrier with no policy
-/// qualification". So the operands are requalified under the policy, the bare
-/// operator is read as for any policy-qualified operands (`binary_expression`,
-/// the one place an operator's type and obligations are decided), and the
-/// policy is removed from the result. Requalifying computes nothing.
-///
-/// "Both operands are unqualified": an operand that carries a policy or a
-/// declared domain is refused. An anonymous operand stays bare and lands in
-/// its partner's carrier, as the literal in `counter + 1` does, and "a
-/// shift's count keeps its own" type. "A wholly anonymous tree rejects,
-/// because it has no carrier to wrap, clamp or trap at."
-fn suffixed_expression(
-    id: MachineId,
-    operator: BinaryOperator,
-    policy: Policy,
-    left: Expression,
-    right: Expression,
-    anonymous: (bool, bool),
-    source: SourceOrigin,
-) -> Checked<Expression> {
-    let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-    let shift = crate::policy::shifts(crate::policy::suffixed(operator).map_err(unserved)?);
-    if anonymous == (true, true) {
-        return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
-    }
-    let under_policy = |operand: Expression| -> Checked<Expression> {
-        let result = policy_operand(id, operand.result, policy, source)?;
-        Ok(Expression {
-            call_context: None,
-            kind: ExpressionKind::Requalify(Box::new(operand)),
-            result: Some(result),
-            source,
-        })
-    };
-    let left = if anonymous.0 {
-        left
-    } else {
-        under_policy(left)?
-    };
-    let right = if anonymous.1 || shift {
-        right
-    } else {
-        under_policy(right)?
-    };
-    let computed = binary_expression(id, operator, left, right, anonymous, source)?;
-    // The operation read must be the policy's: an anonymous value shifted by
-    // a count, for one, carries no policy into the bare operator.
-    let Some(ValueType::Scalar(carrier, qualification)) = computed.result else {
-        return Err(unserved("policy operator without a scalar result"));
-    };
-    if qualification != Qualification::of_policy(policy) {
-        return Err(unserved(
-            "policy operator whose operands select no policy operation",
-        ));
-    }
-    Ok(Expression {
-        call_context: None,
-        kind: ExpressionKind::Requalify(Box::new(computed)),
-        result: Some(ValueType::Scalar(carrier, Qualification::NONE)),
-        source,
-    })
-}
-
-/// A suffix can select a policy only for a bare integer operand. Both
-/// executable expressions and contract terms use this exact admission rule.
-pub(super) fn policy_operand(
-    id: MachineId,
-    operand: Option<ValueType>,
-    policy: Policy,
-    source: SourceOrigin,
-) -> Checked<ValueType> {
-    match operand {
-        Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
-            Ok(ValueType::Scalar(carrier, Qualification::of_policy(policy)))
-        }
-        Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
-            Err(crate::reject(id, source, crate::policy::QUALIFIED_OPERAND))
-        }
-        Some(ValueType::Rigid(_)) | None => Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Expression(crate::policy::QUALIFIED_OPERAND),
-        )),
-    }
+    Ok((
+        Some(operation),
+        match operands {
+            Operands::Arithmetic | Operands::Shift => policy,
+            Operands::Equality | Operands::Ordering => None,
+        },
+        result,
+    ))
 }
 
 /// Whether two read expressions compute the same thing: equal kinds over
@@ -1323,15 +1284,17 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (
                 ExpressionKind::Strict {
                     operation: a,
+                    policy: a_policy,
                     left: a_left,
                     right: a_right,
                 },
                 ExpressionKind::Strict {
                     operation: b,
+                    policy: b_policy,
                     left: b_left,
                     right: b_right,
                 },
-            ) => a == b && both(a_left, b_left) && both(a_right, b_right),
+            ) => a == b && a_policy == b_policy && both(a_left, b_left) && both(a_right, b_right),
             (ExpressionKind::Not(a), ExpressionKind::Not(b))
             | (ExpressionKind::BitwiseNot(a), ExpressionKind::BitwiseNot(b)) => both(a, b),
             // The same operand converted to the same carrier.
@@ -1511,6 +1474,72 @@ mod tests {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
     }
 
+    #[test]
+    fn suffix_policy_belongs_to_the_operation_not_its_values() {
+        let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
+        let plain = ValueType::plain(carrier());
+        let operand = |slot, result| Expression {
+            call_context: None,
+            kind: ExpressionKind::Slot(slot),
+            result: Some(result),
+            source,
+        };
+        let suffixed = |operator, policy, left, right| {
+            binary_expression(
+                MachineId::new(1).unwrap(),
+                operator,
+                operand(0, left),
+                operand(1, right),
+                (false, false),
+                Some(policy),
+                source,
+            )
+        };
+        for operator in [
+            BinaryOperator::Add,
+            BinaryOperator::Subtract,
+            BinaryOperator::Multiply,
+            BinaryOperator::Divide,
+            BinaryOperator::Modulo,
+            BinaryOperator::ShiftLeft,
+            BinaryOperator::ShiftRight,
+        ] {
+            let mut operations = Vec::new();
+            for policy in [Policy::Wrapping, Policy::Saturating, Policy::Trapping] {
+                let expression = suffixed(operator, policy, plain, plain).unwrap();
+                assert_eq!(expression.result, Some(plain));
+                let ExpressionKind::Strict {
+                    policy: selected,
+                    left,
+                    right,
+                    ..
+                } = &expression.kind
+                else {
+                    panic!("a suffix must select a strict operation");
+                };
+                assert_eq!(*selected, Some(policy));
+                assert_eq!(left.result, Some(plain));
+                assert_eq!(right.result, Some(plain));
+                assert!(matches!(left.kind, ExpressionKind::Slot(0)));
+                assert!(matches!(right.kind, ExpressionKind::Slot(1)));
+                assert!(same_computation(&expression, &expression.clone()));
+                for previous in &operations {
+                    assert!(!same_computation(previous, &expression));
+                }
+                operations.push(expression);
+
+                let qualified = ValueType::Scalar(carrier(), Qualification::of_policy(policy));
+                // A shift count is an operand too: no suffix removes its domain.
+                for (left, right) in [(qualified, plain), (plain, qualified)] {
+                    assert_eq!(
+                        suffixed(operator, policy, left, right).unwrap_err().detail,
+                        crate::policy::QUALIFIED_OPERAND,
+                    );
+                }
+            }
+        }
+    }
+
     /// The type `operator` gives two operands of these types, or why it is
     /// refused. `anonymous` says which operand is a literal in the source.
     fn typed(
@@ -1532,6 +1561,7 @@ mod tests {
             operand(0, left),
             operand(1, right),
             anonymous,
+            None,
             source,
         )
         .map(|expression| expression.result.unwrap())

@@ -1706,6 +1706,20 @@ impl<'a> Lowering<'a> {
         }
         let moving = !self.record_type(at.record)?.copyable;
         let borrowed = self.borrowed_roots.contains(&at.root);
+        let mut window = borrowed;
+        let mut exclusive_path = !borrowed || self.exclusive_roots.contains(&at.root);
+        for step in &at.path {
+            if let Step::Referent { owner } = step {
+                window = true;
+                exclusive_path &= matches!(
+                    self.record_type(*owner)?.shape,
+                    StorageShape::Reference {
+                        access: StructuralAccess::MutableBorrow,
+                        ..
+                    }
+                );
+            }
+        }
         // ownership.md, "Borrowed-storage invariant windows": "An owned move
         // out of a place reached through `&mut` may temporarily leave that
         // place unestablished." The move below vacates exactly that place;
@@ -1714,7 +1728,7 @@ impl<'a> Lowering<'a> {
         // claim made here. A shared formal lends no such window. The empty
         // path selects the whole referent's contents, retaining its loan and
         // storage just as a projected window does.
-        if moving && borrowed && !self.exclusive_roots.contains(&at.root) {
+        if moving && window && !exclusive_path {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1731,7 +1745,7 @@ impl<'a> Lowering<'a> {
         let (root, exact) = self.produce(
             operation,
             at.record,
-            if moving && borrowed {
+            if moving && window {
                 OperationKind::MoveStructuralField {
                     source: at.root,
                     path,
