@@ -1647,7 +1647,9 @@ impl Analysis<'_> {
                     .map_err(|_| Error::malformed("operation position overflows"))?,
             );
             self.position = Some(at);
-            self.end_references(&mut state, at, Site::Operation(operation.id))?;
+            let site = Site::Operation(operation.id);
+            self.end_references(&mut state, at, site)
+                .map_err(|error| error.at(site))?;
             // "Suspension must retain the exclusive loan, exact hole,
             // removed-value custody, and restoration obligation without
             // exposing the incomplete owner. Its resume and cancellation
@@ -1674,10 +1676,10 @@ impl Analysis<'_> {
                 return Err(Error::unsupported(
                     "a possibly suspending call while an owned value is out of borrowed storage",
                 )
-                .at(Site::Operation(operation.id)));
+                .at(site));
             }
             self.operation(&mut state, operation, entering.is_some())
-                .map_err(|error| error.at(Site::Operation(operation.id)))?;
+                .map_err(|error| error.at(site))?;
         }
         self.position = Some((
             block.id,
@@ -3526,6 +3528,48 @@ mod tests {
             reference_candidates: None,
             reference_ends: Vec::new(),
         }
+    }
+
+    #[test]
+    fn an_invalid_last_use_path_keeps_its_scheduled_operation() {
+        use terminal_psi::{Operation, OperationKind, OperationResult};
+
+        let types = reconvergence_types();
+        let place = id(1);
+        let operation = id(1);
+        let mut machine = transferring(&[id(1)], &[], Vec::new());
+        let block = machine.entry;
+        machine.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Unit,
+            OperationKind::ReleaseReference {
+                source: place,
+                path: Vec::new(),
+            },
+        ));
+        let argument = StructuralArgument {
+            place,
+            path: vec![StructuralPathSegment::FixedIndex(7)],
+            access: StructuralAccess::Owned,
+        };
+        let candidates = crate::reference_ends::Candidates::from([(
+            (block, 0),
+            vec![crate::reference_ends::Candidate {
+                argument,
+                unproved_case: None,
+            }],
+        )]);
+        let mut analysis = owned_analysis(&types);
+        analysis.reference_candidates = Some(&candidates);
+        let state = State {
+            regions: vec![Some(Region::new(true))],
+            active: vec![place],
+        };
+        let result = analysis.walk(&machine, block, state, &[], false, None);
+        assert!(matches!(result, Err(Error::Unsupported {
+            detail: "affine projection outside the static structural vocabulary",
+            site: Some(Site::Operation(at)),
+        }) if at == operation));
     }
 
     #[test]
