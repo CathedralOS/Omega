@@ -1,0 +1,21 @@
+// Exact float-to-integer casts preserve integral values in range.
+// Expected exit: 0
+machine narrow32(value: f32) -> i32
+requires value == 42.0f32 || value == -17.0f32 {
+    value as i32
+}
+
+machine narrow64(value: f64) -> i32
+requires value == 42.0f64 || value == -17.0f64 {
+    value as i32
+}
+
+machine main() crashes Trap {
+    transition narrow32(42.0f32) == 42i32 && narrow32(-17.0f32) == -17i32
+        && narrow64(42.0f64) == 42i32 && narrow64(-17.0f64) == -17i32 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
