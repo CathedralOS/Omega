@@ -2,19 +2,18 @@ use omega::language::core::ProcessExit;
 // A portable filesystem journal: create a directory, write a 17-byte file,
 // inspect it, read its bytes back, rename it, and remove the file/directory.
 // Each successful step increments the tally; partial completion returns fewer
-// than seven. The application carries one Filesystem slot and no raw OS role.
+// than seven. The application calls FilesystemService directly and holds no raw OS role.
 // Expected exit: 7.
 use omega_language_std::File;
-use omega_language_std::Filesystem;
 use omega_language_std::IoResult;
 use omega_language_std::Metadata;
 use omega_language_std::MetadataResult;
 use omega_language_std::OpenResult;
 use omega_language_std::UnitResult;
 use omega_language_std::Console;
+use omega_language_std::FilesystemService;
 
 data Main {
-    filesystem: Filesystem;
     result: UnitResult;
     opened: OpenResult;
     transferred: IoResult;
@@ -25,20 +24,20 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // The sample owns these paths. Remove its prior interrupted run first.
-    main.result = block omega_language_std::filesystem_remove(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
-    main.result = block omega_language_std::filesystem_remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
-    main.result = block omega_language_std::filesystem_remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
-    main.result = block omega_language_std::filesystem_create_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+    main.result = block FilesystemService::remove("/tmp/omega_journal_dir/note.txt");
+    main.result = block FilesystemService::remove("/tmp/omega_journal_dir/renamed.txt");
+    main.result = block FilesystemService::remove_dir("/tmp/omega_journal_dir");
+    main.result = block FilesystemService::create_dir("/tmp/omega_journal_dir");
     transition main.result { UnitResult::Ok -> block made_directory(main) _ -> done(main) }
 
     machine made_directory(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.opened = block omega_language_std::filesystem_create(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        main.opened = block FilesystemService::create("/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> block write(main, file) _ -> done(main) }
     }
     machine write(main: &mut Main, file: File) {
-        main.transferred = block omega_language_std::filesystem_write(&mut main.filesystem, file, "omega fs journal\n");
-        main.result = block omega_language_std::filesystem_close(&mut main.filesystem, file);
+        main.transferred = block FilesystemService::write(file, "omega fs journal\n");
+        main.result = block FilesystemService::close(file);
         transition main.result { UnitResult::Ok -> block written(main) _ -> done(main) }
     }
     machine written(main: &mut Main) {
@@ -49,7 +48,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentR
     }
     machine inspect(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.metadata = block omega_language_std::filesystem_metadata_path(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        main.metadata = block FilesystemService::metadata_path("/tmp/omega_journal_dir/note.txt");
         transition main.metadata { MetadataResult::Ok { meta } -> block inspected(main, meta) _ -> done(main) }
     }
     machine inspected(main: &mut Main, metadata: Metadata) {
@@ -57,12 +56,12 @@ machine main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentR
     }
     machine open_for_read(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.opened = block omega_language_std::filesystem_open(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt");
+        main.opened = block FilesystemService::open("/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> block read(main, file) _ -> done(main) }
     }
     machine read(main: &mut Main, file: File) {
-        main.transferred = block omega_language_std::filesystem_read(&mut main.filesystem, file, &mut main.buffer, 17);
-        main.result = block omega_language_std::filesystem_close(&mut main.filesystem, file);
+        main.transferred = block FilesystemService::read(file, &mut main.buffer, 17);
+        main.result = block FilesystemService::close(file);
         transition main.result { UnitResult::Ok -> block read_complete(main) _ -> done(main) }
     }
     machine read_complete(main: &mut Main) {
@@ -84,17 +83,17 @@ machine main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentR
     }
     machine rename(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.result = block omega_language_std::filesystem_rename(&mut main.filesystem, "/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
+        main.result = block FilesystemService::rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> block renamed(main) _ -> done(main) }
     }
     machine renamed(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.result = block omega_language_std::filesystem_remove(&mut main.filesystem, "/tmp/omega_journal_dir/renamed.txt");
+        main.result = block FilesystemService::remove("/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> block removed_file(main) _ -> done(main) }
     }
     machine removed_file(main: &mut Main) {
         main.passed = main.passed + 1;
-        main.result = block omega_language_std::filesystem_remove_dir(&mut main.filesystem, "/tmp/omega_journal_dir");
+        main.result = block FilesystemService::remove_dir("/tmp/omega_journal_dir");
         transition main.result { UnitResult::Ok -> removed_directory(main) _ -> done(main) }
     }
     machine removed_directory(main: &mut Main) {

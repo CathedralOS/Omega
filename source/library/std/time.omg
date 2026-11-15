@@ -1,11 +1,11 @@
-// std::time — Duration pure-value core (rung 3) + Instant/Time over the
+// std::time — Duration pure-value core (rung 3) + Instant and clock reads over the
 // TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,
 // whose data `requires` carries the normalization invariant at construction
 // and mutation boundaries — ZII zero IS the zero duration.
 // Everything here is a pure `[copy]` value with no authority; clock
-// READS live on the `Time` capability (a later rung), never on these types.
+// READS are the `TimeHost`-reaching machines below, never these types.
 //
 // Rust parity, differing where Omega is better (TASKS_TIME.md north star):
 // - No panicking `+`/`-`: the checked and saturating forms ARE the API.
@@ -13,7 +13,7 @@
 //   uninitialized result reads as the failure case, never a fake success.
 // - `checked_subtract` reports underflow through the same `Overflow` case
 //   (one result vocabulary; the direction is unambiguous from the operation).
-// - Struct literals and receiverless `from_*` machines establish the same
+// - Struct literals and the `duration_from_*` machines establish the same
 //   normalization predicate. Local bounds come from their computations,
 //   never from a scalar type suffix.
 //
@@ -27,7 +27,7 @@
 //   caller's guard facts; bounds follow its parameters and checked expressions.
 
 // The raw per-OS boundary (`TimeHost`) is declared once in the sibling std
-// module; the `Time` capability below wraps it (the filesystem.omg layering).
+// module; the clock-read machines below wrap it (the filesystem.omg layering).
 use omega::language::core::narrow_u64_to_u32_exact;
 use omega::language::core::narrow_u64_to_u32_saturating;
 use omega::language::core::widen_u32_to_u64;
@@ -66,7 +66,7 @@ const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0
 // is the exact saturation and checked-total boundary exposed by Duration.
 public const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
 
-// Unit constructors produce the same Duration value from each unit.
+// Unit constructors: ordinary static machines returning a Duration.
 public machine duration_from_seconds(seconds: u64) -> Duration {
     Duration { seconds: seconds, subsecond_nanoseconds: 0 }
 }
@@ -486,7 +486,7 @@ const Instant::EPOCH: Instant = Instant { seconds: 0, subsecond_nanoseconds: 0 }
 const Instant::MAX: Instant = Instant { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
 
 // instant + duration as a later Instant; `Overflow` past the representable
-// range. Mirrors Duration::checked_add -- identical field shapes, identical
+// range. Mirrors duration_checked_add -- identical field shapes, identical
 // carry idiom (wrapped-compare overflow detection).
 public machine instant_checked_add(instant: &Instant, duration: Duration) -> InstantResult {
     let nanoseconds_total: u32 = instant.subsecond_nanoseconds + duration.subsecond_nanoseconds;
@@ -530,7 +530,7 @@ public machine instant_checked_add(instant: &Instant, duration: Duration) -> Ins
 }
 
 // instant - duration as an earlier Instant; `Overflow` on underflow below the
-// monotonic epoch. Mirrors Duration::checked_subtract's borrow idiom.
+// monotonic epoch. Mirrors duration_checked_subtract's borrow idiom.
 public machine instant_checked_subtract(instant: &Instant, duration: Duration) -> InstantResult {
     let seconds_bigger: bool = instant.seconds > duration.seconds;
     let seconds_equal: bool = instant.seconds == duration.seconds;
@@ -573,7 +573,7 @@ public machine instant_checked_subtract(instant: &Instant, duration: Duration) -
 // instant - earlier as a Duration; `Overflow` when `earlier` is later than instant
 // (the monotonic clock cannot run backwards, so this means the caller swapped
 // the operands or mixed instants across processes). Mirrors
-// Duration::checked_subtract -- same borrow idiom, same authoring rules.
+// duration_checked_subtract -- same borrow idiom, same authoring rules.
 public machine instant_checked_duration_since(instant: &Instant, earlier: Instant) -> DurationResult {
     let seconds_bigger: bool = instant.seconds > earlier.seconds;
     let seconds_equal: bool = instant.seconds == earlier.seconds;
@@ -616,7 +616,7 @@ public machine instant_checked_duration_since(instant: &Instant, earlier: Instan
 }
 
 // instant + duration, clamping at Instant::MAX instead of reporting overflow
-// (total). Mirrors Duration::saturating_add exactly; unblocked by D14
+// (total). Mirrors duration_saturating_add exactly; unblocked by D14
 // fires E+F (the MAX const's u64 seconds literal is fire D).
 public machine instant_saturating_add(instant: &Instant, duration: Duration) -> Instant {
     let sum: InstantResult = instant_checked_add(instant, duration);
@@ -629,7 +629,7 @@ public machine instant_saturating_add(instant: &Instant, duration: Duration) -> 
 }
 
 // instant - duration, clamping at the monotonic EPOCH instead of reporting
-// underflow (total). Mirrors Duration::saturating_subtract.
+// underflow (total). Mirrors duration_saturating_subtract.
 public machine instant_saturating_subtract(instant: &Instant, duration: Duration) -> Instant {
     let difference: InstantResult = instant_checked_subtract(instant, duration);
     transition difference {
@@ -642,7 +642,7 @@ public machine instant_saturating_subtract(instant: &Instant, duration: Duration
 
 // instant - earlier, clamping at ZERO instead of reporting the backwards case
 // (total, the ZII-friendly default -- Rust's `duration_since` panics here).
-// Mirrors Duration::saturating_subtract (transitioning on a nested sibling
+// Mirrors duration_saturating_subtract (transitioning on a nested sibling
 // call's result is safe again since the guard-ZII slot-naming fix,
 // 2026-07-08 -- pinned by calls/runtime_nested_value_call_guard_exit).
 public machine instant_duration_since(instant: &Instant, earlier: Instant) -> Duration {
@@ -693,7 +693,7 @@ public machine system_time_from_unix_seconds(seconds: i64) -> SystemTime {
 // (i64 maximum - i64 minimum == u64 maximum), computed as a u64 BIT-PATTERN wrapping
 // subtraction -- two's complement makes it the true difference whenever the
 // dominating compare proves the sign. Same borrow idiom as
-// Duration::checked_subtract, both directions precomputed in entry lets.
+// duration_checked_subtract, both directions precomputed in entry lets.
 public machine system_time_duration_since(time: &SystemTime, earlier: SystemTime) -> SystemTimeDifference {
     let seconds_bigger: bool = time.seconds_since_unix_epoch > earlier.seconds_since_unix_epoch;
     let seconds_equal: bool = time.seconds_since_unix_epoch == earlier.seconds_since_unix_epoch;
@@ -882,7 +882,7 @@ public machine system_time_checked_subtract(time: &SystemTime, duration: Duratio
 }
 
 // time + duration, clamping at SystemTime::MAX instead of reporting
-// overflow (total). Mirrors Duration::saturating_add.
+// overflow (total). Mirrors duration_saturating_add.
 public machine system_time_saturating_add(time: &SystemTime, duration: Duration) -> SystemTime {
     let sum: SystemTimeResult = system_time_checked_add(time, duration);
     transition sum {
@@ -895,7 +895,7 @@ public machine system_time_saturating_add(time: &SystemTime, duration: Duration)
 
 // time - duration, clamping at SystemTime::MIN instead of reporting
 // underflow (total; wall time is signed, so the floor is i64 minimum seconds,
-// not the epoch). Mirrors Duration::saturating_subtract.
+// not the epoch). Mirrors duration_saturating_subtract.
 public machine system_time_saturating_subtract(time: &SystemTime, duration: Duration) -> SystemTime {
     let difference: SystemTimeResult = system_time_checked_subtract(time, duration);
     transition difference {
@@ -906,11 +906,9 @@ public machine system_time_saturating_subtract(time: &SystemTime, duration: Dura
     machine saturate_min() -> SystemTime { SystemTime::MIN }
 }
 
-
-// The clock-read CAPABILITY (D9): reads live here, never ambiently on the
-// value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
-// have no equivalent (the Cathedral no-ambient-authority stance).
-public data Time { }
+// The clock reads below are ordinary machines whose authority is the
+// `TimeHost` reach each declares (D9). Callers acknowledge that reach; no
+// capability value is passed, and the value types carry no clock access.
 
 // Read the monotonic clock and normalize ONCE (D6): raw ticks + calibration
 // in, (seconds, subsecond_nanoseconds) out. All conversion math lives here,
@@ -921,9 +919,9 @@ public data Time { }
 // `remainder * 1_000_000_000` saturates instead of wrapping. Every real
 // host passes through unchanged (windows QPF 10^7 or 10^6-ish, POSIX 10^9,
 // the interpreter's virtual 1000); a host reporting 0 or an absurd frequency
-// measures degraded instead of faulting. Re-read per call: Time stays
+// measures degraded instead of faulting. Re-read per call: the reads stay
 // stateless (no capture-once field machinery) until a profile says otherwise.
-public machine time_now(time: &mut Time) -> Instant
+public machine instant_now() -> Instant
 reaches
     TimeHost
 invokes
@@ -955,7 +953,7 @@ invokes
 // (the checked_subtract idiom); `% i64 maximum` establishes the bound for the
 // i64 narrowing (real clocks sit ~1.7e9, the bound only tames the prover).
 // A host clock before 1970 reads as UNIX_EPOCH (degraded, never faulting).
-public machine time_system_time_now(time: &mut Time) -> SystemTime
+public machine system_time_now() -> SystemTime
 reaches
     TimeHost
 invokes
@@ -1004,7 +1002,7 @@ invokes
 // Shares let names with `now()` deliberately: two same-named-let callees
 // from one caller state pinned the cross-callee collision (both flavors now
 // FIXED -- runtime_time_elapsed_since_exit is the live std tripwire).
-public machine time_elapsed_since(time: &mut Time, start: Instant) -> Duration
+public machine elapsed_since(start: Instant) -> Duration
 reaches
     TimeHost
 invokes
@@ -1068,7 +1066,7 @@ invokes
 // is RETURNED so the caller can observe it. All-entry lets; the Saturating
 // multiply and add cannot overflow, and the narrowing saturates at u32
 // maximum.
-public machine time_sleep_for(time: &mut Time, duration: Duration) -> u32
+public machine sleep_for(duration: Duration) -> u32
 reaches
     TimeHost
 invokes

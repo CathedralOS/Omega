@@ -409,15 +409,19 @@ fn a_dynamic_view_without_declared_logical_lifetimes_is_refused() {
         &elaborated.module.structural_types,
         &[],
     );
-    assert!(matches!(
-        terminal_semantics::reference_call_lifetimes(
-            &elaborated.module,
-            caller,
-            &operation,
-            &mut analysis,
-        ),
-        Err("returned dynamic view needs its declared lifetime contract")
-    ));
+    let refusal = match terminal_semantics::reference_call_lifetimes(
+        &elaborated.module,
+        caller,
+        &operation,
+        &mut analysis,
+    ) {
+        Err(error) => error,
+        Ok(_) => panic!("a dynamic view still needs its declared lifetime contract"),
+    };
+    assert_eq!(
+        refusal.detail(),
+        Some("returned dynamic view needs its declared lifetime contract")
+    );
 }
 
 #[test]

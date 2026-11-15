@@ -1176,8 +1176,11 @@ compatible with either standalone marker 233 or standalone marker 234.
 The compiler-evaluation facts are retained independently of executable
 signature availability. Each callable header contains either a deferred refusal
 or its declaration custody, effective service reach, suspension/blocking flags,
-body-local termination judgment, entry-premise flag, linear/static closure
-refusals and normalized package-selection requests. The proof scope also retains
+body-local termination judgment, entry-premise flag, linear-use and pure
+invocation refusals, and normalized package-selection requests. An invocation
+refusal can accompany checked custody and selection requests. Build checks
+those requests with its existing provider admission. Pure evaluation also
+requires an eligible root and reached bodies. The proof scope retains
 successful recursive components with exact member and operational-call ordinals,
 and pending target-condition owners. Calling policy instances name their exact
 proof declaration independently of their optional emitted callable.

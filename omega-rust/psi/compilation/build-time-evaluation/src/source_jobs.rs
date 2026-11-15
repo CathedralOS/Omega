@@ -413,6 +413,10 @@ impl PreparedBuildMachineEntry {
         }
     }
 }
+fn invocation_error(reason: impl Into<String>) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(reason)]
+}
+
 impl PreparedBuildMachineProgram {
     pub fn prepare(
         typed: &TypedTrees,
@@ -450,7 +454,7 @@ impl PreparedBuildMachineProgram {
             SymbolHandle,
         )>,
         supplies: &[terminal_production::TerminalSourceSupply],
-    ) -> Result<PreparedBuildMachineEntry, String> {
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
                 .source
@@ -458,7 +462,9 @@ impl PreparedBuildMachineProgram {
                 .symbol_provenance_source_span(requester)
                 .is_none()
         {
-            return Err("source job requires its actual requesting declaration".into());
+            return Err(invocation_error(
+                "source job requires its actual requesting declaration",
+            ));
         }
         let invocation::PreparedSourceInvocation {
             source,
@@ -473,14 +479,14 @@ impl PreparedBuildMachineProgram {
             arguments,
             request_expression,
             selected,
-        )?;
+        )
+        .map_err(invocation_error)?;
         // The call's source reaches the checker the way every program does,
         // through typed preparation; there is no second way to freeze it.
         let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
             source,
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
-        )
-        .map_err(|errors| diagnostics::join_messages(&errors))?;
+        )?;
         let source = Arc::new(source);
         let accepted = terminal_production::AcceptedTerminalSource::judge(
             source,
@@ -496,20 +502,21 @@ impl PreparedBuildMachineProgram {
                 supplies,
             },
             terminal_codec::TerminalPublication::Invocation,
-        )
-        .map_err(|errors| diagnostics::join_messages(&errors))?;
+        )?;
         let entry = accepted
             .entry()
-            .ok_or("source invocation has no accepted entry")?;
+            .ok_or_else(|| invocation_error("source invocation has no accepted entry"))?;
         if accepted.closure().elaboration.machines.get(entry) != Some(&caller) {
-            return Err("source invocation accepted another caller".into());
+            return Err(invocation_error(
+                "source invocation accepted another caller",
+            ));
         }
         let actual_call = accepted
             .source()
             .expression_table
             .call_node(call)
             .cloned()
-            .ok_or("source invocation lost its accepted call")?;
+            .ok_or_else(|| invocation_error("source invocation lost its accepted call"))?;
         let physical = match declaration {
             typed_trees::callable_signature_shapes::CallableDeclaration::Machine(required) => {
                 let physical = accepted
@@ -520,16 +527,18 @@ impl PreparedBuildMachineProgram {
                             .source()
                             .machine_holding_state(actual_call.target_symbol)
                     })
-                    .ok_or("source invocation has no accepted concrete body")?;
+                    .ok_or_else(|| {
+                        invocation_error("source invocation has no accepted concrete body")
+                    })?;
                 if physical.symbol != required
                     && accepted
                         .source()
                         .machine_instantiation_path(physical.symbol, required)
                         .is_none()
                 {
-                    return Err(
-                        "source invocation changed its required concrete declaration".into(),
-                    );
+                    return Err(invocation_error(
+                        "source invocation changed its required concrete declaration",
+                    ));
                 }
                 physical.symbol
             }
@@ -550,14 +559,18 @@ impl PreparedBuildMachineProgram {
                     })
                     .unwrap_or(actual_call.target_symbol);
                 if actual_required != original {
-                    return Err("selected source invocation changed its public requirement".into());
+                    return Err(invocation_error(
+                        "selected source invocation changed its public requirement",
+                    ));
                 }
                 let mut sites = accepted.source_call_sites(caller, call);
-                let (canonical_caller, site) = sites
-                    .next()
-                    .ok_or("selected source invocation has no exact emitted call site")?;
+                let (canonical_caller, site) = sites.next().ok_or_else(|| {
+                    invocation_error("selected source invocation has no exact emitted call site")
+                })?;
                 if sites.next().is_some() {
-                    return Err("selected source invocation has multiple emitted call sites".into());
+                    return Err(invocation_error(
+                        "selected source invocation has multiple emitted call sites",
+                    ));
                 }
                 let module = &accepted.closure().elaboration.module;
                 let invocation = module
@@ -567,22 +580,34 @@ impl PreparedBuildMachineProgram {
                             .module_invocations()
                             .find(|invocation| invocation.site == site)
                     })
-                    .ok_or("selected source invocation lost its canonical operation")?;
-                let required_contract = invocation
-                    .inputs
-                    .required_contract
-                    .ok_or("selected source invocation lost its public contract")?;
+                    .ok_or_else(|| {
+                        invocation_error("selected source invocation lost its canonical operation")
+                    })?;
+                let required_contract = invocation.inputs.required_contract.ok_or_else(|| {
+                    invocation_error("selected source invocation lost its public contract")
+                })?;
                 let contract = module
                     .invocation_machine_contract(invocation.inputs.callee, Some(required_contract))
-                    .ok_or("selected source invocation has no exact public contract and body")?;
-                let applied = accepted.source().source_call_requirement_signature(
-                    caller,
-                    typed_trees::references::StaticArgumentCall::Expression(call, &actual_call),
-                )?;
+                    .ok_or_else(|| {
+                        invocation_error(
+                            "selected source invocation has no exact public contract and body",
+                        )
+                    })?;
+                let applied = accepted
+                    .source()
+                    .source_call_requirement_signature(
+                        caller,
+                        typed_trees::references::StaticArgumentCall::Expression(call, &actual_call),
+                    )
+                    .map_err(invocation_error)?;
                 let (owner, _) = accepted
                     .source()
                     .trait_machine_signature(applied.symbol)
-                    .ok_or("selected source invocation lost its public declaring trait")?;
+                    .ok_or_else(|| {
+                        invocation_error(
+                            "selected source invocation lost its public declaring trait",
+                        )
+                    })?;
                 let identity = accepted
                     .source()
                     .trait_requirement_callable_identity_text(owner, applied);
@@ -593,16 +618,18 @@ impl PreparedBuildMachineProgram {
                     != Some(identity.as_str())
                     || contract.selected_application.is_none()
                 {
-                    return Err(
-                        "selected source invocation changed its applied public signature".into(),
-                    );
+                    return Err(invocation_error(
+                        "selected source invocation changed its applied public signature",
+                    ));
                 }
                 *accepted
                     .closure()
                     .elaboration
                     .machines
                     .get(invocation.inputs.callee)
-                    .ok_or("selected source invocation lost its actual body source")?
+                    .ok_or_else(|| {
+                        invocation_error("selected source invocation lost its actual body source")
+                    })?
             }
         };
         Ok(PreparedBuildMachineEntry {
@@ -696,6 +723,7 @@ impl PreparedBuildMachineProgram {
             None,
             &[],
         )
+        .map_err(|errors| diagnostics::join_messages(&errors))
     }
 
     pub fn entry(
@@ -704,6 +732,16 @@ impl PreparedBuildMachineProgram {
         symbol: SymbolHandle,
         arguments: &[crate::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
+        self.prepare_entry(requester, symbol, arguments)
+            .map_err(|errors| diagnostics::join_messages(&errors))
+    }
+
+    fn prepare_entry(
+        &self,
+        requester: SymbolHandle,
+        symbol: SymbolHandle,
+        arguments: &[crate::BuildTimeValue],
+    ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
                 .source
@@ -711,13 +749,14 @@ impl PreparedBuildMachineProgram {
                 .symbol_provenance_source_span(requester)
                 .is_none()
         {
-            return Err("source job requires its actual requesting declaration".into());
+            return Err(invocation_error(
+                "source job requires its actual requesting declaration",
+            ));
         }
-        let machine = self
-            .source
-            .machine_by_symbol(symbol)
-            .ok_or("no product route yet: source Build entry is unavailable")?;
-        let call = invocation::direct_call(&self.source, machine)?;
+        let machine = self.source.machine_by_symbol(symbol).ok_or_else(|| {
+            invocation_error("no product route yet: source Build entry is unavailable")
+        })?;
+        let call = invocation::direct_call(&self.source, machine).map_err(invocation_error)?;
         self.prepare_call(
             requester,
             typed_trees::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
@@ -839,6 +878,7 @@ impl PreparedBuildMachineProgram {
             Some((selection, selection_owner)),
             &[],
         )
+        .map_err(|errors| diagnostics::join_messages(&errors))
     }
 
     /// Invoke the selected implementation through its original requirement.
@@ -864,6 +904,7 @@ impl PreparedBuildMachineProgram {
             None,
             &[supply],
         )
+        .map_err(|errors| diagnostics::join_messages(&errors))
     }
 }
 

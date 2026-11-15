@@ -141,7 +141,7 @@ linux_x86_64 machine posix_filesystem_kind_of_stored_error_code(filesystem: &mut
         95 -> ErrorKind::Unsupported,
         _ -> ErrorKind::Other
     };
-    reconstruct_error_kind(&filesystem.err_kind)
+    error_kind_reconstruct(&filesystem.err_kind)
 }
 
 linux_x86_64 machine posix_filesystem_would_block_error() -> i32 { 11 }

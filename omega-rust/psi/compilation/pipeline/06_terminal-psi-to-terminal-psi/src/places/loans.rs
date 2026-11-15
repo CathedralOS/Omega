@@ -244,17 +244,22 @@ pub(crate) fn reference_graph(
         [machine],
         &[],
     )
-    .map_err(|error| {
-        crate::refusal(
-            RefusalReason::Unsupported,
-            error.machine(),
-            error
-                .operation(module)
-                .map(Construct::Operation)
-                .unwrap_or(Construct::Machine),
-            &error.in_module(module),
-        )
-    })
+    .map_err(|error| graph_refusal(module, error))
+}
+
+fn graph_refusal(
+    module: &terminal_psi::TerminalModule,
+    error: terminal_semantics::descriptor_results::DescriptorGraphError,
+) -> terminal_check_tables::Refusal {
+    crate::refusal(
+        RefusalReason::Unsupported,
+        error.machine(),
+        error
+            .operation(module)
+            .map(Construct::Operation)
+            .unwrap_or(Construct::Machine),
+        &error.in_module(module),
+    )
 }
 
 impl Storage<'_> {
@@ -946,17 +951,15 @@ impl Storage<'_> {
             return Err(self.unsupported(concerns,
                 "reference release through borrowed storage needs its exact restoration and child closure"));
         }
-        let super::Shape::Typed(row) = self.shape(&place, concerns)? else {
+        let root_type = self.root_type(source, concerns)?;
+        if terminal_semantics::inline_descriptor_type(
+            self.module.structural_types.iter(),
+            root_type,
+            path,
+        )
+        .is_none()
+        {
             return Err(self.foreign(concerns, "reference release names no descriptor"));
-        };
-        if !matches!(
-            self.declaration(row, concerns)?.shape,
-            terminal_psi::StructuralTypeShape::Reference { .. }
-        ) {
-            return Err(self.foreign(
-                concerns,
-                "reference release names a different value constructor",
-            ));
         }
         match self.root_kind(source, concerns)? {
             StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::OperationResult { .. } => {
@@ -1529,7 +1532,7 @@ impl Storage<'_> {
                     operation,
                     &mut self.references.borrow_mut(),
                 )
-                .map_err(|reason| self.unsupported(concerns, reason))?;
+                .map_err(|error| graph_refusal(module, error))?;
                 self.lent(
                     module,
                     tables,

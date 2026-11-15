@@ -420,15 +420,33 @@ machine entry() invokes Missing {}
         .iter()
         .find(|row| row.name.as_str() == "Registrar")
         .unwrap();
+    let refused = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &program,
+            source::DependencyScope::Product,
+        ),
+        registrar,
+    )
+    .err()
+    .expect("an unresolved invocation cannot narrow the published service");
+    let [requirement] = program.trait_machine_signatures(registrar) else {
+        panic!("the service must declare one requirement");
+    };
     assert!(
-        typed_trees::service_declarations::projection::from_typed(
-            typed_trees::provider_declarations::ProviderPlanningContext::new(
-                &program,
-                source::DependencyScope::Product,
-            ),
-            registrar,
-        )
-        .is_none()
+        refused.message.contains("Registrar::execute"),
+        "{}",
+        refused.message
+    );
+    assert!(
+        refused
+            .message
+            .contains("invokes `Missing` has no exact retained target")
+    );
+    assert_eq!(
+        refused.source_span,
+        program
+            .symbols
+            .symbol_provenance_source_span(requirement.symbol)
     );
     let frozen: typed_trees::FrozenTypedTrees = program.into();
     let signature = frozen

@@ -53,8 +53,8 @@ pub(crate) mod field_stores {
     use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
     use std::collections::BTreeSet;
     use terminal_psi::{
-        StructuralAccess, StructuralAffineDiscard, StructuralFieldType, StructuralMultiplicity,
-        StructuralPathSegment, StructuralTypeShape,
+        StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity, StructuralPathSegment,
+        StructuralTypeShape,
     };
 
     impl TerminalExecution<'_> {
@@ -129,19 +129,22 @@ pub(crate) mod field_stores {
                     StructuralTypeShape::Record { fields, .. } => fields
                         .iter()
                         .filter(|field| !field.relevance.is_erased())
-                        .filter_map(|field| match field.field_type {
-                            StructuralFieldType::Structural(structural_type) => {
-                                let mut path = parent_path.to_vec();
-                                path.push(StructuralPathSegment::Field(field.identity));
-                                Some(StructuralAffineDiscard {
-                                    place: destination,
-                                    path,
-                                    structural_type,
+                        .filter_map(|field| {
+                            super::cleanup_field_type(&self.structural_types(), field)
+                                .transpose()
+                                .map(|ty| {
+                                    ty.map(|structural_type| {
+                                        let mut path = parent_path.to_vec();
+                                        path.push(StructuralPathSegment::Field(field.identity));
+                                        StructuralAffineDiscard {
+                                            place: destination,
+                                            path,
+                                            structural_type,
+                                        }
+                                    })
                                 })
-                            }
-                            _ => None,
                         })
-                        .collect::<Vec<_>>(),
+                        .collect::<Result<Vec<_>, _>>()?,
                     StructuralTypeShape::FixedArray {
                         element,
                         length: terminal_psi::ArrayExtent::Literal(length),
