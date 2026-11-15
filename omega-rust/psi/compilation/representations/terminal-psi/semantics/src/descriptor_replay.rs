@@ -4376,6 +4376,7 @@ pub(crate) mod engine {
             machine: &DescriptorMachine,
             before: &State,
             definitions: &[DescriptorLocation],
+            consumed: &[DescriptorLocation],
             derivations: impl Clone
             + Iterator<
                 Item = (
@@ -4395,7 +4396,26 @@ pub(crate) mod engine {
                     Some(location.clone())
                 }
             };
-            let definitions = definitions
+            // Moving an owned parameter ends its name for loan liveness, but
+            // its entry value stays readable here: no operation reads a moved
+            // value, and the machine's summary still reads the parameter at
+            // exit to report what the caller's storage behind a reference it
+            // held contains. Other consumed carriers are forgotten.
+            let mut overwritten = definitions.to_vec();
+            for consumed in consumed {
+                let parameter = machine.places.iter().any(|row| {
+                    row.place == consumed.root
+                        && matches!(row.definition, DescriptorDefinition::Parameter { .. })
+                });
+                if !parameter {
+                    continue;
+                }
+                let position = overwritten
+                    .iter()
+                    .position(|definition| definition == consumed)?;
+                overwritten.swap_remove(position);
+            }
+            let definitions = overwritten
                 .iter()
                 .map(canonical)
                 .collect::<Option<Vec<_>>>()?;
@@ -4519,6 +4539,7 @@ pub(crate) mod engine {
                 machine,
                 before,
                 &definitions,
+                &[],
                 edge.derivations(),
                 super::case_flow::Transfer::Arrival { edge, reads },
                 case_storage,
@@ -4635,6 +4656,7 @@ pub(crate) mod engine {
                         machine,
                         &before,
                         &step.definitions,
+                        &step.consumed,
                         step.derivations
                             .iter()
                             .map(|(source, destination)| (source, destination)),
@@ -6603,6 +6625,7 @@ pub(crate) mod engine {
                     &machine,
                     &before,
                     std::slice::from_ref(&captured),
+                    &[],
                     [(&selected, &captured)].into_iter(),
                     super::case_flow::Transfer::Operation {
                         position,

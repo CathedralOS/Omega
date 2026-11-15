@@ -662,6 +662,12 @@ pub mod descriptor_lifetimes {
     #[derive(Clone, Default)]
     pub struct DescriptorFlowStep {
         pub definitions: Vec<DescriptorLocation>,
+        /// The subset of `definitions` that an owned move consumes rather
+        /// than overwrites. Loan liveness treats both alike. Descriptor
+        /// replay keeps a consumed parameter's entry value readable, so the
+        /// machine's summary can still report the caller's storage behind a
+        /// reference the parameter held.
+        pub consumed: Vec<DescriptorLocation>,
         pub derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
         pub inputs: Vec<DescriptorLocation>,
@@ -13256,13 +13262,15 @@ pub mod descriptor_results {
             step: &mut DescriptorFlowStep,
         ) -> Option<()> {
             let mut consume = |argument: &StructuralArgument| {
-                step.definitions.push(descriptor_location(
+                let consumed = descriptor_location(
                     &module.structural_types,
                     argument.place,
                     machine.structural_place_type(argument.place)?,
                     &argument.path,
                     None,
-                )?);
+                )?;
+                step.definitions.push(consumed.clone());
+                step.consumed.push(consumed);
                 Some(())
             };
             let retained = |argument: &StructuralArgument| {
