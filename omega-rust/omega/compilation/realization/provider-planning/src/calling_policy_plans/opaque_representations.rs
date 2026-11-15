@@ -146,6 +146,9 @@ pub struct BoundaryOpaqueRepresentationMovement {
     pub(super) placement: calling_conventions::ValuePlacement,
 }
 
+// The boundary-signature tests read these to check the movement plan; no
+// production caller reads them back.
+#[cfg(test)]
 impl BoundaryOpaqueRepresentationMovement {
     pub const fn role(&self) -> BoundaryOpaqueRepresentationMovementRole {
         self.role
@@ -153,9 +156,5 @@ impl BoundaryOpaqueRepresentationMovement {
 
     pub const fn placement(&self) -> &calling_conventions::ValuePlacement {
         &self.placement
-    }
-
-    pub fn path(&self) -> &[BoundaryOpaqueRepresentationPathElement] {
-        &self.path
     }
 }

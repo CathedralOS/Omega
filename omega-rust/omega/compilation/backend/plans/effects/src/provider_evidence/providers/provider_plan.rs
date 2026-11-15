@@ -983,34 +983,4 @@ impl ProviderPlan {
         }
         errors
     }
-
-    pub fn covers_schema(&self) -> bool {
-        let mut selected_requirements = self
-            .rows
-            .iter()
-            .map(|row| row.requirement_identity)
-            .collect::<Vec<_>>();
-        selected_requirements.sort_unstable();
-        if selected_requirements
-            .windows(2)
-            .any(|pair| pair[0] == pair[1])
-        {
-            return false;
-        }
-        self.schema.declaration.methods.iter().all(|method| {
-            self.rows
-                .iter()
-                .filter(|row| self.schema.row_binds_method(row, method, &self.identities))
-                .count()
-                >= 1
-        }) && self.rows.iter().all(|row| {
-            !self.identities.text(row.requirement_identity).is_empty()
-                && self
-                    .schema
-                    .declaration
-                    .methods
-                    .iter()
-                    .any(|method| self.schema.row_binds_method(row, method, &self.identities))
-        })
-    }
 }

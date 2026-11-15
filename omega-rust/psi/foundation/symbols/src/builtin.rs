@@ -803,20 +803,6 @@ impl BuiltinFunction {
     }
 
     /*
-        Whether a call to this builtin writes no caller storage: it reads its
-        operands and produces a value. Write-frame inference gives such a
-        receiver-free call an empty frame instead of the whole-receiver clobber
-        of an unresolved call. Machine-control and port intrinsics, content
-        custody builtins, and `embed` are excluded: their effects are their own
-        custody axes, not value reads.
-        Floating control-state effects do not write caller storage;
-        their separate admission rules remain attached to the numeric operation.
-    */
-    pub const fn has_empty_write_frame(self) -> bool {
-        self.is_float_family()
-    }
-
-    /*
         Whether this builtin is one of the instruction-bearing asm
         intrinsics. Membership reads [`Self::ALL`]'s own spellings: every asm
         intrinsic is installed with the unnameable `asm#` prefix.

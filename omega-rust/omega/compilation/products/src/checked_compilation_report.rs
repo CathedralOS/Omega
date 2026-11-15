@@ -85,10 +85,6 @@ impl ProductReportPlan {
         !matches!(self.requested, ProductReportRequest::Check) && !admission.artifact_only()
     }
 
-    pub fn is_native(&self) -> bool {
-        matches!(self.requested, ProductReportRequest::Native(_))
-    }
-
     pub fn optimizations(&self) -> &OptimizationSelections {
         self.rollback.effective()
     }

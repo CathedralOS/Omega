@@ -46,12 +46,6 @@ pub struct ProofApplicationPlan<Declaration: 'static> {
 }
 
 impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaration> {
-    pub fn retain_product_machines(&mut self, mut selected: impl FnMut(Declaration) -> bool) {
-        self.machines.for_each_mut(|_, machine| {
-            machine.product_selected &= selected(machine.machine);
-        });
-    }
-
     pub fn callable_for_target<'scope>(
         &self,
         symbol: Declaration,
@@ -331,23 +325,6 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
             }
         }
         scopes
-    }
-
-    pub fn needs_scope(&self, scope: &str, primary: &str) -> bool {
-        if scope == primary || self.plan.unscoped_recipe {
-            return true;
-        }
-        let owners = self.plan.symbols.span_or_empty(self.plan.obligation_owners);
-        let (machines, declarations) = self.membership(
-            scope,
-            false,
-            self.plan.provider_candidates.storage_slice(),
-            None,
-        );
-        machines
-            .iter()
-            .chain(&declarations)
-            .any(|owner| owners.contains(owner))
     }
 
     pub fn declarations(&self) -> &[Declaration] {
@@ -807,14 +784,6 @@ impl<Declaration: Default + 'static> ProofCallGraph<Declaration> {
         row: ProofCallMachine<Declaration>,
     ) -> arena::Handle<ProofCallMachine<Declaration>> {
         self.machines.insert(row)
-    }
-
-    pub fn update_machine(
-        &mut self,
-        row: arena::Handle<ProofCallMachine<Declaration>>,
-        edit: impl FnOnce(&mut ProofCallMachine<Declaration>),
-    ) {
-        edit(self.machines.get_mut(row));
     }
 }
 

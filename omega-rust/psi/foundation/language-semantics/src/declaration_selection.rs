@@ -121,18 +121,6 @@ mod product_policy {
         pub selecting_machine: SymbolHandle,
         pub source_span: source::SourceSpan,
     }
-
-    impl AuthoredBehaviorExclusion {
-        pub fn authored_label(&self) -> Option<String> {
-            match &self.kind {
-                AuthoredBehaviorExclusionKind::Service { name, .. } => {
-                    Some(format!("service `{name}`"))
-                }
-                AuthoredBehaviorExclusionKind::CrashCause { .. }
-                | AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { .. } => None,
-            }
-        }
-    }
 }
 pub use product_policy::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, AuthoredRootGrant,

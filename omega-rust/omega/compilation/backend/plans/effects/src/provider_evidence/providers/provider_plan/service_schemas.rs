@@ -329,17 +329,6 @@ impl ServiceSchema {
                 .id_at(row_identities.text(row.declared_requirement_identity))
                 == Some(method.requirement_identity)
     }
-
-    pub fn method_for_row(
-        &self,
-        row: &ProviderPlanRow,
-        row_identities: &ProviderIdentityTable,
-    ) -> Option<&ServiceMethod> {
-        self.declaration
-            .methods
-            .iter()
-            .find(|method| self.row_binds_method(row, method, row_identities))
-    }
 }
 
 impl compiler_storage::Record for ServiceSchemaDigest {

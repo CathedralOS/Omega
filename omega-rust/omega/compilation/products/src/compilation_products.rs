@@ -274,12 +274,6 @@ impl CompileReport {
         self.build_outputs.as_mut()
     }
 
-    pub const fn build_observation_identity(
-        &self,
-    ) -> Option<package_compilation::BuildObservationIdentity> {
-        self.build_observation
-    }
-
     pub(crate) fn record_build_output_publication(mut self) -> Result<Self, String> {
         if !matches!(self.product, CompileProduct::BuildArtifacts) && !self.wrote_output {
             return Err(

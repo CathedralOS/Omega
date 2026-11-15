@@ -191,10 +191,6 @@ impl CheckedCompilation {
     pub const fn timings(&self) -> &CompileTimings {
         &self.timings
     }
-
-    pub fn timings_mut(&mut self) -> &mut CompileTimings {
-        &mut self.timings
-    }
 }
 
 impl std::ops::Deref for CheckedCompilation {

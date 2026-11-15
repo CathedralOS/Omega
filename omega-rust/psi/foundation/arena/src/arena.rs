@@ -311,12 +311,6 @@ impl<T> HandleSpan<T> {
         }
     }
 
-    pub fn is_followed_by(self, handle: Handle<T>) -> bool {
-        !self.is_empty()
-            && handle.generation() == self.start.generation()
-            && handle.arena_index() == self.start.arena_index() + self.count
-    }
-
     pub fn push_contiguous(&mut self, handle: Handle<T>) {
         if self.is_empty() {
             *self = Self::from_parts(handle, 1);
