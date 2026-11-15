@@ -2519,6 +2519,7 @@ dependencies = [
  "diagnostics",
  "execution-admission",
  "language-core",
+ "mimalloc",
  "numerics",
  "optimization",
  "proof-admission",

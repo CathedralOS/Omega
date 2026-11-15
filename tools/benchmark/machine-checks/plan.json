@@ -1,20 +1,21 @@
 {
   "schema": "omega-performance-plan/1",
-  "name": "mixed machine checking, one to eight workers",
+  "name": "mixed machine checking, old driver to parallel driver with MiMalloc",
   "working_directory": "../../..",
   "inputs": [
-    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/examples/machine_checks.rs"
+    "tools/benchmark/machine-checks/harness.rs",
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/examples/machine_checks_mimalloc.rs"
   ],
   "baseline": {
-    "program": "build/performance/parallel-machine-checks/before/machine_checks",
-    "arguments": ["1", "1", "mixed", "256", "64"]
+    "program": "build/performance/parallel-machine-checks/before/machine_checks_mimalloc",
+    "arguments": ["8", "1", "mixed", "256", "64"]
   },
   "candidate": {
-    "program": "build/performance/parallel-machine-checks/after/machine_checks",
+    "program": "build/performance/parallel-machine-checks/after/machine_checks_mimalloc",
     "arguments": ["8", "1", "mixed", "256", "64"]
   },
   "warmups": 1,
-  "pairs": 5,
+  "pairs": 8,
   "timeout_ms": 180000,
   "measurement": {
     "kind": "reported_work",
