@@ -779,8 +779,11 @@ fn a_conditional_public_postcondition_uses_the_actual_integer_argument() {
             literal.kind = terminal_psi::OperationKind::IntegerConstant {
                 value: semantic_vocabulary::IntegerValue::Unsigned(0),
             };
-            let refusal = terminal_codec::ClosedTerminalModule::new(forged)
-                .expect_err("a returning actual cannot justify a no-normal invocation");
+            let encoded = terminal_codec::ClosedTerminalModule::new(forged)
+                .expect("trusted encoding does not repeat receiving verification");
+            let refusal =
+                terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes())
+                    .expect_err("a returning actual cannot justify a no-normal invocation");
             match refusal {
                 terminal_codec::CodecError::MalformedStructuralFoundation(detail) => {
                     assert_eq!(detail, "no-normal invocation callee has a normal return");
