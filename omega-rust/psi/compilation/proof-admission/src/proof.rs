@@ -67,6 +67,9 @@ pub enum AcceptedProofRule {
     IntegerCorrelatedForbiddenRoots,
     /// `c <= k |- 2^c <= 2^k`; provisional (`power_of_two_order`).
     IntegerPowerOfTwoOrder,
+    /// Positive IEEE order composition; provisional until derived in the
+    /// mathematical core (foundation.md, kernel-rule-admission).
+    IeeeFloatOrderChain,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2523,6 +2526,9 @@ mod traversal {
             | ProofRule::SemanticAxiom { .. }
             | ProofRule::Assumption { .. }
             | ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {}
+            ProofRule::IeeeFloatOrderChain(children) => {
+                pending.push(Action::Children(children));
+            }
             ProofRule::ConjunctionIntroduction(children) => {
                 let Proposition::Conjunction(expected) = &proof.conclusion else {
                     return Err(ProofError::RuleConclusionMismatch(
@@ -2702,6 +2708,16 @@ fn check_node_locally(
         machine_parameter_values,
     };
     match &proof.rule {
+        ProofRule::IeeeFloatOrderChain(premises) => {
+            crate::ieee_float_rules::check_chain(
+                &proof.conclusion,
+                premises.iter().map(|premise| &premise.conclusion),
+            )?;
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IeeeFloatOrderChain);
+            Ok(())
+        }
         ProofRule::Primitive(_) => propositional_rules::check_primitive(&scope, proof, acceptance),
         ProofRule::SemanticAxiom { .. } => check_semantic_axiom(&scope, proof, acceptance),
         ProofRule::Assumption { .. } => check_assumption(&scope, proof, acceptance),
@@ -2795,6 +2811,7 @@ pub enum ProofError {
     PredicateDenotation(Box<crate::PredicateDenotationError>),
     IntegerOrderMiddleMismatch,
     IntegerOrderConclusionMismatch,
+    IeeeFloatOrderMismatch(&'static str),
     UnknownIntegerOrderEndpoint(usize),
     IntegerOrderUnchangedEndpointMismatch,
     IntegerOrderSubstitutionMismatch,

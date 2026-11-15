@@ -18,16 +18,14 @@ use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
 };
-use terminal_check_tables::values::{ValueOrigin, ValueRow};
+use terminal_check_tables::values::ValueRow;
 use terminal_psi::PrimitiveJudgment;
 
 /// Declaration terms have logical inputs even when they have no executable
-/// producer. The prover borrows their types and observation status from the
-/// owner that supplies the inputs.
+/// producer. The prover borrows their types from the owner supplying them.
 pub(crate) trait ProofValues {
     fn count(&self) -> usize;
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType>;
-    fn is_storage_content(&self, value: ValueId) -> bool;
 }
 
 impl ProofValues for IdTable<ValueId, ValueRow> {
@@ -37,11 +35,6 @@ impl ProofValues for IdTable<ValueId, ValueRow> {
 
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
         self.get(value).map(|row| row.scalar_type)
-    }
-
-    fn is_storage_content(&self, value: ValueId) -> bool {
-        self.get(value)
-            .is_some_and(|row| matches!(row.origin, ValueOrigin::StorageContent { .. }))
     }
 }
 
@@ -256,17 +249,13 @@ impl Known {
                 Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
                     match definition {
                         ScalarTerm::Boolean(_) => fact.axiom.is_some(),
-                        ScalarTerm::Integer { .. } => true,
-                        // A read with a checked initial-content equation:
-                        // the available axiom ties this exact immutable value
-                        // to its formal or producing call. Join scope is
-                        // checked separately against the owning root.
-                        ScalarTerm::Value { id, .. } => {
-                            matches!(
-                                subject.scalar_type(),
-                                ScalarType::Boolean | ScalarType::Integer(_)
-                            ) || (fact.axiom.is_some() && values.is_storage_content(*id))
-                        }
+                        ScalarTerm::Integer { .. } | ScalarTerm::IeeeFloatLiteral(_) => true,
+                        // An exact scalar copy retains its carrier and value,
+                        // including float bits. This is stored-value equality,
+                        // not an IEEE comparison or a numeric conversion. The
+                        // checked equation already names the immutable read;
+                        // join scope is checked against the owning root.
+                        ScalarTerm::Value { .. } => true,
                         // Exact operation definitions retain their selected
                         // integer meaning. A compound scalar equality learned
                         // from an arrival remains a proof premise for bounds.

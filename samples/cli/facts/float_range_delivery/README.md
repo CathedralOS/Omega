@@ -3,7 +3,20 @@
 The same-format inclusive f64 fact `0.0 <= value && value <= 0.25`
 proves the wider requirement `0.0 <= value && value <= 0.5` at `admit(value)`.
 No conversion is inserted. The root witness and nine place witnesses use canonical
-`where`, `requires`, `ensures`, and established flow facts.
+`requires`, `ensures`, and established flow facts.
+
+The current [LOWERED-FORM-CHECKER](../../../../TASKS.md) qualification covers
+[`local/main.omg`](local/main.omg), unchanged, on `macos_arm64`: source
+`2daea63892d` runs with exit 0 in both Psi and native execution. Its narrower
+stored range survives the local read and proves `admit`'s wider input bound.
+The [retained positive](../../../../tests/fixtures/run/float/range_delivery/main.omg)
+and [negative](../../../../tests/fixtures/fail/float/range_delivery/main.omg)
+both give `probe` a complete `requires true` input contract; only the negative
+removes Reading's upper guarantee, and the checker rejects the call to `admit`
+for its missing `0.5` bound. The complete contract prevents `probe` from
+inferring a narrower input contract.
+The remaining places and older row-wide execution claims below were not
+requalified by this repair.
 
 Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`,

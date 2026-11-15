@@ -330,6 +330,12 @@ impl Transport<'_> {
                 ScalarTerm::integer(self.integer_type(*scalar_type)?, *value).ok()?
             }
             ScalarTerm::Boolean(_) => term.clone(),
+            ScalarTerm::IeeeFloatLiteral(value) => {
+                (self.scalar_type(ScalarType::IeeeFloat(value.format()))?
+                    == ScalarType::IeeeFloat(value.format()))
+                .then_some(())?;
+                term.clone()
+            }
             ScalarTerm::ExactIntegerAdd {
                 scalar_type,
                 left,
@@ -413,6 +419,29 @@ impl Transport<'_> {
             Proposition::LessOrEqual(left, right) => {
                 Proposition::LessOrEqual(self.term(left)?, self.term(right)?)
             }
+            Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left,
+                right,
+            } => {
+                let mut left = self.term(left)?;
+                let mut right = self.term(right)?;
+                if left.scalar_type() != ScalarType::IeeeFloat(*format)
+                    || right.scalar_type() != ScalarType::IeeeFloat(*format)
+                {
+                    return None;
+                }
+                if kind.is_symmetric() && left > right {
+                    std::mem::swap(&mut left, &mut right);
+                }
+                Proposition::ScalarIeeeFloatComparison {
+                    kind: *kind,
+                    format: *format,
+                    left,
+                    right,
+                }
+            }
             Proposition::IntegerMathEqual(left, right) => {
                 Proposition::IntegerMathEqual(self.math(left)?, self.math(right)?)
             }
@@ -476,6 +505,9 @@ impl Transport<'_> {
             },
             ProofRule::ConjunctionIntroduction(parts) => {
                 ProofRule::ConjunctionIntroduction(children(parts)?)
+            }
+            ProofRule::IeeeFloatOrderChain(parts) => {
+                ProofRule::IeeeFloatOrderChain(children(parts)?)
             }
             ProofRule::ConjunctionElimination {
                 conjunction,
@@ -2011,5 +2043,108 @@ mod width_transport_tests {
             ValueId::new(1).unwrap(),
             ScalarTerm::integer(u64_type, IntegerValue::Unsigned(8)).unwrap()
         ));
+    }
+}
+
+#[cfg(test)]
+mod ieee_transport_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        IeeeFloatComparisonKind as Kind, IeeeFloatFormat as Format, IeeeFloatValue,
+    };
+
+    #[test]
+    fn carried_ieee_certificates_rename_actuals_without_changing_format_or_bits() {
+        for (format, literals) in [
+            (
+                Format::Binary32,
+                [
+                    IeeeFloatValue::Binary32(0x8000_0000),
+                    IeeeFloatValue::Binary32(0x7fc0_0042),
+                ],
+            ),
+            (
+                Format::Binary64,
+                [
+                    IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+                    IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+                ],
+            ),
+        ] {
+            let scalar = ScalarType::IeeeFloat(format);
+            let transport = Transport {
+                scalar_type: &Some,
+                value: &|id, _| ValueId::new(3 - id.get()).map(Moved::Value),
+                assumption: &|index, _| Ok(Cited::Index(index)),
+                axiom: &Ok,
+                refused: std::cell::RefCell::new(None),
+            };
+            let [a, b] = [1, 2].map(|id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar));
+            for kind in [
+                Kind::Equal,
+                Kind::NotEqual,
+                Kind::LessThan,
+                Kind::LessOrEqual,
+                Kind::NotLessThan,
+                Kind::NotLessOrEqual,
+            ] {
+                let original = Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left: a.clone(),
+                    right: b.clone(),
+                };
+                let (left, right) = if kind.is_symmetric() {
+                    (a.clone(), b.clone())
+                } else {
+                    (b.clone(), a.clone())
+                };
+                let expected = Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left,
+                    right,
+                };
+                assert_eq!(transport.proposition(&original), Some(expected));
+            }
+            for bits in literals {
+                let term = ScalarTerm::IeeeFloatLiteral(bits);
+                assert_eq!(transport.term(&term), Some(term));
+            }
+            let ordered = Proposition::ScalarIeeeFloatComparison {
+                kind: Kind::LessOrEqual,
+                format,
+                left: a,
+                right: b,
+            };
+            let proof = ProofNode {
+                conclusion: ordered.clone(),
+                rule: ProofRule::IeeeFloatOrderChain(vec![ProofNode {
+                    conclusion: ordered,
+                    rule: ProofRule::Assumption { index: 0 },
+                }]),
+            };
+            let moved = transport.certificate(&proof).unwrap();
+            let ProofRule::IeeeFloatOrderChain(children) = &moved.rule else {
+                panic!("chain was lost")
+            };
+            let context = PropositionContext::from_value_types(
+                (1..=2).map(|id| (ValueId::new(id).unwrap(), scalar)),
+            )
+            .unwrap();
+            proof_admission::accept_certificate(
+                &context,
+                &moved.conclusion,
+                &[children[0].conclusion.clone()],
+                &[],
+                &moved,
+            )
+            .unwrap();
+            let changed_format = Transport {
+                scalar_type: &|_| Some(ScalarType::Boolean),
+                ..transport
+            };
+            assert!(changed_format.certificate(&proof).is_err());
+        }
     }
 }
