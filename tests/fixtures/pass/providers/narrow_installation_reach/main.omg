@@ -1,0 +1,27 @@
+// Expected exit: 0
+boundary trait X { machine touch(value: &mut u32) reaches X crashes none; }
+boundary trait Y { machine touch(value: &mut u32) reaches Y crashes none; }
+XProvider satisfies X { machine touch(value: &mut u32) { value = 11; } }
+YProvider satisfies Y { machine touch(value: &mut u32) { value = 22; } }
+
+boundary trait A { machine visit(first: &mut u32, second: &mut u32) reaches <= X crashes none; }
+boundary trait B { machine visit(value: &mut u32) reaches <= X + Y crashes none; }
+boundary trait C { machine visit(value: &mut u32) reaches <= X + Y crashes none; }
+boundary trait D { machine visit(value: &mut u32) reaches <= X + Y crashes none; }
+
+AProvider satisfies A {
+    machine visit(first: &mut u32, second: &mut u32) { B::visit(first); }
+}
+BProvider satisfies B { machine visit(value: &mut u32) { X::touch(value); } }
+CProvider satisfies C { machine visit(value: &mut u32) { D::visit(value); } }
+DProvider satisfies D { machine visit(value: &mut u32) { Y::touch(value); } }
+
+machine main() reaches X + Y crashes Trap {
+    let mut first: u32 = 0;
+    let mut second: u32 = 0;
+    A::visit(&mut first, &mut second);
+    C::visit(&mut second);
+    transition first == 11 && second == 22 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

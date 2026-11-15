@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+terminal-check-tables = { path = "../representations/terminal-psi/check-tables" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }
 terminal-psi-to-terminal-psi = { path = "../pipeline/06_terminal-psi-to-terminal-psi" }
 typed-trees-to-terminal-psi = { path = "../pipeline/05_typed-trees-to-terminal-psi" }

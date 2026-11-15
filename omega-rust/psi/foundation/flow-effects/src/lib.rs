@@ -38,6 +38,8 @@ per-axis module paths while eliminating the nested directory.
 
 #![forbid(unsafe_code)]
 
+pub mod installation_reach;
+
 pub mod flow_effects {
     pub mod capabilities {
         use arena::Arena;

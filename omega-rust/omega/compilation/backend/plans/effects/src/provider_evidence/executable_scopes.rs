@@ -818,6 +818,7 @@ mod boundary_reach_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
+            service_reach_is_installation_bound: false,
             owning_service: Some(ServiceId::new(1).unwrap()),
             published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
