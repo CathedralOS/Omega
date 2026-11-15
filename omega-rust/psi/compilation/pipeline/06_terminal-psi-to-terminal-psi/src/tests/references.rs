@@ -317,8 +317,8 @@ fn a_build_dispatch_captures_a_reference_without_copying_its_referent() {
     let program = |body: &str| {
         format!(
             r#"
-data Source {{
-    case Path(location: &[u8]);
+data Source<'path> {{
+    case Path(location: &'path [u8]);
     case Empty;
 }}
 machine build_entry(source: &Source) {{ {body} }}
@@ -693,8 +693,13 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
 
 #[test]
 fn a_selected_reference_result_needs_its_public_requirement_contract() {
-    // The implementation's body returns its input, but that private fact
-    // cannot supply the requirement's result origins to a selected caller.
+    // `hand` elides its lifetimes, so its requirement relates the result to
+    // `source` by lifetimes.md's elision rule, and the selected call in
+    // `relay` reads that public relation. Erasing the call's public header
+    // would leave only the implementation's private result origin, and the
+    // checker refuses the call rather than adopt it.
+    use terminal_check_tables::compilation::TerminalCompilation;
+    use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let text = r#"
 trait Handoff {
     machine hand(source: &mut i64) -> &mut i64 crashes none;
@@ -702,12 +707,13 @@ trait Handoff {
 Direct satisfies Handoff {
     machine hand(source: &mut i64) -> &mut i64 crashes none { source }
 }
-machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64
-crashes none { Chosen::hand(source) }
+machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
+    let child: &mut i64 = Chosen::hand(source);
+    child = 41;
+}
 machine entry() crashes none {
     let mut backing: i64 = 17;
-    let child: &mut i64 = relay<Direct>(&mut backing);
-    child = 41;
+    relay<Direct>(&mut backing);
 }
 "#;
     let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
@@ -716,25 +722,137 @@ machine entry() crashes none {
     )
     .unwrap();
     let entry = super::boundary_calls::entry(&typed);
-    let refused = typed_trees_to_terminal_psi::elaborate_for(
-        &typed,
-        typed_trees_to_terminal_psi::Compilation {
-            declaration_metadata: &[],
-            entries: &[entry],
-            subjects: &[],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Invocation,
-    )
-    .expect_err("a private implementation result cannot authorize the selected call");
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    let prepare = || {
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program
+    };
+    // The product closure is accepted and runs. Its generic check form of
+    // `relay` is not judged yet (OWNER_CODE_CONCERNS.md, "A rigid
+    // requirement call cannot return a reference").
+    let RouteVerdict::Accepted(accepted) = crate::judge_compilation(prepare()).remove(0).unwrap()
+    else {
+        panic!("the selected call must read its public requirement contract");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
-        refused.detail,
-        "call selected reference result requires its public requirement contract"
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
+    let mut erased = prepare();
+    let TerminalCompilation::Prepared(prepared) = &mut erased else {
+        panic!("the selected program prepares");
+    };
+    let mut headers = 0;
+    for operation in prepared
+        .closure
+        .as_mut()
+        .unwrap()
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        headers += usize::from(operation.required_contract.take().is_some());
+    }
+    assert_eq!(
+        headers, 1,
+        "exactly the selected call carries a public header"
+    );
+    let Err(crate::CompilationRefusal::Elaboration(refused)) =
+        crate::judge_compilation(erased).remove(0)
+    else {
+        panic!("a selected call without its public header must be refused");
+    };
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(refused.detail, "an invocation row names another callee");
+
+    let mut missing_lifetimes = prepare();
+    let TerminalCompilation::Prepared(prepared) = &mut missing_lifetimes else {
+        panic!("the selected program prepares");
+    };
+    let module = &mut prepared.closure.as_mut().unwrap().module;
+    let (caller, operation, callee, required) = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine.operations().find_map(|operation| {
+                let callee = operation.kind.declared_invocation()?.callee;
+                let semantic_vocabulary::TargetMachineCallable::Machine(target) = callee else {
+                    return None;
+                };
+                Some((
+                    machine.id,
+                    operation.id,
+                    target,
+                    operation.required_contract?,
+                ))
+            })
+        })
+        .expect("the selected call has its exact public header and callee");
+    assert!(
+        terminal_semantics::selected_reference_result(module, caller, callee, required).is_ok()
+    );
+    let mut erased = 0;
+    for method in module
+        .closed_conformance_applications
+        .iter_mut()
+        .flat_map(|application| &mut application.static_applications)
+        .filter(|method| {
+            method.callable == semantic_vocabulary::TargetMachineCallable::Machine(callee)
+        })
+    {
+        erased += usize::from(method.result_lifetimes.take().is_some());
+    }
+    assert_eq!(
+        erased, 1,
+        "erase only the selected method's lifetime groups"
+    );
+    let reason = "selected reference result has an unresolved declared lifetime frontier";
+    assert_eq!(
+        terminal_semantics::selected_reference_result(module, caller, callee, required).err(),
+        Some(reason),
+    );
+    let Err(graph_refusal) =
+        terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+            module,
+            [caller],
+            &[],
+        )
+    else {
+        panic!("the descriptor graph must refuse the missing lifetimes");
+    };
+    assert_eq!(graph_refusal.machine(), caller);
+    assert_eq!(graph_refusal.operation(module), Some(operation));
+    let detail = graph_refusal.in_module(module);
+    assert!(detail.starts_with(reason), "{detail}");
+    let rejected = crate::judge_compilation(missing_lifetimes).remove(0);
+    let Ok(RouteVerdict::FallBack(refused)) = rejected else {
+        panic!("missing lifetime evidence must refuse the selected call: {rejected:?}");
+    };
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(refused.machine, caller);
+    assert_eq!(
+        refused.concerns,
+        terminal_check_tables::Construct::Operation(operation)
+    );
+    assert_eq!(refused.detail, detail);
 }
 
 #[test]

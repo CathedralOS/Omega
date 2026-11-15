@@ -202,7 +202,7 @@ pub(crate) mod address_joins {
                 let mut effects = BTreeMap::new();
                 let mut flow = None;
                 if let (Some(graph), Some(analysis)) = (graph, analysis) {
-                    flow = analysis.flow(function.machine);
+                    flow = analysis.flow(function.machine).ok();
                     if let Some(current) =
                         terminal_semantics::descriptor_results::descriptor_machine(
                             graph,
@@ -4451,7 +4451,8 @@ pub(crate) mod references {
                                         DescriptorStoredOrigin::Invocation { .. }
                                         | DescriptorStoredOrigin::IncomingContents { .. }
                                         | DescriptorStoredOrigin::Provider(_)
-                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::AccessFormation { .. } => None,
+                                        | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::AccessFormation { .. }
+                                        | DescriptorStoredOrigin::Carried => None,
                                     }
                                 })
                                 .collect::<Option<Vec<_>>>()?;

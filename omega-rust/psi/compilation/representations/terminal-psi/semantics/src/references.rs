@@ -572,7 +572,8 @@ pub(crate) mod reference_completion {
                         continue;
                     }
                     DescriptorStoredOrigin::Invocation { .. }
-                    | DescriptorStoredOrigin::AccessFormation { .. } => {
+                    | DescriptorStoredOrigin::AccessFormation { .. }
+                    | DescriptorStoredOrigin::Carried => {
                         return Err(
                             "returned provider dependency needs its admitted retention resource",
                         );
@@ -796,9 +797,11 @@ pub(crate) mod reference_completion {
             block,
             u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
         );
-        let flow = analysis
-            .flow(caller.id)
-            .ok_or("returned reference caller has no complete descriptor flow")?;
+        let flow = analysis.flow(caller.id).map_err(|error| {
+            error
+                .detail()
+                .unwrap_or("returned reference caller has no complete descriptor flow")
+        })?;
         let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
             (0..parameters.len()).map(|_| None).collect();
         for (mapping_index, binding) in bindings.into_iter().enumerate() {

@@ -404,6 +404,8 @@ pub enum TargetUnitOperation {
         field: StructuralFieldId,
         destination_storage: crate::TargetStructuralArgumentSource,
         field_byte_offset: u32,
+        /// Exact physical write envelope, not the semantic register width.
+        field_byte_size: u32,
         source: TargetUnitScalarArgumentSource,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
@@ -571,6 +573,10 @@ pub enum TargetUnitOperation {
 pub struct TargetStructuralRuntimeIndex {
     pub operand: TargetUnitScalarArgumentSource,
     pub stride: u32,
+    /// A fixed source collection bound, or None for a descriptor-carried bound.
+    pub extent: Option<u64>,
+    /// Together with the operation owner, identifies the admitted index proof.
+    pub obligation: semantic_vocabulary::ObligationId,
 }
 
 impl TargetUnitOperation {

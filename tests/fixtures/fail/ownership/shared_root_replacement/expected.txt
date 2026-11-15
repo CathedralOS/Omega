@@ -1,1 +1,1 @@
-statement assignment to an immutable binding
+this place requires mutable source access, and the reference it is reached through grants shared access only

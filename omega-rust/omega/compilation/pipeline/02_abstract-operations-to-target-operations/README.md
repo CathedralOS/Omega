@@ -26,6 +26,11 @@ expressions retain their source identities and arithmetic obligations; they are
 not a second whole-function representation. Block parameters belong to their
 destination block, and edges retain complete ordered transfers.
 
+[Function contracts](src/function_contract.rs) retain semantic structural
+parameters, place declarations, entry claims, the service ceiling and the result
+beside each function's target ABI. Selection reads that contract without fetching
+the earlier body. Independent source correspondence remains an Omega 03 audit.
+
 Signature preparation, dominance, operation lowering, terminators, and edge
 bindings have separate owners inside the common graph. Unsupported operations,
 qualification transport, cleanup, or ABI relationships reject at their owning
@@ -45,12 +50,12 @@ installation join, the selected call index and each function's ABIs are bound in
 [coordination](src/coordination.rs) as the program is produced, and a
 raw fused-multiply-add plan is rejected there. The output is not re-validated in
 the same compile; a program that violates this stage's contract is a bug in this
-stage, for the corpus and the tests to find.
+stage, for focused tests and explicit validator requests to find.
 
 The target-to-selected
-[independent audit](../03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
+[independent audit](../03_target-operations-to-selected-instructions/src/legalization_target.rs)
 rejoins every graph to its source and optimized operations. The direct-native
-corpus invokes it on the retained artifact, outside graph construction;
+tests invoke it on the retained artifact, outside graph construction;
 the default compile does not replay it. The audit checks source order, value
 identity, exact ABI, proof, call, and cleanup obligations.
 Root/roster custody alone never establishes body correctness.
@@ -78,6 +83,10 @@ then commits moves and publishes the result. The result kind does not choose
 argument transport. Published scalar operations additionally retain their
 standalone ABI contract. The independent audit replays those rows through one
 `direct_call` replay with a tail per result kind.
+Runtime selectors retain their scalar source, stride, fixed extent when present,
+and exact obligation key throughout geometry and argument construction. Calls
+hand those rows forward; the next stage resolves the keys against the admitted
+proof catalog instead of reconstructing the selector from an earlier body.
 Source-specific semantic restrictions remain checked independently. Foreign
 calls still have their own carriers; this is not a claim that the full call
 inventory is normalized.

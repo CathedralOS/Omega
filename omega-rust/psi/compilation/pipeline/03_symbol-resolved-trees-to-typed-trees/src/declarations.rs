@@ -1915,6 +1915,10 @@ pub(crate) mod state {
                     .copied(),
             );
         Ok(typed::statement::TableCall {
+            unresolved_name: lowerer
+                .typed_trees
+                .expression_table
+                .unresolved_name(call_handle),
             installed_interrupt_operation: None,
             authored_machine_application: Default::default(),
             receiver_root_symbol,

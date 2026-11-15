@@ -396,6 +396,8 @@ pub(crate) mod control_flow {
                     Ok(target_operations::TargetStructuralRuntimeIndex {
                         operand: *operand,
                         stride: element.stride,
+                        extent: element.extent,
+                        obligation: element.obligation,
                     })
                 })
                 .collect()
@@ -817,8 +819,64 @@ pub(crate) mod control_flow {
             }
         }
         #[cfg(test)]
-        mod tree_tests {
+        mod source_tests {
             use super::tree_intervals;
+
+            #[test]
+            fn runtime_index_audit_rejects_changed_bound_proof_and_source() {
+                let value = semantic_vocabulary::ValueId::new(1).unwrap();
+                let obligation = semantic_vocabulary::ObligationId::new(2).unwrap();
+                let operand = target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value: value,
+                    scalar_type: target_operations::selector_carrier_type(),
+                };
+                let source = super::AvailableSources {
+                    inherited: None,
+                    local: vec![(value, operand)],
+                };
+                let element =
+                    crate::structural_inputs::structural_reference_input::RuntimeElement {
+                        index: value,
+                        obligation,
+                        stride: 24,
+                        extent: Some(7),
+                    };
+                let index = target_operations::TargetStructuralRuntimeIndex {
+                    operand,
+                    stride: 24,
+                    extent: Some(7),
+                    obligation,
+                };
+                let audit = |index| {
+                    super::super::super::unit::runtime_indices_rejoin(
+                        &[index],
+                        std::slice::from_ref(&element),
+                        &source,
+                    )
+                };
+                assert!(audit(index.clone()));
+                assert!(!audit(target_operations::TargetStructuralRuntimeIndex {
+                    stride: 8,
+                    ..index.clone()
+                }));
+                assert!(!audit(target_operations::TargetStructuralRuntimeIndex {
+                    extent: None,
+                    ..index.clone()
+                }));
+                assert!(!audit(target_operations::TargetStructuralRuntimeIndex {
+                    obligation: semantic_vocabulary::ObligationId::new(9).unwrap(),
+                    ..index.clone()
+                }));
+                assert!(!audit(target_operations::TargetStructuralRuntimeIndex {
+                    operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index: 1,
+                        source_value: value,
+                        scalar_type: operand.scalar_type()
+                    },
+                    ..index
+                }));
+            }
 
             #[test]
             fn subtree_intervals_match_parent_walk() {
@@ -1184,6 +1242,9 @@ pub(crate) mod control_flow {
         let plan = descriptor_inputs.plan();
         let unit = descriptor_inputs.unit();
         let optimized = function_inputs.function();
+        crate::legalization::scalar_graph_input::validate_structural_contract(
+            function, abstracted, optimized, plan,
+        )?;
         if (function.attachment != optimized.attachment
             || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
             || graph.structural_types != plan.structural_types
@@ -4547,6 +4608,7 @@ pub(crate) mod unit {
                             callee_result,
                             result_home,
                             reference_results,
+                            ..
                         },
                         AbstractOperation::CallStructural {
                             psi_operation,
@@ -6681,6 +6743,7 @@ pub(crate) mod unit {
                     field,
                     destination_storage,
                     field_byte_offset,
+                    field_byte_size,
                     source,
                     indices,
                 },
@@ -6776,7 +6839,7 @@ pub(crate) mod unit {
                     }
                     _ => false,
                 };
-                let (offset, _, elements) =
+                let (offset, byte_size, elements) =
                     crate::structural_inputs::structural_reference_input::store(
                         expected_destination.structural_type(),
                         &expected_path,
@@ -6791,6 +6854,7 @@ pub(crate) mod unit {
                     || field != expected_field
                     || !storage_matches
                     || *field_byte_offset != offset
+                    || *field_byte_size != byte_size
                     || !runtime_indices_rejoin(indices, &elements, sources)
                     || !sources
                         .matching(value.value)
@@ -6881,6 +6945,8 @@ pub(crate) mod unit {
         indices.len() == elements.len()
             && indices.iter().zip(elements).all(|(index, element)| {
                 index.stride == element.stride
+                    && index.extent == element.extent
+                    && index.obligation == element.obligation
                     && index.operand.source_value() == element.index
                     && sources.matching(element.index).any(|(identity, known)| {
                         *identity == element.index && *known == index.operand

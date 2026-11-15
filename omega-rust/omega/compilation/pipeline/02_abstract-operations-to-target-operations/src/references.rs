@@ -1463,6 +1463,9 @@ mod stored_calls {
             DescriptorStoredOrigin::Empty => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=empty")
             }
+            DescriptorStoredOrigin::Carried => {
+                eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=carried")
+            }
         }
     }
 
@@ -1534,7 +1537,7 @@ mod stored_calls {
                 if let AbstractOperation::BoundaryCall { psi_operation, boundary, .. } = &node.operation
                     && let Some(selected) = selected_calls.get(&(function.machine, (*psi_operation).into(), *boundary))
                 {
-                    return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions)
+                    return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions.get(&selected.callee).copied())
                         .ok().map(|(operation, _)| Cow::Owned(operation));
                 }
                 Some(Cow::Borrowed(&node.operation))
@@ -1686,6 +1689,7 @@ mod stored_calls {
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
+                            DescriptorStoredOrigin::Carried => return Err("stored-reference carried sequence roster has no physical metadata conversion"),
                         }
                     }
                     sources.sort();

@@ -1,5 +1,5 @@
 // Fact: 64-bit signed bitwise AND mask raw & 63i64 with bounded interval 40i64 <= masked <= 63i64 establishes 40i64 <= masked <= 63i64 across all nine places so exact subtractions 63i64 - masked and masked - 40i64 are safe.
-// Place: match join (invalid twin). The false match arm yields 64i64 so joined result reaches 0 < 40, failing contract for verify_masked.
+// Place: match join (invalid twin). The false match arm yields 64i64 so joined result reaches 0 < 40, failing contract for verify_masked. The helper states `requires true`, so it must handle `flag == false` (an omitted `requires` would be inferred from the caller).
 // Expected diagnostic: cannot prove requires contract for call
 
 machine choose_raw(flag: bool) -> i64
@@ -21,7 +21,9 @@ requires masked >= 40 && masked <= 63
 
 // The flag arrives as a formal parameter, so the operand is bounded by what
 // holds for every flag; a constant actual would expose the helper's exact result.
-machine bitwise_and_join(flag: bool) -> i64 {
+machine bitwise_and_join(flag: bool) -> i64
+requires true
+{
     let raw: i64 = choose_raw(flag);
     let masked: i64 = raw & 63i64;
     verify_masked(masked)

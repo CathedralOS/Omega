@@ -18,6 +18,8 @@
 //!   for instead; see [`acquire_base`].
 //! - `cargo xtask worktree release [worker-N]` — reset a finished slot to `origin/main`
 //!   and clear its topic while keeping its warm `target/` cache.
+//! - `cargo xtask worktree begin` — begin the next outcome's audit interval in the
+//!   current warm slot, without changing its source, cache or pool lease.
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
 //!   non-pool worktrees, orphaned directories, and stray log files in parallel. It
 //!   also prunes registrations whose checkout directory is gone; the other
@@ -35,7 +37,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -56,6 +58,12 @@ struct WorktreeInfo {
     at_main: bool,
     open_pr: bool,
     has_warm_target: bool,
+}
+
+impl WorktreeInfo {
+    fn is_unassigned_pool_slot(&self) -> bool {
+        self.slot_index.is_some() && self.topic.is_none()
+    }
 }
 
 fn worker_slot_index(name: &str) -> Option<usize> {
@@ -427,7 +435,43 @@ fn reset_slot_to(worktree_path: &Path, commit: &str) -> bool {
         .stdin(Stdio::null())
         .status()
         .is_ok_and(|s| s.success());
-    checkout_ok && clean_ok
+    if !checkout_ok || !clean_ok {
+        return false;
+    }
+    if let Err(error) = remove_dangling_target(&worktree_path.join("target")) {
+        eprintln!(
+            "worktree: cannot recover the cached target for `{}`: {error}",
+            worktree_path.display()
+        );
+        return false;
+    }
+    true
+}
+
+fn remove_dangling_target(target: &Path) -> io::Result<()> {
+    // mbx may collect a managed target after its checkout goes idle. Cargo
+    // cannot recreate the target directory while the dangling link occupies it.
+    let link = match fs::symlink_metadata(target) {
+        Ok(entry) if entry.is_symlink() => entry.file_type(),
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    match fs::metadata(target) {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileTypeExt;
+        if link.is_symlink_dir() {
+            return fs::remove_dir(target);
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = link;
+    fs::remove_file(target)
 }
 
 /// The commit a restored build was published for, read from the manifest
@@ -668,42 +712,77 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     match sub {
         "-h" | "--help" | "help" => {
             println!(
-                "usage:\n  cargo xtask worktree status\n  cargo xtask worktree acquire [<lane>-<topic>]\n  cargo xtask worktree release [worker-N]\n  cargo xtask worktree clean [--dry-run] [--keep <name>...]"
+                "usage:\n  cargo xtask worktree status\n  cargo xtask worktree acquire [<lane>-<topic>]\n  cargo xtask worktree begin\n  cargo xtask worktree release [worker-N]\n  cargo xtask worktree clean [--dry-run] [--keep <name>...]"
             );
             Ok(())
         }
         "status" | "list" => {
             let items = list_worktrees(&main_root).map_err(report_error)?;
-            println!(
-                "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
-                "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
-            );
-            for item in &items {
-                let state = if item.name == current_name {
-                    "current"
-                } else if item.open_pr {
-                    "open-pr"
-                } else if item.slot_index.is_some() && item.at_main {
-                    "idle"
-                } else if item.slot_index.is_some() {
-                    "assigned"
-                } else {
-                    "legacy"
-                };
-                let topic = item.topic.as_deref().unwrap_or("-");
-                let cache = if item.has_warm_target { "warm" } else { "-" };
-                let short_head = &item.head[..item.head.len().min(11)];
-                println!(
-                    "{:<16} {:<24} {:<12} {:<10} {:<6} {}",
-                    item.name,
-                    topic,
-                    short_head,
-                    state,
-                    cache,
-                    item.path.display()
+            crate::write_status(|output| {
+                writeln!(
+                    output,
+                    "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
+                    "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
+                )?;
+                for item in &items {
+                    let state = if item.name == current_name {
+                        "current"
+                    } else if item.open_pr {
+                        "open-pr"
+                    } else if item.is_unassigned_pool_slot() && item.at_main {
+                        "idle"
+                    } else if item.slot_index.is_some() {
+                        "assigned"
+                    } else {
+                        "legacy"
+                    };
+                    let topic = item.topic.as_deref().unwrap_or("-");
+                    let cache = if item.has_warm_target { "warm" } else { "-" };
+                    let short_head = &item.head[..item.head.len().min(11)];
+                    writeln!(
+                        output,
+                        "{:<16} {:<24} {:<12} {:<10} {:<6} {}",
+                        item.name,
+                        topic,
+                        short_head,
+                        state,
+                        cache,
+                        item.path.display()
+                    )?;
+                }
+                writeln!(output, "worktree: {} registered worktree(s)", items.len())
+            })
+        }
+        "begin" => {
+            if args.len() != 1 || worker_slot_index(&current_name).is_none() {
+                eprintln!(
+                    "worktree begin: run without arguments in your assigned worker-N checkout"
                 );
+                return Err(2);
             }
-            println!("worktree: {} registered worktree(s)", items.len());
+            let _pool = lock_pool(&main_root).map_err(report_error)?;
+            let git_dir = worktree_git_dir(&current).map_err(report_error)?;
+            let detached = Command::new("git")
+                .args(["symbolic-ref", "--quiet", "HEAD"])
+                .current_dir(&current)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok_and(|status| status.code() == Some(1));
+            if read_topic(&git_dir).map_err(report_error)?.is_none()
+                || is_dirty(&current)
+                || !detached
+            {
+                eprintln!(
+                    "worktree begin: the current slot must be assigned, clean and detached; no work was reset"
+                );
+                return Err(1);
+            }
+            crate::work_interval::begin(&current).map_err(report_error)?;
+            println!(
+                "began a new work interval in `{current_name}`; source, cache and lease unchanged"
+            );
             Ok(())
         }
         "acquire" => {
@@ -748,6 +827,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 if !reset_slot_to(&existing.path, &base(existing, &existing.path)) {
                     return Err(1);
                 }
+                crate::work_interval::begin(&existing.path).map_err(report_error)?;
                 println!("{}", existing.path.display());
                 return Ok(());
             }
@@ -756,7 +836,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             // `target/`). A slot with a topic is still claimed by another session.
             let mut idle_slots: Vec<&WorktreeInfo> = items
                 .iter()
-                .filter(|w| w.slot_index.is_some() && w.topic.is_none() && !w.open_pr)
+                .filter(|w| w.is_unassigned_pool_slot() && !w.open_pr)
                 .collect();
             idle_slots.sort_by_key(|w| (!w.has_warm_target, w.slot_index.unwrap_or(usize::MAX)));
 
@@ -766,6 +846,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 }
                 if reset_slot_to(&slot.path, &base(slot, &slot.path)) {
                     write_topic(&slot.git_dir, topic).map_err(report_error)?;
+                    crate::work_interval::begin(&slot.path).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: assigned `{}` (topic: {})",
                         slot.name,
@@ -809,6 +890,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     .is_ok_and(|s| s.success());
                 if move_ok && reset_slot_to(&slot_path, &base(donor, &slot_path)) {
                     write_topic(&donor.git_dir, topic).map_err(report_error)?;
+                    crate::work_interval::begin(&slot_path).map_err(report_error)?;
                     eprintln!(
                         "worktree acquire: promoted `{}` -> `{}` (topic: {})",
                         donor.name,
@@ -837,6 +919,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             }
             let git_dir = worktree_git_dir(&slot_path).map_err(report_error)?;
             write_topic(&git_dir, topic).map_err(report_error)?;
+            crate::work_interval::begin(&slot_path).map_err(report_error)?;
             eprintln!(
                 "worktree acquire: created `{}` (topic: {})",
                 slot_name,
@@ -877,6 +960,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 return Err(1);
             }
             write_topic(&wt.git_dir, None).map_err(report_error)?;
+            crate::work_interval::clear(&wt.path).map_err(report_error)?;
             println!("released `{}` back to idle pool at origin/main", wt.name);
             Ok(())
         }
@@ -1091,6 +1175,37 @@ mod tests {
     use std::process::{Command, Stdio};
     use std::time::Duration;
 
+    #[cfg(unix)]
+    #[test]
+    fn recycled_target_keeps_live_storage_and_discards_only_a_dangling_link() {
+        use std::os::unix::fs::symlink;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = std::env::temp_dir().join(format!("omega-worktree-target-{unique}"));
+        let cached = scratch.join("cache");
+        let target = scratch.join("target");
+        fs::create_dir_all(&cached).unwrap();
+        fs::write(cached.join("keep"), "warm").unwrap();
+        symlink(&cached, &target).unwrap();
+        super::remove_dangling_target(&target).unwrap();
+        assert_eq!(fs::read_to_string(target.join("keep")).unwrap(), "warm");
+
+        fs::remove_dir_all(&cached).unwrap();
+        super::remove_dangling_target(&target).unwrap();
+        assert_eq!(
+            fs::symlink_metadata(&target).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        fs::create_dir(&target).unwrap();
+        super::remove_dangling_target(&target).unwrap();
+        assert!(target.is_dir());
+        fs::remove_dir_all(scratch).unwrap();
+    }
+
     #[test]
     fn managed_cloud_markers_enable_warm_builds() {
         for (claude, codex, expected) in [
@@ -1229,6 +1344,7 @@ mod tests {
         let hooks = scratch.0.join("empty-hooks");
         fs::create_dir(&hooks).unwrap();
         git(&repository, &["init"]);
+        let repository = super::primary_root(&repository);
         git(
             &repository,
             &[
@@ -1246,8 +1362,8 @@ mod tests {
                 "initial",
             ],
         );
-        let original = scratch.0.join("original-worktree");
-        let moved = scratch.0.join("worker-1");
+        let original = repository.with_file_name("original-worktree");
+        let moved = repository.with_file_name("worker-1");
         git(
             &repository,
             &[
@@ -1298,7 +1414,7 @@ mod tests {
         );
         // An archive's source is retained elsewhere while Git intentionally
         // keeps the locked registration at its original restoration location.
-        let archive = scratch.0.join("offline-source");
+        let archive = repository.with_file_name("offline-source");
         fs::rename(&moved, &archive).unwrap();
         assert!(
             worktree_git_dir(&moved)

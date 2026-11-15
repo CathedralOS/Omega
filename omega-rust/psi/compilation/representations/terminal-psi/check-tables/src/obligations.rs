@@ -186,6 +186,29 @@ pub enum Lender {
 }
 
 impl ObligationKind {
+    /// These rows describe a question/resource immediately before execution,
+    /// not an establishment snapshot or an entry/edge contract. Inserting a
+    /// disposition before that execution must carry its precondition forward.
+    pub const fn precedes_execution(self) -> bool {
+        match self {
+            Self::Loan { .. }
+            | Self::OperationSafety { .. }
+            | Self::CallRequirement { .. }
+            | Self::DataDomain { .. }
+            | Self::CrashCoverage { .. } => true,
+            Self::Claim { .. }
+            | Self::RestorationWindow { .. }
+            | Self::DomainDebt { .. }
+            | Self::EstablishmentDebt { .. }
+            | Self::IntegerWidthPositive { .. }
+            | Self::ArrivalInvariant { .. }
+            | Self::NormalGuarantee { .. }
+            | Self::PublishedGuarantee { .. }
+            | Self::WellFoundedness { .. }
+            | Self::RankComparison { .. } => false,
+        }
+    }
+
     /// True for the family every edge must account for exactly once.
     pub const fn is_conserved(&self) -> bool {
         matches!(

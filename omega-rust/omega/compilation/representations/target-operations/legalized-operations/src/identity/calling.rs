@@ -219,11 +219,14 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
                 encode_placement(bytes, placement);
             }
             LegalizedScalarArgument::Structural {
-                semantic, target, ..
+                semantic,
+                target,
+                indices,
             } => {
                 bytes.push(1);
                 encode_structural_argument(bytes, semantic);
                 encode_target_structural_argument(bytes, target);
+                super::scalar_graph::encode_runtime_indices(bytes, indices);
             }
         }
     }

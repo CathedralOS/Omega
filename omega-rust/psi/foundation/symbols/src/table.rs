@@ -2605,6 +2605,27 @@ pub enum SymbolLookup {
     },
 }
 
+/// Scoped lookup evidence retained by a source occurrence that has no selected
+/// declaration. Absence is not reconstructed from other declarations' spellings.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum UnresolvedName {
+    /// No lookup outcome was established, or selection needs a later judgment.
+    #[default]
+    Unserved,
+    NoVisibleDeclaration,
+    Ambiguous,
+}
+
+impl From<SymbolLookup> for UnresolvedName {
+    fn from(lookup: SymbolLookup) -> Self {
+        match lookup {
+            SymbolLookup::NotFound => Self::NoVisibleDeclaration,
+            SymbolLookup::Ambiguous { .. } => Self::Ambiguous,
+            SymbolLookup::Unique(_) => Self::Unserved,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TopLevelSelection {
     Ordinary,
@@ -3214,6 +3235,71 @@ impl SymbolTable {
             .flatten()
             .map(|&(_, symbol)| symbol)
             .filter(|symbol| self.symbol_source_is_selected(*symbol))
+    }
+
+    /// The complete nearest lexical declaration cohort, without crossing into
+    /// root/module lookup. Locals and invocation arguments are not declarations
+    /// in this namespace. An ambiguous inner cohort shadows every outer one.
+    pub fn lexical_declaration_candidates(
+        &self,
+        scope: SymbolHandle,
+        name: &str,
+        kinds: &[SymbolKind],
+    ) -> Vec<SymbolHandle> {
+        let mut candidates = Vec::new();
+        self.visit_lexical_declarations(scope, name, kinds, |symbol| candidates.push(symbol));
+        candidates
+    }
+
+    /// A unique/ambiguous answer uses the same cohort without allocating its
+    /// complete roster for ordinary single-declaration binding.
+    pub fn lexical_declaration_lookup(
+        &self,
+        scope: SymbolHandle,
+        name: &str,
+        kinds: &[SymbolKind],
+    ) -> SymbolLookup {
+        let mut answer = SymbolLookup::NotFound;
+        self.visit_lexical_declarations(scope, name, kinds, |symbol| {
+            answer = match answer {
+                SymbolLookup::NotFound => SymbolLookup::Unique(symbol),
+                SymbolLookup::Unique(first) => SymbolLookup::Ambiguous {
+                    first,
+                    second: symbol,
+                },
+                ambiguous => ambiguous,
+            };
+        });
+        answer
+    }
+
+    fn visit_lexical_declarations(
+        &self,
+        mut scope: SymbolHandle,
+        name: &str,
+        kinds: &[SymbolKind],
+        mut visit: impl FnMut(SymbolHandle),
+    ) {
+        for _ in 0..self.symbols.nodes().len() {
+            if !self.symbols.nodes().is_valid(scope) || self.get(scope).kind != SymbolKind::Machine
+            {
+                return;
+            }
+            let mut found = false;
+            for child in self.child_handles(scope).into_iter().flatten() {
+                if kinds.contains(&self.get(child).kind)
+                    && self.name(child) == name
+                    && self.symbol_source_is_selected(child)
+                {
+                    found = true;
+                    visit(child);
+                }
+            }
+            if found {
+                return;
+            }
+            scope = self.get(scope).parent;
+        }
     }
 
     pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {

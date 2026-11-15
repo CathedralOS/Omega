@@ -112,7 +112,7 @@ pub use symbol::path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{
     JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolTable, SymbolTableAppender,
-    SymbolTableBuilder, SymbolTableExtension, same_semantic_name,
+    SymbolTableBuilder, SymbolTableExtension, UnresolvedName, same_semantic_name,
 };
 
 #[cfg(test)]

@@ -2073,6 +2073,8 @@ mod tests {
                             scalar_type: index.operand.scalar_type,
                         },
                         stride: index.stride,
+                        extent: index.extent,
+                        obligation: index.obligation,
                     },
                 )
                 .collect(),

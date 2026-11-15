@@ -1735,7 +1735,11 @@ pub(crate) fn close_typed_cohort(
     )?;
     normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
-    crate::constructor_applications::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
+    crate::constructor_applications::prepare(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+    )?;
     lowerer
         .typed_trees
         .prepare_data_application_views(cohort.typed_type_references)
@@ -1752,7 +1756,6 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_expressions,
         &cast_destinations,
     )?;
-    crate::operator_calls::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
     // A projected assignment can acquire its receiving type only after a
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.

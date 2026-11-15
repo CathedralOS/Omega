@@ -46,7 +46,10 @@ constructing a plan grants no reach and never edits a machine's reach row.
 Named decision: `required-issuance-choice`, settled 2026-11-10;
 [the design draft](../../drafts/designs/required_issuance_choice.md) records
 the migration. Every plan states who may introduce its domain qualification.
-`AccessPlan::new(&schema, issuance)` binds the semantic schema and that choice:
+`access::new_plan(&schema, issuance)` binds the semantic schema and that choice.
+The plan constructors and the view operations are ordinary machines of the
+core `access` module (`use omega::language::core::access;`); `AccessPlan` is
+data and owns none of them ([machines](../language/machines.md#static-declarations-and-explicit-state)).
 
 ```omega
 data Issuance {
@@ -54,7 +57,7 @@ data Issuance {
     case Unrestricted;
 }
 
-let plan: AccessPlan = AccessPlan::new(
+let plan: AccessPlan = access::new_plan(
     &schema,
     Issuance::Only { routes: [reflect::callable(choose_folder)] }
 );
@@ -105,8 +108,8 @@ The policy-construction operations are ordinary core/library APIs, not keywords:
 
 | Operation | Meaning |
 | --- | --- |
-| `AccessPlan::allow_readers(&mut plan, region, callers)` | Restrict readers of this semantic region. |
-| `AccessPlan::allow_writers(&mut plan, region, callers)` | Restrict writers of this semantic region. |
+| `access::allow_readers(&mut plan, region, callers)` | Restrict readers of this semantic region. |
+| `access::allow_writers(&mut plan, region, callers)` | Restrict writers of this semantic region. |
 
 `TypeSchema::root(&schema)` denotes the whole semantic subject. A field region comes
 from `reflect::field(Type::field)`, not a string, field ordinal, address or layout
@@ -126,7 +129,7 @@ qualification; whole-object replacement of governed storage is a write to its
 affected fields, not fresh establishment exempt from policy.
 
 The policy may carry per-region observation demands using the existing Stable,
-External and Atomic operation descriptions below. `AccessPlan::observe(&mut plan,
+External and Atomic operation descriptions below. `access::observe(&mut plan,
 field, behavior)` denotes ordinary construction of such a demand, not authority
 to implement it. Caller authorization has no special atomic grammar or second
 atomic caller allowlist: load needs read permission, store needs write permission,

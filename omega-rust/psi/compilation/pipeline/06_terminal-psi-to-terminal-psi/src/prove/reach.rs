@@ -78,7 +78,7 @@ impl Prover<'_> {
                 _ => {}
             }
         }
-        let mut seen = vec![false; self.values.len()];
+        let mut seen = vec![false; self.values.count()];
         while let Some(value) = pending.pop() {
             let Some(seen) = seen.get_mut(value_index(value)) else {
                 continue;

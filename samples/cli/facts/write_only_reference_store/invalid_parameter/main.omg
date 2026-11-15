@@ -4,7 +4,7 @@
 // Invalid: reading the write-only slot's stored descriptor to supply its own
 // replacement.
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine install(slot: &write Held, incoming: &Cell) {
     slot.target = slot.target;

@@ -1781,6 +1781,35 @@ pub(crate) mod primitive_place {
         plain_scalar_field(field).or_else(|| integer_or_boolean_field(field))
     }
 
+    /// A contract reads the declared scalar at an exact canonical path. Inline
+    /// scalar fields need no separately materialized structural declaration;
+    /// their field declaration already owns the carrier and qualification.
+    pub fn canonical_primitive_read_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Option<ScalarType> {
+        if let Some((CanonicalStructuralPathSegment::Field(field), prefix)) = path.split_last() {
+            let field =
+                crate::observed_field_declaration(declarations.clone(), root, prefix, *field)?;
+            if let StructuralFieldType::Structural(child) = field.field_type {
+                let declaration = canonical_structural_path_tip(declarations, child, &[])?;
+                match declaration.shape {
+                    StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+                    _ => None,
+                }
+            } else {
+                primitive_read_scalar_field(&field.field_type)
+            }
+        } else {
+            let declaration = canonical_structural_path_tip(declarations, root, path)?;
+            match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+                _ => None,
+            }
+        }
+    }
+
     pub fn canonical_primitive_path<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,

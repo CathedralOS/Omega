@@ -38,6 +38,316 @@ use terminal_psi::{
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
 #[test]
+fn function_storage_contract_projects_without_source_and_audits_every_field() {
+    let mut names = TerminalIdentityTableBuilder::default();
+    let sum = sum_type(1, names.intern("Stored"), &mut names, &[]);
+    let plan = plan(
+        names,
+        vec![sum],
+        function_with_body(
+            vec![parameter(ty(1))],
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                }],
+            )],
+        ),
+    );
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let function = &target.functions[0];
+    let projected = crate::legalization_scalar_graph::structural_contract(function)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        projected.parameters[0].semantic,
+        plan.functions[0].structural_parameters[0]
+    );
+    assert_eq!(projected.parameters[0].target, function.graph.parameters[0]);
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let source = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let audit = |function: &TargetFunction| {
+        crate::legalization_scalar_graph::validate_structural_contract(
+            function,
+            &plan.functions[0],
+            &unit.functions[0],
+            &source,
+        )
+    };
+    audit(function).expect("retained storage contract matches admitted input");
+    for mutation in 0..8 {
+        let mut changed = function.clone();
+        if mutation == 0 {
+            changed.structural_contract = None;
+        } else {
+            let contract = changed.structural_contract.as_mut().unwrap();
+            match mutation {
+                1 => contract.parameters.clear(),
+                2 => contract.parameters[0].access = StructuralAccess::MutableBorrow,
+                3 => contract.places.clear(),
+                4 => contract
+                    .published_service_ceiling
+                    .push(semantic_vocabulary::ServiceId::new(9).unwrap()),
+                5 => {
+                    contract.result = Some(terminal_psi::StructuralResultDeclaration {
+                        place: place(99),
+                        structural_type: ty(1),
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        reference_sources: Vec::new(),
+                    })
+                }
+                6 => contract.places[0].id = place(99),
+                _ => contract.entry_claims.push(terminal_psi::EntryClaim {
+                    claim: semantic_vocabulary::ClaimId::new(9).unwrap(),
+                    input: place(1),
+                    path: Vec::new(),
+                }),
+            }
+        }
+        assert!(
+            audit(&changed).is_err(),
+            "forged function storage contract {mutation}"
+        );
+    }
+}
+
+#[test]
+fn scalar_parameter_projection_uses_retained_abi_without_a_source_function() {
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                }],
+            )],
+        ),
+    );
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let scalar_type = ScalarType::Integer(u64_type());
+    let call_plan = calling_conventions::evaluate_call_plan(
+        CallingPolicy::native_for_target(HOST()),
+        &CallSignature {
+            parameters: vec![calling_conventions::ValueShape::for_integer(u64_type()).unwrap()],
+            result: None,
+        },
+    )
+    .unwrap();
+    target.functions[0].graph.scalar_parameters = vec![target_operations::ScalarAbiValue {
+        value: val(7),
+        scalar_type,
+        placement: call_plan.parameters[0].clone(),
+    }];
+    let parameters =
+        crate::legalization_source::scalar_graph::parameters(&target.functions[0]).unwrap();
+    assert_eq!(parameters.len(), 1);
+    assert_eq!(parameters[0].value, val(7));
+    assert_eq!(parameters[0].scalar_type, scalar_type);
+    assert_eq!(parameters[0].placement, call_plan.parameters[0]);
+    assert_eq!(
+        parameters[0].definition_site,
+        optimization_unit::ValueDefinitionSite::FunctionParameter(0)
+    );
+}
+
+// Exercise the origin handoff itself; full call ABI construction is covered by
+// the kept returned-window program, not this deliberately minimal target row.
+#[test]
+fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
+    use target_operations::{
+        TargetCallResult, TargetDescriptorOrigin, TargetStructuralResultContract,
+    };
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut view = reference_type(1, names.intern("bytes"), ty(1));
+    view.shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+    let declaration = terminal_psi::StructuralResultDeclaration {
+        place: place(3),
+        structural_type: ty(1),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    };
+    let result = structural_result(place(2), ty(1));
+    let callee = MachineId::new(2).unwrap();
+    let caller = function_with_body(
+        vec![parameter(ty(1))],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::CallStructural {
+                    psi_operation: op(1),
+                    callee: callee.into(),
+                    arguments: Vec::new(),
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
+                        place: place(1),
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                    result: abstract_operations::AbstractStructuralCallResult::Structural {
+                        result: result.clone(),
+                        selected_evidence: Vec::new(),
+                    },
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let mut plan = plan(names, vec![view], caller);
+    let mut forwarded = function_with_body(
+        vec![parameter(ty(1))],
+        vec![entry(
+            1,
+            vec![AbstractOperation::ReturnStructural {
+                psi_edge: edge(2),
+                source: place(1),
+                returned_claims: Vec::new(),
+                trivial_affine_locals: Vec::new(),
+                cleanup_actions: Vec::new(),
+            }],
+        )],
+    );
+    forwarded.machine = callee;
+    forwarded.result = AbstractFunctionResult::Structural(declaration.clone());
+    plan.functions.push(forwarded);
+    let expected = vec![TargetDescriptorOrigin::Argument {
+        source: terminal_psi::StructuralArgument {
+            place: place(1),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        },
+        exact: true,
+        indirect: false,
+    }];
+    let row = TargetUnitOperation::Call {
+        psi_operation: op(1),
+        origin: target_operations::NativeCallOrigin::Authored,
+        target: target_operations::NativeCallTarget::Machine(callee),
+        call_plan: calling_conventions::evaluate_call_plan(
+            CallingPolicy::native_for_target(HOST()),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .unwrap(),
+        result: TargetCallResult::Structural {
+            result,
+            callee_result: TargetStructuralResultContract::Machine(declaration),
+            result_home: None,
+            reference_results: Vec::new(),
+            descriptor_origins: expected.clone(),
+        },
+        scalar_arguments: Vec::new(),
+        arguments: Vec::new(),
+        access_bindings: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let target = target_plan(&plan, vec![block(1, vec![row.clone()], return_unit(1))]);
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
+        unit.functions.iter(),
+        &unit.boundary_machines,
+        &unit.structural_types,
+        &unit.dynamic_dispatch,
+        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
+    )
+    .expect("the metadata fixture has complete source descriptor structure");
+    let origins = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+        &unit.structural_types,
+        &graph,
+    )
+    .try_call_origins(machine(), place(2))
+    .expect("the source call has borrowed backing");
+    assert!(
+        matches!(origins.as_slice(), [terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, .. }] if *source == place(1)),
+        "source backing: {origins:?}"
+    );
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let source = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let native_unit = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    crate::legalization::validate_call_descriptor_origins(&target, &source, &native_unit)
+        .expect("exact source backing");
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let TargetUnitOperation::Call {
+            result:
+                TargetCallResult::Structural {
+                    descriptor_origins, ..
+                },
+            ..
+        } = &mut changed.functions[0].graph.blocks[0].operations[0]
+        else {
+            panic!("call result")
+        };
+        match mutation {
+            0 => descriptor_origins.clear(),
+            1 => *descriptor_origins = vec![TargetDescriptorOrigin::Empty],
+            2 => *descriptor_origins = vec![TargetDescriptorOrigin::Opaque],
+            3 => {
+                let TargetDescriptorOrigin::Argument { source, .. } = &mut descriptor_origins[0]
+                else {
+                    panic!("argument")
+                };
+                source.place = place(99);
+            }
+            _ => {
+                let TargetDescriptorOrigin::Argument { exact, .. } = &mut descriptor_origins[0]
+                else {
+                    panic!("argument")
+                };
+                *exact = false;
+            }
+        }
+        assert!(
+            crate::legalization::validate_call_descriptor_origins(&changed, &source, &native_unit)
+                .is_err(),
+            "tampered backing {mutation}"
+        );
+    }
+    let caller = unit.functions[0].clone();
+    let mut absent = unit.clone();
+    absent.functions.clear();
+    let absent = crate::native_geometry::NativeInput::new(&absent, &geometry);
+    let lowered =
+        crate::legalization_source::scalar_graph::instruction::call_instructions::project_call(
+            caller.machine,
+            &absent.accepted_obligation_facts,
+            &row,
+        )
+        .expect("construction consumes target origins without source history");
+    let legalized_operations::LegalizedScalarInstructionKind::Call(lowered) = lowered else {
+        panic!("legalized call")
+    };
+    assert_eq!(lowered.descriptor_origins, expected);
+    assert!(
+        crate::legalization::validate_call_descriptor_origins(&target, &source, &absent).is_err(),
+        "independent audit still requires source correspondence"
+    );
+}
+
+#[test]
 fn stored_sum_rows_select_the_same_instructions_as_main() {
     let dump = [
         tag_only(),
@@ -51,6 +361,130 @@ fn stored_sum_rows_select_the_same_instructions_as_main() {
     .join("");
     let expected = include_str!("sum_layout_selection.expected.txt");
     assert_eq!(dump, expected, "selected opcodes, offsets, tags, and sizes");
+}
+
+#[test]
+fn retained_scalar_store_geometry_is_checked_against_its_source() {
+    let mut names = TerminalIdentityTableBuilder::default();
+    let field = StructuralFieldId::new(1).unwrap();
+    let field_name = names.intern("value");
+    let mut cell = reference_type(1, names.intern("Cell"), ty(1));
+    cell.shape = StructuralTypeShape::Record {
+        storage: StructuralRecordStorage::Packed,
+        fields: vec![scalar_field(1, field_name, u64_type())],
+    };
+    let mut parameter = parameter(ty(1));
+    parameter.access = StructuralAccess::MutableBorrow;
+    let source = TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(1),
+        source_value: ValueId::new(1).unwrap(),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(43),
+    };
+    let operation = AbstractOperation::StructuralScalarFieldStore {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+            parameter.clone(),
+        ),
+        path: Vec::new(),
+        field,
+        value: AbstractResult {
+            value: source.source_value(),
+            scalar_type: source.scalar_type(),
+        },
+        range_obligation: None,
+    };
+    let function = function_with_body(
+        vec![parameter.clone()],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: op(1),
+                    result: source.source_value(),
+                    scalar_type: ScalarType::Integer(u64_type()),
+                    value: IntegerValue::Unsigned(43),
+                },
+                operation.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![cell], function);
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let row = TargetUnitOperation::StructuralScalarFieldStore {
+        psi_operation: op(2),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
+        path: Vec::new(),
+        field,
+        destination_storage: target_operations::TargetStructuralArgumentSource::Placement(
+            target.functions[0].graph.parameters[0].placement.clone(),
+        ),
+        field_byte_offset: 0,
+        field_byte_size: 8,
+        source,
+        indices: Vec::new(),
+    };
+    target.functions[0].graph.blocks[0]
+        .operations
+        .push(row.clone());
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let function_inputs =
+        crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = source_inputs.available(block_id(1));
+        available.push((source.source_value(), source));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &operation,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &function_inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&row).expect("retained scalar store matches its source");
+    for mutation in 0..4 {
+        let mut forged = row.clone();
+        let TargetUnitOperation::StructuralScalarFieldStore {
+            field_byte_offset,
+            field_byte_size,
+            source: value,
+            path,
+            ..
+        } = &mut forged
+        else {
+            panic!("store");
+        };
+        match mutation {
+            0 => *field_byte_offset = 1,
+            1 => *field_byte_size = 4,
+            2 => {
+                let TargetUnitScalarArgumentSource::IntegerImmediate { value, .. } = value else {
+                    panic!("integer source");
+                };
+                *value = IntegerValue::Unsigned(47);
+            }
+            _ => path.push(StructuralPathSegment::FixedIndex(0)),
+        }
+        assert!(audit(&forged).is_err(), "tampered scalar store {mutation}");
+    }
 }
 
 fn tag_only() -> String {
@@ -701,6 +1135,8 @@ fn target_plan(
 ) -> TargetOperationPlan {
     let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let function = &plan.functions[0];
+    let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
     let shapes = function
         .structural_parameters
         .iter()
@@ -741,6 +1177,15 @@ fn target_plan(
             nominal_cleanup_subject: None,
             scalar_abi: None,
             mixed_structural_scalar_abi: None,
+            structural_contract: (!function.structural_parameters.is_empty()
+                || !unit.functions[0].declared_places.is_empty())
+            .then(|| target_operations::TargetStructuralContract {
+                parameters: function.structural_parameters.clone(),
+                places: unit.functions[0].structural_places.clone(),
+                entry_claims: function.entry_claims.clone(),
+                published_service_ceiling: function.published_service_ceiling.clone(),
+                result: function.result.structural().cloned(),
+            }),
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: Vec::new(),

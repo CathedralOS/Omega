@@ -1393,6 +1393,51 @@ pub(crate) mod conformance_blocks {
                     matching.push((*candidate, machine, state));
                 }
             }
+            // Two overloads can share result domains while accepting different
+            // types. If several rows remain, compare their declared input and
+            // result types to identify one slot; later checking still judges
+            // the selected member's complete refinement obligations.
+            if matching.len() > 1 {
+                let mut complete = Vec::with_capacity(matching.len());
+                for (requirement, machine, state) in matching {
+                    let expected = program.state_parameters(requirement.signature.parameters);
+                    let supplied = program.state_parameters(state.parameters);
+                    if expected.len() != supplied.len()
+                        || expected.iter().zip(supplied).any(|(left, right)| {
+                            left.is_const != right.is_const || left.relevance != right.relevance
+                        })
+                    {
+                        continue;
+                    }
+                    let expected = expected
+                        .iter()
+                        .map(|parameter| parameter.type_reference.clone())
+                        .chain(std::iter::once(
+                            requirement
+                                .signature
+                                .return_type
+                                .clone()
+                                .unwrap_or(TypeReference::Unit),
+                        ))
+                        .collect();
+                    let supplied = supplied
+                        .iter()
+                        .map(|parameter| parameter.type_reference.clone())
+                        .chain(std::iter::once(
+                            state.return_type.clone().unwrap_or(TypeReference::Unit),
+                        ))
+                        .collect();
+                    if super::callable_inference::same_type_values(
+                        program,
+                        expected,
+                        supplied,
+                        authored.requirement_name.source_span(),
+                    )? {
+                        complete.push((requirement, machine, state));
+                    }
+                }
+                matching = complete;
+            }
             let (requirement, machine, state) = match (
                 candidates.as_slice(),
                 realizations.as_slice(),

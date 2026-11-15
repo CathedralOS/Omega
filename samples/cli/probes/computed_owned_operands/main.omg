@@ -26,7 +26,7 @@
 data Ticket { value: i32 in Wrapping; }
 data Wrap { inner: Ticket; }
 
-data Note dropped by drop_note { log: &mut i32; value: i32 in Wrapping; }
+data Note<'view> dropped by drop_note { log: &'view mut i32; value: i32 in Wrapping; }
 machine drop_note(note: &mut Note) { advance(note.log); }
 
 machine enter(log: &mut i32) { log = 1; }

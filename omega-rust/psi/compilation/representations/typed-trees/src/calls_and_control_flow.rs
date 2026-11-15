@@ -2125,6 +2125,7 @@ pub mod control_flow {
                                         );
                                 }
                                 StatementNode::Call(TableCall {
+                                    unresolved_name: call.unresolved_name,
                                     installed_interrupt_operation,
                                     authored_machine_application,
                                     static_machine_parameter: call.static_machine_parameter,
@@ -2329,8 +2330,10 @@ pub mod control_flow {
                                 {
                                     self.expression_table.remap_symbols_in(argument, symbols);
                                 }
-                                let StatementNode::Call(current) =
-                                    self.statement_table.statements.get_mut(handle)
+                                let StatementNode::Call(current) = self
+                                    .statement_table
+                                    .binding_statements_mut()
+                                    .get_mut(handle)
                                 else {
                                     unreachable!();
                                 };
@@ -2358,8 +2361,10 @@ pub mod control_flow {
                                         symbols.execution(),
                                     );
                                 }
-                                let StatementNode::Call(current) =
-                                    self.statement_table.statements.get_mut(handle)
+                                let StatementNode::Call(current) = self
+                                    .statement_table
+                                    .binding_statements_mut()
+                                    .get_mut(handle)
                                 else {
                                     unreachable!();
                                 };
@@ -2392,8 +2397,10 @@ pub mod control_flow {
                                         row.field_symbol = remapped(row.field_symbol, symbols);
                                     }
                                 }
-                                let StatementNode::LocalData(current) =
-                                    self.statement_table.statements.get_mut(handle)
+                                let StatementNode::LocalData(current) = self
+                                    .statement_table
+                                    .binding_statements_mut()
+                                    .get_mut(handle)
                                 else {
                                     unreachable!();
                                 };
@@ -2709,6 +2716,8 @@ pub mod control_flow {
             assembly_graphs: Arena<AssemblyControlFlow>,
             assembly_blocks: Arena<AssemblyBlock>,
             statements: Arena<StatementNode>,
+            #[record(skip)]
+            binding_identity: std::sync::Arc<()>,
             expression_handles: Arena<ExpressionHandle>,
             name_path_members: Arena<Identifier>,
             transition_targets: Arena<TransitionTargetNode>,
@@ -2736,6 +2745,7 @@ pub mod control_flow {
                     assembly_graphs: Arena::new(),
                     assembly_blocks: Arena::new(),
                     statements: Arena::new(),
+                    binding_identity: Default::default(),
                     expression_handles: Arena::new(),
                     name_path_members: Arena::new(),
                     transition_targets: Arena::new(),
@@ -2745,14 +2755,14 @@ pub mod control_flow {
             }
 
             pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
-                self.statements.append(statement)
+                self.binding_statements_mut().append(statement)
             }
 
             pub fn insert_statements(
                 &mut self,
                 statements: impl IntoIterator<Item = StatementNode>,
             ) -> HandleSpan<StatementNode> {
-                self.statements.insert_many(statements)
+                self.binding_statements_mut().insert_many(statements)
             }
 
             pub fn push_statement(
@@ -2760,7 +2770,8 @@ pub mod control_flow {
                 span: &mut HandleSpan<StatementNode>,
                 statement: StatementNode,
             ) -> StatementHandle {
-                self.statements.append_to_span(span, statement)
+                self.binding_statements_mut()
+                    .append_to_span(span, statement)
             }
 
             crate::span_columns! {
@@ -2840,6 +2851,7 @@ pub mod control_flow {
                         TransitionTargetNode::Named {
                             static_machine_parameter: *static_machine_parameter,
                             path: TableNamePath {
+                                unresolved_name: path.unresolved_name,
                                 members,
                                 receiver_symbol: path.receiver_symbol,
                                 head_symbol: path.head_symbol,
@@ -2903,12 +2915,45 @@ pub mod control_flow {
             }
 
             pub fn statement_mut(&mut self, handle: StatementHandle) -> &mut StatementNode {
-                self.statements.get_mut(handle)
+                self.binding_statements_mut().get_mut(handle)
+            }
+
+            /// Call payload edits retain binder coordinates and variants, while
+            /// advancing the ordinary statement-record freshness stamp.
+            pub fn call_mut(&mut self, handle: StatementHandle) -> Option<&mut TableCall> {
+                if !self.statements.is_valid(handle)
+                    || self.statements.get(handle).as_call().is_none()
+                {
+                    return None;
+                }
+                let StatementNode::Call(call) = self.statements.get_mut(handle) else {
+                    unreachable!("validated call variant")
+                };
+                Some(call)
+            }
+
+            fn binding_statements_mut(&mut self) -> &mut Arena<StatementNode> {
+                // Cached keys and snapshots retain the old token. General
+                // writes may replace a binder or variant; unobserved writes
+                // need no allocation until one of those keys observes it.
+                std::sync::Arc::make_mut(&mut self.binding_identity);
+                &mut self.statements
+            }
+
+            pub(crate) fn binding_storage_identity(&self) -> std::sync::Arc<()> {
+                self.binding_identity.clone()
             }
 
             #[inline]
             pub fn statements(&self, span: HandleSpan<StatementNode>) -> &[StatementNode] {
                 self.statements.span_or_empty(span)
+            }
+
+            pub(crate) fn checked_statements(
+                &self,
+                span: HandleSpan<StatementNode>,
+            ) -> Option<&[StatementNode]> {
+                self.statements.span(span)
             }
 
             pub fn indexed_statements(
@@ -2938,7 +2983,7 @@ pub mod control_flow {
                 &mut self,
                 span: HandleSpan<StatementNode>,
             ) -> &mut [StatementNode] {
-                self.statements.span_mut_or_empty(span)
+                self.binding_statements_mut().span_mut_or_empty(span)
             }
 
             pub fn expression_handles(
@@ -2988,6 +3033,7 @@ pub mod control_flow {
 
             /// Identifies the statement records read by declaration lookup. Operand
             /// lists and transition payloads do not change a local's symbol or type.
+            #[cfg(test)]
             pub(crate) fn declaration_revision(&self) -> u64 {
                 self.statements.revision()
             }
@@ -3125,6 +3171,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableCall {
+            pub unresolved_name: symbols::UnresolvedName,
             pub installed_interrupt_operation:
                 Option<crate::expression::InstalledInterruptOperationRequest>,
             pub authored_machine_application:
@@ -3283,6 +3330,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableNamePath {
+            pub unresolved_name: symbols::UnresolvedName,
             pub receiver_symbol: SymbolHandle,
             pub members: HandleSpan<Identifier>,
             pub head_symbol: SymbolHandle,

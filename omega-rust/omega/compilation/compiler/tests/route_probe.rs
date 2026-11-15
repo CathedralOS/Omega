@@ -279,6 +279,136 @@ fn trapping_primitives_run_and_overflow_at_their_own_site() {
     }
 }
 
+#[test]
+fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
+    for carrier in ["i32", "u32"] {
+        let source = format!(
+            "use omega::language::core::integer;\n\
+             public domain<T> T::Distance;\n\
+             public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance\n\
+             requires integer::is_signed_integer<T>() && integer::is_fixed_width_integer<T>()\n\
+             ensures (result as -Distance) == ((left as -Distance) +% right)\n\
+             {{ ((left as -Distance) +% right) as +Distance }}\n\
+             machine main() crashes Trap {{\n\
+                 let left: {carrier} in Distance = 3{carrier} as +Distance;\n\
+                 let right: {carrier} = 4{carrier};\n\
+                 let sum: {carrier} in Distance = left + right;\n\
+                 let raw: {carrier} = sum as -Distance;\n\
+                 transition raw == 7 {{ true -> done() _ -> bad() }}\n\
+                 machine done() {{ }}\n\
+                 machine bad() {{ crash Trap; }}\n\
+             }}"
+        );
+        let _compilation = COMPILATIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let frontier =
+            unbuilt_frontier::staged_frontier(&format!("generic_operator_{carrier}"), &source);
+        let typed = &frontier.typed;
+        let template = unbuilt_frontier::program_machine(typed, "Distance::add").unwrap();
+        let instances = typed
+            .machine_specializations
+            .iter()
+            .filter(|row| row.template == template)
+            .collect::<Vec<_>>();
+        let [receipt] = instances.as_slice() else {
+            panic!("one genuine operator specialization: {instances:?}")
+        };
+        let instance = typed.machine_by_symbol(receipt.instance).unwrap();
+        assert!(instance.type_parameters.is_empty());
+        assert!(typed.deferred_refusals_of(instance.symbol).next().is_none());
+        let arguments = typed
+            .expression_table
+            .static_machine_application_arguments(receipt.binding_application);
+        let [argument] = arguments else {
+            panic!("one inferred type argument")
+        };
+        let typed_trees::types::TypeReferenceNode::Named { symbol: actual, .. } = typed
+            .type_reference_table
+            .type_reference(argument.type_reference)
+        else {
+            panic!("closed scalar argument")
+        };
+        let state = typed.machine_states(instance).first().unwrap();
+        assert_eq!(
+            typed.normalized_type_identity(argument.type_reference),
+            typed.normalized_type_identity(typed.state_parameters(state)[1].type_reference)
+        );
+        let template = typed.machine_by_symbol(template).unwrap();
+        let template_state = typed.machine_states(template).first().unwrap();
+        let declared = typed
+            .machine_contracts(template)
+            .iter()
+            .chain(typed.state_contracts(template_state))
+            .collect::<Vec<_>>();
+        let copied = typed
+            .machine_contracts(instance)
+            .iter()
+            .chain(typed.state_contracts(state))
+            .collect::<Vec<_>>();
+        assert_eq!(declared.len(), copied.len());
+        let mut non_expression_facts = 0;
+        let mut applied_type_arguments = 0;
+        for (source, applied) in declared.iter().zip(copied) {
+            assert_eq!(source.kind, applied.kind);
+            assert_eq!(source.facts.len(), applied.facts.len());
+            for (source, applied) in source.facts.handles().zip(applied.facts.handles()) {
+                let original = typed.proof_facts.get(source);
+                let retained = typed.proof_facts.get(applied);
+                assert_eq!(
+                    std::mem::discriminant(original),
+                    std::mem::discriminant(retained)
+                );
+                assert_eq!(
+                    typed.proof_fact_source_span(source),
+                    typed.proof_fact_source_span(applied)
+                );
+                if !matches!(retained, typed_trees::domain::ProofFact::Expression(_)) {
+                    non_expression_facts += 1;
+                }
+                for root in typed.tables.proof_fact_expression_roots(applied) {
+                    typed.subtree_for_each(
+                        root,
+                        typed_trees::SubtreeEdges::default(),
+                        |_, node| {
+                            if let typed_trees::expression::ExpressionNode::Call(call) = node {
+                                for argument in
+                                    typed.expression_table.static_machine_application_arguments(
+                                        call.authored_machine_application,
+                                    )
+                                {
+                                    if argument.type_reference.is_valid() {
+                                        assert_eq!(
+                                            typed.normalized_type_identity(argument.type_reference),
+                                            typed.normalized_type_identity(
+                                                arguments[0].type_reference
+                                            )
+                                        );
+                                    } else {
+                                        assert_eq!(argument.symbol, *actual);
+                                    }
+                                    applied_type_arguments += 1;
+                                }
+                            }
+                        },
+                    );
+                }
+            }
+        }
+        assert!(
+            non_expression_facts > 0 && applied_type_arguments > 0,
+            "membership facts ({non_expression_facts}) and applied family requirements ({applied_type_arguments}) survive copying"
+        );
+        // This checkpoint prepares the real call; domain application lowering is
+        // still required before either carrier reaches a compilation verdict.
+        let found = judge(&frontier);
+        assert!(
+            matches!(found.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
+            if refusal.detail.starts_with("type constrained by a generic or indexed domain family")),
+            "{found:?}"
+        );
+    }
+}
 /// A suffixed operator in `requires` or `ensures` means what it means in a
 /// body (`wiki/spec/language/domains.md`, "Operands": "The rule is the same
 /// in executable code, `requires` and `ensures`"), and the Wrapping and
@@ -358,8 +488,7 @@ machine main() { }",
                 "requires right > 0 ensures result == left /% right",
                 "left /% right",
             ),
-            "contract policy operator in a clause term that owes a condition before it is total \
-             while reading the signature of `spare`",
+            "accepted",
         ),
         (
             "requires_policy_qualified_operand",
@@ -1033,21 +1162,26 @@ fn a_value_name_nothing_declares_is_rejected() {
              machine main() {{ let seen: u64 = measured(); }}\n"
         )
     };
-    assert_eq!(verdicts("body_local_name", &body("kept")), ["accepted"]);
+    let positive = judged("body_local_name", &body("kept"));
+    assert!(
+        matches!(positive.as_slice(), [Ok(RouteVerdict::Accepted(_))]),
+        "{positive:?}"
+    );
     // A field is selected through a value, never by its bare name
-    // (`modules.md`), so `level` resolves to nothing here; but something has
-    // the name, and the reader's refusal stands as before.
+    // (`modules.md`). Its unrelated declaration cannot turn this source error
+    // into an unsupported selection.
     assert_eq!(
-        verdicts(
+        the_violation(
             "body_bare_field_name",
             &format!("data Gauge {{ level: u64; }}\n{}", body("level"))
         ),
-        ["not-supported"]
+        "this expression has no visible value declaration in its source scope: an unknown name is an \
+         error wherever it appears while reading the signature of `measured` at `level`"
     );
     assert_eq!(
         the_violation("body_unknown_name", &body("nowhere_value")),
-        "this expression names a value nothing the program declares: an unknown name is an \
-         error wherever it appears at `nowhere_value`"
+        "this expression has no visible value declaration in its source scope: an unknown name is an \
+         error wherever it appears while reading the signature of `measured` at `nowhere_value`"
     );
     // A constant's initializer is evaluated before the checker sees the
     // program, whether or not `main` reads it, and its evaluation stops at
@@ -1075,8 +1209,9 @@ fn a_value_name_nothing_declares_is_rejected() {
         assert_eq!(
             stopped,
             [
-                "constant `LIMIT` evaluation: this expression names a value nothing the program \
-              declares: an unknown name is an error wherever it appears"
+                "constant `LIMIT` evaluation: this expression has no visible value declaration in its \
+              source scope: an unknown name is an error wherever it appears while reading the \
+              signature of `@constant-initializer<LIMIT>` while reading the body of `@const-invocation`"
             ],
             "{name}"
         );

@@ -4,7 +4,7 @@
 // Invalid: reading the write-only slot's stored descriptor to supply its own
 // replacement. The caller and branch-marker oracle match the positive.
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine lend<'slot>(slot: &'slot write Held, marker: &write i64) -> &'slot write Held {
     marker = 1;

@@ -60,6 +60,14 @@ fn declared(typed: &typed_trees::TypedTrees, name: &str) -> symbols::SymbolHandl
 /// The machines of the accepted compilation that claims `Native` as the
 /// supply of `slot`, or what the first part that does not accept says.
 fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
+    supplied_with_subjects(text, slot, &[])
+}
+
+fn supplied_with_subjects(
+    text: &str,
+    slot: &str,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+) -> Result<Vec<String>, String> {
     let typed = typed(text);
     let slot = match slot {
         "Service::go" => {
@@ -83,7 +91,7 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
             typed_trees_to_terminal_psi::Compilation {
                 declaration_metadata: &[],
                 entries: &[entry(&typed)],
-                subjects: &[],
+                subjects,
                 purpose: source::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
@@ -282,6 +290,96 @@ fn a_provider_that_refines_its_requirement_is_judged_as_a_root() {
         panic!("the entry closure alone is accepted: {verdicts:?}");
     };
     assert_eq!(accepted.elaboration.machines.len(), 1);
+}
+
+fn referenced_provider(contract: &str) -> String {
+    format!(
+        r#"
+boundary trait Service {{
+    machine go(value: u32) -> u32 {CONTRACT};
+}}
+machine provider_go(value: u32) -> u32 satisfies Service::go {contract} {{ value + 1 }}
+Native satisfies Service {{
+    Service::go = provider_go;
+}}
+machine entry() {{ let reply: u32 = Service::go(3); }}
+"#
+    )
+}
+
+#[test]
+fn a_provider_supply_judges_the_existing_machine_selected_by_its_row() {
+    let exact = referenced_provider(CONTRACT);
+    let stricter =
+        referenced_provider("requires value <= 5 ensures result <= 11 reaches none crashes none");
+    let subjects = [Some(super::build_purpose::package())];
+    for slot in ["Service::go", "Service"] {
+        let machines = supplied_with_subjects(&exact, slot, &subjects).unwrap();
+        assert_eq!(machines, ["entry", "provider_go"]);
+        let rejected = supplied_with_subjects(&stricter, slot, &subjects).unwrap_err();
+        assert!(rejected.starts_with("part 1 rejected:"), "{rejected}");
+        assert!(rejected.contains("value <= 5"), "{rejected}");
+    }
+}
+
+#[test]
+fn a_named_provider_selection_needs_no_edge_on_its_machine() {
+    let without_edge =
+        |contract| referenced_provider(contract).replacen(" satisfies Service::go ", " ", 1);
+    let plain = without_edge(CONTRACT);
+    let stricter =
+        without_edge("requires value <= 5 ensures result <= 11 reaches none crashes none");
+    for slot in ["Service::go", "Service"] {
+        assert_eq!(supplied(&plain, slot).unwrap(), ["entry", "provider_go"]);
+        let rejection = supplied(&stricter, slot).unwrap_err();
+        assert!(rejection.starts_with("part 1 rejected:"), "{rejection}");
+        assert!(rejection.contains("value <= 5"), "{rejection}");
+    }
+
+    // The selected route limits its input to 5. A direct call still sees
+    // the plain machine's own contract, which accepts input 7.
+    let narrowed = plain.replacen(
+        CONTRACT,
+        "requires value <= 5 ensures result <= 11 reaches none crashes none",
+        1,
+    );
+    let direct = narrowed.replace("Service::go(3)", "provider_go(7)");
+    assert_eq!(
+        supplied(&direct, "Service").unwrap(),
+        ["entry", "provider_go"]
+    );
+    let routed = narrowed.replace("Service::go(3)", "Service::go(7)");
+    let rejection = supplied(&routed, "Service").unwrap_err();
+    assert!(
+        rejection
+            .starts_with("part 0 rejected: cannot prove requires clause 1 of the called machine."),
+        "{rejection}"
+    );
+}
+
+#[test]
+fn a_provider_supply_refuses_duplicate_rows_for_one_requirement() {
+    let mut typed = typed(&referenced_provider(CONTRACT));
+    let implementation = typed
+        .tables
+        .conformances
+        .get_mut(typed.roots.conformances.start());
+    let [row] = implementation.rows.as_slice() else {
+        panic!("the source selects exactly one requirement row");
+    };
+    assert_eq!(
+        row.source,
+        typed_trees::trait_definition::ConformanceRowSource::Reference
+    );
+    let supply = typed_trees_to_terminal_psi::Supply {
+        slot: row.requirement,
+        provider: implementation.symbol,
+    };
+    implementation.rows.push(row.clone());
+    assert_eq!(
+        supply.realization(&typed, supply.slot).unwrap_err(),
+        "provider does not give the supplied requirement exactly one machine"
+    );
 }
 
 /// Each twin changes one clause of the provider or its body and leaves the

@@ -4,6 +4,7 @@ use super::*;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_check_tables::edges::{Destination, EdgeRow};
+use terminal_check_tables::obligations::ObligationRow;
 use terminal_psi::{
     Block, StructuralAccess, StructuralArgument, StructuralPlaceDeclaration, Terminator,
 };
@@ -15,8 +16,9 @@ fn duplicated_borrow() -> typed_trees_to_terminal_psi::Elaboration {
     let machine = &mut input.module.machines[0];
     let source = machine.structural_parameters[0].clone();
     let argument = StructuralArgument::whole(source.place, StructuralAccess::MutableBorrow);
+    let arrival = id(1);
     machine.blocks[0].terminator = Terminator::Jump {
-        edge: id(1),
+        edge: arrival,
         target: id(2),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
@@ -47,13 +49,35 @@ fn duplicated_borrow() -> typed_trees_to_terminal_psi::Elaboration {
     }
     machine.blocks.push(target);
     let tables = input.tables.machines.get_mut(machine.id).unwrap();
-    tables.edges.get_mut(id(1)).unwrap().destination = Destination::Block(id(2));
+    tables.edges.get_mut(arrival).unwrap().destination = Destination::Block(id(2));
     tables.edges.push(EdgeRow {
         source: id(2),
         destination: Destination::Return,
         dispositions: Vec::new(),
     });
+    // Replacing the return with an argument-passing jump makes the new
+    // arrival owe the same obligation as one emitted by lowering.
+    let obligation = tables.obligations.push(ObligationRow {
+        created_at: ProgramPoint::Edge(arrival),
+        kind: ObligationKind::ArrivalInvariant { edge: arrival },
+    });
+    let sources = input.sources.get_mut(machine.id).unwrap();
+    let source = *sources.edges.get(arrival).unwrap();
+    assert_eq!(sources.obligations.push(source), obligation);
     input
+}
+
+#[test]
+fn a_structural_successor_owes_its_arrival_even_without_scalar_arguments() {
+    let mut input = duplicated_borrow();
+    let tables = input.tables.machines.get_mut(id(1)).unwrap();
+    assert_eq!(tables.obligations.len(), 1);
+    tables.obligations = IdTable::default();
+    input.sources.get_mut(id(1)).unwrap().obligations = IdTable::default();
+    let refusal = judge(Ok(input)).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(refusal.concerns, Construct::Block(id(1)));
+    assert_eq!(refusal.detail, "a site owes an obligation with no row");
 }
 
 #[test]
@@ -105,16 +129,14 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
     structural_arguments[1].access = StructuralAccess::SharedBorrow;
     let tables = input.tables.machines.get_mut(machine.id).unwrap();
     let captured = tables.roots.get(id(1)).copied().unwrap();
-    tables
-        .obligations
-        .push(terminal_check_tables::obligations::ObligationRow {
-            created_at: ProgramPoint::Edge(id(1)),
-            kind: ObligationKind::Loan {
-                captured,
-                access: ReferenceAccess::Shared,
-                lender: terminal_check_tables::obligations::Lender::Incoming,
-            },
-        });
+    tables.obligations.push(ObligationRow {
+        created_at: ProgramPoint::Edge(id(1)),
+        kind: ObligationKind::Loan {
+            captured,
+            access: ReferenceAccess::Shared,
+            lender: terminal_check_tables::obligations::Lender::Incoming,
+        },
+    });
     assert!(
         matches!(judge(Ok(input)), Err(Refusal { reason: RefusalReason::Conflict, ref detail, .. })
         if detail == "successor arguments overlap shared and exclusive borrows"),
@@ -210,22 +232,25 @@ machine entry(first: bool) -> bool {
     // The same cleanup is valid on the false path, but would invalidate
     // the view before inspect on the continuing path.
     when_true.cleanup_actions = when_false.cleanup_actions.clone();
-    let tables = input.tables.machines.get_mut(identity).unwrap();
-    let prepared = crate::prepare(&input.module, &input.domains, identity, tables).unwrap();
-    let references = prepared.references(&input.module.structural_types);
-    let machine = input.module.machine(identity).unwrap();
+    let mut scope = crate::prepare_replay(&mut input).unwrap();
+    let (formed, domains, checking, _, _) = scope.checking();
+    let module = formed.source();
+    let tables = checking.machines.get_mut(identity).unwrap();
+    let prepared = crate::prepare(formed, domains, identity, tables).unwrap();
+    let references = prepared.references(&module.structural_types);
+    let machine = module.machine(identity).unwrap();
     let storage = crate::places::Storage::new(
         identity,
         machine,
-        &input.module,
-        &input.domains,
+        module,
+        domains,
         &prepared.graph,
         tables,
         &prepared.types,
         &references,
     )
     .unwrap();
-    let (_, conflicts) = storage.loans(&input.module, tables).unwrap();
+    let (_, conflicts) = storage.loans(module, tables).unwrap();
     assert!(
         conflicts
             .iter()

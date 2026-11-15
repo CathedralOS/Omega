@@ -180,8 +180,9 @@ impl Prover<'_> {
     /// The width binders of this machine's parameter-width carriers.
     pub(super) fn width_binders(&self) -> Vec<ValueId> {
         let mut binders = Vec::new();
-        for (_, row) in self.values.iter() {
-            if let ScalarType::Integer(integer) = row.scalar_type
+        for raw in 1..=self.values.count() as u64 {
+            let value = ValueId::new(raw).expect("dense value positions are nonzero");
+            if let Some(ScalarType::Integer(integer)) = self.values.scalar_type(value)
                 && let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width()
                 && !binders.contains(&parameter.value)
             {

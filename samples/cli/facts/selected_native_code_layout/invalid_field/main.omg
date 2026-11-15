@@ -12,7 +12,7 @@ terminates
         layout.entry != 0 && layout.regions[0].base == layout.entry && layout.regions[0].length > 0
     }
 }
-data Envelope [copy] { layout: CodeLayout; }
+data Envelope<'view> [copy] { layout: CodeLayout<'view>; }
 machine witness() -> bool terminates {
     let envelope: Envelope = Envelope { layout: code_layout<selected<u64, 7>>() };
     inspect(&envelope.layout)

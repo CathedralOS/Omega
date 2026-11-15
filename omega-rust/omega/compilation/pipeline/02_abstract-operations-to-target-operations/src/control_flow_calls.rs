@@ -1348,6 +1348,7 @@ pub(crate) mod calls {
                     callee_result,
                     result_home: Some(result_home),
                     reference_results,
+                    descriptor_origins: Vec::new(),
                 }
             }
         })
@@ -2010,14 +2011,12 @@ pub(crate) mod selected_boundary_calls {
     use abstract_operations::{
         AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
     };
-    use semantic_vocabulary::MachineId;
-    use std::collections::BTreeMap;
     use target_operations::TargetUnitOperation;
 
     pub(crate) fn resolve(
         operation: &AbstractOperation,
         installed: &SelectedBoundaryCall,
-        functions: &BTreeMap<MachineId, &AbstractFunction>,
+        candidate: Option<&AbstractFunction>,
     ) -> Result<(AbstractOperation, target_operations::NativeCallOrigin), LoweringError> {
         let AbstractOperation::BoundaryCall {
             psi_operation,
@@ -2044,7 +2043,9 @@ pub(crate) mod selected_boundary_calls {
             return Err(invalid());
         }
         let callee = installed.callee;
-        let candidate = functions.get(&callee).copied().ok_or_else(invalid)?;
+        let candidate = candidate
+            .filter(|candidate| candidate.machine == callee)
+            .ok_or_else(invalid)?;
         let claim_transfers = completion_receipts
             .iter()
             .map(|receipt| terminal_psi::ClaimTransfer {

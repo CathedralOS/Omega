@@ -149,12 +149,6 @@ and landing rebase+verify traffic.
 
 ## Run the chain as one sequential unit
 
-The slot pool this section used to describe (`tools/build_slot.py`) was removed
-in #2080. Its lesson stands. On 2026-10-23, amid a fifty-lane LOC wave, a
-lane's single acquisition waited 3,039 to 5,282 seconds (up to 88 minutes) for
-one of two slots, so a chain that re-queued for each check, test run and
-landing re-verify paid that wait several times.
-
 Run a lane's local check and crate tests as strictly
 sequential steps in one shell under one
 [host build budget](../../../../tools/docs/build_slot.md#one-hold-for-a-whole-chain).
@@ -167,8 +161,9 @@ restarts in one day:
 
 - Commit as soon as the change is coherent, and amend or squash before
   publishing; a committed mechanism survives a session that does not.
-- `cargo xtask claims note` at every milestone, not only before publish; the
-  note is what a successor agent reads to continue without re-deriving the work.
+- Push the branch at every milestone, not only before publish; the pushed
+  commits and their messages are what a successor agent reads to continue
+  without re-deriving the work. A claim note disappears when its claim ends.
 
 This is per machine. Worktrees of one checkout share its MBX action cache and
 scheduler pool; separate computers — cloud executors, another host — have their
@@ -207,15 +202,12 @@ package-review receipts; remove only outcome-owned, verified disposable state.
 
 ## Dispatch, validate and finish
 
-Use `tools/swarm/launch.py local --manifest <file> --create-worktrees` only when
-authorized. It renders prompts/worktrees; it does not spawn agents. Use actual
-in-session agent tools and returned handles if exposed. If unavailable, report
+Use actual in-session agent tools and returned handles if exposed. If unavailable, report
 that limitation; do not substitute cloud sessions or detached shell agents.
 
 Dispatch outcome, acceptance, exact worktree/base, model controls, retained
 receipts, next action, dependencies, build-admission plan and publication
-authority. Keep real agent states through `tools/swarm/fill.py` and the local
-skill. Coalesce redundant baseline qualification, not checks for unique edits.
+authority. Coalesce redundant baseline qualification, not checks for unique edits.
 
 Required behavior is native execution agreeing with Terminal Psi plus relevant
 invalid controls. Test-injected admission does not qualify the public CLI.

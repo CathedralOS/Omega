@@ -14,11 +14,11 @@ domain [u8]::NonEmpty
 requires
     non_empty(self);
 
-data Message
+data Message<'view>
 requires
     text in NonEmpty,
 {
-    text: &[u8];
+    text: &'view [u8];
 }
 
 data Main { hits: i32 in Wrapping; }

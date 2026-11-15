@@ -9,6 +9,13 @@ use language_semantics::declaration_selection::{
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionNode, TableCallExpression};
+use typed_trees::operator::ClosedOperatorApplicationArgument;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SelectedOperator {
+    pub target: symbols::SymbolHandle,
+    pub arguments: Vec<ClosedOperatorApplicationArgument>,
+}
 
 /// One declaration/type query shared by call preparation and domain-cast result
 /// accounting. Unknown nonliteral types never act as wildcard operands.
@@ -17,7 +24,7 @@ pub(crate) fn selection(
     types: &mut crate::typing_queries::DeclaredExpressionTypes,
     owner: symbols::SymbolHandle,
     handle: typed_trees::expression::ExpressionHandle,
-) -> Result<Option<symbols::SymbolHandle>, Diagnostic> {
+) -> Result<Option<SelectedOperator>, Diagnostic> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(handle) else {
         return Ok(None);
     };
@@ -46,7 +53,7 @@ pub(crate) fn selection_for_operands(
     spelling: language_core::operator_spelling::OperatorSpelling,
     operands: &[Option<typed_trees::types::TypeReferenceHandle>],
     span: source::SourceSpan,
-) -> Result<Option<symbols::SymbolHandle>, Diagnostic> {
+) -> Result<Option<SelectedOperator>, Diagnostic> {
     // An anonymous arithmetic tree has no declared home. Like the existing
     // builtin-meaning query, keep it builtin rather than letting every family
     // match a tuple of wildcard operands.
@@ -57,27 +64,77 @@ pub(crate) fn selection_for_operands(
         typed_trees::operator::resolve_spelling_for_operands(program, spelling, operands, span);
     let selected = match candidates.as_slice() {
         [] => return Ok(None),
-        [selected] => selected.operator.symbol,
+        [selected] => selected,
         _ => {
-            return Err(
-                Diagnostic::error("ambiguous operator declarations for these operands")
-                    .with_source_span(span),
-            );
+            let declarations = candidates
+                .iter()
+                .map(|candidate| {
+                    let parameters = program
+                        .operator_parameters(candidate.operator)
+                        .iter()
+                        .map(|parameter| {
+                            program
+                                .display_type_reference_with_constraints(parameter.type_reference)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!(
+                        "{}({parameters})",
+                        program
+                            .symbols
+                            .display_path(candidate.operator.symbol, "::")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            let operands = operands
+                .iter()
+                .map(|reference| {
+                    reference.map_or_else(
+                        || "anonymous".to_owned(),
+                        |reference| program.display_type_reference_with_constraints(reference),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(Diagnostic::error(format!(
+                "ambiguous operator declarations for operands ({operands}): {declarations}"
+            ))
+            .with_source_span(span));
         }
     };
-    // This connector serves ordinary closed bodies. An unapplied generic or
-    // bodyless requirement must never acquire a fabricated direct call.
-    Ok(program
-        .machine_by_symbol(selected)
+    // A body is selected with its complete application, not by discarding its
+    // binders. Explicit evidence and open applications remain unavailable here.
+    let Some(machine) = program
+        .machine_by_symbol(selected.operator.symbol)
         .filter(|machine| {
-            machine.type_parameters.is_empty()
-                && machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && machine.conformance_bounds.is_empty()
         })
-        .map(|machine| machine.symbol))
+    else {
+        return Ok(None);
+    };
+    let Some(arguments) = typed_trees::operator::closed_operator_application_for_operands(
+        program,
+        selected.operator,
+        operands,
+    ) else {
+        return Ok(None);
+    };
+    Ok(Some(SelectedOperator {
+        target: machine.symbol,
+        arguments,
+    }))
 }
 
-pub(crate) fn prepare(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
-    let sites = program
+pub(crate) fn sites(
+    program: &TypedTrees,
+    frontier: usize,
+) -> Vec<(
+    typed_trees::expression::ExpressionHandle,
+    typed_trees::expression::TableBinaryExpression,
+)> {
+    program
         .expression_table
         .iter_expressions()
         .filter_map(|(handle, node)| match node {
@@ -90,110 +147,222 @@ pub(crate) fn prepare(program: &mut TypedTrees, frontier: usize) -> Result<(), D
             }
             _ => None,
         })
-        .collect::<Vec<_>>();
-    if sites.is_empty() {
-        return Ok(());
-    }
-    // One shared declaration-owner inventory, rather than a program scan for
-    // every operand. The spelling query uses the prepared family index.
-    let owners = typed_trees::references::collect_program_operand_owners(program);
-    let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
-    for (handle, binary) in sites {
-        let span = program.expression_table.source_span(handle);
-        let mut answer = None;
-        for owner in owners.expression_owners(handle) {
-            let selected = selection(program, &mut types, owner, handle)?;
-            if answer.is_some_and(|previous| previous != selected) {
-                return Err(Diagnostic::error(
-                    "operator occurrence has conflicting declaration contexts",
-                )
-                .with_source_span(span));
-            }
-            answer = Some(selected);
-        }
-        let Some(Some(target)) = answer else {
-            continue;
-        };
-        // Generic and bodyless requirements still require their own genuine
-        // application/selection producer. Never turn one into a direct call.
-        let Some(machine) = program.machine_by_symbol(target) else {
-            continue;
-        };
-        if !machine.type_parameters.is_empty()
-            || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        .collect()
+}
+
+pub(crate) fn prepare_site(
+    program: &mut TypedTrees,
+    owners: &typed_trees::references::ProgramOperandOwners,
+    types: &mut crate::typing_queries::DeclaredExpressionTypes,
+    handle: typed_trees::expression::ExpressionHandle,
+    binary: typed_trees::expression::TableBinaryExpression,
+) -> Result<(), Diagnostic> {
+    let span = program.expression_table.source_span(handle);
+    let mut answer = None;
+    let mut caller = symbols::SymbolHandle::invalid();
+    for owner in owners.expression_owners(handle) {
+        let selected = selection(program, types, owner, handle)?;
+        if answer
+            .as_ref()
+            .is_some_and(|previous| previous != &selected)
         {
-            continue;
+            return Err(Diagnostic::error(
+                "operator occurrence has conflicting declaration contexts",
+            )
+            .with_source_span(span));
         }
-        let label = machine.name.clone();
-        let selections = program
-            .expression_table
-            .authored_selection_occurrences(handle)
-            .filter(|occurrence| {
-                program
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.kind() == Kind::Operator && selection.source_span() == span
-                    })
-            })
-            .collect::<Vec<_>>();
-        let [occurrence] = selections.as_slice() else {
+        if !caller.is_valid() {
+            caller = owner;
+        }
+        answer = Some(selected);
+    }
+    let Some(Some(selected)) = answer else {
+        return Ok(());
+    };
+    let target = selected.target;
+    let Some(machine) = program.machine_by_symbol(target) else {
+        return Err(
+            Diagnostic::error("selected operator lost its declaration").with_source_span(span)
+        );
+    };
+    let label = machine.name.clone();
+    let result_type = program
+        .machine_states(machine)
+        .first()
+        .map(|state| state.return_type);
+    let selections = program
+        .expression_table
+        .authored_selection_occurrences(handle)
+        .filter(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(*occurrence)
+                .is_some_and(|selection| {
+                    selection.kind() == Kind::Operator && selection.source_span() == span
+                })
+        })
+        .collect::<Vec<_>>();
+    let [occurrence] = selections.as_slice() else {
+        return Err(
+            Diagnostic::error("operator call lost its unique authored selection")
+                .with_source_span(span),
+        );
+    };
+    let selection = program
+        .authored_declaration_selections()
+        .get(*occurrence)
+        .unwrap();
+    match selection.target() {
+        Target::LateBound(Late::CheckedOperator) => {
+            program
+                .finalize_late_bound_authored_declaration_selection(
+                    *occurrence,
+                    Late::CheckedOperator,
+                    target,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!("operator choice cannot be retained: {error:?}"))
+                        .with_source_span(span)
+                })?;
+        }
+        Target::Resolved(selected) if selected.selected_symbol() == target => {}
+        _ => {
             return Err(
-                Diagnostic::error("operator call lost its unique authored selection")
+                Diagnostic::error("operator choice contradicts its authored selection")
                     .with_source_span(span),
             );
-        };
-        let selection = program
-            .authored_declaration_selections()
-            .get(*occurrence)
-            .unwrap();
-        match selection.target() {
-            Target::LateBound(Late::CheckedOperator) => {
-                program
-                    .finalize_late_bound_authored_declaration_selection(
-                        *occurrence,
-                        Late::CheckedOperator,
-                        target,
-                    )
-                    .map_err(|error| {
-                        Diagnostic::error(format!("operator choice cannot be retained: {error:?}"))
-                            .with_source_span(span)
-                    })?;
-            }
-            Target::Resolved(selected) if selected.selected_symbol() == target => {}
-            _ => {
-                return Err(Diagnostic::error(
-                    "operator choice contradicts its authored selection",
-                )
-                .with_source_span(span));
-            }
         }
-        let arguments = program
-            .expression_table
-            .insert_expression_handles([binary.left, binary.right]);
-        *program.expression_table.expression_mut(handle) =
-            ExpressionNode::Call(TableCallExpression {
-                authored_call_selection: Some(*occurrence),
-                authored_call_binding: None,
-                authored_machine_application: Default::default(),
-                build_selection: Default::default(),
-                exact_coercion_target: Default::default(),
-                requirement_application: Default::default(),
-                receiver: Default::default(),
-                target_symbol: target,
-                static_machine_parameter: Default::default(),
-                target: label,
-                static_requirement_dispatch: None,
-                machine_arguments: Box::default(),
-                quotient_operation: None,
-                private_layout_operation: None,
-                installed_interrupt_operation: None,
-                layout_query: None,
-                native_code_layout: None,
-                arguments,
-                evidence_arguments: Box::default(),
-                operational_acknowledgement: Default::default(),
-            });
     }
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([binary.left, binary.right]);
+    let (machine_arguments, application, result_type) =
+        retain_application(program, &selected, caller, &label, result_type, span)?;
+    *program.expression_table.expression_mut(handle) = ExpressionNode::Call(TableCallExpression {
+        authored_call_selection: Some(*occurrence),
+        authored_call_binding: None,
+        authored_machine_application: application,
+        build_selection: Default::default(),
+        exact_coercion_target: Default::default(),
+        requirement_application: Default::default(),
+        receiver: Default::default(),
+        target_symbol: target,
+        static_machine_parameter: Default::default(),
+        target: label,
+        static_requirement_dispatch: None,
+        machine_arguments: machine_arguments.into(),
+        quotient_operation: None,
+        private_layout_operation: None,
+        installed_interrupt_operation: None,
+        layout_query: None,
+        native_code_layout: None,
+        arguments,
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: Default::default(),
+    });
+    if let Some(result_type) = result_type {
+        program
+            .expression_table
+            .set_constructed_value_type_reference(handle, result_type);
+    }
+
     Ok(())
+}
+/// Retain the same static argument/binding packet as an ordinary named call.
+/// Inferred constants use their canonical value, never a re-read source token.
+fn retain_application(
+    program: &mut TypedTrees,
+    selected: &SelectedOperator,
+    caller: symbols::SymbolHandle,
+    label: &typed_trees::name::Identifier,
+    result_type: Option<typed_trees::types::TypeReferenceHandle>,
+    span: source::SourceSpan,
+) -> Result<
+    (
+        Vec<typed_trees::expression::StaticMachineArgument>,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+        Option<typed_trees::types::TypeReferenceHandle>,
+    ),
+    Diagnostic,
+> {
+    use typed_trees::expression::StaticMachineArgument;
+    use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+    if selected.arguments.is_empty() {
+        return Ok((Vec::new(), Default::default(), None));
+    }
+    let failure = |reason| Diagnostic::error(reason).with_source_span(span);
+    let mut arguments = Vec::with_capacity(selected.arguments.len());
+    let mut bindings = Vec::with_capacity(selected.arguments.len());
+    let mut substitutions = Vec::with_capacity(selected.arguments.len());
+    for argument in &selected.arguments {
+        let (parameter, reference, binding) = match argument {
+            ClosedOperatorApplicationArgument::Type {
+                binder_symbol,
+                type_reference,
+            } => (
+                *binder_symbol,
+                *type_reference,
+                StaticMachineBindingValue::Type(*type_reference),
+            ),
+            ClosedOperatorApplicationArgument::Const {
+                binder_symbol,
+                value,
+                ..
+            } => {
+                value
+                    .decode_encoding()
+                    .ok_or_else(|| failure("operator application lost its canonical constant"))?;
+                let value = language_semantics::const_value::CanonicalConstValue::new(
+                    value.type_name.clone(),
+                    value.encoding.clone(),
+                    "",
+                );
+                let reference = program.type_reference_table.insert(
+                    typed_trees::types::TypeReferenceNode::Named {
+                        symbol: symbols::SymbolHandle::invalid(),
+                        name: typed_trees::name::Identifier::generated(value.atom()),
+                    },
+                );
+                (
+                    *binder_symbol,
+                    reference,
+                    StaticMachineBindingValue::Const(reference),
+                )
+            }
+        };
+        arguments.push(StaticMachineArgument {
+            type_reference: reference,
+            ..Default::default()
+        });
+        bindings.push(StaticMachineBinding {
+            parameter,
+            value: binding,
+        });
+        substitutions.push((parameter, reference));
+    }
+    let result_type = result_type
+        .filter(|reference| reference.is_valid())
+        .map(|reference| {
+            program
+                .apply_callable_type(reference, &substitutions, &[], selected.target)
+                .map_err(|reason| {
+                    Diagnostic::error(format!("operator result application: {reason}"))
+                        .with_source_span(span)
+                })
+        })
+        .transpose()?;
+    let application = program.expression_table.retain_static_machine_application(
+        selected.target,
+        label.clone(),
+        &arguments,
+    );
+    let row = program
+        .expression_table
+        .static_machine_application_mut(application);
+    row.lexical_owner = caller;
+    row.binding_declaration = selected.target;
+    program
+        .expression_table
+        .set_static_machine_application_bindings(application, &bindings);
+    Ok((arguments, application, result_type))
 }

@@ -108,6 +108,7 @@ pub(super) fn source_byte_view(
         retained if retained.is_valid() => retained,
         _ => lexical_owner,
     };
+    super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
     // The carrier's identity: a view with domains stores the same
     // descriptor as the view without them, so both are one row and the
     // domains are the value's qualification (`view_type`).
@@ -358,7 +359,7 @@ impl Program<'_> {
     ) -> Checked<Expression> {
         let unavailable =
             |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
-        let Some(ValueType::Record(row, _, regions)) = base.result else {
+        let Some(ValueType::Record(row, _, _)) = base.result else {
             return Err(unavailable("range without its byte descriptor"));
         };
         if base
@@ -376,11 +377,31 @@ impl Program<'_> {
                 "range of mutable backing without its persistent shared loan",
             ));
         }
+        self.byte_range_selection(machine, handle, row)?;
+        self.byte_window(machine, slots, base, range, source)
+    }
+
+    /// The `[start, end)` window of a shared readable byte descriptor whose
+    /// builtin range selection the caller has already checked. The window's
+    /// endpoint legs are checked against that descriptor's own length when
+    /// the subslice is lowered (byte_views.md, `ByteSequenceSubslice`).
+    pub(super) fn byte_window(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        base: Expression,
+        range: &typed_trees::expression::TableRangeExpression,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let Some(ValueType::Record(row, _, regions)) = base.result else {
+            return Err(unavailable("range without its byte descriptor"));
+        };
         let count = semantic_vocabulary::ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
         );
-        self.byte_range_selection(machine, handle, row)?;
         let mut endpoint = |handle: typed_trees::expression::ExpressionHandle| -> Checked<Option<Box<Expression>>> {
             if !handle.is_valid() { return Ok(None); }
             let value = self.expression(machine, slots, handle, Some(ValueType::plain(count)))?;

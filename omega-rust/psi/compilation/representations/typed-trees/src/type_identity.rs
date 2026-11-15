@@ -222,7 +222,7 @@ pub(crate) mod callable_identity {
             if signature.is_empty() {
                 return Err("requirement schema has no exact original signature");
             }
-            let mut bytes = b"omega.requirement-schema.v4\0".to_vec();
+            let mut bytes = b"omega.requirement-schema.v5\0".to_vec();
             let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
                 bytes.extend(
                     u64::try_from(value)
@@ -290,8 +290,9 @@ pub(crate) mod callable_identity {
             // is erased, so a receiver can check the derived loan groups.
             let types = self.requirement_definition_types(owner, requirement);
             bytes.push(u8::from(types.is_some()));
-            if let Some((parameters, result)) = types {
+            if let Some((parameters, result, elided)) = types {
                 length(&mut bytes, owner.lifetime_parameters.len())?;
+                length(&mut bytes, elided)?;
                 length(&mut bytes, parameters.len())?;
                 for parameter in parameters {
                     length(&mut bytes, parameter.len())?;
@@ -307,10 +308,11 @@ pub(crate) mod callable_identity {
             &self,
             owner: &TraitDefinition,
             requirement: &StateSignature,
-        ) -> Option<(Vec<String>, String)> {
+        ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
             use super::identity_context::{
-                TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
+                SignatureElision, TypeIdentityContext, TypeIdentityQualification,
+                normalize_type_reference,
             };
             use std::cell::Cell;
 
@@ -339,9 +341,13 @@ pub(crate) mod callable_identity {
             .map(|(ordinal, lifetime)| (lifetime, ordinal))
             .collect::<Vec<_>>();
             let invalid = Cell::new(false);
+            let outer = owner.lifetime_parameters.len();
+            let declared = requirement.lifetime_parameters.len();
+            let elision = SignatureElision::inputs(outer + declared);
             let context = TypeIdentityContext {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
+                signature_elision: Some(&elision),
                 application_owner: requirement.symbol,
                 application_argument_owner: requirement.symbol,
                 signature_owners: Some((requirement.symbol, requirement.symbol)),
@@ -359,8 +365,11 @@ pub(crate) mod callable_identity {
                 .iter()
                 .map(|parameter| declared_type(parameter.type_reference))
                 .collect::<Option<Vec<_>>>()?;
+            // The requirement's one lifetime, declared or minted, is the
+            // first after the owner's.
+            elision.enter_result(declared, outer);
             let result = declared_type(requirement.return_type)?;
-            (!invalid.get()).then_some((parameters, result))
+            (!invalid.get()).then_some((parameters, result, elision.minted()))
         }
 
         pub fn operator_callable_identity(
@@ -748,7 +757,7 @@ pub(crate) mod constraint_identity {
         domain: &DomainConstraint,
         context: &TypeIdentityContext<'_>,
     ) -> String {
-        let ordinary_name = declared_domain_identity(program, domain);
+        let ordinary_name = declared_domain_identity(program, domain, context);
         if context.qualification == TypeIdentityQualification::Ordinary
             && domain.arguments.is_empty()
         {
@@ -829,11 +838,20 @@ pub(crate) mod constraint_identity {
         }
     }
 
-    fn declared_domain_identity(program: &TypedTrees, domain: &DomainConstraint) -> String {
+    fn declared_domain_identity(
+        program: &TypedTrees,
+        domain: &DomainConstraint,
+        context: &TypeIdentityContext<'_>,
+    ) -> String {
         if domain.semantic_id.is_valid()
             && let Some(name) = program.semantic_domains.name(domain.semantic_id)
         {
             return name.to_owned();
+        }
+        // A selected declaration keeps its identity even when application
+        // metadata is not yet formed. Its authored alias is diagnostic only.
+        if program.symbols.symbols().nodes().is_valid(domain.symbol) {
+            return context.name(program, domain.symbol, domain.name.as_str());
         }
         domain.name.as_str().to_owned()
     }
@@ -1823,6 +1841,10 @@ pub(crate) mod identity_context {
         // A description can retain elision without claiming a concrete region.
         // Existing checked identities point this observation at their error flag.
         pub(crate) encountered_elided_regions: Option<&'binders Cell<bool>>,
+        // A requirement schema's declared types give each elided signature
+        // position the lifetime stage 05 gives it, so a receiver can derive
+        // the same loan groups from the schema alone.
+        pub(crate) signature_elision: Option<&'binders SignatureElision>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
         pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
         pub(crate) substitution_scope_starts: &'binders [usize],
@@ -1837,6 +1859,77 @@ pub(crate) mod identity_context {
         pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
         pub(crate) qualification: TypeIdentityQualification,
         pub(crate) static_context: crate::expression::ExpressionHandle,
+    }
+
+    /// lifetimes.md, "Returned views": in a signature's inputs each elided
+    /// position is a fresh lifetime of the declaration; "For an elided
+    /// output, one unambiguous reference input supplies the relation", and
+    /// with none the result lifetime is chosen by the caller. Stage 05's
+    /// `Elision::Inputs` and `Elision::Result` read the same rule, counting
+    /// the requirement's own lifetimes, declared and minted.
+    pub(crate) struct SignatureElision {
+        /// The next schema ordinal a fresh lifetime takes.
+        next: Cell<usize>,
+        minted: Cell<usize>,
+        position: Cell<ElidedPosition>,
+    }
+
+    #[derive(Clone, Copy)]
+    enum ElidedPosition {
+        Fresh,
+        Only(usize),
+        Ambiguous,
+    }
+
+    impl SignatureElision {
+        /// Fresh lifetimes take ordinals from `first`, after every declared one.
+        pub(crate) fn inputs(first: usize) -> Self {
+            Self {
+                next: Cell::new(first),
+                minted: Cell::new(0),
+                position: Cell::new(ElidedPosition::Fresh),
+            }
+        }
+
+        pub(crate) fn minted(&self) -> usize {
+            self.minted.get()
+        }
+
+        /// Enter the result, whose elided lifetime is the requirement's one
+        /// lifetime at ordinal `only`, a fresh one when it has none, and
+        /// ambiguous when it has several.
+        pub(crate) fn enter_result(&self, declared: usize, only: usize) {
+            self.position.set(match declared + self.minted.get() {
+                0 => ElidedPosition::Fresh,
+                1 => ElidedPosition::Only(only),
+                _ => ElidedPosition::Ambiguous,
+            });
+        }
+
+        /// The schema ordinal of one elided position, or `None` when it is
+        /// ambiguous and needs an explicit relation.
+        fn region(&self) -> Option<usize> {
+            match self.position.get() {
+                ElidedPosition::Fresh => {
+                    let ordinal = self.next.get();
+                    self.next.set(ordinal + 1);
+                    self.minted.set(self.minted.get() + 1);
+                    Some(ordinal)
+                }
+                ElidedPosition::Only(ordinal) => Some(ordinal),
+                ElidedPosition::Ambiguous => None,
+            }
+        }
+    }
+
+    pub(crate) fn schema_region(ordinal: usize) -> String {
+        compound(
+            RegionForm::Region,
+            [
+                atom(Label::Owner, "schema"),
+                atom(Label::Ordinal, &ordinal.to_string()),
+            ],
+        )
     }
 
     #[derive(Clone, Copy, Default)]
@@ -2030,13 +2123,7 @@ pub(crate) mod identity_context {
                 .iter()
                 .find(|(parameter, _)| *parameter == region)
             {
-                return compound(
-                    RegionForm::Region,
-                    [
-                        atom(Label::Owner, "schema"),
-                        atom(Label::Ordinal, &binder.to_string()),
-                    ],
-                );
+                return schema_region(*binder);
             }
             if self.qualification == TypeIdentityQualification::PackageQualified {
                 let identity = if self.portable_machine_applications.is_some() {
@@ -2625,6 +2712,11 @@ pub(crate) mod identity_context {
                         .map(|_| {
                             lifetime.as_ref().map_or_else(
                                 || {
+                                    if let Some(ordinal) =
+                                        context.signature_elision.and_then(SignatureElision::region)
+                                    {
+                                        return schema_region(ordinal);
+                                    }
                                     if context.qualification
                                         == TypeIdentityQualification::PackageQualified
                                         && let Some(elided) = context.encountered_elided_regions
