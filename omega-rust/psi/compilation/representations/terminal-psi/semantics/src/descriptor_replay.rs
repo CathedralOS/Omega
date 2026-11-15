@@ -149,7 +149,7 @@ pub(crate) mod analysis {
 
     pub struct DescriptorAnalysis<'a> {
         replay: Replay<'a>,
-        storage_queries: std::cell::RefCell<StorageQueries>,
+        storage_queries: StorageQueries,
     }
 
     pub type DescriptorSourceObservations =
@@ -261,7 +261,7 @@ pub(crate) mod analysis {
         ) -> Self {
             Self {
                 replay: Replay::new(types, machines),
-                storage_queries: std::cell::RefCell::default(),
+                storage_queries: StorageQueries::default(),
             }
         }
         pub fn flow_feasibility(
@@ -387,7 +387,7 @@ pub(crate) mod analysis {
         ) -> Self {
             Self {
                 replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
-                storage_queries: std::cell::RefCell::default(),
+                storage_queries: StorageQueries::default(),
             }
         }
 
@@ -401,7 +401,7 @@ pub(crate) mod analysis {
                     machines,
                     DescriptorSlotKind::BorrowedStorage,
                 ),
-                storage_queries: std::cell::RefCell::default(),
+                storage_queries: StorageQueries::default(),
             }
         }
         pub fn with_access_origins(
@@ -410,7 +410,7 @@ pub(crate) mod analysis {
         ) -> Self {
             Self {
                 replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
-                storage_queries: std::cell::RefCell::default(),
+                storage_queries: StorageQueries::default(),
             }
         }
         pub(crate) fn compatibility_machines(&self) -> &[DescriptorMachine] {
@@ -477,40 +477,37 @@ pub(crate) mod analysis {
             location: &DescriptorLocation,
         ) -> Option<DescriptorLocation> {
             self.replay.prepare_states(identity)?;
-            self.canonical_location(identity, position, location)
+            match Self::prepared_storage(
+                &self.replay,
+                &mut self.storage_queries,
+                identity,
+                position,
+                location,
+            )? {
+                StorageResolution::Unique(location) => Some(location),
+                StorageResolution::Alternatives => None,
+            }
         }
 
         fn prepared_storage(
-            &self,
+            replay: &Replay<'_>,
+            queries: &mut StorageQueries,
             identity: MachineId,
             position: DescriptorPosition,
             location: &DescriptorLocation,
         ) -> Option<StorageResolution> {
-            let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let machine = replay.machine(identity)?;
+            let states = replay.snapshots.get(&identity)?.as_ref()?;
             let state = states.get(&position)?;
-            let mut queries = self.storage_queries.borrow_mut();
             let values = queries.at(machine, position);
             if let Some(result) = values.as_ref().and_then(|values| values.get(location)) {
                 return result.clone();
             }
-            let result = self.replay.resolve_storage(machine, state, location, None);
+            let result = replay.resolve_storage(machine, state, location, None);
             if let Some(values) = values {
                 values.insert(location.clone(), result.clone());
             }
             result
-        }
-
-        fn canonical_location(
-            &self,
-            identity: MachineId,
-            position: DescriptorPosition,
-            location: &DescriptorLocation,
-        ) -> Option<DescriptorLocation> {
-            match self.prepared_storage(identity, position, location)? {
-                StorageResolution::Unique(location) => Some(location),
-                StorageResolution::Alternatives => None,
-            }
         }
 
         pub fn storage_origins(
@@ -1118,8 +1115,10 @@ pub(crate) mod analysis {
                     continue;
                 };
                 let incomplete_step = || incomplete(Some(*position));
-                let canonical = |location: &DescriptorLocation| {
-                    match self.prepared_storage(identity, *position, location) {
+                let replay = &self.replay;
+                let queries = &mut self.storage_queries;
+                let mut canonical = |location: &DescriptorLocation| {
+                    match Self::prepared_storage(replay, queries, identity, *position, location) {
                         Some(StorageResolution::Unique(location)) => Ok(location),
                         // Exact flow can refuse a use without discarding its site or
                         // treating one of several possible backings as established.
@@ -1136,7 +1135,7 @@ pub(crate) mod analysis {
                 step.definitions = step
                     .definitions
                     .iter()
-                    .map(canonical)
+                    .map(&mut canonical)
                     .collect::<Result<_, _>>()?;
                 if !step.definitions.is_empty() {
                     let aliases = before
@@ -1157,7 +1156,7 @@ pub(crate) mod analysis {
                 let mut observations = step
                     .inputs
                     .iter()
-                    .map(canonical)
+                    .map(&mut canonical)
                     .collect::<Result<Vec<_>, _>>()?;
                 for input in &step.inputs {
                     if input.path.is_empty()
@@ -1183,11 +1182,11 @@ pub(crate) mod analysis {
                     .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
                     .collect::<Result<_, DescriptorGraphError>>()?;
                 for edge in &mut step.successors {
-                    edge.definitions = edge.definitions.iter().map(canonical).collect::<Result<
-                        _,
-                        DescriptorGraphError,
-                    >>(
-                    )?;
+                    edge.definitions = edge
+                        .definitions
+                        .iter()
+                        .map(&mut canonical)
+                        .collect::<Result<_, DescriptorGraphError>>()?;
                 }
                 if residence_rules.is_some() {
                     for edge in &mut step.successors {
@@ -1344,8 +1343,7 @@ pub(crate) mod analysis {
                     }
                     for location in before.slots.keys() {
                         if strong
-                            && let Some(canonical) =
-                                self.canonical_location(identity, *position, location)
+                            && let Some(canonical) = canonical(location).ok()
                             && destination.contains(&canonical)
                             && !step.definitions.contains(location)
                         {
@@ -6882,6 +6880,21 @@ pub(crate) mod engine {
             );
             drop(replay);
 
+            // Repeated public queries retain the exact cut. Losing the pointer
+            // at the later definition cannot poison its earlier valid backing.
+            fn send_and_sync<T: Send + Sync>() {}
+            send_and_sync::<DescriptorAnalysis<'_>>();
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            let original_backing = analysis.location(id, positions[0], &leaf);
+            assert!(original_backing.is_some());
+            assert_eq!(analysis.location(id, positions[1], &leaf), None);
+            assert_eq!(analysis.location(id, positions[0], &leaf), original_backing);
+            assert_eq!(analysis.location(id, positions[1], &leaf), None);
+            let foreign = location(u64::MAX);
+            assert_eq!(analysis.location(id, positions[0], &foreign), None);
+            assert_eq!(analysis.location(id, positions[0], &foreign), None);
+            drop(analysis);
+
             let mut limited =
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             assert!(limited.states(id, 128).is_none());
@@ -6895,6 +6908,11 @@ pub(crate) mod engine {
                 Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
             assert!(unavailable.states(id, 0).is_none());
             assert!(unavailable.snapshots.get(&id).is_some_and(Option::is_none));
+            // The same IDs in another graph have their own preparation and
+            // cannot borrow a successful query from the earlier analysis.
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
+            assert_eq!(analysis.location(id, positions[0], &leaf), None);
+            assert_eq!(analysis.location(id, positions[0], &leaf), None);
             assert_eq!(completed.len(), 3);
             assert_eq!(
                 completed[&positions[0]].slots.get(&parameter),
