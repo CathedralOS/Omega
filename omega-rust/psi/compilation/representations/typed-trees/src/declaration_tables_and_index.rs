@@ -456,6 +456,9 @@ pub mod declaration_index {
         use crate::{data::DataMember, signature::StateParameter, statement::StatementNode};
         use symbols::SymbolHandle;
 
+        /// The most direct offsets a relation may allocate per row it holds.
+        const DENSE_OFFSETS_PER_ROW: usize = 4;
+
         #[derive(Clone)]
         pub(crate) struct SymbolRows<Position> {
             symbols: Vec<SymbolHandle>,
@@ -484,11 +487,19 @@ pub mod declaration_index {
                 }
             }
 
+            /// Adds a direct offset table when the relation fills enough of its
+            /// symbol range to pay for one. The table spans every ordinal up to the
+            /// highest row's symbol, so a sparse relation over a few high-numbered
+            /// symbols keeps the sorted rows and answers by binary search instead.
             pub(crate) fn densify(&mut self) {
                 let Some(last) = self.symbols.last() else {
                     return;
                 };
-                let mut starts = vec![0u32; last.arena_index() as usize + 2];
+                let offsets = last.arena_index() as usize + 2;
+                if offsets > self.symbols.len().saturating_mul(DENSE_OFFSETS_PER_ROW) {
+                    return;
+                }
+                let mut starts = vec![0u32; offsets];
                 for symbol in &self.symbols {
                     starts[symbol.arena_index() as usize + 1] += 1;
                 }
@@ -525,6 +536,11 @@ pub mod declaration_index {
 
             pub(crate) fn first(&self, symbol: SymbolHandle) -> Option<&Position> {
                 self.get(symbol).first()
+            }
+
+            #[cfg(test)]
+            fn is_dense(&self) -> bool {
+                !self.starts.is_empty()
             }
         }
 
@@ -850,10 +866,40 @@ pub mod declaration_index {
                         assert_eq!(rows.first(symbol), expected.first());
                     }
                 }
+                assert!(dense.is_dense());
                 let mut empty = SymbolRows::<usize>::new(Vec::new());
                 empty.densify();
                 assert!(empty.get(SymbolHandle::invalid()).is_empty());
                 assert!(empty.first(SymbolHandle::invalid()).is_none());
+            }
+
+            #[test]
+            fn sparse_relations_over_high_symbols_stay_sorted_rows() {
+                // Three rows whose symbols climb towards the top of the ordinal
+                // range: the relation's size stays fixed while its high-water mark
+                // grows, so sealing must not allocate an offset per ordinal.
+                for top in [64u32, 4_096, 1 << 20] {
+                    let symbols = [top - 2, top - 1, top]
+                        .map(|position| SymbolHandle::from_parts(position, 1));
+                    let mut rows =
+                        SymbolRows::new(symbols.iter().copied().zip(0usize..).collect::<Vec<_>>());
+                    rows.densify();
+                    assert!(!rows.is_dense(), "three rows below {top} densified");
+                    for (position, symbol) in symbols.into_iter().enumerate() {
+                        assert_eq!(rows.get(symbol), [position]);
+                    }
+                    assert!(rows.get(SymbolHandle::from_parts(top, 0)).is_empty());
+                    assert!(rows.get(SymbolHandle::from_parts(top + 1, 1)).is_empty());
+                }
+                // A relation that fills its range keeps the direct offset table.
+                let mut filled = SymbolRows::new(
+                    (0..256u32)
+                        .map(|position| (SymbolHandle::from_parts(position, 0), position))
+                        .collect(),
+                );
+                filled.densify();
+                assert!(filled.is_dense());
+                assert_eq!(filled.get(SymbolHandle::from_parts(200, 0)), [200]);
             }
         }
     }
@@ -4278,8 +4324,7 @@ pub(crate) mod trait_and_machine_tables {
                         TypeReferenceNode::Unit => self.shape.push(Shape::Unit),
                         TypeReferenceNode::Constrained { .. }
                         | TypeReferenceNode::FixedArray { .. }
-                        | TypeReferenceNode::ConstExpression(_)
-                        | TypeReferenceNode::DynamicTrait { .. } => self.closed = false,
+                        | TypeReferenceNode::ConstExpression(_) => self.closed = false,
                     }
                 }
             }
@@ -5778,7 +5823,6 @@ pub(crate) mod type_reference_queries {
                         TypeReferenceNode::Slice { .. } => return Some(2),
                         TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::Reference { .. }
-                        | TypeReferenceNode::DynamicTrait { .. }
                         | TypeReferenceNode::Unit => return Some(1),
                         TypeReferenceNode::Named { symbol, .. }
                         | TypeReferenceNode::Generic {
@@ -6511,7 +6555,6 @@ pub(crate) mod type_reference_queries {
                         .map(|definition| definition.properties.multiplicity)
                         .unwrap_or(Multiplicity::Affine)
                 }
-                TypeReferenceNode::DynamicTrait { .. } => Multiplicity::Unrestricted,
                 TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
             }
         }

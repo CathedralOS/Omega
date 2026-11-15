@@ -84,7 +84,7 @@ fn measure() {
         assert_eq!(services[0].path(), "MotorControl");
         assert_eq!(
             services[0].owner(),
-            package_evidence::record::PackageReviewNominalOwner::Package(owner)
+            review_evidence::record::PackageReviewNominalOwner::Package(owner)
         );
         println!(
             "service_audits=1 selected=MotorControl duplicate_collapsed=true untaken_absent=true dependency_policy_absent=true"

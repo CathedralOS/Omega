@@ -161,7 +161,7 @@ impl PackageBuildSession {
     pub(crate) fn create_occurrence_directory(
         &mut self,
         key: &crate::declarations::PackageKey,
-        resolution: &package_source::ImmutableSourceResolution,
+        resolution: &source_acquisition::ImmutableSourceResolution,
         purpose: crate::declarations::DependencyPurpose,
     ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
         let base = package_build_root(&self.root, key, resolution, purpose);

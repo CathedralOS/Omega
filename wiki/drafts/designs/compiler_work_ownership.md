@@ -186,6 +186,26 @@ changes. Indexing per-machine inputs does not by itself require a scheduler stud
 Combined changes satisfy the evidence for each kind; do not hide a concurrency
 change inside a storage refactor.
 
+### Optional adjacent-stage overlap
+
+After independently owned body outputs exist, distinguish cheap output
+combination, waiting for unrelated stragglers, and necessary shared-fact closure.
+A stage boundary need not be a whole-program scheduling barrier: a body may
+advance only when its declared input and required shared facts are settled.
+Keep cheap joins that strand no material downstream work. An API accepting one
+whole-program owner is not, by itself, evidence that every consumer needs that
+barrier.
+
+Trial one adjacent pair with no unresolved cross-body inference, using the same
+transforms and execution budget while retaining the other joins. The driver may
+continue directly into the next ready transform without a queue handoff; stages
+still consume their declared representations. Blocked work releases workers and
+permits, and backpressure bounds in-flight storage. Preserve settled-summary and
+final-acceptance gates. Keep the overlap only if it meets the elapsed-time,
+CPU-work, memory and determinism criteria below. This is a follow-on experiment,
+not a scheduler-rewrite requirement or another repair-queue defect without a
+concrete unnecessary dependency.
+
 ### Baseline and decision before changing scheduling
 
 Select a small workload set, not a new fixture corpus: a representative large

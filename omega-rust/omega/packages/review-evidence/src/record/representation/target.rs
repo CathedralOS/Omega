@@ -1,6 +1,7 @@
 // Stable target identity and backend profile mapping retained by representation demand evidence.
 
 use crate::record::accessors::field_projection_accessors;
+#[path = "target_validation.rs"]
 mod validation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

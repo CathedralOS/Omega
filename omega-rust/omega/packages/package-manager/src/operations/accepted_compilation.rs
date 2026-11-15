@@ -17,8 +17,9 @@ package build session.
 */
 
 use crate::declarations::BuildDeclarationKind;
-use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
+use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::iter::empty;
+#[path = "accepted_compilation_identity.rs"]
 mod identity;
 pub(crate) use identity::compiler_input_identity;
 

@@ -14,6 +14,7 @@
 */
 
 use crate::resolution::graph::CanonicalSourceClosureSubject;
+#[path = "passes_occurrences.rs"]
 mod occurrences;
 
 use super::semantic_bindings::{candidate_semantic_binding_inputs, semantic_bindings_by_consumer};

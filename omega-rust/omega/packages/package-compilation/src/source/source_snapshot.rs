@@ -17,6 +17,7 @@ Provenance:
 - Drift-checked canonical file reading and hashing: `src/source/source_snapshot/file_read.rs`.
 */
 
+#[path = "source_snapshot_file_read.rs"]
 mod file_read;
 
 pub(crate) fn captured_source_view(

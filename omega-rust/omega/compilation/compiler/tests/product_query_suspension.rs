@@ -151,9 +151,9 @@ fn captured_package(
     name: &str,
     root: &std::path::Path,
 ) -> package_compilation::PackageSourceBinding {
-    let capture = package_source::local::operations::capture_local_source_input(
+    let capture = source_acquisition::local::operations::capture_local_source_input(
         root,
-        package_source::LocalSourceLimits::default(),
+        source_acquisition::LocalSourceLimits::default(),
     )
     .unwrap();
     package_compilation::PackageSourceBinding::new(

@@ -1184,7 +1184,6 @@ pub struct TypedTrees {
     pub captured_machine_states: Arena<CapturedMachineState>,
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
     pub data_implementation_applications: Arena<DataImplementationApplication>,
-    pub dynamic_slots: Vec<crate::dynamic_traits::DynamicSlotSignature>,
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
     /// Requests no pass served, on the declarations that hold them, ordered
     /// by declaration (`deferred_refusals.rs`).
@@ -1462,7 +1461,6 @@ impl TypedTrees {
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),
             data_implementation_applications: Arena::new(),
-            dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
             deferred_refusals: Vec::new(),
             boundary_completion_declarations: Arena::default(),
@@ -1682,7 +1680,7 @@ impl compiler_storage::Record for ProgramIdentity {
     }
 }
 
-pub use calls::{boundary, dynamic_traits, finite_family, signature, static_applications};
+pub use calls::{boundary, finite_family, signature, static_applications};
 pub use control_flow::{machine, state, statement};
 pub use declarations::{
     boundary_completions, calling_vocabulary, constant, data, domain, float_providers, invocations,

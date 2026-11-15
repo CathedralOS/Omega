@@ -1,5 +1,6 @@
 // Bounded, source-independent recovery of complete representation policy.
 
+#[path = "representation_availability.rs"]
 pub(in crate::encoding::recovery) mod availability;
 
 use super::{
