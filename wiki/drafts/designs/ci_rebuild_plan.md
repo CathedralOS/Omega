@@ -28,9 +28,11 @@ only when `tools/xtask` changes) runs:
 - `mbx check --locked --workspace --all-targets` on the merge commit when
   Rust or Cargo files changed. Git merges edits to different files without a
   conflict, so two pull requests that each compile can merge into a tree that
-  does not; #3326 did, and main stayed broken until #3457. The check stops
-  before code generation: about 90 seconds cold on four CPUs, and a restored
-  target directory saved only 12 of them, so it runs without a cache.
+  does not; #3326 did, and main stayed broken until #3457. The check skips
+  final code generation; build scripts and proc macros still run. The original
+  measurements took 90 seconds cold on four cloud CPUs and 1m57s on GitHub's
+  hosted runner. A restored target saved 12 seconds in the cloud comparison,
+  so the check runs without a compiler target cache.
 
 Squash merge only. No merge queue: with a two-minute check there is nothing
 to queue for. A pull request whose base moves after `admission` passes can

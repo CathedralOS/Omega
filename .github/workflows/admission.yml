@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 15
     env:
       CARGO_INCREMENTAL: '0'
-      # Only xtask is built here, so its objects get their own small cache.
+      # Keep xtask's small cache separate from the uncached merge-tree check.
       CARGO_TARGET_DIR: /tmp/xtask-target
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -80,27 +80,29 @@ jobs:
       - name: Check formatting when Rust changed
         if: github.event_name == 'pull_request'
         run: |
-          if git diff --name-only HEAD^1 HEAD | grep -q '\.rs$'; then
-            mbx xtask fmt --check
-          else
+          if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs'; then
             echo "No Rust files changed."
+          else
+            mbx xtask fmt --check
           fi
       # Two pull requests can each type-check alone and still break together:
       # Git merges edits in different files without a conflict. #3326 changed
       # `Statement::Evaluate` while main had gained a new use of the old form
       # in another file, and its merge failed with E0533 until #3457. This
       # checks the merge commit GitHub built, not the branch. `cargo check`
-      # stops before code generation, so a cold run over every workspace
-      # target takes about 90 seconds on four CPUs; a restored target
-      # directory saved only about 12 seconds, so there is no cache.
+      # skips final code generation; build scripts and proc macros still run.
+      # The original cloud measurement took 90 seconds cold on four CPUs;
+      # GitHub's hosted runner took 1m57s. No compiler target cache is restored.
       # A change to this file runs the step too, so its own pull request tests it.
       - name: Type-check the merge tree when Rust or Cargo files changed
         if: github.event_name == 'pull_request'
         env:
           CARGO_TARGET_DIR: /tmp/check-target
         run: |
-          if git diff --name-only HEAD^1 HEAD | grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^\.github/workflows/admission\.yml$'; then
-            mbx check --locked --workspace --all-targets
-          else
+          # Keep detection inside Git. With pipefail, grep -q can close a
+          # large name list early and turn a matching diff into a false test.
+          if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs' ':(glob)**/Cargo.toml' ':(glob)**/Cargo.lock' rust-toolchain.toml .github/workflows/admission.yml; then
             echo "No Rust or Cargo files changed."
+          else
+            mbx check --locked --workspace --all-targets
           fi

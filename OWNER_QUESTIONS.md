@@ -64,18 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-1. **Should `admission` type-check the merge tree?** Admission checked only
-   rules and formatting, so PR #3326 merged a tree that failed to compile
-   (E0533 in `read/atomics.rs`); main stayed broken until #3457. The PR that
-   adds this question also adds `mbx check --locked --workspace --all-targets`
-   on the merge commit, run only when Rust or Cargo files change. Measured on
-   a 4-CPU cloud container: 90 seconds cold, 78 seconds with a restored target
-   directory. Admission's recent runs took 31 to 51 seconds, so it would take
-   about two minutes. Replaying the check on `d5d5c987120` (#3326's merge)
-   fails with E0533 in 29 seconds, and both of #3326's Admission runs came
-   after the conflicting atomic-store commit landed, so the check would have
-   refused it. AGENTS.md, `tools/docs/landing.md`, `tools/docs/testing.md` and
-   the [CI rebuild plan](wiki/drafts/designs/ci_rebuild_plan.md) change with
-   it. The alternative is to keep Admission at about a minute and rely on the
-   post-merge Clippy step, which caught #3326 seven minutes after it merged.
-   Merging or closing that PR answers this question; remove it either way.
+None.
