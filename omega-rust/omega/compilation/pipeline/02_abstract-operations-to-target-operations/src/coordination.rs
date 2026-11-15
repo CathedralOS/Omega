@@ -656,6 +656,14 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
             })
             .collect::<Result<Vec<_>, _>>()?,
     };
-    super::call_result_origins::retain(plan, unit, &installed_by_call, &mut target_plan)?;
+    super::call_result_origins::retain(
+        plan,
+        unit,
+        &installed_by_call,
+        installed_by_call
+            .values()
+            .filter_map(|call| functions_by_machine.get(&call.callee).copied()),
+        &mut target_plan,
+    )?;
     Ok(target_plan)
 }

@@ -51,7 +51,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
             access: Some(StructuralAccess::SharedBorrow),
         });
     let declaration = terminal_psi::StructuralResultDeclaration {
-        place: place(1),
+        place: place(3),
         structural_type: ty(1),
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
@@ -144,6 +144,24 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
     let target = target_plan(&plan, vec![block(1, vec![row.clone()], return_unit(1))]);
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
+    let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
+        unit.functions.iter(),
+        &unit.boundary_machines,
+        &unit.structural_types,
+        &unit.dynamic_dispatch,
+        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
+    )
+    .expect("the metadata fixture has complete source descriptor structure");
+    let origins = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
+        &unit.structural_types,
+        &graph,
+    )
+    .try_call_origins(machine(), place(2))
+    .expect("the source call has borrowed backing");
+    assert!(
+        matches!(origins.as_slice(), [terminal_semantics::descriptor_results::DescriptorCallOrigin::Argument { source, .. }] if *source == place(1)),
+        "source backing: {origins:?}"
+    );
     let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let source = crate::native_geometry::NativeInput::new(&plan, &geometry);
     let native_unit = crate::native_geometry::NativeInput::new(&unit, &geometry);

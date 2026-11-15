@@ -1534,7 +1534,7 @@ mod stored_calls {
                 if let AbstractOperation::BoundaryCall { psi_operation, boundary, .. } = &node.operation
                     && let Some(selected) = selected_calls.get(&(function.machine, (*psi_operation).into(), *boundary))
                 {
-                    return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions)
+                    return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions.get(&selected.callee).copied())
                         .ok().map(|(operation, _)| Cow::Owned(operation));
                 }
                 Some(Cow::Borrowed(&node.operation))

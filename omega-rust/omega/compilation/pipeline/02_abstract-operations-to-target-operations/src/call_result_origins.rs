@@ -4,7 +4,7 @@
 //! not copy a previous program. Only backing alternatives travel forward.
 
 use crate::{LoweringError, selected_boundary_calls};
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractOperationPlan};
 use semantic_vocabulary::{MachineId, PlaceId};
 use std::borrow::Cow;
 use target_operations::{
@@ -14,10 +14,11 @@ use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorCallOrigin, DescriptorSlotKind,
 };
 
-pub(crate) fn retain(
+pub(crate) fn retain<'a>(
     source: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     selected: &selected_boundary_calls::SelectedCallsByCall,
+    candidates: impl IntoIterator<Item = &'a AbstractFunction>,
     target: &mut TargetOperationPlan,
 ) -> Result<(), LoweringError> {
     let pending = target.functions.iter().find_map(|function| {
@@ -55,11 +56,11 @@ pub(crate) fn retain(
         result,
         reason,
     };
-    let functions = source
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect();
+    // Only selected boundary callees need this lookup. Reuse the coordinator's
+    // selected family instead of allocating another whole-program index.
+    let mut candidates = candidates.into_iter().collect::<Vec<_>>();
+    candidates.sort_unstable_by_key(|candidate| candidate.machine);
+    candidates.dedup_by_key(|candidate| candidate.machine);
     let graph = optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
         unit.functions.iter(),
         &source.boundary_machines,
@@ -77,7 +78,10 @@ pub(crate) fn retain(
                 return crate::control_flow::selected_boundary_calls::resolve(
                     &node.operation,
                     call,
-                    &functions,
+                    candidates
+                        .binary_search_by_key(&call.callee, |candidate| candidate.machine)
+                        .ok()
+                        .map(|position| candidates[position]),
                 )
                 .ok()
                 .map(|(operation, _)| Cow::Owned(operation));
