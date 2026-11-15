@@ -293,6 +293,66 @@ fn typed_base_scoped(
 }
 
 #[test]
+fn an_unselected_applied_collection_read_does_not_stop_the_entry() {
+    let (_, _, base, pending) = constant_base(&[
+        ("main.omg", "machine entry() { }"),
+        (
+            "library.omg",
+            r#"
+data Shelf<T> { stored: [T; 2]; }
+machine unread(shelf: &Shelf<u64>, index: u64) -> u64
+requires index < 2
+{ shelf.stored[index] + 0 }
+"#,
+        ),
+    ]);
+    let mut program = base.typed().clone();
+    pending.evaluate(&mut program).unwrap();
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+    let target = || crate::InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    };
+    let entry = program.realized_machine_named("entry").unwrap().symbol;
+    let value = prepared
+        .entry(entry, entry, &[])
+        .unwrap()
+        .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+        .unwrap();
+    assert_eq!(value, crate::BuildTimeValue::Unit);
+
+    let read = program.realized_machine_named("unread").unwrap().symbol;
+    let shelf = crate::BuildTimeValue::Struct {
+        type_name: "Shelf".into(),
+        fields: vec![(
+            "stored".into(),
+            crate::BuildTimeValue::Array(vec![
+                crate::BuildTimeValue::Int(7),
+                crate::BuildTimeValue::Int(9),
+            ]),
+        )],
+    };
+    let arguments = |index| [shelf.clone(), crate::BuildTimeValue::Int(index)];
+    let value = prepared
+        .entry(read, read, &arguments(1))
+        .unwrap()
+        .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+        .unwrap();
+    assert_eq!(value, crate::BuildTimeValue::Int(9));
+
+    let error = prepared
+        .entry(read, read, &arguments(2))
+        .err()
+        .expect("the selected body still requires its index bound");
+    assert!(
+        error.contains("cannot prove requires contract for call unread") && error.contains("2 < 2"),
+        "{error}"
+    );
+}
+
+#[test]
 fn a_proof_universe_level_is_not_an_ordinary_evaluation_request() {
     use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::mathematical::MathematicalType;
