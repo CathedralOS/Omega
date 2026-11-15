@@ -3023,9 +3023,8 @@ mod empty_elimination_foundations {
                 scalar_restriction: None,
                 requires: vec![Proposition::Falsehood],
             });
-            let mut machine = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(1).unwrap(),
-            );
+            let mut machine =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
             let place = PlaceId::new(1).unwrap();
             machine.structural_places.push(StructuralPlaceDeclaration {
                 id: place,
