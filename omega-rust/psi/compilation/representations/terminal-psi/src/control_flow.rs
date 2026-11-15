@@ -20,40 +20,40 @@ pub(crate) mod atomic {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub enum AtomicAccessEvent {
+    pub enum AtomicAccessEvent<Operand = ValueId> {
         Load {
             ordering: MemoryOrdering,
         },
         Store {
-            value: ValueId,
+            value: Operand,
             ordering: MemoryOrdering,
         },
         ReadModifyWrite {
             operation: AtomicReadModifyWrite,
-            operand: ValueId,
+            operand: Operand,
             ordering: MemoryOrdering,
         },
         Swap {
-            value: ValueId,
+            value: Operand,
             ordering: MemoryOrdering,
         },
         CompareExchange {
-            expected: ValueId,
-            replacement: ValueId,
+            expected: Operand,
+            replacement: Operand,
             success: MemoryOrdering,
             failure: MemoryOrdering,
         },
         CompareExchangeOnce {
             custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
-            expected: ValueId,
-            replacement: ValueId,
+            expected: Operand,
+            replacement: Operand,
             success: MemoryOrdering,
             failure: MemoryOrdering,
         },
     }
 
-    impl AtomicAccessEvent {
-        pub const fn replacement(self) -> Option<ValueId> {
+    impl<Operand: Copy> AtomicAccessEvent<Operand> {
+        pub const fn replacement(self) -> Option<Operand> {
             match self {
                 Self::Store { value, .. } | Self::Swap { value, .. } => Some(value),
                 Self::CompareExchange { replacement, .. }
@@ -109,7 +109,7 @@ pub(crate) mod atomic {
             !matches!(self, Self::Load { .. })
         }
 
-        pub fn operands(self) -> Vec<ValueId> {
+        pub fn operands(self) -> Vec<Operand> {
             match self {
                 Self::Load { .. } => Vec::new(),
                 Self::Store { value, .. } | Self::Swap { value, .. } => vec![value],
@@ -127,7 +127,59 @@ pub(crate) mod atomic {
             }
         }
 
-        pub fn map_operands(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
+        /// Change only the operand representation at a stage boundary. Event
+        /// identity, ordering and result custody remain the same operation.
+        pub fn try_map<Next, Error>(
+            self,
+            mut map: impl FnMut(Operand) -> Result<Next, Error>,
+        ) -> Result<AtomicAccessEvent<Next>, Error> {
+            Ok(match self {
+                Self::Load { ordering } => AtomicAccessEvent::Load { ordering },
+                Self::Store { value, ordering } => AtomicAccessEvent::Store {
+                    value: map(value)?,
+                    ordering,
+                },
+                Self::ReadModifyWrite {
+                    operation,
+                    operand,
+                    ordering,
+                } => AtomicAccessEvent::ReadModifyWrite {
+                    operation,
+                    operand: map(operand)?,
+                    ordering,
+                },
+                Self::Swap { value, ordering } => AtomicAccessEvent::Swap {
+                    value: map(value)?,
+                    ordering,
+                },
+                Self::CompareExchange {
+                    expected,
+                    replacement,
+                    success,
+                    failure,
+                } => AtomicAccessEvent::CompareExchange {
+                    expected: map(expected)?,
+                    replacement: map(replacement)?,
+                    success,
+                    failure,
+                },
+                Self::CompareExchangeOnce {
+                    custody,
+                    expected,
+                    replacement,
+                    success,
+                    failure,
+                } => AtomicAccessEvent::CompareExchangeOnce {
+                    custody,
+                    expected: map(expected)?,
+                    replacement: map(replacement)?,
+                    success,
+                    failure,
+                },
+            })
+        }
+
+        pub fn map_operands(&mut self, map: &mut impl FnMut(Operand) -> Operand) {
             match self {
                 Self::Load { .. } => {}
                 Self::Store { value, .. } | Self::Swap { value, .. } => *value = map(*value),

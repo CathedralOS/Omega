@@ -2887,6 +2887,16 @@ impl<'t> Program<'t> {
                     position += 1;
                     continue;
                 }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
+                {
+                    let (slot, statement) =
+                        self.atomic_binding(id, &slots, local, statements.get(position + 1))?;
+                    slots.push(slot);
+                    slot_names.push(local.name.as_str().to_owned());
+                    position += 1;
+                    statement
+                }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
                         self.read_failure_at(refusal, local.symbol, "the local binding")
@@ -3198,6 +3208,14 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            spans(place, binder, out);
+            for operand in operands {
+                spans(operand, binder, out);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
@@ -3379,6 +3397,14 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
 
 fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression_slot_uses(place, uses);
+            for operand in operands {
+                expression_slot_uses(operand, uses);
+            }
+        }
         ExpressionKind::Slot(slot) => {
             if let Some(count) = uses.get_mut(*slot) {
                 *count += 1;

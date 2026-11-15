@@ -23,6 +23,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod arrays;
+mod atomics;
 mod authority;
 mod bytes;
 mod calling_abis;

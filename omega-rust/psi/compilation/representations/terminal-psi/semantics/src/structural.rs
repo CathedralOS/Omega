@@ -58,6 +58,12 @@ pub(crate) mod inline_carriers {
                 | StructuralFieldType::RefinedScalar(_),
                 StructuralTypeShape::PrimitiveScalar(scalar),
             ) if field.field_type.scalar_type() == Some(*scalar) => Some(carrier),
+            (_, StructuralTypeShape::AtomicCell(cell))
+                if field.field_type.atomic_cell_type() == Some(*cell)
+                    && carrier.scalar_restriction.is_none() =>
+            {
+                Some(carrier)
+            }
             (_, StructuralTypeShape::ByteSequence(declared))
                 if field
                     .field_type
@@ -115,6 +121,10 @@ pub(crate) mod inline_carriers {
                         &field.field_type,
                         carrier.scalar_restriction.as_ref().unwrap_or(&plain),
                     )
+                }
+                (_, StructuralTypeShape::AtomicCell(cell)) => {
+                    field.field_type.atomic_cell_type() == Some(*cell)
+                        && carrier.scalar_restriction.is_none()
                 }
                 (_, StructuralTypeShape::ByteSequence(declared)) => field
                     .field_type
@@ -295,6 +305,40 @@ pub(crate) mod inline_carriers {
                 ),
                 None
             );
+        }
+
+        #[test]
+        fn atomic_field_carrier_is_storage_but_never_a_plain_scalar_read() {
+            let (mut declarations, path) = fixture();
+            let cell = semantic_vocabulary::AtomicCellType::Boolean;
+            declarations[1].shape = StructuralTypeShape::AtomicCell(cell);
+            let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {
+                panic!("record")
+            };
+            fields[0].field_type = StructuralFieldType::Atomic(ScalarType::Boolean);
+            validate_inline_carriers(&declarations, &declarations[0]).unwrap();
+            assert!(
+                crate::canonical_inline_region(declarations.iter(), declarations[0].id, &path)
+                    .is_some()
+            );
+            assert_eq!(
+                crate::atomic_cell_type(declarations.iter(), declarations[0].id, &path),
+                Some(cell)
+            );
+            assert!(
+                crate::primitive_projection_type(declarations.iter(), declarations[0].id, &path)
+                    .is_none()
+            );
+            assert!(
+                crate::canonical_primitive_read_path(
+                    declarations.iter(),
+                    declarations[0].id,
+                    &path
+                )
+                .is_none()
+            );
+            declarations[1].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+            assert!(validate_inline_carriers(&declarations, &declarations[0]).is_err());
         }
 
         #[test]
@@ -2384,6 +2428,13 @@ pub(crate) mod primitive_place {
                     step(Some(CanonicalStructuralPathSegment::Field(field.id)));
                     match field.field_type {
                         StructuralFieldType::Structural(child) => Position::Declared(child),
+                        _ if field.field_type.atomic_cell_type().is_some()
+                            && field.inline_carrier.is_some() =>
+                        {
+                            Position::Declared(
+                                crate::inline_carrier_declaration(declarations.clone(), field)?.id,
+                            )
+                        }
                         _ => match field.field_type.byte_sequence_carrier() {
                             Some(carrier) => {
                                 if !matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. }) {

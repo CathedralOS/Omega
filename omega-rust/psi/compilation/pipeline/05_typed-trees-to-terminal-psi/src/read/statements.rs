@@ -49,6 +49,9 @@ impl Program<'_> {
             )
         };
         let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
+        if let ExpressionNode::Atomic(atomic) = self.node(id, assignment.value)? {
+            return self.atomic_store(id, slots, assignment.target, atomic, source);
+        }
         let write_refusal = |slot: &Slot, unsupported| {
             // A borrowed formal's slot names its referent directly, so the
             // path has no explicit descriptor crossing to check its access.

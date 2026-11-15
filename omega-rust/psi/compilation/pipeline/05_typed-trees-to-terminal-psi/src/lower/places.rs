@@ -180,6 +180,10 @@ pub(crate) fn declare<'a>(
                         // "Qualified mutable, write-only, and
                         // access-unspecified view fields remain unsupported".
                         match types.get(nested).map(|row| &row.shape) {
+                            Some(crate::StorageShape::AtomicCell(cell)) => {
+                                inline_carrier = Some(nested);
+                                StructuralFieldType::from(*cell)
+                            }
                             Some(crate::StorageShape::ByteSequence(carrier))
                                 if is_stored_view(*carrier) =>
                             {
@@ -232,6 +236,7 @@ pub(crate) fn declare<'a>(
         field_identities.push(indexes);
         payload_identities.push(case_indexes);
         let shape = match &record.shape {
+            crate::StorageShape::AtomicCell(cell) => StructuralTypeShape::AtomicCell(*cell),
             crate::StorageShape::Opaque => StructuralTypeShape::Opaque,
             crate::StorageShape::Record(_) => {
                 // The natural layout row of a record with no authored layout:
@@ -576,6 +581,14 @@ fn expression_homes<'b>(
     homes: &mut Vec<(ValueType, Option<&'b String>)>,
 ) {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression_homes(place, homes);
+            for operand in operands {
+                expression_homes(operand, homes);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
@@ -1208,6 +1221,9 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
+            ExpressionKind::Atomic { .. } => {
+                Err(self.internal("an atomic scalar event is used as structural storage"))
+            }
             ExpressionKind::SavedSubject(capture) => {
                 let mut at = self
                     .selected
@@ -1930,6 +1946,50 @@ impl<'a> Lowering<'a> {
             lender,
             temporary,
         })
+    }
+
+    pub(super) fn atomic_access(
+        &mut self,
+        place: &Expression,
+        event: terminal_psi::AtomicAccessEvent<usize>,
+        operands: &[Expression],
+        result: Option<ScalarType>,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let (root, steps, exact, _) = continuing!(self.capture_place(place, None));
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(
+            &steps,
+            terminal_check_tables::obligations::ExecutionSite::Operation(operation),
+            source,
+        )?;
+        let mut values = Vec::with_capacity(operands.len());
+        for operand in operands {
+            values.push(continuing!(self.scalar(operand)));
+        }
+        let event = event.try_map(|position| {
+            values.get(position).copied().ok_or_else(|| {
+                self.internal("atomic event operand is outside its evaluation roster")
+            })
+        })?;
+        let value = self.emit(
+            operation,
+            result,
+            OperationKind::AtomicAccess {
+                place: root,
+                path,
+                event,
+                resident_obligation: None,
+            },
+        )?;
+        if event.modifies_resident() {
+            self.write(
+                exact,
+                ProgramPoint::AfterOperation(operation),
+                Content::Overwritten,
+            )?;
+        }
+        Ok(Reached::Value(value))
     }
 
     /// Capture an existing place using the same expression and declared
@@ -3172,6 +3232,7 @@ impl<'a> Lowering<'a> {
         let data = self.record_type(record)?;
         *owed += data.requires.len();
         match data.shape {
+            StorageShape::AtomicCell(_) => return Ok(()),
             StorageShape::Opaque => {
                 return Err(
                     self.internal("opaque initialization requires boundary-supplied contents")

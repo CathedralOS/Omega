@@ -332,6 +332,7 @@ pub enum StorageShape {
         element: StructuralTypeId,
         length: terminal_psi::ArrayExtent,
     },
+    AtomicCell(semantic_vocabulary::AtomicCellType),
     PrimitiveScalar {
         scalar_type: ScalarType,
         policy: Option<Policy>,
@@ -911,6 +912,13 @@ pub struct Expression {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionKind {
+    /// One atomic event at an exact place. Operand indices name this event
+    /// roster in source evaluation order; no ordinary load supplies its prior.
+    Atomic {
+        place: Box<Expression>,
+        event: terminal_psi::AtomicAccessEvent<usize>,
+        operands: Vec<Expression>,
+    },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<typed_trees::expression::CompletedValueCapture>),
     Integer(IntegerValue),

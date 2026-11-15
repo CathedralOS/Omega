@@ -367,6 +367,7 @@ struct Reaching {
 /// What a place is, by the lowered form's own declarations.
 enum Shape<'a> {
     Scalar(ScalarType),
+    Atomic(semantic_vocabulary::AtomicCellType),
     Typed(StructuralTypeId),
     /// A shared byte view stored in a field: the descriptor is the field's
     /// own contents, with no structural type of its own (structural_access.md,
@@ -823,6 +824,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         let fields = match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => return Ok(()),
+            StructuralTypeShape::AtomicCell(cell) if cell.bounds().is_none() => return Ok(()),
             shape if is_shared_view(shape) => return Ok(()),
             StructuralTypeShape::FixedArray {
                 element,
@@ -853,7 +855,7 @@ impl<'a> Storage<'a> {
         }
         for field in fields.1 {
             match field.field_type {
-                StructuralFieldType::Scalar(_) => {}
+                StructuralFieldType::Scalar(_) | StructuralFieldType::Atomic(_) => {}
                 StructuralFieldType::Structural(nested) => {
                     at.segments.push(Segment::Field(field.id));
                     self.zero_typed(nested, at, found, concerns)?;
@@ -956,7 +958,7 @@ impl<'a> Storage<'a> {
                 // A case's payload namespace is no value of its own; the
                 // sum above it is.
                 Shape::Payload(_) => {}
-                Shape::Scalar(_) | Shape::View => {
+                Shape::Scalar(_) | Shape::Atomic(_) | Shape::View => {
                     return Err(self.foreign(concerns, "a store path crosses a leaf field"));
                 }
             }
@@ -1363,6 +1365,9 @@ impl<'a> Storage<'a> {
             .find(|declared| declared.id == field)
             .ok_or_else(|| self.foreign(concerns, "a field is not of the type it projects"))?;
         match declared.field_type {
+            ref field if field.atomic_cell_type().is_some() => Ok(Shape::Atomic(
+                field.atomic_cell_type().expect("checked atomic field"),
+            )),
             StructuralFieldType::Scalar(scalar_type) => Ok(Shape::Scalar(scalar_type)),
             StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
             ref stored if is_stored_view(stored) => Ok(Shape::View),
@@ -1378,6 +1383,7 @@ impl<'a> Storage<'a> {
         // formal) is itself a scalar leaf.
         let root = self.root_type(place.root, concerns)?;
         let mut at = match &self.declaration(root, concerns)?.shape {
+            StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(*cell),
             StructuralTypeShape::PrimitiveScalar(scalar_type) => Shape::Scalar(*scalar_type),
             _ => Shape::Typed(root),
         };
@@ -1402,6 +1408,7 @@ impl<'a> Storage<'a> {
                         )
                     })?;
                     match view.shape {
+                        StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
                         _ => Shape::Typed(view.id),
                     }
@@ -1410,6 +1417,9 @@ impl<'a> Storage<'a> {
                     return Err(
                         self.foreign(concerns, "a storage view is applied to a case namespace")
                     );
+                }
+                (Shape::Atomic(_), _) => {
+                    return Err(self.foreign(concerns, "a place lies beneath an atomic cell"));
                 }
                 (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
@@ -1434,6 +1444,7 @@ impl<'a> Storage<'a> {
                         ));
                     };
                     match self.declaration(referent, concerns)?.shape {
+                        StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
                         _ => Shape::Typed(referent),
                     }
@@ -1514,6 +1525,7 @@ impl<'a> Storage<'a> {
                         );
                     }
                     match self.declaration(element, concerns)?.shape {
+                        StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
                         _ => Shape::Typed(element),
                     }
@@ -1532,7 +1544,7 @@ impl<'a> Storage<'a> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Scalar(_) | Shape::View => found.push(at),
+            Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
             Shape::Typed(structural_type) => {
                 self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
             }
@@ -1553,7 +1565,9 @@ impl<'a> Storage<'a> {
         for field in fields {
             at.segments.push(Segment::Field(field.id));
             match field.field_type {
-                StructuralFieldType::Scalar(_) => found.push(at.clone()),
+                StructuralFieldType::Atomic(_)
+                | StructuralFieldType::AtomicBoundedInteger(_)
+                | StructuralFieldType::Scalar(_) => found.push(at.clone()),
                 StructuralFieldType::Structural(nested) => {
                     self.leaves_of(nested, at, found, concerns)?;
                 }
@@ -1575,7 +1589,8 @@ impl<'a> Storage<'a> {
         match &self.declaration(structural_type, concerns)?.shape {
             // References and opaque values each occupy one established
             // place. Neither grants owned access to hidden backing storage.
-            StructuralTypeShape::Opaque
+            StructuralTypeShape::AtomicCell(_)
+            | StructuralTypeShape::Opaque
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::Reference { .. } => {
                 found.push(at.clone());
@@ -2946,6 +2961,9 @@ impl<'a> Storage<'a> {
             return Ok(vec![source]);
         }
         match &operation.kind {
+            OperationKind::AtomicAccess { place, path, .. } => {
+                Ok(vec![self.stored_at(*place, path, concerns)?])
+            }
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }

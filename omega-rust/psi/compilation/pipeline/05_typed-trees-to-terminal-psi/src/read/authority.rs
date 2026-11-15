@@ -258,7 +258,9 @@ impl Program<'_> {
                 StorageShape::Reference { .. } => {
                     return unserved("zero-established reference without backing");
                 }
-                StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
+                StorageShape::AtomicCell(_)
+                | StorageShape::ByteSequence(_)
+                | StorageShape::PrimitiveScalar { .. } => {}
             }
         }
         Ok(())

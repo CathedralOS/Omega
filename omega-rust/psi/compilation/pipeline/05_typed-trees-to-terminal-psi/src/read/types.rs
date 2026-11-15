@@ -567,6 +567,9 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if let Some(atomic) = self.atomic_type(id, handle)? {
+            return Ok(atomic);
+        }
         if handle.is_valid()
             && let Some(view) = self.view_type(id, handle)?
         {

@@ -244,6 +244,14 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
 
 fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
     match &value.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression(place, sites);
+            for operand in operands {
+                expression(operand, sites);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)

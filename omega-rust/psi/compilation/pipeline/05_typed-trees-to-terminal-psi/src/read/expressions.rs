@@ -488,7 +488,7 @@ impl<'t> Program<'t> {
             ExpressionNode::ArrayLiteral(elements) => {
                 return self.array_literal(id, slots, *elements, expected, source);
             }
-            ExpressionNode::Atomic(_) => return unserved("atomic"),
+            ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
@@ -1435,7 +1435,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     }
             }
             (
-                ExpressionKind::SavedSubject(_)
+                ExpressionKind::Atomic { .. }
+                | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
