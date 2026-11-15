@@ -158,7 +158,7 @@ impl PreparedTargetSupply {
         let provider_declarations = module
             .boundary_machines
             .iter()
-            .filter(|boundary| !is_direct_hosted_primitive(boundary))
+            .filter(|boundary| !is_direct_compiler_primitive(boundary))
             .count();
         if provider_declarations != declared.len() {
             refusals.push(refuse(
@@ -190,7 +190,7 @@ impl PreparedTargetSupply {
                 met.push(boundary);
                 if module
                     .boundary_machine(boundary)
-                    .is_some_and(is_direct_hosted_primitive)
+                    .is_some_and(is_direct_compiler_primitive)
                 {
                     continue;
                 }
@@ -806,11 +806,12 @@ fn unplanned_boundary(
 
 /// This classification consumes an already checked declaration; it grants no
 /// native execution. Target realization independently rejoins its core link.
-fn is_direct_hosted_primitive(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
+fn is_direct_compiler_primitive(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
     boundary.declaration.as_ref().is_some_and(|declaration| {
         matches!(
             declaration.execution,
             terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
+                | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
         )
     })
 }

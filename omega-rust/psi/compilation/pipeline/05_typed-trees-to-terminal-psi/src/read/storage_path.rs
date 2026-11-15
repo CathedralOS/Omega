@@ -34,6 +34,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Slot(_)
             | ExpressionKind::Borrow { .. }
             | ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
             | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }

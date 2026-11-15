@@ -115,6 +115,22 @@ impl<'t> Program<'t> {
             }
             return Ok(boundary);
         }
+        if self.typed.symbols.sealed_intrinsic(target)
+            == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            let signature = self.numeric_primitive_signature(diagnostic, target)?;
+            let boundary = self.boundary_symbols.push(target);
+            if self.boundary_signatures.push(signature) != boundary
+                || self.boundary_services.push(None) != boundary
+                || self
+                    .boundary_completions
+                    .push(semantic_vocabulary::BoundaryCompletion::NormalReturn)
+                    != boundary
+            {
+                return Err(unserved("numeric primitive lost its boundary coordinate"));
+            }
+            return Ok(boundary);
+        }
         let (owner, requirement) = self
             .typed
             .trait_machine_signature(target)
@@ -161,7 +177,7 @@ impl<'t> Program<'t> {
         let service = self.declared_service(diagnostic, owner)?;
         let boundary = self.boundary_symbols.push(target);
         let signature_id = self.boundary_signatures.push(signature);
-        let service_id = self.boundary_services.push(service);
+        let service_id = self.boundary_services.push(Some(service));
         let completion_id = self.boundary_completions.push(completion);
         if boundary != signature_id || boundary != service_id || boundary != completion_id {
             return Err(unserved(
@@ -1880,7 +1896,8 @@ impl<'t> Program<'t> {
             let machine = self.call_target_symbol(id, target)?;
             let boundary = matches!(
                 self.typed.symbols.sealed_intrinsic(machine),
-                Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(_))
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(_)
+                    | language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
             );
             (machine, boundary)
         };
@@ -2305,6 +2322,21 @@ impl<'t> Program<'t> {
         formal: &crate::body::Borrowed,
         expected: ValueType,
     ) -> Checked<(Expression, String)> {
+        self.lent_from(id, slots, argument, None, formal, expected)
+    }
+
+    /// `lent`, where an explicit borrow `argument` lends `beneath` in place
+    /// of its own target: `&(text as +D)` lends `text`, and the caller
+    /// qualifies the reference it forms (`borrow_value`).
+    pub(super) fn lent_from(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        argument: ExpressionHandle,
+        beneath: Option<ExpressionHandle>,
+        formal: &crate::body::Borrowed,
+        expected: ValueType,
+    ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
@@ -2333,7 +2365,9 @@ impl<'t> Program<'t> {
         // binding, a field or another helper call. An ordinary owned value
         // still needs an explicit borrow of its place.
         let (operand, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access, true),
+            ExpressionNode::Borrow(borrow) => {
+                (beneath.unwrap_or(borrow.target), borrow.access, true)
+            }
             _ => (argument, formal.access, false),
         };
         // A recast presents the same captured place under another type. The
@@ -2741,6 +2775,7 @@ fn mentions<'a>(
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
         }
         ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => Ok(false),

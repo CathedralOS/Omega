@@ -1,6 +1,6 @@
-//! Target-neutral semantic schema descriptions shared by source queries and
-//! policy normalization. These are descriptive data, never access authority.
-//! Typed construction retains source ownership in the frontend.
+//! Type descriptions shared by source queries and access-rule validation.
+//! The frontend uses the caller's visibility. Descriptions alone grant no
+//! permission to call functions or access storage.
 
 /// The existing CallableInfo query result: requirement versus machine, then
 /// complete declaration identity, applied callable identity and source revision.

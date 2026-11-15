@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI29`) for retained native
+  Compiler-private binary persistence (`OMGNTI30`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -244,6 +244,39 @@ mod admissions {
         }
     }
 
+    impl RecordValue for target::CanonicalFloatRealization {
+        fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+            let Self::CatalogIntrinsic { isa, controls } = self else {
+                return Err(
+                    output.error("unsupported float realization cannot be retained as executable")
+                );
+            };
+            match isa {
+                target::FloatIsaAdmission::Baseline => 0u8,
+                target::FloatIsaAdmission::X86AvxFma3 => 1u8,
+            }
+            .write(output)?;
+            match controls {
+                target::FloatControlObligation::CanonicalControls => 0u8,
+                target::FloatControlObligation::DirectedRoundingRestored => 1u8,
+            }
+            .write(output)
+        }
+        fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+            let isa = match u8::read(input)? {
+                0 => target::FloatIsaAdmission::Baseline,
+                1 => target::FloatIsaAdmission::X86AvxFma3,
+                _ => return Err(input.error("unknown float ISA admission")),
+            };
+            let controls = match u8::read(input)? {
+                0 => target::FloatControlObligation::CanonicalControls,
+                1 => target::FloatControlObligation::DirectedRoundingRestored,
+                _ => return Err(input.error("unknown float control obligation")),
+            };
+            Ok(Self::CatalogIntrinsic { isa, controls })
+        }
+    }
+
     impl RecordValue for backend_plan::DirectBoundaryLeaf {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.validate_calling_custody()
@@ -255,13 +288,15 @@ mod admissions {
                 plan,
                 satisfied_requirement_identity,
                 execution,
+                target_realization,
             } = self;
             declaration_identity.write(output)?;
             callable_identity.write(output)?;
             satisfied_schema.write(output)?;
             plan.write(output)?;
             satisfied_requirement_identity.write(output)?;
-            execution.write(output)
+            execution.write(output)?;
+            target_realization.write(output)
         }
         fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
             input.record(|input| {
@@ -272,6 +307,7 @@ mod admissions {
                     plan: RecordValue::read(input)?,
                     satisfied_requirement_identity: RecordValue::read(input)?,
                     execution: RecordValue::read(input)?,
+                    target_realization: RecordValue::read(input)?,
                 };
                 value
                     .validate_calling_custody()
@@ -1450,7 +1486,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI29";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI30";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1509,6 +1545,7 @@ mod tests {
             b"OMGNTI26",
             b"OMGNTI27",
             b"OMGNTI28",
+            b"OMGNTI29",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1532,7 +1569,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI30", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI31", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

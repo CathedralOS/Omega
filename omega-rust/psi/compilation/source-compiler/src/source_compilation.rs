@@ -804,9 +804,11 @@ impl SourceCompilationRequest {
         if let Some(activation) = &activation {
             activation.remove_retained_syntax(&mut self.syntax, &self.source_items);
         }
-        let retained_program = activation
-            .as_ref()
-            .map(|activation| activation.typing.typed().clone());
+        // Check the predecessor while its owner can still be borrowed. Report
+        // any refusal after checking the successor to preserve diagnostic order.
+        let retained_requests = activation.as_ref().map(|activation| {
+            PreCheckEvaluation::require_recorded_requests(activation.typing.typed())
+        });
         let retained_declaration_syntax = activation
             .as_ref()
             .map(|activation| Arc::clone(&activation.declaration_syntax));
@@ -905,10 +907,10 @@ impl SourceCompilationRequest {
                 })?;
         }
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
-        let pre_check = match retained_program {
-            Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
-            None => pre_check,
-        };
+        if let Some(retained_requests) = retained_requests {
+            PreCheckEvaluation::require_recorded_requests(typing.typed())?;
+            retained_requests?;
+        }
         pending_pre_checks.push(pre_check);
         let input = Arc::new(SourceCompletionInput {
             typing,

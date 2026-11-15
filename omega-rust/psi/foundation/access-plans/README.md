@@ -1,8 +1,8 @@
 # Access and backing validation
 
-This crate normalizes semantic access-policy data independently of layout and
-backing. It also validates the physical placement and resource joins consumed by
-compiler stages and the interpreter. Neither operation grants live caller authority.
+This crate checks access rules separately from memory layout. It also checks
+where values fit and which storage resources compiler stages and the interpreter
+need. Passing these checks alone grants no permission to access storage.
 
 - [plan.rs](src/plan.rs) owns semantic `AccessPlan` data and its normalization,
   separately from `ValidatedPlacement` and its physical snapshot. An absent
@@ -12,8 +12,8 @@ compiler stages and the interpreter. Neither operation grants live caller author
 - [resources.rs](src/resources.rs) validates provider profiles, restricted loans,
   initialization and relocation supply.
 
-These validators do not create runtime views, issue backing authority or prove
-that a schema describes a physical device. Their Terminal Psi and interpreter
-consumers own execution and custody transitions.
+These checks do not create runtime views or prove that a type description
+matches a physical device. The compiler and interpreter still control execution,
+storage ownership and borrowing.
 
 Contract: [access policies](../../../../wiki/spec/resources/access.md).

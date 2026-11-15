@@ -1065,22 +1065,15 @@ impl Storage<'_> {
                         .is_some_and(|names| names.contains(&descriptor))
                     {
                         for child in formed {
-                            if child.lifetime.as_ref().is_some_and(|life| {
-                                life.surviving
-                                    .get(&at)
-                                    .is_some_and(|names| !names.is_empty())
-                            }) && self.descends(child, loan.obligation, formed)?
+                            if child.lifetime.as_ref().is_some_and(|life| holds(life, &at))
+                                && self.descends(child, loan.obligation, formed)?
                             {
                                 return Ok(Some((concerns, LoanConflict::ReleaseBeforeChildren)));
                             }
                         }
                     }
                 }
-                if !lifetime
-                    .surviving
-                    .get(&at)
-                    .is_some_and(|names| !names.is_empty())
-                {
+                if !holds(lifetime, &at) {
                     continue;
                 }
                 for effect in self.operation_read_effects(operation)? {
@@ -1938,16 +1931,14 @@ impl Storage<'_> {
                         return false;
                     }
                     (earlier.invocation.is_some() && earlier.invocation == loan.invocation)
-                        || earlier.lifetime.as_ref().is_some_and(|life| {
-                            life.surviving
-                                .get(&loan.at)
-                                .is_some_and(|names| !names.is_empty())
-                        })
-                        || loan.lifetime.as_ref().is_some_and(|life| {
-                            life.surviving
-                                .get(&earlier.at)
-                                .is_some_and(|names| !names.is_empty())
-                        })
+                        || earlier
+                            .lifetime
+                            .as_ref()
+                            .is_some_and(|life| holds(life, &loan.at))
+                        || loan
+                            .lifetime
+                            .as_ref()
+                            .is_some_and(|life| holds(life, &earlier.at))
                 }) {
                     if self.descends(loan, earlier.obligation, &formed)?
                         || self.descends(earlier, loan.obligation, &formed)?
@@ -2013,4 +2004,22 @@ impl Storage<'_> {
         }
         Ok((verdicts, conflicts))
     }
+}
+
+/// Whether a loan with `lifetime` is still held at `at`: while a carrier
+/// still holds it (until its release, even after its last observation), and
+/// wherever a later use still depends on it. A view whose origin is unknown,
+/// such as one an opaque boundary returned from its input, has no carrier
+/// that names the input's loan, yet the input stays borrowed until the view's
+/// last use (lifetimes.md, "Returned views": the source must "remain live for
+/// the result's use").
+fn holds(
+    lifetime: &terminal_semantics::descriptor_lifetimes::DescriptorLifetime,
+    at: &terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+) -> bool {
+    lifetime.live.contains(at)
+        || lifetime
+            .surviving
+            .get(at)
+            .is_some_and(|names| !names.is_empty())
 }

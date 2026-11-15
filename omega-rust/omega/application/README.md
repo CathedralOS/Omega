@@ -219,7 +219,7 @@ emitting an object or image. `--keep` keeps `program.oterm` and the
 interpreter's streams, work and effect receipts, never a native image. Case runs
 (`--inputs`/`--input`) do not yet accept `--engine psi`. A program that binds
 separately produced components is refused during compilation on this engine
-(`terminal compile FAILED`, status 200), since those components only run as
+(`Psi compile FAILED`, status 200), since those components only run as
 native images. Streams are forwarded afterwards, not live.
 
 Compilation emits requested products and diagnostics, not debug dumps.

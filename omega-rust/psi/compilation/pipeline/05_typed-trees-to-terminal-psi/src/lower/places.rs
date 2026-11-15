@@ -593,6 +593,7 @@ fn expression_homes<'b>(
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
@@ -1389,7 +1390,26 @@ impl<'a> Lowering<'a> {
     /// (`terminal_psi::StructuralQualificationChange`). A routed domain's row
     /// names the route this machine issues it by. `as =D` keeps the type, so
     /// it is the operand itself.
-    fn requalify(&mut self, operand: &Expression, expression: &Expression) -> Evaluation<Located> {
+    ///
+    /// A reference displays its domains on its referent (domains.md,
+    /// "Mutable views"), as the memberships beneath its one `Referent` step,
+    /// and a cast changes those the same way.
+    ///
+    /// `clauses` are what `value as +D` proves for a domain with predicates
+    /// (`ExpressionKind::Establish`), each over the plain value at
+    /// `self_place()`. They become the invariant of the cast's block, stated
+    /// over its parameter, so the edge into it owes them of the operand
+    /// (control_flow.md: "Every arrival proves the predicate under
+    /// simultaneous destination-parameter to actual-argument substitution")
+    /// and everything after knows them of the result, as `prove_membership`
+    /// does for a scalar.
+    fn requalify(
+        &mut self,
+        operand: &Expression,
+        expression: &Expression,
+        clauses: &[semantic_vocabulary::Proposition],
+        stated: &str,
+    ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
         };
@@ -1402,15 +1422,40 @@ impl<'a> Lowering<'a> {
         } else {
             self.qualifications.structural(self.id, record, before)?
         };
-        if held == whole {
+        let (shown, displayed) = if matches!(
+            self.record_type(record)?.shape,
+            StorageShape::Reference { .. }
+        ) {
+            let referent = |projected: &[terminal_psi::StructuralPathQualification]| {
+                projected
+                    .iter()
+                    .filter(|row| row.path == [StructuralPathSegment::Referent])
+                    .map(|row| row.domain)
+                    .collect::<Vec<_>>()
+            };
+            (
+                referent(&projected),
+                referent(&self.memberships(record, before)?.1),
+            )
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        if held == whole && shown == displayed {
+            if !clauses.is_empty() {
+                return Err(self.internal("a cast that proves predicates adds no domain"));
+            }
             return self.located(operand);
         }
         let added: Vec<_> = whole
             .iter()
             .filter(|domain| !held.contains(domain))
+            .chain(shown.iter().filter(|domain| !displayed.contains(domain)))
             .copied()
             .collect();
-        if !added.is_empty() && held.iter().any(|domain| !whole.contains(domain)) {
+        if !added.is_empty()
+            && (held.iter().any(|domain| !whole.contains(domain))
+                || displayed.iter().any(|domain| !shown.contains(domain)))
+        {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1433,7 +1478,7 @@ impl<'a> Lowering<'a> {
             place,
             position: 0,
             structural_type: record,
-            multiplicity: self.records.multiplicity(record, self.id)?,
+            multiplicity: self.held_multiplicity(value, record)?,
             access: StructuralAccess::Owned,
             qualifications: whole,
             projected_qualifications: projected,
@@ -1451,6 +1496,27 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
+        if !clauses.is_empty() {
+            let subject = crate::body::self_place()
+                .ok_or_else(|| self.internal("cast subject place identity"))?;
+            let mut predicate = Vec::with_capacity(clauses.len());
+            for clause in clauses {
+                self.name_clause_contents(clause, &[(subject, exact)], None)?;
+                predicate.push(crate::canonical::substitute_parameters(
+                    clause,
+                    &[],
+                    &[place],
+                    id,
+                )?);
+            }
+            self.sources.memberships.push((cast, stated.to_owned()));
+            self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                machine: id,
+                header: cast,
+                predicate: crate::canonical::conjunction(predicate, id)?,
+                arrivals: Vec::new(),
+            });
+        }
         let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
             .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump_with_structural(
@@ -1477,6 +1543,36 @@ impl<'a> Lowering<'a> {
             record,
             fresh: true,
         }))
+    }
+
+    /// The multiplicity the root `value` was declared with, which a cast
+    /// passes on unchanged: a freshly formed reference owns its loan and is
+    /// affine although its type permits copies
+    /// (`required_result_multiplicity`). A root this machine declared
+    /// nowhere has its type's.
+    fn held_multiplicity(
+        &self,
+        value: PlaceId,
+        record: StructuralTypeId,
+    ) -> Checked<StructuralMultiplicity> {
+        for (_, draft) in self.blocks.iter() {
+            if let Some(parameter) = draft
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == value)
+            {
+                return Ok(parameter.multiplicity);
+            }
+            if let Some(result) = draft
+                .operations
+                .iter()
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == value)
+            {
+                return Ok(result.multiplicity);
+            }
+        }
+        self.records.multiplicity(record, self.id)
     }
 
     /// A byte view or sequence: its domains are primitive byte predicates,
@@ -1541,6 +1637,70 @@ impl<'a> Lowering<'a> {
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
         Ok((place, exact))
+    }
+
+    /// The value a join parameter of `multiplicity` receives from `place`.
+    /// A fresh `EstablishReference` result is an affine loan carrier even
+    /// though its reference type is copyable, while the join of a value
+    /// `match` holds the type's unrestricted copy. Such an arrival passes a
+    /// copy, just as an arm naming a reference local does, and ordinary
+    /// affine cleanup ends the arm's own root. A view's descriptor already
+    /// crosses the join as its affine root and keeps doing so.
+    pub(super) fn join_arrival(
+        &mut self,
+        place: PlaceId,
+        record: StructuralTypeId,
+        qualification: Qualification,
+        multiplicity: StructuralMultiplicity,
+        source: SourceOrigin,
+    ) -> Checked<PlaceId> {
+        if !matches!(
+            self.record_type(record)?.shape,
+            StorageShape::Reference { .. }
+        ) {
+            return Ok(place);
+        }
+        let Some((StructuralPlaceKind::OperationResult { producer, .. }, _)) =
+            self.roots.get(place).copied()
+        else {
+            return Ok(place);
+        };
+        // A fresh formation is produced in the arm's own block, where the
+        // arrival jumps from; a value made earlier is found in its block.
+        let arm = self.current()?;
+        let produced = self
+            .blocks
+            .get(arm)
+            .into_iter()
+            .chain(self.blocks.values())
+            .flat_map(|draft| &draft.operations)
+            .find(|operation| operation.id == producer)
+            .and_then(|operation| match &operation.result {
+                OperationResult::Structural(result) if result.place == place => {
+                    Some(result.multiplicity)
+                }
+                _ => None,
+            })
+            .ok_or_else(|| self.internal("a match arrival has no producing operation"))?;
+        if produced == multiplicity || multiplicity != StructuralMultiplicity::Unrestricted {
+            return Ok(place);
+        }
+        let operation = self.operation_identity(source);
+        let (copy, exact) = self.produce_qualified(
+            operation,
+            record,
+            qualification,
+            OperationKind::StructuralLeafCopy {
+                source: place,
+                path: Vec::new(),
+            },
+        )?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(operation),
+            Content::Overwritten,
+        )?;
+        Ok(copy)
     }
 
     /// A call's record result holds values this machine cannot name.
@@ -1920,6 +2080,7 @@ impl<'a> Lowering<'a> {
                 }))
             }
             ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
@@ -1936,10 +2097,12 @@ impl<'a> Lowering<'a> {
             // computed (domains.md: "removing `D` with a cast changes no bits
             // or geometry"), but the result is a distinct place of a distinct
             // type, reached through the cast's own edge.
-            ExpressionKind::Requalify(operand) => self.requalify(operand, expression),
-            ExpressionKind::Establish { .. } => {
-                Err(self.internal("a cast that proves predicates of a data value"))
-            }
+            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], ""),
+            ExpressionKind::Establish {
+                operand,
+                clauses,
+                stated,
+            } => self.requalify(operand, expression, clauses, stated),
             ExpressionKind::Borrow {
                 access,
                 place,

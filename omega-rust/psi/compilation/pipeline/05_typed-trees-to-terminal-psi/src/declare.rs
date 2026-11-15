@@ -864,6 +864,18 @@ pub(crate) fn boundary(
     ),
     Diagnostic,
 > {
+    if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
+        if typed.symbols.sealed_intrinsic(symbol)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Err(Diagnostic::error(
+                "numeric primitive publisher lost its exact catalog custody",
+            ));
+        }
+        return top_level_boundary(
+            typed, symbol, execution, signature, published, None, identities,
+        );
+    }
     if matches!(
         execution,
         terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
@@ -933,9 +945,6 @@ fn primitive_boundary(
     let machine = typed
         .machine_by_symbol(symbol)
         .ok_or_else(|| Diagnostic::error("primitive has no machine declaration"))?;
-    let [state] = typed.machine_states(machine) else {
-        return Err(Diagnostic::error("primitive has no exact entry state"));
-    };
     let terminal_psi::CheckedBoundaryExecution::HostedPrimitive { operation, .. } = execution
     else {
         return Err(Diagnostic::error(
@@ -976,6 +985,39 @@ fn primitive_boundary(
         ));
     }
     let service_declaration = service_declaration_commitment(typed, service)?;
+    top_level_boundary(
+        typed,
+        symbol,
+        execution,
+        signature,
+        published,
+        Some(service_declaration),
+        identities,
+    )
+}
+
+/// Publish source callable metadata for hosted and numeric primitives here.
+fn top_level_boundary(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    execution: terminal_psi::CheckedBoundaryExecution,
+    signature: &Signature,
+    published: Published<'_>,
+    service_declaration: Option<[u8; 32]>,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<
+    (
+        NominalDeclarationIdentity,
+        terminal_psi::CheckedBoundaryCallable,
+    ),
+    Diagnostic,
+> {
+    let machine = typed
+        .machine_by_symbol(symbol)
+        .ok_or_else(|| Diagnostic::error("primitive has no machine declaration"))?;
+    let [state] = typed.machine_states(machine) else {
+        return Err(Diagnostic::error("primitive has no exact entry state"));
+    };
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| Diagnostic::error("primitive source has no exact identity"))?;
@@ -1032,7 +1074,7 @@ fn primitive_boundary(
     Ok((
         owner,
         terminal_psi::CheckedBoundaryCallable {
-            service_declaration,
+            service_declaration: service_declaration.unwrap_or(contract),
             source,
             execution,
             method_arguments: Vec::new(),

@@ -5,8 +5,8 @@ use crate::validate_access_fields;
 use crate::{AccessFields, AccessPlanDiagnostic, BoundaryReach, ValidatedAccessFields};
 use layout_plans::LayoutPlanReport;
 
-/// A semantic policy result. Layout and backing are independent inputs of
-/// placement validation; these descriptions grant no live caller authority.
+/// Rules describe who may use a value. Layout and storage are checked
+/// separately; these descriptions alone grant no access permission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccessPlan {
     pub schema: language_semantics::reflection::SemanticSchemaGraph,

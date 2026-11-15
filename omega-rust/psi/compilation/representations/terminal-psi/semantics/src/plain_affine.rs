@@ -11,7 +11,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalMachine,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -696,6 +696,56 @@ pub fn declared_multiplicity(
     }
 }
 
+/// Each edge into a block parameter that carries a fresh permission on
+/// (`carried`) supplies a whole root of that affine custody, so the
+/// parameter's loan lifecycle is the one its argument owned.
+fn carried_permissions(
+    machine: &TerminalMachine,
+    contracts: &[Option<(
+        semantic_vocabulary::StructuralTypeId,
+        terminal_psi::StructuralMultiplicity,
+        StructuralAccess,
+        Option<terminal_psi::StructuralMultiplicity>,
+    )>],
+    carried: &[PlaceId],
+) -> Result<(), Error> {
+    if carried.is_empty() {
+        return Ok(());
+    }
+    for block in &machine.blocks {
+        let edges = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        for ((_, target), arguments) in edges.into_iter().zip(arguments) {
+            let Some(target) = machine.blocks.iter().find(|block| block.id == target) else {
+                return Err(Error::malformed(
+                    "a structural successor names an absent block",
+                ));
+            };
+            for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+                if !carried.contains(&parameter.place) {
+                    continue;
+                }
+                let affine = argument.path.is_empty()
+                    && argument.access == StructuralAccess::Owned
+                    && contracts
+                        .get(index(argument.place.get())?)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|(structural_type, multiplicity, _, _)| {
+                            structural_type == parameter.structural_type
+                                && multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        });
+                if !affine {
+                    return Err(Error::malformed(
+                        "an affine permission parameter receives other than its carrier",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn required_result_multiplicity(
     operation: &terminal_psi::Operation,
 ) -> Option<terminal_psi::StructuralMultiplicity> {
@@ -793,6 +843,13 @@ fn analyze(
         }
         Ok(())
     };
+    // A block parameter may carry a fresh permission carrier on, keeping
+    // the custody its producer gave it: a shared reference is affine while
+    // it owns its loan although its type permits copies
+    // (`required_result_multiplicity`). Every arrival must then supply such
+    // a carrier whole (`carried_permissions`), so the marking is never an
+    // arbitrary one.
+    let mut carried = Vec::new();
     for parameter in machine
         .structural_parameters
         .iter()
@@ -804,12 +861,33 @@ fn analyze(
         {
             exclude_whole(parameter.place)?;
         }
+        let required = (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+            && parameter.access == StructuralAccess::Owned
+            && machine
+                .block_structural_parameters()
+                .any(|block| block.place == parameter.place)
+            && types
+                .get(index(parameter.structural_type.get())?)
+                .is_some_and(|declaration| {
+                    declaration.copyable
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            }
+                        )
+                }))
+        .then_some(terminal_psi::StructuralMultiplicity::Affine);
+        if required.is_some() {
+            carried.push(parameter.place);
+        }
         insert_contract(
             parameter.place,
             parameter.structural_type,
             parameter.multiplicity,
             parameter.access,
-            None,
+            required,
         )?;
     }
     // Copyable storage joins the region walk when a disposition affects it.
@@ -894,6 +972,7 @@ fn analyze(
             None,
         )?;
     }
+    carried_permissions(machine, &contracts, &carried)?;
     // An empty-domain observation needs an actual initialized value even
     // when it has no scalar leaves. Follow its producers and copies through
     // the same region transfer, without converting copies into affine moves.
@@ -1515,6 +1594,25 @@ impl Analysis<'_> {
             Error::unsupported("reference closure has no finite descriptor roster"),
         )?;
         for leaf in leaves {
+            let declaration = self
+                .types
+                .get(index(leaf.structural_type.get())?)
+                .filter(|declaration| declaration.id == leaf.structural_type)
+                .ok_or(Error::malformed(
+                    "reference closure lost the leaf declaration",
+                ))?;
+            // Only a mutable loan can leave a hole. Shared byte recasts
+            // retain the lender's storage through loan checking, without
+            // turning their alternate presentation into an owned path.
+            if !matches!(
+                declaration.shape,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::MutableBorrow,
+                    ..
+                }
+            ) {
+                continue;
+            }
             let mut exact = path.to_vec();
             exact.extend(leaf.path);
             self.restore_reference(state, source, &exact, site)?;
@@ -1549,7 +1647,9 @@ impl Analysis<'_> {
                     .map_err(|_| Error::malformed("operation position overflows"))?,
             );
             self.position = Some(at);
-            self.end_references(&mut state, at, Site::Operation(operation.id))?;
+            let site = Site::Operation(operation.id);
+            self.end_references(&mut state, at, site)
+                .map_err(|error| error.at(site))?;
             // "Suspension must retain the exclusive loan, exact hole,
             // removed-value custody, and restoration obligation without
             // exposing the incomplete owner. Its resume and cancellation
@@ -1576,10 +1676,10 @@ impl Analysis<'_> {
                 return Err(Error::unsupported(
                     "a possibly suspending call while an owned value is out of borrowed storage",
                 )
-                .at(Site::Operation(operation.id)));
+                .at(site));
             }
             self.operation(&mut state, operation, entering.is_some())
-                .map_err(|error| error.at(Site::Operation(operation.id)))?;
+                .map_err(|error| error.at(site))?;
         }
         self.position = Some((
             block.id,
@@ -3428,6 +3528,48 @@ mod tests {
             reference_candidates: None,
             reference_ends: Vec::new(),
         }
+    }
+
+    #[test]
+    fn an_invalid_last_use_path_keeps_its_scheduled_operation() {
+        use terminal_psi::{Operation, OperationKind, OperationResult};
+
+        let types = reconvergence_types();
+        let place = id(1);
+        let operation = id(1);
+        let mut machine = transferring(&[id(1)], &[], Vec::new());
+        let block = machine.entry;
+        machine.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Unit,
+            OperationKind::ReleaseReference {
+                source: place,
+                path: Vec::new(),
+            },
+        ));
+        let argument = StructuralArgument {
+            place,
+            path: vec![StructuralPathSegment::FixedIndex(7)],
+            access: StructuralAccess::Owned,
+        };
+        let candidates = crate::reference_ends::Candidates::from([(
+            (block, 0),
+            vec![crate::reference_ends::Candidate {
+                argument,
+                unproved_case: None,
+            }],
+        )]);
+        let mut analysis = owned_analysis(&types);
+        analysis.reference_candidates = Some(&candidates);
+        let state = State {
+            regions: vec![Some(Region::new(true))],
+            active: vec![place],
+        };
+        let result = analysis.walk(&machine, block, state, &[], false, None);
+        assert!(matches!(result, Err(Error::Unsupported {
+            detail: "affine projection outside the static structural vocabulary",
+            site: Some(Site::Operation(at)),
+        }) if at == operation));
     }
 
     #[test]

@@ -1490,6 +1490,104 @@ fn captured_review_compilation_at(
     (session, checked)
 }
 
+#[test]
+fn review_keeps_the_target_selected_fixed_layout_delivery_contract() {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
+
+    let main = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
+    ));
+    let build = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
+    ));
+    let (_workspace, _session, checked) = captured_review_compilation(main, build);
+    let checked = checked.expect("the original Product reaches checked target supply");
+    let package = checked.sources().package_identity().unwrap();
+    let target = checked.execution().target_profile().unwrap();
+    let original = review_evidence::project_checked_package_policy(&checked, target, package)
+        .expect("the exact selected local boundary is reviewed");
+    let bytes = original.canonical_bytes().unwrap();
+    let policy =
+        PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
+            .unwrap();
+    assert_eq!(policy.canonical_bytes().unwrap(), bytes);
+    let [plan] = policy.selected_providers().plans() else {
+        panic!("one whole checked Delivery plan");
+    };
+    let expected = if target == target::TargetProfile::MacosArm64 {
+        "FirstDelivery"
+    } else {
+        "SecondDelivery"
+    };
+    assert_eq!(plan.target(), target.target_name());
+    assert_eq!(plan.provider_type(), expected);
+    assert_eq!(plan.provider_type_declaration().unwrap().path(), expected);
+    assert_eq!(plan.schema_declaration().path(), "Delivery");
+    assert_eq!(plan.rows().len(), 2);
+    let method = plan
+        .methods()
+        .iter()
+        .find(|method| method.name() == "value")
+        .unwrap();
+    assert!(method.terminates_guarantee());
+    let result = method.signature().result().unwrap().canonical();
+    for identity in ["LayoutStorage", "Pair", "PairLayout"] {
+        assert!(result.contains(identity), "{result}");
+    }
+    for row in plan.rows() {
+        assert_eq!(
+            row.realization().unwrap().path(),
+            format!("{expected}::{}", row.method())
+        );
+    }
+    assert!(policy.public_traits().is_empty(), "Delivery stays private");
+    for row in plan.rows() {
+        let requirement = policy
+            .callables()
+            .callables()
+            .iter()
+            .find(|callable| callable.identity() == row.requirement())
+            .unwrap();
+        assert_eq!(requirement.declared_service_reach(), Some(&[][..]));
+        assert_eq!(
+            format!("{:?}", requirement.checked_crash().interface()),
+            "PublishedCeiling",
+        );
+        assert!(requirement.checked_crash().published().is_empty());
+    }
+    let foreign = semantic_vocabulary::PackageKeyIdentity::from_digest([42; 32]).unwrap();
+    assert!(review_evidence::project_checked_package_policy(&checked, target, foreign).is_err());
+    let other_target = if target == target::TargetProfile::MacosArm64 {
+        target::TargetProfile::LinuxX64
+    } else {
+        target::TargetProfile::MacosArm64
+    };
+    assert!(
+        review_evidence::project_checked_package_policy(&checked, other_target, package).is_err()
+    );
+}
+
+#[test]
+fn review_refuses_a_boundary_without_a_checked_provider_policy() {
+    let source = "
+        boundary trait Unrelated {
+            machine unused() reaches terminates crashes none;
+        }
+        machine main() {}
+    ";
+    let (_workspace, _session, checked) = captured_review_compilation(source, REVIEW_BUILD_SOURCE);
+    let checked = checked.expect("the unattached requirement can be checked");
+    let package = checked.sources().package_identity().unwrap();
+    let target = checked.execution().target_profile().unwrap();
+    let errors = review_evidence::project_checked_package_policy(&checked, target, package)
+        .expect_err("the unselected requirement has no complete review policy");
+    let reason = diagnostics::join_messages(&errors);
+    assert!(reason.contains("boundary"), "{reason}");
+}
+
 /// Review keeps which lifetime backs each public field. Renaming binders
 /// preserves that relation; tying both fields to one input changes the API.
 #[test]

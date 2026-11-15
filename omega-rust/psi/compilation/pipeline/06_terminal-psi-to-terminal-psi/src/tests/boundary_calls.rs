@@ -6,6 +6,11 @@ use super::*;
 use std::sync::Arc;
 
 pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
+    try_typed(text).unwrap()
+}
+
+/// Typing's own verdict on `text`, for tests whose program typing must reject.
+pub(super) fn try_typed(text: &str) -> Result<typed_trees::TypedTrees, diagnostics::Diagnostic> {
     let mut sources = source::SourceMap::default();
     let source = sources
         .add("boundary_calls/source.omg".into(), text.to_owned())
@@ -21,7 +26,7 @@ pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
         },
     )
     .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
 }
 
 pub(super) fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {

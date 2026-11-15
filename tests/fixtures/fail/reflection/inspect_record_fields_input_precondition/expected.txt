@@ -1,0 +1,1 @@
+`note` does not satisfy the callback binder of reflect::inspect_record_fields: it declares a precondition on its inputs that the binder does not publish

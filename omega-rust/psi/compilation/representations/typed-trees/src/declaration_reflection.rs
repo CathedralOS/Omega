@@ -1,8 +1,8 @@
 /*
-Queries describe exact declarations under their lexical author's visibility.
-Typed construction stays here; the shared source-neutral graph and image live
-in language semantics. Receiving data retains the actual query's source/code
-custody and full graph, not permission inferred from descriptive identities.
+Queries describe selected types using the caller's visibility. Construction
+stays here; language semantics owns the shared type descriptions. Consumers
+keep the original query and its complete description. Descriptions alone grant
+no permission to call a function or access storage.
 */
 
 pub mod reflection {

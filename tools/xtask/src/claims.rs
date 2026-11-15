@@ -1,4 +1,4 @@
-//! Cross-machine work-claim registry (`cargo xtask claims`) on `refs/coordination/omega-claims/main`.
+//! Cross-machine work-claim registry (`cargo xtask claims`) on the `work/claims` branch.
 
 use std::io::Write;
 use std::path::Path;
@@ -9,7 +9,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::repo_root;
 
-const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
+// A branch, because the Git proxy in front of Claude Code cloud sessions
+// accepts pushes only to `refs/heads/*`. The proxy also refuses forced
+// updates and deletions, so every write fast-forwards this branch.
+const CLAIMS_REF: &str = "refs/heads/work/claims";
+// The registry before 2026-11-15. Older tools still write it, so status reads
+// it too until TASKS.md `CLAIMS-LEGACY-READ-REMOVAL` deletes that read.
+const LEGACY_CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
 const PROTOCOL: &str = "omega-claims-v1";
 const LEASE_MINUTES: u64 = 120;
 const WRITE_ATTEMPTS: u32 = 5;
@@ -23,6 +29,11 @@ struct ClaimsRecord {
     claims: Vec<serde_json::Value>,
     #[serde(default)]
     notes: Vec<serde_json::Value>,
+    /// The legacy claims the branch took over when it was seeded. Status
+    /// shows a legacy claim only when its ticket is in neither the branch's
+    /// claims nor this list, so a claim released on the branch stays gone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    seeded_tickets: Vec<String>,
 }
 
 impl Default for ClaimsRecord {
@@ -31,6 +42,7 @@ impl Default for ClaimsRecord {
             protocol: PROTOCOL.to_owned(),
             claims: Vec::new(),
             notes: Vec::new(),
+            seeded_tickets: Vec::new(),
         }
     }
 }
@@ -263,18 +275,50 @@ fn prune_registry(record: &mut ClaimsRecord, now: SystemTime) {
     });
 }
 
-fn status_snapshot(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
+fn status_snapshot(snapshot: &Snapshot, now: SystemTime) -> serde_json::Value {
     let now = epoch_nanoseconds(now);
-    let claims: Vec<_> = record
-        .claims
-        .iter()
-        .filter(|claim| claim_expiry(claim).is_none_or(|expires| expires > now))
-        .collect();
+    let live = |claim: &&serde_json::Value| claim_expiry(claim).is_none_or(|expires| expires > now);
+    let ticket = |value: &serde_json::Value| {
+        value
+            .get("ticket")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    let empty = ClaimsRecord::default();
+    let branch = snapshot.branch.as_ref().unwrap_or(&empty);
+    let mut claims: Vec<serde_json::Value> = branch.claims.iter().filter(live).cloned().collect();
+    let mut notes_pending = branch.notes.len();
+    if let Some(legacy) = &snapshot.legacy {
+        // Claims an older tool wrote after the branch was seeded. Mark them, so
+        // a reader knows a branch write cannot renew or release them.
+        let mut known: Vec<String> = branch.claims.iter().filter_map(ticket).collect();
+        known.extend(branch.seeded_tickets.iter().cloned());
+        known.sort_unstable();
+        let mut shown = Vec::new();
+        for claim in legacy.claims.iter().filter(live) {
+            let Some(id) = ticket(claim) else { continue };
+            if known.binary_search(&id).is_ok() {
+                continue;
+            }
+            let mut claim = claim.clone();
+            if let Some(fields) = claim.as_object_mut() {
+                fields.insert("registry".to_owned(), LEGACY_CLAIMS_REF.into());
+            }
+            claims.push(claim);
+            shown.push(id);
+        }
+        notes_pending += legacy
+            .notes
+            .iter()
+            .filter(|note| ticket(note).is_some_and(|id| shown.contains(&id)))
+            .count();
+    }
     serde_json::json!({
         "state": if claims.is_empty() { "available" } else { "claimed" },
         "claims": claims,
-        "notes_pending": record.notes.len(),
-        "version": version,
+        "notes_pending": notes_pending,
+        "version": snapshot.heads.branch,
+        "legacy_version": snapshot.heads.legacy,
     })
 }
 
@@ -334,18 +378,106 @@ fn append_note(
     Ok(())
 }
 
-fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
-    let version = remote_version(repo)?;
-    if version.is_empty() {
-        return Ok((version, ClaimsRecord::default()));
+/// The registry heads the remote advertises; an empty string means that
+/// reference does not exist.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RegistryHeads {
+    branch: String,
+    legacy: String,
+}
+
+/// Which records one read needs. Status shows both registries during the
+/// transition; a write needs the legacy record only to seed an absent branch.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum LegacyRead {
+    Always,
+    WhenBranchAbsent,
+}
+
+/// One read of the remote registry: the heads it advertised and the records
+/// at those exact commits.
+#[derive(Debug, Clone, PartialEq)]
+struct Snapshot {
+    heads: RegistryHeads,
+    branch: Option<ClaimsRecord>,
+    legacy: Option<ClaimsRecord>,
+}
+
+impl Snapshot {
+    /// The commit a write builds on and the record it changes. While the
+    /// branch does not exist, the first write builds on the legacy record,
+    /// so the branch starts with that history and those claims. It remembers
+    /// which tickets it took over, so status does not show them again from
+    /// the legacy reference after the branch releases them.
+    fn write_base(&self) -> (String, ClaimsRecord) {
+        if !self.heads.branch.is_empty() {
+            return (
+                self.heads.branch.clone(),
+                self.branch.clone().unwrap_or_default(),
+            );
+        }
+        if self.heads.legacy.is_empty() {
+            return (String::new(), ClaimsRecord::default());
+        }
+        let mut record = self.legacy.clone().unwrap_or_default();
+        record.seeded_tickets = record
+            .claims
+            .iter()
+            .filter_map(|claim| claim.get("ticket").and_then(serde_json::Value::as_str))
+            .map(str::to_owned)
+            .collect();
+        (self.heads.legacy.clone(), record)
     }
-    if snapshot_is_cached(repo, &version)? {
-        return read_record(repo, &version).map(|record| (version, record));
+
+    fn wanted(heads: &RegistryHeads, legacy: LegacyRead) -> (bool, bool) {
+        let branch = !heads.branch.is_empty();
+        let legacy = !heads.legacy.is_empty() && (legacy == LegacyRead::Always || !branch);
+        (branch, legacy)
+    }
+
+    fn versions(heads: &RegistryHeads, legacy: LegacyRead) -> Vec<&str> {
+        let (branch, legacy) = Self::wanted(heads, legacy);
+        let mut versions = Vec::with_capacity(2);
+        if branch {
+            versions.push(heads.branch.as_str());
+        }
+        if legacy {
+            versions.push(heads.legacy.as_str());
+        }
+        versions
+    }
+
+    fn read(repo: &Path, heads: RegistryHeads, legacy: LegacyRead) -> Result<Self, u8> {
+        let (want_branch, want_legacy) = Self::wanted(&heads, legacy);
+        let branch = want_branch
+            .then(|| read_record(repo, &heads.branch))
+            .transpose()?;
+        let legacy = want_legacy
+            .then(|| read_record(repo, &heads.legacy))
+            .transpose()?;
+        Ok(Self {
+            heads,
+            branch,
+            legacy,
+        })
+    }
+}
+
+fn fetch_snapshot(repo: &Path, legacy: LegacyRead) -> Result<Snapshot, u8> {
+    let heads = remote_heads(repo)?;
+    let mut cached = true;
+    for version in Snapshot::versions(&heads, legacy) {
+        cached &= snapshot_is_cached(repo, version)?;
+    }
+    if cached {
+        return Snapshot::read(repo, heads, legacy);
     }
     // A source fetch can hold admission for much longer than a claim update.
-    // Sample the head again after that wait, so the lease does not age in line.
-    crate::repository::with_git_fetch(repo, |fetch| Ok(fetch_snapshot_admitted(repo, fetch)))
-        .map_err(fetch_error)?
+    // Sample the heads again after that wait, so the lease does not age in line.
+    crate::repository::with_git_fetch(repo, |fetch| {
+        Ok(fetch_snapshot_admitted(repo, legacy, fetch))
+    })
+    .map_err(fetch_error)?
 }
 
 fn fetch_error(error: String) -> u8 {
@@ -353,9 +485,9 @@ fn fetch_error(error: String) -> u8 {
     1
 }
 
-fn remote_version(repo: &Path) -> Result<String, u8> {
+fn remote_heads(repo: &Path) -> Result<RegistryHeads, u8> {
     let ls = Command::new("git")
-        .args(["ls-remote", "origin", CLAIMS_REF])
+        .args(["ls-remote", "origin", CLAIMS_REF, LEGACY_CLAIMS_REF])
         .current_dir(repo)
         .stdin(Stdio::null())
         .output()
@@ -364,25 +496,33 @@ fn remote_version(repo: &Path) -> Result<String, u8> {
             1u8
         })?;
     if !ls.status.success() {
-        eprintln!("claims: cannot read the remote registry reference");
+        eprintln!("claims: cannot read the remote registry references");
         return Err(1);
     }
-    let stdout = String::from_utf8_lossy(&ls.stdout);
-    Ok(stdout
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_owned())
+    let mut heads = RegistryHeads::default();
+    for line in String::from_utf8_lossy(&ls.stdout).lines() {
+        let mut fields = line.split_whitespace();
+        let (Some(version), Some(name)) = (fields.next(), fields.next()) else {
+            continue;
+        };
+        // ls-remote matches patterns by suffix; keep only the exact names.
+        if name == CLAIMS_REF {
+            heads.branch = version.to_owned();
+        } else if name == LEGACY_CLAIMS_REF {
+            heads.legacy = version.to_owned();
+        }
+    }
+    Ok(heads)
 }
 
-fn fetch_snapshot_admitted(repo: &Path, fetch: &mut Command) -> Result<(String, ClaimsRecord), u8> {
-    let version = remote_version(repo)?;
-    if version.is_empty() {
-        return Ok((String::new(), ClaimsRecord::default()));
-    }
-    let record = fetch_record_admitted(repo, &version, fetch)?;
-    Ok((version, record))
+fn fetch_snapshot_admitted(
+    repo: &Path,
+    legacy: LegacyRead,
+    fetch: &mut Command,
+) -> Result<Snapshot, u8> {
+    let heads = remote_heads(repo)?;
+    fetch_versions_admitted(repo, &Snapshot::versions(&heads, legacy), fetch)?;
+    Snapshot::read(repo, heads, legacy)
 }
 
 fn snapshot_is_cached(repo: &Path, version: &str) -> Result<bool, u8> {
@@ -402,39 +542,43 @@ fn snapshot_is_cached(repo: &Path, version: &str) -> Result<bool, u8> {
     Ok(cached.success())
 }
 
-fn fetch_record_admitted(
-    repo: &Path,
-    version: &str,
-    fetch: &mut Command,
-) -> Result<ClaimsRecord, u8> {
-    // Fetch the exact advertised snapshot: another writer may move the ref
+fn fetch_versions_admitted(repo: &Path, versions: &[&str], fetch: &mut Command) -> Result<(), u8> {
+    // Fetch the exact advertised snapshots: another writer may move a ref
     // between ls-remote and fetch. Reading a different or empty record under
-    // the advertised lease could overwrite other sessions' claims.
+    // the advertised base could overwrite other sessions' claims.
     // Only the newest record matters: each commit's message is the whole
-    // registry, and the ref's history is tens of thousands of such commits,
-    // so a full fetch can exhaust a session's memory.
-    if !snapshot_is_cached(repo, version)? {
-        let status = fetch
-            .args(["-q", "--depth=1", "origin", version])
-            .status()
-            .map_err(|error| fetch_error(format!("cannot fetch snapshot {version}: {error}")))?;
-        if !status.success() {
-            eprintln!("claims: cannot fetch registry snapshot {version}");
-            return Err(1);
+    // registry, and the history is tens of thousands of such commits, so a
+    // full fetch can exhaust a session's memory.
+    let mut missing = Vec::with_capacity(versions.len());
+    for version in versions {
+        if !snapshot_is_cached(repo, version)? {
+            missing.push(*version);
         }
     }
-    read_record(repo, version)
+    if missing.is_empty() {
+        return Ok(());
+    }
+    let status = fetch
+        .args(["-q", "--depth=1", "origin"])
+        .args(&missing)
+        .status()
+        .map_err(|error| fetch_error(format!("cannot fetch snapshots {missing:?}: {error}")))?;
+    if !status.success() {
+        eprintln!("claims: cannot fetch registry snapshots {missing:?}");
+        return Err(1);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
-    if snapshot_is_cached(repo, version)? {
-        return read_record(repo, version);
+    if !snapshot_is_cached(repo, version)? {
+        crate::repository::with_git_fetch(repo, |fetch| {
+            Ok(fetch_versions_admitted(repo, &[version], fetch))
+        })
+        .map_err(fetch_error)??;
     }
-    crate::repository::with_git_fetch(repo, |fetch| {
-        Ok(fetch_record_admitted(repo, version, fetch))
-    })
-    .map_err(fetch_error)?
+    read_record(repo, version)
 }
 
 fn read_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
@@ -513,10 +657,12 @@ fn commit_and_push(
         return Err(PublicationError::Prepare);
     }
     let new_sha = String::from_utf8_lossy(&out.stdout).trim().to_owned();
-    let lease = format!("--force-with-lease={CLAIMS_REF}:{prev_version}");
+    // A plain push, never forced: the new commit's parent is the tip this
+    // write read, so the remote accepts it only while that is still the tip.
+    // A concurrent writer makes it a non-fast-forward, which Git refuses.
     let target = format!("{new_sha}:{CLAIMS_REF}");
     let push = Command::new("git")
-        .args(["push", "origin", &lease, &target])
+        .args(["push", "-q", "origin", &target])
         .current_dir(repo)
         .stdin(Stdio::null())
         .status()
@@ -536,7 +682,8 @@ fn update_registry<T>(
     mut change: impl FnMut(&mut ClaimsRecord) -> Result<T, u8>,
 ) -> Result<T, u8> {
     let mut attempt = 1;
-    let (mut version, mut record) = fetch_snapshot(repo)?;
+    let (mut version, mut record) =
+        fetch_snapshot(repo, LegacyRead::WhenBranchAbsent)?.write_base();
     loop {
         let previous = record.clone();
         let outcome = change(&mut record)?;
@@ -547,7 +694,8 @@ fn update_registry<T>(
         match commit_and_push(repo, &version, &record) {
             Ok(()) => return Ok(outcome),
             Err(PublicationError::Push) => {
-                let (latest_version, latest_record) = fetch_snapshot(repo)?;
+                let (latest_version, latest_record) =
+                    fetch_snapshot(repo, LegacyRead::WhenBranchAbsent)?.write_base();
                 // A lost acknowledgement can hide a successful publication.
                 if latest_record == record {
                     return Ok(outcome);
@@ -767,8 +915,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     match request {
         Request::Status => {
-            let (version, record) = fetch_snapshot(&repo)?;
-            let out = status_snapshot(&version, &record, SystemTime::now());
+            let snapshot = fetch_snapshot(&repo, LegacyRead::Always)?;
+            let out = status_snapshot(&snapshot, SystemTime::now());
             crate::write_status(|output| {
                 writeln!(output, "{}", serde_json::to_string_pretty(&out).unwrap())
             })
@@ -892,6 +1040,22 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn read_base(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
+        fetch_snapshot(repo, LegacyRead::Always).map(|snapshot| snapshot.write_base())
+    }
+
+    fn branch_status(version: &str, record: &ClaimsRecord, now: SystemTime) -> serde_json::Value {
+        let snapshot = Snapshot {
+            heads: RegistryHeads {
+                branch: version.to_owned(),
+                legacy: String::new(),
+            },
+            branch: Some(record.clone()),
+            legacy: None,
+        };
+        status_snapshot(&snapshot, now)
+    }
+
     struct RegistryFixture {
         root: std::path::PathBuf,
         reader: std::path::PathBuf,
@@ -960,6 +1124,29 @@ mod tests {
             Self::git(&self.remote, &["update-ref", CLAIMS_REF, &version]);
             version
         }
+
+        /// A record an older tool wrote to the legacy reference.
+        fn publish_legacy(&self, body: &str) -> String {
+            let tree = Self::git(&self.remote, &["hash-object", "-t", "tree", "/dev/null"]);
+            let mut arguments = vec!["commit-tree", tree.as_str(), "-m", body];
+            let previous = Self::git(
+                &self.remote,
+                &["for-each-ref", "--format=%(objectname)", LEGACY_CLAIMS_REF],
+            );
+            if !previous.is_empty() {
+                arguments.extend(["-p", previous.as_str()]);
+            }
+            let version = Self::git(&self.remote, &arguments);
+            Self::git(&self.remote, &["update-ref", LEGACY_CLAIMS_REF, &version]);
+            version
+        }
+
+        fn remote_tip(&self, name: &str) -> String {
+            Self::git(
+                &self.remote,
+                &["for-each-ref", "--format=%(objectname)", name],
+            )
+        }
     }
 
     impl Drop for RegistryFixture {
@@ -971,7 +1158,7 @@ mod tests {
     #[test]
     fn absent_registry_is_empty_but_unreadable_registry_is_an_error() {
         let fixture = RegistryFixture::new();
-        let (version, record) = fetch_snapshot(&fixture.reader).unwrap();
+        let (version, record) = read_base(&fixture.reader).unwrap();
         assert!(version.is_empty());
         assert!(record.claims.is_empty());
         RegistryFixture::git(
@@ -983,14 +1170,14 @@ mod tests {
                 fixture.root.join("missing").to_str().unwrap(),
             ],
         );
-        assert!(fetch_snapshot(&fixture.reader).is_err());
+        assert!(read_base(&fixture.reader).is_err());
     }
 
     #[test]
     fn malformed_existing_registry_cannot_be_replaced_by_an_empty_snapshot() {
         let fixture = RegistryFixture::new();
         let version = fixture.publish("interrupted registry payload");
-        assert!(fetch_snapshot(&fixture.reader).is_err());
+        assert!(read_base(&fixture.reader).is_err());
         assert_eq!(
             RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
             version
@@ -1001,7 +1188,7 @@ mod tests {
     fn unsupported_registry_protocol_cannot_be_rewritten() {
         let fixture = RegistryFixture::new();
         fixture.publish(r#"{"protocol":"omega-claims-future","claims":[],"notes":[]}"#);
-        assert!(fetch_snapshot(&fixture.reader).is_err());
+        assert!(read_base(&fixture.reader).is_err());
     }
 
     #[test]
@@ -1024,7 +1211,7 @@ mod tests {
             RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
             newer
         );
-        let (current, record) = fetch_snapshot(&fixture.reader).unwrap();
+        let (current, record) = read_base(&fixture.reader).unwrap();
         assert_eq!(current, newer);
         assert_eq!(
             record.claims,
@@ -1040,7 +1227,7 @@ mod tests {
             "claims": [{"ticket": "old"}], "notes": []})
             .to_string(),
         );
-        assert_eq!(remote_version(&fixture.reader).unwrap(), observed);
+        assert_eq!(remote_heads(&fixture.reader).unwrap().branch, observed);
         assert!(!snapshot_is_cached(&fixture.reader, &observed).unwrap());
         let (latest, snapshot) = crate::repository::with_git_fetch(&fixture.reader, |fetch| {
             // Another writer may publish while this reader waits for admission.
@@ -1049,7 +1236,11 @@ mod tests {
                 "claims": [{"ticket": "new", "unknown": [1, 2]}], "notes": []})
                 .to_string(),
             );
-            Ok((latest, fetch_snapshot_admitted(&fixture.reader, fetch)))
+            Ok((
+                latest,
+                fetch_snapshot_admitted(&fixture.reader, LegacyRead::Always, fetch)
+                    .map(|snapshot| snapshot.write_base()),
+            ))
         })
         .unwrap();
         let (version, record) = snapshot.unwrap();
@@ -1059,7 +1250,10 @@ mod tests {
         // A newer malformed head is a refusal, not a reason to reuse the old body.
         let snapshot = crate::repository::with_git_fetch(&fixture.reader, |fetch| {
             fixture.publish("malformed newer registry");
-            Ok(fetch_snapshot_admitted(&fixture.reader, fetch))
+            Ok(
+                fetch_snapshot_admitted(&fixture.reader, LegacyRead::Always, fetch)
+                    .map(|snapshot| snapshot.write_base()),
+            )
         })
         .unwrap();
         assert!(snapshot.is_err());
@@ -1075,7 +1269,7 @@ mod tests {
                 let (send, receive) = std::sync::mpsc::channel();
                 let reader = &fixture.reader;
                 threads.spawn(move || {
-                    let _ = send.send(fetch_snapshot(reader));
+                    let _ = send.send(read_base(reader));
                 });
                 Ok(receive.recv_timeout(Duration::from_secs(5)))
             })
@@ -1103,7 +1297,7 @@ mod tests {
         );
         assert!(fetch_record(&fixture.reader, &version).is_ok());
         assert!(fetch_record(&fixture.reader, "1111111111111111111111111111111111111111").is_err());
-        assert!(fetch_snapshot(&fixture.reader).is_err());
+        assert!(read_base(&fixture.reader).is_err());
     }
 
     #[test]
@@ -1127,7 +1321,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!(attempts, 2);
-        let (_, record) = fetch_snapshot(&fixture.reader).unwrap();
+        let (_, record) = read_base(&fixture.reader).unwrap();
         assert_eq!(
             record.claims,
             vec![
@@ -1259,7 +1453,7 @@ mod tests {
         assert!(renew_claim(&mut record, "live", taken + hour).unwrap());
         assert_eq!(record, already_renewed);
         let later = taken + 3 * hour;
-        let visible = status_snapshot("v", &record, later)["claims"].clone();
+        let visible = branch_status("v", &record, later)["claims"].clone();
         assert_eq!(visible.as_array().unwrap().len(), 1);
         assert_eq!(visible[0]["ticket"], "live");
         assert_eq!(
@@ -1347,7 +1541,7 @@ mod tests {
             notes: vec![json!({"text": "retained note"})],
             ..ClaimsRecord::default()
         };
-        let out = status_snapshot("snapshot", &record, now);
+        let out = branch_status("snapshot", &record, now);
         assert_eq!(out["state"], "claimed");
         assert_eq!(out["claims"], json!([claims[2], claims[3]]));
         assert_eq!(out["version"], "snapshot");
@@ -1355,7 +1549,7 @@ mod tests {
         assert_eq!(record.claims, claims);
 
         record.claims.truncate(2);
-        let out = status_snapshot("snapshot", &record, now);
+        let out = branch_status("snapshot", &record, now);
         assert_eq!(out["state"], "available");
         assert_eq!(out["claims"], json!([]));
         assert_eq!(record.claims.len(), 2);
@@ -1380,12 +1574,12 @@ mod tests {
         let wire = json!({"protocol": PROTOCOL, "claims": claims, "notes": []});
         let record: ClaimsRecord = serde_json::from_value(wire.clone()).unwrap();
         let now = UNIX_EPOCH + Duration::from_secs(1_794_527_999);
-        let out = status_snapshot("snapshot", &record, now);
+        let out = branch_status("snapshot", &record, now);
         assert_eq!(out["state"], "claimed");
         assert_eq!(out["claims"], json!(unknown));
         assert_eq!(serde_json::to_value(record).unwrap(), wire);
         assert_eq!(
-            status_snapshot("empty", &ClaimsRecord::default(), now)["state"],
+            branch_status("empty", &ClaimsRecord::default(), now)["state"],
             "available"
         );
     }
@@ -1438,7 +1632,7 @@ mod tests {
             ],
             ..ClaimsRecord::default()
         };
-        let visible = status_snapshot("v", &record, now)["claims"].clone();
+        let visible = branch_status("v", &record, now)["claims"].clone();
         prune_registry(&mut record, now);
         // The stored record now holds exactly what status shows.
         assert_eq!(json!(record.claims), visible);
@@ -1479,12 +1673,96 @@ mod tests {
                 claims: vec![json!({"expires_utc": text})],
                 ..ClaimsRecord::default()
             };
-            let out = status_snapshot(
+            let out = branch_status(
                 "snapshot",
                 &record,
                 UNIX_EPOCH + Duration::from_secs(1_794_527_999),
             );
             assert_eq!(out["claims"].as_array().unwrap().len(), 1, "{text}");
         }
+    }
+
+    #[test]
+    fn the_first_write_seeds_the_branch_from_the_legacy_registry() {
+        let fixture = RegistryFixture::new();
+        let legacy = fixture.publish_legacy(
+            &json!({"protocol": PROTOCOL,
+                "claims": [{"ticket": "old", "unknown": true}],
+                "notes": [{"ticket": "old", "text": "kept"}]})
+            .to_string(),
+        );
+        update_registry(&fixture.reader, |record| {
+            record.claims.push(json!({"ticket": "ours"}));
+            Ok(())
+        })
+        .unwrap();
+        let branch = fixture.remote_tip(CLAIMS_REF);
+        // The branch continues the legacy history; the legacy ref is untouched.
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", &format!("{branch}^")]),
+            legacy
+        );
+        assert_eq!(fixture.remote_tip(LEGACY_CLAIMS_REF), legacy);
+        let (version, record) = read_base(&fixture.reader).unwrap();
+        assert_eq!(version, branch);
+        assert_eq!(
+            record.claims,
+            [
+                json!({"ticket": "old", "unknown": true}),
+                json!({"ticket": "ours"})
+            ]
+        );
+        assert_eq!(record.notes.len(), 1);
+        assert_eq!(record.seeded_tickets, ["old"]);
+
+        // A later write fast-forwards the branch: the old tip is its parent.
+        update_registry(&fixture.reader, |record| {
+            record.claims.retain(|claim| claim["ticket"] != "ours");
+            Ok(())
+        })
+        .unwrap();
+        let next = fixture.remote_tip(CLAIMS_REF);
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", &format!("{next}^")]),
+            branch
+        );
+    }
+
+    #[test]
+    fn status_merges_claims_older_tools_still_write_to_the_legacy_registry() {
+        let fixture = RegistryFixture::new();
+        fixture.publish_legacy(
+            &json!({"protocol": PROTOCOL, "claims": [{"ticket": "seeded"}], "notes": []})
+                .to_string(),
+        );
+        update_registry(&fixture.reader, |record| {
+            record.claims.push(json!({"ticket": "ours"}));
+            Ok(())
+        })
+        .unwrap();
+        // An older tool keeps writing the legacy ref after the branch exists.
+        let legacy = fixture.publish_legacy(
+            &json!({"protocol": PROTOCOL,
+                "claims": [{"ticket": "seeded"}, {"ticket": "late"}],
+                "notes": [{"ticket": "late", "text": "old tool"}]})
+            .to_string(),
+        );
+        // The branch releases the claim it took over from the legacy ref.
+        update_registry(&fixture.reader, |record| {
+            record.claims.retain(|claim| claim["ticket"] != "seeded");
+            Ok(())
+        })
+        .unwrap();
+        let snapshot = fetch_snapshot(&fixture.reader, LegacyRead::Always).unwrap();
+        let out = status_snapshot(&snapshot, SystemTime::now());
+        assert_eq!(
+            out["claims"],
+            json!([{"ticket": "ours"}, {"ticket": "late", "registry": LEGACY_CLAIMS_REF}])
+        );
+        assert_eq!(out["notes_pending"], 1);
+        assert_eq!(out["version"], fixture.remote_tip(CLAIMS_REF));
+        assert_eq!(out["legacy_version"], legacy);
+        // A write never reads or rewrites the legacy ref once the branch exists.
+        assert_eq!(fixture.remote_tip(LEGACY_CLAIMS_REF), legacy);
     }
 }

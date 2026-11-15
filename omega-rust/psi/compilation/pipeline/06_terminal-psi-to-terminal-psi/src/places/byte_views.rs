@@ -810,6 +810,12 @@ impl Storage<'_> {
                     self.array_view_formation(self.operation(producer, concerns)?)? as u128,
                 ),
             ),
+            // A sequence literal's descriptor holds exactly its elements. Only
+            // an element sequence has an extent leaf to ask about; a fixed
+            // array's length is its type's (`Held::extent_of`).
+            OperationKind::EstablishStructuralArray { elements } => {
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(elements.len() as u128))
+            }
             OperationKind::ByteSequenceSubslice { start, end, .. } => {
                 if !self.current_extent(producer, trace)? && self.repeated_extent(producer)? {
                     return Ok(None);

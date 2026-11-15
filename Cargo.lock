@@ -116,12 +116,15 @@ dependencies = [
  "diagnostics",
  "effects",
  "function-identity",
+ "language-core",
+ "language-semantics",
  "optimization-core",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -1797,6 +1800,8 @@ dependencies = [
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
+ "build-time-evaluation",
  "calling-conventions",
  "diagnostics",
  "effects",

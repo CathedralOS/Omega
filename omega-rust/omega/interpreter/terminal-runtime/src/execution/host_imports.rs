@@ -71,7 +71,7 @@ pub(super) fn executes_internally(
     program: &TerminalProgram,
     provision: &native_artifact::TerminalRuntimeHostProvision,
 ) -> bool {
-    program.is_compiler_primitive(provision.boundary)
+    program.executes_boundary_internally(provision.boundary)
         || matches!(
             provision.realization,
             BoundarySettlementRealization::Builtin(BoundaryRealization::AccessorScalarAccess(_))

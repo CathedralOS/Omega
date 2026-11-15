@@ -46,6 +46,20 @@ main's warm build with `tools/ci/session_host.sh`.
 A failed run does not revert any commit; automatic reverts are a later step of
 `wiki/drafts/designs/ci_rebuild_plan.md`.
 
+## Branch cleanup
+
+`.github/workflows/branch-cleanup.yml` deletes stale branches; it runs only
+when started by hand (Actions, Branch cleanup, Run workflow) and by default
+only reports. Uncheck `dry_run` to delete. It exists because cloud agent
+sessions cannot delete refs. `mbx xtask branch-cleanup`
+(`tools/xtask/src/branch_cleanup.rs`) holds the rules: it
+keeps protected branches, branches with an open pull request and branches
+newer than `min_age_hours`, and deletes a branch whose merged or closed pull
+request still ends at its tip, or whose tip is already in main. Branches with
+unmerged commits and no pull request are deleted only with
+`include_unmerged_no_pr`. The run summary and uploaded artifact list every
+branch by category.
+
 ## Administration
 
 Branch and ruleset protection for `main` lives in GitHub repository settings,

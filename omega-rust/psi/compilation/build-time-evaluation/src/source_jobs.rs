@@ -1181,10 +1181,42 @@ pub(crate) mod tests {
     fn fixed_layout_policy_installs_the_retained_pairs_authored_geometry() {
         // The kept program deliberately puts lo after hi. Evaluate that same
         // policy and retain its geometry, rather than assigning default offsets.
-        let mut source = with_reflection(include_str!(concat!(
+        verify_fixed_layout_geometry(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
         )));
+    }
+
+    #[test]
+    fn fixed_layout_policy_keeps_the_retained_pair_in_a_record_field() {
+        verify_fixed_layout_geometry(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/field/main.omg"
+        )));
+    }
+
+    #[test]
+    fn fixed_layout_policy_reaches_the_retained_field_cast_refusal() {
+        let result = judge_fixed_layout_pair(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/invalid_field/main.omg"
+        )));
+        let Err(errors) = result else {
+            panic!("the retained cast of 41 to Delivered must fail");
+        };
+        let refusal = diagnostics::join_messages(&errors);
+        assert!(
+            refusal.contains(
+                "cannot prove the value of this cast is in the domain it adds in machine `make` state `entry`: domain `u64::Delivered` requires `self >= 42 && self <= 42`"
+            ),
+            "{refusal}"
+        );
+    }
+
+    fn judge_fixed_layout_pair(
+        authored: &str,
+    ) -> Result<terminal_production::AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+        let mut source = with_reflection(authored);
         let entry = query_machine(&source, "main");
         let pair = source
             .data_definitions()
@@ -1261,7 +1293,7 @@ pub(crate) mod tests {
             &typed_trees_to_typed_trees::PreparationRequest::settled(),
         )
         .unwrap();
-        let accepted = terminal_production::AcceptedTerminalSource::judge(
+        terminal_production::AcceptedTerminalSource::judge(
             Arc::new(prepared),
             terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
@@ -1274,7 +1306,10 @@ pub(crate) mod tests {
             },
             terminal_codec::TerminalPublication::Portable,
         )
-        .unwrap();
+    }
+
+    fn verify_fixed_layout_geometry(authored: &str) {
+        let accepted = judge_fixed_layout_pair(authored).unwrap();
         let module = accepted.module();
         let [application] = module.target_layout_applications.as_slice() else {
             panic!("the program retains its one actual layout application");

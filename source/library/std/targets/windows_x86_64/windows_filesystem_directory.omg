@@ -75,7 +75,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 windows_x86_64 machine windows_directory_next(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
     output: &mut WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep
-requires handle != 0
+requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration {
     let mut completion: WindowsFilesystemIoStatus;
     let status: i32 = block WindowsFilesystemDirectoryIo::next_name(handle, 0, 0, 0, &mut completion, output, 8208, 12, 1, 0, 0);
@@ -130,13 +130,13 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::directory_count(path: &[
 satisfies WindowsFilesystemHost::directory_count
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
-    transition handle != 0 { true -> block start(handle) false -> (WindowsFilesystemNativeProvider::failure_i64()) }
-    machine start(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i64 requires handle != 0 {
+    transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block start(handle) false -> (WindowsFilesystemNativeProvider::failure_i64()) }
+    machine start(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> i64 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let mut output: WindowsNativeDirectoryNameInfo;
         transition { _ -> block next(handle, &mut output, 0) }
     }
     machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
-    requires handle != 0 && count <= 9223372036854775807 {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && count <= 9223372036854775807 {
         let step: WindowsDirectoryStep = block windows_directory_next(handle, output);
         transition step {
             WindowsDirectoryStep::Error { code } -> block finish(handle, windows_directory_error(code))
@@ -145,14 +145,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         }
     }
     machine entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64, length: u64) -> i64
-    requires handle != 0 && count <= 9223372036854775807 {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && count <= 9223372036854775807 {
         transition windows_directory_dot(output, length) {
             true -> block next(handle, output, count)
             false -> block increment(handle, output, count)
         }
     }
     machine increment(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: &mut WindowsNativeDirectoryNameInfo, count: u64) -> i64
-    requires handle != 0 && count <= 9223372036854775807 {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && count <= 9223372036854775807 {
         transition count < 9223372036854775807 {
             true -> block next(handle, output, count + 1)
             false -> block finish(handle, -534)

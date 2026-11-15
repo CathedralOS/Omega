@@ -1,7 +1,6 @@
-//! Decode ordinary policy data without giving it invocation or backing authority.
-//! The two receipts own the actual query, arguments and returned value. Schema
-//! and declaration correspondence is checked here before data normalization;
-//! the selected public invocation remains a separate admission obligation.
+//! Read returned access rules and check their type and function descriptions.
+//! Receipts retain the original query, arguments and returned value. Matching
+//! those descriptions grants no permission to call functions or access storage.
 
 use access_plans::{
     AccessExposure, AccessPermissions, AccessPlan, AtomicPermissions, BoundaryReach,

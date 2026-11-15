@@ -3595,6 +3595,11 @@ pub(crate) mod structural_array {
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
+        if crate::selection::structural_array_input::owned_sequence(source, row)
+            .ok_or_else(|| super::invalid())?
+        {
+            return owned_sequence(row, builder);
+        }
         let (element_shape, offsets) =
             crate::selection::structural_array_input::elements(source, row)
                 .ok_or_else(super::invalid)?;
@@ -3620,6 +3625,60 @@ pub(crate) mod structural_array {
             )?;
         }
         builder.transport.pointers.push((result.place, pointer));
+        Ok(())
+    }
+    /// An owned element sequence's roster sits in the image's read-only literal pool, which
+    /// legalization checked against the constant elements. The sequence itself is its
+    /// stored-length descriptor: the pool address, then the element count.
+    fn owned_sequence(
+        row: &LegalizedScalarInstruction,
+        builder: &mut Builder<'_>,
+    ) -> Result<(), SelectedInstructionError> {
+        use super::local_storage::{address, store};
+        let LegalizedScalarInstructionKind::EstablishStructuralArray {
+            result, elements, ..
+        } = &row.kind
+        else {
+            return Err(super::invalid());
+        };
+        if builder
+            .transport
+            .pointers
+            .iter()
+            .any(|(place, _)| *place == result.place)
+        {
+            return Err(super::invalid());
+        }
+        let count = u64::try_from(elements.len()).map_err(|_| super::invalid())?;
+        let slot = builder
+            .transport
+            .push_structural_local_slot(row.operation, result.place, 16, 8);
+        let backing = super::transport_register(builder, result.place, 0)?;
+        builder.emit(
+            selected_instructions::SelectedInstructionKind::ImageAddress {
+                reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
+                    operation: row.operation,
+                    place: result.place,
+                },
+            },
+            builder
+                .constraints
+                .keys
+                .byte_literal_image_address
+                .ok_or_else(|| super::invalid())?,
+            &[backing],
+            super::provenance(row),
+        )?;
+        store(builder, row, slot, 0, backing)?;
+        let length = super::transport_register(builder, result.place, 8)?;
+        builder.emit_materialize_i64(
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(count)),
+            length,
+            super::provenance(row),
+        )?;
+        store(builder, row, slot, 8, length)?;
+        let descriptor = address(builder, row, slot, 0, 16, true)?;
+        builder.transport.pointers.push((result.place, descriptor));
         Ok(())
     }
 }

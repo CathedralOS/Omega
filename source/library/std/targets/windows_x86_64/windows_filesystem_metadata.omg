@@ -136,11 +136,11 @@ reaches FilesystemMetadataQuery {
 windows_x86_64 machine windows_query_metadata(handle: u64) -> WindowsMetadataResult
 reaches FilesystemMetadataQuery {
     let classified: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(handle);
-    transition classified != 0 {
+    transition (classified as -WindowsDiskFileOrAbsent) != 0 {
         true -> block basic(classified)
         false -> (windows_metadata_error())
     }
-    machine basic(handle: i64 in WindowsDiskFileOrAbsent) -> WindowsMetadataResult requires handle != 0 {
+    machine basic(handle: i64 in WindowsDiskFileOrAbsent) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
         let mut basic: WindowsNativeFileBasicInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, &mut basic, 40);
         transition succeeded != 0 {
@@ -148,7 +148,7 @@ reaches FilesystemMetadataQuery {
             false -> (windows_metadata_error())
         }
     }
-    machine standard(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo) -> WindowsMetadataResult requires handle != 0 {
+    machine standard(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
         let mut standard: WindowsNativeFileStandardInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::standard(handle, 1, &mut standard, 24);
         transition succeeded != 0 {
@@ -156,7 +156,7 @@ reaches FilesystemMetadataQuery {
             false -> (windows_metadata_error())
         }
     }
-    machine attributes(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo) -> WindowsMetadataResult requires handle != 0 {
+    machine attributes(handle: i64 in WindowsDiskFileOrAbsent, basic: WindowsNativeFileBasicInfo, standard: WindowsNativeFileStandardInfo) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
         let mut tag: WindowsNativeFileAttributeTagInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(handle, 9, &mut tag, 8);
         transition succeeded != 0 {

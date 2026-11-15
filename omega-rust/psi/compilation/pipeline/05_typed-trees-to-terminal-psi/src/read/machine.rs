@@ -6,7 +6,7 @@ the driver that reads one body statement by statement.
 
 use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
-use semantic_vocabulary::{MachineId, ValueId};
+use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -14,13 +14,13 @@ use typed_trees::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
-    ValueType,
+    Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
+    Termination, ValueType,
 };
 use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -293,6 +293,18 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.refused_signatures.contains(&symbol) {
+            let mut refused = refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Machine("a call of a machine whose signature is refused above"),
+            );
+            refused.detail.push_str(&format!(
+                " (`{}`)",
+                self.typed.symbols.display_path(symbol, "::")
+            ));
+            return Err(refused);
+        }
         if self.descriptor_storage {
             return Err(refuse(
                 self.next_identity()?,
@@ -454,8 +466,12 @@ impl<'t> Program<'t> {
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
         let widths = std::mem::replace(&mut self.width_scope, outer_widths);
-        let (signature, names, value_parameters) =
-            read.map_err(|refusal| self.read_failure_at(refusal, symbol, "the signature"))?;
+        let (signature, names, value_parameters) = read.map_err(|refusal| {
+            if self.collected.is_some() && !self.refused_signatures.contains(&symbol) {
+                self.refused_signatures.push(symbol);
+            }
+            self.read_failure_at(refusal, symbol, "the signature")
+        })?;
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
         {
@@ -1838,6 +1854,78 @@ impl<'t> Program<'t> {
         Ok((signature, names))
     }
 
+    /// Core's authenticated numeric catalog supplies its exact pure contract.
+    /// The receiver independently checks this same contract and all declared
+    /// source coordinates; selecting it here grants no target realization.
+    pub(super) fn numeric_primitive_signature(
+        &mut self,
+        id: MachineId,
+        target: SymbolHandle,
+    ) -> Checked<Signature> {
+        let unavailable = |detail| refuse(id, Construct::Machine, Unserved::Call(detail));
+        if self.typed.symbols.sealed_intrinsic(target)
+            != Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement)
+        {
+            return Err(unavailable(
+                "numeric primitive has no exact catalog custody",
+            ));
+        }
+        let requirement =
+            typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement::by_symbol(
+                self.typed, target,
+            )
+            .ok_or_else(|| unavailable("numeric primitive has no complete declaration"))?;
+        let meaning = self
+            .typed
+            .numeric_intrinsic_execution(target)
+            .ok_or_else(|| unavailable("numeric primitive has no closed semantic meaning"))?;
+        let ensures =
+            terminal_semantics::numeric_primitives::ensures(meaning).map_err(unavailable)?;
+        let parameters = requirement
+            .parameters
+            .iter()
+            .map(|formal| {
+                let (value_type, erased, borrowed) = self.formal(id, formal)?;
+                if erased || borrowed.is_some() || formal.is_const || formal.is_mutable {
+                    return Err(unavailable("numeric primitive has a noncanonical formal"));
+                }
+                Ok(value_type)
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        let result = self.result_type(id, requirement.return_type)?;
+        let expected = meaning
+            .signature()
+            .ok_or_else(|| unavailable("numeric primitive has no scalar signature"))?;
+        let expected_operand = expected
+            .operand
+            .scalar_type()
+            .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
+        if parameters != vec![ValueType::plain(expected_operand); expected.operand_count]
+            || result != Some(ValueType::plain(ScalarType::Boolean))
+        {
+            return Err(unavailable(
+                "numeric primitive differs from its canonical scalar signature",
+            ));
+        }
+        Ok(Signature {
+            operational: crate::body::OperationalCeilings {
+                suspension: Some(false),
+                blocking: Some(false),
+            },
+            parameters,
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result,
+            requires: Vec::new(),
+            ensures,
+            crashes: CrashCeiling::DeclaredNone,
+            reaches: crate::Ceiling::Authored(Vec::new()),
+            invokes: crate::Ceiling::Authored(Vec::new()),
+            termination: Termination::Promised,
+            ranking: None,
+        })
+    }
+
     /// Read the types, logical clauses and ceilings of a requirement.
     /// Boundary publication retains its suspension and blocking flags on the
     /// checked declaration, and an actual call still owes their proof. Other
@@ -2477,6 +2565,27 @@ impl<'t> Program<'t> {
         Ok(nothing)
     }
 
+    /// A slice formal carries its borrowed descriptor. A loan of a stored
+    /// value uses the referent's carrier. The executable signature and calling
+    /// ABI use this same choice when they read the formal's type.
+    pub(super) fn borrowed_formal_carrier(
+        &self,
+        reference: TypeReferenceHandle,
+        referee: TypeReferenceHandle,
+    ) -> (TypeReferenceHandle, BorrowedReferent) {
+        let types = &self.typed.type_reference_table;
+        if types.contains_type_reference(referee)
+            && matches!(
+                types.type_reference(referee),
+                TypeReferenceNode::Slice { .. }
+            )
+        {
+            (reference, BorrowedReferent::Slice)
+        } else {
+            (referee, BorrowedReferent::Value)
+        }
+    }
+
     /// A formal's type, whether it is `[erased]`, and the reference it is
     /// passed by. An erased formal is scalar: an erased record travels in
     /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
@@ -2560,17 +2669,11 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        // A byte view keeps the region it names in its type (`bytes`). A
-        // reference to anything else is a loan of one place, and what its
-        // lifetime relates it to has no reader yet.
-        let is_view = matches!(
-            self.typed.type_reference_table.type_reference(referee),
-            TypeReferenceNode::Slice { .. }
-        );
+        let (carrier, referent) = self.borrowed_formal_carrier(formal.type_reference, referee);
         // Retain the outer loan itself, independently of nested views in
         // its referent. A returned reference cannot borrow only a pointer
         // word or substitute a referent's nested lifetime for this one.
-        let ordinary_region = if is_view {
+        let ordinary_region = if referent == BorrowedReferent::Slice {
             None
         } else {
             let identity = self
@@ -2595,11 +2698,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = if is_view {
-            self.value_type(id, formal.type_reference)?
-        } else {
-            self.value_type(id, referee)?
-        };
+        let value_type = self.value_type(id, carrier)?;
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require
@@ -2644,11 +2743,7 @@ impl<'t> Program<'t> {
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
-                referent: if is_view {
-                    crate::body::BorrowedReferent::Slice
-                } else {
-                    crate::body::BorrowedReferent::Value
-                },
+                referent,
                 regions,
                 home,
             }),
@@ -3215,6 +3310,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
@@ -3409,6 +3505,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => {}

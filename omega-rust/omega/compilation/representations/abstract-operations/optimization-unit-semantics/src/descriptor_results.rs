@@ -2028,6 +2028,29 @@ fn adapt(
                         }
                     }
                 }
+                // An owned element sequence keeps its roster in read-only image storage,
+                // like a byte literal, so its descriptor originates at this construction.
+                // Target lowering refuses any construction whose roster has no constant
+                // pool bytes, so no other backing reaches native code under this origin.
+                O::EstablishStructuralArray { result, .. }
+                    if types.iter().any(|row| {
+                        row.id == result.structural_type
+                            && matches!(
+                                row.shape,
+                                StructuralTypeShape::ElementView { access: None, .. }
+                            )
+                    }) =>
+                {
+                    let destination = DescriptorLocation::whole(result.place);
+                    step.definitions.push(destination.clone());
+                    graph.originations.entry(position).or_default().push((
+                        destination,
+                        kernel::DescriptorCallOrigin::Literal {
+                            machine: function.machine,
+                            place: result.place,
+                        },
+                    ));
+                }
                 O::EstablishStructuralArray {
                     result, elements, ..
                 } => {

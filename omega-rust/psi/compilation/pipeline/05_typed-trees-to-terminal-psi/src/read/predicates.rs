@@ -29,9 +29,16 @@ clauses name fields beneath `self`, so a field `player: Player in Alive`
 owes `self.player.health > 0` as a clause of its owner, kept by the owner's
 windows like any other. A formal or result states the same predicates in its
 ordinary callable contract at its exact storage root. A borrowed formal also
-owes them on normal handback. A cast that adds such a domain (`read::casts`),
-a case payload, an array element and a partial write inside such a value
-(`read::authority`) retain their independent establishment restrictions.
+owes them on normal handback.
+
+A cast that adds such a domain states the predicates of the value it casts.
+Of a scalar they are clauses over one value (`cast_predicates`). Of an
+array, a record or a shared reference (`&text as +Terminated`) they are
+clauses over one structural subject (`record_cast_predicates`), a reference's
+read through its `Referent` step. Lowering makes either the invariant of the
+block the cast continues in, so the edge into it owes them. A case payload,
+an array element and a partial write inside such a value (`read::authority`)
+retain their independent establishment restrictions.
 */
 
 use semantic_vocabulary::{
@@ -297,7 +304,74 @@ impl Program<'_> {
             id: subject,
             scalar_type: carrier,
         };
-        let stated = self
+        let stated = self.stated(id, added)?;
+        let clauses = self
+            .of_value(id, &scope, added, &subject)?
+            .into_iter()
+            .map(|(clause, _)| clause)
+            .collect();
+        Ok((clauses, stated))
+    }
+
+    /// The predicates `value as +D` proves of an array, a record or a
+    /// reference `result`, for the domains `added`: each clause over the
+    /// plain value at the one structural subject `self_place()`, which
+    /// lowering binds to the structural parameter of the block the cast
+    /// continues in (`canonical::substitute_parameters`). A shared
+    /// reference's clauses read the referent it shows through one
+    /// `Referent` step; a shared referent cannot change while it is lent,
+    /// so what the cast proves holds while the reference does.
+    pub(crate) fn record_cast_predicates(
+        &self,
+        id: MachineId,
+        added: Qualification,
+        result: ValueType,
+    ) -> Checked<(Vec<Proposition>, String)> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        // A byte view's domains are its primitive byte predicates, judged
+        // at each store from the bytes supplied (`field_predicates`), never
+        // a clause a cast states.
+        if let ValueType::Record(row, _, _) = result
+            && matches!(
+                self.data_type(id, row)?.shape,
+                crate::StorageShape::ByteSequence(_)
+            )
+        {
+            return Err(unserved(
+                "cast that adds a domain with predicates to a byte sequence",
+            ));
+        }
+        let Some(root) = crate::body::self_place() else {
+            return Err(unserved("cast subject place identity"));
+        };
+        let value_type = result
+            .qualified(added)
+            .ok_or_else(|| unserved("cast of a rigid value into a domain with predicates"))?;
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in a domain predicate"),
+            subject: None,
+            formal_fields: false,
+            logical: None,
+            mathematical: MathematicalTerms::Refused(
+                "mathematical comparison in a domain predicate",
+            ),
+        };
+        let clauses = self
+            .storage_predicates(id, &scope, value_type, root, &[])?
+            .into_iter()
+            .map(|(clause, _)| clause)
+            .collect();
+        Ok((clauses, self.stated(id, added)?))
+    }
+
+    /// The domains of `added` and their predicates as written, for a
+    /// diagnostic.
+    fn stated(&self, id: MachineId, added: Qualification) -> Checked<String> {
+        Ok(self
             .predicates(id, added)?
             .iter()
             .map(|predicate| {
@@ -310,13 +384,7 @@ impl Program<'_> {
                 )
             })
             .collect::<Vec<_>>()
-            .join(" and ");
-        let clauses = self
-            .of_value(id, &scope, added, &subject)?
-            .into_iter()
-            .map(|(clause, _)| clause)
-            .collect();
-        Ok((clauses, stated))
+            .join(" and "))
     }
 
     /// Reads the predicates of a subject's domain declaration as a cast
@@ -344,7 +412,7 @@ impl Program<'_> {
             declaration: definition.symbol,
             identity: definition.semantic_id,
         };
-        self.declared_domain(id, domain, carrier)?;
+        self.declared_domain(id, domain, carrier, definition.target_type)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {

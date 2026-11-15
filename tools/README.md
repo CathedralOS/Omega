@@ -19,7 +19,7 @@ changes in `tools/` use the `tools` lane (see [AGENTS.md](../AGENTS.md#commit-na
 
 | Directory | Responsibility |
 | --- | --- |
-| `tools/xtask/` | Rust repository automation (`mbx xtask <command>`): formatting, boundary and admission rules, sample checks that native and Psi agree, qualification, claims, the worktree pool, provenance, sweep and bootstrap source utilities. It also holds `bootstrap-mbx.sh`, so the `tools/xtask/**` push filter and cache key in `.github/workflows/admission.yml` cover it with the `xtask` crate. |
+| `tools/xtask/` | Rust repository automation (`mbx xtask <command>`): formatting, boundary and admission rules, sample checks that native and Psi agree, stale branch cleanup, qualification, claims, the worktree pool, provenance, sweep and bootstrap source utilities. It also holds `bootstrap-mbx.sh`, so the `tools/xtask/**` push filter and cache key in `.github/workflows/admission.yml` cover it with the `xtask` crate. |
 | `tools/docs/` | References for testing, claiming work, build slots, landing PRs and producer-omission checks. |
 | `tools/ratchets/` | Per-file ratchet baselines and the dangling-task baseline, enforced by `mbx xtask check-rules`. |
 | `tools/bootstrap/` | Trust-minimizing bootstrap chain runners and hygiene checks (`tools/bootstrap/README.md`). |
