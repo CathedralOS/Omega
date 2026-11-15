@@ -26,8 +26,8 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
-    BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance,
+    BoundarySettlementBinding, ScalarFunctionAbi, TargetControlTerminator, TargetFunction,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
 use terminal_psi::{StructuralAccess, StructuralPathSegment, TerminalAffineCleanupAction};
 #[path = "control_flow_operations.rs"]
@@ -47,6 +47,31 @@ pub(crate) use cf_storage::{
 };
 #[path = "references.rs"]
 pub(crate) mod references;
+
+fn binding_indices(
+    bindings: &[abstract_operations::AbstractStructuralBinding],
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    prepared: &crate::function_signature::PreparedFunctionSignature,
+    live: &LiveDefinitions,
+) -> Result<Vec<Vec<target_operations::TargetStructuralRuntimeIndex>>, LoweringError> {
+    bindings
+        .iter()
+        .map(|binding| {
+            if binding
+                .argument
+                .path
+                .iter()
+                .any(|segment| segment.runtime_index().is_some())
+            {
+                primitive_storage::field_indices(function, types, prepared, live, &binding.argument)
+            } else {
+                Ok(Vec::new())
+            }
+        })
+        .collect()
+}
+
 mod dominance {
     use std::collections::{BTreeSet, VecDeque};
 
@@ -1069,6 +1094,13 @@ mod structural_case {
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
+            let structural_indices = super::binding_indices(
+                &case.structural_bindings,
+                function,
+                structural_types,
+                prepared,
+                live,
+            )?;
             let mut edge_live = live.clone();
             super::transfers::re_home_bound_references(
                 function,
@@ -1129,6 +1161,8 @@ mod structural_case {
                 target: case.target,
                 payloads,
                 structural_bindings: case.structural_bindings.clone(),
+                structural_indices,
+                work: Vec::new(),
                 cleanup_actions: case.cleanup_actions.clone(),
             });
         }
@@ -1438,6 +1472,13 @@ mod terminator {
         let successor = |live: &mut LiveDefinitions,
                          edge: &abstract_operations::AbstractSuccessor|
          -> Result<TargetControlSuccessor, LoweringError> {
+            let structural_indices = super::binding_indices(
+                &edge.structural_bindings,
+                function,
+                structural_types,
+                prepared,
+                live,
+            )?;
             let destination = function
                 .block(edge.target)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
@@ -1453,6 +1494,8 @@ mod terminator {
                 target: edge.target,
                 bindings: edge.bindings.clone(),
                 structural_bindings: edge.structural_bindings.clone(),
+                structural_indices,
+                work: Vec::new(),
                 cleanup_actions: cleanup(live, &edge.cleanup_actions)?,
             })
         };
@@ -1827,6 +1870,13 @@ mod terminator {
                 }) {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
+                let structural_indices = super::binding_indices(
+                    structural_bindings,
+                    function,
+                    structural_types,
+                    prepared,
+                    live,
+                )?;
                 let destination = function
                     .block(*target)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
@@ -1845,6 +1895,8 @@ mod terminator {
                         target: *target,
                         bindings: bindings.clone(),
                         structural_bindings: structural_bindings.clone(),
+                        structural_indices,
+                        work: Vec::new(),
                         cleanup_actions,
                     },
                 })
@@ -2573,8 +2625,18 @@ impl LiveDefinitions {
     }
 }
 
+#[derive(Clone)]
+struct PendingControlBlock {
+    block: semantic_vocabulary::BlockId,
+    parameters: Vec<target_operations::TargetScalarBlockParameter>,
+    structural_parameters: Vec<terminal_psi::StructuralParameterDeclaration>,
+    operations: Vec<target_operations::TargetUnitOperation>,
+    terminator: target_operations::TargetControlTerminator,
+}
+
 pub(crate) fn lower(
     function: &AbstractFunction,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     target: NativeTarget,
     profile: Option<target::TargetProfile>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -3054,7 +3116,7 @@ pub(crate) fn lower(
                     provenance,
                 )?
             };
-            lowered[position] = Some(TargetControlBlock {
+            lowered[position] = Some(PendingControlBlock {
                 block: entries[position].block,
                 structural_parameters: entries[position].structural_parameters.clone(),
                 parameters: entries[position]
@@ -3105,8 +3167,67 @@ pub(crate) fn lower(
     }
     let blocks = lowered
         .into_iter()
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        .map(|pending| {
+            let mut pending =
+                pending.ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            // Live arrivals can revisit a pending block. Stable source annotations
+            // are copied only once, when publishing the final target graph.
+            let source_terminal = optimized
+                .block(pending.block)
+                .and_then(|block| block.nodes.last())
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let retain_work =
+                |target: &mut Vec<optimization_unit::WorkSettlement>,
+                 identity,
+                 source: &optimization_unit::OptimizationEdge| {
+                    if identity != source.psi_edge {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    *target = source.work.clone();
+                    Ok(())
+                };
+            match &mut pending.terminator {
+                TargetControlTerminator::Jump { successor } => {
+                    let [source] = source_terminal.successors.as_slice() else {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    };
+                    retain_work(&mut successor.work, successor.psi_edge, source)?;
+                }
+                TargetControlTerminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    let [source_true, source_false] = source_terminal.successors.as_slice() else {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    };
+                    retain_work(&mut when_true.work, when_true.psi_edge, source_true)?;
+                    retain_work(&mut when_false.work, when_false.psi_edge, source_false)?;
+                }
+                TargetControlTerminator::StructuralCase { cases, .. } => {
+                    if cases.len() != source_terminal.successors.len() {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    for (case, source) in cases.iter_mut().zip(&source_terminal.successors) {
+                        retain_work(&mut case.work, case.psi_edge, source)?;
+                    }
+                }
+                _ => {}
+            }
+            Ok(TargetControlBlock {
+                block: pending.block,
+                parameters: pending.parameters,
+                structural_parameters: pending.structural_parameters,
+                operations: pending.operations,
+                terminator: pending.terminator,
+                terminator_metadata: target_operations::TargetOperationMetadata {
+                    work: source_terminal.work.clone(),
+                    effect: source_terminal.effect,
+                    ownership: source_terminal.ownership.clone(),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut provenance = TerminalPsiProvenance::default();
     for block in block_provenance {
         provenance.operations.extend(block.operations);

@@ -233,6 +233,7 @@ pub(crate) mod function {
 
     pub(super) fn lower_function(
         function: &AbstractFunction,
+        optimized: &optimization_unit::PsiOptimizationFunction,
         target: NativeTarget,
         profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -263,6 +264,7 @@ pub(crate) mod function {
         }
         super::control_flow::lower(
             function,
+            optimized,
             target,
             profile,
             functions,

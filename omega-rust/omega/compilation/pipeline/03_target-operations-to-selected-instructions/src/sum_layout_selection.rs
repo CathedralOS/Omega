@@ -38,6 +38,68 @@ use terminal_psi::{
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
 #[test]
+fn retained_terminator_projects_without_a_body_and_audit_refuses_changed_evidence() {
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function_with_body(
+            Vec::new(),
+            vec![entry(
+                1,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                }],
+            )],
+        ),
+    );
+    let mut target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    // The shared geometry fixture omits the scalar ABI and provenance because
+    // its original callers audit aggregates only. This control audits a whole
+    // scalar function, so supply its real Unit ABI and exact return edge.
+    target.functions[0].scalar_abi = Some(target_operations::ScalarFunctionAbi {
+        call_plan: target.functions[0].graph.call_plan.clone(),
+        parameters: Vec::new(),
+        result: None,
+    });
+    target.functions[0].provenance.edges = vec![edge(1)];
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let projected = crate::legalization_control::project(
+        machine(),
+        &target.functions[0].graph.blocks[0],
+        &[],
+        &[],
+    )
+    .unwrap();
+    let legalized_operations::LegalizedScalarTerminator::Return(returned) = projected else {
+        panic!("ordinary Unit return");
+    };
+    assert_eq!(returned.edge, edge(1));
+    assert_eq!(returned.work, unit.functions[0].blocks[0].nodes[0].work);
+    crate::legalization::audit_target_operation_plan(&target, &plan, &unit, None)
+        .expect("retained exit matches source");
+    for mutation in 0..4 {
+        let mut changed = target.clone();
+        let block = &mut changed.functions[0].graph.blocks[0];
+        match mutation {
+            0 => block.terminator_metadata.work.clear(),
+            1 => block.terminator_metadata.effect.output += 1,
+            2 => block.terminator_metadata.ownership.push(
+                optimization_unit::OwnershipEvent::ClaimTransfer(vec![
+                    semantic_vocabulary::ClaimId::new(9).unwrap(),
+                ]),
+            ),
+            _ => block.terminator = return_unit(9),
+        }
+        assert!(
+            crate::legalization::audit_target_operation_plan(&changed, &plan, &unit, None).is_err(),
+            "forged exit {mutation}"
+        );
+    }
+}
+
+#[test]
 fn function_storage_contract_projects_without_source_and_audits_every_field() {
     let mut names = TerminalIdentityTableBuilder::default();
     let sum = sum_type(1, names.intern("Stored"), &mut names, &[]);
@@ -1011,6 +1073,8 @@ fn dispatch(
                 target: arm.target,
                 payloads: Vec::new(),
                 structural_bindings: Vec::new(),
+                structural_indices: Vec::new(),
+                work: Vec::new(),
                 cleanup_actions: Vec::new(),
             })
             .collect(),
@@ -1334,12 +1398,53 @@ fn function_with_body(
 
 fn target_plan(
     plan: &AbstractOperationPlan,
-    blocks: Vec<TargetControlBlock>,
+    mut blocks: Vec<TargetControlBlock>,
 ) -> TargetOperationPlan {
     let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let function = &plan.functions[0];
     let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
+    for block in &mut blocks {
+        let terminal = unit.functions[0]
+            .block(block.block)
+            .unwrap()
+            .nodes
+            .last()
+            .unwrap();
+        block.terminator_metadata = target_operations::TargetOperationMetadata {
+            work: terminal.work.clone(),
+            effect: terminal.effect,
+            ownership: terminal.ownership.clone(),
+        };
+        let edge_work = |edge| {
+            terminal
+                .successors
+                .iter()
+                .find(|candidate| candidate.psi_edge == edge)
+                .unwrap()
+                .work
+                .clone()
+        };
+        match &mut block.terminator {
+            TargetControlTerminator::Jump { successor } => {
+                successor.work = edge_work(successor.psi_edge)
+            }
+            TargetControlTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                when_true.work = edge_work(when_true.psi_edge);
+                when_false.work = edge_work(when_false.psi_edge);
+            }
+            TargetControlTerminator::StructuralCase { cases, .. } => {
+                for case in cases {
+                    case.work = edge_work(case.psi_edge);
+                }
+            }
+            _ => {}
+        }
+    }
     let shapes = function
         .structural_parameters
         .iter()
@@ -1449,6 +1554,14 @@ fn block(
         structural_parameters: Vec::new(),
         operations,
         terminator,
+        terminator_metadata: target_operations::TargetOperationMetadata {
+            work: Vec::new(),
+            effect: optimization_unit::EffectLink {
+                input: 0,
+                output: 0,
+            },
+            ownership: Vec::new(),
+        },
     }
 }
 
