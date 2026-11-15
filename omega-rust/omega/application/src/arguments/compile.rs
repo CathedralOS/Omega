@@ -23,14 +23,15 @@ pub(crate) struct CompileArguments {
     pub(crate) root_path: PathBuf,
     pub(crate) target_names: Vec<String>, // Every --target named, in first-seen order, repeats removed; empty means host default.
     pub(crate) optimization_rollback: OptimizationRollback,
+    pub(crate) stage_validators: orchestration::StageValidatorRequest, // Empty unless --validator or --every-validator.
 }
 
 pub(super) const USAGE: &str = concat!(
-    "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--bootstrap-assumptions <review-record>] [--interrupt-delivery-assumptions <review-record>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       ",
+    "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--bootstrap-assumptions <review-record>] [--interrupt-delivery-assumptions <review-record>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... [--validator <ExactName>]... [--every-validator] <root.omg>\n       ",
     super::run::run_help!(synopsis),
     "\n       omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file>\n       omega source rewrite <ExactRule>... [--check] <root.omg>\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and psi inspect do not support --offline.\nFor omega run, an explicit --target makes the default engine, --engine native,\nand --both emit artifacts without running the program, even for this host.\nWith --engine psi, --target selects the target environment for Psi execution.\n",
     super::run::run_help!(work_budget),
-    "\nsource rewrite is specified and not implemented by this compiler.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact root source inventory shared by Build and Product, relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--bootstrap-assumptions and --interrupt-delivery-assumptions supply distinct exact-entry platform assumptions; neither proves physical truth.\n--report-file writes the produced compile report as a plain-text observation file at the named path.",
+    "\nsource rewrite is specified and not implemented by this compiler.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact root source inventory shared by Build and Product, relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--bootstrap-assumptions and --interrupt-delivery-assumptions supply distinct exact-entry platform assumptions; neither proves physical truth.\n--report-file writes the produced compile report as a plain-text observation file at the named path.\n--validator runs one named independent stage validator inside this compilation; repeat it for more. --every-validator runs every applicable registered validator and reports the rest as inapplicable. Default compilation runs none.",
 );
 
 pub(super) fn parse_arguments(
@@ -49,6 +50,8 @@ pub(super) fn parse_arguments(
     let mut delivery_assumptions = None;
     let mut root_path = None;
     let mut target_names: Vec<String> = Vec::new();
+    let mut validator_names: Vec<String> = Vec::new();
+    let mut every_validator = false;
 
     while let Some(argument) = arguments.next() {
         if argument == "--help" || argument == "-h" {
@@ -159,6 +162,19 @@ pub(super) fn parse_arguments(
             continue;
         }
 
+        if argument == "--validator" {
+            let name = option_value(&mut arguments)
+                .and_then(|name| name.into_string().ok())
+                .ok_or_else(|| "--validator requires one UTF-8 exact validator name".to_owned())?;
+            validator_names.push(name);
+            continue;
+        }
+
+        if argument == "--every-validator" {
+            super::set_flag(&mut every_validator, "--every-validator")?;
+            continue;
+        }
+
         if argument == "--disable-optimization" {
             let Some(name) = option_value(&mut arguments) else {
                 return Err("--disable-optimization requires one exact optimization name".into());
@@ -198,6 +214,10 @@ pub(super) fn parse_arguments(
     if check_only && (bootstrap_assumptions.is_some() || delivery_assumptions.is_some()) {
         return Err("installation assumptions apply only to native compilation".into());
     }
+    let stage_validators = orchestration::StageValidatorRequest::from_exact_names(
+        validator_names.iter().map(String::as_str),
+        every_validator,
+    )?;
     if verify && !check_only {
         return Err("--verify requires --check".into());
     }
@@ -220,5 +240,6 @@ pub(super) fn parse_arguments(
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_names,
         optimization_rollback,
+        stage_validators,
     }))
 }

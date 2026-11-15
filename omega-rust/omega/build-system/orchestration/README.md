@@ -129,6 +129,12 @@ that native request and reaches both package and standalone compilation.
 Execution owns input replay, the native run and comparison, not a second
 project compiler.
 
+Explicit stage validator requests (`--validator <ExactName>`, `--every-validator`)
+travel in the build request and run in [`stage_validators`](src/project/stage_validators.rs)
+on each published target's retained product, before it is written out. The
+registered roster, in report order, is `TargetOperationCorrespondence` (the
+target-operation audit). Default compilation runs none.
+
 Source inspection follows the same steps and returns the compiler's
 inspection product, not an invented compilation report. CLI inspection only
 adapts the request and shows or adopts that artifact. Inspecting an

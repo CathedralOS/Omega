@@ -34,7 +34,8 @@ instructions use the addresses, homes and placements the target stage kept.
 Instruction building does not rebuild reference custody. The explicit
 `verify_target_operation_plan` entry point keeps the independent source/target
 audit; focused native tests run it on the object's retained pipeline input,
-outside the default compile path.
+outside the default compile path. `omega --validator TargetOperationCorrespondence`
+(or `--every-validator`) runs it on each published target's object.
 
 Arguments to direct, normalized foreign and no-normal-return calls use the
 retained target selector rows, including the bound and obligation key. Proof

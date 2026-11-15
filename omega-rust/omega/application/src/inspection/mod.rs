@@ -64,6 +64,7 @@ pub fn inspect_terminal(
         None => BuildTargets::Host,
     };
     let outcomes = orchestration::build(BuildRequest {
+        stage_validators: Default::default(),
         root_path: request.root_path.clone(),
         build_directory: None,
         targets,

@@ -57,12 +57,28 @@ pub(crate) fn run(arguments: CompileArguments) {
     for row in &installation_assumptions {
         println!("{}", assumption_text(row));
     }
+    // The enumerated set depends on this compiler's registry, so a report of
+    // it names the compiler and the roster it enumerated.
+    let roster = arguments.stage_validators.enumerates_every().then(|| {
+        format!(
+            "stage validator roster (omega {} {}): {}\n",
+            env!("OMEGA_VERSION"),
+            env!("OMEGA_COMMIT"),
+            orchestration::StageValidator::ROSTER
+                .iter()
+                .map(|validator| validator.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    });
+    let roster = roster.as_deref().unwrap_or_default();
     let target_names = arguments.target_names;
     let targets = match resolve_targets(&target_names) {
         Ok(targets) => targets,
         Err(error) => exit_on_refusal([&error]),
     };
     let request = BuildRequest {
+        stage_validators: arguments.stage_validators,
         build_directory: arguments.build_dir,
         root_path: arguments.root_path,
         targets,
@@ -91,6 +107,7 @@ pub(crate) fn run(arguments: CompileArguments) {
             started,
             report_file.as_deref(),
             &installation_assumptions,
+            roster,
         );
     } else {
         present_single(
@@ -99,6 +116,7 @@ pub(crate) fn run(arguments: CompileArguments) {
             started,
             report_file.as_deref(),
             &installation_assumptions,
+            roster,
         );
     }
 }
@@ -121,6 +139,7 @@ fn present_single(
     started: Option<Instant>,
     report_file: Option<&Path>,
     installation_assumptions: &[products::InstallationEnvironmentAssumption],
+    roster: &str,
 ) {
     let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
         Some(outcome) => outcome.result.and_then(BuildOutcome::into_report),
@@ -141,9 +160,13 @@ fn present_single(
     if let Some(path) = report_file {
         write_report_or_exit(
             path,
-            &report_text(target_name, &outcome, installation_assumptions),
+            &format!(
+                "{roster}{}",
+                report_text(target_name, &outcome, installation_assumptions)
+            ),
         );
     }
+    print!("{roster}");
     print_outcome(&outcome);
 }
 
@@ -152,6 +175,7 @@ fn present_batch(
     started: Option<Instant>,
     report_file: Option<&Path>,
     installation_assumptions: &[products::InstallationEnvironmentAssumption],
+    roster: &str,
 ) {
     let outcomes = match build(request) {
         Ok(outcomes) => outcomes,
@@ -162,7 +186,8 @@ fn present_batch(
             exit_on_refusal([&error]);
         }
     };
-    let mut report_contents = String::new();
+    let mut report_contents = roster.to_owned();
+    print!("{roster}");
     let mut failed = Vec::new();
     let mut refusals = Vec::new();
     let target_count = outcomes.len();
@@ -269,6 +294,7 @@ fn print_outcome(outcome: &BuildReport) {
         println!("{}", outcome.report.summary());
     }
     print!("{}", format_publication_lines(outcome));
+    print!("{}", format_stage_validations(outcome));
 }
 
 fn assumption_text(row: &products::InstallationEnvironmentAssumption) -> String {
@@ -310,7 +336,17 @@ fn report_text(
     contents.push_str(&outcome.report.summary());
     contents.push('\n');
     contents.push_str(&format_publication_lines(outcome));
+    contents.push_str(&format_stage_validations(outcome));
     contents
+}
+
+// One line per requested validator and target; empty for default compilation.
+fn format_stage_validations(outcome: &BuildReport) -> String {
+    outcome
+        .stage_validations
+        .iter()
+        .map(|row| format!("{row}\n"))
+        .collect()
 }
 
 fn format_publication_lines(outcome: &BuildReport) -> String {
