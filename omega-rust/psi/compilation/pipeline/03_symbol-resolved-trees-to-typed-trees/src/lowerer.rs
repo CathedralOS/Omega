@@ -972,6 +972,7 @@ pub(crate) mod seeded_continuation {
                 old.termination_plan.implementation_witness.clone();
             header.ranking_subjects = old.ranking_subjects;
             header.ranking_view = old.ranking_view;
+            header.selected_ranking_view = old.selected_ranking_view;
             header.ranking_view_arguments = old.ranking_view_arguments;
             header.ranking_range = old.ranking_range;
             header.states = old.states;

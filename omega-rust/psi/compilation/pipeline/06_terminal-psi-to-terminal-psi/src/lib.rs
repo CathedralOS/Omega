@@ -66,13 +66,14 @@ mod minted;
 mod operational;
 mod places;
 mod prove;
-mod ranking;
+mod rankings;
 mod result_summaries;
 mod reuse;
 mod verdict;
 
 pub use ceilings::Axis as CeilingAxis;
 pub use places::{ConflictingLoan, LoanConflict};
+pub use rankings::FiniteIntegerRanking;
 pub use reuse::{
     Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
 };
@@ -175,13 +176,21 @@ pub enum Discharged {
     /// judgment with no certificate, and the loan ends when its call
     /// returns, so it owes nothing after it.
     Lent,
+    /// The canonical finite integer relation and its complete authenticated
+    /// private bindings. Every internal edge comparison has a separate kernel
+    /// certificate; no Truth proposition stands in for well-foundedness.
+    FiniteIntegerRanking(FiniteIntegerRanking),
 }
 
 impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_) | Self::Window(_) | Self::Preserved | Self::Lent => None,
+            Self::EveryExit(_)
+            | Self::Window(_)
+            | Self::Preserved
+            | Self::Lent
+            | Self::FiniteIntegerRanking(_) => None,
         }
     }
 }
@@ -620,6 +629,7 @@ fn machine(
         graph,
         context,
         reference_graph,
+        ranking_bindings,
     } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
@@ -672,6 +682,7 @@ fn machine(
             types: &types,
             graph: &graph,
             context: &context,
+            ranking_bindings: &ranking_bindings,
             declared: &declared,
             unreached,
         },
@@ -689,8 +700,23 @@ fn machine(
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
             continue;
         }
+        if let ObligationKind::WellFoundedness { component } = row.kind {
+            decided[index] = Some(
+                rankings::well_founded(lowered, &ranking_bindings, obligation, component)
+                    .map(Discharged::FiniteIntegerRanking),
+            );
+            continue;
+        }
         let verdict = goal(
-            module, lowered, &storage, id, obligation, &row.kind, tables, &types,
+            module,
+            lowered,
+            &storage,
+            id,
+            obligation,
+            &row.kind,
+            tables,
+            &types,
+            &ranking_bindings,
         )
         .and_then(|goal| {
             if let Some(carry) = &carrier
@@ -1104,6 +1130,7 @@ pub(crate) struct Prepared {
     pub(crate) graph: Graph,
     pub(crate) context: PropositionContext,
     reference_graph: Vec<terminal_semantics::descriptor_results::DescriptorMachine>,
+    ranking_bindings: rankings::Bindings,
 }
 
 impl Prepared {
@@ -1168,11 +1195,9 @@ pub(crate) fn prepare_with_inhabitation(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
-    // A ranking is admitted whole before any of its comparisons is decided,
-    // and a terminating machine may leave no cycle unranked (`ranking`).
-    ranking::admit(id, lowered, tables, &graph)?;
     let reference_graph = places::reference_graph(module, id)?;
-    if fill {
+    let ranking_bindings;
+    {
         let references = std::cell::RefCell::new(
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
@@ -1189,8 +1214,11 @@ pub(crate) fn prepare_with_inhabitation(
             &types,
             &references,
         )?;
-        storage.owed_are_minted(tables)?;
-        fill_knowledge(module, id, lowered, tables, &types, &storage)?;
+        ranking_bindings = rankings::admit(lowered, tables, &graph, &storage)?;
+        if fill {
+            storage.owed_are_minted(tables)?;
+            fill_knowledge(module, id, lowered, tables, &types, &storage)?;
+        }
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
@@ -1218,6 +1246,7 @@ pub(crate) fn prepare_with_inhabitation(
         graph,
         context,
         reference_graph,
+        ranking_bindings,
     })
 }
 
@@ -1725,9 +1754,18 @@ fn goal(
     kind: &ObligationKind,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    ranking_bindings: &rankings::Bindings,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
-        module, lowered, storage, id, obligation, kind, tables, types,
+        module,
+        lowered,
+        storage,
+        id,
+        obligation,
+        kind,
+        tables,
+        types,
+        ranking_bindings,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -1774,6 +1812,7 @@ fn stated_goal(
     kind: &ObligationKind,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    ranking_bindings: &rankings::Bindings,
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
@@ -1902,17 +1941,15 @@ fn stated_goal(
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
-        ObligationKind::WellFoundedness { component } => {
-            ranking::floor_goal(lowered, id, obligation, component)
-        }
         ObligationKind::RankComparison { component, edge } => {
-            ranking::comparison_goal(lowered, id, obligation, component, edge)
+            rankings::goal(lowered, ranking_bindings, obligation, component, edge)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
-        | ObligationKind::EstablishmentDebt { .. } => Err(refusal(
+        | ObligationKind::EstablishmentDebt { .. }
+        | ObligationKind::WellFoundedness { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,
             concerns,

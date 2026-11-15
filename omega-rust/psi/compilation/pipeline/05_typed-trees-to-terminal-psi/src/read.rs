@@ -39,6 +39,7 @@ mod machine;
 mod mathematics;
 mod places;
 mod predicates;
+mod rankings;
 mod references;
 mod reflection;
 mod regions;

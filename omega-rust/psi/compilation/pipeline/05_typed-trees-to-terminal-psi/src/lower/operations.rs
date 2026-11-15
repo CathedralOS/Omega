@@ -307,10 +307,9 @@ impl Lowering<'_> {
                     .map(|value| Reached::Value(Value::Scalar(value)))
             }
             ExpressionKind::Strict {
-                operation,
-                policy,
                 left: left_expression,
                 right,
+                ..
             } => {
                 // The one strict operator over storage: `==` of two byte
                 // views, which the reader forms for no other operand type.
@@ -319,13 +318,7 @@ impl Lowering<'_> {
                 }
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
-                let operand_type = self.result_type(left_expression)?;
-                if let Some(policy) = policy {
-                    return self
-                        .policy_operation(*operation, *policy, left, right, result, source)
-                        .map(Reached::Value);
-                }
-                self.strict(*operation, operand_type, left, right, result, source)
+                self.strict_expression(expression, left, right)
                     .map(Reached::Value)
             }
             ExpressionKind::ShortCircuit {
@@ -510,6 +503,43 @@ impl Lowering<'_> {
                 operation: primitive,
             },
         )
+    }
+
+    /// Body expressions and ranking observations use the same selected
+    /// arithmetic policy. Reconstructing an observation must not turn a
+    /// wrapping or saturating operation into exact arithmetic.
+    pub(super) fn strict_expression(
+        &mut self,
+        expression: &Expression,
+        left: ValueId,
+        right: ValueId,
+    ) -> Checked<Value> {
+        let ExpressionKind::Strict {
+            operation,
+            policy,
+            left: operand,
+            ..
+        } = &expression.kind
+        else {
+            return Err(self.internal("a strict operation has no expression selection"));
+        };
+        let result = match expression.result {
+            Some(ValueType::Scalar(scalar_type, _)) => Some(scalar_type),
+            None => None,
+            _ => return Err(self.internal("a strict operation has a non-scalar result")),
+        };
+        if let Some(policy) = policy {
+            self.policy_operation(*operation, *policy, left, right, result, expression.source)
+        } else {
+            self.strict(
+                *operation,
+                self.result_type(operand)?,
+                left,
+                right,
+                result,
+                expression.source,
+            )
+        }
     }
 
     pub(super) fn strict(

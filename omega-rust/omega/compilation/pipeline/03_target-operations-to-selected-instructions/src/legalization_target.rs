@@ -2142,7 +2142,9 @@ pub(crate) mod element_view {
                 return false;
             };
             let descriptor_carrier =
-                terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
+                abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                    parameter, self.types,
+                );
             let backing = parameter.access == terminal_psi::StructuralAccess::Owned
                 || (block != self.optimized.entry
                     && (is_address_join_in(parameter, self.types) || descriptor_carrier)

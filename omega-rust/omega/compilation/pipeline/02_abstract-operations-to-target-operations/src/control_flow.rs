@@ -1195,7 +1195,10 @@ mod terminator {
                 return None;
             }
             let parameter = function.arrival_parameter(place)?;
-            if !terminal_semantics::view_descriptor_parameter(parameter, types.values().copied()) {
+            if !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                parameter,
+                |identity| types.get(identity).copied(),
+            ) {
                 return None;
             }
             (parameter.structural_type, parameter.multiplicity)
@@ -2221,9 +2224,9 @@ mod transfers {
                         }
                         continue;
                     }
-                    if terminal_semantics::view_descriptor_parameter(
+                    if abstract_operations::control_flow::address_joins::is_descriptor_join(
                         parameter,
-                        structural_types.values().copied(),
+                        |identity| structural_types.get(identity).copied(),
                     ) {
                         let selected = crate::scalar::descriptor_operands::descriptor_projection(
                             function,
@@ -2704,6 +2707,10 @@ pub(crate) fn lower(
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
                     && !is_immutable_byte_carrier_parameter(parameter, structural_types)
                     && !is_element_view_parameter(parameter, structural_types)
+                    && !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                        parameter,
+                        |identity| structural_types.get(identity).copied(),
+                    )
                     && !transfers::is_address_join(parameter, structural_types)
                     && !is_owned_byte_parameter(parameter, structural_types)
                     && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(

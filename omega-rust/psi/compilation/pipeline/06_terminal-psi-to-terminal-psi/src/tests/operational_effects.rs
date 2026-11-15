@@ -643,3 +643,59 @@ fn a_selected_recursive_call_keeps_an_explicit_unavailable_boundary() {
         "{verdicts:?}"
     );
 }
+
+#[test]
+fn a_tail_call_keeps_its_borrowed_formal_contract() {
+    let original = invocation(
+        r#"
+        machine main(bytes: &[u8], pending: bool) blocks {
+            transition pending {
+                true -> block main(bytes, false)
+                false -> done()
+            }
+            machine done() {}
+        }
+    "#,
+    )
+    .unwrap();
+    crate::operational::judge(&original).unwrap();
+    for change in 0..3 {
+        let mut forged = original.clone();
+        let machine = &mut forged.module.machines[0];
+        let target = machine
+            .blocks
+            .iter()
+            .find_map(|block| {
+                let Terminator::Jump { edge, target, .. } = block.terminator else {
+                    return None;
+                };
+                machine
+                    .call_formations
+                    .iter()
+                    .any(|row| {
+                        row.site == terminal_psi::CallSite::Edge(edge) && row.tail_callee.is_some()
+                    })
+                    .then_some(target)
+            })
+            .unwrap();
+        let parameter = &mut machine
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == target)
+            .unwrap()
+            .structural_parameters[0];
+        match change {
+            0 => parameter.access = terminal_psi::StructuralAccess::MutableBorrow,
+            1 => parameter.multiplicity = terminal_psi::StructuralMultiplicity::Affine,
+            _ => parameter.position += 1,
+        }
+        let refusal = crate::operational::judge(&forged).unwrap_err();
+        assert!(
+            refusal
+                .detail
+                .contains("does not carry its callable's formals"),
+            "{}",
+            refusal.detail
+        );
+    }
+}

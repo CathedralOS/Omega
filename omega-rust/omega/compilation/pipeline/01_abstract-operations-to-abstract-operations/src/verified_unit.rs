@@ -550,6 +550,7 @@ mod evidence_seal_tests {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         let entry = MachineId::new(1).unwrap();
         let mut elaboration = typed_trees_to_terminal_psi::lower_bodies(
