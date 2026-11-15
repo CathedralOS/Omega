@@ -14143,7 +14143,7 @@ pub mod descriptor_results {
                     // A scalar sibling does not observe the reference leaves
                     // beside it. Retain the representation's projected uses;
                     // reducing them to roots spuriously extends those loans.
-                    for used in operation.kind.storage_uses() {
+                    for (used, _) in operation.kind.storage_uses() {
                         use terminal_psi::StructuralStorageUse;
                         let (root, selected) = match used {
                             StructuralStorageUse::Place(root) => {
@@ -14155,7 +14155,7 @@ pub mod descriptor_results {
                                 ..
                             } => (
                                 projection.root,
-                                location(projection.root, projection.path, None),
+                                location(projection.root, projection.path, projection.field),
                             ),
                             StructuralStorageUse::Canonical { root, path }
                             | StructuralStorageUse::ObservedField { root, path } => (

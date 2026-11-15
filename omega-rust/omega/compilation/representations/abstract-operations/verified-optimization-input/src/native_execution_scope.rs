@@ -57,7 +57,7 @@ mod storage {
                                 .structural()
                                 .map(|result| result.structural_type),
                         );
-                        for storage in operation.kind.storage_uses() {
+                        for (storage, _) in operation.kind.storage_uses() {
                             terminal_semantics::storage_operand_dependencies(
                                 machine,
                                 &declarations,

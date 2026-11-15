@@ -1916,6 +1916,7 @@ pub(crate) mod arrival_storage {
             })
         else {
             return Some(terminal_psi::OperationProjection {
+                field: None,
                 root: place,
                 path: &[],
             });
@@ -1927,6 +1928,7 @@ pub(crate) mod arrival_storage {
             }
             let argument = binding.structural_arguments.get(position as usize)?;
             let projection = terminal_psi::OperationProjection {
+                field: None,
                 root: argument.place,
                 path: &argument.path,
             };

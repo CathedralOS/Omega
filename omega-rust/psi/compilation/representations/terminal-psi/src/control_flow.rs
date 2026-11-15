@@ -2464,6 +2464,7 @@ pub(crate) mod termination {
             let mut projections = Vec::new();
             fn argument(argument: &StructuralArgument) -> crate::OperationProjection<'_> {
                 crate::OperationProjection {
+                    field: None,
                     root: argument.place,
                     path: &argument.path,
                 }
@@ -2495,12 +2496,14 @@ pub(crate) mod termination {
                 Self::StructuralCase { source, path, .. }
                 | Self::EliminateEmpty { source, path, .. } => {
                     projections.push(crate::OperationProjection {
+                        field: None,
                         root: *source,
                         path,
                     });
                 }
                 Self::ReturnStructural { source, .. } => {
                     projections.push(crate::OperationProjection {
+                        field: None,
                         root: *source,
                         path: &[],
                     });
@@ -2510,6 +2513,7 @@ pub(crate) mod termination {
             for (_, actions) in self.cleanup_rosters() {
                 for action in actions {
                     projections.push(crate::OperationProjection {
+                        field: None,
                         root: action.place(),
                         path: action.path(),
                     });

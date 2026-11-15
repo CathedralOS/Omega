@@ -515,7 +515,7 @@ fn live_entries(
                     .kind
                     .storage_uses()
                     .into_iter()
-                    .filter_map(storage_root)
+                    .filter_map(|(storage, _)| storage_root(storage))
                 {
                     before.insert(valid(used)?);
                 }
@@ -2286,7 +2286,7 @@ impl Analysis<'_> {
                 self.read(state, *source, &[], site)?;
             }
             kind => {
-                for used in kind.storage_uses() {
+                for (used, _) in kind.storage_uses() {
                     self.storage_use(state, used, site)?;
                 }
             }
