@@ -700,8 +700,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         Request::Status => {
             let (version, record) = fetch_snapshot(&repo)?;
             let out = status_snapshot(&version, &record, SystemTime::now());
-            println!("{}", serde_json::to_string_pretty(&out).unwrap());
-            Ok(())
+            crate::write_status(|output| {
+                writeln!(output, "{}", serde_json::to_string_pretty(&out).unwrap())
+            })
         }
         Request::Claim {
             board,

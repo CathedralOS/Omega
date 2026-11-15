@@ -674,37 +674,40 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
         "status" | "list" => {
             let items = list_worktrees(&main_root).map_err(report_error)?;
-            println!(
-                "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
-                "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
-            );
-            for item in &items {
-                let state = if item.name == current_name {
-                    "current"
-                } else if item.open_pr {
-                    "open-pr"
-                } else if item.slot_index.is_some() && item.at_main {
-                    "idle"
-                } else if item.slot_index.is_some() {
-                    "assigned"
-                } else {
-                    "legacy"
-                };
-                let topic = item.topic.as_deref().unwrap_or("-");
-                let cache = if item.has_warm_target { "warm" } else { "-" };
-                let short_head = &item.head[..item.head.len().min(11)];
-                println!(
-                    "{:<16} {:<24} {:<12} {:<10} {:<6} {}",
-                    item.name,
-                    topic,
-                    short_head,
-                    state,
-                    cache,
-                    item.path.display()
-                );
-            }
-            println!("worktree: {} registered worktree(s)", items.len());
-            Ok(())
+            crate::write_status(|output| {
+                writeln!(
+                    output,
+                    "{:<16} {:<24} {:<12} {:<10} {:<6} PATH",
+                    "SLOT", "TOPIC", "HEAD", "STATE", "CACHE"
+                )?;
+                for item in &items {
+                    let state = if item.name == current_name {
+                        "current"
+                    } else if item.open_pr {
+                        "open-pr"
+                    } else if item.slot_index.is_some() && item.at_main {
+                        "idle"
+                    } else if item.slot_index.is_some() {
+                        "assigned"
+                    } else {
+                        "legacy"
+                    };
+                    let topic = item.topic.as_deref().unwrap_or("-");
+                    let cache = if item.has_warm_target { "warm" } else { "-" };
+                    let short_head = &item.head[..item.head.len().min(11)];
+                    writeln!(
+                        output,
+                        "{:<16} {:<24} {:<12} {:<10} {:<6} {}",
+                        item.name,
+                        topic,
+                        short_head,
+                        state,
+                        cache,
+                        item.path.display()
+                    )?;
+                }
+                writeln!(output, "worktree: {} registered worktree(s)", items.len())
+            })
         }
         "acquire" => {
             let topic = args.get(1).map(String::as_str);
