@@ -221,7 +221,8 @@ pub(crate) mod analysis {
                 .replay
                 .snapshots
                 .get(&identity)
-                .and_then(Option::as_ref);
+                .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before);
             machine
                 .flow
                 .keys()
@@ -262,6 +263,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
                 return FlowFeasibility::ProvedImpossible;
@@ -297,6 +299,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
                 return FlowFeasibility::Unknown;
@@ -320,6 +323,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .and_then(|states| states.get(&position))
             else {
                 return false;
@@ -420,7 +424,7 @@ pub(crate) mod analysis {
         ) -> Option<DescriptorLocation> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay
                 .canonical_storage(machine, states.get(&position)?, location, None)
         }
@@ -448,7 +452,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorLocation>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay
                 .storage_origins(machine, states.get(&position)?, location)
         }
@@ -524,7 +528,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorPayloadTarget>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay
                 .contents_targets(machine, states.get(&position)?, query)
                 .map(|targets| targets.into_iter().collect())
@@ -538,7 +542,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorPayloadTarget>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.arrival_snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.arrivals;
             self.replay
                 .contents_targets(machine, states.get(&position)?, query)
                 .map(|targets| targets.into_iter().collect())
@@ -565,7 +569,7 @@ pub(crate) mod analysis {
         ) -> Option<Vec<DescriptorSourceOrigin>> {
             self.replay.prepare_states(identity)?;
             let machine = self.replay.machine(identity)?;
-            let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+            let states = &self.replay.snapshots.get(&identity)?.as_ref()?.before;
             self.replay.symbolic(
                 machine,
                 self.replay
@@ -598,6 +602,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or_else(|| format!("{}: descriptor snapshots are absent", context()))?;
             let state = states
                 .get(&position)
@@ -711,6 +716,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)?
                 .as_ref()?
+                .before
                 .get(&position)?;
             self.replay.symbolic(
                 machine,
@@ -926,9 +932,10 @@ pub(crate) mod analysis {
                 .ok_or("descriptor preservation owner disappeared")?;
             let states = self
                 .replay
-                .normal_exit_snapshots
+                .snapshots
                 .get(&callee)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.normal_exits)
                 .ok_or("descriptor preservation snapshots disappeared")?;
             // A loop can replace the descriptor before revisiting the entry block.
             // Compare returns with invocation inputs, not the widened loop state.
@@ -1157,6 +1164,7 @@ pub(crate) mod analysis {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or_else(|| incomplete(None))?;
             let mut flow = machine.flow.clone();
             let normal_exits = machine
@@ -2918,7 +2926,7 @@ pub(crate) mod contents_queries {
             let history = match depth.history {
                 Some((context, history)) if std::ptr::eq(context, machine) => history,
                 Some(_) => return None,
-                None => self.snapshots.get(&owner)?.as_ref()?.as_ref(),
+                None => self.snapshots.get(&owner)?.as_ref()?.before.as_ref(),
             };
             history.get(&position)
         }
@@ -4124,15 +4132,22 @@ pub(crate) mod engine {
         }
     }
 
+    /// One completed preparation owns every observation of a machine. Keeping
+    /// these views together prevents a before-call history from being mistaken
+    /// for its cleanup-action or normal-exit history.
+    pub(crate) struct PreparedStates {
+        pub(crate) before: Arc<States>,
+        pub(crate) arrivals: States,
+        pub(crate) invocations: InvocationStates,
+        pub(crate) normal_exits: States,
+    }
+
     pub(crate) struct Replay<'a> {
         pub(crate) types: &'a [StructuralTypeDeclaration],
         pub(crate) slot_kind: DescriptorSlotKind,
         pub(crate) machines: &'a [DescriptorMachine],
         pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
-        pub(crate) snapshots: BTreeMap<MachineId, Option<Arc<States>>>,
-        pub(crate) arrival_snapshots: BTreeMap<MachineId, Option<States>>,
-        pub(crate) invocation_snapshots: BTreeMap<MachineId, Option<InvocationStates>>,
-        pub(crate) normal_exit_snapshots: BTreeMap<MachineId, Option<States>>,
+        pub(crate) snapshots: BTreeMap<MachineId, Option<PreparedStates>>,
     }
     #[derive(Default)]
     pub(crate) struct DescriptorReadDepth<'state> {
@@ -4218,9 +4233,6 @@ pub(crate) mod engine {
                 machines,
                 summaries: BTreeMap::new(),
                 snapshots: BTreeMap::new(),
-                arrival_snapshots: BTreeMap::new(),
-                invocation_snapshots: BTreeMap::new(),
-                normal_exit_snapshots: BTreeMap::new(),
             }
         }
         pub(crate) fn storage_writes(
@@ -4251,6 +4263,7 @@ pub(crate) mod engine {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or("storage write has no prepared flow")?;
             let Some(before) = states.get(&position) else {
                 return Ok(Some(Vec::new()));
@@ -4369,6 +4382,7 @@ pub(crate) mod engine {
                 .snapshots
                 .get(&identity)
                 .and_then(Option::as_ref)
+                .map(|prepared| &prepared.before)
                 .ok_or("write frame has no prepared storage flow")?
                 .clone();
             let mut frame = Vec::new();
@@ -5622,25 +5636,26 @@ pub(crate) mod engine {
         ) -> Option<&State> {
             self.machine(machine)?.invocation(position, owner)?;
             match owner {
-                DescriptorInvocationOwner::Operation(_) => {
-                    self.snapshots.get(&machine)?.as_ref()?.get(&position)
-                }
-                DescriptorInvocationOwner::Cleanup { .. } => self
-                    .invocation_snapshots
+                DescriptorInvocationOwner::Operation(_) => self
+                    .snapshots
                     .get(&machine)?
                     .as_ref()?
+                    .before
+                    .get(&position),
+                DescriptorInvocationOwner::Cleanup { .. } => self
+                    .snapshots
+                    .get(&machine)?
+                    .as_ref()?
+                    .invocations
                     .get(&(position, owner)),
             }
         }
 
         pub(crate) fn states(&mut self, identity: MachineId, depth: usize) -> Option<Arc<States>> {
             if let Some(cached) = self.snapshots.get(&identity) {
-                return cached.clone();
+                return cached.as_ref().map(|prepared| prepared.before.clone());
             }
             self.snapshots.insert(identity, None);
-            self.arrival_snapshots.insert(identity, None);
-            self.invocation_snapshots.insert(identity, None);
-            self.normal_exit_snapshots.insert(identity, None);
             if depth >= 128 {
                 return None;
             }
@@ -5876,12 +5891,15 @@ pub(crate) mod engine {
                 }
             }
             let states = Arc::new(states);
-            self.snapshots.insert(identity, Some(states.clone()));
-            self.arrival_snapshots.insert(identity, Some(arrivals));
-            self.invocation_snapshots
-                .insert(identity, Some(invocation_states));
-            self.normal_exit_snapshots
-                .insert(identity, Some(normal_exits));
+            self.snapshots.insert(
+                identity,
+                Some(PreparedStates {
+                    before: states.clone(),
+                    arrivals,
+                    invocations: invocation_states,
+                    normal_exits,
+                }),
+            );
             Some(states)
         }
         pub(crate) fn prepare_states(&mut self, identity: MachineId) -> Option<()> {
@@ -6437,7 +6455,7 @@ pub(crate) mod engine {
             }
             self.summaries.insert(identity, None);
             let states = self.states(identity, depth)?;
-            let completed = self.normal_exit_snapshots.get(&identity)?.as_ref()?;
+            let completed = &self.snapshots.get(&identity)?.as_ref()?.normal_exits;
             let mut result_cases: Option<super::case_flow::ResultCases> = None;
             let mut unknown_results: Vec<Vec<DescriptorPathSegment>> = Vec::new();
             let result = if let Some(returns) = &machine.returns {
@@ -7110,7 +7128,7 @@ pub(crate) mod engine {
             assert_eq!(completed[&positions[1]].slots.get(&parameter), Some(&None));
             assert!(Arc::ptr_eq(
                 &completed,
-                replay.snapshots[&id].as_ref().unwrap()
+                &replay.snapshots[&id].as_ref().unwrap().before
             ));
             assert!(Arc::ptr_eq(&completed, &replay.states(id, 0).unwrap()));
             assert!(Arc::ptr_eq(&completed, &replay.states(id, 128).unwrap()));
@@ -7731,16 +7749,23 @@ pub(crate) mod engine {
                 ),
                 expected(1)
             );
-            let entries = replay.snapshots.get(&identity).unwrap().as_ref().unwrap();
-            assert_eq!(value(entries.get(&left).unwrap(), 3), expected(2));
-            assert_eq!(value(entries.get(&right).unwrap(), 3), expected(1));
-            assert_eq!(value(entries.get(&right).unwrap(), 1), expected(1));
-            let completed = replay
-                .normal_exit_snapshots
+            let entries = &replay
+                .snapshots
                 .get(&identity)
                 .unwrap()
                 .as_ref()
-                .unwrap();
+                .unwrap()
+                .before;
+            assert_eq!(value(entries.get(&left).unwrap(), 3), expected(2));
+            assert_eq!(value(entries.get(&right).unwrap(), 3), expected(1));
+            assert_eq!(value(entries.get(&right).unwrap(), 1), expected(1));
+            let completed = &replay
+                .snapshots
+                .get(&identity)
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .normal_exits;
             assert_eq!(value(completed.get(&right).unwrap(), 1), expected(2));
             let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
             let incoming = DescriptorSourceOrigin::IncomingSlot(location(1));

@@ -12596,7 +12596,9 @@ mod source {
                             },
                             actuals,
                             None,
-                            &caller.place_types,
+                            actuals
+                                .iter()
+                                .map(|actual| caller.place_types.get(&actual.place).copied()),
                         )?;
                         for ((formal, actual), targeted) in declaration
                             .parameters

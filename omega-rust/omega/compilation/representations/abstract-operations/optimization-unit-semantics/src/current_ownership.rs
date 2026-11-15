@@ -3391,28 +3391,29 @@ mod cleanup {
             }
         }
         let selected = |path: &[StructuralPathSegment], case| membership(place, path, case, true);
+        let mut traversal = CleanupTraversal {
+            types,
+            nominal,
+            boundaries: BTreeSet::new(),
+            cache: BTreeMap::new(),
+            partitions,
+            place,
+            moved,
+            selected: &selected,
+            limit,
+            subjects: Vec::new(),
+        };
         if partitions.iter().any(|partition| partition.place == place) {
-            let mut subjects = Vec::new();
-            append_partitioned_subjects(
-                types,
-                &nominal,
-                partitions,
-                place,
-                root,
-                Vec::new(),
-                moved,
-                &selected,
-                limit,
-                &mut subjects,
-            )?;
-            return Some(subjects);
+            traversal.prepare_boundaries(true);
+            traversal.append_partitioned_subjects(root, Vec::new())?;
+            return Some(traversal.subjects);
         }
         if moved.is_none()
             && !selected_contains_nominal_cleanup(
-                types,
-                &nominal,
-                &mut BTreeMap::new(),
-                &selected,
+                traversal.types,
+                &traversal.nominal,
+                &mut traversal.cache,
+                traversal.selected,
                 root,
                 &[],
                 limit,
@@ -3424,154 +3425,148 @@ mod cleanup {
                 nominal: false,
             }]);
         }
-        let mut boundaries = nominal.clone();
-        boundaries.extend(types.iter().filter_map(|(identity, declaration)| {
-            let cases = match &declaration.shape {
-                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                    cases
-                }
-                _ => return None,
-            };
-            declaration
-                .shape
-                .direct_fields()
-                .into_iter()
-                .flatten()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-                .any(|field| {
-                    !field.relevance.is_erased() && field.field_type.as_structural().is_some()
-                })
-                .then_some(*identity)
-        }));
+        traversal.prepare_boundaries(false);
         let roots = match moved {
             Some(moved) => selected_affine_residuals(types, root, moved, limit, &selected)?,
             None => vec![(Vec::new(), root)],
         };
-        let mut subjects = Vec::new();
-        let mut contains = BTreeMap::new();
         for (path, structural_type) in roots {
-            append_cleanup_subjects(
-                types,
-                &nominal,
-                &boundaries,
-                &mut contains,
-                &selected,
-                structural_type,
-                path,
-                limit,
-                &mut subjects,
-            )?;
+            traversal.append_cleanup_subjects(structural_type, path)?;
         }
-        Some(subjects)
+        Some(traversal.subjects)
     }
 
-    fn append_partitioned_subjects(
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        nominal: &BTreeSet<StructuralTypeId>,
-        partitions: &BTreeSet<terminal_psi::StructuralAffineDiscard>,
+    /// One owner prepares the catalog, selected boundaries and traversal state.
+    /// Partitioned and ordinary residuals share this family and its cache;
+    /// recursive visits cannot substitute another place or frontier.
+    struct CleanupTraversal<'types, 'frontier> {
+        types: &'types BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
+        nominal: BTreeSet<StructuralTypeId>,
+        boundaries: BTreeSet<StructuralTypeId>,
+        cache: BTreeMap<StructuralTypeId, bool>,
+        partitions: &'frontier BTreeSet<terminal_psi::StructuralAffineDiscard>,
         place: PlaceId,
-        structural_type: StructuralTypeId,
-        path: Vec<StructuralPathSegment>,
-        moved: Option<&BTreeSet<Vec<StructuralPathSegment>>>,
-        selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+        moved: Option<&'frontier BTreeSet<Vec<StructuralPathSegment>>>,
+        selected: &'frontier dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
         limit: usize,
-        subjects: &mut Vec<CleanupSubject>,
-    ) -> Option<()> {
-        if moved.is_some_and(|moved| moved.iter().any(|missing| path.starts_with(missing))) {
-            return Some(());
-        }
-        let partitioned = partitions.contains(&terminal_psi::StructuralAffineDiscard {
-            place,
-            path: path.clone(),
-            structural_type,
-        });
-        let nested = partitions.iter().any(|partition| {
-            partition.place == place
-                && partition.path.len() > path.len()
-                && partition.path.starts_with(&path)
-        });
-        let partial =
-            moved.is_some_and(|moved| moved.iter().any(|missing| missing.starts_with(&path)));
-        if !partitioned && !nested && !partial {
-            let mut boundaries = nominal.clone();
-            boundaries.extend(types.iter().filter_map(|(identity, declaration)| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. }
-                )
-                .then_some(*identity)
-            }));
-            return append_cleanup_subjects(
-                types,
-                nominal,
-                &boundaries,
-                &mut BTreeMap::new(),
-                selected,
-                structural_type,
-                path,
-                limit,
-                subjects,
-            );
-        }
-        if nominal.contains(&structural_type) && !partitioned {
-            return None;
-        }
-        let declaration = types.get(&structural_type)?;
-        let budget = match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. } => fields.len(),
-            _ => limit.checked_add(moved.map_or(0, BTreeSet::len))?,
-        };
-        let children = selected_children(types, structural_type, &path, budget, selected)?;
-        for (child_path, child) in children {
-            append_partitioned_subjects(
-                types, nominal, partitions, place, child, child_path, moved, selected, limit,
-                subjects,
-            )?;
-        }
-        Some(())
+        subjects: Vec<CleanupSubject>,
     }
 
-    fn append_cleanup_subjects(
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        nominal: &BTreeSet<StructuralTypeId>,
-        boundaries: &BTreeSet<StructuralTypeId>,
-        cache: &mut BTreeMap<StructuralTypeId, bool>,
-        selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
-        structural_type: StructuralTypeId,
-        path: Vec<StructuralPathSegment>,
-        limit: usize,
-        subjects: &mut Vec<CleanupSubject>,
-    ) -> Option<()> {
-        let whole = nominal.contains(&structural_type)
-            || !contains_cleanup_boundary(
-                types,
-                boundaries,
-                cache,
-                &mut BTreeSet::new(),
-                structural_type,
-            )?;
-        let children = if whole {
-            Vec::new()
-        } else {
-            selected_children(types, structural_type, &path, limit, selected)?
-        };
-        if whole || children.is_empty() {
-            if subjects.len() >= limit {
+    impl CleanupTraversal<'_, '_> {
+        fn prepare_boundaries(&mut self, partitioned: bool) {
+            self.boundaries = self.nominal.clone();
+            self.boundaries
+                .extend(self.types.iter().filter_map(|(identity, declaration)| {
+                    let cases = match &declaration.shape {
+                        StructuralTypeShape::Sum { cases }
+                        | StructuralTypeShape::Mixed { cases, .. } => cases,
+                        _ => return None,
+                    };
+                    (partitioned
+                        || declaration
+                            .shape
+                            .direct_fields()
+                            .into_iter()
+                            .flatten()
+                            .chain(cases.iter().flat_map(|case| &case.fields))
+                            .any(|field| {
+                                !field.relevance.is_erased()
+                                    && field.field_type.as_structural().is_some()
+                            }))
+                    .then_some(*identity)
+                }));
+            // Nominal-only detection and expanded boundaries answer different
+            // questions. Cache entries are valid only for the prepared family.
+            self.cache.clear();
+        }
+
+        fn append_partitioned_subjects(
+            &mut self,
+            structural_type: StructuralTypeId,
+            path: Vec<StructuralPathSegment>,
+        ) -> Option<()> {
+            if self
+                .moved
+                .is_some_and(|moved| moved.iter().any(|missing| path.starts_with(missing)))
+            {
+                return Some(());
+            }
+            let partitioned = self
+                .partitions
+                .contains(&terminal_psi::StructuralAffineDiscard {
+                    place: self.place,
+                    path: path.clone(),
+                    structural_type,
+                });
+            let nested = self.partitions.iter().any(|partition| {
+                partition.place == self.place
+                    && partition.path.len() > path.len()
+                    && partition.path.starts_with(&path)
+            });
+            let partial = self
+                .moved
+                .is_some_and(|moved| moved.iter().any(|missing| missing.starts_with(&path)));
+            if !partitioned && !nested && !partial {
+                return self.append_cleanup_subjects(structural_type, path);
+            }
+            if self.nominal.contains(&structural_type) && !partitioned {
                 return None;
             }
-            subjects.push(CleanupSubject {
-                path,
-                structural_type,
-                nominal: nominal.contains(&structural_type),
-            });
-            return Some(());
+            let declaration = self.types.get(&structural_type)?;
+            let budget = match &declaration.shape {
+                StructuralTypeShape::Record { fields, .. } => fields.len(),
+                _ => self
+                    .limit
+                    .checked_add(self.moved.map_or(0, BTreeSet::len))?,
+            };
+            let children =
+                selected_children(self.types, structural_type, &path, budget, self.selected)?;
+            for (child_path, child) in children {
+                self.append_partitioned_subjects(child, child_path)?;
+            }
+            Some(())
         }
-        for (child_path, child) in children {
-            append_cleanup_subjects(
-                types, nominal, boundaries, cache, selected, child, child_path, limit, subjects,
-            )?;
+
+        fn append_cleanup_subjects(
+            &mut self,
+            structural_type: StructuralTypeId,
+            path: Vec<StructuralPathSegment>,
+        ) -> Option<()> {
+            let whole = self.nominal.contains(&structural_type)
+                || !contains_cleanup_boundary(
+                    self.types,
+                    &self.boundaries,
+                    &mut self.cache,
+                    &mut BTreeSet::new(),
+                    structural_type,
+                )?;
+            let children = if whole {
+                Vec::new()
+            } else {
+                selected_children(
+                    self.types,
+                    structural_type,
+                    &path,
+                    self.limit,
+                    self.selected,
+                )?
+            };
+            if whole || children.is_empty() {
+                if self.subjects.len() >= self.limit {
+                    return None;
+                }
+                self.subjects.push(CleanupSubject {
+                    path,
+                    structural_type,
+                    nominal: self.nominal.contains(&structural_type),
+                });
+                return Some(());
+            }
+            for (child_path, child) in children {
+                self.append_cleanup_subjects(child, child_path)?;
+            }
+            Some(())
         }
-        Some(())
     }
 
     pub(super) fn consume_owner_cleanup(

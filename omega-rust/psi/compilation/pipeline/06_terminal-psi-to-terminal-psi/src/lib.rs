@@ -945,7 +945,7 @@ fn fill_knowledge(
     types: &IdTable<ValueId, ScalarType>,
     storage: &places::Storage<'_>,
 ) -> Checked<()> {
-    let edge_entries = owned_cleanup::edge_entry_points(lowered);
+    let edge_entries = owned_cleanup::edge_entry_points(lowered, tables)?;
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
@@ -1014,10 +1014,14 @@ fn fill_knowledge(
                         ScalarTerm::value(*condition, ScalarType::Boolean),
                         ScalarTerm::Boolean(holds),
                     ),
-                    edge_entries
-                        .get(&edge)
-                        .copied()
-                        .unwrap_or(ProgramPoint::Edge(edge)),
+                    edge_entries.get(edge).copied().ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Edge(edge),
+                            "branch has no exact source edge point",
+                        )
+                    })?,
                     Justification::BranchCondition { edge, holds },
                 );
             }

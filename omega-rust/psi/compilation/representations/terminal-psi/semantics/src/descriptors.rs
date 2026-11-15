@@ -13835,7 +13835,7 @@ pub mod descriptor_results {
             callee: &TerminalMachine,
             actuals: &[StructuralArgument],
             result: Option<&terminal_psi::StructuralOperationResult>,
-            place_types: &BTreeMap<PlaceId, StructuralTypeId>,
+            actual_root_types: impl IntoIterator<Item = Option<StructuralTypeId>>,
         ) -> Option<DescriptorInvocation> {
             machine_invocation_for_signature(
                 owner,
@@ -13848,7 +13848,7 @@ pub mod descriptor_results {
                 },
                 actuals,
                 result,
-                place_types,
+                actual_root_types,
             )
         }
 
@@ -13859,18 +13859,19 @@ pub mod descriptor_results {
             callee: DescriptorMachineSignature<'_>,
             actuals: &[StructuralArgument],
             result: Option<&terminal_psi::StructuralOperationResult>,
-            place_types: &BTreeMap<PlaceId, StructuralTypeId>,
+            actual_root_types: impl IntoIterator<Item = Option<StructuralTypeId>>,
         ) -> Option<DescriptorInvocation> {
             if callee.structural_parameters.len() != actuals.len() {
                 return None;
             }
             let mut arguments = Vec::with_capacity(actuals.len());
             let mut argument_contents = Vec::with_capacity(actuals.len());
+            let mut actual_root_types = actual_root_types.into_iter();
             for (actual, formal) in actuals.iter().zip(callee.structural_parameters) {
                 if actual.access != formal.access {
                     return None;
                 }
-                let root = *place_types.get(&actual.place)?;
+                let root = actual_root_types.next()??;
                 arguments.push(descriptor_location(
                     types,
                     actual.place,
@@ -13885,6 +13886,9 @@ pub mod descriptor_results {
                     &actual.path,
                     None,
                 ));
+            }
+            if actual_root_types.next().is_some() {
+                return None;
             }
             let result = result.filter(|result| {
                 slot_kind.tracks_returned_value(types, result.place, result.structural_type)
@@ -15869,7 +15873,9 @@ pub mod descriptor_results {
                                     callee,
                                     structural_arguments,
                                     result,
-                                    &graph.place_types,
+                                    structural_arguments.iter().map(|actual| {
+                                        graph.place_types.get(&actual.place).copied()
+                                    }),
                                 )?;
                                 if call.arguments.iter().any(Option::is_none) {
                                     mark_opaque_call_occupancy(
@@ -16251,7 +16257,7 @@ pub mod descriptor_results {
                                 callee,
                                 std::slice::from_ref(&cleanup.subject),
                                 None,
-                                &graph.place_types,
+                                std::iter::once(Some(root)),
                             )?;
                             // A known cleanup requires the same exact actual
                             // correspondence as a source call. An opaque frame

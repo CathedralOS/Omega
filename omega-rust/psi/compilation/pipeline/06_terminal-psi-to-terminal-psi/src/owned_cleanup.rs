@@ -1,7 +1,7 @@
 //! Generated cleanup entries use ordinary invocation and requirement rows.
 //! Only the source producer pass mints them; discharge checks the exact rows.
 
-use semantic_vocabulary::InvocationSite;
+use semantic_vocabulary::{EdgeId, IdTable, InvocationSite, MachineId, StructuralTypeId};
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
 use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
 use terminal_check_tables::program::Elaboration;
@@ -11,30 +11,21 @@ use terminal_check_tables::{
 use terminal_psi::{OwnedCleanupInvocation, StructuralArgument, TerminalAffineCleanupAction};
 
 pub(crate) struct Catalog<'a> {
-    machines: std::collections::BTreeMap<
-        semantic_vocabulary::MachineId,
-        &'a terminal_psi::TerminalMachine,
-    >,
-    types: std::collections::BTreeMap<
-        semantic_vocabulary::StructuralTypeId,
-        &'a terminal_psi::StructuralTypeDeclaration,
-    >,
+    machines: IdTable<MachineId, &'a terminal_psi::TerminalMachine>,
+    types: IdTable<StructuralTypeId, &'a terminal_psi::StructuralTypeDeclaration>,
 }
 impl<'a> Catalog<'a> {
     pub(crate) fn new(module: &'a terminal_psi::TerminalModule) -> Result<Self, &'static str> {
-        let machines = module
-            .machines
-            .iter()
-            .map(|machine| (machine.id, machine))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        let types = module
-            .structural_types
-            .iter()
-            .map(|declaration| (declaration.id, declaration))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        if machines.len() != module.machines.len() || types.len() != module.structural_types.len() {
-            return Err("cleanup catalog contains ambiguous declaration identities");
-        }
+        let machines =
+            IdTable::from_rows(module.machines.iter().map(|machine| (machine.id, machine)))
+                .map_err(|_| "cleanup machines do not have unique dense declaration identities")?;
+        let types = IdTable::from_rows(
+            module
+                .structural_types
+                .iter()
+                .map(|declaration| (declaration.id, declaration)),
+        )
+        .map_err(|_| "cleanup types do not have unique dense declaration identities")?;
         Ok(Self { machines, types })
     }
     pub(crate) fn target(
@@ -43,12 +34,12 @@ impl<'a> Catalog<'a> {
     ) -> Result<&'a terminal_psi::TerminalMachine, &'static str> {
         let declaration = self
             .types
-            .get(&cleanup.structural_type)
+            .get(cleanup.structural_type)
             .copied()
             .ok_or("cleanup subject type is absent")?;
         let target = self
             .machines
-            .get(&cleanup.cleanup_machine)
+            .get(cleanup.cleanup_machine)
             .copied()
             .ok_or("cleanup selected target is absent")?;
         terminal_semantics::nominal_cleanup::owned_target(
@@ -170,15 +161,8 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
             detail,
         )
     })?;
-    let machine_positions = elaboration
-        .module
-        .machines
-        .iter()
-        .enumerate()
-        .map(|(index, machine)| (machine.id, index))
-        .collect::<std::collections::BTreeMap<_, _>>();
     let mut pending = Vec::new();
-    for machine in &elaboration.module.machines {
+    for (machine_index, machine) in elaboration.module.machines.iter().enumerate() {
         for (block_index, block) in machine.blocks.iter().enumerate() {
             for (edge, actions) in block.terminator.cleanup_rosters() {
                 for (ordinal, action) in actions.iter().enumerate() {
@@ -205,6 +189,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
                         ));
                     }
                     pending.push((
+                        machine_index,
                         machine.id,
                         block_index,
                         edge,
@@ -224,7 +209,7 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
         }
         counts
     });
-    for (id, block, edge, action_ordinal, cleanup, clauses) in pending {
+    for (machine_index, id, block, edge, action_ordinal, cleanup, clauses) in pending {
         let site = InvocationSite::Cleanup {
             edge,
             action_ordinal,
@@ -261,15 +246,19 @@ pub(crate) fn materialize(elaboration: &mut Elaboration) -> Checked<()> {
                 "cleanup requirements have no owning invocation row",
             ));
         }
-        let machine_index = *machine_positions.get(&id).ok_or_else(|| {
-            crate::refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Machine,
-                "cleanup caller is absent",
-            )
-        })?;
-        let caller = &elaboration.module.machines[machine_index];
+        let caller = elaboration
+            .module
+            .machines
+            .get(machine_index)
+            .filter(|caller| caller.id == id)
+            .ok_or_else(|| {
+                crate::refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Machine,
+                    "cleanup caller lost its exact source position",
+                )
+            })?;
         let actual = intern_actual(&elaboration.module, caller, tables, &cleanup.subject)?;
         site_counts
             .get_mut(id)
@@ -542,7 +531,7 @@ pub(crate) fn writes(
                     .id;
                     let declaration = catalog
                         .types
-                        .get(&leaf_type)
+                        .get(leaf_type)
                         .copied()
                         .ok_or_else(|| fail("cleanup carried reference type is absent"))?;
                     let terminal_psi::StructuralTypeShape::Reference { access, .. } =
@@ -664,23 +653,41 @@ fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
 
 pub(crate) fn edge_entry_points(
     machine: &terminal_psi::TerminalMachine,
-) -> std::collections::BTreeMap<semantic_vocabulary::EdgeId, ProgramPoint> {
-    machine
-        .blocks
-        .iter()
-        .flat_map(|block| block.terminator.cleanup_rosters())
-        .map(|(edge, actions)| {
-            (
-                edge,
-                if actions.is_empty() {
-                    ProgramPoint::Edge(edge)
-                } else {
-                    ProgramPoint::BeforeCleanup {
-                        edge,
-                        action_ordinal: 0,
-                    }
-                },
-            )
-        })
-        .collect()
+    tables: &MachineTables,
+) -> Checked<IdTable<EdgeId, ProgramPoint>> {
+    let mut entries = tables.edges.map(|_, _| None);
+    for block in &machine.blocks {
+        for (edge, actions) in block.terminator.cleanup_rosters() {
+            let fail = |detail| {
+                crate::refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine.id,
+                    Construct::Edge(edge),
+                    detail,
+                )
+            };
+            let row = tables
+                .edges
+                .get(edge)
+                .ok_or_else(|| fail("cleanup edge is outside the caller tables"))?;
+            if row.source != block.id {
+                return Err(fail("cleanup edge belongs to another source block"));
+            }
+            let point = if actions.is_empty() {
+                ProgramPoint::Edge(edge)
+            } else {
+                ProgramPoint::BeforeCleanup {
+                    edge,
+                    action_ordinal: 0,
+                }
+            };
+            let entry = entries
+                .get_mut(edge)
+                .ok_or_else(|| fail("cleanup edge has no exact point row"))?;
+            if entry.replace(point).is_some() {
+                return Err(fail("two cleanup rosters own the same source edge"));
+            }
+        }
+    }
+    Ok(entries.map(|edge, point| point.unwrap_or(ProgramPoint::Edge(edge))))
 }

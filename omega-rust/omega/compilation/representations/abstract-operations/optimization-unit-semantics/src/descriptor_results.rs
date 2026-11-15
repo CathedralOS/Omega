@@ -2272,7 +2272,9 @@ fn adapt(
                             },
                             structural_arguments,
                             result,
-                            &graph.place_types,
+                            structural_arguments
+                                .iter()
+                                .map(|actual| graph.place_types.get(&actual.place).copied()),
                         )?;
                         call.scalar_arguments = kernel::descriptor_scalar_arguments(
                             callee
@@ -2610,7 +2612,7 @@ fn adapt(
                         },
                         std::slice::from_ref(&cleanup.subject),
                         None,
-                        &graph.place_types,
+                        std::iter::once(graph.place_types.get(&cleanup.subject.place).copied()),
                     )?;
                     if call.arguments.iter().any(Option::is_none)
                         || call.argument_contents.iter().any(Option::is_none)

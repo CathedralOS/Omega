@@ -804,27 +804,35 @@ impl Program<'_> {
             .typed
             .expression_table
             .match_fields(local.pattern_fields);
-        let declared = source
-            .fields
-            .iter()
-            .map(|field| (field.arena_index(), field.generation()))
-            .collect::<std::collections::BTreeSet<_>>();
-        let mut used = std::collections::BTreeSet::new();
+        let mut declared = source.fields.clone();
+        declared.sort_unstable_by_key(|field| (field.generation(), field.arena_index()));
+        if declared.windows(2).any(|fields| fields[0] == fields[1]) {
+            return Err(refused(Unserved::Spelling(
+                "record pattern over ambiguous field declarations",
+            )));
+        }
+        let mut used = vec![false; declared.len()];
         for row in roster {
-            let field = (
-                row.field_symbol.arena_index(),
-                row.field_symbol.generation(),
-            );
-            if !row.field_symbol.is_valid() || !declared.contains(&field) {
-                return Err(refused(Unserved::Spelling(
-                    "record pattern field without a symbol",
-                )));
-            }
-            if !used.insert(field) {
+            let field = row.field_symbol;
+            let position = field
+                .is_valid()
+                .then(|| {
+                    declared
+                        .binary_search_by_key(
+                            &(field.generation(), field.arena_index()),
+                            |candidate| (candidate.generation(), candidate.arena_index()),
+                        )
+                        .ok()
+                })
+                .flatten()
+                .ok_or_else(|| {
+                    refused(Unserved::Spelling("record pattern field without a symbol"))
+                })?;
+            if std::mem::replace(&mut used[position], true) {
                 return Err(refused(Unserved::Typing("record pattern repeats a field")));
             }
         }
-        if used.len() != declared.len() {
+        if used.iter().any(|used| !used) {
             return Err(refused(Unserved::Statement(
                 "record pattern that omits a field",
             )));

@@ -23,13 +23,17 @@ machine caller(counter: &mut Counter) {{
 const DECOMPOSE: &str =
     "let { dropped, valid, value as _ } = move resource; dropped.value = valid;";
 
-fn judged(text: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
-    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+fn prepared(text: &str) -> typed_trees::FrozenTypedTrees {
+    typed_trees_to_typed_trees::prepare_typed_trees(
         super::boundary_calls::typed(text),
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
     )
-    .expect("ordinary typed preparation must preserve this source program");
-    super::entryless::judged_typed_result(&typed, false)
+    .expect("ordinary typed preparation must preserve this source program")
+    .0
+}
+
+fn judged(text: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    super::entryless::judged_typed_result(&prepared(text), false)
 }
 
 fn accepted() -> terminal_check_tables::program::Elaboration {
@@ -103,8 +107,7 @@ data Counter { value: u64; }
 data Held<'view> { target: &'view mut Counter; value: u64; }
 machine consume(held: Held) {
     let { target, value } = move held;
-    let again = target;
-    again.value = value;
+    target.value = value;
 }
 machine caller(counter: &mut Counter) {
     let held: Held = Held { target: counter, value: 1u64 };
@@ -117,8 +120,39 @@ machine caller(counter: &mut Counter) {
 
 #[test]
 fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
-    let accepted = accepted();
-    let (machine, invocation, call) = accepted
+    // Use fresh producer input, not a prior discharge's derived knowledge.
+    // Generated call rows are formed once before any untrusted mutation.
+    let typed = prepared(&program(1, "Resource", DECOMPOSE, ""));
+    let mut unjudged = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .expect("the actual source produces fresh receiving input");
+    crate::owned_cleanup::materialize(&mut unjudged).unwrap();
+    let mut baseline = unjudged.clone();
+    let verified = crate::discharge(&mut baseline).expect("fresh untampered input must discharge");
+    for machine in verified.machines.values() {
+        assert!(machine.verdicts.values().all(Result::is_ok), "{verified:?}");
+        assert!(
+            machine.uses.iter().all(|used| used.verdict.is_ok()),
+            "{verified:?}"
+        );
+        assert!(
+            machine.windows.iter().all(|window| window.verdict.is_ok()),
+            "{verified:?}"
+        );
+        assert!(machine.conflicts.is_empty(), "{verified:?}");
+    }
+    let (machine, invocation, call) = unjudged
         .tables
         .machines
         .iter()
@@ -131,7 +165,7 @@ fn receiving_rejects_missing_reordered_or_relocated_cleanup_requirements() {
         })
         .unwrap();
     for mutation in 0..3 {
-        let mut changed = accepted.clone();
+        let mut changed = unjudged.clone();
         let tables = changed.tables.machines.get_mut(machine).unwrap();
         match mutation {
             0 => {

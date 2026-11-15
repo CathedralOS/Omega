@@ -865,15 +865,15 @@ pub(crate) fn required_result_multiplicity(
     .and_then(|row| row.schema().required_result_multiplicity())
 }
 
-fn disposition_supported(
+fn prepare_disposition(
     types: &[StructuralTypeDeclaration],
     module: Option<&terminal_psi::TerminalModule>,
     ty: StructuralTypeId,
-    cache: &mut [Option<bool>],
+    rows: &mut [Option<bool>],
     visiting: &mut [bool],
 ) -> Result<bool, Error> {
     let raw = index(ty.get())?;
-    if let Some(answer) = cache.get(raw).copied().flatten() {
+    if let Some(answer) = rows.get(raw).copied().flatten() {
         return Ok(answer);
     }
     if *visiting
@@ -922,7 +922,7 @@ fn disposition_supported(
                 nontrivial_child |= child_decl.nominal_cleanup.is_some()
                     || !child_decl.no_code_affine_cleanup
                     || !child_decl.descriptor_cleanup;
-                complete &= disposition_supported(types, module, child, cache, visiting)?;
+                complete &= prepare_disposition(types, module, child, rows, visiting)?;
             }
         }
         complete && nontrivial_child
@@ -930,7 +930,7 @@ fn disposition_supported(
         false
     };
     visiting[raw] = false;
-    cache[raw] = Some(supported);
+    rows[raw] = Some(supported);
     Ok(supported)
 }
 
@@ -1161,8 +1161,6 @@ fn analyze(
             terminal_psi::Terminator::EliminateEmpty { .. }
         )
     });
-    let mut disposition_cache = vec![None; types.len()];
-    let mut disposition_visiting = vec![false; types.len()];
     let mut roots = Vec::with_capacity(machine.structural_places.len());
     let mut copyable_owned_roots = IdSet::new();
     for place in &machine.structural_places {
@@ -1266,19 +1264,6 @@ fn analyze(
                 multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             });
 
-        if tracked
-            && !disposition_supported(
-                types,
-                module,
-                ty,
-                &mut disposition_cache,
-                &mut disposition_visiting,
-            )?
-        {
-            return Err(Error::unsupported(
-                "affine storage with nontrivial disposition",
-            ));
-        }
         if owned
             && !tracked
             && declaration.copyable
@@ -1303,6 +1288,27 @@ fn analyze(
                 exclusive,
             }),
         );
+    }
+    // Prepare disposition facts for the actual affine type family once,
+    // before transfer replay. Consumers read the completed dense rows; they
+    // neither rediscover child cleanup nor maintain a second query history.
+    let mut dispositions = vec![None; types.len()];
+    let mut active_dispositions = vec![false; types.len()];
+    for root in roots.iter().flatten().filter(|root| root.affine) {
+        prepare_disposition(
+            types,
+            module,
+            root.structural_type,
+            &mut dispositions,
+            &mut active_dispositions,
+        )?;
+    }
+    for root in roots.iter().flatten().filter(|root| root.affine) {
+        if dispositions[index(root.structural_type.get())?] != Some(true) {
+            return Err(Error::unsupported(
+                "affine storage with nontrivial disposition",
+            ));
+        }
     }
     // Access is independent of whether the referent has affine contents.
     // Check every successor telescope before the copyable-storage fast path.
