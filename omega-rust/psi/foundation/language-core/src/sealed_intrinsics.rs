@@ -681,24 +681,20 @@ mod tests {
         );
         // A lookalike file, an edited source, a nested member, or a bare
         // owner name supplies no custody.
-        let linux = bundled!("std/targets/linux_x86_64/process_exit_impl.omg");
-        assert_eq!(
-            SealedIntrinsicCatalog::classify(site(
-                "targets/linux_x86_64/process_exit_impl.omg",
-                "linux_x86_64_process_exit",
-                linux
-            )),
-            None
-        );
-        // Retired target leaves have no compiler custody, even with bundled bytes.
-        assert_eq!(
-            SealedIntrinsicCatalog::classify(site(
-                "targets/linux_arm64/process_exit_impl.omg",
-                "linux_arm64_process_exit",
-                linux
-            )),
-            None
-        );
+        // Canonical primitive bytes cannot revive a retired target path.
+        for file in [
+            "targets/linux_x86_64/process_exit_impl.omg",
+            "targets/linux_arm64/process_exit_impl.omg",
+        ] {
+            assert_eq!(
+                SealedIntrinsicCatalog::classify(site(
+                    file,
+                    "ProcessExitPrimitive",
+                    CORE_PROCESS_EXIT_NATIVE
+                )),
+                None
+            );
+        }
         assert_eq!(
             SealedIntrinsicCatalog::classify(site("tasks.omg", "TaskRuntime::start", CORE_TASK)),
             None

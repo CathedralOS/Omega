@@ -6,7 +6,7 @@ numeric/float intrinsics, and boundary completions in `TypedTrees`.
 
 pub mod boundary_completions {
     use crate::TypedTrees;
-    use crate::types::{PrimitiveType, TypeReferenceNode};
+    use crate::types::PrimitiveType;
     use symbols::SymbolHandle;
 
     pub fn boundary_requirement_completion(
@@ -178,6 +178,7 @@ pub mod boundary_completions {
         use super::*;
         use crate::data::DataDefinition;
         use crate::signature::StateParameter;
+        use crate::types::TypeReferenceNode;
         use crate::types::{FixedArrayLength, TypeReferenceHandle};
         use source::{SourceMap, SourceOrigin, SourceSpan, Span};
         use std::{path::PathBuf, sync::Arc};
