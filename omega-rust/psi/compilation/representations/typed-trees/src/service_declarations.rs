@@ -1969,18 +1969,38 @@ pub mod signatures {
             pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
         }
 
-        pub struct PreparedBoundaryAbiSignature {
-            pub id: CallingSignatureId,
-            pub template: SymbolHandle,
-            pub source_templates: Vec<SymbolHandle>,
-            pub requirement_identity: String,
-            pub declaring_application: String,
-            pub operands: Vec<CallingStaticOperand>,
+        pub struct PreparedAbiProjection {
+            pub source: SymbolHandle,
             pub formals: Vec<CallingGenericFormal>,
             pub default_eligible: bool,
             pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
             pub telescope: Result<BoundaryTelescope, String>,
-            pub projections: Vec<Result<PreparedAbiStorage, String>>,
+            pub storage: Result<PreparedAbiStorage, String>,
+        }
+
+        pub struct PreparedBoundaryAbiSignature {
+            pub id: CallingSignatureId,
+            pub requirement_identity: String,
+            pub declaring_application: String,
+            pub operands: Vec<CallingStaticOperand>,
+            pub projections: Vec<PreparedAbiProjection>,
+        }
+
+        impl PreparedBoundaryAbiSignature {
+            /// Build and Product are separate checked programs even when their
+            /// copies of a declaration have the same portable ABI key.
+            pub fn projections_in_context<'a>(
+                &'a self,
+                typed: &'a TypedTrees,
+                context: source::DependencyScope,
+            ) -> impl Iterator<Item = &'a PreparedAbiProjection> {
+                self.projections.iter().filter(move |projection| {
+                    projection.source.is_valid()
+                        && typed
+                            .symbols
+                            .symbol_is_in_dependency_scope(projection.source, context)
+                })
+            }
         }
 
         pub(crate) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTrees) {
@@ -2368,7 +2388,6 @@ pub mod signatures {
             operands: Vec<CallingStaticOperand>,
             projection: Result<PreparedAbiStorage, String>,
         ) -> CallingSignatureId {
-            let physical_owner = physical_owner(typed, declaration);
             let id = CallingSignatureId::for_application(
                 &declaration.requirement_identity,
                 &declaring_application,
@@ -2376,24 +2395,6 @@ pub mod signatures {
                     .iter()
                     .map(|operand| (operand.ordinal, operand.kind, operand.identity.as_str())),
             );
-            if let Some(row) = rows.iter_mut().find(|row| {
-                row.id == id
-                    && row.requirement_identity == declaration.requirement_identity
-                    && row.declaring_application == declaring_application
-                    && row.operands == operands
-            }) {
-                if !row.source_templates.contains(&declaration.symbol) {
-                    row.source_templates.push(declaration.symbol);
-                }
-                row.projections.push(projection);
-                row.default_eligible |= declaration.default_eligible;
-                if row.physical_owner != physical_owner {
-                    row.physical_owner = Err(
-                        "declaration ABI copies disagree on their physical calling owner".into(),
-                    );
-                }
-                return id;
-            }
             let formals = typed
                 .trait_machine_signature(declaration.symbol)
                 .map(|(_, signature)| {
@@ -2409,21 +2410,32 @@ pub mod signatures {
                         .collect()
                 })
                 .unwrap_or_default();
-            rows.push(PreparedBoundaryAbiSignature {
-                id,
-                template: declaration.symbol,
-                source_templates: vec![declaration.symbol],
-                requirement_identity: declaration.requirement_identity.clone(),
-                declaring_application,
-                operands,
+            let projection = PreparedAbiProjection {
+                source: declaration.symbol,
                 formals,
                 default_eligible: declaration.default_eligible,
-                physical_owner,
+                physical_owner: physical_owner(typed, declaration),
                 telescope: declaration
                     .projection
                     .as_ref()
                     .map(|prepared| prepared.telescope.clone())
                     .map_err(Clone::clone),
+                storage: projection,
+            };
+            if let Some(row) = rows.iter_mut().find(|row| {
+                row.id == id
+                    && row.requirement_identity == declaration.requirement_identity
+                    && row.declaring_application == declaring_application
+                    && row.operands == operands
+            }) {
+                row.projections.push(projection);
+                return id;
+            }
+            rows.push(PreparedBoundaryAbiSignature {
+                id,
+                requirement_identity: declaration.requirement_identity.clone(),
+                declaring_application,
+                operands,
                 projections: vec![projection],
             });
             id
@@ -2972,7 +2984,10 @@ pub mod signatures {
             refusal.map_or(Ok(()), Err)
         }
     }
-    pub use abi_signatures::{CallingStaticOperand, PreparedBoundaryAbiSignature};
+    pub use abi_signatures::{
+        CallingStaticOperand, PreparedAbiProjection, PreparedAbiStorage,
+        PreparedBoundaryAbiSignature,
+    };
 
     pub struct BoundaryCallbackSource {
         pub parameter_symbol: SymbolHandle,

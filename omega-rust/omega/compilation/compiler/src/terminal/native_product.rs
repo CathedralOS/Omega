@@ -200,6 +200,13 @@ pub(crate) fn prepare(
         profile,
         &calling_program,
         &native_supplies.rows,
+        |boundary| {
+            declared
+                .iter()
+                .find(|requirement| requirement.boundary == boundary)
+                .map(|requirement| requirement.name.clone())
+                .unwrap_or_else(|| format!("boundary {}", boundary.get()))
+        },
     )? {
         if !calling_applications.contains(&application) {
             calling_applications.push(application);

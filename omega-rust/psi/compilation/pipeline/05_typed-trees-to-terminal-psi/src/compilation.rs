@@ -78,6 +78,7 @@ pub fn prepare_compilation(
             );
             let mut witness = crate::read::logical::projected_arrival(
                 typed,
+                compilation.purpose,
                 required,
                 binding.implementation,
                 &binding.visible_parameters,
@@ -184,7 +185,7 @@ pub fn prepare_compilation(
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
-    let forms = prepare_generic_forms(typed, templates, &captures);
+    let forms = prepare_generic_forms(typed, compilation.purpose, templates, &captures);
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
@@ -192,6 +193,7 @@ pub fn prepare_compilation(
         let mut witness = match signature {
             Some(signature) => crate::elaborate_applied_witness(
                 typed,
+                compilation.purpose,
                 signature,
                 *declaring_trait,
                 *requirement,
@@ -201,6 +203,7 @@ pub fn prepare_compilation(
             ),
             None => crate::elaborate_witness_with_captures(
                 typed,
+                compilation.purpose,
                 *declaring_trait,
                 *requirement,
                 arguments,
@@ -439,6 +442,7 @@ pub(crate) fn prepare_selected_signatures<'source>(
 
 fn prepare_generic_forms(
     typed: &TypedTrees,
+    purpose: source::DependencyScope,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::NamedCaptures,
 ) -> Vec<GenericForms> {
@@ -446,8 +450,12 @@ fn prepare_generic_forms(
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated =
-            crate::elaborate_generic_forms_with_captures(typed, &[template], captures.clone());
+        let elaborated = crate::elaborate_generic_forms_with_captures(
+            typed,
+            purpose,
+            &[template],
+            captures.clone(),
+        );
         let mut applies = Some(Vec::new());
         for form in elaborated.iter().flatten() {
             for application in &form.applications {

@@ -207,10 +207,12 @@ fn default_abi_eligible(declaration: &terminal_psi::CallingAbiDeclaration) -> bo
 
 /// Native bindings use the requirement's published ABI and the calling policy
 /// of their actual mechanism. A syscall must not inherit the platform C ABI.
+/// The name lookup supplies authored diagnostic labels, never ABI identity.
 pub fn native_calling_applications(
     profile: target::TargetProfile,
     program: &super::CallingProgram,
     bindings: &[crate::target_supply::NormalizedNativeSupply],
+    boundary_name: impl Fn(semantic_vocabulary::BoundaryMachineId) -> String,
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
     if bindings.is_empty() {
         return Ok(Vec::new());
@@ -219,6 +221,7 @@ pub fn native_calling_applications(
     let failure = |reason: String| vec![Diagnostic::error(reason)];
     let mut applications = Vec::new();
     for supplied in bindings {
+        let name = boundary_name(supplied.boundary);
         if supplied.binding.target() != profile {
             return Err(failure(
                 "native calling application has another target".into(),
@@ -243,27 +246,30 @@ pub fn native_calling_applications(
             .find(|signature| signature.boundary == supplied.boundary)
             .ok_or_else(|| {
                 failure(format!(
-                    "native boundary `{requirement}` has no calling declaration"
+                    "native boundary `{name}` has no calling declaration"
                 ))
             })?;
         let application = *signature
             .application
             .as_ref()
             .map_err(|reason| failure(reason.clone()))?;
-        let abi = module.calling_abi_signature(application).ok_or_else(|| {
-            failure(format!(
-                "native boundary `{requirement}` lost its declaration ABI"
-            ))
-        })?;
+        let abi = module
+            .calling_abi_signature(application)
+            .ok_or_else(|| failure(format!("native boundary `{name}` lost its declaration ABI")))?;
         if !default_abi_eligible(abi) {
             return Err(failure(format!(
-                "native boundary `{requirement}` needs its selected custom calling policy"
+                "native boundary `{name}` needs its selected custom calling policy"
             )));
         }
         abi.physical_owner
             .as_ref()
             .map_err(|reason| failure(reason.clone()))?;
         let key = abi.identity(&module.identities).map_err(failure)?;
+        if key.requirement_identity != requirement {
+            return Err(failure(format!(
+                "native boundary `{name}` has another declaration's calling ABI"
+            )));
+        }
         let policy = match &supplied.binding {
             effects::provider_plan::EvaluatedNativeBinding::Import(_) => {
                 calling_conventions::CallingPolicy::native_for_target(profile.native_target())
@@ -284,7 +290,7 @@ pub fn native_calling_applications(
         )
         .map_err(|reason| {
             failure(format!(
-                "cannot materialize native calling application for `{requirement}`: {reason}"
+                "cannot prepare native calling plan for `{name}`: {reason}"
             ))
         })? {
             if !applications.contains(&application) {

@@ -70,7 +70,7 @@ impl Program<'_> {
             });
         }
         let typed = self.typed;
-        let context = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+        let context = ProviderPlanningContext::new(typed, self.purpose);
         // This catalog supplies source signatures, not selection authority.
         // The coordinator authenticates the nominated handles against its
         // admitted source registry before constructing this compilation.
@@ -197,84 +197,23 @@ impl Program<'_> {
                         "metadata ABI coordinate differs from its exact identity",
                     ));
                 }
-                let storage = (|| -> Result<PreparedStorage, String> {
-                    let telescope = row.telescope.as_ref().map_err(Clone::clone)?;
-                    if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
-                        return Err(
-                            "calling ABI callback storage has no retained shared projection".into(),
-                        );
-                    }
-                    let mut previous = None;
-                    for projection in &row.projections {
-                        let projection = projection.as_ref().map_err(Clone::clone)?;
-                        if !projection.substitutions.is_empty() {
-                            return Err(
-                                "calling ABI storage requires its retained source substitutions"
-                                    .into(),
-                            );
-                        }
-                        if projection.parameters.len() != telescope.parameters.len() {
-                            return Err(
-                                "calling ABI source parameters differ from its telescope".into()
-                            );
-                        }
-                        let parameters = projection
-                            .parameters
-                            .iter()
-                            .map(|reference| self.calling_abi_parameter(entry, *reference))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        // An omitted source return annotation is Unit. Verify
-                        // that custody on every original declaration; a lost
-                        // projected type of an explicit result is not Unit.
-                        let omitted_unit = !projection.result.is_valid()
-                            && !row.source_templates.is_empty()
-                            && row.source_templates.iter().all(|symbol| {
-                                if let Some((_, signature)) = typed.trait_machine_signature(*symbol) {
-                                    !signature.return_type.is_valid()
-                                } else if let Some(machine) = typed.machine_by_symbol(*symbol) {
-                                    matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
-                                } else {
-                                    false
-                                }
-                            });
-                        if !omitted_unit
-                            && !typed
-                                .type_reference_table
-                                .contains_type_reference(projection.result)
-                        {
-                            return Err("calling ABI result lost its retained source type".into());
-                        }
-                        let result = if omitted_unit
-                            || matches!(
-                                typed.type_reference_table.type_reference(projection.result),
-                                TypeReferenceNode::Unit
-                            ) {
-                            None
-                        } else {
-                            Some(self.calling_abi_storage(entry, projection.result)?)
-                        };
-                        let storage = PreparedStorage {
-                            parameters,
-                            result,
-                            telescope: telescope.clone(),
-                        };
-                        if let Some(previous) = &previous {
-                            if previous != &storage {
-                                return Err("one exact calling ABI has inconsistent source storage projections".into());
-                            }
-                        } else {
-                            previous = Some(storage);
-                        }
-                    }
-                    previous.ok_or_else(|| {
-                        "calling ABI has no retained source storage projection".into()
-                    })
-                })();
+                let selected = row.projections_in_context(typed, self.purpose).next();
+                let storage = self.calling_abi_projected_storage(entry, row);
                 declarations.push(PreparedAbi {
                     identity,
-                    formals: row.formals.clone(),
-                    default_eligible: row.default_eligible,
-                    physical_owner: row.physical_owner.clone(),
+                    formals: selected
+                        .map(|projection| projection.formals.clone())
+                        .unwrap_or_default(),
+                    default_eligible: selected
+                        .is_some_and(|projection| projection.default_eligible),
+                    physical_owner: selected
+                        .map(|projection| projection.physical_owner.clone())
+                        .unwrap_or_else(|| {
+                            Err(
+                                "calling ABI has no declaration in the selected checked context"
+                                    .into(),
+                            )
+                        }),
                     storage,
                 });
             }
@@ -286,6 +225,94 @@ impl Program<'_> {
         })();
         self.scope = outer;
         prepared
+    }
+
+    fn calling_abi_projected_storage(
+        &mut self,
+        entry: MachineId,
+        row: &typed_trees::service_declarations::signatures::PreparedBoundaryAbiSignature,
+    ) -> Result<PreparedStorage, String> {
+        let typed = self.typed;
+        let selected = row.projections_in_context(typed, self.purpose).next();
+        let selected = selected
+            .ok_or("calling ABI has no source projection in the selected checked context")?;
+        let mut previous: Option<PreparedStorage> = None;
+        for original in row.projections_in_context(typed, self.purpose) {
+            if original.formals != selected.formals
+                || original.default_eligible != selected.default_eligible
+                || original.physical_owner != selected.physical_owner
+            {
+                return Err("calling ABI source copies disagree on their declaration in the selected checked context".into());
+            }
+            let telescope = original.telescope.as_ref().map_err(Clone::clone)?;
+            if !telescope.binders.is_empty() || !telescope.direct_callbacks.is_empty() {
+                return Err(
+                    "calling ABI callback storage has no retained shared projection".into(),
+                );
+            }
+            let projection = original.storage.as_ref().map_err(Clone::clone)?;
+            if !projection.substitutions.is_empty() {
+                return Err(
+                    "calling ABI storage requires its retained source substitutions".into(),
+                );
+            }
+            if projection.parameters.len() != telescope.parameters.len() {
+                return Err("calling ABI source parameters differ from its telescope".into());
+            }
+            let parameters = projection
+                .parameters
+                .iter()
+                .map(|reference| self.calling_abi_parameter(entry, *reference))
+                .collect::<Result<Vec<_>, _>>()?;
+            // An omitted source return annotation is Unit. Verify
+            // that custody on this original declaration; a lost
+            // projected type of an explicit result is not Unit.
+            let omitted_unit = !projection.result.is_valid()
+                && {
+                    if let Some((_, signature)) = typed.trait_machine_signature(original.source) {
+                        !signature.return_type.is_valid()
+                    } else if let Some(machine) = typed.machine_by_symbol(original.source) {
+                        matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
+                    } else {
+                        false
+                    }
+                };
+            if !omitted_unit
+                && !typed
+                    .type_reference_table
+                    .contains_type_reference(projection.result)
+            {
+                return Err("calling ABI result lost its retained source type".into());
+            }
+            let result = if omitted_unit
+                || matches!(
+                    typed.type_reference_table.type_reference(projection.result),
+                    TypeReferenceNode::Unit
+                ) {
+                None
+            } else {
+                Some(self.calling_abi_storage(entry, projection.result)?)
+            };
+            let storage = PreparedStorage {
+                parameters,
+                result,
+                telescope: telescope.clone(),
+            };
+            if let Some(previous) = &previous {
+                if previous.parameters != storage.parameters {
+                    return Err("calling ABI source copies disagree on parameter storage in the selected checked context".into());
+                }
+                if previous.result != storage.result {
+                    return Err("calling ABI source copies disagree on declared result storage in the selected checked context".into());
+                }
+                if previous.telescope != storage.telescope {
+                    return Err("calling ABI source copies disagree on callback parameters in the selected checked context".into());
+                }
+            } else {
+                previous = Some(storage);
+            }
+        }
+        previous.ok_or_else(|| "calling ABI has no retained source storage projection".into())
     }
 
     fn calling_abi_storage(
@@ -764,6 +791,175 @@ mod descriptor_storage_tests {
                 .unwrap_err()
                 .detail
                 .contains("after storage metadata")
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use source::{
+        DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan, Span,
+    };
+    use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::service_declarations::signatures::{
+        PreparedAbiProjection, PreparedAbiStorage, PreparedBoundaryAbiSignature,
+    };
+
+    fn projection(source: SymbolHandle, result: TypeReferenceHandle) -> PreparedAbiProjection {
+        PreparedAbiProjection {
+            source,
+            formals: Vec::new(),
+            default_eligible: true,
+            physical_owner: Ok(semantic_vocabulary::CallingDeclarationOwner::BoundaryTrait),
+            telescope: Ok(BoundaryTelescope::default()),
+            storage: Ok(PreparedAbiStorage {
+                parameters: Vec::new(),
+                result,
+                substitutions: Vec::new(),
+            }),
+        }
+    }
+
+    fn fixture() -> (
+        typed_trees::TypedTrees,
+        PreparedBoundaryAbiSignature,
+        TypeReferenceHandle,
+    ) {
+        let mut sources = SourceMap::default();
+        let instances = [DependencyScope::Product, DependencyScope::Build].map(|scope| {
+            sources
+                .add_checked_instance(
+                    "package/api.omg".into(),
+                    "read",
+                    "package".into(),
+                    None,
+                    SourceOrigin::User,
+                    SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id
+        });
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = SymbolTableBuilder::child_handles(
+            builder.insert_children(
+                root,
+                symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain(instances.map(|instance| {
+                        (
+                            SymbolKind::Machine,
+                            SymbolNameRef::Source(SourceSpan::new(instance, Span::new(0, 4))),
+                        )
+                    })),
+            ),
+        )
+        .collect::<Vec<_>>();
+        let owners = &children[children.len() - 2..];
+        let mut typed = typed_trees::TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let types = [
+            (
+                BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::unsigned(32)),
+                "u32",
+            ),
+            (BuiltinTypeAtom::U64, "u64"),
+        ]
+        .map(|(atom, name)| {
+            typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: children[atom.ordinal()],
+                name: name.into(),
+            })
+        });
+        let row = PreparedBoundaryAbiSignature {
+            id: CallingSignatureId::for_application(
+                "Service::read",
+                "Service",
+                std::iter::empty::<(u32, semantic_vocabulary::CallingOperandKind, &str)>(),
+            ),
+            requirement_identity: "Service::read".into(),
+            declaring_application: "Service".into(),
+            operands: Vec::new(),
+            projections: vec![
+                projection(owners[0], types[0]),
+                projection(owners[1], types[1]),
+            ],
+        };
+        (typed, row, types[1])
+    }
+
+    #[test]
+    fn calling_storage_uses_its_checked_context() {
+        let (typed, row, _) = fixture();
+        for (purpose, width) in [(DependencyScope::Product, 32), (DependencyScope::Build, 64)] {
+            let mut program = Program::new(&typed, false);
+            program.purpose = purpose;
+            let entry = MachineId::new(1).unwrap();
+            program.begin_declaration_storage(entry, 0).unwrap();
+            let storage = program.calling_abi_projected_storage(entry, &row).unwrap();
+            let crate::StorageShape::PrimitiveScalar {
+                scalar_type: semantic_vocabulary::ScalarType::Integer(integer),
+                ..
+            } = program.records.get(storage.result.unwrap()).unwrap().shape
+            else {
+                panic!("integer result")
+            };
+            assert_eq!(integer.bits(), Some(width));
+        }
+    }
+
+    #[test]
+    fn unavailable_calling_projection_stays_with_its_source_context() {
+        let (typed, mut row, _) = fixture();
+        row.projections[1].telescope = Err("unavailable Build callback telescope".into());
+        row.projections[1].storage = Err("unavailable Build storage".into());
+        let mut program = Program::new(&typed, false);
+        let entry = MachineId::new(1).unwrap();
+        program.begin_declaration_storage(entry, 0).unwrap();
+        assert!(program.calling_abi_projected_storage(entry, &row).is_ok());
+        program.purpose = DependencyScope::Build;
+        assert_eq!(
+            program
+                .calling_abi_projected_storage(entry, &row)
+                .err()
+                .unwrap(),
+            "unavailable Build callback telescope"
+        );
+        row.projections[1].telescope = Ok(BoundaryTelescope::default());
+        assert_eq!(
+            program
+                .calling_abi_projected_storage(entry, &row)
+                .err()
+                .unwrap(),
+            "unavailable Build storage"
+        );
+        row.projections.remove(1);
+        assert!(
+            program
+                .calling_abi_projected_storage(entry, &row)
+                .err()
+                .unwrap()
+                .contains("no source projection in the selected checked context")
+        );
+    }
+
+    #[test]
+    fn conflicting_calling_storage_in_one_context_still_refuses() {
+        let (typed, mut row, other_result) = fixture();
+        let source = row.projections[0].source;
+        row.projections.push(projection(source, other_result));
+        let mut program = Program::new(&typed, false);
+        let entry = MachineId::new(1).unwrap();
+        program.begin_declaration_storage(entry, 0).unwrap();
+        assert_eq!(
+            program
+                .calling_abi_projected_storage(entry, &row)
+                .err()
+                .unwrap(),
+            "calling ABI source copies disagree on declared result storage in the selected checked context"
         );
     }
 }

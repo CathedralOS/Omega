@@ -77,6 +77,7 @@ pub(crate) struct LocalSummaryBodies {
 
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
+    pub purpose: source::DependencyScope,
     pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
     named_captures: crate::NamedCaptures,
@@ -310,16 +311,23 @@ impl<'t> Program<'t> {
 
     #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
-        Self::with_captures(typed, rigid, crate::named_captures(typed))
+        Self::with_captures(
+            typed,
+            rigid,
+            source::DependencyScope::Product,
+            crate::named_captures(typed),
+        )
     }
 
     pub fn with_captures(
         typed: &'t TypedTrees,
         rigid: bool,
+        purpose: source::DependencyScope,
         captures: crate::NamedCaptures,
     ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            purpose,
             declaration_metadata: Vec::new(),
             typed,
             named_captures: captures,
