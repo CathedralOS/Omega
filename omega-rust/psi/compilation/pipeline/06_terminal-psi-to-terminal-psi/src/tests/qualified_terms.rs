@@ -254,14 +254,56 @@ machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
     );
 }
 
+/// Typing's error for a program that breaks a language rule.
+fn typing_error(text: &str) -> String {
+    boundary_calls::try_typed(text).unwrap_err().message
+}
+
+/// domains.md, "Operands": a builtin comparison takes unqualified operands
+/// only, the same in `requires` as in executable code. The twins differ only
+/// in the cast that removes the domain.
 #[test]
 fn a_bare_qualified_comparison_does_not_become_a_builtin_comparison() {
-    let refused = invocation(&consumer(7, "handle != 0")).unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    let accepted = judge(invocation(&consumer(7, "(handle as -Classified) != 0"))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
     assert_eq!(
-        refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the \
-         signature of `consume` while reading the body of `entry`"
+        typing_error(&consumer(7, "handle != 0")),
+        "builtin operator `!=` takes unqualified operands only, but `handle` has type \
+         `i64 in Classified` and no operator `!=` is declared for it; remove the domain with a \
+         cast first, such as `(handle as -Classified)`"
+    );
+}
+
+#[test]
+fn a_bare_qualified_operand_in_executable_code_needs_its_cast() {
+    let source = |left, right| {
+        format!(
+            r#"
+{DOMAIN}
+machine farther(left: i64 in Classified, right: i64 in Classified) -> bool {{
+    {left} > {right}
+}}
+machine entry() -> bool {{ farther(issue(8), issue(7)) }}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(
+        "(left as -Classified)",
+        "(right as -Classified)",
+    )))
+    .unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    assert_eq!(
+        typing_error(&source("left", "(right as -Classified)")),
+        "builtin operator `>` takes unqualified operands only, but `left` has type \
+         `i64 in Classified` and no operator `>` is declared for it; remove the domain with a \
+         cast first, such as `(left as -Classified)`"
     );
 }
 
@@ -304,7 +346,7 @@ machine entry() -> i64 in Positive { 0 as +Positive }
 
 #[test]
 fn partial_removal_does_not_make_a_qualified_clause_operand_plain() {
-    let refused = invocation(&format!(
+    let refused = typing_error(&format!(
         r#"
 {DOMAIN}
 domain i64::Other;
@@ -315,13 +357,13 @@ machine entry(handle: i64 in Classified & Other) {{
     consume(handle);
 }}
 "#
-    ))
-    .unwrap_err();
-    assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the \
-         signature of `consume` while reading the body of `entry`"
+    ));
+    assert!(
+        refused.starts_with(
+            "builtin operator `!=` takes unqualified operands only, but `handle as -Classified"
+        ) && refused.contains("has type `i64 in Other`")
+            && refused.ends_with("as -Other)`"),
+        "{refused}"
     );
 }
 
@@ -455,13 +497,11 @@ machine entry() -> i64 {{ observe(issue(7)) }}
         "{accepted:?}"
     );
 
-    let qualified =
-        invocation(&source("result == old(handle)", "handle as -Classified")).unwrap_err();
-    assert_eq!(qualified.reason, RefusalReason::Unsupported);
     assert_eq!(
-        qualified.detail,
-        "contract builtin operator on a value with a declared domain in a clause while reading the \
-         signature of `observe` while reading the body of `entry`"
+        typing_error(&source("result == old(handle)", "handle as -Classified")),
+        "builtin operator `==` takes unqualified operands only, but `old(handle)` has type \
+         `i64 in Classified` and no operator `==` is declared for it; remove the domain with a \
+         cast first, such as `(old(handle) as -Classified)`"
     );
 
     let wrong_value = judge(invocation(&source(guarantee, "0"))).unwrap();

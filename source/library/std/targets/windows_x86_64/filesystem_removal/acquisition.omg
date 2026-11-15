@@ -68,7 +68,7 @@ requires length > 0 && length < 4096 {
 
 windows_x86_64 machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
     entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in WindowsPrivateNonalertFileOrAbsent
-requires parent != 0 && length > 0 && length < 4096
+requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     let handle: i64 = block windows_removal_acquire_child(parent, entry, length);
     handle
@@ -76,7 +76,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
 
 windows_x86_64 machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
     entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
-requires parent != 0 && length > 0 && length < 4096
+requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 ensures result != -1
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     transition windows_removal_component(&entry.characters, length) {
@@ -89,7 +89,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     machine access(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
         entry: &mut WindowsNativeDirectoryEntryInfo, length: u64) -> i64
     ensures result != -1
-    requires parent != 0 && length > 0 && length < 4096 {
+    requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
         transition (entry.attributes & 16) != 0 {
             true -> block open(parent, entry, length, 1114241)
             false -> block open(parent, entry, length, 1114240)
@@ -98,7 +98,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     machine open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
         entry: &mut WindowsNativeDirectoryEntryInfo, length: u64, access: u32) -> i64
     ensures result != -1
-    requires parent != 0 && length > 0 && length < 4096
+    requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
         entry.characters[4095] = 0;
         let name: WindowsNativeUnicodeString = WindowsNativeUnicodeString {

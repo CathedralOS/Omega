@@ -13,12 +13,12 @@ use omega::language::core::FilesystemNamespaceMutation;
 windows_x86_64 machine windows_remove_tree(path: &[u8] in Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
     let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
-    transition root != 0 { true -> block inspect(root) false -> failed() }
+    transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root) false -> failed() }
     machine failed() -> i32 {
         windows_removal_status(windows_removal_error(WindowsFilesystemIo::c_get_last_error()))
     }
     machine inspect(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
-    requires root != 0 {
+    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let information: WindowsRemovalAttributes = block windows_removal_attributes(root);
         transition information {
             WindowsRemovalAttributes::Error { code } -> block refuse(root, code)
@@ -26,19 +26,19 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         }
     }
     machine kind(root: i64 in WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> i32
-    requires root != 0 {
+    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition (attributes & 16) != 0 && (attributes & 1024) == 0 {
             true -> block walk(root)
             false -> block refuse(root, 267)
         }
     }
     machine refuse(root: i64 in WindowsPrivateNonalertFileOrAbsent, code: u32) -> i32
-    requires root != 0 {
+    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let failure: u32 = block windows_removal_close(root, windows_removal_error(code));
         windows_removal_status(failure)
     }
     machine walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
-    requires root != 0 {
+    requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let code: u32 = block windows_removal_walk(root);
         windows_removal_status(code)
     }
