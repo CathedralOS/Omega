@@ -20,12 +20,8 @@ use omega::language::core::LayoutStorage;
 use omega::language::core::LayoutTarget;
 use omega::language::core::reflect::TypeSchema;
 use omega::language::core::reflect::field;
-use omega::language::core::AccessPlan::new;
-use omega::language::core::AccessPlan::observe;
+use omega::language::core::access;
 use omega::language::core::ResourceProfileSupply;
-use omega::language::core::Access;
-use omega::language::core::Access::view_extent;
-use omega::language::core::Access::view_extent_mut;
 use omega::language::core::AccessOutcome;
 use omega::language::core::read;
 use omega::language::core::write;
@@ -57,8 +53,8 @@ public VecCellLayout satisfies FixedLayout<VecCell> {
 
 public VecCellPolicy satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mut plan: AccessPlan = AccessPlan::new(&schema, Issuance::Unrestricted);
-        AccessPlan::observe(&mut plan, field(VecCell::value),
+        let mut plan: AccessPlan = access::new_plan(&schema, Issuance::Unrestricted);
+        access::observe(&mut plan, field(VecCell::value),
             FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
         plan
     }
@@ -69,7 +65,7 @@ data Observed { storage: Extent in Granted & Vacant; value: u32; }
 machine store_cell<Role>(storage: &mut Extent in Granted & Vacant, value: u32)
 crashes Trap
 {
-    transition Access::view_extent_mut<VecCellStorage in VecCell::Controlled, Role>(storage as &mut Extent in Granted) {
+    transition access::view_extent_mut<VecCellStorage in VecCell::Controlled, Role>(storage as &mut Extent in Granted) {
         AccessOutcome::Ready { view } -> change(view, value)
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
@@ -125,7 +121,7 @@ crashes Trap
 }
 
 machine inspect_cell<Role>(storage: &Extent in Granted & Vacant) -> u32 crashes Trap {
-    transition Access::view_extent<VecCellStorage in VecCell::Controlled, Role>(storage as &Extent in Granted) {
+    transition access::view_extent<VecCellStorage in VecCell::Controlled, Role>(storage as &Extent in Granted) {
         AccessOutcome::Ready { view } -> read(&view.value)
         AccessOutcome::Rejected { returned, reason } -> bad()
     }

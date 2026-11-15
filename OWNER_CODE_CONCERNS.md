@@ -108,19 +108,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Target operands remain dependent on earlier executable histories and their matching operation roster, so adding a value form or changing target operations can require synchronized recognizers across stages. Fix the producer to complete the needed runtime-index evidence and descriptor-origin records in the target representation, retaining shared immutable catalogs rather than copying them; have ordinary selection consume that product and keep earlier bodies available to independent correspondence validation. Acceptance: selection constructs the same instructions from target operations and their explicit catalogs/evidence without reading earlier executable bodies, while the independent validator still rejects changed operands or evidence.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only
 
-### Build-time access fixtures stop at the data-owner check
-- Category: tests that pin the bug
-- Where: [borrowed view fixtures](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L9), [access plan constructors](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.omg#L9), [checked callee ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L898)
-- Saw: On macOS arm64 at clean `59b8d53b729`, both closed-borrow controls refuse `Access::view_mut` in `relay`, and the access-plan control refuses `AccessPlan::new` in `construct_restricted_plan`. All three stop at `a data declaration cannot own a machine; declare an ordinary static machine` during Build-time source preparation.
-- Cost: These controls cannot check original backing and exclusive-loan behavior, invalid view interpretation, or complete access-plan construction. Trace the exact library call owners and preserve those acceptance and rejection judgments.
-- Reported: 2026-11-15, Codex, while running the Build-time evaluator suite on macOS arm64
-
 ### The Build-time sequence fixtures stop at reference result correspondence
 - Category: tests that pin the bug
 - Where: [sequence fixture](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L81), [direct result slot lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L279)
 - Saw: On macOS arm64 at base `69ec9aa5bd8`, both sequence controls fail preparing the ordinary `make` entry with `returned reference callee has no complete actual source correspondence`. The same refusal remains with the universe-level admission repair.
 - Cost: The fixtures cannot check nested sequence transport or live bounds. Trace the ordinary callee's result slots through Build-time preparation while preserving both the borrowed-transport and invalid-index cases.
-- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests
+- Reported: 2026-11-14, Codex, while comparing Build-time evaluator tests; widened 2026-11-15 by Claude Code: once `core::access` stopped attaching machines to data, the access-plan control ([access_plan_construction.rs](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/access_plan_construction.rs#L191)) stops at the same refusal entering `construct_restricted_plan`, whose ordinary callee `access::new_plan` returns an `AccessPlan` holding the borrowed `TypeSchema` bytes
 
 ### Provider body admission requires a second satisfaction edge
 - Category: a fact with no owner
