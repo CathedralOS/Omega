@@ -1573,6 +1573,7 @@ pub mod expression {
                 }
                 let origin = source.table(self);
                 let source_span = origin.source_span(expression);
+                let unresolved_name = origin.unresolved_name(expression);
                 let materialization_source = origin.materialization_source(expression);
                 let occurrences = origin
                     .authored_selection_occurrences(expression)
@@ -1800,6 +1801,7 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
+                self.set_unresolved_name(copied, unresolved_name);
                 if let Some(exposure) = authored_exposure {
                     self.set_authored_expression_exposure(copied, exposure);
                 }
@@ -2867,6 +2869,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     struct ExpressionNodeStorage {
         expressions: Arena<ExpressionNode>,
         source_spans: Vec<SourceSpan>,
+        unresolved_names: Vec<symbols::UnresolvedName>,
         materialization_sources: Vec<ExpressionHandle>,
 
         authored_expression_exposures: Vec<Option<AuthoredDeclarationSelectionExposure>>,
@@ -3022,6 +3025,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 nodes: ExpressionNodeStorage {
                     expressions: Arena::new(),
                     source_spans: Vec::new(),
+                    unresolved_names: Vec::new(),
                     materialization_sources: Vec::new(),
                     authored_expression_exposures: Vec::new(),
                     compiler_selection_partitions: Vec::new(),
@@ -3045,6 +3049,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub fn clear(&mut self) {
             self.nodes.expressions.reset_retain_capacity();
             self.nodes.source_spans.clear();
+            self.nodes.unresolved_names.clear();
             self.nodes.materialization_sources.clear();
             self.nodes.authored_expression_exposures.clear();
             self.nodes.compiler_selection_partitions.clear();
@@ -3066,6 +3071,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
             let handle = self.nodes.expressions.insert(expression);
             self.nodes.source_spans.push(SourceSpan::default());
+            self.nodes.unresolved_names.push(Default::default());
             self.nodes
                 .materialization_sources
                 .push(ExpressionHandle::invalid());
@@ -3110,6 +3116,22 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
 
         pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
             self.nodes.source_spans[source_span_index(handle)]
+        }
+
+        /// Resolution's outcome for this exact occurrence, not another source's name.
+        pub fn unresolved_name(&self, handle: ExpressionHandle) -> symbols::UnresolvedName {
+            if !self.nodes.expressions.is_valid(handle) {
+                return Default::default();
+            }
+            self.nodes.unresolved_names[source_span_index(handle)]
+        }
+
+        pub fn set_unresolved_name(
+            &mut self,
+            handle: ExpressionHandle,
+            outcome: symbols::UnresolvedName,
+        ) {
+            self.nodes.unresolved_names[source_span_index(handle)] = outcome;
         }
 
         pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {

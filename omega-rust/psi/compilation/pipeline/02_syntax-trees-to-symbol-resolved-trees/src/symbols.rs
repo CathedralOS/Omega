@@ -3251,6 +3251,7 @@ pub(crate) mod recursive_tail_calls {
         Some(TransitionTargetNode::Named {
             operational_acknowledgement: call.operational_acknowledgement,
             path: TableNamePath {
+                unresolved_name: Default::default(),
                 receiver_symbol: Default::default(),
                 members: statements.insert_name_path_members(std::slice::from_ref(&call.target)),
                 head_symbol: identity.machine,
@@ -4688,9 +4689,21 @@ mod scoped_paths {
         state_symbol: SymbolHandle,
         members: &[symbol_resolved_trees::name::DiagnosticName],
     ) -> (SymbolHandle, usize) {
+        let (lookup, prefix_length) =
+            resolve_path_head_lookup(symbols, machine_symbol, state_symbol, members);
+        (lookup.unique().unwrap_or_default(), prefix_length)
+    }
+
+    fn resolve_path_head_lookup(
+        symbols: &SymbolTable,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+    ) -> (SymbolLookup, usize) {
         match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &members[0]) {
-            SymbolLookup::Unique(head) => return (head, 1),
-            SymbolLookup::Ambiguous { .. } => return (SymbolHandle::invalid(), 1),
+            lookup @ (SymbolLookup::Unique(_) | SymbolLookup::Ambiguous { .. }) => {
+                return (lookup, 1);
+            }
             SymbolLookup::NotFound => {}
         }
         for prefix_length in (2..=members.len()).rev() {
@@ -4700,12 +4713,40 @@ mod scoped_paths {
                 super::lookup::diagnostic_path_source_span(prefix),
             );
             match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name) {
-                SymbolLookup::Unique(selected) => return (selected, prefix_length),
-                SymbolLookup::Ambiguous { .. } => return (SymbolHandle::invalid(), 1),
+                lookup @ (SymbolLookup::Unique(_) | SymbolLookup::Ambiguous { .. }) => {
+                    return (lookup, prefix_length);
+                }
                 SymbolLookup::NotFound => {}
             }
         }
-        (SymbolHandle::invalid(), 1)
+        (SymbolLookup::NotFound, 1)
+    }
+
+    /// Preserve the ordinary lookup's absence or ambiguity while its exact source
+    /// and lexical frontier are available. A value's unresolved member needs type
+    /// selection; only a static namespace can establish a missing member here.
+    pub(in crate::symbols) fn unresolved_scoped_name(
+        symbols: &SymbolTable,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+    ) -> symbols::UnresolvedName {
+        let Some(_) = members.first() else {
+            return Default::default();
+        };
+        let (lookup, prefix_length) =
+            resolve_path_head_lookup(symbols, machine_symbol, state_symbol, members);
+        let SymbolLookup::Unique(head) = lookup else {
+            return lookup.into();
+        };
+        if symbols.get(head).kind != SymbolKind::Module || prefix_length == members.len() {
+            return Default::default();
+        }
+        let name = symbol_resolved_trees::name::DiagnosticName::new(
+            members.joined_path(),
+            super::lookup::diagnostic_path_source_span(members),
+        );
+        base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name).into()
     }
 
     pub(super) fn invalid_symbol_pair() -> (SymbolHandle, SymbolHandle) {

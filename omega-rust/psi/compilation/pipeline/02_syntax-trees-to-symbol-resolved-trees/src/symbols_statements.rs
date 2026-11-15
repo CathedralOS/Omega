@@ -308,6 +308,17 @@ mod routing {
                     child_type_references,
                     symbols,
                 );
+                call.unresolved_name = if call.target_symbol.is_valid() {
+                    Default::default()
+                } else {
+                    crate::symbols::expressions::unresolved_call_name(
+                        symbols,
+                        machine,
+                        parameters,
+                        statement_path_members.span_or_empty(call.receiver),
+                        &call.target,
+                    )
+                };
                 crate::symbols::expressions::assign_static_arguments_type_symbols(
                     symbols,
                     machine,

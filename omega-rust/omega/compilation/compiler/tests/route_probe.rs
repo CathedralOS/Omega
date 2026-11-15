@@ -1037,18 +1037,19 @@ fn a_value_name_nothing_declares_is_rejected() {
     };
     assert_eq!(verdicts("body_local_name", &body("kept")), ["accepted"]);
     // A field is selected through a value, never by its bare name
-    // (`modules.md`), so `level` resolves to nothing here; but something has
-    // the name, and the reader's refusal stands as before.
+    // (`modules.md`). Its unrelated declaration cannot turn this source error
+    // into an unsupported selection.
     assert_eq!(
-        verdicts(
+        the_violation(
             "body_bare_field_name",
             &format!("data Gauge {{ level: u64; }}\n{}", body("level"))
         ),
-        ["not-supported"]
+        "this expression has no visible value declaration in its source scope: an unknown name is an \
+         error wherever it appears at `level`"
     );
     assert_eq!(
         the_violation("body_unknown_name", &body("nowhere_value")),
-        "this expression names a value nothing the program declares: an unknown name is an \
+        "this expression has no visible value declaration in its source scope: an unknown name is an \
          error wherever it appears at `nowhere_value`"
     );
     // A constant's initializer is evaluated before the checker sees the
@@ -1077,8 +1078,8 @@ fn a_value_name_nothing_declares_is_rejected() {
         assert_eq!(
             stopped,
             [
-                "constant `LIMIT` evaluation: this expression names a value nothing the program \
-              declares: an unknown name is an error wherever it appears"
+                "constant `LIMIT` evaluation: this expression has no visible value declaration in its \
+              source scope: an unknown name is an error wherever it appears"
             ],
             "{name}"
         );
