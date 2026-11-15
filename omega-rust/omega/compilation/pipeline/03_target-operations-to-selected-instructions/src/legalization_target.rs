@@ -5237,6 +5237,8 @@ pub(crate) mod unit {
                 destination_type,
                 destination_storage,
                 source,
+                byte_offset,
+                byte_size,
                 indices,
             } = target
             else {
@@ -5333,6 +5335,7 @@ pub(crate) mod unit {
                 || path != expected_path
                 || destination_type != declared_type
                 || !storage_matches
+                || (*byte_offset, *byte_size) != (geometry.byte_offset, geometry.byte_size)
                 || !super::runtime_indices_rejoin(indices, &geometry.elements, sources)
                 || source.source_value() != value.value
                 || source.scalar_type() != value.scalar_type

@@ -1396,6 +1396,170 @@ fn retained_sequence_lengths_project_with_only_their_rows_and_facts() {
 }
 
 #[test]
+fn retained_primitive_store_projects_indexed_leaf_and_audits_exact_geometry() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_write_only_primitive_store;
+    use abstract_operations::StructuralScalarStoreDestination;
+    use legalized_operations::LegalizedScalarInstructionKind;
+    use semantic_vocabulary::ObligationId;
+
+    let mut names = TerminalIdentityTableBuilder::default();
+    let scalar = ScalarType::Integer(u64_type());
+    let mut leaf = reference_type(1, names.intern("Scalar"), ty(1));
+    leaf.shape = StructuralTypeShape::PrimitiveScalar(scalar);
+    let array = |id, identity, element| {
+        let mut array = reference_type(id, identity, ty(id));
+        array.shape = StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(2),
+        };
+        array
+    };
+    let inner = array(2, names.intern("Row"), ty(1));
+    let outer = array(3, names.intern("Matrix"), ty(2));
+    let mut parameter = parameter(ty(3));
+    parameter.access = StructuralAccess::WriteOnlyBorrow;
+    let destination = StructuralScalarStoreDestination::Parameter(parameter.clone());
+    let bound = ObligationId::new(1).unwrap();
+    let path = vec![
+        StructuralPathSegment::FixedIndex(1),
+        StructuralPathSegment::RuntimeIndex {
+            index: val(1),
+            obligation: bound,
+        },
+    ];
+    let value = AbstractResult {
+        value: val(2),
+        scalar_type: scalar,
+    };
+    let store = AbstractOperation::WriteOnlyPrimitiveStore {
+        psi_operation: op(3),
+        destination: destination.clone(),
+        path: path.clone(),
+        value,
+        range_obligation: None,
+    };
+    let constant = |ordinal, value| AbstractOperation::IntegerConstant {
+        psi_operation: op(ordinal),
+        result: val(ordinal),
+        scalar_type: scalar,
+        value: IntegerValue::Unsigned(value),
+    };
+    let function = function_with_body(
+        vec![parameter],
+        vec![entry(
+            1,
+            vec![
+                constant(1, 1),
+                constant(2, 93),
+                store.clone(),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let plan = plan(names, vec![leaf, inner, outer], function);
+    let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+    let parameter = &target.functions[0].graph.parameters[0];
+    let immediate = |ordinal, value| TargetUnitScalarArgumentSource::IntegerImmediate {
+        defining_operation: op(ordinal),
+        source_value: val(ordinal),
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(value),
+    };
+    let selector = immediate(1, 1);
+    let store_value = immediate(2, 93);
+    let row = |byte_offset, byte_size, stride| TargetUnitOperation::WriteOnlyPrimitiveStore {
+        psi_operation: op(3),
+        destination: destination.clone(),
+        path: path.clone(),
+        destination_type: plan.structural_types[2].clone(),
+        destination_storage: target_operations::TargetStructuralArgumentSource::Placement(
+            parameter.placement.clone(),
+        ),
+        source: store_value,
+        byte_offset,
+        byte_size,
+        indices: vec![target_operations::TargetStructuralRuntimeIndex {
+            operand: selector,
+            stride,
+            extent: Some(2),
+            obligation: bound,
+        }],
+    };
+    let retained = row(16, 8, 8);
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        plan.psi,
+        [7; 32],
+        machine(),
+        optimization_unit::PsiProvenance::Operation(op(3)),
+        bound,
+        vec![2],
+    );
+    let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+        destination: projected_destination,
+        path: projected_path,
+        value: projected_value,
+        byte_offset,
+        byte_size,
+        indices,
+    } = project_write_only_primitive_store(machine(), std::slice::from_ref(&fact), &retained)
+        .unwrap()
+    else {
+        panic!("primitive store");
+    };
+    assert_eq!(projected_destination, destination);
+    assert_eq!(projected_path, path);
+    assert_eq!(projected_value, value);
+    assert_eq!((byte_offset, byte_size), (16, 8));
+    assert_eq!(indices.len(), 1);
+    assert_eq!(
+        (
+            indices[0].operand.value,
+            indices[0].stride,
+            indices[0].extent,
+            indices[0].accepted_fact
+        ),
+        (val(1), 8, Some(2), fact.identity)
+    );
+    assert!(project_write_only_primitive_store(machine(), &[], &retained).is_err());
+
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+    let sources = crate::legalization_target::control_flow::sources::SourceInputs::new(
+        &target.functions[0].graph,
+        &unit.functions[0],
+    );
+    let audit = |row: &TargetUnitOperation| {
+        let mut available = sources.available(block_id(1));
+        available.push((val(1), selector));
+        available.push((val(2), store_value));
+        crate::legalization_target::unit::validate_operation(
+            &target.functions[0],
+            row,
+            &store,
+            &[],
+            &target.functions[0].graph.parameters,
+            &mut available,
+            &Default::default(),
+            &inputs,
+            &target,
+            &plan_view,
+            &unit_view,
+        )
+    };
+    audit(&retained).expect("target store agrees with the exact source leaf");
+    assert!(audit(&row(0, 8, 8)).is_err(), "neighbor row offset");
+    assert!(audit(&row(16, 4, 8)).is_err(), "narrower store width");
+    assert!(audit(&row(16, 8, 16)).is_err(), "neighbor stride");
+}
+
+#[test]
 fn retained_direct_byte_access_projects_and_audits_exact_operands() {
     use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_byte_access;
     use legalized_operations::LegalizedScalarInstructionKind as Kind;

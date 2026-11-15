@@ -415,6 +415,9 @@ pub enum TargetUnitOperation {
         destination_type: StructuralTypeDeclaration,
         destination_storage: crate::TargetStructuralArgumentSource,
         source: TargetUnitWriteOnlyPrimitiveStoreSource,
+        /// Offset of the leaf in the backing reached by the path.
+        byte_offset: u32,
+        byte_size: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     StructuralScalarFieldStore {
