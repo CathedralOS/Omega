@@ -13,11 +13,11 @@ machine finite(value: f32 in Reading, expected: f64) -> bool requires true {
 machine probe() -> bool requires true {
     let zero: f32 = 0.0f32;
     let positive: f64 = widen(zero as +Reading);
-    let negative: f64 = widen(-0.0f32 as +Reading);
+    let negative: f64 = widen((-0.0f32) as +Reading);
     let infinity: f64 = widen((1.0f32 / zero) as +Reading);
     let nan: f64 = widen((zero / zero) as +Reading);
     finite(1.5f32 as +Reading, 1.5f64)
-        && finite(-2.25f32 as +Reading, -2.25f64)
+        && finite((-2.25f32) as +Reading, -2.25f64)
         && positive == 0.0f64 && 1.0f64 / positive > 0.0f64
         && negative == 0.0f64 && 1.0f64 / negative < 0.0f64
         && infinity > 1.0f64 && infinity / infinity != infinity / infinity
