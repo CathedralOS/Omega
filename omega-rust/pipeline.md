@@ -478,13 +478,15 @@ The owner approved this implementation plan on 2026-10-24 as the acceptance
 for **PIPELINE-ARCHITECTURE-ENFORCEMENT**. Build suspension and helper
 compilation also retain the acceptance of **TERMINAL-BUILD-SEED**.
 
-Boundary-value layout takes a source-free storage recipe graph. Psi's
-`typed-trees::boundary_values` closes applications, reference descriptors,
-runtime members, all admitted fixed-storage alternatives and opaque carrier correspondence;
-Omega's `layout::BoundaryValueLayout` packs and classifies that graph for the
-target without reading typed source. Ordinary calling signatures, entry storage
-and table dispatch all use this one route. The graph carries storage meaning,
-not type/contract authority or a representation grant.
+Boundary-value layout takes a source-free storage recipe graph. Omega's
+`layout::TerminalBoundaryRecipes` projects retained Terminal storage declarations
+and explicit closed scalar/extent realization inputs into that graph;
+`layout::BoundaryValueLayout` packs and classifies it for the target without
+reading typed source. Ordinary calling signatures, entry storage and table
+dispatch use this route, including retained reference descriptors, runtime
+members, admitted fixed-storage alternatives and opaque carrier correspondence.
+The graph carries storage meaning, not type/contract authority or a
+representation grant.
 
 The same source catalog retains native parameter/callback telescopes before
 target choice. Psi owns nominal parameter identities, static-machine ordinal
