@@ -8,6 +8,12 @@ The unchanged source controls had lower medians, but their noisy comparisons
 were inconclusive. This is evidence for the final-check boundary, not for the
 whole [proposed parallel pipeline](../designs/compiler_work_ownership.md).
 
+The timing results belong to the recorded original commits. The PR was later
+rebased onto `7391847fc4150a38cdfda55ccdf5c58ec4f4740c` to resolve competing
+dev-dependency additions; both were retained. Preservation checks were rerun on
+that source. Throughput measurements were not rerun on the new base, so the
+numbers below are not fresh performance validation of that revision.
+
 Each job borrows the immutable module and exclusively mutates one machine's
 checking tables. Proof scratch is created inside admitted jobs. The batch
 queues references, retains body results and joins them in machine order. It
