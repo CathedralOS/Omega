@@ -2,10 +2,7 @@
 // and validate their actual physical plans. Source calling-request preparation
 // is unavailable; it cannot be replaced by an empty request roster.
 
-use crate::calling_policy_plans::MaterializedBoundarySignature;
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
-use calling_conventions::ValidatedBoundaryEntryPlan;
-use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 
 pub(crate) fn evaluate_default_calling_applications(
@@ -99,32 +96,4 @@ pub(crate) fn evaluate_default_calling_applications(
         applications.push(canonical.native_application(&validated, dispatch_only_parameter_count)?);
     }
     Ok(applications)
-}
-
-pub(crate) fn boundary_plan_application_identity(
-    signature: &MaterializedBoundarySignature,
-    validated: &ValidatedBoundaryEntryPlan,
-    calling_owner_application: &str,
-) -> Result<(u64, [u8; 32]), String> {
-    let application =
-        publish_materialized_application(signature, validated, calling_owner_application)?;
-    Ok((application.report_fingerprint, application.commitment))
-}
-
-fn publish_materialized_application(
-    signature: &MaterializedBoundarySignature,
-    validated: &ValidatedBoundaryEntryPlan,
-    calling_owner_application: &str,
-) -> Result<calling_conventions::BoundaryCallingApplication, String> {
-    let mut application = super::callback_bindings::source_free_application(
-        signature,
-        validated,
-        calling_owner_application,
-    )?;
-    application.commitment = application.recomputed_commitment()?;
-    application.report_fingerprint = callback_nominal_report_fingerprint(
-        b"omega.boundary-plan-application-report.v3",
-        &[&application.commitment],
-    );
-    Ok(application)
 }

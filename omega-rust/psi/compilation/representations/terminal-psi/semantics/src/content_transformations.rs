@@ -1681,37 +1681,6 @@ pub fn structural_path<'a>(
     Some(path)
 }
 
-pub fn content_path<'a>(
-    types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    identities: &TerminalIdentityTable,
-    root: StructuralTypeId,
-    path: &[StructuralPathSegment],
-) -> Option<Vec<ContentPlaceSegment>> {
-    let mut segments = Vec::new();
-    for (position, segment) in path.iter().enumerate() {
-        segments.push(match segment {
-            StructuralPathSegment::Field(identity) => {
-                ContentPlaceSegment::Field(identities.text(*identity)?.to_owned())
-            }
-            StructuralPathSegment::FixedIndex(position) => {
-                ContentPlaceSegment::FixedIndex(*position)
-            }
-            StructuralPathSegment::Case(identity) => {
-                let carrier = runtime_structural_path_tip(types.clone(), root, &path[..position])?;
-                let case = carrier
-                    .shape
-                    .sum_cases()?
-                    .iter()
-                    .find(|case| case.id == *identity)?;
-                ContentPlaceSegment::Case(identities.text(case.identity)?.to_owned())
-            }
-            _ => return None,
-        });
-    }
-    runtime_structural_path_tip(types, root, path)?;
-    Some(segments)
-}
-
 pub fn claim_term(bindings: &[ContentClaimProjection]) -> Result<ContentTerm, &'static str> {
     if bindings.is_empty()
         || bindings

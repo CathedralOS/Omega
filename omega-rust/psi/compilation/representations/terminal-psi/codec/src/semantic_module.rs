@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 278`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 279`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4791,11 +4791,13 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-// Marker 278 retains complete domain access rules and the source identities
-// that bind their subject, cases and fields. A 277 artifact cannot supply
-// those independent receiving checks. The installation-bound reach data
-// published in marker 277 remains part of this format.
-pub(crate) const FORMAT_MARKER: u16 = 278;
+// Marker 278 retains typed integer operands in canonical float-result equations,
+// alongside 277's installation-bound service rows. A 277 reader cannot
+// authenticate a from-integer result contract.
+// Marker 279 also retains complete domain access rules and source identities
+// for their subject, cases and fields. A 278 artifact lacks these receiving
+// checks; the prior float and installation data remain part of this format.
+pub(crate) const FORMAT_MARKER: u16 = 279;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5873,7 +5875,8 @@ mod format_marker_tests {
         // of which payload follows their shared legacy marker. Marker 260's finite
         // float conversion ordinal also cannot supply the retained carrier identity.
         for legacy in [
-            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273,
+            250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
+            275, 276, 277, 278,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

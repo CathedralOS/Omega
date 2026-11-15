@@ -2481,19 +2481,6 @@ pub mod borrowed_storage {
             }
         }
 
-        pub fn fixed_address(
-            &self,
-            ordering: &ScalarOrdering,
-        ) -> Option<Vec<StructuralPathSegment>> {
-            self.reference_origin_path(ordering)?
-                .into_iter()
-                .map(|projection| match projection {
-                    terminal_psi::ReferenceOriginProjection::Exact(segment) => Some(segment),
-                    terminal_psi::ReferenceOriginProjection::Element => None,
-                })
-                .collect()
-        }
-
         pub fn reference_origin_path(
             &self,
             ordering: &ScalarOrdering,

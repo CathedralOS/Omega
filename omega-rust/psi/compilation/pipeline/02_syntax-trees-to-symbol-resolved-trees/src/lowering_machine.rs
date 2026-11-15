@@ -1558,7 +1558,14 @@ fn lower_lexical_machine_parts(
             language_semantics::MachineSupplyMode::CompilerProvided
         } else if machine.target_family_interface {
             language_semantics::MachineSupplyMode::Requirement
-        } else if crate::lowering::operator::is_token_bearing_boundary_signature(machine) {
+        } else if crate::lowering::operator::is_token_bearing_boundary_signature(machine)
+            || (machine.bodyless && machine.boundary
+                && sealed_intrinsic(lowerer, syntax_trees, machine)
+                    == Some(language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement))
+        {
+            // Named and token-bound catalog declarations have the same supply
+            // meaning. Exact sealed source custody nominates the declaration;
+            // typing and receiving still authenticate its full numeric contract.
             language_semantics::MachineSupplyMode::TopLevelRequirement
         } else if let Some(binding) = inferred_float_binding {
             language_semantics::MachineSupplyMode::ExternalRealization {

@@ -300,6 +300,132 @@ fn normalization_budget_never_publishes_a_partial_success() {
 }
 
 #[test]
+fn integer_operands_keep_unknown_value_identity_and_exact_carriers() {
+    use numerics::integer_carrier::FixedInteger;
+    use semantic_vocabulary::IntegerType;
+
+    let signed32 = IntegerType::from_fixed(FixedInteger::signed(32)).unwrap();
+    let signed64 = IntegerType::from_fixed(FixedInteger::signed(64)).unwrap();
+    let unsigned32 = IntegerType::from_fixed(FixedInteger::unsigned(32)).unwrap();
+    let input =
+        |raw, carrier| ScalarTerm::value(ValueId::new(raw).unwrap(), ScalarType::Integer(carrier));
+    let equation = |source: ScalarTerm, carrier| {
+        use FloatSemanticValueKind::{Format, Integer, Meaning};
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "from_integer",
+            &[Format, Integer(carrier)],
+            Meaning,
+        )
+        .unwrap();
+        Proposition::FloatMeaningEqual(
+            FloatMeaningClause::result_equation(
+                value(2, IeeeFloatFormat::Binary64),
+                operation.contract_identity(),
+                IeeeFloatFormat::Binary64,
+                [source],
+            )
+            .unwrap(),
+        )
+    };
+    let premise = equation(input(1, signed32), FixedInteger::signed(32));
+    assert!(check_float_meaning_normalization(&premise, [&premise]).is_ok());
+    for (different, carrier) in [
+        (input(3, signed32), FixedInteger::signed(32)),
+        (input(1, signed64), FixedInteger::signed(64)),
+        (input(1, unsigned32), FixedInteger::unsigned(32)),
+    ] {
+        assert_eq!(
+            check_float_meaning_normalization(&equation(different, carrier), [&premise]),
+            Err(FloatMeaningNormalizationError::NotEstablished),
+        );
+    }
+    let mut forged = premise.clone();
+    let Proposition::FloatMeaningEqual(clause) = &mut forged else {
+        unreachable!()
+    };
+    for row in &mut clause.values {
+        if let FloatMeaningClauseValue::Application { operands, .. } = row {
+            operands[1] = FloatMeaningClauseOperand::Integer(input(1, unsigned32));
+        }
+    }
+    assert_eq!(
+        check_float_meaning_normalization(&forged, [&premise]),
+        Err(FloatMeaningNormalizationError::Malformed(
+            "float meaning application changes its integer carrier"
+        )),
+    );
+}
+
+#[test]
+fn integer_literals_use_the_existing_closed_catalog_without_equating_other_values() {
+    use FloatSemanticValueKind::{Format, Integer, Meaning};
+    use numerics::integer_carrier::FixedInteger;
+    use semantic_vocabulary::{IntegerType, IntegerValue};
+
+    let carrier = FixedInteger::signed(32);
+    let operation = FloatSemanticOperation::from_source_identity(
+        "FloatSemantics",
+        "from_integer",
+        &[Format, Integer(carrier)],
+        Meaning,
+    )
+    .unwrap();
+    let equation = |integer| {
+        Proposition::FloatMeaningEqual(
+            FloatMeaningClause::result_equation(
+                ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(1.0_f64.to_bits())),
+                operation.contract_identity(),
+                IeeeFloatFormat::Binary64,
+                [ScalarTerm::Integer {
+                    scalar_type: IntegerType::from_fixed(carrier).unwrap(),
+                    value: IntegerValue::Signed(integer),
+                }],
+            )
+            .unwrap(),
+        )
+    };
+    assert!(check_float_meaning_normalization(&equation(1), []).is_ok());
+    assert_eq!(
+        check_float_meaning_normalization(&equation(2), []),
+        Err(FloatMeaningNormalizationError::NotEstablished),
+    );
+}
+
+#[test]
+fn integer_operand_path_exhaustion_refuses_even_a_cited_equation() {
+    use FloatSemanticValueKind::{Format, Integer, Meaning};
+    use numerics::integer_carrier::FixedInteger;
+    use semantic_vocabulary::{CanonicalStructuralPathSegment, IntegerType};
+
+    let carrier = FixedInteger::signed(32);
+    let operation = FloatSemanticOperation::from_source_identity(
+        "FloatSemantics",
+        "from_integer",
+        &[Format, Integer(carrier)],
+        Meaning,
+    )
+    .unwrap();
+    let clause = FloatMeaningClause::result_equation(
+        value(2, IeeeFloatFormat::Binary64),
+        operation.contract_identity(),
+        IeeeFloatFormat::Binary64,
+        [ScalarTerm::integer_field_path(
+            PlaceId::new(1).unwrap(),
+            vec![CanonicalStructuralPathSegment::FixedIndex(0); WORK_LIMIT],
+            IntegerType::from_fixed(carrier).unwrap(),
+        )],
+    )
+    .unwrap();
+    clause.validate().unwrap();
+    let equation = Proposition::FloatMeaningEqual(clause);
+    assert_eq!(
+        check_float_meaning_normalization(&equation, [&equation]),
+        Err(FloatMeaningNormalizationError::WorkLimit),
+    );
+}
+
+#[test]
 fn normalization_matches_independent_exhaustive_miniature_arithmetic() {
     let narrow = model::NARROW;
     let wide = model::WIDE;

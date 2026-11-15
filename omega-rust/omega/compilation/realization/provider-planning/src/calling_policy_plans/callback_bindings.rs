@@ -11,15 +11,12 @@ compatibility/report coordinate and cannot authorize replacement of the exact
 plan or materialized signature.
 */
 
-use crate::calling_policy_plans::callback_layout_catalog;
-use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::{
     BoundaryCallbackBinder, BoundaryNativeParameter, MaterializedBoundarySignature,
 };
 use calling_conventions::{
-    BoundaryEntryPlan, CallSignature, CallbackBinderRequirement, CallbackMaterializationContext,
+    BoundaryEntryPlan, CallbackBinderRequirement, CallbackMaterializationContext,
     CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
-    validate_boundary_entry_plan_with_callback_materializations,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,10 +47,6 @@ impl BoundaryCallingPlanRealization {
         &self.materialized_signature
     }
 
-    pub const fn exact_boundary_entry_plan(&self) -> &BoundaryEntryPlan {
-        self.validated_boundary_entry_plan.plan()
-    }
-
     pub fn native_application(
         &self,
     ) -> Result<calling_conventions::BoundaryCallingApplication, String> {
@@ -66,106 +59,6 @@ impl BoundaryCallingPlanRealization {
         application.commitment = self.commitment.as_bytes();
         application.callback_context_closed = self.callback_context_closed;
         Ok(application)
-    }
-
-    pub(crate) fn replayed_validated_plan(
-        &self,
-    ) -> Result<ValidatedBoundaryEntryPlan, calling_conventions::PlanDiagnostic> {
-        let signature = CallSignature {
-            parameters: self
-                .boundary_entry_plan
-                .call
-                .parameters
-                .iter()
-                .map(|placement| placement.shape)
-                .collect(),
-            result: self
-                .boundary_entry_plan
-                .call
-                .result
-                .as_ref()
-                .map(|placement| placement.shape),
-        };
-        if self.callback_context_closed {
-            let context = CallbackMaterializationContext {
-                binders: self
-                    .callback_binders
-                    .iter()
-                    .map(|binder| CallbackBinderRequirement {
-                        binder: binder.binder,
-                        requirement: binder.requirement,
-                    })
-                    .collect(),
-                demands: self.callback_demands.clone(),
-            };
-            validate_boundary_entry_plan_with_callback_materializations(
-                self.boundary_entry_plan.clone(),
-                &signature,
-                &context,
-            )
-        } else {
-            calling_conventions::validate_boundary_entry_plan(
-                self.boundary_entry_plan.clone(),
-                &signature,
-            )
-        }
-    }
-
-    pub fn replayed_validated_application(
-        &self,
-    ) -> Result<
-        (
-            ValidatedBoundaryEntryPlan,
-            u64,
-            effects::provider_plan::BoundaryCallingPlanCommitment,
-        ),
-        calling_conventions::PlanDiagnostic,
-    > {
-        if self.callback_context_closed {
-            callback_layout_catalog::validate(&self.materialized_signature, &self.callback_demands)
-                .map_err(calling_conventions::PlanDiagnostic)?;
-        }
-        if self
-            .materialized_signature
-            .opaque_representations
-            .iter()
-            .any(|use_| {
-                !use_.opaque.is_valid()
-                    || !use_.conformance.is_valid()
-                    || !use_.carrier.is_valid()
-                    || usize::from(use_.shape_root) >= self.materialized_signature.shapes.len()
-                    || use_.representation_schema_version
-                        != language_semantics::opaque_representations::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
-                    || use_.selected_application_commitment
-                        != use_.rederived_selected_application_commitment()
-            })
-        {
-            return Err(calling_conventions::PlanDiagnostic(
-                "boundary calling plan retained stale opaque-representation application custody"
-                    .to_owned(),
-            ));
-        }
-        let validated = self.replayed_validated_plan()?;
-        for representation in &self.materialized_signature.opaque_representations {
-            self.materialized_signature
-                .opaque_representation_movement(representation, &validated)
-                .map_err(|reason| {
-                    calling_conventions::PlanDiagnostic(format!(
-                        "boundary calling plan cannot rejoin opaque-representation movement: {reason}"
-                    ))
-                })?;
-        }
-        let (report_fingerprint, commitment) = boundary_plan_application_identity(
-            &self.materialized_signature,
-            &validated,
-            &self.calling_owner_application,
-        )
-        .map_err(calling_conventions::PlanDiagnostic)?;
-        Ok((
-            validated,
-            report_fingerprint,
-            effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(commitment),
-        ))
     }
 }
 

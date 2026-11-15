@@ -29,13 +29,6 @@ pub(crate) mod profile {
                 Self::TerminalTraceV1 => 2,
             }
         }
-
-        pub const fn from_version(version: u16) -> Option<Self> {
-            match version {
-                2 => Some(Self::TerminalTraceV1),
-                _ => None,
-            }
-        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -146,15 +146,6 @@ pub(crate) mod declaration_selection {
             &self.symbols
         }
 
-        pub(crate) fn shared_retained_base(
-            &self,
-        ) -> Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>> {
-            match &self.retained {
-                Some(SelectionBase::Shared(base)) => Some(Arc::clone(base)),
-                _ => None,
-            }
-        }
-
         /*
             The namespace boundary for early declaration consistency, including
             dependency purpose. A logical path alone is not a foreign owner.

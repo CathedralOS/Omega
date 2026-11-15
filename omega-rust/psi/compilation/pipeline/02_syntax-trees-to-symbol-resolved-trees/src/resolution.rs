@@ -236,31 +236,6 @@ mod body_completion {
     impl Eq for DeferredResolvedFrontier {}
 
     impl DeferredResolvedFrontier {
-        /*
-            Resume typing against the exact predecessor owned by this resolver.
-            Ordinary probes append to that pair; they must not retype its completed
-            declarations or reinterpret its finalized authored selections.
-        */
-        pub fn into_extension(self) -> Result<super::DeferredResolvedExtension, Vec<Diagnostic>> {
-            let predecessor = self.selection.shared_retained_base().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "deferred resolution has no owned predecessor for typing",
-                )]
-            })?;
-            Ok(super::DeferredResolvedExtension {
-                successor: self,
-                predecessor,
-            })
-        }
-
-        /*
-            Transfer probe-only input custody on this exact completed declaration
-            roster. Symbol handles remain those consumed by its seeded typed base.
-        */
-        pub fn into_pending_type_inputs(self) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
-            self.pending_type_inputs
-        }
-
         pub fn trees(&self) -> &SymbolResolvedTrees {
             &self.trees
         }
@@ -664,10 +639,7 @@ mod continuations {
 
     use crate::constant::initializer_dependencies::ConstInitializerDependencies;
     use crate::constant::initializer_dependencies::DependencyPurpose;
-    use crate::constant::initializer_dependencies::collect;
     use crate::constant::pending_const_initializer_leaves;
-    use crate::preparation::generic_data::canonicalize_pending_initializer_payload;
-    use crate::preparation::generic_data::const_destination_requires_proof;
     pub use syntax_trees::item::ConstDestinationObligation;
 
     impl ConstInitializerSelection {
@@ -712,55 +684,6 @@ mod continuations {
             .map_err(|diagnostic| vec![diagnostic])
         }
 
-        pub fn initializer_expression_dependencies(
-            &self,
-            syntax: &SyntaxTrees,
-            definition: &syntax_trees::item::ConstDefinition,
-            expression: syntax_trees::expression::ExpressionHandle,
-        ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
-            if !self
-                .pending_leaves(syntax, definition)?
-                .iter()
-                .any(|leaf| leaf.expression == expression)
-            {
-                return Err(vec![
-                    Diagnostic::error(
-                        "dependency request is not an authored scalar initializer leaf",
-                    )
-                    .with_source_span(definition.name.source_span()),
-                ]);
-            }
-            self.pending_leaf_dependencies(syntax, definition, expression, None)
-        }
-
-        pub fn pending_leaf_dependencies(
-            &self,
-            syntax: &SyntaxTrees,
-            definition: &syntax_trees::item::ConstDefinition,
-            expression: syntax_trees::expression::ExpressionHandle,
-            selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
-        ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
-            let declaration = self
-                .frontier
-                .trees
-                .const_declaration_at_source_span(definition.name.source_span())
-                .ok_or_else(|| vec![Diagnostic::error("initializer leaf lost its declaration")])?;
-            let root = if declaration.authored_initializer.is_valid() {
-                declaration.authored_initializer
-            } else {
-                declaration.initializer
-            };
-            crate::constant::initializer_dependencies::expression_at_source(
-                &self.frontier.trees,
-                root,
-                syntax.expressions.source_span(expression),
-            )
-            .and_then(|expression| collect(&self.frontier.trees, expression, selected_calls))
-            .map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
-            })
-        }
-
         pub fn initializer_dependencies(
             &self,
             _syntax: &SyntaxTrees,
@@ -774,26 +697,6 @@ mod continuations {
                     .as_ref()
                     .map(|receipt| receipt.declaration_custody.call_selections.as_slice()),
             )
-        }
-
-        pub fn selected_initializer_dependencies(
-            &self,
-            definition: &syntax_trees::item::ConstDefinition,
-            selected_calls: &[(source::SourceSpan, source::SourceSpan)],
-        ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
-            self.declaration_dependencies(
-                definition,
-                DependencyPurpose::DeclarationReadiness,
-                Some(selected_calls),
-            )
-        }
-
-        pub fn initializer_authored_dependencies(
-            &self,
-            definition: &syntax_trees::item::ConstDefinition,
-            selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
-        ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
-            self.declaration_dependencies(definition, DependencyPurpose::Authored, selected_calls)
         }
 
         fn declaration_dependencies(
@@ -873,31 +776,6 @@ mod continuations {
                     vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
                 },
             )
-        }
-
-        /*
-            Encode completed initializer payloads, without asserting the destination's
-            qualification. The compile-time owner checks that separate result judgment
-            before returning the authoritative declaration to normal resolution.
-        */
-        pub fn canonicalize_initializer_payload(
-            &self,
-            syntax: &SyntaxTrees,
-            definition: &syntax_trees::item::ConstDefinition,
-        ) -> Result<ConstInitializerPayload, String> {
-            canonicalize_pending_initializer_payload(
-                syntax,
-                definition,
-                Some(&self.frontier.selection),
-            )
-        }
-
-        pub fn initializer_requires_destination_proof(
-            &self,
-            syntax: &SyntaxTrees,
-            definition: &syntax_trees::item::ConstDefinition,
-        ) -> bool {
-            const_destination_requires_proof(syntax, definition, Some(&self.frontier.selection))
         }
     }
 

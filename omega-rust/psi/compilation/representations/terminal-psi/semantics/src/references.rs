@@ -4185,53 +4185,6 @@ pub(crate) mod reference_storage_geometry {
             }
             Ok(output)
         }
-
-        pub fn record_field_dependencies(
-            &self,
-            root: StructuralTypeId,
-        ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
-            let declaration = crate::structural_declaration(self.types.clone(), root)
-                .ok_or(StorageGeometryError::MissingType(root))?;
-            let StructuralTypeShape::Record { fields, storage } = &declaration.shape else {
-                return Err(StorageGeometryError::UnsupportedType(root));
-            };
-            let selected = match storage {
-                StructuralRecordStorage::TargetLayout(application) => {
-                    Some(self.records.realization(root, *application)?)
-                }
-                StructuralRecordStorage::Packed | StructuralRecordStorage::Authored(_) => None,
-                _ => return Err(StorageGeometryError::UnsupportedType(root)),
-            };
-            let mut dependencies = Vec::new();
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let field_storage = match selected {
-                    Some(realization) => Some(
-                        &realization
-                            .fields
-                            .iter()
-                            .find(|row| row.field == field.id)
-                            .ok_or(StorageGeometryError::MissingFieldStorage(root, field.id))?
-                            .storage,
-                    ),
-                    None => field.storage.as_ref(),
-                };
-                field_geometry(
-                    self.types.clone(),
-                    field,
-                    field_storage,
-                    &mut Vec::new(),
-                    self.carriers,
-                    &self.records,
-                    &mut |application| {
-                        if !dependencies.contains(&application) {
-                            dependencies.push(application);
-                        }
-                        Ok(None)
-                    },
-                )?;
-            }
-            Ok(dependencies)
-        }
     }
 
     pub fn reference_storage_dependencies<'types>(

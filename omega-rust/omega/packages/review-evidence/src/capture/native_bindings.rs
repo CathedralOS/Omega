@@ -150,7 +150,6 @@ impl PackageReviewInput<'_> {
             };
             let method = &schema.declaration.methods[*index];
             let (method, callable) = self.checked_method(
-                service,
                 signature,
                 boundary,
                 method,

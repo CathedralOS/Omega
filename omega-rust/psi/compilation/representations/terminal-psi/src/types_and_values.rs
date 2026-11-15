@@ -500,15 +500,6 @@ pub mod types {
                 }
             }
 
-            pub fn select_rows(rows: &[Self], path: &[StructuralPathSegment]) -> Vec<Self> {
-                let (whole, projected) = Self::select(&[], rows, path);
-                let mut selected = Vec::with_capacity(whole.len() + projected.len());
-                Self::append_under(&whole, &projected, &[], &mut selected);
-                selected.sort();
-                selected.dedup();
-                selected
-            }
-
             pub fn select(
                 whole: &[StructuralDomainId],
                 projected: &[Self],
@@ -3058,26 +3049,6 @@ pub mod values {
                         .collect(),
                     access: argument.access,
                 }
-            }
-        }
-
-        impl ReferenceOriginSource {
-            pub fn exact_argument(&self) -> Option<StructuralArgument> {
-                if self.extent != semantic_vocabulary::ReferenceOriginExtent::Projected {
-                    return None;
-                }
-                Some(StructuralArgument {
-                    place: self.place,
-                    path: self
-                        .path
-                        .iter()
-                        .map(|projection| match projection {
-                            ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
-                            ReferenceOriginProjection::Element => None,
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                    access: self.access,
-                })
             }
         }
     }

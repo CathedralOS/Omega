@@ -13,23 +13,6 @@ pub enum ContentAlgebraIdentity {
     CountedQuantity { unit: String },
 }
 
-impl ContentAlgebraIdentity {
-    /// One canonical algebra for source formation and Terminal denotation.
-    pub fn canonical_algebra(&self) -> semantic_vocabulary::ContentAlgebra {
-        use semantic_vocabulary::{ContentAlgebra, ContentAlgebraKind};
-        match self {
-            Self::IntervalSet { coordinate_space } => ContentAlgebra {
-                kind: ContentAlgebraKind::IntervalSet,
-                parameter: coordinate_space.clone(),
-            },
-            Self::CountedQuantity { unit } => ContentAlgebra {
-                kind: ContentAlgebraKind::CountedQuantity,
-                parameter: unit.clone(),
-            },
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ContentFieldSegment {
     pub symbol: SymbolHandle,
@@ -231,23 +214,6 @@ pub enum IntervalSetError {
     NotContained,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct ContentProjectionPlan {
-    pub domain: SymbolHandle,
-    pub semantic_domain: SemanticDomainId,
-    pub carrier_identity: String,
-    pub machine: SymbolHandle,
-    pub algebra: ContentAlgebraIdentity,
-    pub expression: ContentProjectionExpression,
-    pub report_fingerprint: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum ContentConservationOwnerKind {
-    Machine,
-    TraitRequirement,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum ContentPlaceVersion {
     Entry,
@@ -331,16 +297,6 @@ impl ContentConservationEquation {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct ContentConservationPlan {
-    pub owner_kind: ContentConservationOwnerKind,
-    pub owner: SymbolHandle,
-    pub callable: SymbolHandle,
-    pub algebra: ContentAlgebraIdentity,
-    pub equation: ContentConservationEquation,
-    pub report_fingerprint: u64,
-}
-
 pub fn conservation_report_fingerprint(
     algebra: &ContentAlgebraIdentity,
     equation: &ContentConservationEquation,
@@ -353,19 +309,6 @@ pub fn conservation_report_fingerprint(
     let mut hash = semantic_vocabulary::Fnv1a::new();
     hash.bytes(&bytes);
     hash.finish()
-}
-
-pub fn content_conservation_plan_bytes(plan: &ContentConservationPlan) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"content-conservation-plan-v1");
-    bytes.push(match plan.owner_kind {
-        ContentConservationOwnerKind::Machine => 1,
-        ContentConservationOwnerKind::TraitRequirement => 2,
-    });
-    encode_algebra(&plan.algebra, &mut bytes);
-    encode_content_conservation_term(plan.equation.left(), &mut bytes);
-    encode_content_conservation_term(plan.equation.right(), &mut bytes);
-    bytes
 }
 
 fn content_conservation_term_bytes(term: &ContentConservationTerm) -> Vec<u8> {

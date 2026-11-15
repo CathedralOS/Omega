@@ -2295,6 +2295,7 @@ version = "0.1.0"
 dependencies = [
  "compiler-storage",
  "diagnostics",
+ "language-core",
  "layout-plans",
  "optimization-core",
  "semantic-vocabulary",
@@ -2464,7 +2465,6 @@ dependencies = [
  "access-plans",
  "arena",
  "compiler-storage",
- "diagnostics",
  "flow-effects",
  "language-core",
  "language-semantics",
