@@ -62,6 +62,7 @@ mod formation;
 mod graph;
 mod joins;
 mod known;
+mod machine_batch;
 mod machine_inputs;
 mod minted;
 mod operational;
@@ -474,23 +475,13 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
-    let mut machines = IdTable::default();
-    let identities: Vec<MachineId> = checking.machines.keys().collect();
-    for id in identities {
-        let tables = checking.machines.get_mut(id).ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Machine,
-                "machine tables are past the end",
-            )
-        })?;
+    let machines = machine_batch::check(&mut checking.machines, |id, tables| {
         // A requirement has a contract and no body, so nothing about it is
         // decided here. Its guarantees are each selected implementation's to
         // prove; leaving them without a verdict would read as vacuously held.
         let inputs = inputs.for_machine(id)?;
         if inputs.requirement {
-            machines.push(MachineDischarge {
+            return Ok(MachineDischarge {
                 verdicts: tables.obligations.map(|obligation, _| {
                     Err(refusal(
                         RefusalReason::Unsupported,
@@ -505,10 +496,9 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
                 conflicts: Vec::new(),
                 impossible: Vec::new(),
             });
-            continue;
         }
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
-        machines.push(machine(
+        machine(
             formed,
             &inhabitation,
             domains,
@@ -518,8 +508,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             inputs.carried.map(|position| &carried[position]),
             inputs.branches,
             &empty_contracts,
-        )?);
-    }
+        )
+    })?;
     Ok(Discharge { machines })
 }
 

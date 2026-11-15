@@ -2517,10 +2517,13 @@ name = "terminal-psi-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "execution-admission",
  "language-core",
+ "mimalloc",
  "numerics",
  "optimization",
  "proof-admission",
+ "rayon",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",

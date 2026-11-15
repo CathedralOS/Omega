@@ -1,0 +1,51 @@
+diff --git a/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs b/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs
+index 0b8f4fc979032..d119e1d348282 100644
+--- a/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs
++++ b/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs
+@@ -381,6 +381,7 @@ pub fn discharge_carrying(
+ }
+ 
+ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
++    let trace_started = std::time::Instant::now();
+     for boundary in &elaboration.module.boundary_machines {
+         terminal_semantics::boundary_result_lifetimes(
+             &elaboration.module.structural_types,
+@@ -455,6 +456,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
+     // borrowed declaration view is needed beside it for projected paths.
+     let empty_contracts =
+         terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
++    let trace_ready = std::time::Instant::now();
+     let machines = machine_batch::check(&mut checking.machines, |id, tables| {
+         // A requirement has a contract and no body, so nothing about it is
+         // decided here. Its guarantees are each selected implementation's to
+@@ -490,6 +492,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
+             &empty_contracts,
+         )
+     })?;
++    eprintln!("{{\"phase\":\"machine_checks\",\"preparation_ns\":{},\"batch_ns\":{}}}", trace_ready.duration_since(trace_started).as_nanos(), trace_ready.elapsed().as_nanos());
+     Ok(Discharge { machines })
+ }
+ 
+diff --git a/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/machine_batch.rs b/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/machine_batch.rs
+index 76e36fd491f9d..dc0aa01089150 100644
+--- a/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/machine_batch.rs
++++ b/omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/machine_batch.rs
+@@ -23,6 +23,7 @@ pub(super) fn check<T: Send>(
+     // Queue references, not prepared contexts or copies of body payloads.
+     // Individual jobs remain stealable even when a few bodies dominate cost.
+     let jobs: Vec<_> = tables.iter_mut().collect();
++    let trace_origin = std::time::Instant::now();
+     let checked: Vec<_> = jobs
+         .into_par_iter()
+         .with_max_len(1)
+@@ -30,7 +31,10 @@ pub(super) fn check<T: Send>(
+             if id.get() > first_failure.load(Ordering::Relaxed) {
+                 return (id, Ok(None));
+             }
++            let trace_start = trace_origin.elapsed().as_nanos();
+             let verdict = check(id, tables);
++            let trace_end = trace_origin.elapsed().as_nanos();
++            eprintln!("{{\"machine\":{},\"worker\":{},\"start_ns\":{trace_start},\"end_ns\":{trace_end}}}", id.get(), rayon::current_thread_index().unwrap());
+             if verdict.is_err() {
+                 first_failure.fetch_min(id.get(), Ordering::Relaxed);
+             }
