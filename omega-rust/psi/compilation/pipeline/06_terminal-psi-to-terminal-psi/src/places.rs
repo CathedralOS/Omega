@@ -368,7 +368,9 @@ enum QueryKind {
 }
 
 struct Reaching {
-    active: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    // Active equations for exact queries; all discovered equations for initialization.
+    equations: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    initialization_only: bool,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
@@ -2528,9 +2530,8 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Reached> {
         // Each alternative arrival has its own copy chain. Restore the depth
-        // on return so a sibling starts with the same bound. Active equations
-        // and crossed-entry history remain shared: every path is checked, and
-        // a partial cyclic result cannot be treated as established contents.
+        // on return so a sibling starts with the same bound. Equation membership
+        // and crossed-entry history remain shared across alternative arrivals.
         let remaining = budget.remaining;
         let reached = (|| {
             let original = asked.place();
@@ -2541,8 +2542,9 @@ impl<'a> Storage<'a> {
                 Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
                 Asked::Window { .. } => None,
             };
+            let root_query = budget.equations.is_empty();
             if let Some(key) = &key
-                && !budget.active.insert(key.clone())
+                && !budget.equations.insert(key.clone())
             {
                 return Ok(Reached::Cycle);
             }
@@ -2637,7 +2639,8 @@ impl<'a> Storage<'a> {
                         last = Some((index, row));
                     }
                 }
-                if let Asked::Contents(leaf) = asked
+                if !budget.initialization_only
+                    && let Asked::Contents(leaf) = asked
                     && let Some(observations) = self.observations[index(block.get())].get(leaf)
                 {
                     let end =
@@ -2826,10 +2829,19 @@ impl<'a> Storage<'a> {
                 Reached::Unknown
             });
             if let Some(key) = key {
-                budget.active.remove(&key);
-                if budget.active.is_empty() && reached == Reached::Cycle {
+                if !budget.initialization_only {
+                    budget.equations.remove(&key);
+                }
+                if root_query && reached == Reached::Cycle {
                     reached = Reached::Unestablished;
                 }
+            }
+            // Expanding an equation once preserves initialization, but does
+            // not establish a shared value identity or enclosing type depth.
+            if budget.initialization_only
+                && !matches!(reached, Reached::Unestablished | Reached::Cycle)
+            {
+                reached = Reached::Unknown;
             }
             if let Reached::Value(value) = reached
                 && let Some(ValueOrigin::Operation(operation)) =
@@ -2857,12 +2869,27 @@ impl<'a> Storage<'a> {
 
     fn budget(&self) -> Reaching {
         Reaching {
-            active: BTreeSet::new(),
+            equations: BTreeSet::new(),
+            initialization_only: false,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
             #[cfg(test)]
             scanned_rows: 0,
+        }
+    }
+
+    fn initialization_budget(&self) -> Reaching {
+        // Initialization needs every arrival to supply storage, not the exact
+        // value or enclosing type evidence. Expand each copy equation once:
+        // revisits add no initial contents, while a missing arrival propagates
+        // through its first expansion to the root. A cycle without any real
+        // supply remains unestablished. Keep all arrivals even after a supply.
+        // Reads do not initialize storage, so this mode ignores observations;
+        // exact value and case queries retain their path-sensitive tracing.
+        Reaching {
+            initialization_only: true,
+            ..self.budget()
         }
     }
 
@@ -3484,7 +3511,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<Checked<()>> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
-                let mut budget = self.budget();
+                let mut budget = self.initialization_budget();
                 if self.reaching(
                     tables,
                     Asked::Contents(&leaf),
@@ -5503,6 +5530,34 @@ mod observation_tests {
             trace.scanned_rows
         );
 
+        // Initialization must check every incoming value, but reconverging
+        // copies must not multiply the work with every alternative path.
+        let mut initialization = storage.initialization_budget();
+        let initialized = storage
+            .reaching(
+                tables,
+                Asked::Contents(&leaf),
+                block,
+                after - 1,
+                &mut initialization,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert!(!matches!(
+            initialized,
+            Reached::Unestablished | Reached::Cycle
+        ));
+        let row_budget = storage.log.len() * graph.block_count();
+        eprintln!(
+            "COPY_TRACE full_rows={} initialization_rows={} polynomial_row_budget={row_budget}",
+            trace.scanned_rows, initialization.scanned_rows,
+        );
+        assert!(
+            initialization.scanned_rows <= row_budget,
+            "initialization revisited reconverging copy equations: {} rows, budget {row_budget}",
+            initialization.scanned_rows,
+        );
+
         let row_index = storage
             .log
             .iter()
@@ -5526,37 +5581,48 @@ mod observation_tests {
         if let Stored::Moved(source) = &mut storage.log[row_index].stored {
             source.segments.extend_from_slice(&leaf.segments);
         }
-        let mut shallower = storage.budget();
-        let reached = storage
-            .reaching(
-                tables,
-                Asked::Contents(&leaf),
-                block,
-                after - 1,
-                &mut shallower,
-                Construct::Operation(operation.id),
-            )
-            .unwrap();
-        assert_eq!(reached, Reached::Established(0));
-        storage.log[row_index].lineage = destination;
-
-        // That same arrival now supplies no contents. A valid sibling arrival
-        // cannot establish the joined value on its behalf.
-        storage.log[row_index].stored = Stored::Vacated;
-        let mut missing = storage.budget();
-        assert_eq!(
-            storage
+        for initialization_only in [false, true] {
+            let mut shallower = if initialization_only {
+                storage.initialization_budget()
+            } else {
+                storage.budget()
+            };
+            let reached = storage
                 .reaching(
                     tables,
                     Asked::Contents(&leaf),
                     block,
                     after - 1,
-                    &mut missing,
-                    Construct::Operation(operation.id)
+                    &mut shallower,
+                    Construct::Operation(operation.id),
                 )
-                .unwrap(),
-            Reached::Unestablished
-        );
+                .unwrap();
+            if initialization_only {
+                assert!(!matches!(reached, Reached::Unestablished | Reached::Cycle));
+            } else {
+                assert_eq!(reached, Reached::Established(0));
+            }
+        }
+        storage.log[row_index].lineage = destination;
+
+        // That same arrival now supplies no contents. A valid sibling arrival
+        // cannot establish the joined value on its behalf.
+        storage.log[row_index].stored = Stored::Vacated;
+        for mut missing in [storage.budget(), storage.initialization_budget()] {
+            assert_eq!(
+                storage
+                    .reaching(
+                        tables,
+                        Asked::Contents(&leaf),
+                        block,
+                        after - 1,
+                        &mut missing,
+                        Construct::Operation(operation.id)
+                    )
+                    .unwrap(),
+                Reached::Unestablished
+            );
+        }
         storage.log[row_index].stored = Stored::Moved(source);
 
         // Remove the invocation's incoming edge from the equation graph.
@@ -5570,20 +5636,21 @@ mod observation_tests {
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
         storage.graph = &cyclic_graph;
-        let mut cycle = storage.budget();
-        assert_eq!(
-            storage
-                .reaching(
-                    &unseeded,
-                    Asked::Contents(&leaf),
-                    block,
-                    after - 1,
-                    &mut cycle,
-                    Construct::Operation(operation.id)
-                )
-                .unwrap(),
-            Reached::Unestablished
-        );
+        for mut cycle in [storage.budget(), storage.initialization_budget()] {
+            assert_eq!(
+                storage
+                    .reaching(
+                        &unseeded,
+                        Asked::Contents(&leaf),
+                        block,
+                        after - 1,
+                        &mut cycle,
+                        Construct::Operation(operation.id)
+                    )
+                    .unwrap(),
+                Reached::Unestablished
+            );
+        }
     }
 
     #[test]
