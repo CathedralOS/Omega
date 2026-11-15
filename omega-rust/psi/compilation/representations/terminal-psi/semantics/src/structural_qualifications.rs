@@ -237,6 +237,80 @@ fn require_exact(
     }
 }
 
+fn validate_literal_fields<'a>(
+    module: &TerminalModule,
+    places: &Declared<'_>,
+    result_type: Option<semantic_vocabulary::StructuralTypeId>,
+    case: Option<StructuralCaseId>,
+    produced: &Memberships,
+    fields: impl Iterator<Item = (StructuralFieldId, Option<&'a StructuralArgument>)>,
+) -> Judged<()> {
+    let Some(structural_type) = result_type else {
+        return malformed(places.machine(), "a structural literal has no result type");
+    };
+    if let Some(selected) = case {
+        let valid = module
+            .structural_type(structural_type)
+            .is_some_and(|declaration| {
+                matches!(&declaration.shape,
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }
+                    if cases.iter().any(|case| case.id == selected))
+            });
+        if !valid {
+            return malformed(
+                places.machine(),
+                "a structural literal names an absent case",
+            );
+        }
+    }
+    if !produced.whole.is_empty() {
+        return malformed(
+            places.machine(),
+            "a structural literal cannot establish a domain",
+        );
+    }
+    let mut covered = Vec::new();
+    for (field, argument) in fields {
+        let Some(segments) = field_segments(module, structural_type, case, field) else {
+            return malformed(
+                places.machine(),
+                "a structural literal names an absent field",
+            );
+        };
+        let expected = produced.beneath(&segments);
+        let actual = match argument {
+            Some(argument) => places.argument(argument),
+            None => Memberships::default(),
+        };
+        require_exact(
+            places,
+            &actual,
+            &expected,
+            "a structural literal's field does not deliver its declared domains",
+        )?;
+        covered.push(segments);
+    }
+    if produced.projected.iter().any(|row| {
+        // The full type retains each case's conditional domains.
+        // Only the selected payload has fields to initialize here.
+        if matches!((case, row.path.first()),
+            (Some(active), Some(StructuralPathSegment::Case(declared)))
+                if active != *declared)
+        {
+            return false;
+        }
+        !covered
+            .iter()
+            .any(|segments| row.path.starts_with(segments))
+    }) {
+        return malformed(
+            places.machine(),
+            "a structural literal declares a domain no field initializer supplies",
+        );
+    }
+    Ok(())
+}
+
 /// Every domain a declaration names exists and names the carrier at the place
 /// it qualifies.
 fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<()> {
@@ -755,56 +829,36 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                     "a structural move does not keep its source's exact domains",
                 )?,
                 OperationKind::EstablishRecord { fields }
-                | OperationKind::EstablishStructuralCase { fields, .. }
-                | OperationKind::EstablishScalarCase { fields, .. } => {
+                | OperationKind::EstablishStructuralCase { fields, .. } => {
                     let case = match &operation.kind {
-                        OperationKind::EstablishStructuralCase { result_case, .. }
-                        | OperationKind::EstablishScalarCase { result_case, .. } => {
+                        OperationKind::EstablishStructuralCase { result_case, .. } => {
                             Some(*result_case)
                         }
                         _ => None,
                     };
-                    if !produced.whole.is_empty() {
-                        return malformed(id, "a structural literal cannot establish a domain");
-                    }
-                    let mut covered = Vec::new();
-                    for initializer in fields {
-                        let Some(segments) = result_type
-                            .and_then(|ty| field_segments(module, ty, case, initializer.field))
-                        else {
-                            return malformed(id, "a structural literal names an absent field");
-                        };
-                        let expected = produced.beneath(&segments);
-                        let actual = match initializer.value.as_structural() {
-                            Some(argument) => places.argument(argument),
-                            None => Memberships::default(),
-                        };
-                        require_exact(
-                            &places,
-                            &actual,
-                            &expected,
-                            "a structural literal's field does not deliver its declared domains",
-                        )?;
-                        covered.push(segments);
-                    }
-                    if produced.projected.iter().any(|row| {
-                        // The full type retains each case's conditional domains.
-                        // Only the selected payload has fields to initialize here.
-                        if matches!((case, row.path.first()),
-                            (Some(active), Some(StructuralPathSegment::Case(declared)))
-                                if active != *declared)
-                        {
-                            return false;
-                        }
-                        !covered
+                    validate_literal_fields(
+                        module,
+                        &places,
+                        result_type,
+                        case,
+                        &produced,
+                        fields
                             .iter()
-                            .any(|segments| row.path.starts_with(segments))
-                    }) {
-                        return malformed(
-                            id,
-                            "a structural literal declares a domain no field initializer supplies",
-                        );
-                    }
+                            .map(|field| (field.field, field.value.as_structural())),
+                    )?;
+                }
+                OperationKind::EstablishScalarCase {
+                    result_case,
+                    fields,
+                } => {
+                    validate_literal_fields(
+                        module,
+                        &places,
+                        result_type,
+                        Some(*result_case),
+                        &produced,
+                        fields.iter().map(|field| (field.field, None)),
+                    )?;
                 }
                 OperationKind::EstablishStructuralArray { elements } => {
                     if !produced.whole.is_empty()

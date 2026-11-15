@@ -228,10 +228,11 @@ fn the_field_carries_its_predicates_on_its_type() {
 
 #[test]
 fn a_case_literal_owes_only_its_active_fields_without_losing_conditional_domains() {
-    let rejected = rejection("valid_utf8", "no plan");
+    let rejected =
+        rejection("valid_utf8", "no plan").replace("case Accepted(value: u64);", "case Accepted;");
     let accepted = rejected.replace(
         "Outcome::Rejected { reason: Rejection { reason: \"no plan\" as +Text } }",
-        "Outcome::Accepted { value: 7u64 }",
+        "Outcome::Accepted {}",
     );
     assert_ne!(accepted, rejected);
     for (source, has_qualified_payload) in [(&accepted, false), (&rejected, true)] {
@@ -275,7 +276,7 @@ fn a_case_literal_owes_only_its_active_fields_without_losing_conditional_domains
             else {
                 panic!("the qualified field belongs to the sibling case");
             };
-            *case = StructuralCaseId::new(u64::MAX).unwrap();
+            *case = StructuralCaseId::new(999_999).unwrap();
             assert_eq!(
                 terminal_semantics::structural_qualifications::validate(&forged)
                     .unwrap_err()
