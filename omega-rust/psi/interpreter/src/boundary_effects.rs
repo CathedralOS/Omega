@@ -3714,9 +3714,9 @@ pub struct TerminalEffectRejection {
 }
 
 pub use terminal_installation::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, admit_target_layouts,
-    admit_target_machine_selections,
+    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
+    ProviderInstallationSelection, TerminalTargetContext, admit_target_layouts,
+    terminal_target_context,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3731,7 +3731,7 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
-    pub(crate) target_machines: Option<AdmittedTargetMachineSelections>,
+    pub(crate) target_machines: Option<TerminalTargetContext>,
     pub(crate) target_layouts: Option<std::sync::Arc<AdmittedTargetLayouts>>,
 }
 
@@ -3755,7 +3755,7 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub entry: Option<terminal_psi::TargetMachineCallable>,
     pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
-    pub target_machines: Option<&'installation AdmittedTargetMachineSelections>,
+    pub target_machines: Option<&'installation TerminalTargetContext>,
     pub target_layouts: Option<&'installation AdmittedTargetLayouts>,
 }
 

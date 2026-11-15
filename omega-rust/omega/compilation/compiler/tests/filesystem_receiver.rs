@@ -299,7 +299,7 @@ fn windows_canonicalize_receiver() {
                         carrier_layout: profile
                             .native_realization()
                             .map(runtime_abi::target_carrier_layout),
-                        targets: Some(terminal_installation::admit_target_machine_selections(
+                        targets: Some(terminal_installation::terminal_target_context(
                             artifact.view(),
                             scope,
                         )),

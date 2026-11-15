@@ -251,7 +251,7 @@ pub fn execute_sliced(
             .map(|provisions| provisions.target_slot().owner.target_name())
     });
     let target_machines = execution_target
-        .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
+        .map(|target| terminal_interpreter::terminal_target_context(artifact, target));
     let target_layouts = target_machines
         .as_ref()
         .map(|selected| {

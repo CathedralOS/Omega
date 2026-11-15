@@ -92,11 +92,11 @@ pub use boundary::effects::storage_inputs::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStructuralBuffer,
 };
 pub use boundary::effects::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
-    AssumedBindingSelection, ProviderInstallationSelection, TerminalCallStorageRequirements,
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
-    TerminalRuntimeSupplyRequest, TerminalX86FlagsEnvironment, admit_target_layouts,
-    admit_target_machine_selections,
+    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
+    ProviderInstallationSelection, TerminalCallStorageRequirements, TerminalEffect,
+    TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
+    TerminalRuntimeSupplyRequest, TerminalTargetContext, TerminalX86FlagsEnvironment,
+    admit_target_layouts, terminal_target_context,
 };
 pub use boundary::errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,

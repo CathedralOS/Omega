@@ -1591,7 +1591,6 @@ fn validate_process_exit(
                         || !matches!(
                             row.call.source,
                             target_operations::NativeCallOrigin::InstalledProvider { .. }
-                                | target_operations::NativeCallOrigin::TargetFamily { .. }
                         )
                         || row.call.validate_source(&[]).is_err()
                         || call.provenance.edges != [completion_edge]

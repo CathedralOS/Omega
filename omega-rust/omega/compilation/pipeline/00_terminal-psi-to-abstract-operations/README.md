@@ -37,7 +37,7 @@ which preserves the established public names through reexports.
   The [scope walk](../../representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs)
   also retains cleanup, installed-interrupt and code-layout requirements, plus
   functions referenced by dynamic dispatch tables. Reached calls can require
-  additional direct or target-family implementations; demand completion checks
+  additional direct or Build-selected provider implementations; demand completion checks
   those additions and binds the final choices after completion. Original build
   choices remain distinct from that completed selection.
 - [retained_terminal.rs](src/retained_terminal.rs) orchestrates lowering and

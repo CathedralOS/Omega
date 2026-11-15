@@ -284,7 +284,7 @@ impl Elaboration {
     /// for (`ceilings`): each invocation row that names a machine, and each
     /// tail call of a call formation. A machine may also be arrived at with
     /// no call naming it: through a selector value or a dispatch table, as a
-    /// member of a per-target family, as a callback, an installed interrupt
+    /// callback, an installed interrupt
     /// or a task activation. A module that holds any of those gives no
     /// answer, and neither does a root or callee with no rows here.
     pub fn call_closure(
@@ -294,8 +294,7 @@ impl Elaboration {
         use crate::edges::Callee;
         use semantic_vocabulary::TargetMachineCallable;
         let module = &self.module;
-        if !module.target_machine_families.is_empty()
-            || !module.callback_applications.is_empty()
+        if !module.callback_applications.is_empty()
             || !module.installed_interrupt_registrations.is_empty()
             || module.dynamic_dispatch != Default::default()
             || module.task_activation_demands != Default::default()

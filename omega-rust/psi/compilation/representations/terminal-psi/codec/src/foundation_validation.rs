@@ -1058,11 +1058,10 @@ pub(crate) mod call_foundations {
         use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
 
         fn invocation(required_contract: Option<ContractId>) -> Block {
-            let mut block = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(2).unwrap(),
-            )
-            .blocks
-            .remove(0);
+            let mut block =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap())
+                    .blocks
+                    .remove(0);
             block.terminator = Terminator::InvokeNoNormal {
                 edge: EdgeId::new(1).unwrap(),
                 static_reach_binding: None,
@@ -1095,9 +1094,8 @@ pub(crate) mod call_foundations {
             block: &Block,
             query: &Inhabitation,
         ) -> Result<(), CodecError> {
-            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(2).unwrap(),
-            );
+            let mut caller =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap());
             caller.blocks[0] = block.clone();
             validate_caller(module, &caller, query)
         }
@@ -1142,17 +1140,15 @@ pub(crate) mod call_foundations {
 
         fn published(proposition: Proposition) -> (TerminalModule, TerminalMachine) {
             let mut module = TerminalModule::declarations();
-            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(1).unwrap(),
-            );
+            let mut callee =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
             callee.result = TerminalMachineResult::Scalar(boolean(42));
             let mut contract = selected_contract(&callee);
             contract.ensures.push(clause(proposition));
             module.declaration_contracts.push(contract);
             module.machines.push(callee);
-            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(2).unwrap(),
-            );
+            let mut caller =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap());
             caller.blocks[0] = invocation(Some(ContractId::new(2).unwrap()));
             (module, caller)
         }
@@ -1170,7 +1166,7 @@ pub(crate) mod call_foundations {
             let mut module = TerminalModule::declarations();
             module
                 .machines
-                .push(crate::semantic_module::target_family_tests::unit_machine(
+                .push(crate::semantic_module::entry_tests::unit_machine(
                     MachineId::new(1).unwrap(),
                 ));
             let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
@@ -1183,9 +1179,8 @@ pub(crate) mod call_foundations {
         #[test]
         fn a_selected_returning_contract_does_not_inherit_a_private_infinite_loop() {
             let mut module = TerminalModule::declarations();
-            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(1).unwrap(),
-            );
+            let mut callee =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
             callee.blocks[0].terminator = Terminator::Jump {
                 edge: EdgeId::new(1).unwrap(),
                 target: callee.entry,
@@ -1371,9 +1366,8 @@ pub(crate) mod call_foundations {
                 id: parameter.place,
                 kind: StructuralPlaceKind::Parameter { position: 0 },
             };
-            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(1).unwrap(),
-            );
+            let mut callee =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
             callee
                 .parameter_order
                 .push(BoundaryParameterKind::Structural);
@@ -1399,9 +1393,8 @@ pub(crate) mod call_foundations {
             };
             let callee_id = callee.id;
             module.machines.push(callee);
-            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
-                MachineId::new(2).unwrap(),
-            );
+            let mut caller =
+                crate::semantic_module::entry_tests::unit_machine(MachineId::new(2).unwrap());
             caller
                 .parameter_order
                 .push(BoundaryParameterKind::Structural);
@@ -3225,7 +3218,7 @@ pub(crate) mod machine_foundations {
         }
 
         fn machine() -> TerminalMachine {
-            crate::semantic_module::target_family_tests::unit_machine(MachineId::new(1).unwrap())
+            crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap())
         }
 
         fn return_record(machine: &mut TerminalMachine, structural_type: StructuralTypeId) {
@@ -4060,15 +4053,6 @@ pub(crate) mod reference_outputs {
         module: &TerminalModule,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<(), CodecError> {
-        if terminal_semantics::closed_conformances::is_checked_body_family_contract(
-            module, boundary,
-        ) {
-            return if boundary.reference_outputs.is_empty() {
-                Ok(())
-            } else {
-                malformed("checked-body family contract carries opaque reference outputs")
-            };
-        }
         if !provider_outputs_cover_writable_slots(&module.structural_types, boundary) {
             return malformed("boundary reference parameter contract has incomplete leaf coverage");
         }
@@ -4465,7 +4449,7 @@ pub(crate) mod scalar_applications {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::sections::semantic_module::target_family_tests::{identity_table, unit_machine};
+        use crate::sections::semantic_module::entry_tests::{identity_table, unit_machine};
         use semantic_vocabulary::MachineId;
         use terminal_psi::{
             ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
@@ -10368,14 +10352,13 @@ use semantic_vocabulary::{
 use std::collections::BTreeSet;
 use terminal_psi::types::atomic_once_outcome_cases;
 use terminal_psi::{
-    AtomicAccessEvent, BoundaryDeclarationRole, ByteSequenceCarrier, Operation, OperationKind,
-    OperationResult, ReferenceOriginProjection, ScalarDomainDeclaration, StructuralAccess,
-    StructuralArgument, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
-    TerminalRootServiceReach, Terminator, ValueDeclaration, call_structural_pair_pattern,
-    field_by_identity, find_structural_case, record_or_mixed_shape_pattern,
-    structural_leaf_copy_pair_pattern,
+    AtomicAccessEvent, ByteSequenceCarrier, Operation, OperationKind, OperationResult,
+    ReferenceOriginProjection, ScalarDomainDeclaration, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathQualification, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalModule, TerminalRootServiceReach, Terminator,
+    ValueDeclaration, call_structural_pair_pattern, field_by_identity, find_structural_case,
+    record_or_mixed_shape_pattern, structural_leaf_copy_pair_pattern,
 };
 use terminal_semantics::descriptor_results::terminal_payload_contract;
 use terminal_semantics::{
@@ -10750,7 +10733,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     validate_access_view_plans(module).map_err(CodecError::AccessViewPlan)?;
     validate_access_lifecycle_plans(module).map_err(CodecError::MalformedStructuralFoundation)?;
-    validate_target_families(module)?;
+    validate_portable_entry(module)?;
     validate_boundary_application_operations(module)?;
     validate_callback_registrars(module)?;
     installed_interrupts::validate(module)?;
@@ -11005,84 +10988,12 @@ fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecErro
     Ok(())
 }
 
-fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
-    use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
-
+fn validate_portable_entry(module: &TerminalModule) -> Result<(), CodecError> {
     match module.entry {
         None if module.root_service_reach == TerminalRootServiceReach::default() => {}
-        Some(TargetMachineCallable::Machine(machine)) if module.machine(machine).is_some() => {}
-        Some(head @ TargetMachineCallable::Boundary(boundary))
-            if module.target_machine_families.iter().any(|family| {
-                family.canonical == head
-                    && !family.members.iter().any(|member| member.callable == head)
-            }) && module
-                .boundary_machine(boundary)
-                .is_some_and(|declaration| {
-                    declaration.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
-                        && declaration.role == BoundaryDeclarationRole::Callable
-                }) => {}
-        _ => return malformed("portable entry has no retained machine or target-family head"),
-    }
-    let mut owners = BTreeSet::new();
-    for family in &module.target_machine_families {
-        if family.head_contract == [0; 32] {
-            return malformed("target-family head has no checked contract commitment");
-        }
-        if family.members.is_empty() {
-            return malformed("target family has no members");
-        }
-        if !family
-            .members
-            .iter()
-            .any(|member| member.callable == family.canonical)
-        {
-            let TargetMachineCallable::Boundary(head) = family.canonical else {
-                return malformed("independent target-family head is not a machine contract");
-            };
-            if module.boundary_machine(head).is_none_or(|declaration| {
-                declaration.kind != semantic_vocabulary::BoundaryRequirementKind::Machine
-                    || declaration.role != BoundaryDeclarationRole::Callable
-            }) {
-                return malformed("independent target-family head has no machine declaration");
-            }
-        }
-        for member in &family.members {
-            if member.target.is_empty() || !owners.insert(member.callable) {
-                return malformed("target-family member has an empty tag or repeated callable");
-            }
-            if member.callable != family.canonical
-                && module
-                    .target_machine_families
-                    .binary_search_by_key(&member.callable, |family| family.canonical)
-                    .is_ok()
-            {
-                return malformed("target-family head is a member of another family");
-            }
-            match member.callable {
-                TargetMachineCallable::Machine(machine) => {
-                    if !matches!(
-                        member.supply,
-                        TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary
-                    ) || !module.machine(machine).is_some()
-                    {
-                        return malformed(
-                            "target-family checked member has no matching body supply",
-                        );
-                    }
-                }
-                TargetMachineCallable::Boundary(boundary) => {
-                    if member.supply == TargetMachineSupply::CheckedBody
-                        || module.boundary_machine(boundary).is_none_or(|declaration| {
-                            declaration.role != BoundaryDeclarationRole::Callable
-                        })
-                    {
-                        return malformed(
-                            "target-family opaque member has no matching declaration supply",
-                        );
-                    }
-                }
-            }
-        }
+        Some(terminal_psi::TargetMachineCallable::Machine(machine))
+            if module.machine(machine).is_some() => {}
+        _ => return malformed("portable entry has no retained executable machine"),
     }
     terminal_semantics::borrowed_storage::validate_write_frames(module)
         .map_err(CodecError::MalformedWriteFrame)?;

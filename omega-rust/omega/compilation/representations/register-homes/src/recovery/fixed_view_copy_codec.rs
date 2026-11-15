@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 99), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 100), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload.
@@ -51,9 +51,9 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-pub(super) const VERSION: u32 = 99;
+pub(super) const VERSION: u32 = 100;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v59\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v60\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {

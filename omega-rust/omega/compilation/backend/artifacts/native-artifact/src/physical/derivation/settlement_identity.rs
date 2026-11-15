@@ -1,8 +1,7 @@
 /*
 We compute the canonical SHA-256 parent identities for hosted builtin
 settlements, admitted provider normalized foreign calls, in-place provider
-settlements, installed provider internal calls, and target-family internal
-calls.
+settlements and installed provider internal calls.
 */
 
 use crate::NativeSelectedProviderPlanDigest;
@@ -10,11 +9,9 @@ pub(crate) use crate::OptimizedBoundaryOccurrence;
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_boundary_settlement_record, hash_boundary_structural_result, hash_bytes,
-    hash_call_site_owner, hash_claim_source, hash_internal_scalar_argument_source,
-    hash_port_effect_record, hash_structural_argument, hash_structural_parameter_declaration,
-    hash_structural_path, hash_target,
+    hash_call_site_owner, hash_internal_scalar_argument_source, hash_port_effect_record,
+    hash_structural_argument, hash_structural_parameter_declaration, hash_target,
 };
-use crate::physical::identity_bytes::terminal_identity_bytes;
 use crate::{BoundaryInternalCallCustody, CompilerBuiltinResult, CompilerBuiltinScalarArgument};
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
@@ -280,48 +277,4 @@ pub(super) fn hash_internal_call_custody(
         }
     }
     digest.raw(&caller_live_bytes.to_le_bytes());
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn target_family_internal_call_identity(
-    terminal: terminal_psi::TerminalPsiIdentity,
-    occurrence: &OptimizedBoundaryOccurrence,
-    head_identity: &str,
-    head_contract: &[u8; 32],
-    member: &terminal_psi::TargetMachineFamilyMember,
-    target: NativeTarget,
-    completion_claim_sources: &[target_operations::CompletionClaimSource],
-    completion_receipts: &[terminal_psi::CompletionReceipt],
-    call: &BoundaryInternalCallCustody,
-) -> Result<[u8; 32], &'static str> {
-    let terminal_psi::TargetMachineCallable::Machine(machine) = member.callable else {
-        return Err("target-family internal-call identity requires a checked machine");
-    };
-    let supply_tag = match member.supply {
-        terminal_psi::TargetMachineSupply::CheckedBody => 1,
-        terminal_psi::TargetMachineSupply::Boundary => 2,
-        _ => return Err("target-family internal-call identity requires executable supply"),
-    };
-    let mut digest = DomainDigestEncoder::new(b"omega.d41-target-family-internal-call.sha256.v1\0");
-    digest.raw(&terminal_identity_bytes(terminal));
-    digest.raw(&occurrence.identity().bytes());
-    hash_bytes(&mut digest, head_identity.as_bytes());
-    digest.raw(head_contract);
-    hash_target(&mut digest, target);
-    digest.raw(&occurrence.boundary().get().to_le_bytes());
-    hash_bytes(&mut digest, member.target.as_bytes());
-    digest.raw(&machine.get().to_le_bytes());
-    digest.byte(supply_tag);
-    digest.u64(completion_claim_sources.len() as u64);
-    for source in completion_claim_sources {
-        hash_claim_source(&mut digest, source);
-    }
-    digest.u64(completion_receipts.len() as u64);
-    for receipt in completion_receipts {
-        digest.raw(&receipt.claim.get().to_le_bytes());
-        digest.raw(&receipt.argument_index.to_le_bytes());
-        hash_structural_path(&mut digest, &receipt.path);
-    }
-    hash_internal_call_custody(&mut digest, call);
-    Ok(digest.finish())
 }
