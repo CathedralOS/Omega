@@ -330,9 +330,8 @@ mod proposal {
             provider_admission::provider_admission::retain_selected_provider_adapters(&selected)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         provider_admission::provider_admission::validate_external_provider_owners(
-            &terminal_module.external_providers,
-            &terminal_module.identities,
-            selected.plans(),
+            terminal_module,
+            &selected,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
         if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
