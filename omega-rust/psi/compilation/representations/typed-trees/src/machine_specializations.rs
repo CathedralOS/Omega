@@ -149,17 +149,6 @@ impl MachineSpecializations {
         let edit = ReindexOnDrop(self);
         change(&mut edit.0.rows)
     }
-
-    /// The closed conformance applications of one row. They do not touch the
-    /// instance, so the index stays exact.
-    pub fn conformance_applications_mut(
-        &mut self,
-        row: usize,
-    ) -> Option<&mut Vec<crate::ClosedConformanceApplication>> {
-        self.rows
-            .get_mut(row)
-            .map(|receipt| &mut receipt.conformance_applications)
-    }
 }
 
 /// Two tables are equal when their rows are: the index answers the same
