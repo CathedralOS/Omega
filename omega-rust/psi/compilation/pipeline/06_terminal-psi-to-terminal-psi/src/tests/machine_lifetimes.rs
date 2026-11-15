@@ -31,13 +31,13 @@ fn verdict(build: &str) -> String {
 /// promises. A receiver must distinguish those promises after source erasure.
 #[test]
 fn an_ordinary_published_header_retains_its_declared_result_lifetime_relation() {
-    let declared_contract = |result_lifetime: &str| {
+    let declared_signature = |binders: &str, input: &str, result: &str| {
         let source = format!(
             "machine build_entry() {{\n\
                  let output: &[u8] = label(\"input\");\n\
                  take(output);\n\
              }}\n\
-             machine label<'input, 'other>(value: &'input [u8]) -> &'{result_lifetime} [u8] {{\n\
+             machine label{binders}(value: {input}) -> {result} {{\n\
                  \"label\"\n\
              }}\n\
              machine take(view: &[u8]) {{ }}"
@@ -47,25 +47,73 @@ fn an_ordinary_published_header_retains_its_declared_result_lifetime_relation() 
             panic!("both lifetime promises admit the literal body: {verdict:?}");
         };
         let publication = accepted.publish_invocation().unwrap();
-        let module = publication.artifact.view().module();
-        let mut declarations = module
-            .machines
-            .iter()
-            .filter_map(|machine| machine.declaration.as_ref())
-            .filter(|declaration| {
+        let signature = |module: &terminal_psi::TerminalModule| {
+            let mut declarations = module
+                .machines
+                .iter()
+                .filter_map(|machine| machine.declaration.as_ref())
+                .filter(|declaration| {
+                    module
+                        .identities
+                        .text(declaration.callable)
+                        .is_some_and(|identity| identity.contains("label"))
+                });
+            let declaration = declarations.next().expect("label's published header");
+            assert!(declarations.next().is_none());
+            (
+                declaration
+                    .parameter_types
+                    .iter()
+                    .map(|identity| module.identities.text(*identity).unwrap().to_owned())
+                    .collect::<Vec<_>>(),
                 module
                     .identities
-                    .text(declaration.callable)
-                    .is_some_and(|identity| identity.contains("label"))
-            });
-        let declaration = declarations.next().expect("label's published header");
-        assert!(declarations.next().is_none());
-        declaration.contract
+                    .text(declaration.result_type)
+                    .unwrap()
+                    .to_owned(),
+                declaration.contract,
+            )
+        };
+        let module = publication.artifact.view().module();
+        let original = signature(module);
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        let received = terminal_codec::decode_module(&bytes).unwrap();
+        assert_eq!(
+            signature(&received),
+            original,
+            "receiving retains the promise"
+        );
+        original
     };
+    let related = declared_signature("<'input, 'other>", "&'input [u8]", "&'input [u8]");
+    let chosen = declared_signature("<'input, 'other>", "&'input [u8]", "&'other [u8]");
+    assert_eq!(related.0, chosen.0, "the input promise is unchanged");
     assert_ne!(
-        declared_contract("input"),
-        declared_contract("other"),
+        related.1, chosen.1,
+        "the result carries its own declared relation"
+    );
+    assert_ne!(
+        related.2, chosen.2,
         "an input-related promise must not become a caller-chosen promise through erasure"
+    );
+    assert_eq!(
+        related,
+        declared_signature("<'source, 'independent>", "&'source [u8]", "&'source [u8]"),
+        "renaming binders preserves the declared relation"
+    );
+    assert_eq!(
+        chosen,
+        declared_signature(
+            "<'source, 'independent>",
+            "&'source [u8]",
+            "&'independent [u8]"
+        ),
+        "renaming a caller-chosen binder preserves the promise"
+    );
+    assert_eq!(
+        declared_signature("<'input>", "&'input [u8]", "&'input [u8]"),
+        declared_signature("", "&[u8]", "&[u8]"),
+        "elision publishes the same unique input relation"
     );
 }
 

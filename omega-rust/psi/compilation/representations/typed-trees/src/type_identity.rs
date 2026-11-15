@@ -309,6 +309,50 @@ pub(crate) mod callable_identity {
             owner: &TraitDefinition,
             requirement: &StateSignature,
         ) -> Option<(Vec<String>, String, usize)> {
+            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
+            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+            self.signature_definition_types(
+                super::callable_type_binders(owner.symbol, &type_parameters),
+                (requirement.symbol, requirement.symbol),
+                &[
+                    (owner.symbol, owner.lifetime_parameters.len()),
+                    (requirement.symbol, requirement.lifetime_parameters.len()),
+                ],
+                self.state_signature_parameters(requirement),
+                requirement.return_type,
+            )
+        }
+
+        /// Keep a machine's declared lifetime relation in its published type
+        /// identities. Overload identity deliberately omits this information;
+        /// a checked declaration must retain the stronger source promise.
+        pub fn machine_definition_types(&self, machine: &Machine) -> Option<(Vec<String>, String)> {
+            let [entry] = self.machine_states(machine) else {
+                return None;
+            };
+            // Captured lifetimes keep their portable declaration owner. Only
+            // this callable's own binders receive schema ordinals; otherwise
+            // a captured region absent from the inputs could look universal.
+            let lifetime_owner = self.lifetime_declaration_owner(machine.symbol);
+            let declared = super::declaration_lifetime_parameters(self, lifetime_owner)?.len();
+            let (parameters, result, _) = self.signature_definition_types(
+                super::callable_type_binders(machine.symbol, self.machine_type_parameters(machine)),
+                (machine.symbol, entry.symbol),
+                &[(lifetime_owner, declared)],
+                self.state_parameters(entry),
+                entry.return_type,
+            )?;
+            Some((parameters, result))
+        }
+
+        fn signature_definition_types(
+            &self,
+            mut binders: Vec<(symbols::SymbolHandle, String)>,
+            signature: (symbols::SymbolHandle, symbols::SymbolHandle),
+            lifetime_owners: &[(symbols::SymbolHandle, usize)],
+            parameters: &[crate::signature::StateParameter],
+            result: crate::types::TypeReferenceHandle,
+        ) -> Option<(Vec<String>, String, usize)> {
             use super::LifetimeParameterIdentity;
             use super::identity_context::{
                 SignatureElision, TypeIdentityContext, TypeIdentityQualification,
@@ -316,41 +360,35 @@ pub(crate) mod callable_identity {
             };
             use std::cell::Cell;
 
-            let mut type_parameters = self.trait_type_parameters(owner).to_vec();
-            type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
-            let parameters = self.state_signature_parameters(requirement);
-            let mut binders = super::callable_type_binders(owner.symbol, &type_parameters);
             binders.extend(
                 parameters
                     .iter()
                     .enumerate()
                     .map(|(ordinal, parameter)| (parameter.symbol, format!("$value{ordinal}"))),
             );
-            let lifetimes = [
-                (owner.symbol, owner.lifetime_parameters.len()),
-                (requirement.symbol, requirement.lifetime_parameters.len()),
-            ]
-            .into_iter()
-            .flat_map(|(declaration, count)| {
-                (0..count).map(move |ordinal| LifetimeParameterIdentity {
-                    declaration,
-                    ordinal,
+            let lifetimes = lifetime_owners
+                .iter()
+                .copied()
+                .flat_map(|(declaration, count)| {
+                    (0..count).map(move |ordinal| LifetimeParameterIdentity {
+                        declaration,
+                        ordinal,
+                    })
                 })
-            })
-            .enumerate()
-            .map(|(ordinal, lifetime)| (lifetime, ordinal))
-            .collect::<Vec<_>>();
+                .enumerate()
+                .map(|(ordinal, lifetime)| (lifetime, ordinal))
+                .collect::<Vec<_>>();
             let invalid = Cell::new(false);
-            let outer = owner.lifetime_parameters.len();
-            let declared = requirement.lifetime_parameters.len();
-            let elision = SignatureElision::inputs(outer + declared);
+            let declared = lifetime_owners.last()?.1;
+            let outer = lifetimes.len() - declared;
+            let elision = SignatureElision::inputs(lifetimes.len());
             let context = TypeIdentityContext {
                 binders: &binders,
                 lifetime_binders: &lifetimes,
                 signature_elision: Some(&elision),
-                application_owner: requirement.symbol,
-                application_argument_owner: requirement.symbol,
-                signature_owners: Some((requirement.symbol, requirement.symbol)),
+                application_owner: signature.0,
+                application_argument_owner: signature.0,
+                signature_owners: Some(signature),
                 qualification: TypeIdentityQualification::PackageQualified,
                 invalid_application: Some(&invalid),
                 invalid_index_argument: Some(&invalid),
@@ -365,10 +403,10 @@ pub(crate) mod callable_identity {
                 .iter()
                 .map(|parameter| declared_type(parameter.type_reference))
                 .collect::<Option<Vec<_>>>()?;
-            // The requirement's one lifetime, declared or minted, is the
-            // first after the owner's.
+            // Only the callable's own lifetimes participate in output
+            // elision; enclosing lifetimes remain distinct captured regions.
             elision.enter_result(declared, outer);
-            let result = declared_type(requirement.return_type)?;
+            let result = declared_type(result)?;
             (!invalid.get()).then_some((parameters, result, elision.minted()))
         }
 

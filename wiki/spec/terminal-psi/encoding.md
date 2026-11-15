@@ -1415,6 +1415,18 @@ an optional declaration immediately after its machine id; synthetic bodies may
 omit it. A callback body must retain it, and native admission compares it to the
 caller's selected body.
 
+An ordinary machine's parameter and result type identities retain their declared
+lifetime relation in one signature context. Its own lifetime binders use
+`region(owner(schema),ordinal(...))`; elided inputs mint distinct binders and an
+elided result uses the signature's unambiguous relation under
+[returned-view elision](../language/lifetimes.md#returned-views). Captured
+lifetimes retain their portable declaration owner instead of becoming invocation
+binders. Binder names do not affect these identities. The contract commitment
+uses these same complete type identities, so an input-related result promise
+cannot compare equal to a caller-chosen promise merely because the executable
+types have the same layout. These signature descriptions establish no runtime
+region, backing or loan authority.
+
 A boundary's optional checked callable adds its counted closed method arguments
 and a `u8` execution owner: `0` provider, `1` compiler access initialization,
 `2` compiler access extraction. Other tags reject. Each compiler access
