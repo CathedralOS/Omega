@@ -2131,7 +2131,36 @@ pub(crate) mod record {
         use super::*;
         use crate::engine::execution::operation_kind;
         use semantic_vocabulary::StructuralTypeId;
-        use terminal_psi::OperationKind;
+        use terminal_psi::{OperationKind, StructuralPathQualification};
+
+        fn validate_element_memberships(
+            execution: &TerminalExecution<'_>,
+            child: &ConstructorValue<'_>,
+            required: &[semantic_vocabulary::StructuralDomainId],
+            projected_required: &[StructuralPathQualification],
+        ) -> Result<(), TerminalInterpretError> {
+            let (actual, projected) = child.memberships();
+            if required.iter().any(|domain| !actual.contains(domain)) {
+                return Err(malformed());
+            }
+            for row in projected_required {
+                if projected.contains(row) {
+                    continue;
+                }
+                if let ConstructorValue::Access(value) = child
+                    && !crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
+                        &execution.structural_types(),
+                        value,
+                        execution.structural_cases.as_map(),
+                        &row.path,
+                    )?
+                {
+                    continue;
+                }
+                return Err(malformed());
+            }
+            Ok(())
+        }
 
         impl TerminalExecution<'_> {
             // The same array operation owns the supplied element roster. A
@@ -2148,7 +2177,6 @@ pub(crate) mod record {
                     ElementView, immutable_sequence::ImmutableStructuralSequence,
                 };
                 if !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty()
                     || !result.claims.is_empty()
                     || !result.qualification_establishments.is_empty()
                     || self.result_place_in_use(result.place)
@@ -2159,7 +2187,7 @@ pub(crate) mod record {
                     return Err(malformed());
                 }
                 let mut cursor = self.local_structural_identities.cursor();
-                let descriptor = TerminalStructuralValue::minted(
+                let mut descriptor = TerminalStructuralValue::minted(
                     self.local_structural_identities
                         .allocate_staged(&mut cursor)?,
                     result.structural_type,
@@ -2169,6 +2197,11 @@ pub(crate) mod record {
                 let mut frontier = self.live_affine_frontier.clone();
                 let mut consumed = Vec::new();
                 let mut claim_operands = Vec::new();
+                let (required, projected) = StructuralPathQualification::select(
+                    &[],
+                    &result.projected_qualifications,
+                    &[StructuralPathSegment::AllElements],
+                );
                 let account = self.account.clone();
                 // from_values reserves and meters the complete retained roster
                 // before asking this iterator to construct any element.
@@ -2184,13 +2217,15 @@ pub(crate) mod record {
                         }
                         let transfers =
                             self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
+                        validate_element_memberships(self, &child, &required, &projected)?;
+                        let (whole, child_projected) = child.memberships();
                         let mut value = TerminalStructuralValue::minted(
                             self.local_structural_identities
                                 .allocate_staged(&mut cursor)?,
                             element,
-                            Vec::new(),
+                            whole.to_vec(),
                         );
-                        child.append_memberships(&[], &mut value.projected_qualifications);
+                        value.projected_qualifications = child_projected.to_vec();
                         let destination = StructuralRuntimePlace::from(&value);
                         staged.stage(self, argument, &child, &destination, transfers)?;
                         claim_operands.push((
@@ -2203,11 +2238,7 @@ pub(crate) mod record {
                     }),
                     account.as_ref(),
                 )?;
-                staged.validate_projected_memberships(
-                    self,
-                    &descriptor,
-                    &result.projected_qualifications,
-                )?;
+                descriptor.projected_qualifications = result.projected_qualifications.clone();
                 let claims = self.stage_constructor_claims(
                     super::ResultClaimOrigin::Construction,
                     result,
@@ -2283,6 +2314,11 @@ pub(crate) mod record {
                 let mut frontier = self.live_affine_frontier.clone();
                 let mut consumed = Vec::new();
                 let mut claim_operands = Vec::new();
+                let (required, projected) = StructuralPathQualification::select(
+                    &[],
+                    &result.projected_qualifications,
+                    &[StructuralPathSegment::AllElements],
+                );
                 for (index, argument) in elements.iter().enumerate() {
                     let child = ConstructorValue::resolve(self, argument)?;
                     if argument.access != StructuralAccess::Owned
@@ -2299,18 +2335,13 @@ pub(crate) mod record {
                             u64::try_from(index).map_err(|_| malformed())?,
                         )],
                     };
-                    child
-                        .append_memberships(&destination.path, &mut value.projected_qualifications);
+                    validate_element_memberships(self, &child, &required, &projected)?;
                     claim_operands.push((argument, destination.path.clone()));
                     staged.stage(self, argument, &child, &destination, transfers_custody)?;
                 }
-                value.projected_qualifications.sort();
-                value.projected_qualifications.dedup();
-                staged.validate_projected_memberships(
-                    self,
-                    &value,
-                    &result.projected_qualifications,
-                )?;
+                // Each element delivered the declared domains. Keep the same
+                // family on the aggregate so a checked index can project it.
+                value.projected_qualifications = result.projected_qualifications.clone();
                 let claims = self.stage_constructor_claims(
                     super::ResultClaimOrigin::Construction,
                     result,

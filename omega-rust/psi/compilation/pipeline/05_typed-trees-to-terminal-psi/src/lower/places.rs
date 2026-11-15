@@ -271,7 +271,9 @@ pub(crate) fn declare<'a>(
                     })
                     .collect(),
             },
-            crate::StorageShape::FixedArray { element, length } => {
+            crate::StorageShape::FixedArray {
+                element, length, ..
+            } => {
                 if element.get() >= id.get() || length.literal().is_none() {
                     return Err(refuse(
                         entry,
@@ -303,7 +305,9 @@ pub(crate) fn declare<'a>(
                     access: *access,
                 }
             }
-            crate::StorageShape::ElementView { element, access } => {
+            crate::StorageShape::ElementView {
+                element, access, ..
+            } => {
                 if element.get() >= id.get() {
                     return Err(refuse(
                         entry,
@@ -758,6 +762,28 @@ impl Records<'_> {
                     domain,
                 }
             }));
+        }
+        if let StorageShape::FixedArray {
+            element,
+            qualification,
+            ..
+        }
+        | StorageShape::ElementView {
+            element,
+            qualification,
+            ..
+        } = declaration.shape
+        {
+            prefix.push(StructuralPathSegment::AllElements);
+            self.collect_memberships(
+                element,
+                qualification,
+                prefix,
+                qualifications,
+                machine,
+                memberships,
+            )?;
+            prefix.pop();
         }
         let mut members: Vec<(
             Option<StructuralCaseId>,
@@ -1239,7 +1265,7 @@ impl<'a> Lowering<'a> {
                     selector,
                     fixed,
                 } => {
-                    let (_, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
+                    let (_, _, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
                         return Err(
                             self.internal("sequence projection needs its actual current length")
                         );
@@ -1296,15 +1322,18 @@ impl<'a> Lowering<'a> {
     fn array_element(
         &self,
         array: StructuralTypeId,
-    ) -> Checked<(StructuralTypeId, CollectionExtent)> {
+    ) -> Checked<(StructuralTypeId, Qualification, CollectionExtent)> {
         match self.record_type(array)?.shape {
             StorageShape::FixedArray {
                 element,
+                qualification,
                 length: terminal_psi::ArrayExtent::Literal(length),
-            } => Ok((element, CollectionExtent::Fixed(length))),
-            StorageShape::ElementView { element, .. } => {
-                Ok((element, CollectionExtent::StoredLength))
-            }
+            } => Ok((element, qualification, CollectionExtent::Fixed(length))),
+            StorageShape::ElementView {
+                element,
+                qualification,
+                ..
+            } => Ok((element, qualification, CollectionExtent::StoredLength)),
             _ => Err(self.internal("a collection has no element/extent declaration")),
         }
     }
@@ -1328,7 +1357,7 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
-        let (_, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
+        let (_, _, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
             return Err(self.internal("sequence index needs its actual current length"));
         };
         let fixed = match expression.kind {
@@ -1592,7 +1621,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Index { base, index } => {
                 let mut at = continuing!(self.located(base));
-                let (element, _) = self.array_element(at.record)?;
+                let (element, _, _) = self.array_element(at.record)?;
                 if element != record {
                     return Err(self.internal("an indexed value has another element storage type"));
                 }
@@ -2406,8 +2435,8 @@ impl<'a> Lowering<'a> {
                 else {
                     return Err(self.internal("an indexed place crosses scalar storage"));
                 };
-                let (element, _) = self.array_element(owner)?;
-                let value_type = self.storage_value_type(element, Qualification::NONE)?;
+                let (element, qualification, _) = self.array_element(owner)?;
+                let value_type = self.storage_value_type(element, qualification)?;
                 let step = continuing!(self.index_step(owner, index));
                 let exact = self.step(parent, step)?;
                 steps.push(step);
@@ -2548,13 +2577,13 @@ impl<'a> Lowering<'a> {
         elements: &[Expression],
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
-        let (element_type, length) = self.array_element(array)?;
+        let (element_type, qualification, length) = self.array_element(array)?;
         if let CollectionExtent::Fixed(length) = length
             && u64::try_from(elements.len()).ok() != Some(length)
         {
             return Err(self.internal("an array literal has another extent than its type"));
         }
-        let value_type = self.storage_value_type(element_type, Qualification::NONE)?;
+        let value_type = self.storage_value_type(element_type, qualification)?;
         let mut operands = Vec::with_capacity(elements.len());
         for element in elements {
             if element.result.map(ValueType::erased) != Some(value_type.erased()) {
@@ -3587,6 +3616,7 @@ impl<'a> Lowering<'a> {
             StorageShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
+                ..
             } => {
                 for index in 0..length {
                     prefix.push(Segment::FixedIndex(index));
@@ -3730,6 +3760,7 @@ mod tests {
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {
                 element: wrapping_id,
+                qualification: Qualification::NONE,
                 length: terminal_psi::ArrayExtent::Literal(2),
             },
             requires: Vec::new(),

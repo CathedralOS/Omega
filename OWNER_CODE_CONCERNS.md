@@ -73,6 +73,27 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Stored byte-domain fixtures stop at their primitive predicates
+- Category: knowledge crossing a boundary
+- Where: [subject domain check](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/subjects.rs#L314), [primitive byte domain](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L132), [four byte-domain controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_domains.rs)
+- Saw: On clean `c75dc2fc5e6` on macOS arm64 the four stored-byte domain controls stop with an unknown-machine diagnostic for `valid_utf8(self)`, `ascii_only(self)` or `no_nul(self)`. The suite passed at `900602b2d28`. The exact subject-domain check introduced in `be3dab2f6e9` surfaces the earlier typing refusal before the byte-domain owner consumes the predicate.
+- Cost: The accepted ASCII and UTF-8 values and their invalid twins never reach the checked field stores. Classify the exact primitive at the existing source call and domain owners, preserving the strict subject check and refusals for an actually unresolved call.
+- Reported: 2026-11-15, Codex, while retesting qualified arrays on current main.
+
+### Product loses a copyable record array at constant use
+- Category: knowledge crossing a boundary
+- Where: [computed constant result](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L327), [checked constant reading](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/constant_values.rs#L1)
+- Saw: On macOS arm64 at `7ff185a76e8` with `data Ticket [copy]`, `const TICKETS: [Ticket; 2] = make();` fails with “constant result needs its pure snapshot materializer” when `main` reads `TICKETS[1u64].number`. Calling the same `make` into a local and reading that field exits 0 in both engines. Replacing only the constant initializer with the same two record literals instead loses the array's closed contextual type at the indexed use. The qualified computed-array control reaches the same materializer refusal.
+- Cost: A constant declaration cannot supply the same checked owned value as an ordinary call. Carry the evaluator's exact pure structural snapshot and the declaration's checked carrier through the existing canonical constant materialization and expression reader. Preserve the identity of the initializer and the rejection of references or authority-bearing values as constant snapshots.
+- Reported: 2026-11-15, Codex, while checking record-domain placement through constant names.
+
+### An owned record-sequence literal stops at target lowering
+- Category: knowledge crossing a boundary
+- Where: [native structural construction](omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow_storage.rs#L3397), [Psi immutable backing](omega-rust/psi/interpreter/src/storage_records_and_arrays.rs)
+- Saw: On macOS arm64 at `7ff185a76e8`, `let tickets: [Ticket] = [Ticket { number: 11u32 }];` in the entry machine refuses with `UnsupportedControlFlow` at `control_flow_storage.rs:3397`. Both `omega run --engine native` and `omega run --engine psi` exit 200 during product compilation at that site. Changing only the local's type to `[Ticket; 1]` reaches exit 0 in both engines.
+- Cost: Product execution cannot construct an owned record sequence from its literal. Target lowering receives the checked element roster but accepts only an inline fixed array for this operation. Complete the existing owned backing and element descriptor handoff through target placement, including ownership when a sequence leaves its creating machine.
+- Reported: 2026-11-15, Codex, while checking structural domains in arrays.
+
 ### A published edge discards an unrestricted record as though it owns affine contents
 - Category: knowledge crossing a boundary
 - Where: [published copyable-discard control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/owned_dispatch.rs#L171), [schedule verification](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L626), [runtime edge preflight](omega-rust/psi/interpreter/src/engine_terminators.rs#L242)
@@ -168,7 +189,7 @@ framework or a list of features that remain unimplemented.
 ### Some record-domain placements still have no checked representation
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/qualifications.rs` (`declare_structural`, `structural_establishments`); `lower/places.rs` (`value_memberships`); `terminal-psi/semantics/src/structural_qualifications.rs`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (boundary calls with qualified structural formals)
-- Saw: the lowered checker forms each declared record-domain predicate with the default facts of its own carrier. Field sites prove the clauses at their storage paths. A cast still refuses domains with predicates because it cannot prove their complete membership theory. A cast through a requirement route is refused because the lowered form carries a conformance edge only as the closed application of a selected call. Domains on array elements and qualified boundary results are refused. A host value issued by the evaluator receives its formal's memberships only at the Build entry.
+- Saw: the lowered checker forms each declared record-domain predicate with the default facts of its own carrier. Field sites prove the clauses at their storage paths. A cast still refuses domains with predicates because it cannot prove their complete membership theory. A cast through a requirement route is refused because the lowered form carries a conformance edge only as the closed application of a selected call. Qualified boundary results are refused. A host value issued by the evaluator receives its formal's memberships only at the Build entry.
 - Cost: programs using those placements are refused or require the Build entry to supply the membership.
 - Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts; narrowed 2026-11-15, Claude Code, after carrying record domains into the lowered checker
 

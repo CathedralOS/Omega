@@ -341,10 +341,12 @@ pub enum StorageShape {
     // actual immutable backing must still be established by its producer.
     ElementView {
         element: StructuralTypeId,
+        qualification: Qualification,
         access: Option<terminal_psi::StructuralAccess>,
     },
     FixedArray {
         element: StructuralTypeId,
+        qualification: Qualification,
         length: terminal_psi::ArrayExtent,
     },
     AtomicCell(semantic_vocabulary::AtomicCellType),

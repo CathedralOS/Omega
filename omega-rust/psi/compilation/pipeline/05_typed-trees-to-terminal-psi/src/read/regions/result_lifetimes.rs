@@ -280,7 +280,9 @@ impl Frontier<'_, '_> {
             );
         }
         let known = match &source.shape {
-            StorageShape::FixedArray { element, length } => {
+            StorageShape::FixedArray {
+                element, length, ..
+            } => {
                 if length.literal() == Some(0) {
                     true
                 } else {
@@ -290,7 +292,9 @@ impl Frontier<'_, '_> {
                     known
                 }
             }
-            StorageShape::ElementView { element, access } => {
+            StorageShape::ElementView {
+                element, access, ..
+            } => {
                 let mut elements = regions;
                 if let Some(access) = access {
                     let Some((region, nested)) = regions.split_first() else {

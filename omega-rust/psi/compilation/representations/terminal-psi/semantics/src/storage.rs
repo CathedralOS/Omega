@@ -4191,14 +4191,19 @@ pub(crate) mod structural_locals {
                 | StructuralTypeShape::Sum { .. }
                 | StructuralTypeShape::Mixed { .. }
         );
-        let projects_referent = matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-            && result
-                .projected_qualifications
-                .iter()
-                .all(|row| row.path.first() == Some(&StructuralPathSegment::Referent));
-        if (!result.projected_qualifications.is_empty() && !record && !projects_referent)
-            || (!result.qualifications.is_empty() && !byte_view && !record)
-        {
+        let projected = &result.projected_qualifications;
+        let declares_contents = record
+            || match declaration.shape {
+                StructuralTypeShape::Reference { .. } => projected
+                    .iter()
+                    .all(|row| row.path.first() == Some(&StructuralPathSegment::Referent)),
+                StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::ElementView { .. } => {
+                    projected.iter().all(|row| row.is_element_membership())
+                }
+                _ => projected.is_empty(),
+            };
+        if !declares_contents || (!result.qualifications.is_empty() && !byte_view && !record) {
             return Err("vacant structural local has invalid declared qualifications");
         }
         Ok(())

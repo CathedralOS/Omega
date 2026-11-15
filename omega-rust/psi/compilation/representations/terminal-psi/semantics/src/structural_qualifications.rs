@@ -68,24 +68,9 @@ impl Memberships {
     /// path is exactly `path` become whole-value domains, the rows beneath it
     /// keep the rest of their path.
     pub fn beneath(&self, path: &[StructuralPathSegment]) -> Self {
-        if path.is_empty() {
-            return self.clone();
-        }
-        let mut result = Self::default();
-        for row in &self.projected {
-            let Some(rest) = row.path.strip_prefix(path) else {
-                continue;
-            };
-            if rest.is_empty() {
-                result.whole.push(row.domain);
-            } else {
-                result.projected.push(StructuralPathQualification {
-                    path: rest.to_vec(),
-                    domain: row.domain,
-                });
-            }
-        }
-        Self::of(&result.whole, &result.projected)
+        let (whole, projected) =
+            StructuralPathQualification::select(&self.whole, &self.projected, path);
+        Self { whole, projected }
     }
 }
 
@@ -208,12 +193,16 @@ fn judged_elsewhere(module: &TerminalModule, id: StructuralDomainId) -> bool {
 /// restriction and no prerequisite. Its predicates, if any, are clauses of the
 /// owning type, which the proof kernel owes at the provisioning operation
 /// exactly as for a scalar field.
-fn zero_admits(module: &TerminalModule, id: StructuralDomainId) -> bool {
-    domain(module, id).is_some_and(|domain| {
+fn zero_admits(module: &TerminalModule, row: &StructuralPathQualification) -> bool {
+    domain(module, row.domain).is_some_and(|domain| {
         domain.byte_predicate.is_none()
             && domain.content_projection.is_none()
             && domain.establishment_routes.is_none()
             && domain.has_no_required_memberships()
+            // A domain of every element has no owning record field whose
+            // default-domain clauses could prove its predicate at zero.
+            && (row.path.last() != Some(&StructuralPathSegment::AllElements)
+                || domain.predicate.is_none())
     })
 }
 
@@ -591,6 +580,27 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                         );
                     }
                 }
+                OperationKind::EstablishStructuralArray { elements } => {
+                    if !produced.whole.is_empty()
+                        || produced.projected.iter().any(|row| {
+                            row.path.first() != Some(&StructuralPathSegment::AllElements)
+                        })
+                    {
+                        return malformed(
+                            id,
+                            "a collection literal can declare only the domains of its elements",
+                        );
+                    }
+                    let expected = produced.beneath(&[StructuralPathSegment::AllElements]);
+                    for element in elements {
+                        require_exact(
+                            &places,
+                            &places.argument(element),
+                            &expected,
+                            "a collection element does not deliver its declared domains",
+                        )?;
+                    }
+                }
                 // A reference carries the source's exact memberships at
                 // the referent, including the source's whole-value domains.
                 OperationKind::EstablishReference { source, .. } => {
@@ -630,7 +640,7 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                         || produced
                             .projected
                             .iter()
-                            .any(|row| !zero_admits(module, row.domain))
+                            .any(|row| !zero_admits(module, row))
                     {
                         return malformed(
                             id,
