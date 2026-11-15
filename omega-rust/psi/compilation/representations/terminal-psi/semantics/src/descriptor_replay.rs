@@ -1042,13 +1042,6 @@ pub(crate) mod analysis {
                     .effects
                     .iter()
                     .flat_map(|effect| &effect.origins)
-                    .chain(
-                        summary
-                            .result
-                            .iter()
-                            .flatten()
-                            .flat_map(|slot| &slot.origins),
-                    )
                     .any(|origin| matches!(origin, DescriptorStoredOrigin::Provider(_)))
                 {
                     return None;
@@ -1176,7 +1169,19 @@ pub(crate) mod analysis {
                             step.definitions.push(location.clone());
                         }
                     }
-                    for origin in origins {
+                    // Provider debts preserve liveness only. Their inputs do
+                    // not locate the provider's result or grant alias authority.
+                    let mut pending: Vec<_> = origins.iter().map(|origin| (origin, true)).collect();
+                    while let Some((origin, backing)) = pending.pop() {
+                        if let DescriptorStoredOrigin::Provider(provider) = origin {
+                            pending.extend(
+                                provider
+                                    .lifetime_dependencies
+                                    .iter()
+                                    .map(|debt| (&debt.origin, false)),
+                            );
+                            continue;
+                        }
                         let source = match origin {
                             DescriptorStoredOrigin::Invocation { .. }
                             | DescriptorStoredOrigin::Literal { .. }
@@ -1245,7 +1250,8 @@ pub(crate) mod analysis {
                                 .canonical_storage(machine, before, &source, None)?,
                             destination.clone(),
                         );
-                        if matches!(origin, DescriptorStoredOrigin::Parameter { .. })
+                        if backing
+                            && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
                             && let Some(rules) = residence_rules.as_deref_mut()
                         {
                             let source_type = descriptor_location_type(
@@ -1261,6 +1267,7 @@ pub(crate) mod analysis {
                         }
                         step.derivations.push(pair.clone());
                         if strong
+                            && backing
                             && match origin {
                                 DescriptorStoredOrigin::Parameter { projection, .. } => {
                                     projection.exact
@@ -6379,7 +6386,7 @@ pub(crate) mod provider {
         ) -> Option<DescriptorProviderOrigin<Mapped>> {
             Some(DescriptorProviderOrigin {
                 boundary: self.boundary,
-                output: self.output,
+                output: self.output.clone(),
                 invocations: self.invocations.clone(),
                 projection: self.projection.clone(),
                 lifetime_dependencies: self
@@ -6431,7 +6438,7 @@ pub(crate) mod provider {
             Some(BTreeSet::from([Origin::Provider(
                 DescriptorProviderOrigin {
                     boundary: provider.boundary,
-                    output: provider.output,
+                    output: provider.output.clone(),
                     invocations,
                     projection: provider.projection.clone(),
                     lifetime_dependencies: dependencies.into_iter().collect(),

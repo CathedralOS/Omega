@@ -5,7 +5,12 @@ Semantic judgments for structural reference origins, placed loan regions, reborr
 reference access capabilities.
 */
 
+mod boundary_results;
 mod selected_results;
+pub(crate) use boundary_results::provider_lifetime_debts;
+pub use boundary_results::{
+    boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
+};
 pub(crate) use selected_results::validate_result_lifetime_groups;
 pub use selected_results::{SelectedReferenceResult, selected_reference_result};
 
@@ -243,70 +248,92 @@ pub(crate) mod reference_completion {
             result.structural_type,
         );
         let Some(call) = operation.declared_invocation() else {
-            return if returns_reference
-                && matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::CallDynamic { .. }
-                ) {
-                Err("returned dynamic reference needs its admitted completion resource")
+            return if matches!(
+                operation.kind,
+                terminal_psi::OperationKind::CallDynamic { .. }
+            ) {
+                Err(if returns_reference {
+                    "returned dynamic reference needs its admitted completion resource"
+                } else {
+                    "returned dynamic view needs its declared lifetime contract"
+                })
             } else {
                 Ok(Vec::new())
             };
         };
-        let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee else {
-            // A view from a boundary relates to its inputs only through the
-            // boundary's declared result lifetimes, which are not published
-            // yet (OWNER_CODE_CONCERNS.md). Its descriptor flow still keeps
-            // every view passed in live for the result's use.
-            return if returns_reference {
-                Err("returned boundary reference needs its admitted completion resource")
-            } else {
-                Ok(Vec::new())
-            };
+        let (declared_parameters, slots, actual, public) = match call.callee {
+            terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+                if returns_reference {
+                    return Err(
+                        "returned boundary reference needs its admitted completion resource",
+                    );
+                }
+                let declaration = module
+                    .boundary_machine(boundary)
+                    .ok_or("returned boundary view has no exact declaration")?;
+                let slots = crate::boundary_result_slots(
+                    &module.structural_types,
+                    declaration,
+                    crate::descriptor_results::DescriptorSlotKind::Views,
+                    result,
+                )?;
+                (
+                    declaration.structural_parameters.as_slice(),
+                    slots,
+                    Vec::new(),
+                    None,
+                )
+            }
+            terminal_psi::TargetMachineCallable::Machine(callee) => {
+                let callee = module
+                    .machine(callee)
+                    .ok_or("returned reference call has no actual callee body")?;
+                let signature = callee
+                    .result
+                    .structural()
+                    .ok_or("returned reference call has no structural result contract")?;
+                if result.structural_type != signature.structural_type
+                    || result.multiplicity != signature.multiplicity
+                {
+                    return Err("returned reference call changes its declared result carrier");
+                }
+                let slots = analysis.result_slots(callee.id).ok_or(
+                    "returned reference callee has no complete actual source correspondence",
+                )?;
+                let actual = if returns_reference {
+                    super::reference_origins::reference_result_sources(
+                        &module.structural_types,
+                        &callee.structural_parameters,
+                        signature,
+                        &slots,
+                    )?
+                } else {
+                    Vec::new()
+                };
+                if actual != signature.reference_sources {
+                    return Err("returned reference header differs from its actual body origins");
+                }
+                let public = call
+                    .required_contract
+                    .filter(|_| returns_reference)
+                    .map(|required| {
+                        super::selected_reference_result(module, caller.id, callee.id, required)
+                    })
+                    .transpose()?;
+                if let Some(public) = &public {
+                    public.validate_actual_sources(&callee.structural_parameters, &actual)?;
+                }
+                (
+                    callee.structural_parameters.as_slice(),
+                    slots,
+                    actual,
+                    public,
+                )
+            }
         };
-        let callee = module
-            .machine(callee)
-            .ok_or("returned reference call has no actual callee body")?;
-        let signature = callee
-            .result
-            .structural()
-            .ok_or("returned reference call has no structural result contract")?;
-        if result.structural_type != signature.structural_type
-            || result.multiplicity != signature.multiplicity
-        {
-            return Err("returned reference call changes its declared result carrier");
-        }
-        let slots = analysis
-            .result_slots(callee.id)
-            .ok_or("returned reference callee has no complete actual source correspondence")?;
-        let actual = if returns_reference {
-            super::reference_origins::reference_result_sources(
-                &module.structural_types,
-                &callee.structural_parameters,
-                signature,
-                &slots,
-            )?
-        } else {
-            Vec::new()
-        };
-        if actual != signature.reference_sources {
-            return Err("returned reference header differs from its actual body origins");
-        }
-        let public = call
-            .required_contract
-            .filter(|_| returns_reference)
-            .map(|required| {
-                super::selected_reference_result(module, caller.id, callee.id, required)
-            })
-            .transpose()?;
-        if let Some(public) = &public {
-            public.validate_actual_sources(&callee.structural_parameters, &actual)?;
-        }
-        let parameters = public
-            .as_ref()
-            .map_or(callee.structural_parameters.as_slice(), |public| {
-                public.contract().structural_parameters.as_slice()
-            });
+        let parameters = public.as_ref().map_or(declared_parameters, |public| {
+            public.contract().structural_parameters.as_slice()
+        });
         let bindings = if !returns_reference {
             Vec::new()
         } else if let Some(public) = &public {
@@ -469,7 +496,19 @@ pub(crate) mod reference_completion {
                 root: result.place,
                 path: slot.path.clone(),
             };
-            for origin in &slot.origins {
+            let mut origins: Vec<_> = slot.origins.iter().collect();
+            while let Some(origin) = origins.pop() {
+                if let crate::descriptor_results::DescriptorStoredOrigin::Provider(provider) =
+                    origin
+                {
+                    origins.extend(
+                        provider
+                            .lifetime_dependencies
+                            .iter()
+                            .map(|debt| &debt.origin),
+                    );
+                    continue;
+                }
                 let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
                     position,
                     projection,
@@ -480,8 +519,7 @@ pub(crate) mod reference_completion {
                 // A formal that is itself a view hands back the descriptor
                 // it was given, or a window of it: that view's backing is
                 // the original one, not the argument's storage.
-                let formal = callee
-                    .structural_parameters
+                let formal = parameters
                     .get(*position)
                     .and_then(|formal| module.structural_type(formal.structural_type))
                     .ok_or("returned view input has no typed formal")?;
@@ -2010,15 +2048,21 @@ pub(crate) mod reference_origins {
                         .map(|p| (p.structural_type, p.access))
                 },
                 true,
+                slot.result_reference_regions.len(),
             )
         }
 
-        pub fn validate_boundary_reference_regions<'types>(
-            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        pub fn validate_boundary_reference_regions(
+            types: &[StructuralTypeDeclaration],
             boundary: &terminal_psi::BoundaryMachineDeclaration,
         ) -> Result<(), &'static str> {
+            let groups = crate::boundary_result_lifetimes(types, boundary)?;
+            let maximum_leaves = crate::references::validate_result_lifetime_groups(groups)?;
+            // The logical contract inventories provider-owned views too. They
+            // consume the bounded traversal budget without requiring spatial
+            // regions that would falsely place their backing inside inputs.
             validate_reference_regions(
-                types,
+                types.iter(),
                 &boundary.result,
                 &boundary.result_reference_regions,
                 |index| {
@@ -2028,6 +2072,7 @@ pub(crate) mod reference_origins {
                         .map(|p| (p.structural_type, p.access))
                 },
                 false,
+                maximum_leaves,
             )
         }
 
@@ -2037,6 +2082,7 @@ pub(crate) mod reference_origins {
             regions: &[terminal_psi::TerminalDynamicReferenceRegion],
             parameter: impl Fn(usize) -> Option<(StructuralTypeId, StructuralAccess)>,
             include_views: bool,
+            maximum_leaves: usize,
         ) -> Result<(), &'static str> {
             let BoundaryMachineResult::Structural(result) = result else {
                 return if regions.is_empty() {
@@ -2052,7 +2098,7 @@ pub(crate) mod reference_origins {
                 types.clone(),
                 result.structural_type,
                 result.multiplicity,
-                regions.len(),
+                maximum_leaves,
             )?;
             if leaves
                 .iter()

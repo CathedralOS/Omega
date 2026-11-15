@@ -2433,11 +2433,8 @@ pub(crate) mod declaration_foundations {
             return malformed("boundary machine has an unknown attachment type");
         }
         validate_structural_parameters(module, &boundary.structural_parameters)?;
-        terminal_semantics::validate_boundary_reference_regions(
-            module.structural_types.iter(),
-            boundary,
-        )
-        .map_err(CodecError::MalformedStructuralFoundation)?;
+        terminal_semantics::validate_boundary_reference_regions(&module.structural_types, boundary)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         super::reference_outputs::validate(module, boundary)?;
         super::scalar_observations::boundary(module, boundary)?;
         if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
@@ -4543,6 +4540,8 @@ pub(crate) mod reference_outputs {
         module: &TerminalModule,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<(), CodecError> {
+        terminal_semantics::boundary_result_lifetimes(&module.structural_types, boundary)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         if !provider_outputs_cover_writable_slots(&module.structural_types, boundary) {
             return malformed("boundary reference parameter contract has incomplete leaf coverage");
         }
@@ -5028,6 +5027,7 @@ pub(crate) mod scalar_applications {
                 scalar_requires: Vec::new(),
                 scalar_ensures: Vec::new(),
                 result_reference_regions: Vec::new(),
+                result_lifetimes: None,
                 reference_outputs: Vec::new(),
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
