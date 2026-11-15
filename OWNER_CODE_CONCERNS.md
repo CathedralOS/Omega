@@ -73,13 +73,6 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Intersecting target handoffs leave structural case legalization unbuildable
-- Category: a verdict with nothing behind it
-- Where: [structural case input](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_control.rs#L274), [legalized terminator output](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_control.rs#L367)
-- Saw: `mbx build -p omega` on clean `5dc7317f3d8` (macOS arm64) fails in `target-operations-to-selected-instructions` with E0027 and E0063. The structural case reader added by #3390 still matches and constructs the earlier terminator shapes after #3397 added `psi_block` and `indices` to both.
-- Cost: The CLI cannot build to check or execute a program. Carry the checked case evidence through its proper legalization path and verify both static and runtime-indexed dispatch.
-- Reported: 2026-11-15, Codex, while checking projected carrier formation.
-
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
 - Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
