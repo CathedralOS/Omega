@@ -178,7 +178,9 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
-        reference_source_geometry_with_leaf_type(root, path, declarations, descriptor_leaf_type)
+        reference_geometry(root, path, declarations, |root, path| {
+            descriptor_projection(root, path, declarations)
+        })
     }
 
     pub fn reference_formation_geometry<'types>(
@@ -200,24 +202,39 @@ pub(crate) mod structural_reference_input {
         })
     }
 
-    fn descriptor_leaf_type(field: &StructuralFieldType) -> Option<StructuralFieldType> {
-        field
-            .byte_sequence_carrier()
-            .map(|carrier| {
-                StructuralFieldType::ByteSequence(match carrier {
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+    fn descriptor_projection(
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        declarations: &NativeGeometry<'_>,
+    ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+        use terminal_psi::ByteSequenceCarrier;
+
+        runtime_projection_with_leaf_type(root, path, declarations, |field_type| {
+            let Some(carrier) = field_type.byte_sequence_carrier() else {
+                return field_type.canonical_leaf_type();
+            };
+            let field =
+                terminal_semantics::runtime_structural_field(declarations.iter(), root, path)?;
+            if field.inline_carrier.is_some() {
+                let carrier =
+                    terminal_semantics::inline_carrier_declaration(declarations.iter(), field)?;
+                return Some(StructuralFieldType::Structural(carrier.id));
+            }
+            // Only an inline field without a declared carrier uses the older
+            // shape-based lookup. An authored carrier must resolve exactly.
+            Some(StructuralFieldType::ByteSequence(match carrier {
+                ByteSequenceCarrier::BorrowedView { .. } => {
+                    ByteSequenceCarrier::BorrowedView { access: None }
+                }
+                ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                    ByteSequenceCarrier::BoundedView {
+                        access: None,
+                        capacity,
                     }
-                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
-                        terminal_psi::ByteSequenceCarrier::BoundedView {
-                            access: None,
-                            capacity,
-                        }
-                    }
-                    owned => owned,
-                })
-            })
-            .or_else(|| field.canonical_leaf_type())
+                }
+                owned => owned,
+            }))
+        })
     }
 
     pub(crate) fn reference_source_geometry(
@@ -249,7 +266,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
-        reference_source_geometry_with_leaf_type(root, path, declarations, descriptor_leaf_type)
+        descriptor_source_geometry(root, path, declarations)
     }
 
     pub(crate) fn leaf_copy_geometry(
@@ -330,12 +347,8 @@ pub(crate) mod structural_reference_input {
             ) {
                 continue;
             }
-            let selected = runtime_projection_with_leaf_type(
-                root,
-                &path[segment_start..position],
-                declarations,
-                descriptor_leaf_type,
-            );
+            let selected =
+                descriptor_projection(root, &path[segment_start..position], declarations);
             let Some((carrier, byte_offset, region_elements)) = selected else {
                 if *segment == StructuralPathSegment::Referent {
                     return None;
