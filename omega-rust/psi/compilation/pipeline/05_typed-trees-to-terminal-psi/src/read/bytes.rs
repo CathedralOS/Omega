@@ -108,6 +108,7 @@ pub(super) fn source_byte_view(
         retained if retained.is_valid() => retained,
         _ => lexical_owner,
     };
+    super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
     // The carrier's identity: a view with domains stores the same
     // descriptor as the view without them, so both are one row and the
     // domains are the value's qualification (`view_type`).
