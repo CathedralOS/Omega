@@ -30,7 +30,7 @@
     {
       "id": 1,
       "name": "named-board-respects-selection",
-      "prompt": "keep the compiler moving \u2014 take the next thing off TASKS_OPTIMIZER.md",
+      "prompt": "keep the compiler moving — take the next thing off TASKS_OPTIMIZER.md",
       "status": "Not run against this revision",
       "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
       "files": [],
@@ -364,35 +364,34 @@
         "Honors the explicit stopping point over automatic capability continuation",
         "Does not claim the broader task is complete",
         "Does not launch agents or take an unrelated task",
-        "A checking, proof, or lowering repair inside that sample is still not done until the fact-place fixtures pass, including a native run; a miss generalizes the operation"
+        "A checking, proof, or lowering repair inside that sample is not done until the sample and its negative twin pass, including a native run; a miss means the operation's mechanism is too narrow"
       ]
     },
     {
       "id": 23,
       "name": "saturated-facts-draw-from-board-not-parameters",
-      "prompt": "advance the compiler. Every fact folder under samples/cli/facts has its nine places and twins, and the facts queue is green. nine_arg_stack_calling_plan through thirty_arg_stack_calling_plan exist, and thirtythree_arg_stack_calling_plan does not.",
+      "prompt": "advance the compiler. Every program under samples/cli/facts passes with its negative twins. nine_arg_stack_calling_plan through thirty_arg_stack_calling_plan exist, and thirtythree_arg_stack_calling_plan does not.",
       "status": "Not run against this revision",
-      "expected_output": "Select an open TASKS.md item's remaining acceptance, write the new fact for that requirement, and name the item in the fact README; do not add another argument count, width or extension pair of an existing row.",
+      "expected_output": "Select an open TASKS.md item's remaining acceptance and repair the program it names. samples/cli/facts/ is frozen, so any new program goes beside its test under tests/fixtures/. Do not add another argument count, width or extension pair of an existing program.",
       "files": [],
       "assertions": [
         "Does not create thirtythree_arg_stack_calling_plan or another folder that changes only a count, width, arity or extension pair",
-        "Names the TASKS.md item and exact requirement the new fact discharges",
-        "Verifies the requirement's gap using an optimized exact-source producer for the recorded fixed base"
+        "Names the TASKS.md item and exact requirement the repair meets",
+        "Confirms the gap with an optimized omega build at the recorded base commit"
       ]
     },
     {
       "id": 24,
       "name": "dropped-requirement-stays-one-fact",
-      "prompt": "Advance the compiler. A fact place fails because the producing layer dropped a requirement on the value it emitted. A one-production recognizer would make this place pass. Another production of that same layer drops the same requirements.",
+      "prompt": "Advance the compiler. A program fails because a compiler stage dropped a requirement on a value it produced. Code that recognizes only this one form of the value would make the program pass. Another form the same stage produces drops the same requirements.",
       "status": "Not run against this revision",
-      "expected_output": "The fact sentence names the requirements the producing layer records on the emitted value. The consuming operation uses that list. The compiler records the list for the next layer to read. The next production stays in the same fact folder.",
+      "expected_output": "The stage records the requirements on every value it produces, and the operation that consumes the value reads that list, so every form is fixed at once. The program's description names those requirements. No separate program or folder is opened for the other form.",
       "files": [],
       "assertions": [
-        "The fact sentence names the recorded requirements, and every place copies that sentence",
-        "The reject twin removes one requirement from the list and the diagnostic is that missing requirement",
-        "The compiler edit records the requirement list on the emitted value instead of recognizing one production",
-        "The next production of that layer stays in the same fact folder",
-        "Does not open a separate fact folder for the next production of the same dropped requirements"
+        "The program's description names the recorded requirements",
+        "The negative twin removes one requirement and its error names that missing requirement",
+        "The compiler edit records the requirement list on the produced value instead of recognizing one form",
+        "Does not open a separate program or folder for the other form of the same dropped requirements"
       ]
     },
     {

@@ -1,167 +1,157 @@
 ---
 name: task-board-cleanup
-description: Audit, reframe, merge, and debloat Omega execution boards into cohesive end-to-end sample outcomes sized for a single agent loop. Use for task-list cleanup, reframing stage-sliced tasks into end-to-end pipeline samples, merging over-split tasks by similarity, stale-task audits, or a board-wide cleanup campaign. Not routine task updates during implementation, new-task mining, or swarm scheduling.
+description: Audit, reframe, merge, and debloat Omega execution boards so each item is one end-to-end sample outcome a single agent can finish in one loop. Use for task-list cleanup, reframing stage-sliced tasks into end-to-end pipeline samples, merging over-split tasks by similarity, stale-task audits, or a board-wide cleanup campaign. Not routine task updates during implementation, new-task mining, or swarm scheduling.
 ---
 
 # Task Board Cleanup
 
-Make the requested board trustworthy enough to assign work without rediscovering
-the problem, and shape each item so a single capable agent can carry a complete
-path end to end without stage handoffs or fragmented sub-tasks.
+Clean the requested board so an item can be assigned without rediscovering the
+problem, and so a single agent can carry each item through every compiler
+stage without handoffs or split-off fragments.
 
 Read [AGENTS.md](../../../AGENTS.md), especially [the sample loop](../../../AGENTS.md#the-sample-loop)
-and the board and validation rules, and follow its worktree, claims and
-publication procedures. The invocation determines scope and persistence; paths
-are advisory under AGENTS.md. A review-only request produces findings.
+and its board and testing rules, and follow its worktree, claims and landing
+procedures. The request sets scope and whether you commit; paths here are
+suggestions under AGENTS.md. A review-only request produces findings, not edits.
 
 ## How tasks enter and live on the board
 
-Board tasks follow one flow:
+Every board task follows three steps:
 
-1. **An issue or capability gap is found** (a spec requirement, a customer
-   blocker, or a construct that fails checking, lowering, or execution).
-2. **It is framed as an end-to-end outcome:** the task names the existing
-   executable sample or customer program, its invalid controls, and what must
-   work through the lowered-form checker, Terminal Psi, and native/Psi
-   execution (`omega run --both`). Use the current pipeline owners in
-   [AGENTS.md](../../../AGENTS.md#law-of-completion); never send repairs back
-   through the frozen checker. Do not frame a task as a list of places to
-   cover one by one ([sample loop](../../../AGENTS.md#the-sample-loop)).
-   `samples/cli/facts/` is frozen. New regression programs belong beside the
-   changed code's test under `tests/fixtures/`, normally one focused
-   positive/negative pair, within the repository's per-PR file limit.
-3. **It is merged with similar tasks into one main agent loop:** related
-   witnesses, caller families, and migration steps that share the same
-   mechanism, representation, or subsystem context are folded into one cohesive
-   outcome so a single agent can complete them alongside each other in one
-   continuous loop ([When to fold subagents into your main agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)).
+1. **Someone finds a problem or missing capability**: a spec requirement, a
+   customer blocker, or a construct that fails checking, lowering or execution.
+2. **The task is written as an end-to-end outcome.** It names the existing
+   runnable sample or customer program, its negative twins (see the
+   [glossary](../../../AGENTS.md)), and what must work through the lowered-form
+   checker, Terminal Psi, and native/Psi execution (`omega run --both`). Assign
+   repairs to the current stage owners in [AGENTS.md](../../../AGENTS.md#law-of-completion);
+   the old tree checker is removed, so never route a repair to it. Do not list
+   places to cover one by one ([sample loop](../../../AGENTS.md#the-sample-loop)).
+   `samples/cli/facts/` is frozen. A new regression program goes beside the
+   changed code's test under `tests/fixtures/`, normally one positive/negative
+   pair, within the per-PR file limit.
+3. **It is merged with similar tasks into one agent loop.** Fold related test
+   programs, caller groups and migration steps that share a mechanism,
+   representation or subsystem into one outcome, so one agent finishes them
+   together while it holds the context
+   ([When to fold subagents into your main agent loop](https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop)).
 
 ## Audit before compressing
 
-For repository cleanup, fetch current main and inspect recent changes in the
-affected lane unless the request pins a revision. Identify the requested board
-or section and work in coherent groups of related items. For a whole-board
-assignment, track coverage of the original items in session context and work
-every section.
+Fetch current `main` and read recent changes in the affected lane, unless the
+request names a revision. Work through the requested board or section in groups
+of related items. For a whole board, track which original items you have
+covered and work every section.
 
-For each item, locate the governing requirement, owning implementation and
-acceptance evidence. Read relevant test bodies and their harness. Distinguish
-declaration, checked source, retained representation, independent verification
-and actual execution when the task depends on them. Commit messages and repeated
-reports are leads; running the acceptance is proof.
+For each item, find its governing requirement, implementing code and proving
+test or program. Read the relevant test bodies and their harness. Where it
+matters, tell apart a feature that is only declared, checked, kept in the
+lowered program, independently verified, or actually run. Commit messages and
+repeated reports are leads; running the acceptance is proof.
 
-Investigate the uncertainty that changes the disposition: reuse evidence whose
-inputs remain applicable, run a focused probe when inspection cannot resolve
-it. If status cannot be verified, write the precise verification needed.
+Investigate only what would change the item's fate. Reuse results whose inputs
+still apply; run a small probe when reading cannot settle it. If you cannot
+verify status, write down the exact check that would.
 
 ## Reframe and merge for one agent loop
 
-Capable agents carry a mechanism across every compiler layer and across adjacent
-cases once they hold the context in working memory. Over-splitting a capability
-into `split-of:` shards, stage-local tickets, or one item per caller family
-creates handoff loss, duplicate ramp-up, and competing partial fixes.
+Once an agent understands a mechanism, it can carry it through every stage and
+across neighboring cases. Splitting a capability into `split-of:` pieces,
+per-stage tickets, or one item per caller group loses context at each handoff,
+duplicates learning, and produces competing partial fixes.
 
-- **Reframe stage-sliced or internal tasks around end-to-end samples.** If an
-  item is phrased as an internal pass edit, intermediate representation change,
-  or single-stage obligation ("restore X in compile-time evaluator", "wire Y
-  into backend plan"), reframe it around the existing runnable sample or
-  customer program that proves the requirement end to end
-  through `omega run --both` and its reject twins. Keep internal symbols and
-  stage owners as implementation context inside that outcome, not as the
-  definition of done. Non-sample acceptance stays only for genuine
-  development-health incidents (`ITERATION-PERFORMANCE`,
-  `VALIDATION-ENVIRONMENT`), bootstrap proofs, or external host/release gates.
-- **Merge by similarity along the path an agent walks.** Fold items together
-  when an agent solving one already has the context, invariants, and files open
-  to solve the others in the same loop:
+- **Rewrite stage-specific or internal tasks around end-to-end samples.** An
+  item phrased as one internal pass edit, representation change, or single-stage
+  job ("restore X in compile-time evaluator", "wire Y into backend plan")
+  becomes an outcome around the runnable sample or customer program that proves
+  the requirement with `omega run --both` and its negative twins. Internal
+  symbols and stage owners stay as notes, not as the definition of done. Only
+  development-health problems (`ITERATION-PERFORMANCE`,
+  `VALIDATION-ENVIRONMENT`), bootstrap proofs, and external host or release
+  gates may be accepted without a sample.
+- **Merge items an agent would solve together**, because solving one leaves the
+  context, invariants and files for the others open:
   - Collapse `split-of:` chains, sequential migration phases (e.g., seed ->
-    cutover -> per-family restoration -> closure), and compiler-plus-source
-    migration pairs into one parent outcome ordered as a ladder of executable
-    witnesses.
-  - Group sibling items that touch the same semantic rule, ownership/loan
-    transition, layout/ABI mechanism, or pipeline boundary so one agent
-    generalizes the operation once and discharges its witnesses together.
-  - Fold distinct reproductions and customer-exposed gaps into the capability
-    item that owns the underlying mechanism, keeping each required witness and
-    oracle in its acceptance list.
-- **Split only at real independence boundaries.** Keep separate items only when
-  the mechanisms are genuinely independent (so parallel agents would not be
-  re-learning the same subsystem and fighting over the same transition) or when
-  a piece is blocked on a real external prerequisite (`OWNER_QUESTIONS.md` or
-  unavailable target hardware). Never split a task by pipeline stage, producer
-  vs. consumer crate, or individual witness just to create more board entries.
+    cutover -> per-family restoration -> closure), and paired compiler and
+    source migrations into one parent outcome, its runnable programs listed in
+    the order they should start working.
+  - Group siblings that touch the same language rule, ownership or borrow
+    change, layout or ABI mechanism, or stage boundary, so one agent
+    generalizes the operation once and makes their programs pass together.
+  - Fold separate reproductions and customer-visible gaps into the item owning
+    the mechanism, keeping each required program and expected result in its
+    acceptance list.
+- **Split only where work is really independent**: the mechanisms do not
+  overlap (parallel agents would not relearn and fight over the same code), or
+  a piece waits on a real outside prerequisite (`OWNER_QUESTIONS.md` or
+  unavailable target hardware). Never split by pipeline stage, by producing
+  versus consuming crate, or by test program just to create entries.
 
 ## Keep the actual remaining assignment
 
 - **Preserve `## Priority (human-set only)` order and membership.** Only a human
   adds, reorders, or moves items into or out of the top `## Priority (human-set only)`
-  section in `TASKS.md`. Board cleanup may delete completed sub-bullets or
-  delete an item in that section once its full `Acceptance:` is proven on `main`,
-  and may fold duplicate shards into an item already there, but must never
-  demote, reorder, or move items into or out of `## Priority (human-set only)`.
-  Keep ratified language-design and surface-syntax migrations that affect wide
-  swaths of `.omg` files ordered above ordinary feature/library tasks so agents
-  finish them before authoring more `.omg` source in retired syntax.
-- Delete completed or superseded work when its acceptance is accounted for.
-  Remove revoked or out-of-scope assignments using the governing decision.
+  section in `TASKS.md`. Cleanup may delete completed sub-bullets, delete an
+  item there once its full `Acceptance:` is proven on `main`, and fold
+  duplicates into an item already there, but must never demote, reorder, or
+  move items into or out of `## Priority (human-set only)`. Keep ratified
+  language-design and syntax migrations that touch many `.omg` files above
+  ordinary feature and library tasks, so agents finish them before writing more
+  `.omg` source in retired syntax.
+- Delete completed or superseded work once its acceptance is accounted for.
+  Remove revoked or out-of-scope assignments, citing the deciding ruling.
   Missing implementation is unfinished work, and stays.
-- Challenge dependencies: separate an executable concurrency witness from model
-  work that can proceed without a runtime, for example. Engineering difficulty
-  and an old ownership stamp are engineering, not design blockers.
-- Distinguish implementation gaps from unsettled language or trust decisions;
-  the latter go to `OWNER_QUESTIONS.md`.
-- Flag proposed source-shape workarounds, duplicated pipeline paths or misplaced
-  ownership, keeping the valid program requirement while correcting the
-  assignment. The repair itself is the advance skill's work.
+- Question dependencies: a test needing a concurrent runtime is separate from
+  model work that can proceed without one. Hard engineering and old ownership
+  notes are engineering, not design blockers.
+- Unsettled language or trust decisions go to `OWNER_QUESTIONS.md`;
+  implementation gaps stay on the board.
+- Flag proposals that change program source to dodge a compiler gap, duplicate
+  a pipeline path, or misplace ownership. Keep the valid program requirement
+  and correct the assignment; the repair is the advance skill's work.
 
-Each retained item states the capability requirement, its owning
-code/specification, real dependencies, a discrete list of one-per-line
-remaining sub-bullets (one unfinished witness or missing mechanism gap per
-bullet, with its current reproduction or decisive symbol/test link when it saves
-rediscovery), and the final `Acceptance:` gate. Tests beside the changed code
-retain regressions; existing samples retain program witnesses. `TASKS.md` owns
-only the unbuilt or failing gap. A PR tests its repair and a small neighboring
-area, not the whole capability matrix; a failure calls for investigation of
-that failure, not a wider run or a replacement corpus.
-Structure remaining work as discrete bullets so an agent finishing one witness
-deletes that line outright instead of rewriting prose paragraphs or moving the
-witness into a `"preserving / retaining / keeping / now reserves / now passes"`
-regression list.
+Each kept item states its required capability, owning code and spec, real
+dependencies, remaining sub-bullets, and final `Acceptance:` gate. Write one
+sub-bullet per line, each one unfinished program or missing mechanism, with its
+reproduction or deciding symbol or test link when that saves rediscovery. Tests
+beside the changed code hold regressions; existing samples hold whole programs.
+`TASKS.md` holds only what is unbuilt or failing. A PR tests its repair and a
+small area around it, not every case of the capability; a failure there calls
+for investigating it, not a wider run or a replacement corpus.
+Separate bullets let an agent that finishes one program delete its line instead
+of rewriting prose or moving it into a
+`"preserving / retaining / keeping / now reserves / now passes"` regression list.
 
-When merging items, fold them under the canonical parent outcome ID and update
-cross-references (including `TASKS*.md`, sample READMEs, and active claim notes
-when applicable) so active agents can trace the merged ID cleanly. Active/Ready/Parked
-are views of the same items; live claims record DRIs, not file exclusions.
-Performance and test-environment incidents are valid outcomes with measured
-acceptance and a stop condition; dormant standing duties are not invitations to
-optimize forever.
+When merging, put items under the parent outcome ID and update references
+(including `TASKS*.md`, sample READMEs, and active claim notes when present) so
+agents can trace the merged ID. Active/Ready/Parked are views of the same
+items; a live claim names who is responsible, not locked files. Performance and
+test-environment problems are valid outcomes with measured acceptance and a
+stopping point; standing duties are not invitations to optimize forever.
 
 Replace accumulated history with the current state once: remove dated landing
 logs, expired claims, repeated rationale, test totals and copied repository
-rules. Keep rationale that would change the next implementation decision and
-every real dependency. Rewrite "another agent should investigate" as the actual
-remaining repair or verification when the evidence supports it. Mark unverified
-leads as unverified.
+rules. Keep rationale that would change the next implementation decision, and
+every real dependency. Where evidence supports it, turn "another agent should
+investigate" into the actual remaining repair or check. Mark unverified leads
+as unverified.
 
 ## Publish an audited batch
 
-Check the diff against the original items: every required acceptance is still
-present, every retained compiler task is framed around end-to-end sample
-evidence across the pipeline, over-split sibling items are merged into cohesive
-single-agent outcomes, every status is verified, and every assignment traces to
-an original item. Preserve referenced task identities where practical and update
-active references to consolidated or removed items. Run
-`cargo xtask check-rules --base origin/main` when cited paths or task IDs move. Keep
-bootstrap and optimizer work with their owning boards; leave historical records
-alone.
+Check the diff against the original items: every required acceptance remains,
+every kept compiler task rests on an end-to-end sample, over-split siblings are
+merged, every status is verified, and every assignment traces to an original
+item. Keep referenced task IDs where practical and update references to merged
+or removed items. Run `cargo xtask check-rules --base origin/main` when cited
+paths or task IDs move. Leave bootstrap and optimizer work on their own boards,
+and historical records alone.
 
-Validate links, ownership, dependency references and consistency. Reconcile
-incoming board edits by their remaining requirements, never union-merge history.
-Commit and publish coherent batches when
-authorized, following the repository landing protocol.
+Check links, ownership, dependency references and consistency. Reconcile
+concurrent board edits by what each item still requires; never union-merge
+history. Commit and publish coherent batches when authorized, following the
+landing procedure.
 
-Report the meaningful merges, reframings, deletions, unresolved questions and
-the coverage still remaining. Continue while the requested campaign remains
-unfinished; a complete audit means all in-scope items are accounted for. New
-findings go on the board when they preserve a real requirement or explain an
-existing task.
+Report the important merges, rewrites, deletions, open questions and remaining
+coverage. Continue while the campaign is unfinished; an audit is complete when
+every in-scope item is accounted for. Add a finding to the board only when it
+keeps a real requirement or explains an existing task.

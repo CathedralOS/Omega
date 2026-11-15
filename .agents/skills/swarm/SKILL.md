@@ -5,14 +5,14 @@ description: Coordinate a requested local or cloud swarm of concurrent Omega age
 
 # Swarm (Platform Setup & Coordination Adapter)
 
-This skill defines environment setup and session transport. Execution ownership
-follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents), the worker workflow
-is [advance](../advance/SKILL.md), and publication follows
-[landing](../../../tools/docs/landing.md). Point workers to those sources instead of
-copying their rules into prompts or platform references.
+This skill covers platform setup and how to start and message worker
+sessions. Ownership follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents),
+workers follow [advance](../advance/SKILL.md), and merging follows
+[landing](../../../tools/docs/landing.md). Point workers to those files; do not
+copy their rules into prompts.
 
-- **Dispatch:** The coordinator runs `/advance` Step 1 and starts workers immediately. Each worker owns Steps 2–5 in its isolated `.agents/worktree/worker-N` pool slot and context window, including self-review with [coordinator-review](../coordinator-review/SKILL.md) and verified landing. A coordinator may review a diff; workers do not wait for routine coordinator approval. Explicit source-upload batch integration is a separate mode described in [Codex](references/codex.md).
-- **Keep the warm base:** Record the source commit that matches the slot's retained build. Locally that is the slot's warm `target/`; in a cloud session it is the restored build's published commit, reported by `cargo xtask worktree acquire`. Pass it as the fixed base and to `cargo xtask check-rules --base`. Rebase when a task needs a newer prerequisite or has an actual conflict, following the canonical landing rules.
+- **Dispatch:** The coordinator runs `/advance` Step 1 and starts workers immediately. Each worker owns Steps 2–5 in its own `.agents/worktree/worker-N` pool slot and context window, including self-review with [coordinator-review](../coordinator-review/SKILL.md) and landing. A coordinator may review a diff; workers do not wait for its approval. Batch integration of uploaded source, used only on request, is in [Codex](references/codex.md).
+- **Keep the warm base:** Record the commit the slot's build was made from: locally, the commit behind its `target/`; in a cloud session, the restored build's commit, printed by `cargo xtask worktree acquire`. Pass it as the fixed base and to `cargo xtask check-rules --base`. Rebase only for a needed prerequisite or a real conflict.
 - **Reactive wakeup only:** Never schedule periodic timers, `schedule`, cron, `send_later`, or status-polling loops. End the turn after spawning or messaging workers and let completion notifications wake the coordinator.
 
 ## Select Your Environment Reference
