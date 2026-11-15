@@ -53,8 +53,5 @@ fn a_runtime_valued_record_sequence_survives_return_and_by_value_transfer_in_psi
     let project = fixture("pending", "runtime_record_sequence");
     let (output, report) = run(&project, &["--engine", "psi"]);
     assert!(output.status.success(), "{report}");
-    assert!(
-        report.lines().any(|line| line == "terminal exit 0"),
-        "{report}"
-    );
+    assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
 }

@@ -412,7 +412,7 @@ impl Program<'_> {
             declaration: definition.symbol,
             identity: definition.semantic_id,
         };
-        self.declared_domain(id, domain, carrier)?;
+        self.declared_domain(id, domain, carrier, definition.target_type)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY.with(domain).ok_or_else(|| {

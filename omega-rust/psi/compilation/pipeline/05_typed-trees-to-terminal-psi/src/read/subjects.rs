@@ -308,71 +308,103 @@ impl Program<'_> {
             return Ok(());
         }
         let typed = self.typed;
+        // Each declaration is one unit: while the compilation collects
+        // refusals (`collected`), a refused one is recorded and the next is
+        // read (`keep`).
         for machine in typed.machines() {
-            if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
-                continue;
-            }
-            // A generic machine is checked once as written, as its own check
-            // form, not as a closed body (`Elaboration::generic_templates`).
-            // One whose only parameters are implementations is generic too.
-            if !self.is_generic_template(machine) {
-                let id = self.subject_machine(machine.symbol)?;
-                self.subject_machines.push(id);
-            } else {
-                self.generic_templates.push(machine.symbol);
-            }
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
+                    return Ok(());
+                }
+                // A generic machine is checked once as written, as its own
+                // check form, not as a closed body
+                // (`Elaboration::generic_templates`). One whose only
+                // parameters are implementations is generic too.
+                if !self.is_generic_template(machine) {
+                    let id = self.subject_machine(machine.symbol)?;
+                    self.subject_machines.push(id);
+                } else {
+                    self.generic_templates.push(machine.symbol);
+                }
+                Ok(())
+            })();
+            self.keep(read)?;
         }
         for data in typed.data_definitions() {
-            if self.owner(entry, data.symbol, subjects, purpose)? != Owner::Subject
-                || names_only(data)
-            {
-                continue;
-            }
-            // A declaration with type or const parameters has no record to
-            // resolve until a type applies it; it is read as written.
-            if data.type_parameters.is_empty() {
-                self.record(entry, data.symbol)?;
-            } else {
-                self.subject_data_template(entry, data)?;
-            }
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, data.symbol, subjects, purpose)? != Owner::Subject
+                    || names_only(data)
+                {
+                    return Ok(());
+                }
+                // A declaration with type or const parameters has no record
+                // to resolve until a type applies it; it is read as written.
+                if data.type_parameters.is_empty() {
+                    self.record(entry, data.symbol)?;
+                } else {
+                    self.subject_data_template(entry, data)?;
+                }
+                Ok(())
+            })();
+            self.keep(read)?;
         }
         for domain in typed.domain_definitions() {
-            if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
-                continue;
-            }
-            self.served(entry, domain.symbol)?;
-            if !judged_where_used(typed, domain) {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration(
-                        "domain with a cleanup machine, operators or unsupported parameters",
-                    ),
-                ));
-            }
-            // Its predicates are stated wherever a type carries the domain;
-            // a declaration nothing uses must still be one the route reads.
-            self.declared_predicates(entry, domain)?;
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
+                    return Ok(());
+                }
+                self.served(entry, domain.symbol)?;
+                if !judged_where_used(typed, domain) {
+                    return Err(refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Declaration(
+                            "domain with a cleanup machine, operators or unsupported parameters",
+                        ),
+                    ));
+                }
+                // Its predicates are stated wherever a type carries the
+                // domain; a declaration nothing uses must still be one the
+                // route reads.
+                self.declared_predicates(entry, domain)
+            })();
+            self.keep(read)?;
         }
         for declared in typed.traits() {
-            if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                self.subject_trait(entry, declared)?;
-            }
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
+                    self.subject_trait(entry, declared)?;
+                }
+                Ok(())
+            })();
+            self.keep(read)?;
         }
         for declared in typed.conformances() {
-            if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
-                self.subject_implementation(entry, declared)?;
-            }
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
+                    self.subject_implementation(entry, declared)?;
+                }
+                Ok(())
+            })();
+            self.keep(read)?;
         }
         for constant in typed.const_declarations() {
-            if self.owner(entry, constant.symbol, subjects, purpose)? == Owner::Subject {
-                self.subject_constant(entry, constant)?;
-            }
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, constant.symbol, subjects, purpose)? == Owner::Subject {
+                    self.subject_constant(entry, constant)?;
+                }
+                Ok(())
+            })();
+            self.keep(read)?;
         }
         for definition in typed.mathematical_definitions() {
-            if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
-                self.mathematical_predicate_definition(entry, definition, None, &[])?;
-            }
+            let read = (|| -> Checked<()> {
+                if self.owner(entry, definition.symbol, subjects, purpose)? == Owner::Subject {
+                    self.mathematical_predicate_definition(entry, definition, None, &[])?;
+                }
+                Ok(())
+            })();
+            self.keep(read)?;
         }
         // A token binding selects the same named machine, not another body or
         // contract. Its machine was rooted above; require the selection view
@@ -403,21 +435,39 @@ impl Program<'_> {
                     })
                 });
             if !matches_machine {
-                return Err(refuse(
+                self.keep(Err(refuse(
                     entry,
                     Construct::Machine,
                     Unserved::Declaration("operator binding does not describe its named machine"),
+                )))?;
+            }
+        }
+        // `data RegisterStorage = LayoutStorage<Registers, RegisterLayout>;`
+        // is its expansion: the same type, with the same representation and
+        // obligations (generics.md, "Transparent type aliases"). A closed
+        // alias is judged by reading that expansion as a value type. A
+        // generic alias has no type until an application fixes its
+        // binders, and nothing judges it as written yet.
+        for alias in typed.type_aliases() {
+            if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
+                continue;
+            }
+            if !alias.lifetime_parameters.is_empty()
+                || !alias.type_parameters.is_empty()
+                || !alias.conformance_bounds.is_empty()
+            {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("generic type alias"),
                 ));
             }
+            self.value_type(entry, alias.expansion)?;
         }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
         let unjudged = [
-            (
-                symbols_of(typed.type_aliases(), |row| row.symbol),
-                "type alias",
-            ),
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
             (
@@ -437,15 +487,29 @@ impl Program<'_> {
         for (declared, kind) in unjudged {
             for symbol in declared {
                 if self.owner(entry, symbol, subjects, purpose)? == Owner::Subject {
-                    return Err(refuse(
+                    self.keep(Err(refuse(
                         entry,
                         Construct::Machine,
                         Unserved::Declaration(kind),
-                    ));
+                    )))?;
                 }
             }
         }
         Ok(())
+    }
+
+    /// `result`, unless the compilation collects refusals (`collected`):
+    /// then a refusal is recorded and reading goes on with the next
+    /// declaration or body. The compilation is still refused once reading
+    /// ends (`elaborate_source_for`).
+    pub(crate) fn keep(&mut self, result: Checked<()>) -> Checked<()> {
+        match (result, self.collected.as_mut()) {
+            (Err(refused), Some(collected)) => {
+                collected.push(refused);
+                Ok(())
+            }
+            (result, _) => result,
+        }
     }
 }
 

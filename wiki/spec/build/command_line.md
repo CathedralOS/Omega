@@ -15,7 +15,7 @@ justify its name.
 
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
-omega run [--engine native|psi | --both] <root.omg>
+omega run [--engine native|psi | --both] [--target <name>] <root.omg>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
 omega packages audit [--project <dir>] [--target <name>]... [--details] ...
@@ -76,7 +76,10 @@ The interpreted engine spelling is `--engine psi`. The interpreted work limit
 is `--psi-work-budget <positive-u64>` wherever that budget is applicable.
 This renames public selectors only: work semantics, `--both` comparison,
 wire identities, internal stage names and crate paths do not change.
-See [execution selection](embedding.md#standalone-execution-selection).
+
+Omit `--target` to compare native and Psi execution on the host with `--both`.
+See [execution selection](embedding.md#standalone-execution-selection) for
+how an explicit target interacts with each engine.
 
 ## Source rewriting
 

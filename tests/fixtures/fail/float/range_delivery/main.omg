@@ -1,5 +1,5 @@
 // Inclusive f64 0.0 <= value <= 0.25 entails admit's 0.0 <= value <= 0.5.
-// Expected exit: 0
+// Reject: Reading no longer guarantees the upper bound needed by admit.
 data Reading [copy] requires value >= 0.0 { value: f64; }
 machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5

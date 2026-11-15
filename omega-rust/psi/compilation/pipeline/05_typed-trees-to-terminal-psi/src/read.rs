@@ -251,6 +251,16 @@ pub(crate) struct Program<'t> {
     /// The machine each chosen provider gives each requirement it supplies,
     /// recorded by `supplied_slots`.
     pub supplied: Vec<crate::SuppliedRequirement>,
+    /// `Some` while a compilation reports every refusal it meets
+    /// (`elaborate_source_for`): a declaration or body that is refused is
+    /// recorded here and reading goes on with the next one, so one run names
+    /// every machine the checker cannot read yet. `None`, as for a direct
+    /// reading, refuses at the first.
+    pub collected: Option<Vec<terminal_check_tables::Refusal>>,
+    /// Machines whose signature was refused while `collected` is `Some`. A
+    /// later call of one is refused at once as depending on it, instead of
+    /// reading and refusing the same signature again for every caller.
+    refused_signatures: Vec<SymbolHandle>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -388,6 +398,8 @@ impl<'t> Program<'t> {
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
+            collected: None,
+            refused_signatures: Vec::new(),
         }
     }
 
