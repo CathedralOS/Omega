@@ -3,7 +3,8 @@ We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
 (`OMGFCV\0\0`, version 100), binding the source selected-instruction, live-range,
 and legality roots, the required segment-home evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
-payload.
+payload. Version 100 retains empty-place elimination as its own terminal
+control, distinct from authored crashes and normal returns.
 
 The evidence always names the fixed intervals, split requirements and segment
 homes used by recovery. Older artifacts with optional legacy evidence reject

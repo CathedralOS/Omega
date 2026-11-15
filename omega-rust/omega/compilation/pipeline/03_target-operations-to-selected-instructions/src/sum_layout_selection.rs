@@ -571,7 +571,8 @@ fn opcode(instruction: &SelectedInstruction) -> String {
 
 fn term_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
     match terminator {
-        SelectedTerminator::InvokeNoNormal { instruction, .. }
+        SelectedTerminator::EliminateEmpty { instruction, .. }
+        | SelectedTerminator::InvokeNoNormal { instruction, .. }
         | SelectedTerminator::OperationInvokeNoNormal { instruction, .. }
         | SelectedTerminator::OperationTrap { instruction, .. }
         | SelectedTerminator::Crash { instruction, .. }

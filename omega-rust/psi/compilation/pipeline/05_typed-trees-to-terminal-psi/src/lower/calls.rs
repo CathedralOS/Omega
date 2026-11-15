@@ -49,6 +49,7 @@ pub(crate) fn publish_write_frames(
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns,
+        source_span: None,
         detail,
     };
     let frames = terminal_semantics::borrowed_storage::inferred_write_frames(module)
@@ -732,6 +733,7 @@ impl Lowering<'_> {
                 reason: RefusalReason::ForeignIdentity,
                 machine: id,
                 concerns: Construct::Invocation(invocation),
+                source_span: None,
                 detail: String::from("invocation is past the end of this machine"),
             })?
             .requirements

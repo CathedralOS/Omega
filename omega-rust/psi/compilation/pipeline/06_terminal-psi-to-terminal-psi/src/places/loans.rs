@@ -1288,6 +1288,7 @@ impl Storage<'_> {
                         reason: RefusalReason::Conflict,
                         machine: self.machine,
                         concerns: Construct::Obligation(loan.obligation),
+                        source_span: None,
                         detail: String::from(match conflict {
                             LoanConflict::TwiceExclusive => {
                                 "an exclusive loan of storage an earlier argument of the same call \

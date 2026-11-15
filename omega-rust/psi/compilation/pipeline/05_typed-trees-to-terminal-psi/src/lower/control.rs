@@ -59,6 +59,7 @@ impl Lowering<'_> {
             reason: RefusalReason::ForeignIdentity,
             machine: id,
             concerns: Construct::Block(block),
+            source_span: None,
             detail: String::from("block is past the end of this machine"),
         })
     }
@@ -748,6 +749,7 @@ impl Lowering<'_> {
                         reason: RefusalReason::ForeignIdentity,
                         machine: id,
                         concerns: Construct::Block(join),
+                        source_span: None,
                         detail: String::from("a match join is past its function"),
                     })?
                     .structural_parameters
@@ -855,6 +857,7 @@ impl Lowering<'_> {
                 reason: RefusalReason::ForeignIdentity,
                 machine: id,
                 concerns: Construct::Block(block),
+                source_span: None,
                 detail: String::from("block is past the end of this machine"),
             })?
             .parameters

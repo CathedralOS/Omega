@@ -312,7 +312,8 @@ mod tests {
                         Some(ValueType::plain(found)),
                         "test mismatch",
                     );
-                    assert_eq!(refusal.reason, RefusalReason::Violation(None));
+                    assert_eq!(refusal.reason, RefusalReason::Violation);
+                    assert_eq!(refusal.source_span, None);
                     assert!(
                         refusal
                             .detail
@@ -344,7 +345,8 @@ mod tests {
             Some(ValueType::plain(open_integer)),
             "test mismatch",
         );
-        assert_eq!(refusal.reason, RefusalReason::Violation(None));
+        assert_eq!(refusal.reason, RefusalReason::Violation);
+        assert_eq!(refusal.source_span, None);
         assert!(refusal.detail.contains("`u<width parameter>`"));
         assert!(refusal.detail.contains("`bool`"));
     }

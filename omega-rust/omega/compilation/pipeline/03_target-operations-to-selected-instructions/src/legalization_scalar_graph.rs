@@ -2919,7 +2919,8 @@ pub(crate) mod control {
     ) -> Result<(), LegalizationError> {
         let function = function_inputs.function();
         match (&node.operation, &function.result) {
-            (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
+            (AbstractOperation::EliminateEmpty { psi_edge, .. }, _)
+            | (AbstractOperation::InvokeNoNormal { psi_edge, .. }, _)
             | (AbstractOperation::ExternalCompletion { psi_edge, .. }, _)
             | (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
             (AbstractOperation::StructuralCase { .. }, _) => {

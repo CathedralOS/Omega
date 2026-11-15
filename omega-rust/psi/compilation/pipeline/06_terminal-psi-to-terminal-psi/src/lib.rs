@@ -330,6 +330,7 @@ impl Discharge {
                     reason: RefusalReason::Unsupported,
                     machine,
                     concerns: Construct::Obligation(obligation),
+                    source_span: None,
                     detail: format!("evidence encoding {error:?}"),
                 })?;
                 seals.push(seal);
@@ -428,6 +429,11 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         carried,
     );
     let module = &elaboration.module;
+    // Observe the same immutable type family used by inference above. The
+    // existing module-scoped exclusion graph serves every machine; only this
+    // borrowed declaration view is needed beside it for projected paths.
+    let empty_contracts =
+        terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
     for id in identities {
@@ -471,6 +477,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             &beyond,
             inputs.carried.map(|position| &carried[position]),
             inputs.branches,
+            &empty_contracts,
         )?);
     }
     Ok(Discharge { machines })
@@ -542,6 +549,7 @@ fn refusal(
         reason,
         machine,
         concerns,
+        source_span: None,
         detail: detail.to_owned(),
     }
 }
@@ -565,6 +573,7 @@ fn terminal_machine(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn machine(
     module: &TerminalModule,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -574,6 +583,7 @@ fn machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
+    empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
     let invariants = &module.scalar_block_invariants;
@@ -784,7 +794,7 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(tables)?;
+    let mut uses = storage.uses(tables, empty_contracts, inhabitation)?;
     // A store into a field of a byte domain is judged by the bytes it
     // supplies; a refused store is that operation's verdict.
     for judged in storage.byte_predicate_stores()? {
@@ -828,6 +838,7 @@ fn machine(
                     reason: RefusalReason::Unestablished,
                     machine: id,
                     concerns: consumption.at,
+                    source_span: None,
                     detail: format!(
                         "zeroed storage of a gated type is used before its requires holds: {}",
                         unproved.detail
@@ -1278,6 +1289,7 @@ fn semantics_refusal(
         reason: RefusalReason::Unsupported,
         machine,
         concerns: Construct::Operation(operation),
+        source_span: None,
         detail: format!("operation semantics {error:?}"),
     }
 }
@@ -1948,6 +1960,7 @@ fn unproved(
         reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
+        source_span: None,
         detail,
     }
 }

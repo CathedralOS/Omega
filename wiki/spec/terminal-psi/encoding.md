@@ -936,6 +936,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
 | 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted structural arguments + counted affine cleanup actions) |
 | 19 | InvokeNoNormal | edge id + `bool` static-reach presence (when present `u32` binder) + callee machine id + counted scalar value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 20 | EliminateEmpty | edge id + source place id + structural observation path (a final case segment selects its payload namespace) |
 
 A Jump with no residual affine discards uses tag 1; a nonempty residual list
 uses tag 10. Both have the same jump semantics. Tag 10 with an empty list is

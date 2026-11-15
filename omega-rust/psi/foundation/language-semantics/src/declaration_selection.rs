@@ -338,11 +338,16 @@ mod product {
         // The checked recording call must agree with the authored request.
         // Keep its ordinary operands beside its name so preparation and
         // validation cannot admit a different Product operation's protocol.
-        pub const fn product_recording_operation(self) -> Option<(&'static str, usize)> {
+        pub const fn product_recording_operation(
+            self,
+        ) -> Option<(crate::build_requests::SelectionProtocolOperation, usize)> {
+            use crate::build_requests::SelectionProtocolOperation as Protocol;
             match self {
-                Self::NativeBinding => Some(("bind_native", 3)),
-                Self::ProviderSelection => Some(("select_provider", 3)),
-                operation if operation.selects_product_declarations() => Some(("select", 1)),
+                Self::NativeBinding => Some((Protocol::BindNative, 3)),
+                Self::ProviderSelection => Some((Protocol::SelectProvider, 3)),
+                operation if operation.selects_product_declarations() => {
+                    Some((Protocol::Select, 1))
+                }
                 _ => None,
             }
         }

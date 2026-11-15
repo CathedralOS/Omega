@@ -51,6 +51,7 @@ impl Qualifications {
                     reason: terminal_check_tables::RefusalReason::Unsupported,
                     machine: diagnostic,
                     concerns: Construct::Machine,
+                    source_span: None,
                     detail: format!("scalar domain source identity: {detail}"),
                 });
             }

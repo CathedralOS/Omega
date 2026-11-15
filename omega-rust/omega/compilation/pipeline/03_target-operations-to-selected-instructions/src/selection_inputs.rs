@@ -2450,7 +2450,8 @@ pub(crate) mod established_view_input {
     ) -> bool {
         source.blocks.iter().any(|block| {
             let successors = match &block.terminator {
-                legalized_operations::LegalizedScalarTerminator::Crash { .. }
+                legalized_operations::LegalizedScalarTerminator::EliminateEmpty { .. }
+                | legalized_operations::LegalizedScalarTerminator::Crash { .. }
                 | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
                 | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
                 | legalized_operations::LegalizedScalarTerminator::Return(_)

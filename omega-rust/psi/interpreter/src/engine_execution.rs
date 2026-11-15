@@ -2902,6 +2902,10 @@ pub(crate) mod execution {
                     .terminator;
                 self.trace_scalar_state(format_args!("before terminator {terminator:?}"));
                 let flow = match &terminator {
+                    // The checked actual storage path has no admitted value.
+                    // Reaching it signals an invalid runtime input or engine
+                    // invariant; it is neither a language crash nor a return.
+                    Terminator::EliminateEmpty { .. } => return Err(malformed()),
                     Terminator::InvokeNoNormal { .. } => {
                         self.settle_invoke_no_normal(terminator, meter)?
                     }
