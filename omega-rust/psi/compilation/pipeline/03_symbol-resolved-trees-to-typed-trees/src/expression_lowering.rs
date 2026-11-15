@@ -1157,7 +1157,7 @@ pub(crate) mod expression {
                         && !self.admits_policy_operators
                     {
                         return Err(Diagnostic::error(format!(
-                            "the policy operator `{}{}` is supported only in executable machine code and in the contracts of a machine; this position cannot use a suffixed operator yet",
+                            "the policy operator `{}{}` is supported only in executable machine code, contracts and mathematical definitions; this position cannot use a suffixed operator yet",
                             binary.operator.display_name(),
                             binary.policy.operator_suffix(),
                         ))

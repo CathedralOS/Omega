@@ -237,7 +237,12 @@ impl<'t> Program<'t> {
             logical: Some(formal_inputs.scope(id, model, &expanding)),
         };
         let formed = self.clause(id, &declaration_scope, expression)?;
-        formal_inputs.validate(id, &formed)?;
+        let parameters = formal_inputs.validate(id, &formed)?;
+        self.predicate_definitions.push(super::PredicateDefinition {
+            symbol: definition.symbol,
+            parameters,
+            body: formed,
+        });
         Ok(expression)
     }
 

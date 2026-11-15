@@ -1,4 +1,4 @@
-// Expected diagnostic contains: carrier arithmetic in a clause term.
+// Expected diagnostic contains: contract arithmetic is not proved total before its condition.
 // The installed arrival establishes the named source predicate before invocation.
 let is_zero(value: u32): core::Strict<0> = value == 0u32;
 

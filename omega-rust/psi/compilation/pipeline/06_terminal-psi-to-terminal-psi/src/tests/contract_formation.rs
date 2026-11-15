@@ -108,6 +108,32 @@ fn a_bodyless_contract_is_not_exempt_from_formation() {
 }
 
 #[test]
+fn predicate_definitions_form_without_assuming_their_bodies() {
+    let mut module = terminal_psi::TerminalModule::declarations();
+    let mut identities = module.identities.into_builder();
+    let declaration = identities.intern("test-predicate");
+    module.identities = identities.build();
+    let input = formal(1, u32_type());
+    module.scalar_predicate_definitions.push(terminal_psi::ScalarPredicateDefinition {
+        declaration,
+        parameters: vec![terminal_psi::ValueDeclaration {
+            id: id(1),
+            scalar_type: ScalarType::Integer(integer_type(IntegerSign::Unsigned)),
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        }],
+        body: Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(number(1), input.clone()),
+            nonnegative(subtract(input.clone(), number(1))),
+        ]),
+    });
+    let error = crate::formation::module(&module).unwrap_err();
+    assert_eq!(error.reason, RefusalReason::Violation);
+    assert!(error.detail.contains("mathematical definition: contract arithmetic is not proved total"));
+    module.scalar_predicate_definitions[0].body = nonnegative(subtract(number(u32::MAX.into()), input));
+    crate::formation::module(&module).unwrap();
+}
+
+#[test]
 fn guarantees_cannot_form_an_input_precondition() {
     let mut elaboration =
         lower(vec![machine(vec![u32_type()], vec![returns(unsigned(0))])]).unwrap();

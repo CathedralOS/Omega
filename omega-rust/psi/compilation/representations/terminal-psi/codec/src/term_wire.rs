@@ -1263,12 +1263,12 @@ pub(crate) mod proof_declaration_wire {
         EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
         PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
         PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-        PropositionDeclaration, PropositionEvidence, TerminalIdentityIndex,
+        PropositionDeclaration, PropositionEvidence, ScalarPredicateDefinition, TerminalIdentityIndex,
     };
 
     use super::CodecError;
     use super::wire::{Reader, Writer};
-    use super::wire_fields::{Field, Id, Index, List, Optional, Text, wire_enum, wire_record};
+    use super::wire_fields::{Field, Id, Index, List, Optional, Proposition, Text, wire_enum, wire_record};
 
     wire_record! {
         Declaration: PropositionDeclaration {
@@ -1277,6 +1277,11 @@ pub(crate) mod proof_declaration_wire {
             binders: List<Binder>,
             parameter_types: List<Text>,
             evidence: Evidence,
+        }
+        ScalarPredicate: ScalarPredicateDefinition {
+            declaration: Index,
+            parameters: List<super::machine_wire::Declaration>,
+            body: Proposition,
         }
         Binder: PropositionBinderDeclaration { name: Text, kind: BinderKind }
         Application: PropositionApplicationIdentity {

@@ -1299,9 +1299,11 @@ pub(crate) mod mathematical {
                     typed::mathematical::MathematicalBody::Assumption
                 }
                 resolved::mathematical::MathematicalBody::Definition(term) => {
-                    typed::mathematical::MathematicalBody::Definition(lower_expression_handle(
-                        lowerer, *term,
-                    )?)
+                    typed::mathematical::MathematicalBody::Definition(
+                        lowerer.admitting_contract_policy_operators(|lowerer| {
+                            lower_expression_handle(lowerer, *term)
+                        })?,
+                    )
                 }
             },
         };

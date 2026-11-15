@@ -9,6 +9,8 @@
 //! the refusal and the "no product route yet" case.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
 use fixture_package_inputs::{
     FixtureProductCheck, check_fixture_keeping_typed_frontier, repo_root,
@@ -185,15 +187,15 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
     let (messages, verdict) =
         rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
     let RouteVerdict::FallBack(refusal) = verdict else {
-        panic!("unavailable operand formation must refuse the declaration: {verdict:?}");
+        panic!("partial arithmetic must refuse the declaration: {verdict:?}");
     };
     assert_eq!(
         refusal.reason,
-        terminal_check_tables::RefusalReason::Unsupported
+        terminal_check_tables::RefusalReason::Violation
     );
-    assert_eq!(
-        refusal.detail,
-        "contract carrier arithmetic in a clause term"
+    assert!(
+        refusal.detail.contains("mathematical definition: contract arithmetic is not proved total before its condition"),
+        "{refusal:?}"
     );
     assert!(
         messages
@@ -201,4 +203,40 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
             .any(|message| message.contains(&refusal.detail)),
         "{messages:#?}"
     );
+}
+
+#[test]
+fn named_predicate_terms_form_under_their_own_inputs() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = std::fs::read_to_string(repo_root().join("tests/fixtures/run/calls/unused_total_mathematical_predicate/main.omg")).unwrap();
+    for (name, program, accepted) in [
+        ("unused-wrapping", source.clone(), true),
+        ("called-wrapping", source.replace("requires is_zero(0u32)", "requires reflexive(0u32)"), true),
+        // A safe actual argument cannot repair a declaration over arbitrary u32.
+        ("called-exact", source.replace("+%", "+").replace("requires is_zero(0u32)", "requires reflexive(0u32)"), false),
+        ("nonzero-divisor", source.replace("value +% 1u32", "value /% 1u32"), true),
+        ("possibly-zero-divisor", source.replace("value +% 1u32", "1u32 /% value"), false),
+    ] {
+        let frontier = unbuilt_frontier::staged_frontier(name, &program);
+        let entry = unbuilt_frontier::program_machine(&frontier.typed, "launch").unwrap();
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(&frontier.typed, Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            }, terminal_codec::TerminalPublication::Invocation).program,
+        );
+        let [verdict] = verdicts.as_slice() else { panic!("{name}: {verdicts:?}") };
+        if accepted {
+            assert!(matches!(verdict, Ok(RouteVerdict::Accepted(_))), "{name}: {verdict:?}");
+        } else {
+            let Ok(RouteVerdict::FallBack(refusal)) = verdict else { panic!("{name}: {verdict:?}") };
+            assert_eq!(refusal.reason, terminal_check_tables::RefusalReason::Violation, "{name}: {refusal:?}");
+            assert!(refusal.detail.contains("mathematical definition: contract arithmetic is not proved total before its condition"), "{name}: {refusal:?}");
+        }
+    }
 }

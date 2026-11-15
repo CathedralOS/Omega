@@ -5046,6 +5046,7 @@ wire_record! {
         float_meaning_projections: List<float_meaning_wire::Projection>,
         float_meaning_equalities: List<float_meaning_wire::Equality>,
         proposition_declarations: List<super::proof_declaration_wire::Declaration>,
+        scalar_predicate_definitions: List<super::proof_declaration_wire::ScalarPredicate>,
         proposition_applications: List<super::proof_declaration_wire::Application>,
         evidence_terms: List<evidence_wire::Term>,
         evidence_contract_lanes: List<evidence_wire::Lane>,

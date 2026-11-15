@@ -2034,8 +2034,8 @@ impl Lowerer<'_> {
         result
     }
 
-    /// Lowers the contracts of a machine or state, the proof facts that may
-    /// use a suffixed policy operator.
+    /// Proof expressions keep the same selected arithmetic policy as code.
+    /// Totality is checked later, before their condition supplies any facts.
     pub(crate) fn admitting_contract_policy_operators<T>(
         &mut self,
         operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,

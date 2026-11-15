@@ -199,6 +199,20 @@ pub(crate) fn declare(
         }
     }
     let result = (|| {
+        for definition in &program.predicate_definitions {
+            elaboration.module.scalar_predicate_definitions.push(terminal_psi::ScalarPredicateDefinition {
+                declaration: semantic_identity(typed, definition.symbol, &mut identities)?,
+                parameters: definition.parameters.clone(),
+                body: definition.body.clone(),
+            });
+        }
+        elaboration.module.scalar_predicate_definitions.sort_unstable_by_key(|definition| definition.declaration);
+        if elaboration.module.scalar_predicate_definitions.windows(2).any(|pair| {
+            pair[0].declaration == pair[1].declaration && pair[0] != pair[1]
+        }) {
+            return Err("mathematical definition has inconsistent formal meaning");
+        }
+        elaboration.module.scalar_predicate_definitions.dedup();
         if elaboration.module.declaration_contracts.is_empty() {
             return Ok(());
         }
