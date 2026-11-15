@@ -80,7 +80,7 @@ pub(crate) mod constraints {
 pub(crate) mod construction {
     use crate::{
         ValidatedLegalizedOperations, ValidatedSelectedInstructions,
-        legalization::legalize_target_operations_with_types,
+        legalization::legalize_retained_target_operations,
         selection::select_instructions_with_types,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
@@ -104,15 +104,13 @@ pub(crate) mod construction {
         .ok_or_else(|| {
             OptimizedSelectionPipelineError::Legalization(crate::LegalizationError::custody())
         })?;
-        let legalized = legalize_target_operations_with_types(
+        let legalized = legalize_retained_target_operations(
             input.target,
-            input.source,
-            input.unit,
+            input.evidence,
             input.origins,
             input.installed_interrupts,
             input.installed_entry_execution,
             input.installed_stack_requirements,
-            Some(closed_types),
         )
         .map_err(OptimizedSelectionPipelineError::Legalization)?;
         let selection_constraints = selection_constraints(&legalized, register_environment);
@@ -141,7 +139,7 @@ pub(crate) mod custody {
         legalized: &ValidatedLegalizedOperations,
         selected: &ValidatedSelectedInstructions,
     ) -> StagedOptimizedSelectionCustodyReceipt {
-        let (target, unit) = (input.target, input.unit);
+        let target = input.target;
         StagedOptimizedSelectionCustodyReceipt {
             core: StagedOptimizedCustodyCore {
                 psi: target.psi,
@@ -150,8 +148,8 @@ pub(crate) mod custody {
                 optimization: input.optimization,
                 projection: input.projection,
                 manifest: input.manifest,
-                optimization_unit: unit.identity,
-                work_schedule: unit.work_schedule,
+                optimization_unit: input.evidence.optimization_unit,
+                work_schedule: input.evidence.work_schedule,
                 register_environment: register_environment.identity(),
             },
             legalized: legalized.receipt().identity(),
@@ -162,19 +160,16 @@ pub(crate) mod custody {
     }
 }
 pub(crate) mod input {
-    use abstract_operations::AbstractOperationPlan;
     use optimization_core::{
         OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationWorkBudget,
         OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
     };
-    use optimization_unit::PsiOptimizationUnit;
     use target_operations::{BoundaryOriginFacts, TargetOperationPlan};
 
     #[derive(Debug)]
     pub struct TargetSelectionInput<'input> {
         pub target: &'input TargetOperationPlan,
-        pub source: &'input AbstractOperationPlan,
-        pub unit: &'input PsiOptimizationUnit,
+        pub evidence: TargetSelectionEvidence<'input>,
         pub closed_module: &'input terminal_codec::ClosedTerminalModule,
         pub origins: BoundaryOriginFacts<'input>,
         pub installed_entry_execution:
@@ -187,6 +182,15 @@ pub(crate) mod input {
         pub manifest: PrePhysicalOptimizationManifestIdentity,
         pub selections: OptimizationSelections,
         pub budget_per_pass: OptimizationWorkBudget,
+    }
+
+    /// Immutable judgments and input identities, not executable input bodies.
+    #[derive(Debug, Clone, Copy)]
+    pub struct TargetSelectionEvidence<'input> {
+        pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+        pub work_schedule: semantic_vocabulary::WorkScheduleIdentity,
+        pub accepted_obligation_facts: &'input [optimization_unit::AcceptedObligationFact],
+        pub ownership_frontier_facts: &'input [optimization_unit::OwnershipFrontierFact],
     }
 }
 pub(crate) mod model {
@@ -287,7 +291,7 @@ pub(crate) mod model {
     impl std::error::Error for OptimizedSelectionPipelineError {}
 }
 
-pub use input::TargetSelectionInput;
+pub use input::{TargetSelectionEvidence, TargetSelectionInput};
 pub use model::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt,

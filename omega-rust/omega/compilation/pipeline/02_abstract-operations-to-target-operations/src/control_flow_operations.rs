@@ -97,6 +97,7 @@ pub(crate) mod accessor_scalar_access {
             psi_operation: *psi_operation,
             boundary: *boundary,
             realization,
+            indices: super::scalar_sources::projection_indices(function, types, live, &location)?,
             location,
             operand,
             result_home,
@@ -457,6 +458,12 @@ pub(crate) mod operations {
                         task_state: task_state.clone(),
                         selector,
                         scratch: scratch.clone(),
+                        indices: super::scalar_sources::argument_indices(
+                            function,
+                            site.types,
+                            site.live,
+                            [gdt, task_state, scratch],
+                        )?,
                         result_home,
                     });
                 site.provenance.operations.push(*psi_operation);
@@ -499,6 +506,12 @@ pub(crate) mod operations {
                         kind: *kind,
                         selector,
                         scratch: scratch.clone(),
+                        indices: super::scalar_sources::argument_indices(
+                            function,
+                            site.types,
+                            site.live,
+                            [gdt, scratch],
+                        )?,
                         result_home,
                     });
                 site.provenance.operations.push(*psi_operation);
@@ -534,6 +547,9 @@ pub(crate) mod operations {
                         service: *service,
                         operation: *operation,
                         source: source.clone(),
+                        indices: super::scalar_sources::projection_indices(
+                            function, site.types, site.live, source,
+                        )?,
                     });
                 site.provenance.operations.push(*psi_operation);
                 Ok(())
@@ -1439,5 +1455,68 @@ pub(crate) mod scalar_sources {
                 })
             })
             .collect()
+    }
+
+    /// Retain selector geometry while the producer still owns the storage types.
+    pub(crate) fn projection_indices(
+        function: &AbstractFunction,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
+        live: &LiveDefinitions,
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Result<Vec<TargetStructuralRuntimeIndex>, LoweringError> {
+        if !argument
+            .path
+            .iter()
+            .any(|segment| segment.runtime_index().is_some())
+        {
+            return Ok(Vec::new());
+        }
+        let root = live
+            .structural_homes
+            .get(&argument.place)
+            .map(|home| home.structural_type())
+            .or_else(|| {
+                live.views
+                    .get(&argument.place)
+                    .map(|(_, structural_type)| *structural_type)
+            })
+            .or_else(|| {
+                live.trivial_affine_locals
+                    .get(&argument.place)
+                    .map(|(_, structural_type)| *structural_type)
+            })
+            .or_else(|| {
+                function
+                    .arrival_parameter(argument.place)
+                    .map(|parameter| parameter.structural_type)
+            })
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let regions =
+            crate::structural_layout::reference_projection_regions(root, &argument.path, types)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let (_, _, _, leaf_indices) = crate::structural_layout::runtime_storage_projection(
+            regions.root,
+            regions.path,
+            types,
+        )?;
+        runtime_indices(
+            regions.selector_runs(leaf_indices),
+            function,
+            &ScalarSources::from(live),
+            types,
+        )
+    }
+
+    pub(crate) fn argument_indices<const COUNT: usize>(
+        function: &AbstractFunction,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
+        live: &LiveDefinitions,
+        arguments: [&terminal_psi::StructuralArgument; COUNT],
+    ) -> Result<[Vec<TargetStructuralRuntimeIndex>; COUNT], LoweringError> {
+        let mut indices = std::array::from_fn(|_| Vec::new());
+        for (argument, indices) in arguments.into_iter().zip(&mut indices) {
+            *indices = projection_indices(function, types, live, argument)?;
+        }
+        Ok(indices)
     }
 }

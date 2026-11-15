@@ -8241,7 +8241,11 @@ pub(crate) mod function_structure {
                         O::ReleaseReference { source, path, .. } => {
                             let valid = structural_source_contract(function, *source).is_some_and(
                                 |signature| {
-                                    signature.access == StructuralAccess::Owned
+                                    // A view result owns its descriptor while its access
+                                    // describes the borrowed backing.
+                                    let owns_carrier = signature.access == StructuralAccess::Owned
+                                        || signature.operation_result().is_some();
+                                    owns_carrier
                                         && (path.is_empty()
                                             || (signature.multiplicity
                                                 == terminal_psi::StructuralMultiplicity::Affine

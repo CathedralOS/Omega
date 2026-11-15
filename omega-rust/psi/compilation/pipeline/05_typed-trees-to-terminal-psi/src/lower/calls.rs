@@ -291,16 +291,11 @@ impl Lowering<'_> {
                 evaluated.erased.push(witness.term());
                 continue;
             }
-            if let ExpressionKind::Borrow {
-                access,
-                place,
-                home,
-            } = &argument.kind
-            {
+            if let ExpressionKind::Borrow { access, place, .. } = &argument.kind {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let lent = continuing!(self.lend(place, *access, home.as_deref()));
+                let lent = continuing!(self.lend(place, *access));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
                 evaluated.loans.push((lent.place, *access, lent.lender));

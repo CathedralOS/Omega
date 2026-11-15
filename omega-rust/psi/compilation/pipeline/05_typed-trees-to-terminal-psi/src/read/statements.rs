@@ -174,14 +174,22 @@ impl Program<'_> {
                     let Some(value_type @ ValueType::Record(record, _, _)) = base.result else {
                         return Err(typing());
                     };
-                    if !matches!(
-                        self.data_type(id, record)?.shape,
-                        crate::StorageShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                access: Some(terminal_psi::StructuralAccess::MutableBorrow)
-                            }
-                        )
-                    ) {
+                    use crate::StorageShape::ByteSequence;
+                    use terminal_psi::{ByteSequenceCarrier::BorrowedView, StructuralAccess};
+
+                    let writable = match self.data_type(id, record)?.shape {
+                        ByteSequence(BorrowedView {
+                            access: Some(StructuralAccess::MutableBorrow),
+                        }) => true,
+                        // An incoming direct view draws permission from its formal.
+                        ByteSequence(BorrowedView { access: None }) => matches!(
+                            base.kind,
+                            ExpressionKind::Slot(slot)
+                                if slots[slot].borrowed == Some(language_core::ReferenceAccess::Mutable)
+                        ),
+                        _ => false,
+                    };
+                    if !writable {
                         return Err(unserved("store through a byte view without mutable access"));
                     }
                     self.authorized(id, value_type, Access::Write)?;

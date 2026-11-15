@@ -4468,6 +4468,7 @@ mod source {
                     gdt,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4486,6 +4487,7 @@ mod source {
                     task_state,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4500,6 +4502,7 @@ mod source {
                     service,
                     operation,
                     source,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -5043,6 +5046,7 @@ mod source {
                     arguments,
                     calls,
                     result_home,
+                    ..
                 } = row
                 else {
                     continue;
@@ -9970,6 +9974,7 @@ mod source {
                         token,
                         result_home,
                         operation: kind,
+                        ..
                     } if actual == psi_operation => {
                         Some((actual_boundary, token, result_home, kind))
                     }
@@ -11525,7 +11530,7 @@ mod source {
                             let mut child = query;
                             child
                                 .steps
-                                .push(DescriptorContentsStep::AnyElement { element: *element });
+                                .push(DescriptorContentsStep::any_element(*element));
                             descriptor_queries(types, *element, child, active, slots)?;
                         }
                         StructuralTypeShape::Record { fields, .. } => {
@@ -12046,6 +12051,7 @@ mod source {
                                 *position,
                                 row.callee,
                                 DescriptorActualInputs {
+                                    scalar_arguments: &[],
                                     arguments,
                                     argument_contents: contents,
                                 },
@@ -12311,6 +12317,7 @@ mod source {
                         caller.calls.insert(
                             position,
                             terminal_semantics::descriptor_results::DescriptorInvocation {
+                                scalar_arguments: Vec::new(),
                                 operation: *psi_operation,
                                 target:
                                     terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
@@ -20794,6 +20801,7 @@ mod source {
                 boundary: actual_boundary,
                 operands,
                 result_home,
+                ..
             } if actual == psi_operation => Some((actual_boundary, operands, result_home)),
             _ => None,
         });

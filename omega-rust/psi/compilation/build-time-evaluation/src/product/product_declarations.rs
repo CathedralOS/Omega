@@ -13,7 +13,7 @@ use language_semantics::wire::WireCompatibilityDemand;
 use std::sync::Arc;
 use symbols::{RetainedDeclaration, SymbolHandle};
 use typed_trees::TypedTrees;
-use typed_trees::product_operand::{resolve_build_request_author, resolve_product_path};
+use typed_trees::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceAuditRegistration {
@@ -72,9 +72,18 @@ fn admit_service_audits(
     executed: &[ExecutedProductSelection],
     authored: &[(Arc<ProductDeclarationRequest>, SymbolHandle)],
 ) -> Result<Vec<ServiceAuditRegistration>, Vec<Diagnostic>> {
+    if authored.is_empty()
+        && !executed
+            .iter()
+            .any(|event| event.request.operation == BuildOperation::ServiceAudit)
+    {
+        return Ok(Vec::new());
+    }
+    let declarations = ProductDeclarationLookup::new(typed, &[ProductOperandRole::BoundarySubject]);
+    let authors = ProductRequestAuthors::new(typed);
     let mut formations = Vec::with_capacity(authored.len());
     for (request, author) in authored {
-        let service = audit_service(typed, request)?;
+        let service = audit_service(typed, &declarations, request)?;
         if !typed
             .symbols
             .symbol_is_in_dependency_scope(*author, source::DependencyScope::Build)
@@ -104,13 +113,12 @@ fn admit_service_audits(
                 "service audit has no exact root Build activation",
             ));
         }
-        let author = resolve_build_request_author(
-            typed,
-            event
-                .selecting_machine
-                .ok_or_else(|| refuse(request, "service audit lost its original Build author"))?,
-        )
-        .map_err(|reason| refuse(request, reason))?;
+        let author =
+            authors
+                .resolve(event.selecting_machine.ok_or_else(|| {
+                    refuse(request, "service audit lost its original Build author")
+                })?)
+                .map_err(|reason| refuse(request, reason))?;
         let key = occurrence(typed, request);
         let start = formations.partition_point(|formation| formation.0 < key);
         let (_, _, _, service) = formations[start..]
@@ -142,6 +150,7 @@ fn admit_service_audits(
 
 fn audit_service(
     typed: &TypedTrees,
+    declarations: &ProductDeclarationLookup<'_>,
     request: &ProductDeclarationRequest,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
     request
@@ -154,21 +163,21 @@ fn audit_service(
         ));
     };
     let service = if operand.application.is_none() {
-        resolve_product_path(
-            typed,
-            &operand.path,
-            operand.source_span,
-            ProductOperandRole::BoundarySubject,
-        )
-        .filter(|symbol| {
-            typed
-                .trait_definition_by_symbol(*symbol)
-                .is_some_and(|declaration| {
-                    declaration.is_boundary
-                        && declaration.lifetime_parameters.is_empty()
-                        && typed.trait_type_parameters(declaration).is_empty()
-                })
-        })
+        declarations
+            .resolve(
+                &operand.path,
+                operand.source_span,
+                ProductOperandRole::BoundarySubject,
+            )
+            .filter(|symbol| {
+                typed
+                    .trait_definition_by_symbol(*symbol)
+                    .is_some_and(|declaration| {
+                        declaration.is_boundary
+                            && declaration.lifetime_parameters.is_empty()
+                            && typed.trait_type_parameters(declaration).is_empty()
+                    })
+            })
     } else {
         None
     };

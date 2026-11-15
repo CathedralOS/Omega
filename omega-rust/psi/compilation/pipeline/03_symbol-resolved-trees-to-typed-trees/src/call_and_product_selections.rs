@@ -3158,12 +3158,14 @@ pub(crate) mod qualification_casts {
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         program: &mut TypedTrees,
         expression_frontier: usize,
+        type_frontier: usize,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
         crate::expression_meanings::prepare(
             source,
             program,
             expression_frontier,
+            type_frontier,
             cast_destinations,
         )?;
         let sites = expression_table(program)

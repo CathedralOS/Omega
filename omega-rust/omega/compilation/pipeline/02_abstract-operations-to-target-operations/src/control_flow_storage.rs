@@ -145,6 +145,15 @@ pub(crate) mod access_lifecycles {
         operations.push(TargetUnitOperation::AccessLifecycle {
             psi_operation: *psi_operation,
             boundary: *boundary,
+            indices: operands
+                .arguments()
+                .map(|argument| {
+                    super::scalar_sources::projection_indices(function, types, live, argument)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect(),
             operands,
             result_home,
         });

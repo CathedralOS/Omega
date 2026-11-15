@@ -36,6 +36,7 @@ pub struct PreparedProductRequirement {
 /// values (`ProductApplicationDemand::FormationOnly`, no environment).
 pub fn prepare_product_operand_application(
     program: &mut TypedTrees,
+    source: &typed_trees::product_operand::ProductSourceLookups<'_>,
     operand: &ProductDeclarationOperand,
     role: ProductOperandRole,
     author: SymbolHandle,
@@ -44,12 +45,12 @@ pub fn prepare_product_operand_application(
 ) -> Result<Option<Handle<ProductOperandApplication>>, Vec<Diagnostic>> {
     match applications::form(
         program,
+        applications::OperandSource::Authored(source),
         operand,
         role,
         author,
         static_environment,
         demand,
-        None,
     ) {
         Err(applications::Stop::Open) if demand == ProductApplicationDemand::FormationOnly => {
             Ok(None)
@@ -70,12 +71,12 @@ pub fn prepare_retained_product_application(
 ) -> Result<Handle<ProductOperandApplication>, Vec<Diagnostic>> {
     let formed = applications::form(
         program,
+        applications::OperandSource::Retained(declaration),
         operand,
         role,
         declaration,
         None,
         ProductApplicationDemand::Selected,
-        Some(declaration),
     );
     served(operand, formed)?.ok_or_else(|| {
         vec![Diagnostic::error(
@@ -106,7 +107,7 @@ fn served(
 }
 
 pub fn prepare_product_requirement_operand(
-    program: &mut TypedTrees,
+    declarations: &typed_trees::product_operand::ProductDeclarationLookup<'_>,
     operand: &ProductDeclarationOperand,
     _author: SymbolHandle,
     _static_environment: Option<&ProductStaticEnvironment>,
@@ -114,26 +115,26 @@ pub fn prepare_product_requirement_operand(
     if operand.application.is_some() {
         return Err(product_error(operand));
     }
-    typed_trees::product_operand::resolve_product_path(
-        program,
-        &operand.path,
-        operand.source_span,
-        ProductOperandRole::Requirement,
-    )
-    .map(|requirement| PreparedProductRequirement {
-        application: None,
-        requirement,
-        closed_requirement: None,
-        trait_scope: None,
-    })
-    .ok_or_else(|| {
-        vec![
-            Diagnostic::error(
-                "native binding must name one exact visible package-owned requirement",
-            )
-            .with_source_span(operand.source_span),
-        ]
-    })
+    declarations
+        .resolve(
+            &operand.path,
+            operand.source_span,
+            ProductOperandRole::Requirement,
+        )
+        .map(|requirement| PreparedProductRequirement {
+            application: None,
+            requirement,
+            closed_requirement: None,
+            trait_scope: None,
+        })
+        .ok_or_else(|| {
+            vec![
+                Diagnostic::error(
+                    "native binding must name one exact visible package-owned requirement",
+                )
+                .with_source_span(operand.source_span),
+            ]
+        })
 }
 
 fn product_error(operand: &ProductDeclarationOperand) -> Vec<Diagnostic> {
@@ -149,6 +150,8 @@ mod tests {
     #[test]
     fn an_applied_product_operand_is_refused_and_never_becomes_an_empty_result() {
         let mut program = TypedTrees::default();
+        let source_program = program.clone();
+        let source = typed_trees::product_operand::ProductSourceLookups::new(&source_program);
         let operand = ProductDeclarationOperand {
             application: Some(Default::default()),
             ..Default::default()
@@ -156,6 +159,7 @@ mod tests {
         assert!(
             prepare_product_operand_application(
                 &mut program,
+                &source,
                 &operand,
                 ProductOperandRole::Provider,
                 SymbolHandle::invalid(),
@@ -166,7 +170,10 @@ mod tests {
         );
         assert!(
             prepare_product_requirement_operand(
-                &mut program,
+                &typed_trees::product_operand::ProductDeclarationLookup::new(
+                    &program,
+                    &[ProductOperandRole::Requirement]
+                ),
                 &operand,
                 SymbolHandle::invalid(),
                 None
@@ -181,10 +188,13 @@ mod tests {
     #[test]
     fn a_plain_operand_has_no_application_and_a_requirement_must_resolve() {
         let mut program = TypedTrees::default();
+        let source_program = program.clone();
+        let source = typed_trees::product_operand::ProductSourceLookups::new(&source_program);
         let operand = ProductDeclarationOperand::default();
         assert_eq!(
             prepare_product_operand_application(
                 &mut program,
+                &source,
                 &operand,
                 ProductOperandRole::Provider,
                 SymbolHandle::invalid(),
@@ -195,7 +205,10 @@ mod tests {
         );
         assert!(
             prepare_product_requirement_operand(
-                &mut program,
+                &typed_trees::product_operand::ProductDeclarationLookup::new(
+                    &program,
+                    &[ProductOperandRole::Requirement]
+                ),
                 &operand,
                 SymbolHandle::invalid(),
                 None

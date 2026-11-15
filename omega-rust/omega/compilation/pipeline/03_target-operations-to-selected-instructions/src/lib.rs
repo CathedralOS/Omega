@@ -21,12 +21,13 @@ audit remains available for corpus and foreign-artifact review.
 */
 
 /*
-- Input: `TargetSelectionInput` (`optimized.rs`) carrying the `TargetOperationPlan`, `AbstractOperationPlan`, `PsiOptimizationUnit`, and admitted boundary/interrupt facts from `Omega 02`.
+- Input: `TargetSelectionInput` (`optimized.rs`) carrying the `TargetOperationPlan`, immutable proof facts and identities, and admitted boundary/interrupt facts from `Omega 02`. Earlier executable bodies belong only to the independent audit.
 - Output: `StagedOptimizedSelectedInstructions` and `ValidatedSelectedInstructions` consumed by `Omega 04` (`selected-instructions-to-selected-instructions`).
 - Flat module layout:
   - `optimized.rs`: stage entry, target-register-environment custody, and `StagedOptimizedSelectedInstructions`.
   - `structural_inputs.rs`: structural reference, collection-view, and unit input geometry.
-  - `legalization.rs`, `legalization_scalar_graph.rs`, `legalization_reference_custody.rs`, `legalization_target.rs`, `legalization_source.rs`: target-operation legalization and independent target-plan auditing.
+  - `legalization.rs`, `legalization_instruction.rs`, `legalization_control.rs`: retained target-operation legalization.
+  - `legalization_scalar_graph.rs`, `legalization_reference_custody.rs`, `legalization_target.rs`, `legalization_source.rs`: shared geometry and independent source/target auditing.
   - `selection.rs`, `selection_inputs.rs`, `selection_edge_transfers.rs`, `selection_call_abi.rs`: instruction-selection driver, input projections, block-edge transfers, and scalar/foreign call ABI placement.
   - `selection_scalar_graph.rs`, `selection_structural.rs`, `selection_views_and_bytes.rs`, `selection_access_lifecycles.rs`, `selection_interrupts.rs`: selected-CFG instruction emission across scalar, structural, byte/element-view, access-lifecycle, and interrupt operations.
 */
@@ -268,23 +269,11 @@ pub(crate) mod installed_interrupts {
     }
 
     pub(crate) struct PreparedInstallationSources<'a> {
-        psi: TerminalPsiIdentity,
-        scopes: Rows<&'a AdmittedInstalledInterruptScope>,
         operations: Rows<&'a abstract_operations::AbstractOperation>,
     }
     impl<'a> PreparedInstallationSources<'a> {
-        fn new(
-            cohort: &'a AdmittedInstalledInterruptCohort,
-            source: &'a abstract_operations::AbstractOperationPlan,
-        ) -> Self {
+        fn new(source: &'a abstract_operations::AbstractOperationPlan) -> Self {
             Self {
-                psi: cohort.psi(),
-                scopes: Rows::new(
-                    cohort
-                        .scopes()
-                        .iter()
-                        .map(|scope| (scope.operation(), scope)),
-                ),
                 operations: Rows::new(source.operations().filter_map(|row| {
                     if let abstract_operations::AbstractOperation::BoundaryCall {
                         psi_operation,
@@ -297,18 +286,6 @@ pub(crate) mod installed_interrupts {
                     }
                 })),
             }
-        }
-        pub(crate) fn psi(&self) -> TerminalPsiIdentity {
-            self.psi
-        }
-        pub(crate) fn scope(
-            &self,
-            operation: OperationId,
-        ) -> Option<&'a AdmittedInstalledInterruptScope> {
-            let [scope] = self.scopes.get(operation) else {
-                return None;
-            };
-            Some(scope)
         }
         pub(crate) fn boundary_calls(
             &self,
@@ -568,12 +545,14 @@ pub(crate) mod installed_interrupts {
         }
     }
 
-    pub(crate) fn validate_target(
+    /// Join retained execution to separately admitted installation authority.
+    /// Source-to-target operand preservation belongs to the independent audit.
+    pub(crate) fn authorize_target(
         target: &target_operations::TargetOperationPlan,
         module: &TerminalModule,
         cohort: &AdmittedInstalledInterruptCohort,
-        abstract_plan: &abstract_operations::AbstractOperationPlan,
     ) -> Result<(), crate::LegalizationError> {
+        use target_operations::{InstallationCallRole, TargetUnitOperation};
         let fail = |operation, reason| crate::LegalizationError::InstalledInterruptAssociation {
             operation,
             reason,
@@ -585,7 +564,80 @@ pub(crate) mod installed_interrupts {
             ));
         }
         let helpers = PreparedInstalledInterruptHelpers::new(target.psi, module, cohort);
-        let sources = PreparedInstallationSources::new(cohort, abstract_plan);
+        let scopes = Rows::new(
+            cohort
+                .scopes()
+                .iter()
+                .map(|scope| (scope.operation(), scope)),
+        );
+        for row in target
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.operations())
+        {
+            match row {
+                TargetUnitOperation::StaticInterrupt {
+                    psi_operation,
+                    operation,
+                    ..
+                } => helpers
+                    .verify(*psi_operation, *operation)
+                    .map_err(|reason| fail(Some(*psi_operation), reason))?,
+                TargetUnitOperation::InstallStaticInterrupt {
+                    psi_operation,
+                    boundary,
+                    arguments,
+                    calls,
+                    ..
+                } => {
+                    let [scope] = scopes.get(*psi_operation) else {
+                        return Err(fail(
+                            Some(*psi_operation),
+                            "installation has no unique admitted Scope",
+                        ));
+                    };
+                    if scope.boundary() != *boundary
+                        || scope.arguments() != arguments
+                        || calls[0].role != InstallationCallRole::Validate
+                        || calls[0].callee != scope.validator()
+                        || calls[1].role != InstallationCallRole::Work
+                        || calls[1].callee != scope.work()
+                    {
+                        return Err(fail(
+                            Some(*psi_operation),
+                            "installation changed its admitted operands or selected helper calls",
+                        ));
+                    }
+                    if module
+                        .boundary_machine(*boundary)
+                        .and_then(|row| row.declaration.as_ref())
+                        .and_then(|row| row.execution.static_interrupt_operation())
+                        != Some(language_core::static_interrupts::StaticInterruptOperation::Install)
+                    {
+                        return Err(fail(
+                            Some(*psi_operation),
+                            "installation changed its authenticated declaration",
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_target(
+        target: &target_operations::TargetOperationPlan,
+        module: &TerminalModule,
+        cohort: &AdmittedInstalledInterruptCohort,
+        abstract_plan: &abstract_operations::AbstractOperationPlan,
+    ) -> Result<(), crate::LegalizationError> {
+        authorize_target(target, module, cohort)?;
+        let fail = |operation, reason| crate::LegalizationError::InstalledInterruptAssociation {
+            operation,
+            reason,
+        };
+        let sources = PreparedInstallationSources::new(abstract_plan);
         for row in target
             .functions
             .iter()
@@ -594,32 +646,25 @@ pub(crate) mod installed_interrupts {
             if let target_operations::TargetUnitOperation::StaticInterrupt {
                 psi_operation,
                 boundary,
-                operation,
                 token,
                 ..
             } = row
-            {
-                helpers
-                    .verify(*psi_operation, *operation)
-                    .map_err(|reason| fail(Some(*psi_operation), reason))?;
-                if !sources.boundary_calls(*psi_operation).iter().any(|source|
+                && !sources.boundary_calls(*psi_operation).iter().any(|source|
                     matches!(source, abstract_operations::AbstractOperation::BoundaryCall { psi_operation: actual_operation, boundary: actual, arguments, structural_arguments, .. }
                         if actual_operation == psi_operation && actual == boundary && arguments.is_empty() && structural_arguments.as_slice() == std::slice::from_ref(token))) {
                     return Err(fail(Some(*psi_operation), "interrupt helper changed its exact boundary or token operand"));
-                }
             }
         }
-        crate::interrupt_installation::validate_target(target, module, &sources)
+        crate::interrupt_installation::validate_target(target, &sources)
     }
 }
 pub use installed_interrupt_geometry::InstalledInterruptOperandLayout;
 pub(crate) mod interrupt_installation {
     use crate::installed_interrupts::PreparedInstallationSources;
-    use target_operations::{InstallationCallRole, TargetOperationPlan, TargetUnitOperation};
+    use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
     pub(crate) fn validate_target(
         target: &TargetOperationPlan,
-        module: &terminal_psi::TerminalModule,
         source: &PreparedInstallationSources<'_>,
     ) -> Result<(), crate::LegalizationError> {
         let fail = |operation, reason| crate::LegalizationError::InstalledInterruptAssociation {
@@ -635,45 +680,19 @@ pub(crate) mod interrupt_installation {
                 psi_operation,
                 boundary,
                 arguments,
-                calls,
                 ..
             } = row
             else {
                 continue;
             };
-            let Some(scope) = source.scope(*psi_operation) else {
-                return Err(fail(
-                    *psi_operation,
-                    "installation has no unique admitted Scope",
-                ));
-            };
-            if source.psi() != target.psi
-                || scope.boundary() != *boundary
-                || scope.arguments() != arguments
-                || calls[0].role != InstallationCallRole::Validate
-                || calls[0].callee != scope.validator()
-                || calls[1].role != InstallationCallRole::Work
-                || calls[1].callee != scope.work()
-            {
-                return Err(fail(
-                    *psi_operation,
-                    "installation changed its admitted operands or selected helper calls",
-                ));
-            }
-            if module
-                .boundary_machine(*boundary)
-                .and_then(|row| row.declaration.as_ref())
-                .and_then(|row| row.execution.static_interrupt_operation())
-                != Some(language_core::static_interrupts::StaticInterruptOperation::Install)
-                || !source.boundary_calls(*psi_operation).iter().any(|row| {
-                    matches!(row,
+            if !source.boundary_calls(*psi_operation).iter().any(|row| {
+                matches!(row,
                     abstract_operations::AbstractOperation::BoundaryCall {
                         psi_operation: operation, boundary: declared, arguments: scalars,
                         structural_arguments, ..
                     } if operation == psi_operation && declared == boundary && scalars.is_empty()
                         && structural_arguments.as_slice() == arguments)
-                })
-            {
+            }) {
                 return Err(fail(
                     *psi_operation,
                     "installation changed its authenticated source operation",
@@ -688,6 +707,7 @@ mod legalization;
 mod legalization_control;
 mod legalization_descriptor_inputs;
 mod legalization_function_inputs;
+mod legalization_instruction;
 mod legalization_reference_custody;
 mod legalization_scalar_graph;
 mod legalization_source;
@@ -715,7 +735,7 @@ pub(crate) use legalization::legalize_target_operations;
 pub(crate) use legalization::{LegalizationError, ValidatedLegalizedOperations};
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
-    StagedOptimizedSelectionCustodyReceipt, TargetSelectionInput,
+    StagedOptimizedSelectionCustodyReceipt, TargetSelectionEvidence, TargetSelectionInput,
     stage_optimized_instruction_selection,
 };
 pub(crate) use selection::SelectedInstructionError;

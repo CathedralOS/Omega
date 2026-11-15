@@ -1236,6 +1236,17 @@ fn adapt(
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = ScalarExpressions::new(function);
+    let mut scalar_formals = function
+        .parameters
+        .iter()
+        .map(|parameter| parameter.value)
+        .collect::<Vec<_>>();
+    scalar_formals.sort_unstable();
+    let selector = |value| {
+        kernel::entry_selector(scalar_expressions.expression(value)?, |id| {
+            scalar_formals.binary_search(&id).is_ok()
+        })
+    };
     let mut graph = DescriptorMachine {
         id: function.machine,
         entry: (function.entry, 0),
@@ -1549,7 +1560,7 @@ fn adapt(
                         StructuralTypeShape::ElementView { element, .. } => {
                             query
                                 .steps
-                                .push(kernel::DescriptorContentsStep::AnyElement { element });
+                                .push(kernel::DescriptorContentsStep::any_element(element));
                         }
                         StructuralTypeShape::ByteSequence(_)
                             if kernel::is_descriptor(types.iter(), selected.id) =>
@@ -1973,22 +1984,25 @@ fn adapt(
                     source,
                     ..
                 } => {
-                    if let Some(destination) = location(*destination, path, *field) {
-                        step.definitions.push(destination.clone());
-                        step.derivations
-                            .push((DescriptorLocation::whole(*source), destination));
-                    } else {
-                        graph.unresolved_contents_writes.insert(position);
-                        step.definitions.extend(slot_kind.overwritten_slots(
-                            types,
-                            *destination,
-                            *graph.place_types.get(destination)?,
+                    let root_type = *graph.place_types.get(destination)?;
+                    kernel::descriptor_leaf_store(
+                        kernel::DescriptorStoreFlow {
+                            position,
+                            transfers: &mut graph.contents_transfers,
+                            unresolved: &mut graph.unresolved_contents_writes,
+                        },
+                        &mut step,
+                        types,
+                        slot_kind,
+                        kernel::DescriptorContentsOperand {
+                            root: *destination,
+                            root_type,
                             path,
-                            *field,
-                        )?);
-                        step.may_escape = true;
-                    }
-                    step.inputs = vec![DescriptorLocation::whole(*source)];
+                            field: *field,
+                        },
+                        *source,
+                        selector,
+                    )?;
                 }
                 O::EstablishPrimitiveLocal { result, value, .. } => {
                     if let Some(value) = scalar_expressions.expression(value.value) {
@@ -2206,6 +2220,7 @@ fn adapt(
                 }
                 O::CallStructural {
                     callee,
+                    arguments: scalar_actuals,
                     structural_arguments,
                     claim_transfers,
                     result: call_result,
@@ -2268,6 +2283,14 @@ fn adapt(
                         graph.calls.insert(
                             position,
                             DescriptorInvocation {
+                                scalar_arguments: kernel::descriptor_scalar_arguments(
+                                    callee
+                                        .parameters
+                                        .iter()
+                                        .map(|formal| (formal.value, formal.scalar_type)),
+                                    scalar_actuals,
+                                    selector,
+                                ),
                                 operation: node.operation.psi_operation()?,
                                 target: kernel::DescriptorInvocationTarget::Machine(callee.machine),
                                 arguments,

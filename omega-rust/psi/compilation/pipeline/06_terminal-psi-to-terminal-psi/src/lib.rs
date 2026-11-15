@@ -1891,24 +1891,8 @@ fn stated_goal(
                     },
                 )
             };
-            match row.site {
-                InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
-                    tables,
-                    &row.actuals,
-                    formals,
-                    site,
-                    concerns,
-                )?),
-                InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
-                    let actuals = scalar_actuals(&row.actuals);
-                    over_actuals(&mut ScalarActuals {
-                        actuals: &actuals,
-                        result: None,
-                        tables,
-                    })
-                }
-            }
-            .map_err(|unbound| unbound.refusal(id, concerns))
+            over_actuals(&mut storage.at_call(tables, &row.actuals, formals, row.site, concerns)?)
+                .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {
             storage.domain_goal(tables, operation, clause, concerns)

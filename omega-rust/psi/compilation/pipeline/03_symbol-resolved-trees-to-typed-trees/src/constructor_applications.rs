@@ -706,15 +706,9 @@ fn infer(
                 .type_reference_table
                 .find_arithmetic_result_type_reference(*symbol, landing.domain)
         }),
-        ExpressionNode::Float(literal) => literal.landing().and_then(|format| {
-            builtin(
-                program,
-                match format {
-                    numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
-                    numerics::literals::FloatFormat::F64 => BuiltinTypeAtom::F64,
-                },
-            )
-        }),
+        ExpressionNode::Float(literal) => literal
+            .landing()
+            .and_then(|format| builtin(program, crate::typing_queries::float_literal_atom(format))),
         ExpressionNode::Boolean(_) => builtin(program, BuiltinTypeAtom::Bool),
         ExpressionNode::Name(path) => {
             let binder = path.resolved_symbol();

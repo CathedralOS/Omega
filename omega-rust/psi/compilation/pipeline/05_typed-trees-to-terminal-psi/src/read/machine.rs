@@ -2588,6 +2588,20 @@ impl<'t> Program<'t> {
         }
     }
 
+    pub(super) fn formal_value_type(
+        &mut self,
+        machine: MachineId,
+        carrier: TypeReferenceHandle,
+        referent: BorrowedReferent,
+    ) -> Checked<ValueType> {
+        if referent == BorrowedReferent::Slice
+            && let Some(value) = self.view_type_with_formal_access(machine, carrier, true)?
+        {
+            return Ok(value);
+        }
+        self.value_type(machine, carrier)
+    }
+
     /// A formal's type, whether it is `[erased]`, and the reference it is
     /// passed by. An erased formal is scalar: an erased record travels in
     /// Terminal Psi's proof-term lane (`erased_proof_formals`), which a later
@@ -2700,7 +2714,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = self.value_type(id, carrier)?;
+        let value_type = self.formal_value_type(id, carrier, referent)?;
         // Incoming data is already established, whether lent shared or
         // exclusively. Stores through an exclusive loan owe the same data
         // clauses as owned stores; the existing storage windows require

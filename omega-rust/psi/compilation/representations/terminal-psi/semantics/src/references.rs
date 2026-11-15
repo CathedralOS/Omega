@@ -2612,7 +2612,7 @@ pub(crate) mod reference_origins {
             for step in steps {
                 match step {
                     DescriptorContentsStep::Address(segment) => exact.push(*segment),
-                    DescriptorContentsStep::AnyElement { element } => {
+                    DescriptorContentsStep::Element { element, .. } => {
                         let collection = descriptor_location_type(types, root, &exact)
                             .ok_or("returned view contents have no typed collection")?;
                         if super::collection_element_type(types.iter(), collection)
@@ -6268,6 +6268,68 @@ pub(crate) mod reference_views {
         ScalarRepresentationViewPair::classify(source, target)?.view(value)
     }
 
+    pub fn shared_byte_descriptor_storage_matches(
+        source: terminal_psi::ByteSequenceCarrier,
+        referent: terminal_psi::ByteSequenceCarrier,
+    ) -> bool {
+        use terminal_psi::ByteSequenceCarrier::BorrowedView;
+        source == (BorrowedView { access: None })
+            && referent
+                == (BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+    }
+
+    fn shared_byte_descriptor_reference_shapes(
+        source: &StructuralTypeShape,
+        referent: &StructuralTypeShape,
+        access: StructuralAccess,
+    ) -> bool {
+        access == StructuralAccess::SharedBorrow
+            && matches!((source, referent),
+                (StructuralTypeShape::ByteSequence(source), StructuralTypeShape::ByteSequence(referent))
+                    if shared_byte_descriptor_storage_matches(*source, *referent))
+    }
+
+    /// Match a shared borrow of an incoming mutable view's descriptor slot.
+    /// The original formal supplies the backing permission.
+    pub fn shared_direct_byte_descriptor_source(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        source: &terminal_psi::StructuralArgument,
+        reference: StructuralTypeId,
+    ) -> Option<bool> {
+        let StructuralTypeShape::Reference { access, referent } =
+            module.structural_type(reference)?.shape
+        else {
+            return None;
+        };
+        let target = module.structural_type(referent)?;
+        let direct_byte_view =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            });
+        if !shared_byte_descriptor_reference_shapes(&direct_byte_view, &target.shape, access) {
+            return None;
+        }
+        let root = machine.structural_place_type(source.place)?;
+        let path =
+            reference_source_storage_path(module.structural_types.iter(), root, &source.path);
+        let actual =
+            crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)?;
+        if actual.shape != direct_byte_view {
+            return None;
+        }
+        Some(
+            source.access == access
+                && source.path.is_empty()
+                && crate::arrival_parameter(machine, source.place).is_some_and(|parameter| {
+                    parameter.structural_type == root
+                        && parameter.access == StructuralAccess::MutableBorrow
+                }),
+        )
+    }
+
     pub fn reference_source_compatible<'types>(
         types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
         source: StructuralTypeId,
@@ -6282,6 +6344,11 @@ pub(crate) mod reference_views {
             return false;
         };
         if source == *referent {
+            return true;
+        }
+        if crate::structural_shape(types.clone(), *referent).is_some_and(|target| {
+            shared_byte_descriptor_reference_shapes(source_shape, target, *access)
+        }) {
             return true;
         }
         if matches!(

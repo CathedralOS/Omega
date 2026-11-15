@@ -1610,9 +1610,16 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::UndeterminedNaN(format) => Ok(self
                             .target()
                             .insert(typed::expression::ExpressionNode::UndeterminedNaN(*format))),
-                        resolved::expression::ExpressionNode::Float(value) => Ok(self
-                            .target()
-                            .insert(typed::expression::ExpressionNode::Float(value.clone()))),
+                        resolved::expression::ExpressionNode::Float(value) => {
+                            if let Some(format) = value.landing() {
+                                self.retain_builtin_type_reference(
+                                    crate::typing_queries::float_literal_atom(format),
+                                )?;
+                            }
+                            Ok(self
+                                .target()
+                                .insert(typed::expression::ExpressionNode::Float(value.clone())))
+                        }
                         resolved::expression::ExpressionNode::Indexed(indexed) => {
                             let collection = self.lower_value(indexed.collection)?;
                             let index = self.lower_value(indexed.index)?;

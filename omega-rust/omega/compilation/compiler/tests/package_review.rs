@@ -196,11 +196,8 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 
 #[test]
 fn review_policy_round_trip_preserves_inferred_imported_reach() {
-    // The original support package was removed when the facts tree was
-    // deduplicated. Keep its assertion separate from the two live reach probes.
-    let fixture = fixture_package_inputs::repo_root().join(
-        "tests/omega/pass/facts/unannotated_imported_boundary_call_through_local_exit/support/main.omg",
-    );
+    // Review the package that declares the public helper and its private call.
+    let fixture = kept_fixture("pass/effects/inferred_imported_reach/support/main.omg");
     let recovered = reviewed_and_recovered(&fixture, "macos_arm64");
     let callable = recovered
         .callables()
@@ -216,6 +213,116 @@ fn review_policy_round_trip_preserves_inferred_imported_reach() {
     assert_eq!(realized.len(), 1);
     assert_eq!(realized[0].path(), "Mark");
     assert_eq!(callable.published_service_reach(), Some(realized));
+
+    let mark = recovered
+        .public_traits()
+        .iter()
+        .find(|declaration| declaration.identity() == &realized[0])
+        .expect("the support package's exact Mark declaration");
+    let [read] = mark.requirements() else {
+        panic!("one Mark requirement");
+    };
+    let consumer = reviewed_and_recovered(
+        &kept_fixture("pass/effects/inferred_imported_reach/consumer/main.omg"),
+        "macos_arm64",
+    );
+    let [plan] = consumer.selected_providers().plans() else {
+        panic!("one selected MarkerMark plan");
+    };
+    assert_eq!(plan.target(), "macos_arm64");
+    assert_eq!(plan.schema_declaration(), mark.identity());
+    let [row] = plan.rows() else {
+        panic!("one checked MarkerMark implementation");
+    };
+    let [method] = plan.methods() else {
+        panic!("one imported requirement contract");
+    };
+    assert_eq!(row.requirement(), read.identity());
+    assert_eq!(row.requirement(), method.requirement());
+    assert_eq!(method.requirement_owner(), mark.identity());
+
+    let owner = review_evidence::record::PackageReviewNominalOwner::Package(consumer.package());
+    assert_ne!(owner, mark.identity().owner());
+    let provider = plan
+        .provider_type_declaration()
+        .expect("the local provider");
+    assert_eq!(provider.path(), "MarkerMark");
+    assert_eq!(provider.owner(), owner);
+    let realization = row.realization().expect("the checked local body");
+    assert_eq!(realization.path(), "MarkerMark::read");
+    assert_eq!(realization.owner(), owner);
+    assert!(
+        consumer
+            .public_traits()
+            .iter()
+            .all(|declaration| declaration.identity().path() != "Mark")
+    );
+    assert!(
+        consumer
+            .callables()
+            .callables()
+            .iter()
+            .all(|callable| callable.identity().path() != "Mark::read")
+    );
+}
+
+#[test]
+fn build_service_audit_rejects_an_ordinary_trait() {
+    let fixture = kept_fixture("fail/build/service_audit_requires_boundary/main.omg");
+    let expected = std::fs::read_to_string(fixture.with_file_name("expected.txt")).unwrap();
+    let Err(diagnostics) =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, None)
+    else {
+        panic!("an ordinary trait cannot register a service audit");
+    };
+    let [diagnostic] = diagnostics.as_slice() else {
+        panic!("one refusal at the authored operand: {diagnostics:?}");
+    };
+    assert_eq!(diagnostic.message, expected.trim_end());
+    let location = diagnostic
+        .resolved_location
+        .as_ref()
+        .expect("the authored Build operand location");
+    assert_eq!(location.path.file_name().unwrap(), "build.omg");
+    assert_eq!((location.line, location.column), (3, 12));
+}
+
+#[test]
+fn review_policy_round_trip_keeps_unsupplied_driver_requirements() {
+    let recovered = reviewed_and_recovered(
+        &kept_fixture("pass/effects/root_service_audit/driver/main.omg"),
+        "macos_arm64",
+    );
+    assert!(recovered.selected_providers().plans().is_empty());
+
+    let traits = recovered.public_traits();
+    let driver = traits
+        .iter()
+        .find(|shape| shape.identity().path() == "Driver")
+        .expect("public Driver interface");
+    let [requirement] = driver.requirements() else {
+        panic!("one Driver requirement");
+    };
+    assert_eq!(requirement.identity().path(), "Driver::drive");
+    let callable = recovered
+        .callables()
+        .callables()
+        .iter()
+        .find(|callable| callable.identity() == requirement.identity())
+        .expect("the exact bodyless Driver requirement");
+    assert_eq!(format!("{:?}", callable.supply()), "Boundary");
+    assert!(callable.checked_service_reach().realized().is_none());
+
+    let expected = ["DependencyOnly", "MotorControl", "Untaken"].map(|name| {
+        traits
+            .iter()
+            .find(|shape| shape.identity().path() == name)
+            .expect("authored service")
+            .identity()
+            .clone()
+    });
+    assert_eq!(callable.declared_service_reach(), Some(expected.as_slice()));
+    assert_eq!(callable.service_reach_dependency().concrete(), expected);
 }
 
 #[test]
@@ -801,9 +908,7 @@ fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
 
 #[test]
 fn completed_scalar_call_preserves_wrapping_index_guard() {
-    let target = "linux_x86_64";
-    let mut failures = Vec::new();
-    for (fixture, accepted) in [
+    check_wrapping_index_guards(&[
         (
             "pass/facts/compound_index_guard_through_call_result_exit",
             true,
@@ -812,6 +917,13 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_call_result_rejected",
             false,
         ),
+        ("fail/facts/compound_index_guard_wrong_call_actual", false),
+    ]);
+}
+
+#[test]
+fn match_join_preserves_wrapping_index_guard() {
+    check_wrapping_index_guards(&[
         (
             "pass/facts/compound_index_guard_through_match_join_exit",
             true,
@@ -820,18 +932,36 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_match_join_rejected",
             false,
         ),
-        ("fail/facts/compound_index_guard_wrong_call_actual", false),
-    ] {
+    ]);
+}
+
+fn check_wrapping_index_guards(fixtures: &[(&str, bool)]) {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for &(fixture, accepted) in fixtures {
         let source = kept_fixture(fixture).join("main.omg");
-        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-            &source,
-            Some(target),
+        let result = orchestration::check_source(
+            &mut CompilationSession::default(),
+            CheckedCompileRequest::new(&source, Some(target)),
         )
-        .and_then(|mut prepared| {
-            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
-        });
+        .result
+        .map_err(|failure| failure.into_diagnostics());
         match result {
-            Ok(_) if accepted => eprintln!("SOURCE_CHECK {fixture}: accepted"),
+            Ok(checked) if accepted => {
+                let publication = checked
+                    .terminal_publication()
+                    .published()
+                    .expect("the checked fixture retains its Psi publication");
+                let bytes = publication.artifact().to_bytes();
+                let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+                    .expect("reopen the checked fixture's saved Psi");
+                assert_eq!(
+                    reopened.manifest().semantic(),
+                    publication.artifact().manifest().semantic(),
+                    "{fixture}"
+                );
+                eprintln!("SOURCE_CHECK {fixture}: accepted and reopened");
+            }
             Err(diagnostics)
                 if !accepted
                     && diagnostics.iter().any(|diagnostic| {
@@ -841,7 +971,7 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             {
                 eprintln!("SOURCE_CHECK {fixture}: intended bound refusal {diagnostics:?}")
             }
-            Ok(_) => failures.push(format!("{fixture}: invalid upperless source accepted")),
+            Ok(_) => failures.push(format!("{fixture}: invalid index source accepted")),
             Err(diagnostics) => failures.push(format!("{fixture}: {diagnostics:?}")),
         }
     }

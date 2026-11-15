@@ -295,13 +295,14 @@ impl NormalizedForeignCallBinding {
                         )
             }
             NormalizedForeignCallMechanism::HostedImport {
+                locator,
                 receipt,
                 requirement_identity,
-                ..
             } => {
                 *receipt != [0; 32]
                     && !requirement_identity.is_empty()
-                    && target::HostedIntrinsicBundle::from_native_target(target).is_some()
+                    && locator.target().program_entry_slot().schema
+                        == target::ProgramEntrySchema::HostedApplication
                     && call.policy == CallingPolicy::native_for_target(target)
                     && call.entry_control == EntryControl::CallReturn
             }
