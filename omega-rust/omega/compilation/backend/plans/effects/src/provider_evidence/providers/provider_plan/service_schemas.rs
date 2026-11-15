@@ -7,7 +7,6 @@ coordinates are stored as `ProviderIdentityId` handles into the declaration's
 identity table.
 */
 
-use super::DigestFeed;
 use crate::provider_evidence::evidence_digest;
 use crate::provider_evidence::providers::provider_plan::digest_encoder::ProviderPlanDigestEncoder;
 use crate::provider_evidence::providers::provider_plan::{

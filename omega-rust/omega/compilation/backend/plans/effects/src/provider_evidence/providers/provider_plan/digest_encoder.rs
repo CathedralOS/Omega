@@ -40,6 +40,13 @@ pub(crate) trait DigestFeed {
     fn string(&mut self, value: &str) {
         self.bytes(value.as_bytes());
     }
+
+    fn strings(&mut self, values: &[String]) {
+        self.len(values.len());
+        for value in values {
+            self.string(value);
+        }
+    }
 }
 
 pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
