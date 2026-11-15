@@ -642,7 +642,19 @@ pub(crate) mod errors {
         VerifiedCallTargetMissing(MachineId),
         VerifiedBoundaryMachineMissing(BoundaryMachineId),
         VerifiedBlockMissing,
-        VerifiedOperationMalformed,
+        /// The verified artifact holds a shape the interpreter cannot execute.
+        /// `check` is the interpreter line that refused it, so two refusals of
+        /// different shapes never read as the same verdict.
+        VerifiedOperationMalformed {
+            check: &'static std::panic::Location<'static>,
+        },
+        /// A proof-bearing scalar operation received operands for which its
+        /// discharged range obligation is false. The checker accepted a proof
+        /// that does not hold: this is a proof defect, not a program crash,
+        /// since only a trapping operation may crash at run time.
+        ScalarObligationViolated {
+            obligation: semantic_vocabulary::ObligationId,
+        },
         VerifiedOperationContractInvalid {
             reason: &'static str,
         },
@@ -696,8 +708,13 @@ pub(crate) mod errors {
 
     impl std::error::Error for TerminalArtifactInterpretError {}
 
+    /// Every interpreter refusal of an artifact shape goes through here; the
+    /// caller's location names the check, so the report says which one failed.
+    #[track_caller]
     pub(crate) fn malformed() -> TerminalInterpretError {
-        TerminalInterpretError::VerifiedOperationMalformed
+        TerminalInterpretError::VerifiedOperationMalformed {
+            check: std::panic::Location::caller(),
+        }
     }
 
     impl TerminalInterpretError {
@@ -757,6 +774,17 @@ pub(crate) mod errors {
                 } => {
                     write!(formatter, "{} at {operation:?}", rejection.reason)
                 }
+                Self::VerifiedOperationMalformed { check } => write!(
+                    formatter,
+                    "the verified artifact is malformed: refused by the interpreter check at {}:{}",
+                    check.file(),
+                    check.line()
+                ),
+                Self::ScalarObligationViolated { obligation } => write!(
+                    formatter,
+                    "the checked range obligation {obligation:?} is false for these operands: \
+                     the artifact's proof does not hold"
+                ),
                 Self::Work(reason) => reason.fmt(formatter),
                 Self::Storage(reason) => reason.fmt(formatter),
                 other => write!(formatter, "{other:?}"),
@@ -1247,7 +1275,7 @@ pub(crate) mod results {
                     Vec<CanonicalStructuralPathSegment>,
                     TerminalScalarValue,
                 )>())
-                .ok_or_else(crate::boundary::errors::malformed)?;
+                .ok_or(crate::boundary::errors::malformed())?;
             payload.try_reserve_exact(count).map_err(|reason| {
                 TerminalInterpretError::StorageAllocationFailed {
                     requested_bytes,
@@ -1258,7 +1286,7 @@ pub(crate) mod results {
             for _ in 0..count {
                 let (field, scalar) = fields
                     .next()
-                    .ok_or_else(crate::boundary::errors::malformed)??;
+                    .ok_or(crate::boundary::errors::malformed())??;
                 payload.push((vec![CanonicalStructuralPathSegment::Field(field)], scalar));
             }
             if fields.next().is_some() {
@@ -1459,7 +1487,7 @@ pub(crate) mod values {
                         let mut child = |identity| {
                             let declaration = lookup(identity)
                                 .filter(|declaration| declaration.id == identity)
-                                .ok_or_else(malformed)?;
+                                .ok_or(malformed())?;
                             pending.push((declaration, false));
                             Ok::<_, TerminalInterpretError>(())
                         };
@@ -1499,7 +1527,7 @@ pub(crate) mod values {
                         nodes
                             .iter()
                             .position(|node| node.identity == identity)
-                            .ok_or_else(malformed)
+                            .ok_or(malformed())
                     };
                     let (shape, count, scalar_tree) = match &declaration.shape {
                         StructuralTypeShape::PrimitiveScalar(scalar) => {
@@ -1561,7 +1589,7 @@ pub(crate) mod values {
                         scalar_tree,
                     });
                 }
-                let root = nodes.len().checked_sub(1).ok_or_else(malformed)?;
+                let root = nodes.len().checked_sub(1).ok_or(malformed())?;
                 if nodes[root].count.is_none() {
                     return Err(malformed());
                 }
@@ -1569,7 +1597,7 @@ pub(crate) mod values {
             }
 
             pub(crate) fn count(&self) -> Result<usize, TerminalInterpretError> {
-                usize::try_from(self.nodes[self.root].count.ok_or_else(malformed)?)
+                usize::try_from(self.nodes[self.root].count.ok_or(malformed())?)
                     .map_err(|_| malformed())
             }
 
@@ -1617,7 +1645,7 @@ pub(crate) mod values {
                                     &path,
                                     ScalarAggregatePart::Array {
                                         structural_type: node.identity,
-                                        count: usize::try_from(node.count.ok_or_else(malformed)?)
+                                        count: usize::try_from(node.count.ok_or(malformed())?)
                                             .map_err(|_| malformed())?,
                                     },
                                 )?;
@@ -1673,7 +1701,7 @@ pub(crate) mod values {
                             }
                         }
                         Visit::Pop => {
-                            path.pop().ok_or_else(malformed)?;
+                            path.pop().ok_or(malformed())?;
                         }
                     }
                 }
@@ -1693,7 +1721,7 @@ pub(crate) mod values {
                 }
                 let mut actual = self.fields.iter();
                 let mut accept = |path: &[Path], field_type: &StructuralFieldType| {
-                    let (found, value) = actual.next().ok_or_else(malformed)?;
+                    let (found, value) = actual.next().ok_or(malformed())?;
                     if found != path
                         || field_type.scalar_type() != Some(value.scalar_type())
                         || !value.satisfies_field(field_type)
@@ -1717,7 +1745,7 @@ pub(crate) mod values {
                     }
                     (StructuralTypeShape::Sum { cases }, Some(selected)) => {
                         let case = terminal_psi::find_structural_case(cases, selected)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         for field in &case.fields {
                             if field.relevance.is_erased()
                                 || field.field_type.scalar_type().is_none()

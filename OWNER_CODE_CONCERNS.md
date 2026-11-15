@@ -192,13 +192,6 @@ framework or a list of features that remain unimplemented.
 - Cost: consumers without an owning-boundary validation can interpret a stale handle as a missing declaration or mutate the shared default. Those consumers need recoverable validation before using these infallible APIs, without changing legitimate zero-sentinel behavior.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
-- Saw: `malformed()` returns `VerifiedOperationMalformed` and is called 1,329 times across 15 files; an exact add, multiply or divide whose result does not fit ends in `.ok_or(malformed())?`; a program crash is built on only 7 lines (trapping integer, trapping float, crash terminator, host effect); no crate outside the interpreter names the variant
-- Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
 - Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "contract membership carrier selection" in `contracts_and_signatures.rs`, "closed const argument declaration custody" in `type_reference.rs`, and the declaration-lowering queries in `typing_queries.rs` and `statement_lowering.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
