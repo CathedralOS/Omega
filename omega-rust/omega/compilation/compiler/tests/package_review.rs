@@ -21,16 +21,18 @@ fn kept_fixture(relative: &str) -> PathBuf {
 
 #[test]
 fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
-    // These libraries have no program entry. Their UEFI target request belongs
-    // to this package check; the positive also covers ordinary source checking.
-    let target = "uefi_x86_64";
-    let mut failures = Vec::new();
-    for (fixture, refusal) in [
+    check_reusable_package_cases(&[
         ("pass/float/rootless_target_realization_scope", None),
         (
             "packages/selected-provider-unsupported-target",
             Some("the target declares no floating-point realization table"),
         ),
+    ]);
+}
+
+#[test]
+fn reusable_package_checks_invalid_unused_declarations() {
+    check_reusable_package_cases(&[
         (
             "fail/constants/unused_scalar_constant_range",
             Some("scalar constant `VALUE` is invalid"),
@@ -39,7 +41,15 @@ fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() 
             "fail/proofs/ordinary_denotational_call_requires_normal_return",
             Some("has no observation-free, reach-free, crash-free value denotation"),
         ),
-    ] {
+    ]);
+}
+
+fn check_reusable_package_cases(cases: &[(&str, Option<&str>)]) {
+    // These libraries have no program entry. Their UEFI target request belongs
+    // to this package check; the positive also covers ordinary source checking.
+    let target = "uefi_x86_64";
+    let mut failures = Vec::new();
+    for &(fixture, refusal) in cases {
         let source = kept_fixture(fixture).join("main.omg");
         let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
             &source,
@@ -1204,6 +1214,38 @@ fn toolchain_boundary_applications_recover_against_their_owner_qualified_require
             "a different target must not recover under the Linux policy"
         );
     }
+}
+
+#[test]
+fn rootless_package_reviews_its_explicit_provider_without_an_entry() {
+    let source = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "rootless-selected-review",
+        false,
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("main.omg"),
+        "public boundary trait Answer { machine read() -> u32 reaches none crashes none; }\n\
+         SelectedAnswer satisfies Answer { machine read() -> u32 { 7u32 } }\n\
+         public machine answer() -> u32 { Answer::read() }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        source.path().join("build.omg"),
+        "machine build(builder: &mut Build) {\n\
+         Build::package(builder, \"rootless_selected\");\n\
+         Build::select_provider<Answer, SelectedAnswer>(builder, uefi_x86_64);\n\
+         }\n",
+    )
+    .unwrap();
+    let recovered = reviewed_and_recovered(&source.path().join("main.omg"), "uefi_x86_64");
+    let [plan] = recovered.selected_providers().plans() else {
+        panic!("the explicit choice retains one checked provider without an entry");
+    };
+    assert_eq!(plan.provider_type(), "SelectedAnswer");
+    assert_eq!(plan.schema_declaration().path(), "Answer");
+    assert_eq!(plan.target(), "uefi_x86_64");
+    assert!(recovered.boundary_applications().realizations().is_empty());
 }
 
 #[test]

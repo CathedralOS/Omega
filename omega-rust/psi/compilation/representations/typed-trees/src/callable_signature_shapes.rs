@@ -1,11 +1,105 @@
-//! Compare a callable's calling shape before building its body or proof
-//! witness. Matching the types stays the caller's job: generic applications
-//! supply their exact binder substitutions, and closed bindings use resolved
-//! identities. Neither needs to lower a type to compare it.
+//! Compare callable signatures before building bodies or proof witnesses.
+//! Declaration matching checks exact static binders and types; bound callers
+//! supply their own substitutions. Neither lowers a type to compare it.
 
 use crate::signature::StateParameter;
 use crate::types::TypeReferenceHandle;
 use symbols::{RetainedDeclaration, SymbolHandle};
+
+/// Declaration matching ignores whether expression syntax also names this
+/// callable. Exact static binders, parameter modes and full result types choose
+/// an overload; this comparison establishes no contract refinement.
+pub(crate) fn realizes_signature(
+    program: &crate::TypedTrees,
+    machine: &crate::machine::Machine,
+    required_statics: &[crate::data::TypeParameter],
+    required_parameters: &[StateParameter],
+    result: TypeReferenceHandle,
+) -> bool {
+    let Some(state) = program.machine_states(machine).first() else {
+        return false;
+    };
+    let Some((machine_binders, required_binders)) =
+        realization_static_binders(program, machine, required_statics)
+    else {
+        return false;
+    };
+    let actual_parameters = program.state_parameters(state);
+    actual_parameters.len() == required_parameters.len()
+        && actual_parameters
+            .iter()
+            .zip(required_parameters)
+            .all(|(actual, required)| {
+                actual.is_const == required.is_const
+                    && actual.is_mutable == required.is_mutable
+                    && program.type_identity(crate::type_identity::TypeIdentityRequest {
+                        binders: &machine_binders,
+                        ..crate::type_identity::TypeIdentityRequest::ordinary(actual.type_reference)
+                    }) == program.type_identity(crate::type_identity::TypeIdentityRequest {
+                        binders: &required_binders,
+                        ..crate::type_identity::TypeIdentityRequest::ordinary(
+                            required.type_reference,
+                        )
+                    })
+            })
+        && state.return_type.is_valid() == result.is_valid()
+        && (!result.is_valid()
+            || program.type_identity(crate::type_identity::TypeIdentityRequest {
+                binders: &machine_binders,
+                ..crate::type_identity::TypeIdentityRequest::ordinary(state.return_type)
+            }) == program.type_identity(crate::type_identity::TypeIdentityRequest {
+                binders: &required_binders,
+                ..crate::type_identity::TypeIdentityRequest::ordinary(result)
+            }))
+}
+fn realization_static_binders(
+    program: &crate::TypedTrees,
+    machine: &crate::machine::Machine,
+    required_parameters: &[crate::data::TypeParameter],
+) -> Option<(Vec<(SymbolHandle, String)>, Vec<(SymbolHandle, String)>)> {
+    let machine_parameters = program.machine_type_parameters(machine);
+    if machine_parameters.len() != required_parameters.len() {
+        return None;
+    }
+    let machine_binders = machine_parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, parameter)| (parameter.symbol, format!("${ordinal}")))
+        .collect::<Vec<_>>();
+    let required_binders = required_parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, parameter)| (parameter.symbol, format!("${ordinal}")))
+        .collect::<Vec<_>>();
+    for (machine_parameter, required_parameter) in
+        machine_parameters.iter().zip(required_parameters)
+    {
+        match (&machine_parameter.kind, &required_parameter.kind) {
+            (crate::data::TypeParameterKind::Type, crate::data::TypeParameterKind::Type)
+                if !crate::data::type_parameter_demands_stronger_properties(
+                    required_parameter,
+                    machine_parameter,
+                ) => {}
+            (
+                crate::data::TypeParameterKind::Const {
+                    type_reference: machine_carrier,
+                },
+                crate::data::TypeParameterKind::Const {
+                    type_reference: required_carrier,
+                },
+            ) if machine_parameter.bounds == required_parameter.bounds
+                && program.type_identity(crate::type_identity::TypeIdentityRequest {
+                    binders: &machine_binders,
+                    ..crate::type_identity::TypeIdentityRequest::ordinary(*machine_carrier)
+                }) == program.type_identity(crate::type_identity::TypeIdentityRequest {
+                    binders: &required_binders,
+                    ..crate::type_identity::TypeIdentityRequest::ordinary(*required_carrier)
+                }) => {}
+            _ => return None,
+        }
+    }
+    Some((machine_binders, required_binders))
+}
 
 /// One source binding, before any body is read. The coordinator resolves the
 /// slot and its source owner; Psi consumes declaration occurrences rather than

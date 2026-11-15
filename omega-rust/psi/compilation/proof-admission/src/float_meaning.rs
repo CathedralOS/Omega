@@ -13,7 +13,7 @@ use numerics::float_semantics::{
 };
 use semantic_vocabulary::{
     FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, IeeeFloatFormat,
-    IeeeFloatValue, Proposition, ScalarTerm,
+    IeeeFloatValue, IntegerMathLiteral, Proposition, ScalarTerm,
 };
 
 #[cfg(test)]
@@ -69,6 +69,7 @@ fn equation(
 enum Operand {
     Format(IeeeFloatFormat),
     Meaning(usize),
+    Integer(ScalarTerm),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -226,6 +227,7 @@ impl Normalization {
                     .map(|operand| match operand {
                         Operand::Format(format) => Operand::Format(*format),
                         Operand::Meaning(value) => Operand::Meaning(self.root(*value)),
+                        Operand::Integer(source) => Operand::Integer(source.clone()),
                     })
                     .collect(),
             },
@@ -278,7 +280,20 @@ impl Normalization {
         for row in &clause.values {
             match row {
                 FloatMeaningClauseValue::Application { operands, .. } => {
-                    self.spend(operands.len())?
+                    self.spend(operands.len())?;
+                    for operand in operands {
+                        if let FloatMeaningClauseOperand::Integer(source) = operand {
+                            let mut pending = vec![source];
+                            while let Some(source) = pending.pop() {
+                                self.spend(match source {
+                                    ScalarTerm::IntegerField { path, .. } => path.len() + 1,
+                                    ScalarTerm::StructuralRead { path, .. } => path.len() + 1,
+                                    _ => 1,
+                                })?;
+                                pending.extend(source.operands());
+                            }
+                        }
+                    }
                 }
                 FloatMeaningClauseValue::Projection { source, .. } => self.spend(match source {
                     ScalarTerm::IeeeFloatField { path, .. } => path.len(),
@@ -313,6 +328,9 @@ impl Normalization {
                             FloatMeaningClauseOperand::Format(format) => Operand::Format(*format),
                             FloatMeaningClauseOperand::Meaning(slot) => {
                                 Operand::Meaning(values[slot.0 as usize])
+                            }
+                            FloatMeaningClauseOperand::Integer(source) => {
+                                Operand::Integer(source.clone())
                             }
                         })
                         .collect(),
@@ -380,6 +398,15 @@ impl Normalization {
                             break;
                         };
                         FloatSemanticOperand::Meaning(meaning(value))
+                    }
+                    Operand::Integer(source) => {
+                        let Some((_, value)) = source.integer_value() else {
+                            closed = false;
+                            break;
+                        };
+                        FloatSemanticOperand::Integer(crate::big_integer_literal(
+                            IntegerMathLiteral::from_integer_value(value),
+                        ))
                     }
                 });
             }
