@@ -261,7 +261,7 @@ fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<(
                     "a structural place names an absent domain",
                 );
             };
-            if judged_elsewhere(module, id) {
+            if declared.content_projection.is_some() {
                 continue;
             }
             let carrier =
@@ -755,9 +755,11 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                     "a structural move does not keep its source's exact domains",
                 )?,
                 OperationKind::EstablishRecord { fields }
-                | OperationKind::EstablishStructuralCase { fields, .. } => {
+                | OperationKind::EstablishStructuralCase { fields, .. }
+                | OperationKind::EstablishScalarCase { fields, .. } => {
                     let case = match &operation.kind {
-                        OperationKind::EstablishStructuralCase { result_case, .. } => {
+                        OperationKind::EstablishStructuralCase { result_case, .. }
+                        | OperationKind::EstablishScalarCase { result_case, .. } => {
                             Some(*result_case)
                         }
                         _ => None,
@@ -786,6 +788,14 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                         covered.push(segments);
                     }
                     if produced.projected.iter().any(|row| {
+                        // The full type retains each case's conditional domains.
+                        // Only the selected payload has fields to initialize here.
+                        if matches!((case, row.path.first()),
+                            (Some(active), Some(StructuralPathSegment::Case(declared)))
+                                if active != *declared)
+                        {
+                            return false;
+                        }
                         !covered
                             .iter()
                             .any(|segments| row.path.starts_with(segments))

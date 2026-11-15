@@ -15,7 +15,10 @@
 
 use super::build_purpose::judge_build;
 use super::*;
-use terminal_psi::{ByteSequencePredicate, StructuralFieldType, StructuralTypeShape};
+use semantic_vocabulary::StructuralCaseId;
+use terminal_psi::{
+    ByteSequencePredicate, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
+};
 
 /// `accepted` for a program the checker accepts and can publish; for one it
 /// judges wrong, what it could not establish; else the refusal's text.
@@ -221,6 +224,66 @@ fn the_field_carries_its_predicates_on_its_type() {
         predicates.predicates().collect::<Vec<_>>(),
         [ByteSequencePredicate::ValidUtf8]
     );
+}
+
+#[test]
+fn a_case_literal_owes_only_its_active_fields_without_losing_conditional_domains() {
+    let rejected = rejection("valid_utf8", "no plan");
+    let accepted = rejected.replace(
+        "Outcome::Rejected { reason: Rejection { reason: \"no plan\" as +Text } }",
+        "Outcome::Accepted { value: 7u64 }",
+    );
+    assert_ne!(accepted, rejected);
+    for (source, has_qualified_payload) in [(&accepted, false), (&rejected, true)] {
+        let Ok(RouteVerdict::Accepted(checked)) = judge_build(source) else {
+            panic!("{source}\n{:?}", judge_build(source));
+        };
+        checked.publish_invocation().unwrap();
+        let mut forged = checked.elaboration.module.clone();
+        let operation = forged
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishScalarCase { .. }
+                        | OperationKind::EstablishStructuralCase { .. }
+                ) && operation
+                    .result
+                    .structural()
+                    .is_some_and(|result| !result.projected_qualifications.is_empty())
+            })
+            .expect("the case keeps its full conditional field roster");
+        if has_qualified_payload {
+            let OperationKind::EstablishStructuralCase { fields, .. } = &mut operation.kind else {
+                panic!("the rejected case has its record payload");
+            };
+            fields.clear();
+            assert_eq!(
+                terminal_semantics::structural_qualifications::validate(&forged)
+                    .unwrap_err()
+                    .detail,
+                "a structural literal declares a domain no field initializer supplies"
+            );
+        } else {
+            let OperationResult::Structural(result) = &mut operation.result else {
+                unreachable!();
+            };
+            let StructuralPathSegment::Case(case) = &mut result.projected_qualifications[0].path[0]
+            else {
+                panic!("the qualified field belongs to the sibling case");
+            };
+            *case = StructuralCaseId::new(u64::MAX).unwrap();
+            assert_eq!(
+                terminal_semantics::structural_qualifications::validate(&forged)
+                    .unwrap_err()
+                    .detail,
+                "a structural place's domain has a different carrier"
+            );
+        }
+    }
 }
 
 /// Forwarding a qualified byte field also needs the declared payload lifetime.
