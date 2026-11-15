@@ -1416,7 +1416,6 @@ pub fn collect_program_conformance_occurrences(
 }
 
 pub(crate) struct ProgramApplicationOccurrences {
-    pub types: Vec<TypeOccurrence>,
     pub requirement_applications: Vec<TypeOccurrence>,
     pub conformance_applications: Vec<StaticMachineApplicationHandle>,
     /// Every static application written in its own lexical owner, including
@@ -1432,7 +1431,6 @@ pub(crate) fn collect_program_application_occurrences(
     let conformance_applications = occurrences.conformance_applications(program);
     let invocation_applications = occurrences.invocation_applications(program);
     ProgramApplicationOccurrences {
-        types: occurrences.types,
         requirement_applications: occurrences.requirement_applications,
         conformance_applications,
         invocation_applications,
@@ -3154,14 +3152,6 @@ pub fn visit_type_reference(
         TypeReferenceNode::ConstExpression(expression) => {
             if retained.type_expression(*expression) {
                 visit_expression(program, retained, *expression);
-            }
-        }
-        TypeReferenceNode::DynamicTrait {
-            symbol, arguments, ..
-        } => {
-            visit_symbol(retained, *symbol);
-            for argument in program.type_reference_handles(*arguments) {
-                visit_type_reference(program, retained, *argument);
             }
         }
         TypeReferenceNode::Named { symbol, .. } => {

@@ -1520,24 +1520,6 @@ pub mod types {
                         });
                         destination
                     }
-                    TypeReferenceNode::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                    } => {
-                        let arguments = self.copy_type_reference_handles_from(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *arguments,
-                            expressions,
-                        );
-                        self.insert(TypeReferenceNode::DynamicTrait {
-                            symbol: *symbol,
-                            name: name.clone(),
-                            arguments,
-                        })
-                    }
                     TypeReferenceNode::Named { symbol, name } => {
                         self.insert(TypeReferenceNode::Named {
                             symbol: *symbol,
@@ -1700,20 +1682,6 @@ pub mod types {
                     }
                     TypeReferenceNode::ConstExpression(expression) => {
                         expressions.remap_symbols_in(expression, symbols);
-                    }
-                    TypeReferenceNode::DynamicTrait {
-                        symbol, arguments, ..
-                    } => {
-                        for argument in self.type_reference_handles(arguments).to_vec() {
-                            self.remap_symbols_in(argument, expressions, symbols);
-                        }
-                        let TypeReferenceNode::DynamicTrait {
-                            symbol: current, ..
-                        } = self.type_references.get_mut(type_reference)
-                        else {
-                            unreachable!();
-                        };
-                        *current = remapped(symbol, symbols);
                     }
                     TypeReferenceNode::Named { symbol, .. } => {
                         let replaced_named = matches!(
@@ -1999,13 +1967,6 @@ pub mod types {
                         )
                     }
                     TypeReferenceNode::ConstExpression(_) => "const <expression>".to_owned(),
-                    TypeReferenceNode::DynamicTrait {
-                        name, arguments, ..
-                    } => match arguments.count() {
-                        0 => format!("dyn {name}"),
-                        1 => format!("dyn {name}<1 argument>"),
-                        count => format!("dyn {name}<{count} arguments>"),
-                    },
                     TypeReferenceNode::Named { name, .. } => name.to_string(),
                     TypeReferenceNode::Unit => "()".to_owned(),
                 }
@@ -2074,14 +2035,6 @@ pub mod types {
                     TypeReferenceNode::ConstExpression(expression) => {
                         format!("const {}", expressions.display_name(*expression))
                     }
-                    TypeReferenceNode::DynamicTrait {
-                        name, arguments, ..
-                    } => format!(
-                        "dyn {name}<{}>",
-                        comma_join_display(table.type_reference_handles(*arguments), |argument| {
-                            table.display_name_with_constraints(*argument, expressions)
-                        })
-                    ),
                     TypeReferenceNode::Named { name, .. } => name.to_string(),
                     TypeReferenceNode::Unit => "()".to_owned(),
                 }
@@ -2582,17 +2535,6 @@ pub mod types {
                             base_symbol,
                             base_name,
                             lifetime_arguments,
-                            arguments,
-                        }),
-                    TypeReferenceNode::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                    } => self
-                        .instantiate_arguments(arguments, substitutions)?
-                        .map(|arguments| TypeReferenceNode::DynamicTrait {
-                            symbol,
-                            name,
                             arguments,
                         }),
                     TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
@@ -3784,11 +3726,6 @@ pub mod types {
             arguments: HandleSpan<TypeReferenceHandle>,
         },
         ConstExpression(ExpressionHandle),
-        DynamicTrait {
-            symbol: SymbolHandle,
-            name: Identifier,
-            arguments: HandleSpan<TypeReferenceHandle>,
-        },
         Named {
             symbol: SymbolHandle,
             name: Identifier,
@@ -3863,7 +3800,6 @@ pub mod types {
                     table.primitive_type(*base_type, symbols)
                 }
                 TypeReferenceNode::Named { symbol, .. } => symbols.primitive_type(*symbol),
-                TypeReferenceNode::DynamicTrait { .. } => Some(PrimitiveType::Selector),
                 TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::Generic { .. }
@@ -3902,7 +3838,6 @@ pub mod types {
                 }
                 TypeReferenceNode::Slice { element_type } => table.type_symbol(*element_type),
                 TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
                 TypeReferenceNode::ConstExpression(_) => SymbolHandle::invalid(),
                 TypeReferenceNode::Named { symbol, .. } => *symbol,
                 TypeReferenceNode::Unit => SymbolHandle::invalid(),
@@ -4065,7 +4000,7 @@ pub mod types {
         };
         use crate::name::Identifier;
         use language_core::ReferenceAccess;
-        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
 
         /*
             A builtin integer atom denotes its carrier and nothing else, so
@@ -4563,27 +4498,43 @@ pub mod types {
         }
 
         #[test]
-        fn instantiation_refuses_a_binder_spelling_an_array_length() {
+        fn instantiation_forwards_the_selected_array_extent_binder() {
             let mut builder = SymbolTableBuilder::default();
             let binder = builder.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("N"));
+            let forwarded =
+                builder.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("M"));
             let element = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Item"));
             let mut table = TypeReferenceTable::new();
             let element = table.insert(TypeReferenceNode::Named {
                 symbol: element,
                 name: Identifier::from("Item"),
             });
-            let array = table.insert(TypeReferenceNode::FixedArray {
+            let argument = table.insert(TypeReferenceNode::Named {
+                symbol: forwarded,
+                name: Identifier::from("M"),
+            });
+            let authored = TypeReferenceNode::FixedArray {
                 element_type: element,
                 length: FixedArrayLength::ConstParameter {
                     symbol: binder,
                     name: Identifier::from("N"),
                 },
-            });
-            assert!(table.instantiate(array, &[(binder, element)]).is_err());
+            };
+            let array = table.insert(authored.clone());
+            let applied = table.instantiate(array, &[(binder, argument)]).unwrap();
+            assert_eq!(
+                table.type_reference(applied),
+                &TypeReferenceNode::FixedArray {
+                    element_type: element,
+                    length: FixedArrayLength::ConstParameter {
+                        symbol: forwarded,
+                        name: Identifier::from("M"),
+                    },
+                }
+            );
+            assert_eq!(table.type_reference(array), &authored);
         }
 
-        /// `u64 in Live<T>` and its refused twin `u64 in Live<[Item; T]>`,
-        /// both applied at `T := Item`.
         #[test]
         fn instantiation_applies_the_substitution_to_domain_arguments() {
             let mut builder = SymbolTableBuilder::default();
@@ -4648,8 +4599,11 @@ pub mod types {
             let (closed, _) = constrained(&mut table, actual);
             assert_eq!(table.instantiate(closed, &substitutions), Ok(closed));
 
-            // The binder as an array length inside the argument has no type
-            // to become, so the whole application is refused.
+            // A negative extent inside a domain argument refuses the application.
+            let negative_extent = table.insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::from("-1"),
+            });
             let array = table.insert(TypeReferenceNode::FixedArray {
                 element_type: actual,
                 length: FixedArrayLength::ConstParameter {
@@ -4659,8 +4613,8 @@ pub mod types {
             });
             let (unsubstitutable, _) = constrained(&mut table, array);
             assert_eq!(
-                table.instantiate(unsubstitutable, &substitutions),
-                Err("a trait parameter as an array length has no instantiation")
+                table.instantiate(unsubstitutable, &[(binder, negative_extent)]),
+                Err("an applied array length is not a closed nonnegative integer")
             );
         }
     }

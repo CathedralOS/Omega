@@ -1,5 +1,6 @@
 // Complete inert representation policy, availability, selections, and calling demands for one reviewed package and target.
 
+#[path = "policy_validation.rs"]
 mod validation;
 
 use crate::record::accessors::field_projection_accessors;

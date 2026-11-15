@@ -2,7 +2,7 @@
 
 use super::HistoricalPackagePolicyError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
-use package_evidence::encoding::{PackagePolicyMembershipFailure, PackageReviewEncodingError};
+use review_evidence::encoding::{PackagePolicyMembershipFailure, PackageReviewEncodingError};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

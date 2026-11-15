@@ -10,7 +10,7 @@ mod fixture_package_inputs;
 mod native_entry_controls;
 
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
-use package_evidence::PackageReviewProjectionError;
+use review_evidence::PackageReviewProjectionError;
 
 #[test]
 fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
@@ -189,8 +189,8 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
 
 #[test]
 fn review_policy_round_trip_preserves_authored_and_inferred_reach() {
-    use package_evidence::encoding::PackagePolicyRecoveryLimits;
-    use package_evidence::record::PackagePolicyBaseline;
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
 
     let root = fixture_package_inputs::repo_root();
     for (fixture, expected) in [
@@ -543,9 +543,9 @@ fn review_records_dynamic_slot_origin_and_qualification() {
         .policy
         .canonical_bytes()
         .expect("encode slot metadata policy");
-    let recovered = package_evidence::record::PackagePolicyBaseline::recover_canonical(
+    let recovered = review_evidence::record::PackagePolicyBaseline::recover_canonical(
         &bytes,
-        package_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+        review_evidence::encoding::PackagePolicyRecoveryLimits::default(),
     )
     .expect("recover slot metadata policy");
     let recovered_view = recovered
@@ -573,9 +573,9 @@ fn review_records_dynamic_slot_origin_and_qualification() {
 fn reviewed_and_recovered(
     fixture: &str,
     target: &str,
-) -> package_evidence::record::PackagePolicyBaseline {
-    use package_evidence::encoding::PackagePolicyRecoveryLimits;
-    use package_evidence::record::PackagePolicyBaseline;
+) -> review_evidence::record::PackagePolicyBaseline {
+    use review_evidence::encoding::PackagePolicyRecoveryLimits;
+    use review_evidence::record::PackagePolicyBaseline;
 
     let fixture = fixture_package_inputs::repo_root().join(fixture);
     let prepared =
@@ -631,7 +631,7 @@ fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope()
 
 #[test]
 fn toolchain_boundary_applications_recover_against_their_owner_qualified_requirement() {
-    use package_evidence::record::PackageReviewNominalOwner;
+    use review_evidence::record::PackageReviewNominalOwner;
 
     // `value + 1.0` closes an application of the toolchain `Float::add`
     // overload, whose requirement identity typed Psi qualifies with the
@@ -1474,8 +1474,8 @@ fn captured_review_compilation(
 
 #[test]
 fn accepted_package_review_keeps_declarations_and_refuses_detached_source() {
-    use package_evidence::record::PackagePolicyBaseline;
-    use package_evidence::{
+    use review_evidence::record::PackagePolicyBaseline;
+    use review_evidence::{
         PackageReviewInput, project_checked_package_policy, project_package_review,
     };
 
@@ -1535,7 +1535,7 @@ machine main() {}
     );
     assert_eq!(
         build.identity().owner(),
-        package_evidence::record::PackageReviewNominalOwner::Package(package)
+        review_evidence::record::PackageReviewNominalOwner::Package(package)
     );
     // The authored Build calls `application`, whose public contract reaches
     // and enters BuildRequestOperations. Review must retain that nonempty
@@ -1547,7 +1547,7 @@ machine main() {}
         .expect("the actual Build request protocol must remain visible");
     assert!(matches!(
         request.owner(),
-        package_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
+        review_evidence::record::PackageReviewNominalOwner::ToolchainSource(_)
     ));
     assert_eq!(build.checked_service_reach().concrete(), Some(realized));
     assert_eq!(build.service_reach_dependency().concrete(), realized);

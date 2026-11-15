@@ -50,8 +50,8 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
     std::fs::write(temporary.path().join("main.omg"), SOURCE).unwrap();
     let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
         temporary.path(),
-        package_source::LocalSourceLimits::default(),
-        package_source::ExternalSourceContext::derive(b"default-build-sdk"),
+        source_acquisition::LocalSourceLimits::default(),
+        source_acquisition::ExternalSourceContext::derive(b"default-build-sdk"),
     )
     .unwrap();
     let capture = acquired.source_capture();
@@ -128,8 +128,8 @@ fn anonymous() {
     std::fs::write(&root, SOURCE).unwrap();
     let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
         temporary.path(),
-        package_source::LocalSourceLimits::default(),
-        package_source::ExternalSourceContext::derive(b"default-build-anonymous-sdk"),
+        source_acquisition::LocalSourceLimits::default(),
+        source_acquisition::ExternalSourceContext::derive(b"default-build-anonymous-sdk"),
     )
     .unwrap();
     let source = binding(acquired.source_capture(), 87);

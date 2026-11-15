@@ -1,7 +1,8 @@
 // Verified publication of a reviewed `build.omg` replacement and all retained target sections of `omega.lock` (`publish_reviewed_package_change`).
 // Verifies that the project root, staged snapshot, and replacement digests match, that no previously accepted target is dropped, and that neither live local dependencies nor the staged project root changed before committing the transaction.
 
-use package_source::local::operations::resolve_local_source;
+use source_acquisition::local::operations::resolve_local_source;
+#[path = "checked_error.rs"]
 mod error;
 use PublishReviewedPackageChangeError as Error;
 pub(crate) use error::PublishReviewedPackageChangeError;
@@ -14,8 +15,8 @@ use crate::resolution::graph::PackageRootSourceRequest;
 use crate::review::{
     PackagePolicyChangeLimits, PackagePolicyResolution, compare_package_policy_changes,
 };
-use package_source::local::staging::StagedLocalSnapshot;
-use package_source::{SourceContentDigest, SourceLineage};
+use source_acquisition::local::staging::StagedLocalSnapshot;
+use source_acquisition::{SourceContentDigest, SourceLineage};
 
 pub fn publish_reviewed_package_change(
     transaction: &mut PackageFileTransaction,
@@ -130,7 +131,7 @@ fn verify_live_dependencies(review: &PackageChangeReview) -> Result<(), Error> {
             != &SourceContentDigest::derive(current.content_identity.as_bytes())
         {
             return Err(Error::Source(
-                package_source::SourceResolveError::LocalSourceChanged {
+                source_acquisition::SourceResolveError::LocalSourceChanged {
                     path: path.to_path_buf(),
                 },
             ));

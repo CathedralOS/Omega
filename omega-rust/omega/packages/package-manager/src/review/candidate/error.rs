@@ -21,9 +21,9 @@ use filesystem_authority::FilesystemSponsorError;
 use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
 };
-use package_evidence::encoding::PackageReviewEncodingError;
-use package_source::SourceResolveError;
 use products::CompileFailure;
+use review_evidence::encoding::PackageReviewEncodingError;
+use source_acquisition::SourceResolveError;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;

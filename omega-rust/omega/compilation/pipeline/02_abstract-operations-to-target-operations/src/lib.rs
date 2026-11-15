@@ -38,7 +38,6 @@
   03 (`03_target-operations-to-selected-instructions`).
 */
 
-pub mod access_view_inputs {}
 pub(crate) mod control_flow;
 mod coordination;
 mod function_signature;
@@ -194,7 +193,7 @@ pub(crate) mod function {
             settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
             selected_calls: &crate::selected_boundary_calls::SelectedCallsByCall,
         ) -> Option<(OperationId, BoundaryMachineId)> {
-            function.operations.iter().find_map(|operation| {
+            function.operations().find_map(|operation| {
                 let AbstractOperation::BoundaryCall {
                     psi_operation,
                     boundary,
@@ -551,7 +550,7 @@ pub(crate) mod selected_boundary_calls {
     ) -> Result<SelectedCallsByCall, LoweringError> {
         let mut selected = SelectedCallsByCall::new();
         for function in &plan.functions {
-            for operation in &function.operations {
+            for operation in function.operations() {
                 let (
                     invocation_site,
                     boundary,

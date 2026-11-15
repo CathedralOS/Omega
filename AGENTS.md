@@ -378,7 +378,7 @@ reads the allowed lanes from this table:
 | `compiler` | Product compilation coordination in `omega-rust/omega/compilation/compiler/` and `native-compiler/`, or an inseparable contract change spanning Psi and Omega. |
 | `build` | Build system in `omega-rust/omega/build-system/` (`orchestration/`, `build-settings/`) and `build.omg` declarations. |
 | `packages` | Package acquisition, graphs, review, admission, and update workflows in `omega-rust/omega/packages/`. |
-| `cli` | Command parsing, flags, help, and dispatch in `omega-rust/omega/application/cli/src/`. |
+| `cli` | Command parsing, flags, help, and dispatch in `omega-rust/omega/application/src/`. |
 | `tooling` | Shipped developer tooling and shared host support compiled into `omega` (`omega-rust/omega/foundation/`). |
 | `library` | Bundled packages in `source/library/` (`core`, `alloc`, `std`, etc.). |
 | `samples` | Standalone sample content in `samples/`. A regression fixture for a compiler fix uses that compiler stage's lane. |

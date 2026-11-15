@@ -12,7 +12,7 @@ use super::source::{validate_git_selection, validate_request_bytes, validate_sou
 use crate::declarations::BuildDeclarationKind;
 use crate::resolution::graph::reconcile::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceNavigation;
-use package_source::{ImmutableSourceResolution, SourceLineage, WorkspaceLineageIdentity};
+use source_acquisition::{ImmutableSourceResolution, SourceLineage, WorkspaceLineageIdentity};
 
 pub(in super::super) fn canonical_root_request(
     request: &PackageRootSourceRequest,

@@ -4065,15 +4065,6 @@ pub(crate) mod payloads {
                         arguments: self.type_arguments(program, arguments)?,
                     }
                 }
-                types::TypeReferenceNode::DynamicTrait {
-                    symbol,
-                    name,
-                    arguments,
-                } => types::TypeReferenceNode::DynamicTrait {
-                    symbol: self.symbol(symbol),
-                    name,
-                    arguments: self.type_arguments(program, arguments)?,
-                },
                 types::TypeReferenceNode::ConstExpression(expression) => {
                     types::TypeReferenceNode::ConstExpression(self.expression(program, expression)?)
                 }

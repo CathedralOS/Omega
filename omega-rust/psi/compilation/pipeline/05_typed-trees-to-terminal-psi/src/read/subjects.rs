@@ -577,7 +577,6 @@ impl Program<'_> {
             | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Constrained { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Unit => Err(unserved()),
         }

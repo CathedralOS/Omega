@@ -23,10 +23,10 @@ use crate::resolution::source::{
     AcquiredBuildSource, BuildSourceAcquisitions, ResolvedBuildSources,
 };
 use crate::review::CompileResolvedPackageReviewsError;
-use package_source::PrimaryGitChoices;
-use package_source::SourceResolver;
-use package_source::git::resolution::GitExactRevisionAcquisition;
-use package_source::{ExternalSourceContext, LocalSourceLimits};
+use source_acquisition::PrimaryGitChoices;
+use source_acquisition::SourceResolver;
+use source_acquisition::git::resolution::GitExactRevisionAcquisition;
+use source_acquisition::{ExternalSourceContext, LocalSourceLimits};
 pub use sources::PackageInspectionSources;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -190,7 +190,7 @@ impl PreparedPackageInspection<'_> {
     }
 
     pub fn acquire_root(&self) -> Result<AcquiredBuildSource, PackageInspectionError> {
-        let entire = package_source::SourceCaptureRequest::entire_tree();
+        let entire = source_acquisition::SourceCaptureRequest::entire_tree();
         let selected = match self
             .build_snapshot
             .as_ref()

@@ -50,7 +50,7 @@ pub use workspace_acquisition::{
     AcquiredWorkspaceBuild, AcquiredWorkspaceMembers, WorkspaceMemberObservation,
 };
 
-use package_source::{
+use source_acquisition::{
     ResolvedLocalSource, SourceContentDigest, SourceRelativePath, SourceResolveError,
 };
 use std::fmt;

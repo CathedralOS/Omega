@@ -2303,33 +2303,7 @@ impl<'t> Program<'t> {
                         Unserved::Typing("scalar lender without its carrier"),
                     )
                 })?;
-                let atom = match scalar {
-                    semantic_vocabulary::ScalarType::Boolean => symbols::BuiltinTypeAtom::Bool,
-                    semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address() => {
-                        symbols::BuiltinTypeAtom::Integer(
-                            numerics::integer_carrier::FixedInteger::new(
-                                integer.sign(),
-                                u64::from(integer.bits().ok_or_else(|| {
-                                    refuse(
-                                        id,
-                                        Construct::Machine,
-                                        Unserved::Type(
-                                            "scalar lender has an unresolved integer width",
-                                        ),
-                                    )
-                                })?),
-                            )
-                            .ok_or_else(|| {
-                                refuse(
-                                    id,
-                                    Construct::Machine,
-                                    Unserved::Type("scalar lender has no fixed integer carrier"),
-                                )
-                            })?,
-                        )
-                    }
-                    _ => return unserved("scalar lender without a retained builtin carrier"),
-                };
+                let atom = super::types::scalar_atom(scalar, id)?;
                 let symbol = self
                     .typed
                     .symbols

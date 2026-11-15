@@ -10,14 +10,14 @@ autotests = false
 
 [dependencies]
 cap-std = "4.0.3"
-package-source = { path = "../../packages/source-acquisition" }
+source-acquisition = { path = "../../packages/source-acquisition" }
 compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 task-plans = { path = "../backend/runtime/task-plans" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 language-core = { path = "../../../psi/foundation/language-core" }
 effects = { path = "../backend/plans/effects" }
-package-evidence = { path = "../../packages/review-evidence" }
+review-evidence = { path = "../../packages/review-evidence" }
 arena = { path = "../../../psi/foundation/arena" }
 native-compiler = { path = "../native-compiler" }
 products = { path = "../products" }

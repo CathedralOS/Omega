@@ -36,7 +36,7 @@ pub(crate) mod byte_views {
         target_operations::TargetStructuralArgumentSource,
         StructuralTypeId,
     )> {
-        function.block_entries.iter().find_map(|entry| {
+        function.blocks.iter().find_map(|entry| {
             let parameter = entry.structural_parameter(place)?;
             (entry.block != function.entry
                 && is_immutable_byte_parameter(parameter, structural_types))
@@ -419,7 +419,7 @@ pub(crate) mod byte_views {
         }
         if let Some(AbstractOperation::EstablishByteSequenceLiteral {
         psi_operation, place: declaration, structural_type, ..
-    }) = function.operations.iter().find(|operation|
+    }) = function.operations().find(|operation|
         matches!(operation, AbstractOperation::EstablishByteSequenceLiteral { place: declaration, .. }
             if declaration.id == place))
     {
@@ -437,7 +437,7 @@ pub(crate) mod byte_views {
             psi_operation,
             result,
             ..
-        }) = function.operations.iter().find(|operation| {
+        }) = function.operations().find(|operation| {
             matches!(operation,
             AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
         }) {
@@ -491,7 +491,7 @@ pub(crate) mod byte_views {
                 return Err(invalid());
             }
             if let Some(entry) = function
-                .block_entries
+                .blocks
                 .iter()
                 .find(|entry| entry.structural_parameter(place).is_some())
             {
@@ -536,8 +536,8 @@ pub(crate) mod byte_views {
             ));
         }
         let Some(AbstractOperation::ByteSequenceSubslice { psi_operation, result, source, start, end, length, obligation }) =
-        function.operations.iter().find(|operation| matches!(operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
-        else { return Err(super::descriptor_operands::refusal(function, &("missing subslice producer", place, function.operations.len()))); };
+        function.operations().find(|operation| matches!(operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
+        else { return Err(super::descriptor_operands::refusal(function, &("missing subslice producer", place, function.operations().count()))); };
         if !matches!(
             result.multiplicity,
             terminal_psi::nonlinear_multiplicity_pair_pattern!()
@@ -625,7 +625,7 @@ pub(crate) mod byte_views {
         place: PlaceId,
         structural_types: &StructuralTypeLookup<'_>,
     ) -> Option<(OperationId, &'a terminal_psi::StructuralOperationResult)> {
-        let mut matching = function.operations.iter().filter_map(|operation| {
+        let mut matching = function.operations().filter_map(|operation| {
             let (psi_operation, result) = match operation {
                 AbstractOperation::EstablishByteSequenceConcatenation {
                     psi_operation,
@@ -662,7 +662,7 @@ pub(crate) mod byte_views {
         &'function terminal_psi::StructuralOperationResult,
     )> {
         let (producer, stored) = homes.get(&place)?.operation_result()?;
-        let mut producers = function.operations.iter().filter_map(|operation| {
+        let mut producers = function.operations().filter_map(|operation| {
             let result = operation.structural_result();
             result.filter(|(_, result)| result.place == place)
         });
@@ -696,8 +696,7 @@ pub(crate) mod byte_views {
     )> {
         let (producer, result) = completed_descriptor(function, place, types, homes)?;
         function
-            .operations
-            .iter()
+            .operations()
             .any(|operation| operation.materialized_structural_result() == Some((producer, result)))
             .then_some((producer, result))
     }
@@ -839,7 +838,7 @@ pub(crate) mod descriptor_operands {
                 })
             })
             .or_else(|| {
-                function.operations.iter().find_map(|operation| {
+                function.operations().find_map(|operation| {
                     let abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
                         place,
                         structural_type,
@@ -925,7 +924,7 @@ pub(crate) mod descriptor_operands {
         {
             return false;
         }
-        function.operations.iter().any(|operation| match operation {
+        function.operations().any(|operation| match operation {
             abstract_operations::AbstractOperation::ByteSequenceLength {
                 result,
                 source: observed,
@@ -1450,7 +1449,7 @@ pub(crate) mod element_views {
             place: PlaceId,
         ) -> Option<&terminal_psi::StructuralOperationResult> {
             let (producer, structural_type) = self.views.get(&place)?;
-            let mut results = function.operations.iter().filter_map(|operation| {
+            let mut results = function.operations().filter_map(|operation| {
                 operation
                     .structural_result()
                     .filter(|(_, result)| result.place == place)
@@ -1471,7 +1470,7 @@ pub(crate) mod element_views {
             if !self.address_joins.contains(&source.place) {
                 return None;
             }
-            let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
+            let (entry, parameter) = function.blocks.iter().find_map(|entry| {
                 entry
                     .structural_parameter(source.place)
                     .map(|parameter| (entry, parameter))
@@ -1500,7 +1499,7 @@ pub(crate) mod element_views {
             structural_types: &StructuralTypeLookup<'_>,
             source: &StructuralArgument,
         ) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
-            let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
+            let (entry, parameter) = function.blocks.iter().find_map(|entry| {
                 entry
                     .structural_parameter(source.place)
                     .map(|parameter| (entry, parameter))
@@ -1871,7 +1870,7 @@ pub(crate) mod element_views {
             element,
             region,
             ..
-        }) = function.operations.iter().find(|operation| {
+        }) = function.operations().find(|operation| {
             matches!(operation,
             AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
         }) {
@@ -1974,7 +1973,7 @@ pub(crate) mod element_views {
                 source.access,
             ));
         }
-        if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
+        if let Some((entry, parameter)) = function.blocks.iter().find_map(|entry| {
             entry
                 .structural_parameter(place)
                 .map(|parameter| (entry, parameter))
@@ -2045,7 +2044,7 @@ pub(crate) mod element_views {
             end,
             length,
             obligation,
-        }) = function.operations.iter().find(|operation| {
+        }) = function.operations().find(|operation| {
             matches!(operation, AbstractOperation::ElementViewSubslice { result, .. }
             if result.place == place)
         })

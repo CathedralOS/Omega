@@ -196,7 +196,6 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
             | TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Unit => {}
         }

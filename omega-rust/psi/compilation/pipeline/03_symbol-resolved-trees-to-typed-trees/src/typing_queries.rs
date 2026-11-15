@@ -34,9 +34,6 @@ pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Result<&[StateParameter], Diagnostic> {
-    if let Some(slot) = program.dynamic_slot_by_symbol(target) {
-        return Ok(&slot.parameters);
-    }
     if let Some(state) = program.state_by_symbol(target) {
         return Ok(program.state_parameters(state));
     }
@@ -1384,9 +1381,9 @@ mod tests {
             targets[0],
         )
         .unwrap_err();
-        assert!(
-            error.message.contains("collection field owner/type"),
-            "{error:?}"
+        assert_eq!(
+            error.message,
+            "typing could not complete the check (collection field owner/type)"
         );
         let DataMember::Field(field) = program.data_members.get_mut(applied_field) else {
             panic!("field")

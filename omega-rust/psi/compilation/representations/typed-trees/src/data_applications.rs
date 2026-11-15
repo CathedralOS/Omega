@@ -150,8 +150,7 @@ impl TypedTrees {
                 matches!(length, FixedArrayLength::Expression(extent) if mentions(extent))
                     || mentions(element_type)
             }
-            TypeReferenceNode::Generic { arguments, .. }
-            | TypeReferenceNode::DynamicTrait { arguments, .. } => self
+            TypeReferenceNode::Generic { arguments, .. } => self
                 .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
@@ -245,9 +244,7 @@ impl<'source> ApplicationPreparation<'source> {
             } => Ok(matches!(length, FixedArrayLength::Literal(_)) && self.reference(element_type)?),
             TypeReferenceNode::Constrained { base_type, .. } => self.reference(base_type),
             TypeReferenceNode::Unit => Ok(true),
-            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {
-                Ok(false)
-            }
+            TypeReferenceNode::ConstExpression(_) => Ok(false),
         }
     }
 

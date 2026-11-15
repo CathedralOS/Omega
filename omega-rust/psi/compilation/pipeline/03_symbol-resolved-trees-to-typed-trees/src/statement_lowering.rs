@@ -796,7 +796,7 @@ pub(crate) mod statement {
                 Node::FixedArray { element_type, .. } | Node::Slice { element_type } => {
                     substitute_call_type_arguments(table, element_type, substitutions)?
                 }
-                Node::Generic { arguments, .. } | Node::DynamicTrait { arguments, .. } => {
+                Node::Generic { arguments, .. } => {
                     for argument in table.type_reference_handles(arguments).to_vec() {
                         substitute_call_type_arguments(table, argument, substitutions)?;
                     }

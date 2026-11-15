@@ -112,7 +112,9 @@ then calls [machine lowering](src/lowering.rs) directly.
 That owner prepares block/value rosters, visits blocks in order, dispatches
 [operations](src/lowering.rs) and
 [terminators](src/lowering.rs), and assembles the abstract
-function. Scalar, Unit and structural results share this traversal; there is no
+function. Each abstract block owns its operations and final control transfer;
+there is no flat body plus a separate block-offset roster. Scalar, Unit and
+structural results share this traversal; there is no
 separate forwarding or ordinary-machine route to navigate.
 
 No earlier program, StateGraph, or caller-created module substitutes for the

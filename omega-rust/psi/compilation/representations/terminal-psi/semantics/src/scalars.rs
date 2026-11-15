@@ -1388,6 +1388,108 @@ pub(crate) mod proof_bearing_scalar {
         }))
     }
 
+    /// What one `TrappingInteger` operation means: it completes exactly
+    /// where the Exact primitive it names is defined, and then computes that
+    /// primitive's result.
+    ///
+    /// numeric_values.md, "Overflow policies": the operation "is its own
+    /// `Trap` site" under "the primitive's exact crash predicate", and
+    /// "Policy operators": "On normal return the result equals the
+    /// operation-specific mathematical denotation of the unsuffixed
+    /// primitive". So the crash predicate is the negation of the Exact
+    /// primitive's canonical goal, and the result equation is the Exact
+    /// primitive's, both built by the one Exact row for that primitive.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TrappingIntegerSemantics {
+        completes: CanonicalScalarGoal,
+        result_equation: Proposition,
+    }
+
+    impl TrappingIntegerSemantics {
+        /// The condition under which the operation does not trap.
+        pub const fn completes(&self) -> &CanonicalScalarGoal {
+            &self.completes
+        }
+
+        /// What the result equals on the normal successor.
+        pub const fn result_equation(&self) -> &Proposition {
+            &self.result_equation
+        }
+    }
+
+    /// Derive a Trapping operation's completion predicate and normal result
+    /// from the same canonical primitive used by its Exact counterpart.
+    pub fn trapping_integer_semantics(
+        operation: &Operation,
+        value_types: &dyn ValueTypes,
+    ) -> Result<Option<TrappingIntegerSemantics>, OperationSemanticError> {
+        use terminal_psi::TrappingIntegerOperation as Trapping;
+        let OperationKind::TrappingInteger {
+            operation: trapping,
+        } = operation.kind
+        else {
+            return Ok(None);
+        };
+        let tag = OperationSemanticTag::TrappingInteger;
+        let (exact, inputs) = match trapping {
+            Trapping::Add { left, right } => (
+                OperationSemanticTag::ExactIntegerAdd,
+                ProofBearingInputs::Binary(left, right),
+            ),
+            Trapping::Subtract { left, right } => (
+                OperationSemanticTag::ExactIntegerSubtract,
+                ProofBearingInputs::Binary(left, right),
+            ),
+            Trapping::Multiply { left, right } => (
+                OperationSemanticTag::ExactIntegerMultiply,
+                ProofBearingInputs::Binary(left, right),
+            ),
+            Trapping::Divide { left, right } => (
+                OperationSemanticTag::ExactIntegerDivide,
+                ProofBearingInputs::Binary(left, right),
+            ),
+            Trapping::Remainder { left, right } => (
+                OperationSemanticTag::ExactIntegerRemainder,
+                ProofBearingInputs::Binary(left, right),
+            ),
+            Trapping::ShiftLeft { value, count } => (
+                OperationSemanticTag::ExactIntegerShiftLeft,
+                ProofBearingInputs::Binary(value, count),
+            ),
+            Trapping::ShiftRight { value, count } => (
+                OperationSemanticTag::ExactIntegerShiftRight,
+                ProofBearingInputs::Binary(value, count),
+            ),
+            Trapping::Convert { operand } => (
+                OperationSemanticTag::IntegerExactCast,
+                ProofBearingInputs::Unary(operand),
+            ),
+        };
+        let schema =
+            canonical_schema(exact).ok_or(OperationSemanticError::OperandShapeMismatch(tag))?;
+        let result = operation
+            .result
+            .scalar_ref()
+            .ok_or(OperationSemanticError::MissingScalarResult(tag))?;
+        let result_type = require_integer_type(tag, result.scalar_type)?;
+        let denotation = build_denotation(exact, schema, inputs, result_type, value_types)?;
+        let completes = CanonicalScalarGoal::for_term(&denotation)?.ok_or(
+            OperationSemanticError::ProofBearingScalarSchemaMismatch(exact),
+        )?;
+        if completes.shape() != schema.goal {
+            return Err(OperationSemanticError::ProofBearingScalarSchemaMismatch(
+                exact,
+            ));
+        }
+        Ok(Some(TrappingIntegerSemantics {
+            completes,
+            result_equation: Proposition::Equal(
+                ScalarTerm::value(result.id, result.scalar_type),
+                denotation,
+            ),
+        }))
+    }
+
     #[cfg(test)]
     mod formation_tests {
         use super::*;

@@ -1173,12 +1173,6 @@ pub mod expression {
                         expression.expression = self.expression(expression.expression);
                         expression.lexical_owner = self.symbol(expression.lexical_owner);
                     }
-                    TypeReference::DynamicTrait {
-                        symbol, arguments, ..
-                    } => {
-                        *symbol = self.symbol(*symbol);
-                        *arguments = self.type_span(*arguments);
-                    }
                     TypeReference::Named { symbol, .. } => *symbol = self.symbol(*symbol),
                     TypeReference::AliasUse {
                         expansion,
