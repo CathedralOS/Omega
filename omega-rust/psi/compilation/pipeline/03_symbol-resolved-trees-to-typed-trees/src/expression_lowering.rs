@@ -570,7 +570,6 @@ pub(crate) mod expression {
     pub(crate) mod table {
         pub(crate) mod lowerer {
 
-            use crate::expressions::equatable::EqualityScope;
             use crate::expressions::expression::domain_membership::{
                 lower_case_membership_expression, lower_domain_membership_expression,
             };
@@ -596,7 +595,7 @@ pub(crate) mod expression {
                 use crate::tables::expression_table;
                 use arena::Handle;
 
-                impl ExpressionTableLowerer<'_, '_, '_> {
+                impl ExpressionTableLowerer<'_, '_> {
                     pub(crate) fn lower_match(
                         &mut self,
                         dispatch: resolved::expression::TableMatchExpression,
@@ -837,13 +836,12 @@ pub(crate) mod expression {
                 variant_symbol: symbols::SymbolHandle,
             }
 
-            pub(crate) struct ExpressionTableLowerer<'program, 'target, 'scope> {
+            pub(crate) struct ExpressionTableLowerer<'program, 'target> {
                 pub(crate) program: Option<&'program resolved::SymbolResolvedTrees>,
                 pub(crate) source: &'program resolved::expression::ExpressionTable,
                 pub(crate) target_trees: &'target mut typed::TypedTrees,
                 symbol_substitution:
                     Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
-                pub(crate) equality_scope: Option<&'scope EqualityScope>,
                 /// Tracks proposition-only placement diagnostics. Calls and value
                 /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
@@ -865,7 +863,7 @@ pub(crate) mod expression {
                 )>,
             }
 
-            impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
+            impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
                 pub(crate) fn new(
                     program: Option<&'program resolved::SymbolResolvedTrees>,
                     source: &'program resolved::expression::ExpressionTable,
@@ -874,14 +872,12 @@ pub(crate) mod expression {
                         symbols::SymbolHandle,
                         typed::expression::ExpressionHandle,
                     )>,
-                    equality_scope: Option<&'scope EqualityScope>,
                 ) -> Self {
                     Self {
                         program,
                         source,
                         target_trees,
                         symbol_substitution,
-                        equality_scope,
                         fact_position: false,
                         admits_policy_operators: false,
                         lowered_expressions: Vec::new(),
@@ -1170,14 +1166,6 @@ pub(crate) mod expression {
                     &mut self,
                     binary: &resolved::expression::TableBinaryExpression,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    if matches!(
-                        binary.operator,
-                        resolved::expression::BinaryOperator::Equal
-                            | resolved::expression::BinaryOperator::NotEqual
-                    ) && let Some(lowered) = self.try_lower_structural_equality(binary)?
-                    {
-                        return Ok(lowered);
-                    }
                     let logical_children = matches!(
                         binary.operator,
                         resolved::expression::BinaryOperator::And
@@ -1362,14 +1350,6 @@ pub(crate) mod expression {
                                 } else {
                                     "a proposition application is proof-only and cannot appear in a runtime value expression"
                                 }));
-                            }
-                            let fact_position = self.fact_position;
-                            self.fact_position = false;
-                            let synthesized =
-                                self.try_lower_synthesized_equatable_call(expression, call);
-                            self.fact_position = fact_position;
-                            if let Some(lowered) = synthesized? {
-                                return Ok(lowered);
                             }
                             if let Some(program) = self.program {
                                 let facet =
@@ -2444,7 +2424,6 @@ pub(crate) mod expression {
                             program.child_type_reference(reference.base_type),
                         );
                     }
-                    // A transparent alias is its substituted expansion.
                     TypeReference::AliasUse { expansion, .. } => {
                         return resolved_data_definition_for_type(program, expansion);
                     }
@@ -2496,7 +2475,7 @@ pub(crate) mod expression {
                     .unwrap_or_default()
             }
 
-            impl ExpressionTableLowerer<'_, '_, '_> {
+            impl ExpressionTableLowerer<'_, '_> {
                 pub(crate) fn selected_member(
                     &self,
                     member: &TableMemberExpression,
@@ -2987,888 +2966,9 @@ pub(crate) mod expression {
                 }
             }
         }
-        pub(crate) mod structural_equality {
-            use super::lowerer::ExpressionTableLowerer;
-            use crate::expressions::equatable::{
-                DataEqualityShape, EqualityImplementation, EqualitySelection, FieldEquality,
-                data_definition_by_symbol, data_equality_shape, equality_selection, field_equality,
-                implementation_name, suggested_equality_declaration, synthesized_equality_row,
-                value_type_symbol, variant_owner,
-            };
-            use crate::lowerer::name::lower_name;
-            use arena::HandleSpan;
-            use diagnostics::Diagnostic;
-            use resolved::data::{DataDefinition, DataField, DataMember, DataVariant};
-            use symbol_resolved_trees as resolved;
-            use typed_trees as typed;
-
-            enum Operand {
-                Place(typed::expression::ExpressionHandle),
-                Literal {
-                    case_name: Option<String>,
-                    fields: HandleSpan<resolved::expression::TableStructLiteralField>,
-                },
-            }
-
-            impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
-                pub(crate) fn try_lower_synthesized_equatable_call(
-                    &mut self,
-                    expression: resolved::expression::ExpressionHandle,
-                    call: &resolved::expression::TableCallExpression,
-                ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic>
-                {
-                    let Some(program) = self.program else {
-                        return Ok(None);
-                    };
-                    if !call.target_symbol.is_valid() {
-                        return Ok(None);
-                    }
-                    let Some(data) = synthesized_equality_row(program, call.target_symbol) else {
-                        return Ok(None);
-                    };
-                    let [left, right] = self.source.expression_handles(call.arguments) else {
-                        return Ok(None);
-                    };
-                    let (left, right) = (*left, *right);
-                    for operand in [left, right] {
-                        if matches!(self.source.expression(operand),
-                resolved::expression::ExpressionNode::Borrow(borrow)
-                    if borrow.access != language_semantics::ReferenceAccess::Shared)
-                        {
-                            return Ok(None);
-                        }
-                        if self
-                            .operand_data(operand)
-                            .is_none_or(|argument| argument.symbol != data.symbol)
-                        {
-                            return Ok(None);
-                        }
-                    }
-                    self.finalize_generated_call_selection(expression, call.target_symbol)?;
-                    let observed_operand = |operand| match self.source.expression(operand) {
-                        resolved::expression::ExpressionNode::Borrow(borrow)
-                            if borrow.access == language_semantics::ReferenceAccess::Shared =>
-                        {
-                            borrow.target
-                        }
-                        _ => operand,
-                    };
-                    let equality = resolved::expression::TableBinaryExpression {
-                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                        left: observed_operand(left),
-                        operator: resolved::expression::BinaryOperator::Equal,
-                        right: observed_operand(right),
-                    };
-                    if data.quotient.is_none()
-                        && data_equality_shape(program, data) == DataEqualityShape::Structural
-                    {
-                        return self.expand_structural_equality(data, &equality).map(Some);
-                    }
-
-                    let left = self.lower(equality.left)?;
-                    let right = self.lower(equality.right)?;
-                    Ok(Some(self.target().insert(
-                        typed::expression::ExpressionNode::Binary(
-                            typed::expression::TableBinaryExpression {
-                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                                left,
-                                operator: typed::expression::BinaryOperator::Equal,
-                                right,
-                            },
-                        ),
-                    )))
-                }
-
-                pub(crate) fn try_lower_structural_equality(
-                    &mut self,
-                    binary: &resolved::expression::TableBinaryExpression,
-                ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic>
-                {
-                    let Some(program) = self.program else {
-                        return Ok(None);
-                    };
-
-                    let left_case = self.classifier_data(binary.left);
-                    let right_case = self.classifier_data(binary.right);
-                    let left = left_case.or_else(|| self.operand_data(binary.left));
-                    let right = right_case.or_else(|| self.operand_data(binary.right));
-                    if let (Some(left), Some(right)) = (left, right)
-                        && left.symbol != right.symbol
-                    {
-                        let reason = if left_case.is_some() || right_case.is_some() {
-                            "a case belongs to its own type only"
-                        } else {
-                            "equality requires both operands to be the same type"
-                        };
-                        return Err(Diagnostic::error(format!(
-                            "cannot compare `{}` and `{}` with `==`/`!=`: the operands are different data types ({reason})",
-                            program.symbols.display_path(left.symbol, "::"),
-                            program.symbols.display_path(right.symbol, "::"),
-                        )));
-                    }
-                    if left_case.is_some() || right_case.is_some() {
-                        return Ok(None);
-                    }
-                    let Some(data) = left.or(right) else {
-                        return Ok(None);
-                    };
-                    let type_name = data.name.as_str();
-                    if data.quotient.is_some() {
-                        return Err(Diagnostic::error(format!(
-                            "cannot compare quotient `{type_name}` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation"
-                        )));
-                    }
-                    if data_equality_shape(program, data) != DataEqualityShape::Structural {
-                        return Ok(None);
-                    }
-
-                    if self
-                        .equality_scope
-                        .is_some_and(|scope| scope.synthesized_row_data == data.symbol)
-                    {
-                        return self.expand_structural_equality(data, binary).map(Some);
-                    }
-                    let implementation = match equality_selection(program, data) {
-                        EqualitySelection::Selected(implementation) => implementation,
-                        EqualitySelection::Missing => {
-                            return Err(Diagnostic::error(format!(
-                                "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality, or use `core::Identity<{type_name}>(left, right)` for mathematical identity",
-                                suggested_equality_declaration(type_name)
-                            )));
-                        }
-                        EqualitySelection::Ambiguous(implementations) => {
-                            return Err(Diagnostic::error(format!(
-                                "cannot compare `{type_name}` values with `==`: {} Equatable implementations satisfy `Equatable<{type_name}>` (`{}`) and the operator selects at most one -- call the intended implementation's `equals` explicitly",
-                                implementations.len(),
-                                implementations.join("`, `")
-                            )));
-                        }
-                    };
-                    if implementation.is_synthesized() {
-                        return self.expand_structural_equality(data, binary).map(Some);
-                    }
-                    let left = self.lower(binary.left)?;
-                    let right = self.lower(binary.right)?;
-                    let call =
-                        self.call_equality_implementation(data, implementation, [left, right])?;
-                    Ok(Some(self.with_equality_polarity(call, binary.operator)))
-                }
-
-                fn call_equality_implementation(
-                    &mut self,
-                    data: &DataDefinition,
-                    implementation: EqualityImplementation<'program>,
-                    operands: [typed::expression::ExpressionHandle; 2],
-                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    let program = self
-                        .program
-                        .expect("equality implementation has a source program");
-                    let conformance = implementation.conformance;
-                    let row = implementation
-                        .row
-                        .filter(|row| row.realization_state.is_valid())
-                        .ok_or_else(|| Diagnostic::error(format!(
-                            "cannot compare `{}` with `==`: Equatable implementation `{}` retains no `equals` row; declare it as a closed block",
-                            data.name,
-                            implementation_name(program, conformance)
-                        )))?;
-                    let requirement = program
-                        .traits
-                        .iter()
-                        .find(|declaration| declaration.symbol == row.declaring_trait)
-                        .and_then(|declaration| {
-                            program
-                                .trait_machine_signatures(declaration.machines)
-                                .iter()
-                                .find(|signature| signature.symbol == row.requirement)
-                        })
-                        .ok_or_else(|| {
-                            Diagnostic::error("the comparison row lost its declared signature")
-                        })?;
-                    let parameters = program.state_parameters(requirement.parameters);
-                    if parameters.len() != operands.len() {
-                        return Err(Diagnostic::error(
-                            "an equality implementation must compare exactly two operands",
-                        ));
-                    }
-                    let mut arguments = Vec::with_capacity(2);
-                    for (operand, formal) in operands.into_iter().zip(parameters) {
-                        let mut reference = &formal.type_reference;
-                        loop {
-                            use resolved::types::TypeReference;
-                            match reference {
-                                TypeReference::AliasUse { expansion, .. } => reference = expansion,
-                                TypeReference::Constrained(node) => {
-                                    reference = program.child_type_reference(node.base_type)
-                                }
-                                TypeReference::Reference(node) => {
-                                    if node.access != language_semantics::ReferenceAccess::Shared {
-                                        return Err(Diagnostic::error(
-                                            "an equality implementation can only borrow its operands shared",
-                                        ));
-                                    }
-                                    arguments.push(self.target().insert(
-                                        typed::expression::ExpressionNode::Borrow(
-                                            typed::expression::TableBorrowExpression {
-                                                target: operand,
-                                                access: node.access,
-                                            },
-                                        ),
-                                    ));
-                                    break;
-                                }
-                                _ => {
-                                    arguments.push(operand);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    let mut members = HandleSpan::empty();
-                    let receiver_name = conformance.alias.as_ref().map_or_else(
-                        || {
-                            typed::name::Identifier::generated(implementation_name(
-                                program,
-                                conformance,
-                            ))
-                        },
-                        lower_name,
-                    );
-                    self.target()
-                        .push_name_path_member(&mut members, receiver_name);
-                    let mut member_symbols = HandleSpan::empty();
-                    self.target()
-                        .push_name_path_member_symbol(&mut member_symbols, conformance.symbol);
-                    let receiver = self
-                        .target()
-                        .insert(typed::expression::ExpressionNode::Name(
-                            typed::expression::TableNamePath::new(
-                                members,
-                                member_symbols,
-                                conformance.symbol,
-                                conformance.symbol,
-                            ),
-                        ));
-                    let arguments = self.target().insert_expression_handles(arguments);
-                    Ok(self.target().insert(typed::expression::ExpressionNode::Call(
-                        typed::expression::TableCallExpression {
-                            receiver,
-                            // Named dispatch checks the public row before selecting its realization.
-                            target_symbol: row.requirement,
-                            target: typed::name::Identifier::generated(requirement.name.as_str()),
-                            arguments,
-                            operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {
-                                origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                                ..Default::default()
-                            },
-                            authored_call_selection: None,
-                            authored_call_binding: None,
-                            authored_machine_application: Default::default(),
-                            requirement_application: Default::default(),
-                            exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
-                            static_machine_parameter: symbols::SymbolHandle::invalid(),
-                            static_requirement_dispatch: None,
-                            machine_arguments: Box::default(),
-                            quotient_operation: None,
-                            private_layout_operation: None,
-                            installed_interrupt_operation: None,
-                            layout_query: None,
-                            native_code_layout: None,
-                            build_selection: Default::default(),
-                            evidence_arguments: Box::default(),
-                        },
-                    )))
-                }
-
-                fn expand_structural_equality(
-                    &mut self,
-                    data: &'program DataDefinition,
-                    binary: &resolved::expression::TableBinaryExpression,
-                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    let type_name = data.name.as_str().to_owned();
-                    let mut visiting = vec![data.symbol];
-                    let left = self.classify_operand(binary.left, &type_name)?;
-                    let right = self.classify_operand(binary.right, &type_name)?;
-                    let equality = self.structural_equality(data, &left, &right, &mut visiting)?;
-                    Ok(self.with_equality_polarity(equality, binary.operator))
-                }
-
-                fn with_equality_polarity(
-                    &mut self,
-                    equality: typed::expression::ExpressionHandle,
-                    operator: resolved::expression::BinaryOperator,
-                ) -> typed::expression::ExpressionHandle {
-                    match operator {
-                        resolved::expression::BinaryOperator::NotEqual => {
-                            let negated = self
-                                .target()
-                                .insert(typed::expression::ExpressionNode::Boolean(false));
-                            self.target()
-                                .insert(typed::expression::ExpressionNode::Binary(
-                                    typed::expression::TableBinaryExpression {
-                                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                                        left: equality,
-                                        operator: typed::expression::BinaryOperator::Equal,
-                                        right: negated,
-                                    },
-                                ))
-                        }
-                        _ => equality,
-                    }
-                }
-
-                fn classifier_data(
-                    &self,
-                    operand: resolved::expression::ExpressionHandle,
-                ) -> Option<&'program DataDefinition> {
-                    if !operand.is_valid() {
-                        return None;
-                    }
-                    match self.source.expression(operand) {
-                        resolved::expression::ExpressionNode::Name(path) => {
-                            variant_owner(self.program?, path.symbol).map(|(data, _)| data)
-                        }
-                        resolved::expression::ExpressionNode::Borrow(inner) => {
-                            self.classifier_data(inner.target)
-                        }
-                        _ => None,
-                    }
-                }
-
-                fn operand_data(
-                    &self,
-                    operand: resolved::expression::ExpressionHandle,
-                ) -> Option<&'program DataDefinition> {
-                    if !operand.is_valid() {
-                        return None;
-                    }
-                    let program = self.program?;
-                    let symbol = match self.source.expression(operand) {
-                        resolved::expression::ExpressionNode::StructLiteral(literal) => {
-                            if literal.application_type.is_valid() {
-                                value_type_symbol(
-                                    program,
-                                    program.child_type_reference(literal.application_type),
-                                )?
-                            } else {
-                                literal.type_symbol
-                            }
-                        }
-                        resolved::expression::ExpressionNode::Borrow(inner) => {
-                            return self.operand_data(inner.target);
-                        }
-                        resolved::expression::ExpressionNode::Name(path) => {
-                            if !path.symbol.is_valid() {
-                                return None;
-                            }
-                            if let Some(symbol) = self
-                                .equality_scope
-                                .and_then(|scope| scope.value_type(path.symbol))
-                            {
-                                symbol
-                            } else {
-                                let declared = super::member_binding::declared_symbol_type(
-                                    program,
-                                    path.symbol,
-                                )?;
-                                value_type_symbol(program, declared)?
-                            }
-                        }
-                        resolved::expression::ExpressionNode::Member(member) => {
-                            let (field, _) = self.declared_member(member);
-                            let declared =
-                                super::member_binding::declared_symbol_type(program, field)?;
-                            value_type_symbol(program, declared)?
-                        }
-                        _ => return None,
-                    };
-                    data_definition_by_symbol(program, symbol)
-                }
-
-                fn classify_operand(
-                    &mut self,
-                    operand: resolved::expression::ExpressionHandle,
-                    type_name: &str,
-                ) -> Result<Operand, Diagnostic> {
-                    match self.source.expression(operand) {
-                        resolved::expression::ExpressionNode::StructLiteral(literal) => {
-                            Ok(Operand::Literal {
-                                case_name: literal
-                                    .case_name
-                                    .as_ref()
-                                    .map(|name| name.as_str().to_owned()),
-                                fields: literal.fields,
-                            })
-                        }
-                        resolved::expression::ExpressionNode::Borrow(inner) => {
-                            self.classify_operand(inner.target, type_name)
-                        }
-                        resolved::expression::ExpressionNode::Name(_)
-                        | resolved::expression::ExpressionNode::Member(_)
-                        | resolved::expression::ExpressionNode::Indexed(_) => {
-                            Ok(Operand::Place(self.lower(operand)?))
-                        }
-                        _ => Err(Diagnostic::error(format!(
-                            "cannot synthesize structural `==` for this `{type_name}` operand: bind the value to a local first"
-                        ))),
-                    }
-                }
-
-                fn structural_equality(
-                    &mut self,
-                    data: &'program DataDefinition,
-                    left: &Operand,
-                    right: &Operand,
-                    visiting: &mut Vec<symbols::SymbolHandle>,
-                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    let program = self
-                        .program
-                        .expect("structural equality requires program context");
-                    let members = program.data_members(data.members);
-
-                    let variants: Vec<&DataVariant> = members
-                        .iter()
-                        .filter_map(|member| match member {
-                            DataMember::Variant(variant) => Some(variant),
-                            _ => None,
-                        })
-                        .collect();
-
-                    let fields: Vec<&DataField> = members
-                        .iter()
-                        .filter_map(|member| match member {
-                            DataMember::Field(field) => Some(field),
-                            _ => None,
-                        })
-                        .collect();
-
-                    if variants.is_empty() {
-                        if !fields.is_empty()
-                            && fields.iter().all(|field| field.relevance.is_erased())
-                        {
-                            return Err(Diagnostic::error(format!(
-                                "cannot synthesize structural `==` for `{}`: every field is `[erased]`, so the record has no runtime value to compare",
-                                data.name
-                            )));
-                        }
-                        let compares =
-                            self.field_compares(data, &fields, None, left, right, visiting)?;
-                        return Ok(self.conjunction(compares));
-                    }
-
-                    if !fields.is_empty() {
-                        let mut compares =
-                            self.field_compares(data, &fields, None, left, right, visiting)?;
-                        compares.push(self.sum_equality(data, &variants, left, right, visiting)?);
-                        return Ok(self.conjunction(compares));
-                    }
-
-                    self.sum_equality(data, &variants, left, right, visiting)
-                }
-
-                fn field_compares(
-                    &mut self,
-                    data: &'program DataDefinition,
-                    fields: &[&DataField],
-                    case_variant: Option<&DataVariant>,
-                    left: &Operand,
-                    right: &Operand,
-                    visiting: &mut Vec<symbols::SymbolHandle>,
-                ) -> Result<Vec<typed::expression::ExpressionHandle>, Diagnostic> {
-                    let mut compares = Vec::new();
-                    for field in fields {
-                        if field.relevance.is_erased() {
-                            continue;
-                        }
-                        compares.push(self.field_compare(
-                            data,
-                            field,
-                            case_variant,
-                            left,
-                            right,
-                            visiting,
-                        )?);
-                    }
-                    Ok(compares)
-                }
-
-                fn sum_equality(
-                    &mut self,
-                    data: &'program DataDefinition,
-                    variants: &[&DataVariant],
-                    left: &Operand,
-                    right: &Operand,
-                    visiting: &mut Vec<symbols::SymbolHandle>,
-                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    let program = self
-                        .program
-                        .expect("structural equality requires program context");
-
-                    match (left, right) {
-                        (
-                            Operand::Literal {
-                                case_name: Some(left_case),
-                                ..
-                            },
-                            Operand::Literal {
-                                case_name: Some(right_case),
-                                ..
-                            },
-                        ) => {
-                            if left_case != right_case {
-                                return Ok(self
-                                    .target()
-                                    .insert(typed::expression::ExpressionNode::Boolean(false)));
-                            }
-                            let variant = self.sum_variant(data, variants, left_case)?;
-                            let payload: Vec<&DataField> = program
-                                .data_payload_fields(variant.payload)
-                                .iter()
-                                .collect();
-                            let compares = self.field_compares(
-                                data,
-                                &payload,
-                                Some(variant),
-                                left,
-                                right,
-                                visiting,
-                            )?;
-                            Ok(self.conjunction(compares))
-                        }
-                        (
-                            Operand::Literal {
-                                case_name: None, ..
-                            },
-                            Operand::Literal { .. },
-                        )
-                        | (
-                            Operand::Literal { .. },
-                            Operand::Literal {
-                                case_name: None, ..
-                            },
-                        ) => Err(Diagnostic::error(format!(
-                            "cannot compare `{}` values against a record literal: the type is a sum of cases",
-                            data.name
-                        ))),
-                        (Operand::Place(_), Operand::Literal { case_name, fields })
-                        | (Operand::Literal { case_name, fields }, Operand::Place(_)) => {
-                            let Some(case_name) = case_name else {
-                                return Err(Diagnostic::error(format!(
-                                    "cannot compare `{}` values against a record literal: the type is a sum of cases",
-                                    data.name
-                                )));
-                            };
-                            let place = match (left, right) {
-                                (Operand::Place(place), _) | (_, Operand::Place(place)) => *place,
-                                _ => unreachable!("one side is a place in this arm"),
-                            };
-                            let literal = Operand::Literal {
-                                case_name: Some(case_name.clone()),
-                                fields: *fields,
-                            };
-                            let variant = self.sum_variant(data, variants, case_name)?;
-                            let tag_compare = self.tag_compare(data, variant, place);
-                            let payload: Vec<&DataField> = program
-                                .data_payload_fields(variant.payload)
-                                .iter()
-                                .collect();
-                            let place_operand = Operand::Place(place);
-                            let mut compares = vec![tag_compare];
-                            compares.extend(self.field_compares(
-                                data,
-                                &payload,
-                                Some(variant),
-                                &place_operand,
-                                &literal,
-                                visiting,
-                            )?);
-                            Ok(self.conjunction(compares))
-                        }
-                        (Operand::Place(left_place), Operand::Place(right_place)) => {
-                            let (left_place, right_place) = (*left_place, *right_place);
-                            let mut arms = Vec::new();
-                            for variant in variants {
-                                let left_tag = self.tag_compare(data, variant, left_place);
-                                let right_tag = self.tag_compare(data, variant, right_place);
-                                let payload: Vec<&DataField> = program
-                                    .data_payload_fields(variant.payload)
-                                    .iter()
-                                    .collect();
-                                let mut compares = vec![left_tag, right_tag];
-                                compares.extend(self.field_compares(
-                                    data,
-                                    &payload,
-                                    Some(variant),
-                                    &Operand::Place(left_place),
-                                    &Operand::Place(right_place),
-                                    visiting,
-                                )?);
-                                arms.push(self.conjunction(compares));
-                            }
-                            Ok(self.disjunction(arms))
-                        }
-                    }
-                }
-
-                fn sum_variant(
-                    &self,
-                    data: &'program DataDefinition,
-                    variants: &[&'program DataVariant],
-                    case_name: &str,
-                ) -> Result<&'program DataVariant, Diagnostic> {
-                    variants
-                        .iter()
-                        .copied()
-                        .find(|variant| variant.name.as_str() == case_name)
-                        .ok_or_else(|| {
-                            Diagnostic::error(format!(
-                                "`{}` has no case `{case_name}` to compare against",
-                                data.name
-                            ))
-                        })
-                }
-
-                fn field_compare(
-                    &mut self,
-                    data: &'program DataDefinition,
-                    field: &DataField,
-                    case_variant: Option<&DataVariant>,
-                    left: &Operand,
-                    right: &Operand,
-                    visiting: &mut Vec<symbols::SymbolHandle>,
-                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    let program = self
-                        .program
-                        .expect("structural equality requires program context");
-                    let context = || {
-                        let root = program.symbols.display_path(visiting[0], "::");
-                        format!("structural equality of `{root}`")
-                    };
-                    match field_equality(program, context, data, field)? {
-                        equality @ (FieldEquality::Direct | FieldEquality::Text) => {
-                            if matches!(equality, FieldEquality::Text)
-                                && (matches!(left, Operand::Literal { .. })
-                                    || matches!(right, Operand::Literal { .. }))
-                            {
-                                return Err(Diagnostic::error(format!(
-                                    "cannot synthesize structural `==` for `String` field `{}` of `{}` against a constructed literal: text content equality compares stored values -- bind the literal to a value first",
-                                    field.name, data.name
-                                )));
-                            }
-                            let left_value = self.operand_field_value(field, case_variant, left)?;
-                            let right_value =
-                                self.operand_field_value(field, case_variant, right)?;
-                            Ok(self
-                                .target()
-                                .insert(typed::expression::ExpressionNode::Binary(
-                                    typed::expression::TableBinaryExpression {
-                                        policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                                        left: left_value,
-                                        operator: typed::expression::BinaryOperator::Equal,
-                                        right: right_value,
-                                    },
-                                )))
-                        }
-                        FieldEquality::Structural(nested, implementation) => {
-                            if !implementation.is_synthesized() {
-                                let left_value =
-                                    self.operand_field_value(field, case_variant, left)?;
-                                let right_value =
-                                    self.operand_field_value(field, case_variant, right)?;
-                                return self.call_equality_implementation(
-                                    nested,
-                                    implementation,
-                                    [left_value, right_value],
-                                );
-                            }
-                            let nested_name = nested.name.as_str();
-                            if visiting.contains(&nested.symbol) {
-                                return Err(Diagnostic::error(format!(
-                                    "{}: type `{nested_name}` is recursive through field `{}` of `{}`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet",
-                                    context(),
-                                    field.name,
-                                    data.name
-                                )));
-                            }
-                            let left_nested =
-                                self.operand_field_operand(field, case_variant, left, nested_name)?;
-                            let right_nested = self.operand_field_operand(
-                                field,
-                                case_variant,
-                                right,
-                                nested_name,
-                            )?;
-                            visiting.push(nested.symbol);
-                            let equality = self.structural_equality(
-                                nested,
-                                &left_nested,
-                                &right_nested,
-                                visiting,
-                            )?;
-                            visiting.pop();
-                            Ok(equality)
-                        }
-                    }
-                }
-
-                fn operand_field_value(
-                    &mut self,
-                    field: &DataField,
-                    case_variant: Option<&DataVariant>,
-                    operand: &Operand,
-                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-                    match operand {
-                        Operand::Place(place) => Ok(self.member_read(*place, field, case_variant)),
-                        Operand::Literal { .. } => {
-                            let value = self.literal_field_expression(field, operand)?;
-                            self.lower(value)
-                        }
-                    }
-                }
-
-                fn operand_field_operand(
-                    &mut self,
-                    field: &DataField,
-                    case_variant: Option<&DataVariant>,
-                    operand: &Operand,
-                    field_type_name: &str,
-                ) -> Result<Operand, Diagnostic> {
-                    match operand {
-                        Operand::Place(place) => Ok(Operand::Place(self.member_read(
-                            *place,
-                            field,
-                            case_variant,
-                        ))),
-                        Operand::Literal { .. } => {
-                            let value = self.literal_field_expression(field, operand)?;
-                            self.classify_operand(value, field_type_name)
-                        }
-                    }
-                }
-
-                fn literal_field_expression(
-                    &self,
-                    field: &DataField,
-                    operand: &Operand,
-                ) -> Result<resolved::expression::ExpressionHandle, Diagnostic> {
-                    let Operand::Literal { fields, .. } = operand else {
-                        unreachable!("literal field access on a place operand")
-                    };
-                    if let Some(literal_field) = self
-                        .source
-                        .struct_fields(*fields)
-                        .iter()
-                        .find(|literal_field| literal_field.name.as_str() == field.name.as_str())
-                    {
-                        return Ok(literal_field.value);
-                    }
-                    Err(Diagnostic::error(format!(
-                        "cannot synthesize structural `==`: the literal omits field `{}`",
-                        field.name
-                    )))
-                }
-
-                fn member_read(
-                    &mut self,
-                    place: typed::expression::ExpressionHandle,
-                    field: &DataField,
-                    case_variant: Option<&DataVariant>,
-                ) -> typed::expression::ExpressionHandle {
-                    self.target()
-                        .insert(typed::expression::ExpressionNode::Member(
-                            typed::expression::TableMemberExpression {
-                                receiver: place,
-                                selection: typed::expression::MemberSelection::Field(field.symbol),
-                                member: lower_name(&field.name),
-                                case_variant: case_variant.map(|variant| lower_name(&variant.name)),
-                            },
-                        ))
-                }
-
-                fn tag_compare(
-                    &mut self,
-                    data: &DataDefinition,
-                    variant: &DataVariant,
-                    place: typed::expression::ExpressionHandle,
-                ) -> typed::expression::ExpressionHandle {
-                    let mut members = HandleSpan::empty();
-                    self.target()
-                        .push_name_path_member(&mut members, lower_name(&data.name));
-                    self.target()
-                        .push_name_path_member(&mut members, lower_name(&variant.name));
-                    let mut member_symbols = HandleSpan::empty();
-                    self.target()
-                        .push_name_path_member_symbol(&mut member_symbols, data.symbol);
-                    self.target()
-                        .push_name_path_member_symbol(&mut member_symbols, variant.symbol);
-                    let case_reference =
-                        self.target()
-                            .insert(typed::expression::ExpressionNode::Name(
-                                typed::expression::TableNamePath::new(
-                                    members,
-                                    member_symbols,
-                                    data.symbol,
-                                    variant.symbol,
-                                ),
-                            ));
-                    self.target()
-                        .insert(typed::expression::ExpressionNode::Binary(
-                            typed::expression::TableBinaryExpression {
-                                policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                                left: place,
-                                operator: typed::expression::BinaryOperator::CaseMembership,
-                                right: case_reference,
-                            },
-                        ))
-                }
-
-                fn conjunction(
-                    &mut self,
-                    compares: Vec<typed::expression::ExpressionHandle>,
-                ) -> typed::expression::ExpressionHandle {
-                    self.fold_binary(compares, typed::expression::BinaryOperator::And, true)
-                }
-
-                fn disjunction(
-                    &mut self,
-                    arms: Vec<typed::expression::ExpressionHandle>,
-                ) -> typed::expression::ExpressionHandle {
-                    self.fold_binary(arms, typed::expression::BinaryOperator::Or, false)
-                }
-
-                fn fold_binary(
-                    &mut self,
-                    parts: Vec<typed::expression::ExpressionHandle>,
-                    operator: typed::expression::BinaryOperator,
-                    empty_value: bool,
-                ) -> typed::expression::ExpressionHandle {
-                    let mut parts = parts.into_iter();
-                    let Some(mut combined) = parts.next() else {
-                        return self
-                            .target()
-                            .insert(typed::expression::ExpressionNode::Boolean(empty_value));
-                    };
-                    for part in parts {
-                        combined = self
-                            .target()
-                            .insert(typed::expression::ExpressionNode::Binary(
-                                typed::expression::TableBinaryExpression {
-                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
-                                    left: combined,
-                                    operator,
-                                    right: part,
-                                },
-                            ));
-                    }
-                    combined
-                }
-            }
-        }
 
         pub(crate) use member_binding::declared_receiver_method_target;
 
-        use crate::expressions::equatable::EqualityScope;
         use diagnostics::Diagnostic;
         use symbol_resolved_trees as resolved;
         use typed_trees as typed;
@@ -3883,7 +2983,7 @@ pub(crate) mod expression {
                 typed::expression::ExpressionHandle,
             )>,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-            lowerer::ExpressionTableLowerer::new(program, source, target, symbol_substitution, None)
+            lowerer::ExpressionTableLowerer::new(program, source, target, symbol_substitution)
                 .lower(expression)
         }
 
@@ -3892,9 +2992,8 @@ pub(crate) mod expression {
             source: &resolved::expression::ExpressionTable,
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
-            scope: Option<&EqualityScope>,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .lower(expression)
         }
 
@@ -3903,9 +3002,8 @@ pub(crate) mod expression {
             source: &resolved::expression::ExpressionTable,
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
-            scope: Option<&EqualityScope>,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .admitting_policy_operators(true)
                 .lower(expression)
         }
@@ -3916,7 +3014,7 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, None)
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .in_fact_position()
                 .lower(expression)
         }
@@ -3926,10 +3024,9 @@ pub(crate) mod expression {
             source: &resolved::expression::ExpressionTable,
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
-            scope: Option<&EqualityScope>,
             admits_policy_operators: bool,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .in_fact_position()
                 .admitting_policy_operators(admits_policy_operators)
                 .lower(expression)
@@ -3941,7 +3038,7 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             pattern: resolved::statement::TransitionPattern,
         ) -> Result<typed::statement::TransitionPattern, Diagnostic> {
-            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, None)
+            lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .lower_transition_pattern(pattern)
         }
     }
@@ -3956,7 +3053,6 @@ pub(crate) mod expression {
         let Lowerer {
             typed_trees,
             source_trees,
-            equality_scope,
             ..
         } = lowerer;
         let source = &source_trees.tables.bodies.expressions;
@@ -3965,7 +3061,6 @@ pub(crate) mod expression {
             source,
             typed_trees,
             expression,
-            equality_scope.as_ref(),
         )
     }
 
@@ -3976,7 +3071,6 @@ pub(crate) mod expression {
         let Lowerer {
             typed_trees,
             source_trees,
-            equality_scope,
             ..
         } = lowerer;
         let source = &source_trees.tables.bodies.expressions;
@@ -3985,7 +3079,6 @@ pub(crate) mod expression {
             source,
             typed_trees,
             expression,
-            equality_scope.as_ref(),
         )
     }
 
@@ -4147,7 +3240,6 @@ pub(crate) mod expression {
             &lowerer.source_trees.tables.bodies.expressions,
             &mut lowerer.typed_trees,
             expression,
-            lowerer.equality_scope.as_ref(),
             lowerer.admits_contract_policy_operators,
         )
     }

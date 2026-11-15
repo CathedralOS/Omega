@@ -172,6 +172,10 @@ pub(crate) struct Program<'t> {
     /// such a parameter by its symbol is that type (`value_type`). Empty
     /// while a closed machine is read.
     scope: Vec<(SymbolHandle, ValueType)>,
+    /// A generic declaration checks its contract without claiming executable
+    /// storage for a compound symbolic type. These types belong only to that
+    /// schema form; demanded applications use ordinary formals and loans.
+    schema_types: Option<Vec<typed_trees::type_identity::NormalizedTypeIdentity>>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -386,6 +390,7 @@ impl<'t> Program<'t> {
             outcome_subjects: None,
             selections: Vec::new(),
             scope: Vec::new(),
+            schema_types: None,
             scopes: IdTable::default(),
             width_scope: Vec::new(),
             width_scopes: IdTable::default(),
@@ -1492,7 +1497,7 @@ mod tests {
         );
         assert_eq!(
             detail(&mut program, &scope, lookalike),
-            "contract call in a clause term"
+            "call target is not a machine declaration"
         );
         for expression in [missing_argument, extra_argument] {
             assert_eq!(
@@ -2720,7 +2725,7 @@ mod tests {
         );
         assert_eq!(
             detail(&served, spelled_embed),
-            "contract call in a clause term"
+            "call target is not a machine declaration"
         );
         let guard = scope(MathematicalTerms::Refused(
             "mathematical comparison in a crash route guard",
