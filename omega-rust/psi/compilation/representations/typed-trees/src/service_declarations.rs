@@ -1969,7 +1969,7 @@ pub mod signatures {
             pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
         }
 
-        pub struct PreparedAbiProjection {
+        pub struct PreparedAbiSource {
             pub source: SymbolHandle,
             pub formals: Vec<CallingGenericFormal>,
             pub default_eligible: bool,
@@ -1983,7 +1983,7 @@ pub mod signatures {
             pub requirement_identity: String,
             pub declaring_application: String,
             pub operands: Vec<CallingStaticOperand>,
-            pub projections: Vec<PreparedAbiProjection>,
+            pub projections: Vec<PreparedAbiSource>,
         }
 
         impl PreparedBoundaryAbiSignature {
@@ -1993,7 +1993,7 @@ pub mod signatures {
                 &'a self,
                 typed: &'a TypedTrees,
                 context: source::DependencyScope,
-            ) -> impl Iterator<Item = &'a PreparedAbiProjection> {
+            ) -> impl Iterator<Item = &'a PreparedAbiSource> {
                 self.projections.iter().filter(move |projection| {
                     projection.source.is_valid()
                         && typed
@@ -2410,7 +2410,7 @@ pub mod signatures {
                         .collect()
                 })
                 .unwrap_or_default();
-            let projection = PreparedAbiProjection {
+            let projection = PreparedAbiSource {
                 source: declaration.symbol,
                 formals,
                 default_eligible: declaration.default_eligible,
@@ -2985,8 +2985,7 @@ pub mod signatures {
         }
     }
     pub use abi_signatures::{
-        CallingStaticOperand, PreparedAbiProjection, PreparedAbiStorage,
-        PreparedBoundaryAbiSignature,
+        CallingStaticOperand, PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
     };
 
     pub struct BoundaryCallbackSource {

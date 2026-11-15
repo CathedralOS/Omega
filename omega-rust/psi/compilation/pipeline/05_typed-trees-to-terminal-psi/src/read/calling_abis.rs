@@ -803,11 +803,11 @@ mod tests {
     };
     use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::service_declarations::signatures::{
-        PreparedAbiProjection, PreparedAbiStorage, PreparedBoundaryAbiSignature,
+        PreparedAbiSource, PreparedAbiStorage, PreparedBoundaryAbiSignature,
     };
 
-    fn projection(source: SymbolHandle, result: TypeReferenceHandle) -> PreparedAbiProjection {
-        PreparedAbiProjection {
+    fn projection(source: SymbolHandle, result: TypeReferenceHandle) -> PreparedAbiSource {
+        PreparedAbiSource {
             source,
             formals: Vec::new(),
             default_eligible: true,
