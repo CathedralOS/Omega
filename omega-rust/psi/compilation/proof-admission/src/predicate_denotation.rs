@@ -88,6 +88,21 @@ mod budget {
                     self.count(left.path().len())?;
                     self.count(right.path().len())?;
                 }
+                Proposition::FloatMeaningEqual(clause) => {
+                    self.count(clause.values.len())?;
+                    for value in &clause.values {
+                        match value {
+                            semantic_vocabulary::FloatMeaningClauseValue::Projection {
+                                source,
+                                ..
+                            } => self.scalar(source, depth + 1)?,
+                            semantic_vocabulary::FloatMeaningClauseValue::Application {
+                                operands,
+                                ..
+                            } => self.count(operands.len())?,
+                        }
+                    }
+                }
                 Proposition::ContentConservation(value) => {
                     self.content(value.left(), depth + 1)?;
                     self.content(value.right(), depth + 1)?;
@@ -243,6 +258,11 @@ mod value_equalities {
                     if mathematical_equality && left > right {
                         std::mem::swap(left, right);
                     }
+                }
+                Proposition::FloatMeaningEqual(clause) => {
+                    *clause = clause.map_sources(|source| {
+                        self.scalar(source, budget, depth + 1, &mut Vec::new())
+                    })?;
                 }
                 Proposition::IeeeFloatComparison { .. }
                 | Proposition::ByteSequenceEqual { .. }
@@ -785,6 +805,12 @@ pub enum PredicateDenotationError {
     InvalidValueEquality,
     Malformed(PropositionError),
     Proof(ProofError),
+}
+
+impl From<&'static str> for PredicateDenotationError {
+    fn from(reason: &'static str) -> Self {
+        Self::Malformed(PropositionError::InvalidFloatMeaningClause(reason))
+    }
 }
 
 crate::debug_display!(PredicateDenotationError);

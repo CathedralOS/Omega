@@ -1639,6 +1639,10 @@ pub(crate) struct ErasedTerms<'a> {
 
 impl Bindings for ErasedTerms<'_> {
     type Error = Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.runtime.validate_float_meaning_source(source)
+    }
+
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         let Some((_, supplied)) = self.terms.iter().find(|(formal, _)| *formal == id) else {
             return self.runtime.value(id, scalar_type);

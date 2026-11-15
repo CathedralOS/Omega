@@ -10668,6 +10668,11 @@ pub(crate) mod operation_contracts {
                         roots.insert(left.root());
                         roots.insert(right.root());
                     }
+                    Proposition::FloatMeaningEqual(clause) => {
+                        for source in clause.sources() {
+                            scalar_term_roots(source, roots);
+                        }
+                    }
                     Proposition::ContentConservation(conservation) => {
                         content_term_roots(conservation.left(), roots);
                         content_term_roots(conservation.right(), roots);

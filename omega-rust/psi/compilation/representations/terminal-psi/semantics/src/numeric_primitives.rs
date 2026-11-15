@@ -1,5 +1,6 @@
 //! Canonical numeric declarations retain the same semantic contract before
-//! realization and after artifact receiving. IEEE comparison is a predicate,
+//! realization and after artifact receiving. Arithmetic retains its complete
+//! FloatMeaning equation. IEEE comparison is a different predicate,
 //! distinct from structural value equality: NaNs never equal themselves and
 //! signed zeros compare equal. Both directions tie the Boolean result to it.
 
@@ -76,6 +77,44 @@ pub fn comparison_predicate(
 /// occupy values 1 and 2 and the normal result occupies value 3, just as an
 /// ordinary scalar callable does. Unsupported numeric operations refuse.
 pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static str> {
+    if let NumericIntrinsic::FloatBinary { operation, format } = meaning
+        && matches!(
+            operation,
+            PrimitiveFloatBinaryOperation::Add
+                | PrimitiveFloatBinaryOperation::Subtract
+                | PrimitiveFloatBinaryOperation::Multiply
+                | PrimitiveFloatBinaryOperation::Divide
+        )
+    {
+        use numerics::float_semantics::{
+            FloatSemanticOperation,
+            FloatSemanticValueKind::{Format, Meaning},
+        };
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            operation.name(),
+            &[Format, Meaning, Meaning],
+            Meaning,
+        )
+        .ok_or("numeric primitive has no complete semantic catalog row")?;
+        let format = match format {
+            numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+            numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+        };
+        let source = |raw| {
+            ScalarTerm::value(
+                ValueId::new(raw).expect("fixed scalar formal/result"),
+                ScalarType::IeeeFloat(format),
+            )
+        };
+        let clause = semantic_vocabulary::FloatMeaningClause::result_equation(
+            source(3),
+            operation.contract_identity(),
+            format,
+            [source(1), source(2)],
+        )?;
+        return Ok(vec![Proposition::FloatMeaningEqual(clause)]);
+    }
     let comparison = Comparison::from_meaning(meaning)?;
     let input = |raw| {
         ScalarTerm::value(
@@ -105,6 +144,22 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
     ])
 }
 
+/// The selected primitive's actual scalar result, including its permanent
+/// float format. Catalog rows with structural results stay outside this path.
+pub fn result_scalar_type(meaning: NumericIntrinsic) -> Result<ScalarType, &'static str> {
+    use language_semantics::numeric_intrinsics::NumericResult;
+    let signature = meaning
+        .signature()
+        .ok_or("numeric primitive has no scalar signature")?;
+    match signature.result {
+        NumericResult::Boolean => Ok(ScalarType::Boolean),
+        NumericResult::Primitive(carrier) => carrier
+            .scalar_type()
+            .ok_or("numeric primitive has no scalar result"),
+        NumericResult::FloatClass => Err("numeric primitive has a structural result"),
+    }
+}
+
 /// Rejoin a retained numeric primitive to its exact catalog declaration and
 /// complete public contract. Neither a name nor a numeric tag grants execution.
 pub fn validate_boundary(
@@ -124,9 +179,16 @@ pub fn validate_boundary(
         return Err("numeric primitive is outside the supported catalog");
     };
     let format_name = format.name();
+    let expected_result = result_scalar_type(meaning)?;
+    let result_name = match expected_result {
+        ScalarType::Boolean => "bool",
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
+        _ => return Err("numeric primitive has an unsupported result carrier"),
+    };
     let declaration = format!("Float::{}", operation.name());
     let [owner, state, semantic, callable, parameter, result] =
-        coordinates(&declaration, format_name)?;
+        coordinates(&declaration, format_name, result_name)?;
     let text = |identity| module.identities.text(identity);
     let source = &checked.source;
     let expected_scalar = match format {
@@ -213,8 +275,8 @@ pub fn validate_boundary(
         "parameter telescope"
     );
     require!(
-        matches!(boundary.result, BoundaryMachineResult::Scalar(result) if result.scalar_type == ScalarType::Boolean && result.qualifications == semantic_vocabulary::ScalarQualificationSetId::ZERO),
-        "Boolean result"
+        matches!(boundary.result, BoundaryMachineResult::Scalar(result) if result.scalar_type == expected_result && result.qualifications == semantic_vocabulary::ScalarQualificationSetId::ZERO),
+        "scalar result format"
     );
     require!(
         boundary.completion == semantic_vocabulary::BoundaryCompletion::NormalReturn
@@ -239,7 +301,7 @@ pub fn validate_boundary(
     );
     require!(
         boundary.scalar_ensures == expected_ensures,
-        "full IEEE result equivalence"
+        "full canonical result contract"
     );
     require!(
         boundary.requires.is_empty()
@@ -262,7 +324,7 @@ pub fn validate_boundary(
     Ok(())
 }
 
-fn coordinates(declaration: &str, format: &str) -> Result<[String; 6], &'static str> {
+fn coordinates(declaration: &str, format: &str, result: &str) -> Result<[String; 6], &'static str> {
     use language_core::sealed_intrinsics::{
         SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
     };
@@ -347,6 +409,6 @@ fn coordinates(declaration: &str, format: &str) -> Result<[String; 6], &'static 
         format!("toolchain::{declaration}"),
         callable,
         declared(format),
-        declared("bool"),
+        declared(result),
     ])
 }

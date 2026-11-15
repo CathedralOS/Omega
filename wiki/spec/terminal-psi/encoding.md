@@ -707,6 +707,30 @@ integer math and content operands are their own encodings inside the row.
 | 16 | IntegerMathLessOrEqual | integer math term + integer math term |
 | 17 | ScalarIeeeFloatComparison | IEEE float comparison kind + IEEE float format + scalar term + scalar term |
 | 18 | StructuralIdentity | structural type id + canonical structural field + structural type id + canonical structural field |
+| 19 | FloatMeaningEqual | counted float-meaning clause rows + `u32` left slot + `u32` right slot |
+
+A `FloatMeaningEqual` clause records structural meaning equality before a
+call supplies its actual arguments and result. Its slots index only its own
+flat table; they are not runtime values or module proof-value ids.
+
+| Clause row tag | Form | Fields |
+| --- | --- | --- |
+| 0 | Projection | scalar term + [projection contract](#float-meaning-rows) |
+| 1 | Application | float semantic contract identity + IEEE float format + counted clause operands |
+
+| Clause operand tag | Form | Fields |
+| --- | --- | --- |
+| 0 | Format | IEEE float format |
+| 1 | Meaning | `u32` earlier clause slot |
+
+Receiving checks each exact catalog commitment, ordered application signature,
+permanent format, unique topological rows and complete connection to the two
+equality roots. Calls substitute all scalar sources simultaneously and bind
+them to actual literals, parameters, block parameters, operations or call
+results. Storage bindings resolve Entry/Current fields to their exact captured
+observations first. A bodyless contract does not invent a machine owner.
+This equality keeps NaN meanings reflexive and distinguishes signed zeros;
+it grants neither IEEE comparison facts nor raw representation identity.
 
 Each `StructuralIdentity` subject denotes the complete value at its path in
 the enclosing predicate's invocation frame. The two endpoint types must match
@@ -1428,10 +1452,18 @@ authority: settlement retains the exact target-table realization and its ISA
 and floating-control obligations, and receiving checks these against the
 authenticated boundary and canonical method schema.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Marker 275 retains the structural qualification rows and marker 273's
-machine-contract account of public result lifetimes. Formats 271, 272, 273
-and 274 are refused before payload interpretation. Vocabulary marker 135 and the
-artifact transport envelope remain unchanged.
+decoded. Marker 275 retained the structural qualification rows and marker 273's
+machine-contract account of public result lifetimes. It refused formats 271,
+272, 273 and 274 before payload interpretation, using vocabulary marker 135
+and the existing artifact transport envelope.
+
+Semantic format marker 276 adds proposition tag 19 for typed float-meaning
+clauses. Basic numeric arithmetic retains its complete result-meaning equation,
+including the exact semantic operation, format and ordered operands. Vocabulary
+marker 136 distinguishes this clause family. Earlier semantic formats,
+including 275, reject before table decoding. The native terminal-input record
+uses `OMGNTI31`; `OMGNTI30` is retired. The mathematical certificate envelope
+and proof-system marker remain unchanged because this adds no proof rule.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -2198,9 +2230,15 @@ candidate machine id.
 | --- | --- |
 | float-meaning projection | `u32` proof value id + proof-only value type + float-meaning source + projection operation + projection contract |
 | projection contract | `u16` float format + `u8` operation + `u8` declaration + `u16` catalog version + 32-byte commitment |
-| float semantic contract identity | `u8` catalog row + `u16` catalog version + 32-byte commitment |
+| float semantic contract identity | semantic operation identity + `u16` catalog version + 32-byte commitment |
 | float-meaning equality | `u32` proposition id + `u32` left proof value + `u32` right proof value |
 | IEEE float field | root place id + counted canonical path segments |
+
+A semantic operation identity starts with a `u8` tag: `0` carries the fixed
+catalog row as `u8`; `1`, `2` and `3` carry FromInteger, ToIntegerExact and
+ToIntegerSaturating, respectively, followed by a `u8` sign (`0` unsigned,
+`1` signed) and positive `u64` width. Receiving rejoins the complete identity
+to the catalog; a matching name alone does not establish the contract.
 
 <!-- float-value-type-tags -->
 
@@ -2740,14 +2778,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (135). A receiver rejects an unknown magic or stale marker
+vocabulary marker (136). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 275 | yes |
+| semantic module | `PSITERM\0` | 276 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
