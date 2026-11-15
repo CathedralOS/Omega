@@ -72,14 +72,7 @@ pub(crate) fn infer(
                 }
             }
         }
-        describe_calls(
-            scope,
-            id,
-            &sites,
-            &mut incoming,
-            unreached,
-            inhabitation,
-        )?;
+        describe_calls(scope, id, &sites, &mut incoming, unreached, inhabitation)?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
