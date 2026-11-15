@@ -142,6 +142,3 @@ public boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     reaches none
     crashes none;
 }
-
-data Main { }
-machine Main::main(main: &mut Main) { }
