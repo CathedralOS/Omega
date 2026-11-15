@@ -119,9 +119,9 @@ pub(crate) mod scalar_graph {
             use scalar_graph_input::normalized_foreign::native_callbacks_at;
             use semantic_vocabulary::OperationId;
 
-            pub(crate) fn project_call<'a>(
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &'a crate::native_geometry::NativeUnit<'a>,
+            pub(crate) fn project_call(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::Call {
@@ -150,8 +150,8 @@ pub(crate) mod scalar_graph {
                 for argument in arguments {
                     lowered.push(LegalizedScalarArgument::Structural {
                         indices: crate::legalization::runtime_indices::retained_operands(
-                            &unit.accepted_obligation_facts,
-                            optimized.machine,
+                            facts,
+                            machine,
                             *psi_operation,
                             &argument.indices,
                         )?,
@@ -1564,7 +1564,11 @@ pub(crate) mod scalar_graph {
                 targeted,
                 target_operations::TargetUnitOperation::Call { .. }
             ) {
-                call_instructions::project_call(optimized, unit, targeted)?
+                call_instructions::project_call(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
             } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::StructuralLeafCopy { .. }
