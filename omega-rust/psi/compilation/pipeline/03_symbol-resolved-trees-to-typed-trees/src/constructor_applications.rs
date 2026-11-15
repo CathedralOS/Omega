@@ -368,8 +368,10 @@ fn select_closed_call(
         let Some(machine) = program.machine_by_symbol(candidate) else {
             return Ok(None);
         };
+        // Lifetime names do not choose a carrier overload. The existing
+        // carrier identity compares type, access and domains; ordinary call
+        // formation must still instantiate and check the selected lifetimes.
         if !program.machine_type_parameters(machine).is_empty()
-            || !machine.lifetime_parameters.is_empty()
             || machine.attached_data.is_some()
             || program.symbols.get(candidate).declaration_owner.is_valid()
         {
@@ -1140,6 +1142,72 @@ mod tests {
             owner.symbol,
             "the nearest nested family cannot be replaced by a root helper"
         );
+    }
+
+    #[test]
+    fn closed_call_families_select_lifetime_bound_headers() {
+        let library = r#"
+            module kit;
+            public data Payload<'text> [copy] { text: &'text [u8]; }
+            public machine choose<'text>(value: Payload<'text>) -> u32 { 17u32 }
+            public machine choose<'text>(value: &'text u32) -> u32 { 64u32 }
+        "#;
+        let client = r#"
+            use kit;
+            machine stored<'text>(value: kit::Payload<'text>) -> u32 { kit::choose(value) }
+            machine shared(value: &u32) -> u32 { kit::choose(value) }
+            machine incompatible(value: bool) -> u32 { kit::choose(value) }
+            machine access_mismatch(value: &mut u32) -> u32 { kit::choose(value) }
+        "#;
+        let program = checked(&[("kit.omg", library), ("client.omg", client)])
+            .expect("select actual lifetime-bound headers from their argument carriers");
+        for owner in ["stored", "shared"] {
+            let (target, occurrence) = owned_call(&program, owner);
+            let declaration = program
+                .machine_by_own_or_state_symbol(target)
+                .expect("the complete actual selects one declared header");
+            assert!(declaration.is_public);
+            assert_eq!(declaration.lifetime_parameters.len(), 1);
+            let [parameter] = program.state_parameters(&program.machine_states(declaration)[0])
+            else {
+                panic!("one retained formal")
+            };
+            assert_eq!(
+                matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                ),
+                owner == "shared"
+            );
+            assert_eq!(
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence.expect("same source call occurrence"))
+                    .unwrap()
+                    .target()
+                    .as_resolved()
+                    .unwrap()
+                    .selected_symbol(),
+                target
+            );
+        }
+        for owner in ["incompatible", "access_mismatch"] {
+            assert!(!owned_call(&program, owner).0.is_valid(), "{owner}");
+            let declaration = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == owner)
+                .unwrap();
+            assert_eq!(
+                program
+                    .deferred_refusal(declaration.symbol)
+                    .unwrap()
+                    .request,
+                typed_trees::deferred_refusals::DeferredRequest::UnresolvedCallTarget
+            );
+        }
     }
 
     #[test]

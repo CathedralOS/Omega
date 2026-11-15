@@ -94,15 +94,15 @@ impl<'source> CallableDeclaration<'source> {
         }
     }
 
-    pub fn has_lifetime_parameters(
+    pub fn lifetime_parameters(
         self,
-        program: &crate::TypedTrees,
-    ) -> Result<bool, &'static str> {
+        program: &'source crate::TypedTrees,
+    ) -> Result<&'source [crate::name::Identifier], &'static str> {
         match self {
-            Self::Signature(signature) => Ok(!signature.lifetime_parameters.is_empty()),
+            Self::Signature(signature) => Ok(&signature.lifetime_parameters),
             Self::Machine(symbol) => program
                 .machine_by_symbol(symbol)
-                .map(|machine| !machine.lifetime_parameters.is_empty())
+                .map(|machine| machine.lifetime_parameters.as_slice())
                 .ok_or("callable declaration lost its exact machine"),
         }
     }

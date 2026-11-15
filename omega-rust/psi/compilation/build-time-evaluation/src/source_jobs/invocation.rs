@@ -521,7 +521,12 @@ pub(crate) fn prepare_value_invocation(
     let parameters = shape.parameters.to_vec();
     let declared_result = shape.return_type;
     let type_parameters = declaration.static_parameters(&probe)?.to_vec();
-    let has_lifetimes = declaration.has_lifetime_parameters(&probe)?;
+    let lifetimes = declaration
+        .lifetime_parameters(&probe)?
+        .iter()
+        .cloned()
+        .map(|parameter| (parameter, None))
+        .collect::<Vec<_>>();
     let declaration_argument =
         typed_trees::reflection::construction::declaration_query_argument_role(
             program,
@@ -554,9 +559,6 @@ pub(crate) fn prepare_value_invocation(
         return Err(
             "source invocation static arguments differ from their retained application".into(),
         );
-    }
-    if has_lifetimes {
-        return Err("source invocation lifetime arguments are not materialized".into());
     }
     if type_parameters
         .iter()
@@ -628,16 +630,25 @@ pub(crate) fn prepare_value_invocation(
             original.machine_arguments = supplied.clone().into_boxed_slice();
         }
     }
-    let result_type = probe
-        .type_reference_table
-        .instantiate(declared_result, &substitutions)?;
+    // These are the generated caller's actual occurrences, not a new public
+    // signature. Ordinary call inference relates their regions to the retained
+    // callee binders, and still rejects backing that cannot outlive the result.
+    let result_type = probe.instantiate_callable_type(
+        declared_result,
+        &substitutions,
+        &lifetimes,
+        declaration.symbol(),
+    )?;
     state.return_type = result_type;
     let mut actuals = Vec::with_capacity(arguments.len());
     let mut context_inputs = Vec::new();
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
-        let destination = probe
-            .type_reference_table
-            .instantiate(parameter.type_reference, &substitutions)?;
+        let destination = probe.instantiate_callable_type(
+            parameter.type_reference,
+            &substitutions,
+            &lifetimes,
+            declaration.symbol(),
+        )?;
         let mut carrier = destination;
         while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
             probe.type_reference_table.type_reference(carrier)
@@ -694,6 +705,12 @@ pub(crate) fn prepare_value_invocation(
         } else {
             value
         };
+        // Keep the type of this evaluated argument with its existing
+        // expression row. Receipt consumers can inspect the checked actual
+        // without reconstructing a callee or trusting a displayed type name.
+        probe
+            .expression_table
+            .set_constructed_value_type_reference(actual, destination);
         actuals.push(actual);
     }
     if materialized && !call.machine_arguments.is_empty() {

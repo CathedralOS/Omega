@@ -243,3 +243,91 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
         .validate_charges()
         .expect("same invocation work/result accounting");
 }
+
+fn query_call(
+    typed: &typed_trees::TypedTrees,
+    name: &str,
+) -> (
+    symbols::SymbolHandle,
+    typed_trees::expression::ExpressionHandle,
+) {
+    let author = typed.realized_machine_named(name).unwrap().symbol;
+    let mut expressions = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            let ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            (typed_trees::references::StaticArgumentCall::Expression(handle, call)
+                .lexical_owner(typed)
+                == author)
+                .then_some(handle)
+        });
+    let call = expressions
+        .next()
+        .expect("the source author owns its query");
+    assert!(expressions.next().is_none(), "one exact declaration query");
+    (author, call)
+}
+
+
+#[test]
+fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
+    let source = r#"
+        use omega::language::core::reflect;
+        data Cell { value: u32; }
+        machine describe() -> reflect::TypeSchema { reflect::schema<Cell>() }
+        machine carry<'text>(schema: reflect::TypeSchema<'text>) -> reflect::TypeSchema<'text> { schema }
+        machine local_escape<'text>() -> &'text [u8] {
+            let bytes: [u8; 1] = [7u8];
+            let view: &[u8] = &bytes[..];
+            view
+        }
+    "#;
+    let library =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
+    let typed = customer_source::actual_library_source(
+        &library,
+        source,
+        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap(),
+    )
+    .unwrap();
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let facts = facts();
+    let mut accounting = SourceCompletionAccounting::default();
+    let (describe, query) = query_call(&typed, "describe");
+    let schema = prepared
+        .entry_call(describe, query, &[])
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .unwrap();
+    let carry = typed.realized_machine_named("carry").unwrap().symbol;
+    let returned = prepared
+        .entry(carry, carry, &[schema.value().clone()])
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .unwrap();
+    assert_eq!(
+        returned.value(),
+        schema.value(),
+        "the real query image survives the ordinary lifetime-bound call"
+    );
+    let local_escape = typed.realized_machine_named("local_escape").unwrap().symbol;
+    let before = accounting.receipts().len();
+    let error = prepared
+        .entry(local_escape, local_escape, &[])
+        .err()
+        .expect("a fresh call lifetime cannot retain this callee's local array");
+    assert!(error.contains("lifetime"), "{error}");
+    assert!(
+        !error.contains("not supported yet"),
+        "the actual local-storage contract must reject: {error}"
+    );
+    assert_eq!(
+        accounting.receipts().len(),
+        before,
+        "no evaluation of the escaping local borrow"
+    );
+    accounting.validate_charges().unwrap();
+}

@@ -3846,7 +3846,7 @@ pub(crate) mod payloads {
                 } => {
                     let lifetime = lifetime
                         .as_ref()
-                        .filter(|lifetime| !self.elided_lifetimes.contains(lifetime))
+                        .filter(|lifetime| !self.elides_lifetime(program, original, 0, lifetime))
                         .map(|lifetime| self.scoped_lifetime(program, original, 0, lifetime))
                         .transpose()?;
                     if let Some(lifetime) = &lifetime {
@@ -3991,92 +3991,102 @@ pub(crate) mod payloads {
                     lifetime_arguments,
                     arguments,
                 } => {
-                    let nominal_owner = self.symbol(base_symbol);
-                    if !applied_owner.is_valid()
-                        && !lifetime_arguments.is_empty()
-                        && lifetime_arguments.iter().all(|lifetime| {
-                            !self
-                                .lifetimes
-                                .iter()
-                                .any(|binding| binding.parameter == *lifetime)
-                                && crate::type_identity::lifetime_parameter_identity(
-                                    program,
-                                    self.region_scope,
-                                    lifetime.as_str(),
-                                )
-                                .is_some()
+                    let inferred = lifetime_arguments
+                        .iter()
+                        .enumerate()
+                        .filter(|(slot, lifetime)| {
+                            self.elides_lifetime(program, original, *slot, lifetime)
                         })
-                    {
-                        applied_owner = self.region_scope;
-                    }
-                    if !applied_owner.is_valid()
-                        && lifetime_arguments
-                            .iter()
-                            .any(|lifetime| self.elided_lifetimes.contains(lifetime))
-                    {
-                        applied_owner = self.region_scope;
-                    }
-                    let lifetimes = lifetime_arguments
-                    .iter()
-                    .enumerate()
-                    .map(|(slot, lifetime)| {
-                        if self.elided_lifetimes.contains(lifetime) {
-                            if crate::type_identity::lifetime_parameter_identity(
-                                program,
-                                applied_owner,
-                                lifetime.as_str(),
-                            )
-                            .is_none()
-                            {
-                                return Err(
-                                    "elided nominal result lost its supplying lifetime telescope",
-                                );
-                            }
-                            return Ok(super::ScopedCallableLifetime {
-                                name: lifetime.clone(),
-                                region: Default::default(),
-                                origin: super::CallableLifetimeOrigin::Lexical,
-                            });
-                        }
-                        self.scoped_lifetime(program, original, slot, lifetime)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                    for lifetime in &lifetimes {
-                        if lifetime.region.declaration.is_valid()
-                            && crate::type_identity::lifetime_parameter_name(
-                                program,
-                                lifetime.region,
-                            ) != Some(&lifetime.name)
-                        {
+                        .count();
+                    if inferred != 0 {
+                        if inferred != lifetime_arguments.len() {
                             return Err(
-                                "applied nominal region lost its exact declaration ordinal",
+                                "a nominal actual cannot elide only part of its lifetime tuple",
                             );
                         }
-                    }
-                    if let Some((environment, _)) = &self.trait_region_application {
-                        let supplier = environment.argument_owner();
-                        if lifetimes.iter().all(|lifetime| {
-                            lifetime.origin == CallableLifetimeOrigin::Captured
-                                && crate::type_identity::lifetime_parameter_identity(
-                                    program,
-                                    supplier,
-                                    lifetime.name.as_str(),
-                                ) == Some(lifetime.region)
-                        }) {
-                            applied_owner = supplier;
-                        } else if !applied_owner.is_valid() {
+                        // A closed nominal occurrence can use ordinary omitted
+                        // lifetime arguments. Keep its exact applied declaration
+                        // rather than replacing its regions with universal binders.
+                        let arguments = self.type_arguments(program, arguments)?;
+                        let reference = program.type_reference_table.insert(
+                            types::TypeReferenceNode::Generic {
+                                base_symbol: self.symbol(base_symbol),
+                                base_name: base_name.clone(),
+                                lifetime_arguments,
+                                arguments,
+                            },
+                        );
+                        let declaration = program
+                            .closed_data_definition(reference)
+                            .ok_or("an inferred nominal actual has no exact closed declaration")?
+                            .symbol;
+                        types::TypeReferenceNode::Named {
+                            symbol: declaration,
+                            name: base_name,
+                        }
+                    } else {
+                        let nominal_owner = self.symbol(base_symbol);
+                        if !applied_owner.is_valid()
+                            && !lifetime_arguments.is_empty()
+                            && lifetime_arguments.iter().all(|lifetime| {
+                                !self
+                                    .lifetimes
+                                    .iter()
+                                    .any(|binding| binding.parameter == *lifetime)
+                                    && crate::type_identity::lifetime_parameter_identity(
+                                        program,
+                                        self.region_scope,
+                                        lifetime.as_str(),
+                                    )
+                                    .is_some()
+                            })
+                        {
                             applied_owner = self.region_scope;
                         }
-                    }
-                    applied_lifetimes.extend(lifetimes.iter().map(|lifetime| lifetime.region));
-                    types::TypeReferenceNode::Generic {
-                        base_symbol: nominal_owner,
-                        base_name,
-                        lifetime_arguments: lifetimes
-                            .into_iter()
-                            .map(|lifetime| lifetime.name)
-                            .collect(),
-                        arguments: self.type_arguments(program, arguments)?,
+                        let lifetimes = lifetime_arguments
+                            .iter()
+                            .enumerate()
+                            .map(|(slot, lifetime)| {
+                                self.scoped_lifetime(program, original, slot, lifetime)
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        for lifetime in &lifetimes {
+                            if lifetime.region.declaration.is_valid()
+                                && crate::type_identity::lifetime_parameter_name(
+                                    program,
+                                    lifetime.region,
+                                ) != Some(&lifetime.name)
+                            {
+                                return Err(
+                                    "applied nominal region lost its exact declaration ordinal",
+                                );
+                            }
+                        }
+                        if let Some((environment, _)) = &self.trait_region_application {
+                            let supplier = environment.argument_owner();
+                            if lifetimes.iter().all(|lifetime| {
+                                lifetime.origin == CallableLifetimeOrigin::Captured
+                                    && crate::type_identity::lifetime_parameter_identity(
+                                        program,
+                                        supplier,
+                                        lifetime.name.as_str(),
+                                    ) == Some(lifetime.region)
+                            }) {
+                                applied_owner = supplier;
+                            } else if !applied_owner.is_valid() {
+                                applied_owner = self.region_scope;
+                            }
+                        }
+                        applied_lifetimes.extend(lifetimes.iter().map(|lifetime| lifetime.region));
+                        types::TypeReferenceNode::Generic {
+                            base_symbol: nominal_owner,
+                            base_name,
+                            lifetime_arguments: lifetimes
+                                .into_iter()
+                                .map(|lifetime| lifetime.name)
+                                .collect(),
+                            arguments: self.type_arguments(program, arguments)?,
+                        }
                     }
                 }
                 types::TypeReferenceNode::ConstExpression(expression) => {
@@ -4522,6 +4532,136 @@ pub(crate) mod payloads {
                 }
             }
             Ok(())
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{data::DataDefinition, machine::Machine, name::Identifier};
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn inferred_actual_lifetimes_preserve_nominal_and_foreign_owners() {
+            let mut symbols = SymbolTableBuilder::default();
+            let payload = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Payload"));
+            let selected =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("selected"));
+            let foreign =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("foreign"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: payload,
+                name: Identifier::generated("Payload"),
+                lifetime_parameters: vec![Identifier::generated("stored")],
+                ..Default::default()
+            });
+            for owner in [selected, foreign] {
+                program.push_machine(Machine {
+                    symbol: owner,
+                    lifetime_parameters: vec![Identifier::generated("text")],
+                    ..Default::default()
+                });
+            }
+            for (owner, resolved) in [selected, foreign]
+                .into_iter()
+                .flat_map(|owner| [(owner, false), (owner, true)])
+            {
+                let reference =
+                    program
+                        .type_reference_table
+                        .insert(types::TypeReferenceNode::Generic {
+                            base_symbol: payload,
+                            base_name: Identifier::generated("Payload"),
+                            lifetime_arguments: vec![Identifier::generated("text")],
+                            arguments: Default::default(),
+                        });
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(reference, owner)
+                    .unwrap();
+                assert_eq!(
+                    program
+                        .instantiate_callable_type(reference, &[], &[], selected)
+                        .unwrap(),
+                    reference,
+                    "an unchanged occurrence retains its source application and identity"
+                );
+                if resolved {
+                    program
+                        .type_reference_table
+                        .retain_operand_lifetimes(
+                            reference,
+                            [crate::type_identity::LifetimeParameterIdentity {
+                                declaration: owner,
+                                ordinal: 0,
+                            }],
+                        )
+                        .unwrap();
+                }
+                let actual = program
+                    .instantiate_callable_type(
+                        reference,
+                        &[],
+                        &[(Identifier::generated("text"), None)],
+                        selected,
+                    )
+                    .unwrap();
+                if owner == selected {
+                    assert!(matches!(program.type_reference_node(actual),
+                        types::TypeReferenceNode::Named { symbol, .. } if *symbol == payload));
+                } else {
+                    assert!(matches!(program.type_reference_node(actual),
+                        types::TypeReferenceNode::Generic { base_symbol, lifetime_arguments, .. }
+                        if *base_symbol == payload && lifetime_arguments.len() == 1 && lifetime_arguments[0].as_str() == "text"));
+                    assert_eq!(
+                        program.type_reference_table.operand_lifetime_owner(actual),
+                        foreign
+                    );
+                    if resolved {
+                        assert_eq!(
+                            program.type_reference_table.operand_lifetimes(actual)[0].declaration,
+                            foreign
+                        );
+                    } else {
+                        assert!(
+                            !program
+                                .type_reference_table
+                                .has_resolved_operand_lifetimes(actual)
+                        );
+                        assert_eq!(
+                            crate::type_identity::lifetime_parameter_identity(
+                                &program,
+                                program.type_reference_table.operand_lifetime_owner(actual),
+                                "text",
+                            )
+                            .unwrap()
+                            .declaration,
+                            foreign,
+                            "an unresolved name still resolves in its original lexical owner"
+                        );
+                    }
+                }
+                assert!(
+                    matches!(program.type_reference_node(reference),
+                    types::TypeReferenceNode::Generic { lifetime_arguments, .. }
+                    if lifetime_arguments.len() == 1 && lifetime_arguments[0].as_str() == "text"),
+                    "forming an actual cannot alter the declared promise"
+                );
+                assert!(
+                    program
+                        .instantiate_callable_type(
+                            reference,
+                            &[],
+                            &[(Identifier::generated("missing"), None)],
+                            selected,
+                        )
+                        .is_err(),
+                    "an undeclared region cannot become an inference variable"
+                );
+            }
         }
     }
 }
@@ -8645,6 +8785,42 @@ struct ScopedCallableLifetime {
 }
 
 impl CallableApplication {
+    fn elides_lifetime(
+        &self,
+        program: &TypedTrees,
+        reference: types::TypeReferenceHandle,
+        slot: usize,
+        name: &crate::name::Identifier,
+    ) -> bool {
+        if !self.elided_lifetimes.contains(name) {
+            return false;
+        }
+        let owner = program
+            .type_reference_table
+            .operand_lifetime_owner(reference);
+        let region = program
+            .type_reference_table
+            .operand_lifetimes(reference)
+            .get(slot)
+            .copied()
+            .filter(|region| region.declaration.is_valid())
+            .or_else(|| {
+                lifetime_parameter_identity(
+                    program,
+                    if owner.is_valid() {
+                        owner
+                    } else {
+                        self.region_scope
+                    },
+                    name.as_str(),
+                )
+            });
+        region.is_some_and(|region| {
+            region.declaration == program.lifetime_declaration_owner(self.region_scope)
+                && crate::type_identity::lifetime_parameter_name(program, region) == Some(name)
+        })
+    }
+
     fn scoped_lifetime(
         &self,
         program: &TypedTrees,
@@ -8944,17 +9120,40 @@ impl TypedTrees {
         Ok(())
     }
 
-    pub fn apply_callable_result_type(
+    /// Construct an actual type occurrence without changing the declaration's
+    /// lifetime promises. An omitted invocation lifetime is inferred from the
+    /// actual value and its use by the ordinary call checker.
+    pub fn instantiate_callable_type(
         &mut self,
         original: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
         lifetimes: &[(crate::name::Identifier, Option<crate::name::Identifier>)],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        // A no-op must retain the occurrence's existing application records;
+        // rebuilding its spelling alone can lose the selected query operand.
+        if original.is_valid() && !self.type_reference_table.contains_type_reference(original) {
+            return Err("an actual type has no retained source occurrence");
+        }
+        if substitutions.is_empty() && lifetimes.is_empty() {
+            return Ok(original);
+        }
         let mut application = CallableApplication {
             region_scope: declaration,
+            types: substitutions.to_vec(),
             ..CallableApplication::default()
         };
         for (parameter, argument) in lifetimes {
+            let owner = self.lifetime_declaration_owner(declaration);
+            if !crate::type_identity::lifetime_parameter_identity(
+                self,
+                declaration,
+                parameter.as_str(),
+            )
+            .is_some_and(|region| region.declaration == owner)
+            {
+                return Err("callable lifetime argument has no exact declaration binder");
+            }
             if let Some(argument) = argument {
                 application.lifetimes.push(CallableLifetimeBinding {
                     parameter: parameter.clone(),
