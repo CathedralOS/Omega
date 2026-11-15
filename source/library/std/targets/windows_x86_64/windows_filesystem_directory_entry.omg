@@ -16,9 +16,9 @@ windows_x86_64 machine WindowsFilesystemNativeProvider::directory_nth(path: &[u8
 satisfies WindowsFilesystemHost::directory_nth
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
-    transition handle != 0 { true -> block query(handle, ordinal) false -> (windows_directory_entry_error()) }
+    transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block query(handle, ordinal) false -> (windows_directory_entry_error()) }
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
-    requires handle != 0 {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let result: WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
         let released: i32 = block WindowsFilesystemNativeProvider::close_handle(narrow_i64_to_u64_wrapping(handle as i64));
         transition released == 0 { true -> (result) false -> failed_close(result) }
@@ -40,13 +40,13 @@ machine windows_directory_entry_error() -> WindowsDirectoryEntryResult {
 }
 
 windows_x86_64 machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
-requires handle != 0
+requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut output: WindowsNativeDirectoryEntryInfo;
     transition { _ -> block next(handle, ordinal, &mut output, 0) }
     machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
-    requires handle != 0 && position <= ordinal {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         let step: WindowsDirectoryStep = block windows_directory_next_entry(handle, output, 0);
         transition step {
             WindowsDirectoryStep::Error { code } -> (WindowsDirectoryEntryResult::Error { code: code })
@@ -56,7 +56,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
     }
     machine name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
-    requires handle != 0 && position <= ordinal {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition windows_directory_entry_dot(output, length) {
             true -> block next(handle, ordinal, output, position)
             false -> block selected(handle, ordinal, output, position, length)
@@ -64,7 +64,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
     }
     machine selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
         output: &mut WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
-    requires handle != 0 && position <= ordinal {
+    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition position < ordinal {
             true -> block next(handle, ordinal, output, position + 1)
             false -> (windows_directory_encode_entry(output, length))
@@ -74,7 +74,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
 
 windows_x86_64 machine windows_directory_next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent,
     output: &mut WindowsNativeDirectoryEntryInfo, restart: u8) -> WindowsDirectoryStep
-requires handle != 0 && restart <= 1
+requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && restart <= 1
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mut completion: WindowsFilesystemIoStatus;
     let status: i32 = block WindowsFilesystemDirectoryIo::next_entry(handle, 0, 0, 0, &mut completion, output, 8256, 1, 1, 0, restart);
