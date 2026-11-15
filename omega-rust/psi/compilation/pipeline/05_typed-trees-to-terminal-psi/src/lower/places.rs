@@ -688,7 +688,7 @@ fn expression_homes<'b>(
                 expression_homes(element, homes);
             }
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())
@@ -1998,7 +1998,7 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::ByteSubslice { base, start, end } => {
+            ExpressionKind::CollectionSubslice { base, start, end } => {
                 // Capture the descriptor before evaluating either endpoint.
                 // A later call may replace the original descriptor home.
                 let captured = continuing!(self.record(base));
@@ -2038,14 +2038,14 @@ impl<'a> Lowering<'a> {
                 let exact = self.exact_root(captured)?;
                 self.name_contents(exact, ValueType::record(record))?;
                 self.project(exact, Segment::Extent)?;
+                let shape = &self.record_type(record)?.shape;
+                let reads_length = shape
+                    .length_operation()
+                    .ok_or_else(|| self.internal("a range has no readable descriptor"))?;
+                let reads_elements = matches!(shape, StorageShape::ElementView { .. });
                 let measurement = self.operation_identity(expression.source);
-                let Value::Scalar(length) = self.emit(
-                    measurement,
-                    Some(count),
-                    OperationKind::ByteSequenceLength {
-                        source: source.clone(),
-                    },
-                )?
+                let Value::Scalar(length) =
+                    self.emit(measurement, Some(count), reads_length(source.clone()))?
                 else {
                     return Err(self.internal("a range length is not scalar"));
                 };
@@ -2058,17 +2058,25 @@ impl<'a> Lowering<'a> {
                     before,
                     expression.source,
                 );
-                let (root, place) = self.produce(
-                    operation,
-                    record,
+                let end = end.unwrap_or(length);
+                let kind = if reads_elements {
+                    OperationKind::ElementViewSubslice {
+                        source,
+                        start,
+                        end,
+                        length,
+                        obligation,
+                    }
+                } else {
                     OperationKind::ByteSequenceSubslice {
                         source,
                         start,
-                        end: end.unwrap_or(length),
+                        end,
                         length,
                         obligation,
-                    },
-                )?;
+                    }
+                };
+                let (root, place) = self.produce(operation, record, kind)?;
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),

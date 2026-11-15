@@ -1039,7 +1039,7 @@ pub enum ExpressionKind {
     },
     /// A new descriptor over the same shared backing. Missing endpoints
     /// mean zero and the captured descriptor's own length, respectively.
-    ByteSubslice {
+    CollectionSubslice {
         base: Box<Expression>,
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,

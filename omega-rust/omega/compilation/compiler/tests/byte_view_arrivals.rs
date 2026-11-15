@@ -205,3 +205,72 @@ fn refuses_wrong_measurement(module: TerminalModule) {
         "{refusal:?}",
     );
 }
+
+#[test]
+fn fixed_array_element_window_reopens_with_its_exact_measurement() {
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let root = fixtures().join("run/views/typed_array_partial_window/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&root, Some("macos_arm64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("{:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let published = accepted.closure().publish().unwrap();
+            let reopened = CanonicalTerminalArtifact::from_bytes(&published.artifact.to_bytes())
+                .expect("reopen the typed array window");
+            let program = TerminalProgram::borrow(reopened.view());
+            assert_eq!(
+                program.instantiate(TerminalInstantiation::default()).unwrap()
+                    .invoke(&mut WorkMeter::unbounded()).unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
+                "the reopened window must observe the second element of the original array",
+            );
+
+            let mut substituted_count = reopened.semantic_module().clone();
+            let subslice = substituted_count
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .map(|operation| &mut operation.kind)
+                .find(|kind| matches!(kind, OperationKind::ElementViewSubslice { .. }))
+                .expect("a partial typed array borrow retains one element-view subslice");
+            let OperationKind::ElementViewSubslice { end, length, .. } = subslice else {
+                unreachable!("selected element subslice");
+            };
+            assert_ne!(*length, *end);
+            // The literal endpoint is equal to the array's extent. Its
+            // scalar value cannot stand in for the measured descriptor.
+            *length = *end;
+            let modified = ClosedTerminalModule::new(substituted_count).unwrap();
+            let refusal = ClosedTerminalModule::from_semantic_bytes(modified.semantic_bytes())
+                .unwrap_err();
+            assert!(matches!(
+                refusal,
+                CodecError::MalformedOperationFoundation {
+                    reason: "element-view subslice length does not measure its exact descriptor",
+                    ..
+                }
+            ), "{refusal:?}");
+
+            let root = fixtures().join("fail/views/typed_array_partial_window_past_end/main.omg");
+            let diagnostics = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&root, Some("macos_arm64")),
+            )
+            .result
+            .expect_err("the end of the window exceeds the exact array extent")
+            .into_diagnostics();
+            assert!(diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("cannot prove operation safety in machine `main`")
+                    && diagnostic.message.contains("the bounds do not decide the comparison")
+            }), "{diagnostics:?}");
+        })
+        .unwrap()
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    });
+}

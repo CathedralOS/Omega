@@ -6262,6 +6262,8 @@ pub(crate) mod storage_foundations {
     }
     pub(crate) mod element_views {
         use super::*;
+        use semantic_vocabulary::ValueId;
+        use terminal_psi::StructuralArgument;
         use terminal_semantics::descriptor_results::{
             DescriptorAnalysis, ElementPayloadMemberships, element_payload_memberships,
             terminal_graph_from,
@@ -6399,12 +6401,31 @@ pub(crate) mod storage_foundations {
             Ok(())
         }
 
+        fn is_element_view_measurement(
+            previous: Option<&Operation>,
+            source: &StructuralArgument,
+            length: ValueId,
+        ) -> bool {
+            previous.is_some_and(|measurement| {
+                measurement
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == length)
+                    && matches!(
+                        &measurement.kind,
+                        OperationKind::ElementViewLength { source: observed }
+                            if terminal_semantics::same_descriptor_coordinate(observed, source)
+                    )
+            })
+        }
+
         pub(crate) fn validate_element_view_subslice(
             module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
+            previous: Option<&Operation>,
         ) -> Result<(), CodecError> {
-            let OperationKind::ElementViewSubslice { source, .. } = &operation.kind else {
+            let OperationKind::ElementViewSubslice { source, length, .. } = &operation.kind else {
                 unreachable!("dispatched validate_element_view_subslice")
             };
             let Some(result) = operation.result.structural() else {
@@ -6447,6 +6468,11 @@ pub(crate) mod storage_foundations {
             {
                 return malformed(
                     "element subslice must preserve its selected descriptor and access",
+                );
+            }
+            if !is_element_view_measurement(previous, source, *length) {
+                return malformed(
+                    "element-view subslice length does not measure its exact descriptor",
                 );
             }
             validate_element_memberships(module, machine, operation)?;
@@ -6503,17 +6529,7 @@ pub(crate) mod storage_foundations {
                 return malformed("element-view read has an undeclared source place");
             };
             let source_type = validate_structural_path(module, root, &source.path)?;
-            if !previous.is_some_and(|measurement| {
-                measurement
-                    .result
-                    .scalar_ref()
-                    .is_some_and(|result| result.id == *length)
-                    && matches!(
-                        &measurement.kind,
-                        OperationKind::ElementViewLength { source: observed }
-                            if terminal_semantics::same_descriptor_coordinate(observed, source)
-                    )
-            }) {
+            if !is_element_view_measurement(previous, source, *length) {
                 return malformed("element-view read length does not measure its exact descriptor");
             }
             let Some(element) = module.structural_types.iter().find_map(|row| {
@@ -11939,7 +11955,9 @@ fn validate_operation_foundation(
             storage_foundations::validate_element_view_read(module, machine, operation, previous)?
         }
         OperationKind::ElementViewSubslice { .. } => {
-            storage_foundations::validate_element_view_subslice(module, machine, operation)?
+            storage_foundations::validate_element_view_subslice(
+                module, machine, operation, previous,
+            )?
         }
         OperationKind::ByteSequenceWrite { .. } => {
             if operation.result != OperationResult::Unit {

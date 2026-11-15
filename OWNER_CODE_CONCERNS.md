@@ -94,26 +94,12 @@ framework or a list of unimplemented features.
 - Cost: Each application depends on a roster of possible containing shapes and searches unrelated declarations. Pass its selected receiving application and binder correspondence through the existing finalization path. Preserve ownership through copying, substitution and shared argument storage; reject substituted owners. A focused work-count control should show that adding unrelated declarations does not increase owner recovery for a fixed application.
 - Reported: 2026-11-15, Codex, while verifying the owner's upstream source-review handoff.
 
-### The provider-plan reader refuses valid round-trip plans
-- Category: tests that pin the bug
-- Where: [provider-plan reader and tests](omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan/retained_inputs.rs#L221), [commitment encoder](omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan/digest_encoder.rs)
-- Saw: On unchanged `cfabcb98f21` on macOS arm64, `mbx test -p effects --lib provider_plan::retained_inputs::tests` fails 8 of 12 tests. The reader refuses the provider encoder’s own positively asserted inputs with “provider plan input does not cover its complete schema.” The trailing-bytes control hits that same earlier refusal instead of its expected diagnostic.
-- Cost: The tests for complete calling applications, shared physical plans, receiver identity and exact checked rows cannot reach their intended checks. Trace the emitted rows against the declared method roster and restore the positive and negative byte-level oracles.
-- Reported: 2026-11-15, Codex, while checking the selected installation reach repair.
-
 ### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
 - Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
 - Saw: The original fixture retains B's X and C/D's Y in A's selected row. Narrow A to `reaches <= X` and move its C call to `main` after the call to A, leaving the same two writes and target selections. On macOS arm64, `AProvider::visit` at line 13, column 59 still refuses. Source checking charges B's whole X + Y upper bound even though the exact selected B only reaches X.
 - Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
 - Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
-
-### Fixed-array windows reach slice formation only for bytes
-- Category: branch per shape
-- Where: [fixed-array view elaboration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L309), [element subslice contract](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
-- Saw: On clean `67fda671ffc` on macOS arm64, `extent(&numbers[1..2])` refuses with “partial typed array views need their element-view subslice formation” for `numbers: [u32; 2]` and `extent(view: &[u32]) -> u64 { view.len }`. The whole typed-array twin reads length 2, and the same partial range and length check over `u8` reads length 1. Both twins exit 0 in native and Psi and reopen independently. The elaborator rejects the typed range before forming its array loan or window.
-- Cost: The existing two-endpoint subslice rule cannot receive this typed array's backing and element extent. Carry the shared array loan into the existing element-window operation, keeping the actual range and distinct ordered bounds.
-- Reported: 2026-11-15, Codex, while checking typed slice fields through a runtime-selected array element.
 
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
