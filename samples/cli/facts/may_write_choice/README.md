@@ -14,11 +14,9 @@ runtime oracle also requires the written `other` to contain `9`. This
 depends on the selector's current value, not its entry snapshot. It introduces
 no additional transport matrix or caller guard that re-establishes the bound.
 
-The focused fixtures under `tests/omega/{pass,fail}/borrow/` distinguish an
-unchanged mutable selector, a literal replacement, and an assignment computed
-from the old value. Unknown replacements and exclusive exposure retain the
-complete possible-origin union, and a selected relation supplies no builtin
-equality. The `mutated_selector_entry_actual_{case,guard}` controls index the
+Unknown replacements and exclusive exposure retain the complete
+possible-origin union, and a selected relation supplies no builtin equality.
+The `mutated_selector_entry_actual_{case,guard}` controls index the
 overwritten referent and must reject its stale bound. These controls add no
 borrow authority and do not close the remaining R5 acceptance.
 
@@ -81,7 +79,9 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 
 ## Pinned fixtures
 
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_choice_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_choice_through_<place>_overlapping`. The nine positives record native execution and interpreter agreement (`built ... exit:0 interpreter-exit:0 interpreter:agrees` at `94247f983231`); the nine twins record their `cannot prove` fragment.
+The nine positives record native execution and interpreter agreement (`built ...
+exit:0 interpreter-exit:0 interpreter:agrees` at `94247f983231`); the nine twins
+record their `cannot prove` fragment.
 
 ## Requirements and evidence
 

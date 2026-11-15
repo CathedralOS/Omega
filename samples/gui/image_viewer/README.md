@@ -39,18 +39,11 @@ session that permits observation and input.
 
 ## Native gate (macOS ARM64, 2026-10-13)
 
-`python3 tools/sample_native_gate.py --filter image_viewer` reviews the
-package, builds `build/image_viewer.app` natively and reports the sample as
-`no-oracle`: the header documents neither `Expected exit` nor
-`Expected output contains`, because the viewer waits for input. The gate
-therefore scores the build, not a run. Launched from this directory, the
-built executable prints `loaded BMP: 64x64 (12342 bytes)` once `img0.bmp`
-has been read to EOF and decoded, and stays alive in its window until Escape
-or close.
+The gate therefore scores the build, not a run. Launched from this
+directory, the built executable prints `loaded BMP: 64x64 (12342 bytes)`
+once `img0.bmp` has been read to EOF and decoded, and stays alive in its
+window until Escape or close.
 
 The file service's `read` reaches libSystem's `_read` through the provider's
 `&mut buffer[0]` on its `&mut [u8]` parameter: an inline byte element with no
-declaration of its own. Omega's descriptor-input guard now rejoins that
-endpoint to the canonical `u8` carrier the lowering published (previously it
-refused with `SourceCustodyMismatch`); the admitted shape is pinned by
-`tests/omega/pass/filesystem/runtime_posix_read_runtime_range_view_exit`.
+declaration of its own.

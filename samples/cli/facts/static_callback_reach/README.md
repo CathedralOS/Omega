@@ -33,11 +33,9 @@ exceeds StepContract's Console ceiling. The selection must reject even though
 the callback's body, numeric result and downstream subtraction are unchanged.
 The diagnostic includes `does not refine` / `service reach Extra exceeds its
 authored ceiling`, and the independently checked satisfaction also rejects.
-Nine pass/fail fixtures are pinned under
-`tests/omega/{pass,fail}/facts/static_callback_reach_through_*`.
 The positive fixtures additionally request `main closed-conformance-controls`:
-source-produced artifacts must survive canonical reload, and the corpus
-checks missing/changed invocation tuples, original schemas, commitments and
+source-produced artifacts must survive canonical reload, and the corpus checks
+missing/changed invocation tuples, original schemas, commitments and
 same-shaped alternative selections through existing external-ingress controls.
 
 ## Baseline and repair
@@ -200,7 +198,6 @@ Run a place after ordinary package preparation:
 omega packages update --project samples/cli/facts/static_callback_reach/local --target linux_x86_64
 omega run --both --keep samples/cli/facts/static_callback_reach/local/main.omg
 omega psi inspect --artifact <kept-directory>/program.oterm
-python3 tools/corpus_gate.py --both --filter facts/static_callback_reach
 ```
 
 The source-free ingress validator now replays finite unions, requirement bounds,

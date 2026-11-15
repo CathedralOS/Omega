@@ -17,10 +17,7 @@ the runtime oracle is `20 + 22 = 42`.
 
 Every positive below, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and
-`linux_arm64`. The nine place sources are pinned as
-`tests/omega/pass/facts/named_conformance_dispatch_through_<place>_exit`. Each
-reject twin is pinned as
-`tests/omega/fail/facts/named_conformance_dispatch_through_<place>_rejected`.
+`linux_arm64`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |

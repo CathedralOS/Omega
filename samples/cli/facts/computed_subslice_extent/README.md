@@ -49,7 +49,15 @@ Original source `f5202b89368c37bc851329684d9fdc2ab16fa0d1`, frozen against publi
 
 Source `500b325c2d4541b3ea942601249069d0b31001f6`, [run 41635444183](https://github.com/CathedralOS/Omega/actions/runs/41635444183), cleared the original input-content gate but exposed the public-signature gate and missing imported slice providers. All four new content controls and neighboring proof controls rejected for their intended reasons. Neither engine ran, and public projects were not reached. Its eight raw download hashes and optimized producer profiles remain audited historical evidence.
 
-Before main integration, source `56494d6586497bea8fe6ea3facc30fdc209d6f18` recorded eleven matching native and Terminal results in [run 41649933905](https://github.com/CathedralOS/Omega/actions/runs/41649933905). An additional [ownership-restoration fixture](../../../../tests/omega/pass/ownership/runtime_generic_borrowed_case_restore_exit/main.omg) still failed physical legalization. [Exact-source replay 41651168899](https://github.com/CathedralOS/Omega/actions/runs/41651168899) reproduced that failure at the earlier `45c23b543577c22b7a592d109a91fe371ad27832` source, before the range repair. It remains an unaddressed neighboring limitation, with no runtime pass claimed. Its failure prevented that run from reaching the public projects.
+Before main integration, source `56494d6586497bea8fe6ea3facc30fdc209d6f18`
+recorded eleven matching native and Terminal results in [run
+41649933905](https://github.com/CathedralOS/Omega/actions/runs/41649933905).
+[Exact-source replay
+41651168899](https://github.com/CathedralOS/Omega/actions/runs/41651168899)
+reproduced that failure at the earlier
+`45c23b543577c22b7a592d109a91fe371ad27832` source, before the range repair. It
+remains an unaddressed neighboring limitation, with no runtime pass claimed. Its
+failure prevented that run from reaching the public projects.
 
 Integrating published reference-borrowing changes exposed a missing input-borrow association for returned computed views. The unchanged library composition then exposed a mismatch between its nested window coordinates and the saved input region. Both failures are retained at their actual source revisions; they are not counted as intended rejections.
 

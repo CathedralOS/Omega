@@ -27,8 +27,7 @@ The nine positive/reject pairs are:
 
 Each twin changes the producing value/domain to admit `right == 76u64`, while
 keeping the exact subtraction unchanged. The intended rejection is an exact
-`u64` arithmetic obligation. The pairs are pinned under
-`tests/omega/{pass,fail}/facts/disjoint_field_borrow_windows_through_<place>_*`.
+`u64` arithmetic obligation.
 
 On fixed main `6913f2247361423f07452c1c29620e8f51c081dc`, the original call-result
 and match-join programs wrongly refuse that subtraction after `touch_left`.

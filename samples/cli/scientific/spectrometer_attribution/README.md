@@ -109,18 +109,11 @@ other bindings are portability declarations, not unexecuted test claims.
 validation route checks each engine's stdout and stderr independently against
 the same frozen files; it never substitutes checked-tree execution for Terminal.
 
-`../invalid_spectrometer_attribution_intended/` is a separate complete executable project that must be
-rejected for Exact i32 overflow (`2147483647 + 1`). It has its own build metadata
-and entry binding. It is not imported by the valid application. The validation
-script checks rejection independently and requires the overflow diagnostic.
-To verify both execution engines' streams using the repository harness, build
-its runner from the same compiler revision, then stage only temporary copies of
-this sample (the script removes its own fixture group afterward):
-
-```sh
-CARGO_TARGET_DIR=/absolute/private/target CARGO_BUILD_JOBS=4 \
-  mbx test -p compiler --test corpus_runner --release --no-run
-```
+`../invalid_spectrometer_attribution_intended/` is a separate complete executable
+project that must be rejected for Exact i32 overflow (`2147483647 + 1`). It has
+its own build metadata and entry binding. It is not imported by the valid
+application. The validation script checks rejection independently and requires
+the overflow diagnostic.
 
 This uses one corpus worker, a 600-second per-fixture cap, the ordinary reviewed
 repository fixture package-input route, and the exact native report's Terminal

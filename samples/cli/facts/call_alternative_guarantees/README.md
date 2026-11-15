@@ -33,8 +33,7 @@ the resulting unestablished guarantee.
 Every twin changes only Choice's left bound from 60 to 61. The selected callee
 still requires `left <= 60 || right <= 60`. The expected refusal names either
 that unsatisfied call or Counter construction, never parsing or a missing
-provider. Byte-identical pins live under `tests/omega/{pass,fail}/facts/` with
-the `call_alternative_guarantees_<place>_{exit,rejected}` names.
+provider.
 
 ## Requirements and evidence
 

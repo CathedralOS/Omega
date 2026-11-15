@@ -56,10 +56,9 @@ results (1 and 4) the program checks at run time. Its
 the field to `u32` and rejects with "scalar predicate is false: requires
 contract".
 
-Each twin changes only the observed location's storage to `u32`. Its
-guaranteed alignment is 4, so the unchanged `alignment - 8u64` is rejected with
-bounds `[-4, -4]`. Positives and twins are mirrored under
-`tests/omega/{pass,fail}/facts/value_location_alignment_through_*`.
+Each twin changes only the observed location's storage to `u32`. Its guaranteed
+alignment is 4, so the unchanged `alignment - 8u64` is rejected with bounds
+`[-4, -4]`.
 
 ## How the query works
 

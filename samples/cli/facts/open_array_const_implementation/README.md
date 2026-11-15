@@ -121,14 +121,8 @@ are not established by preceding formed facts"; `wrong_element_count` rejects
 with "const array recipe has the wrong element count". Each `sample.json`
 records those diagnostics.
 
-The nine positives are pinned byte-identical under
-`tests/omega/pass/facts/open_array_const_implementation_through_<place>_exit`,
-the nine twins under
-`tests/omega/fail/facts/open_array_const_implementation_through_<place>_rejected`,
-and the three controls under
-`tests/omega/fail/facts/open_array_const_implementation_<control>_rejected`.
-Only the macOS x86_64 host was executed; the other four hosted targets keep
-their authored bindings without a fresh execution claim.
+Only the macOS x86_64 host was executed; the other four hosted targets keep their
+authored bindings without a fresh execution claim.
 
 The repair needed three changes beyond the array recipe support:
 

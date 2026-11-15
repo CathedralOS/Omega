@@ -67,7 +67,8 @@ impl TypeContracts for SourceContracts<'_> {
             // A descriptor carries no owned referent value. In particular,
             // neither an empty referent nor an empty view proves that the
             // descriptor itself is uninhabited.
-            StorageShape::Opaque
+            StorageShape::AtomicCell(_)
+            | StorageShape::Opaque
             | StorageShape::ByteSequence(_)
             | StorageShape::Reference { .. }
             | StorageShape::ElementView { .. }

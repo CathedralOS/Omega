@@ -28,15 +28,13 @@ constrains produced ranks independently of their storage type. See
 
 The [original frozen probe](parameter/probe/main.omg) retains the first failing
 program. Fixed base `0ff9f81b3933bb16aaa6eddd05fc7a40107252b0` refuses it and all
-nine positive places with ranking/source-complete-witness diagnostics.
-The completed producer runs all nine places, the frozen probe and four signed
+nine positive places with ranking/source-complete-witness diagnostics. The
+completed producer runs all nine places, the frozen probe and four signed
 variations in Terminal Psi and native macOS ARM64; all agree at exit 0. The
 focused corpus independently records 14 such runnable positives, 13 intended
 refusals and five existing nonincrease controls still rejecting. Three existing
-neighboring programs also pass both engines.
-Every no-progress twin changes only the pending update from +1 to +0.
-Corpus pins are `nested_machine_signed_rank_<place>_{exit,rejected}` under
-`tests/omega/{pass,fail}/facts/`.
+neighboring programs also pass both engines. Every no-progress twin changes only
+the pending update from +1 to +0.
 
 The focused controls challenge the semantic premises:
 
@@ -175,15 +173,13 @@ The eight requirement layers use the existing row's runtime falsifiers:
 
 The optimized executable for these observations was built from compiler source
 `ec5a7071628362f00512e7701a79b53c71ad5327`; its SHA-256 is
-`a1a8cdda6c2d383b5031e352533deb94a3953ec0f619e0ef32b63e40856fcac9`.
-The immutable producer and raw results are retained in
-`build/advance-negated/formation-samples.{json,log}` in the owning worktree.
-The focused source corpus records 36 checked and 36 intended rejections; its
-Linux combined corpus records 36 agreements at exit 0. Existing declared-call
-and signed-rank controls retain seven refusals and two executable successes.
-All 72 sources are pinned under
-`tests/omega/{pass,fail}/facts/nested_machine_signed_rank_negated_requirement_*`.
-The broader parent acceptance, other-host execution and independent proof-kernel
+`a1a8cdda6c2d383b5031e352533deb94a3953ec0f619e0ef32b63e40856fcac9`. The immutable
+producer and raw results are retained in
+`build/advance-negated/formation-samples.{json,log}` in the owning worktree. The
+focused source corpus records 36 checked and 36 intended rejections; its Linux
+combined corpus records 36 agreements at exit 0. Existing declared-call and
+signed-rank controls retain seven refusals and two executable successes. The
+broader parent acceptance, other-host execution and independent proof-kernel
 qualification remain open.
 
 ## Borrowed scalar entry observations
@@ -201,13 +197,6 @@ Writes still invalidate its live contents. Primitive conversion then consumes
 that independently observed referent carrier; the type-only conversion predicate
 still cannot erase a reference read, and an unobserved returned descriptor does
 not supply contents or an origin.
-
-The following checking controls challenge those boundaries:
-
-- [Unknown input](../../../../tests/omega/fail/facts/borrowed_scalar_entry_unknown_value/main.omg) cannot establish a chosen constant.
-- [Callee write](../../../../tests/omega/fail/facts/borrowed_scalar_entry_write_invalidation/main.omg) retires the prior value.
-- [Write-only input](../../../../tests/omega/fail/facts/write_only_scalar_entry_observation/main.omg) cannot be observed.
-- [IEEE input](../../../../tests/omega/fail/facts/borrowed_scalar_entry_ieee_reflexivity/main.omg) does not establish reflexive equality when NaN is possible.
 
 These repairs preserve the existing row's fact, bounds, counter updates and
 canaries. Declared measure calls that themselves need borrowed or affine

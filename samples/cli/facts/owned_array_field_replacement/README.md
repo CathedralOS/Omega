@@ -55,10 +55,8 @@ actual host and producer below.
 | other_machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | A separate forward machine receives the completed Packet and returns it with all four current/previous facts in Ensures. Its stored marker is checked only at runtime. |
 | target_body | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) | Build selects an ordinary HostedPacketBody implementation for all four targets. Its producer performs the real install and returns the completed Packet with all four current/previous facts; its marker is checked only at runtime. |
 
-Pins: tests/omega/pass/facts/owned_array_field_replacement_<place>_exit and
- tests/omega/fail/facts/owned_array_field_replacement_<place>_rejected.
 Sources and Build inputs are copied byte-for-byte. Invalid sample metadata
-classifies intended-invalid and pins the same install Ensures refusal.
+ classifies intended-invalid and pins the same install Ensures refusal.
 
 ## Requirements and evidence
 
@@ -114,9 +112,9 @@ producer profiles, source hashes and execution artifacts.
 On macos_arm64, all nine positives execute with native/Terminal exit 0/0 and
 all nine twins reject install's own Ensures. The focused corpus checks pass:
 26 source fixtures (12 positives and 14 controls) and 12 native/Terminal
-fixtures. Each new place is pinned under tests/omega/{pass,fail}/facts.
-Retained PSITERM and native images accompany the execution records. The other
-three hosted targets have authored entries but were not executed here.
+fixtures. Retained PSITERM and native images accompany the execution records.
+The other three hosted targets have authored entries but were not executed
+here.
 
 The broader parent remains open: other proposition productions, mutable
 recasts, customer migration and removal of range-suffix support retain their

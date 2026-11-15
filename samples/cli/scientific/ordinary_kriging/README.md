@@ -77,7 +77,6 @@ also reconstructs latent mean-square error and tests permutation/translation
 invariance, noiseless interpolation, noisy duplicates, maximum dimensions, far
 queries, EOF/whitespace variants, singular duplicates, and malformed input.
 
-`controls/covariance_index` is a source-invalid fixed covariance index (64 for
-an array of extent 64). It must reject for its bounds obligation, never for
-package policy or custody. Compiler write-frame witnesses live in the ordinary
-`tests/omega/{pass,fail}/borrows` corpus, rather than becoming application modes.
+`controls/covariance_index` is a source-invalid fixed covariance index (64 for an
+array of extent 64). It must reject for its bounds obligation, never for package
+policy or custody.

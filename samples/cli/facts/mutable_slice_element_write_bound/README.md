@@ -44,7 +44,6 @@ Other target bodies are checked as source; that is not native execution there.
 ```sh
 omega run --both samples/cli/facts/mutable_slice_element_write_bound/<place>/main.omg
 omega --check samples/cli/facts/mutable_slice_element_write_bound/<place>/invalid/main.omg
-python3 tools/corpus_gate.py --both --filter facts/mutable_slice_element_write_bound
 ```
 
 Each twin keeps its positive's calls and runtime observations and changes only
@@ -56,29 +55,20 @@ to 44 is a separate runtime discrimination probe, not a language reject twin.
 
 ### Pinned fixtures
 
-Nine positive places and nine reject twins are pinned under `tests/omega/`. The
-fixture family is `mutable_slice_element_write_bound_through_<place>_exit` /
-`_unproved`, which does not spell the sample folder name:
+The fixture family is `mutable_slice_element_write_bound_through_<place>_exit`
+/ `_unproved`, which does not spell the sample folder name:
 
-| Place | Positive fixture | Reject twin |
-| --- | --- | --- |
-| local | [`..._through_local_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_local_exit/main.omg) | [`..._through_local_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_local_unproved/main.omg) |
-| field | [`..._through_field_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_field_exit/main.omg) | [`..._through_field_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_field_unproved/main.omg) |
-| parameter | [`..._through_parameter_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_parameter_exit/main.omg) | [`..._through_parameter_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_parameter_unproved/main.omg) |
-| call result | [`..._through_call_result_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_call_result_exit/main.omg) | [`..._through_call_result_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_call_result_unproved/main.omg) |
-| match join | [`..._through_match_join_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_match_join_exit/main.omg) | [`..._through_match_join_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_match_join_unproved/main.omg) |
-| const name | [`..._through_const_name_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_const_name_exit/main.omg) | [`..._through_const_name_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_const_name_unproved/main.omg) |
-| a nested machine | [`..._through_other_state_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_other_state_exit/main.omg) | [`..._through_other_state_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_other_state_unproved/main.omg) |
-| another machine | [`..._through_other_machine_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_other_machine_exit/main.omg) | [`..._through_other_machine_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_other_machine_unproved/main.omg) |
-| another target body | [`..._through_target_body_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_target_body_exit/main.omg) | [`..._through_target_body_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_target_body_unproved/main.omg) |
-
-The recorded goldens carry this family on both legs:
-`corpus_native_macos_arm64.txt` holds the nine `built ... exit:0` rows and
-`corpus_outcomes.txt` the check leg's nine `checked` plus nine `rejected` rows,
-the rejects pinning `cannot prove index` for the index-2 write.
-`python3 tools/corpus_gate.py --filter facts/mutable_slice_element_write_bound`
-reports 0 rejected without its expected fragment and 0 fail fixtures that did
-not reject.
+| Place |
+| --- |
+| local |
+| field |
+| parameter |
+| call result |
+| match join |
+| const name |
+| a nested machine |
+| another machine |
+| another target body |
 
 ## Requirements and evidence
 

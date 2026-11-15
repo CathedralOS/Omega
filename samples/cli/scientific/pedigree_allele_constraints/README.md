@@ -64,12 +64,10 @@ omega run --both samples/cli/independent/pedigree_allele_constraints/main.omg < 
 omega --check --target linux_x86_64 samples/cli/independent/pedigree_allele_constraints/controls/bounds/main.omg
 ```
 
-The last command must reject specifically for an unproved parent array index
-(`cannot prove index`), not for parsing, packages, entry binding or another rule.
-`controls/bounds` is an independent complete intended-invalid Omega project;
-it deliberately omits a dynamic parent-ID guard. See the language's indexed
-array bounds contract in `wiki/spec/language/numeric_values.md#collection-bounds` and the existing
-`tests/omega/fail/collections/computed_selector_read_requires_bounds` control.
+The last command must reject specifically for an unproved parent array index (`cannot prove
+index`), not for parsing, packages, entry binding or another rule. `controls/bounds` is an
+independent complete intended-invalid Omega project; it deliberately omits a dynamic parent-ID
+guard.
 
 The independent Python oracle enumerates 4^people chromosome-choice histories,
 then collapses them to genotype assignments. It does not use the application's

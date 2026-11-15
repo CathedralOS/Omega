@@ -4158,13 +4158,16 @@ pub(crate) mod storage_regions {
 }
 pub(crate) mod structural_locals {
 
-    use terminal_psi::{StructuralOperationResult, StructuralTypeDeclaration};
+    use terminal_psi::{
+        StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
 
     /// A vacant home holds nothing, so the memberships a record home
     /// declares grant nothing: they are the type of the value a later store
     /// must deliver, which the structural qualification judgment holds that
-    /// store to. A byte view keeps its narrower rule: whole-value byte
-    /// domains only.
+    /// store to. A reference home declares such memberships beneath its
+    /// referent. A byte view keeps its whole-value byte domains.
     pub fn validate_vacant_structural_local<'a>(
         declarations: impl IntoIterator<Item = &'a StructuralTypeDeclaration>,
         result: &StructuralOperationResult,
@@ -4184,11 +4187,16 @@ pub(crate) mod structural_locals {
         let byte_view = declaration.shape.is_borrowed_byte_view();
         let record = matches!(
             declaration.shape,
-            terminal_psi::StructuralTypeShape::Record { .. }
-                | terminal_psi::StructuralTypeShape::Sum { .. }
-                | terminal_psi::StructuralTypeShape::Mixed { .. }
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::Sum { .. }
+                | StructuralTypeShape::Mixed { .. }
         );
-        if (!result.projected_qualifications.is_empty() && !record)
+        let projects_referent = matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+            && result
+                .projected_qualifications
+                .iter()
+                .all(|row| row.path.first() == Some(&StructuralPathSegment::Referent));
+        if (!result.projected_qualifications.is_empty() && !record && !projects_referent)
             || (!result.qualifications.is_empty() && !byte_view && !record)
         {
             return Err("vacant structural local has invalid declared qualifications");

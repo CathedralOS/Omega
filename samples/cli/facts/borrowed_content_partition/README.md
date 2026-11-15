@@ -33,20 +33,9 @@ nested matches, borrowed ingress, returned owners and a nested-machine backedge.
 Cathedral's retained physical backing and monotonic retirement/reset remain
 parent acceptance, not claims established by this program.
 
-The matching positive fixture is
-`tests/omega/pass/ownership/runtime_borrowed_content_partition_exit`.
-Negative controls under `tests/omega/fail/ownership/borrowed_content_partition_*`
-reject fabricated qualification, an unclosed restoration window, duplicate
-transfer, incorrect partition conservation, a stale count and restoration of
-the wrong receiver. They preserve the positive's content domain and partition
-operation. The nested-field/reversed-store fixture exercises the same operation
-without depending on field placement or store order.
+The nested-field/reversed-store fixture exercises the same operation without
+depending on field placement or store order.
 
-The transport fixtures are pinned as
-`tests/omega/pass/facts/borrowed_content_partition_through_<place>_exit` (nine
-positives, each carrying its native and interpreter exit oracle) and
-`tests/omega/fail/facts/borrowed_content_partition_through_<place>_rejected`
-(nine twins with their refusing fragment).
 Run each positive with `omega run --both <place>/main.omg`; both engines must
 exit 0. Every positive binds all four hosted targets. Execution on this host
 establishes macOS arm64 behavior, not other-host execution.
@@ -71,11 +60,7 @@ The requirement coverage is:
   Terminal execution and the authored exit oracle.
 
 The nested-call repair applies each completed operation's own write frame, not
-its operands' writes a second time. Independent scalar fixtures under
-`tests/omega/{pass,fail}/contracts/nested_call_*` distinguish harmless enclosing
-calls from later ordinary and opaque writes; old facts cannot survive the latter.
-This does not establish physical backing, cross-host
-execution, general allocator retirement, or reset.
+its operands' writes a second time.
 
 ## Build-owned target-body migration
 

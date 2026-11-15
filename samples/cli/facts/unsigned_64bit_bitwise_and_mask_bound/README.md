@@ -72,19 +72,17 @@ The obligation's class decides where a violation is caught:
 
 ## Pinned Fixtures
 
-All 18 positive and reject places are pinned under `tests/omega/{pass,fail}/facts/`:
-
-| Place | Positive Fixture (`expected_native_exit.txt` = `0`) | Reject Twin Fixture (`expected.txt`) |
-| --- | --- | --- |
-| local | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_local_rejected/main.omg) |
-| field | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_field_rejected/main.omg) |
-| parameter | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_parameter_rejected/main.omg) |
-| call result | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_call_result_rejected/main.omg) |
-| match join | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_match_join_rejected/main.omg) |
-| const name | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_const_name_rejected/main.omg) |
-| a nested machine | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_rejected/main.omg) |
-| another machine | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_machine_rejected/main.omg) |
-| another target body | [`pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_exit`](../../../../tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_exit/main.omg) | [`fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/unsigned_64bit_bitwise_and_mask_bound_through_target_body_rejected/main.omg) |
+| Place |
+| --- |
+| local |
+| field |
+| parameter |
+| call result |
+| match join |
+| const name |
+| a nested machine |
+| another machine |
+| another target body |
 
 ## Run Record
 

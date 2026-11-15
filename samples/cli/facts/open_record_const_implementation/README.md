@@ -6,7 +6,15 @@ Fact: **Selected<Configuration { minimum: Base + 4 }> at Base = 3 supplies at le
 
 This row establishes open nominal-record Const substitution through a named implementation application and its field-projected contract. Its scalar predecessor and closed record captures do not exercise this structured static argument path.
 
-The [root](main.omg) and nine places ([local](local/main.omg), [field](field/main.omg), [parameter](parameter/main.omg), [call result](call_result/main.omg), [match join](match_join/main.omg), [const name](const_name/main.omg), [a nested machine](other_state/main.omg), [another machine](other_machine/main.omg), [target body](target_body/main.omg)) preserve the same construction, Base = 3, published lower bound and consuming subtraction. Each adjacent `invalid/main.omg` changes only the selected implementation record field from `Base + 4` to `Base + 3`; the required argument and consuming operation stay unchanged. Positive and reject fixtures are pinned under `tests/omega/pass/facts/open_record_const_implementation_through_<place>_exit` (nine positives, byte-identical to their place program and Build pair) and `tests/omega/fail/facts/open_record_const_implementation_through_<place>_rejected` (nine twins, byte-identical to `<place>/invalid`). Both families were renamed in the same change from the legacy `record_const_implementation_through_<place>_exit` and `record_const_implementation_bound_through_<place>` spellings; the rename touched no fixture byte, verdict, timing, stamp or diagnostic line.
+The [root](main.omg) and nine places ([local](local/main.omg),
+[field](field/main.omg), [parameter](parameter/main.omg), [call
+result](call_result/main.omg), [match join](match_join/main.omg), [const
+name](const_name/main.omg), [a nested machine](other_state/main.omg), [another
+machine](other_machine/main.omg), [target body](target_body/main.omg)) preserve
+the same construction, Base = 3, published lower bound and consuming
+subtraction. Each adjacent `invalid/main.omg` changes only the selected
+implementation record field from `Base + 4` to `Base + 3`; the required argument
+and consuming operation stay unchanged.
 
 Entry `Base <= 100` proves formation of the exact field addition before specialization. Exact declaration-owned Const substitution and normalized nominal carrier identity retain the complete record argument. Implementation contract refinement justifies `result >= Required.minimum`; completed calls substitute the exact actual record field, and each transport consumes `value - 7` without a caller equality premise. Field symbols and Const binder identities remain distinct; runtime storage and borrowed projections use their existing lifetime rules. Named/canonical literal equivalence, different field/binder refinements, distinct completed calls, foreign nominal carrier and unbounded addition have focused controls.
 
@@ -16,7 +24,16 @@ Governing rules: [generic applications](../../../../wiki/spec/language/generics.
 
 On base `3ddc7d1455f182d54645df101870ea9b441b9019`, `omega --check` of [local](local/main.omg) exited 1: `cannot prove ensures contract for exit from selected$specialized$… at statement 0: result >= Configuration.minimum`. Const substitution replaced the record binder with its constructor and left the field projection on that constructor, so the specialized body saw the carrier name rather than `Base + 4`. Projection now reads the constructor's declared field, including a nested field chain. With producer `C:\tmp\tgt-l6open\debug\omega.exe` on Windows x86-64, the root and all nine places run `omega run --both` with native exit 0 and Terminal exit 0 (10/10). All nine `<place>/invalid` twins still exit 1 with `expected a complete Reading implementation with the instantiated trait arguments`. A nested `Configuration.bound.minimum` probe of the same sentence also checks. Case-payload projection is not this row: an inactive case does not establish the payload field.
 
-Measured on macOS arm64 with the `factsr1` shared opt-level 1 producer (built at `9ff26a870215d1a351e830cacd1255a852e3dd1e`): the root and all nine places run `omega run --both` with native exit 0 and Terminal exit 0 (10/10 agree), and all nine `<place>/invalid` twins exit 1 at checking with the verbatim diagnostic "generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments". Each twin differs from its positive on exactly one line: the selected implementation's record field `minimum: Base + 4` becomes `minimum: Base + 3`; the required argument, the consuming `value - 7` and every other line stay identical. Recorded on macOS arm64 at `ab30b42820ea+wt`: 18 rows in `corpus_outcomes.txt` (9 `checked check-target:macos_arm64`, 9 `rejected expected` carrying both diagnostics), 9 rows in `corpus_native_macos_arm64.txt` (`built ... exit:0`) and 9 rows in `corpus_both_macos_arm64.txt` (`exit:0 interpreter-exit:0 interpreter:agrees`). Both `<place>/invalid` families and the root invalid control also carry their intended-invalid `sample.json`; the sample check gate reports 40/40 checked with 20/20 intended rejection controls matched.
+Measured on macOS arm64 with the `factsr1` shared opt-level 1 producer (built at
+`9ff26a870215d1a351e830cacd1255a852e3dd1e`): the root and all nine places run
+`omega run --both` with native exit 0 and Terminal exit 0 (10/10 agree), and all
+nine `<place>/invalid` twins exit 1 at checking with the verbatim diagnostic
+"generic machine `selected` cannot bind `Implementation` to conformance
+`Selected`: expected a complete `Reading` implementation with the instantiated
+trait arguments". Each twin differs from its positive on exactly one line: the
+selected implementation's record field `minimum: Base + 4` becomes `minimum:
+Base + 3`; the required argument, the consuming `value - 7` and every other line
+stay identical.
 
 The [specialization agreement control](controls/specialization_agreement/main.omg)
 selects `Selected<Configuration { minimum: 7 }>` for a bound that requires

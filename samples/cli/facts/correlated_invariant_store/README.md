@@ -36,8 +36,6 @@ bound. It is redundant in the valid program and insufficient for the store;
 it keeps the invalid join's arithmetic representable so the twin reaches
 the receiving-invariant obligation rather than an earlier overflow refusal.
 
-The row is pinned under
-`tests/omega/{pass,fail}/facts/correlated_invariant_store_through_<place>_*`.
 Additional `ranges/correlated_store_*` controls cover writes in destination
 selectors and right operands, an insufficient predecessor at a state join,
 and an unsafe intermediate. A positive saved-scalar witness checks that a

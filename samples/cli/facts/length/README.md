@@ -36,7 +36,6 @@ omega run --both samples/cli/facts/length/const_name/main.omg
 omega run --both samples/cli/facts/length/other_state/main.omg
 omega run --both samples/cli/facts/length/other_machine/main.omg
 omega run --both samples/cli/facts/length/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/length
 ```
 
 ### The oracle discriminates
@@ -61,7 +60,8 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/length_through_*` fixtures; every positive records native exit 0. The nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart.
+The nine pass fixtures are byte-identical copies of their place programs, so the
+sample and the fixture cannot drift apart.
 
 ## Requirements and Evidence
 

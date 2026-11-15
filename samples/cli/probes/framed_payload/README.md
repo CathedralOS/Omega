@@ -36,12 +36,6 @@ after local package review: EOF and finite Enter each produce the exact
 The other declared hosts retain their matching-host obligations in
 [SAMPLE-CORPUS](../../../../TASKS.md).
 
-For disposable local test acceptance and the header's exit oracle:
-
-```sh
-python3 tools/sample_native_gate.py --filter cli/systems/framed_payload --jobs 1 --target macos_arm64 --cli <current-omega-binary>
-```
-
 Choose the matching host target. This gate accepts pending package-review
 decisions for measurement, not as a dependency audit. It currently checks
 the documented exit only; compare all output bytes and exercise Enter as

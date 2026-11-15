@@ -1443,6 +1443,15 @@ Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
 
+Semantic format marker 273 moves a public requirement's declared result lifetime
+groups from each static method application onto the machine contract, encoded
+as an optional list immediately after the contract's result. A selected call
+reads them from its public header contract and a rigid call from the bodiless
+requirement's own contract, so both routes bind their caller's loans from one
+account. A body's contract leaves the list absent; its actual return origins
+stay in the result's reference-source column. A 272 artifact rejects at the
+header.
+
 Semantic format marker 271 retains a boundary's optional declared result lifetime
 groups separately from its spatial result-reference regions. Each group uses the
 same counted input dependencies and counted canonical result paths as a selected
@@ -2355,8 +2364,9 @@ subject field as the new representation.
 | realization callable | source callable identity string + machine id + callable result |
 | conformance row | declaring trait identity string + public requirement identity string + counted family tuple strings + requirement identity string + realization identity string + optional realization callable identity string |
 
-From marker 268, each static method application also retains an optional list
-of declared result lifetime groups. Each group contains counted input lifetime
+From marker 273, the public header's machine contract (not the static method
+application) retains an optional list of declared result lifetime groups.
+Each group contains counted input lifetime
 dependencies (the existing referent/stored dependency encoding), followed by
 counted structural result paths. One group shares its complete input set among
 its result paths; the encoding does not expand an input-by-result matrix.
@@ -2370,14 +2380,13 @@ When present, a counted outer lifetime roster, counted complete parameter type
 identities and one complete result type identity follow. The type identities
 bind declared lifetimes to canonical `schema` ordinals; an absent type section
 cannot authorize a selected borrowed result. The receiver derives the input
-union from this original type relation and requires the application groups to
-agree, including after their application commitment is recomputed. Constraint
+union from this original type relation and requires the public header's groups
+to agree. Constraint
 and array-length type arguments do not become stored reference occurrences.
 Unresolved nominal or method-argument frontiers remain unavailable.
 
 These groups come from the original public signature and its complete method
-tuple before lifetime erasure. They are included in the conformance application
-commitment, which describes contents and cannot replace that independent
+tuple before lifetime erasure. No commitment replaces that independent
 declaration check. The implementing body's actual return origins remain separate:
 receiving checks must not replace the public input set with those narrower
 origins. Backing formation, access, source correspondence and loan completion

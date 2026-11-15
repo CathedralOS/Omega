@@ -25,9 +25,8 @@ closed values retain their explicit decision fallback.
 | other_machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | target_body | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Each place is mirrored under `tests/omega/{pass,fail}/facts/closed_integer_bound_through_*`.
-All positives bind the four hosted targets. Execution evidence is Linux x86-64
-only; foreign native hosts are not claimed.
+All positives bind the four hosted targets. Execution evidence is Linux x86-64 only; foreign
+native hosts are not claimed.
 
 ## Requirements established
 

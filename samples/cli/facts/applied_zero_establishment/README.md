@@ -21,9 +21,6 @@ the selected static actual to `2`, making that same default domain false.
 | other_machine | [program](other_machine/main.omg) | [unestablished application](invalid_other_machine/main.omg) |
 | target_body | [program](target_body/main.omg) | [unestablished application](invalid_target_body/main.omg) |
 
-The row is pinned under `tests/omega/{pass,fail}/facts/` as
-`applied_zero_establishment_through_<place>_{exit,unestablished}`.
-
 The declaration-to-static-actual join establishes membership for `Gate<0>`;
 zero representation alone cannot establish `Gate<2>`. Each use retains its exact
 application, including through containment, ordinary calls, joins, state moves,

@@ -40,14 +40,10 @@ one. It must reject at the contract consuming that record, with
 `record.value == 7` in the diagnostic. An unrelated early refusal does not
 establish this control.
 
-The existing `tests/omega/pass/facts/erased_reference_contract_through_*_exit`
-files mirror the positives. Each existing
-`tests/omega/fail/facts/erased_reference_contract_through_*_rejected` file
-retains its scalar-only control and adds the corresponding record-only twin
-under distinct declaration names. Thus the old primitive rejection remains
-independent of the new record rejection. The target-body scalar control uses
-the sample's ordinary named implementations rather than retired target prefixes.
-No Omega files or fact folders are added.
+Thus the old primitive rejection remains independent of the new record
+rejection. The target-body scalar control uses the sample's ordinary named
+implementations rather than retired target prefixes. No Omega files or fact
+folders are added.
 
 ## What the witnesses require
 

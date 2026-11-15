@@ -12,16 +12,19 @@ use optimization_core::OptimizationSelections;
 
 pub(crate) struct InspectionCompilation {
     realization: SelectedProductTarget,
-    machine: String,
     selections: OptimizationSelections,
 }
 
 impl InspectionCompilation {
-    pub(crate) fn new(realization: SelectedProductTarget, machine: String) -> Self {
+    pub(crate) fn new(realization: SelectedProductTarget) -> Self {
+        let selections = realization
+            .custody
+            .terminal_publication
+            .optimizations()
+            .clone();
         Self {
             realization,
-            machine,
-            selections: OptimizationSelections::default(),
+            selections,
         }
     }
 
@@ -32,11 +35,7 @@ impl InspectionCompilation {
     }
 
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
-        TerminalProductRequest::inspection(
-            &mut self.realization.custody,
-            &self.machine,
-            &self.selections,
-        )
+        TerminalProductRequest::new(&mut self.realization.custody, &self.selections)
     }
 
     pub(crate) fn finish(

@@ -74,11 +74,8 @@ Check a twin with `omega --check samples/cli/facts/scalar_width_shifts/<place>/i
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/scalar_width_shifts`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow `u32``).
 - Discrimination: corrupting the shift amount (`1` -> `3`, so `21 << 3 = 168` is no longer `42`) or corrupting the expected shifted value (`42` -> `84`) triggers the `bad()` state and traps with `crash Trap`, proving the exit 0 oracle actively discriminates computation errors.
-- Pinned fixtures: `tests/omega/pass/facts/scalar_width_shifts_through_*` and `tests/omega/fail/facts/scalar_width_shifts_through_*` pin this row.
 - Remaining open: full interval-set proof propagation and theorem propagation for non-wrapping arithmetic on dynamic counts, and cross-carrier shift count reduction proofs on composite structures under `CONSERVATION-CONTRACT`.
-
 
 ## Build-owned target-body migration
 

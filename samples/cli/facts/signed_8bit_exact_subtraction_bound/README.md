@@ -46,28 +46,12 @@ omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/target_bo
 
 ```sh
 omega --check samples/cli/facts/signed_8bit_exact_subtraction_bound/invalid_local/main.omg
-python tools/sample_native_gate.py --cli <omega> --filter cli/facts/signed_8bit_exact_subtraction_bound --jobs 4
 ```
-
-`sample_native_gate.py` runs the 10 samples plus the 18 mirrored invalid controls as one batch.
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_8bit_exact_subtraction_bound_through_<place>_exit`
-and `tests/omega/fail/facts/signed_8bit_exact_subtraction_bound_through_<place>_rejected` for the nine
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-`other_machine`, `target_body`). Each pass fixture's `main.omg` is byte-identical to its sample place and
-carries `expected_native_exit.txt` = 0; each fail fixture's `main.omg`/`expected.txt` are byte-identical
-to its place twin; every fixture `build.omg` binds `ProgramEntry` for all four hosted targets
-(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and differs from its sample `build.omg`
-only in a fixture-unique `Build::application` name. Positive versus twin `git diff` widens only the `rhs`
-bound (`rhs <= 20` to `rhs <= 25`) and evaluates at the widened extreme (inputs 80,15 to 60,25), which is
-the fact's own domain.
-
-Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (revision
-`9b001b8f6afa2cdac67fd580033c3560d906a5d5`, omega sha256
-`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
-`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+Positive versus twin `git diff` widens only the `rhs` bound (`rhs <= 20` to `rhs <= 25`) and
+evaluates at the widened extreme (inputs 80,15 to 60,25), which is the fact's own domain.
 
 - `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
 - `omega --check` over the nine twins: 9/9 refuse; eight report `cannot prove requires contract` naming
@@ -75,13 +59,8 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8
   `call_result` twin reports `cannot prove ensures contract for exit from produce_diff at statement 0:
   result >= 40 && result <= 90`, the callee's own postcondition that the widened bound can no longer
   establish.
-- The three corpus legs were recorded with the fixture and golden changes staged at published main
-  `9b001b8f6afa`, so every row is stamped `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained
-  60 lines (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with
-  24 diagnostic continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18
-  `built ... exit:0` rows and `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0
-  interpreter-exit:0 interpreter:agrees` rows. Every golden diff is an addition (0 deletions); all three
-  legs exited 0 with 0 timeout rows and 0 fail rows that lost their expected fragment.
+- Every golden diff is an addition (0 deletions); all three legs exited 0 with 0 timeout rows and 0
+  fail rows that lost their expected fragment.
 
 ## Requirements and Evidence
 

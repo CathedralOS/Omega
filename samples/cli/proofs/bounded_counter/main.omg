@@ -1,8 +1,7 @@
 // A counter saturating at a bound. Showcases `[copy]` type
 // properties and saturating arithmetic over a dispatched self-write path
 // driven by scalar arguments. (Historical: case-payload commands threaded into
-// a self-writing sub-machine used to miscompile; FIXED 2026-06, locked by the
-// pass canary tests/omega/pass/calls/by_value_case_param_self_write_exit.
+// a self-writing sub-machine used to miscompile; FIXED 2026-06.
 // vending_machine is the case-payload showcase.)
 // Expected exit: 70.
 

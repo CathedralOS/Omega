@@ -13,8 +13,5 @@ all three intervals, and retires all three claims.
 Both programs must agree between native and Terminal execution. These interval
 programs establish content transfer, not physical allocation or resident access.
 
-Invalid controls live under `tests/omega/fail/core/owned_content_partition_*`
-and `tests/omega/fail/core/content_transform_nested_*`: a borrowed parent,
-reused parent, premature child authority, absent theorem, or lost nested
-custody must not become a valid transformation. An explicit qualification cast
-inside the result construction still owes its own earlier authority.
+An explicit qualification cast inside the result construction still owes its
+own earlier authority.

@@ -62,8 +62,6 @@ the predicate. These pairs are pinned as
 that relation in two simultaneously formed `write_pair` arguments. Execution qualification of
 this production is tracked separately from the earlier scalar observations.
 
-The pairs are pinned under `tests/omega/{pass,fail}/facts/` as
-`checked_predicate_disjoint_loans_through_<place>_{exit,rejected}`.
 All positives bind all four hosted `ProgramEntry` targets and declare exit 0.
 
 ## Requirements and evidence
@@ -149,8 +147,6 @@ checks and runs with native/Terminal exit 0 on macOS ARM64. Frozen source,
 producer hashes and raw observations are retained in the lane qualification and
 claim records; the compiler implementation changes after this observation.
 
-Run the public acceptance with `omega run --both <place>/main.omg` after ordinary
-package preparation, then `python3 tools/corpus_gate.py --both --filter checked_predicate_disjoint_loans`.
 The parent retains remaining domain, runtime-projection and same-statement/theorem
 premise acceptance beyond the relations established by this row.
 
@@ -485,7 +481,6 @@ remains open. It does not establish arbitrary dynamic Boolean indexing, generic
 or evidence-selected bodies, stored-reference crossings, or unrestricted runtime
 collection predicates. All four hosted entry bindings are present; native
 execution here is macOS ARM64.
-
 
 ### Integrated Boolean guard acceptance
 

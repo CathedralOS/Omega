@@ -228,6 +228,14 @@ fn target<'body>(target: &'body Target, sites: &mut Vec<CallSite<'body>>) {
 
 fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<CallSite<'body>>) {
     match &value.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression(place, false, sites);
+            for operand in operands {
+                expression(operand, false, sites);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)

@@ -13,13 +13,12 @@ The nine places now read `items[0]` through an opaque generic reference result:
 after the helper completes. The helper writes a caller-visible marker so an
 omitted call or incorrect match arm cannot silently satisfy the runtime oracle.
 
-The consuming operation remains `agree(observed, current)` with
-`requires observed == current && observed == 7`. Every positive starts with
-`[7, 1]`, saves element zero, and writes element one to 4. Its reject twin
-changes only the write destination to element zero. The field place also checks
-neighbor fields; the match place runs both arms and distinguishes their marker
-writes (11 and 13). Each sample has matching pass/fail fixtures in
-`tests/omega/{pass,fail}/facts/saved_observation_snapshot_through_<place>_*`.
+The consuming operation remains `agree(observed, current)` with `requires
+observed == current && observed == 7`. Every positive starts with `[7, 1]`,
+saves element zero, and writes element one to 4. Its reject twin changes only
+the write destination to element zero. The field place also checks neighbor
+fields; the match place runs both arms and distinguishes their marker writes
+(11 and 13).
 
 ## Recorded behavior
 

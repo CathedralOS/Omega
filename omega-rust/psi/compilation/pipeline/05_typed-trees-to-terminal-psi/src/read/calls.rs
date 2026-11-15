@@ -9,6 +9,7 @@ use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::StructuralAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableCall;
@@ -1980,7 +1981,9 @@ impl<'t> Program<'t> {
             read.push(if *erased {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
-                let (lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
+                let (mut lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
+                lent.result =
+                    self.borrowed_argument_type(id, lent.result, *formal, borrowed.access)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -2011,41 +2014,6 @@ impl<'t> Program<'t> {
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
             place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
-        // An exclusive loan written for a shared formal is lowered as the
-        // shared loan the callee receives (`lent`). ownership.md, "Borrows
-        // and aliases": "exclusive loans must not overlap incompatibly", so
-        // the root it lends is lent by no other argument of this call; the
-        // lowered shared loans alone would not show that overlap.
-        for (position, (argument, (_, _, borrowed))) in arguments.iter().zip(&formals).enumerate() {
-            let exclusive_for_shared = borrowed
-                .as_ref()
-                .is_some_and(|formal| formal.access == ReferenceAccess::Shared)
-                && matches!(self.node(id, *argument)?,
-                    ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable);
-            let Some(Expression {
-                kind: ExpressionKind::Borrow { place, .. },
-                ..
-            }) = read.get(position).filter(|_| exclusive_for_shared)
-            else {
-                continue;
-            };
-            let root = root_slot(id, place, &self.captures)?;
-            for (other, lent) in read.iter().enumerate() {
-                if other != position
-                    && let ExpressionKind::Borrow { place, .. } = &lent.kind
-                    && root.is_some()
-                    && root_slot(id, place, &self.captures)? == root
-                {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call(
-                            "exclusive loan for a shared formal beside another loan of its storage",
-                        ),
-                    ));
-                }
-            }
-        }
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -2208,7 +2176,6 @@ impl<'t> Program<'t> {
                     result: view.result,
                     kind: ExpressionKind::Borrow {
                         access: formal.access,
-                        formation: formal.access,
                         place: Box::new(view),
                         home: None,
                     },
@@ -2313,11 +2280,13 @@ impl<'t> Program<'t> {
         // parameter is the exclusive loan the program wrote, lent on for
         // observation: the place must admit that exclusive loan (every
         // check below is made at the written access), and the callee
-        // receives the formal's access. No other difference has a row.
+        // receives a shared child of that formation. Both loans remain in
+        // the lowered form, so the checker judges the actual formation and
+        // its complete descendant lifetime against existing cohorts.
         let attenuated = explicit
             && access == ReferenceAccess::Mutable
             && formal.access == ReferenceAccess::Shared;
-        if access != formal.access && !attenuated {
+        if !access.forms(formal.access) {
             return unserved("borrow whose access differs from its formal's");
         }
         // An existing view already carries its backing; an owned array still
@@ -2334,7 +2303,6 @@ impl<'t> Program<'t> {
                     result: place.result,
                     kind: ExpressionKind::Borrow {
                         access: formal.access,
-                        formation: formal.access,
                         place: Box::new(place),
                         home: None,
                     },
@@ -2388,7 +2356,7 @@ impl<'t> Program<'t> {
         if place.result.and_then(ValueType::policy).is_some() {
             return unserved("loan of a policy-qualified integer");
         }
-        let home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
+        let mut home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
             (ExpressionKind::Slot(_), Some(lender))
                 if matches!(lender.value_type, ValueType::Scalar(_, Qualification::NONE))
                     && !lender.homed =>
@@ -2431,13 +2399,52 @@ impl<'t> Program<'t> {
             }
             _ => None,
         };
+        if attenuated {
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("exclusive formation without its retained reference type");
+            }
+            let formed = self.local_type(id, reference)?;
+            let Some((referent, StructuralAccess::MutableBorrow)) =
+                self.reference_referent(id, formed)?
+            else {
+                return unserved("exclusive formation without its actual reference type");
+            };
+            if !self.same_type(place.result, referent) {
+                return unserved("exclusive formation changes its captured referent type");
+            }
+            let result = place.result;
+            let value = Expression {
+                call_context: None,
+                result,
+                kind: ExpressionKind::Borrow {
+                    access,
+                    place: Box::new(place),
+                    home: home.take(),
+                },
+                source,
+            };
+            let parent = self.finish_reference_value(id, slots, value, formed, source)?;
+            place = Expression {
+                call_context: None,
+                result,
+                kind: ExpressionKind::Referent(Box::new(parent)),
+                source,
+            };
+        }
         Ok((
             Expression {
                 call_context: None,
                 result: presentation.or(place.result),
                 kind: ExpressionKind::Borrow {
                     access: formal.access,
-                    formation: access,
                     place: Box::new(place),
                     home,
                 },
@@ -2445,6 +2452,47 @@ impl<'t> Program<'t> {
             },
             lender_text,
         ))
+    }
+
+    /// A shared lend observes an existing mutable descriptor's backing. Its
+    /// argument type may present shared access, while the captured place and
+    /// its producer retain their actual type and exclusive loan. Owned values
+    /// and different descriptor geometry still require exact correspondence.
+    fn borrowed_argument_type(
+        &mut self,
+        machine: MachineId,
+        actual: Option<ValueType>,
+        expected: ValueType,
+        access: ReferenceAccess,
+    ) -> Checked<Option<ValueType>> {
+        use crate::StorageShape;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+        let (
+            Some(ValueType::Record(actual_row, qualification, regions)),
+            ValueType::Record(expected_row, _, _),
+        ) = (actual, expected)
+        else {
+            return Ok(actual);
+        };
+        if access != ReferenceAccess::Shared
+            || self.data_type(machine, actual_row)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+            || self.data_type(machine, expected_row)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                })
+        {
+            return Ok(actual);
+        }
+        let presented = ValueType::Record(expected_row, qualification, regions);
+        Ok(if self.same_type(Some(presented), expected) {
+            Some(presented)
+        } else {
+            actual
+        })
     }
 }
 
@@ -2540,6 +2588,19 @@ fn mentions<'a>(
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            if mentions(id, place, slots, captures)? {
+                return Ok(true);
+            }
+            for operand in operands {
+                if mentions(id, operand, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
         ExpressionKind::SavedSubject(_) => {
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
@@ -2824,7 +2885,6 @@ mod tests {
                 call_context: None,
                 kind: ExpressionKind::Borrow {
                     access: ReferenceAccess::Mutable,
-                    formation: ReferenceAccess::Mutable,
                     place: Box::new(place),
                     home: None,
                 },

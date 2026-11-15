@@ -27,6 +27,7 @@ mod applications;
 mod arithmetic_policies;
 mod array_lengths;
 mod arrays;
+mod atomic_wake;
 mod borrowed_restoration;
 mod boundary_calls;
 mod branch_warnings;

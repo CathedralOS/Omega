@@ -47,15 +47,12 @@ Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64
 ```sh
 omega run --both samples/cli/facts/named_const_callable_family/<place>/main.omg < /dev/null
 omega run --both samples/cli/facts/named_const_callable_family/<place>/invalid/main.omg < /dev/null
-python tools/sample_native_gate.py --cli <omega> --facts --filter cli/facts/named_const_callable_family
-python tools/corpus_gate.py --both --filter named_const_callable_family
 ```
 
 Measured on Windows x86-64 (32 logical CPUs) with the optimized producer built from `949694bc033` plus this change (`omega --build-profile` reports `opt_level: 1`):
 
 - All twelve positives report `native exit 0` and `interp exit: 0` through `omega run --both`.
 - All twelve twins exit at compile time with ``generic machine `apply` (`apply_again` in `forwarded_family`) has a static selection, but its complete … specialization tuple cannot be derived …: Const slot `Count` (`Total`) conflicts: 5 … versus 4``, from `main` (`main::check` for the nested machine, `observe` for another machine, `X86Observe::observe` for the target body, `Observer::run` for the implementation scope, `observe_four` for the parameter place).
-- `tools/sample_native_gate.py --facts --filter cli/facts/named_const_callable_family` reports 12/12 samples meeting their documented oracle on `windows_x86_64` and 12/12 intended-invalid controls matching their authored rejection.
 - The unmodified base producer reproduces the defect on all twelve positives; its twelve twins reject with the same diagnostic as the repaired producer (see [Reject twins](#reject-twins)).
 
 ### The oracle discriminates
@@ -69,8 +66,6 @@ Each place and production has an `invalid/` twin whose `sample.json` carries `"r
 The base producer rejects these twins with the same diagnostic: the explicit constant is evaluated by the tuple derivation both before and after the repair. They pin that the constant's value, not its name, selects the family's instance; the repaired layer is pinned by the twelve positives, which were red at base.
 
 ## Pinned fixtures
-
-The row is pinned by 24 fixtures: `tests/omega/pass/facts/named_const_callable_family_through_<place>_exit` and `tests/omega/fail/facts/named_const_callable_family_through_<place>_rejected` for the nine places, and `tests/omega/{pass,fail}/facts/named_const_callable_family_{cross_module_alias,forwarded_family,implementation_scope}_{exit,rejected}` for the three productions. Each pass fixture is a byte-identical copy of its positive (plus `foreign.omg` for the alias chain), a `build.omg` binding the four hosted targets and `expected_native_exit.txt` of `0`. Each fail fixture is a byte-identical copy of its twin with an `expected.txt` carrying the three fragments above.
 
 The corpus gate over the 24 fixtures (`--filter named_const_callable_family`, jobs at the runner default) reports: check leg 12 `checked` and 12 `rejected`, 0 rejected without their expected fragment, 0 fail fixtures that did not reject; native leg 12 `built` with exit 0; both leg 12 `built`, executed on both engines with exit 0.
 
@@ -87,7 +82,9 @@ The corpus gate over the 24 fixtures (`--filter named_const_callable_family`, jo
 
 ## What remains open
 
-- The evidence-argument half of the first bullet is pinned outside this row by [`cross_module_const_alias_callable_arguments_exit`](../../../tests/omega/pass/generics/cross_module_const_alias_callable_arguments_exit/main.omg): a cross-module alias supplies `Selected<ALIAS>` to `selected<ALIAS, Selected<ALIAS>>`, and its twin [`cross_module_const_alias_shadowed_evidence`](../../../tests/omega/fail/generics/cross_module_const_alias_shadowed_evidence/main.omg) changes only that evidence argument to the same-spelled local constant, so the binding `Implementation satisfies Reading<Minimum>` rejects without reading any dispatched result. A caller still cannot read the result of an evidence-dispatched call directly (`hold(picked)` with `requires picked == 7` is refused even for `choose<Seven>(1, 2)` where `Seven::pick` returns 7).
+- A caller still cannot read the result of an evidence-dispatched call directly
+  (`hold(picked)` with `requires picked == 7` is refused even for
+  `choose<Seven>(1, 2)` where `Seven::pick` returns 7).
 - An array length that is an expression of the open Const (`[u8; Count + 1]`) fails with an unrelated refusal for the generic callback, with a literal or a named argument alike, and is outside this row.
 - Native execution is measured on `windows_x86_64`. `linux_x86_64`, `macos_arm64` and `linux_arm64` are bound in every `build.omg` and realized by binding; they were not executed here.
 - The remaining OPERATOR-MACHINE-SUPPLY bullets (`OpenIndexOperationSelection` laws and the `operator` introducer migration) are untouched.

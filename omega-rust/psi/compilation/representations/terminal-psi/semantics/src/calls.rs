@@ -1353,9 +1353,6 @@ pub mod closed_conformances {
                 return Err("conformance static applications are repeated or not canonical");
             }
             for applied in &application.static_applications {
-                if let Some(groups) = &applied.result_lifetimes {
-                    crate::references::validate_result_lifetime_groups(groups)?;
-                }
                 identity(module, applied.public_requirement_identity)?;
                 identity(module, applied.realization_identity)?;
                 identity(module, applied.source_callable_identity)?;

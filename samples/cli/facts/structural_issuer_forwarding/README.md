@@ -17,17 +17,13 @@ The witness and its exit-zero oracle remain unchanged through the repair.
 The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
 `const_name`, `other_state`, `other_machine`, and `target_body`. Each has an
 `invalid/main.omg` changing only the authorized requirement from `Issuer::issue`
-to `OtherIssuer::issue`. The same member spelling and carrier signature grant
-no authority. Both match alternatives execute. The constant place names the
+to `OtherIssuer::issue`. The same member spelling and carrier signature grant no
+authority. Both match alternatives execute. The constant place names the
 payload, not a reusable authority token. Every positive binds all four hosted
-targets. The row is pinned under
-`tests/omega/{pass,fail}/facts/structural_issuer_forwarding_<place>`.
+targets.
 
 [Selection](selection/main.omg) additionally exercises a generic named map's
 captured body and two explicitly selected implementations, observing 17 and 23.
-Focused controls under `tests/omega/fail/domains/named_issuer_*` challenge
-equal-field reconstruction, independent predicates, a different requirement of
-the same trait, and the issuer body's own call preconditions.
 
 ## Requirements
 

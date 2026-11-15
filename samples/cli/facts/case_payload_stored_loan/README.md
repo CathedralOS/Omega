@@ -32,12 +32,6 @@ captured exclusive loan. No caller equality guard re-establishes that loan.
 | Another machine | [program](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) |
 | Another target body | [program](target_body/main.omg) | [twin](invalid_target_body/main.omg) |
 
-The nine programs and twins are pinned under
-[`tests/omega/pass/facts`](../../../../tests/omega/pass/facts) and
-[`tests/omega/fail/facts`](../../../../tests/omega/fail/facts), named
-`case_payload_stored_loan_through_<place>_{exit,rejected}`.
-Run `python3 tools/corpus_gate.py --both --filter case_payload_stored_loan`.
-
 The const-name place supplies the operation's value 41 through `WRITE_VALUE`;
 it does not store an activation-relative exclusive loan in a constant.
 [Constants](../../../../wiki/spec/language/constants.md) are copyable
@@ -140,7 +134,6 @@ RHS self-replacement is now exercised by
 Its local witness runs with native and Terminal exit zero on producer `ac9b6d8d9762`;
 the earlier structural-destination-window refusal is historical evidence.
 
-
 ## Selected guard completion precedes payload operands
 
 On optimized producer `ac9b6d8d97625b890927868616fbec23cce11560`, all nine
@@ -168,10 +161,9 @@ The fact sentence, original sources and their corpus pins remain unchanged.
 Other-host execution and the parent capability's remaining runtime/case
 construction, replacement and saved-observation acceptance remain open.
 
-The broader `tests/omega/pass/borrows/runtime_guard_descriptor_replacement_exit`
-now runs unchanged in both engines. Its distinct guard-time replacement
-requirement is covered by the nine `guard_replacement/` productions in
-[descriptor replacement](../descriptor_replacement_order/README.md#guard-replacement-through-a-saved-case-subject).
+Its distinct guard-time replacement requirement is covered by the nine
+`guard_replacement/` productions in [descriptor
+replacement](../descriptor_replacement_order/README.md#guard-replacement-through-a-saved-case-subject).
 
 ## Build-owned target-body migration
 

@@ -15,8 +15,3 @@ This is a source-authority prerequisite for BUMP-ALLOCATOR-CANARY, not an
 allocator or a claim that addresses grant memory access. Actual backing,
 initialization, resident cleanup and vacant-extent return remain unfinished.
 
-The matching fixture is
-`tests/omega/pass/domains/runtime_generic_exact_issuer_exit`.
-The `tests/omega/fail/domains/generic_exact_issuer_*` controls reject wrong
-indices, unrelated issuers, reconstructed values, premature in-body use,
-false predicates and issuance on an unrelated input parameter.

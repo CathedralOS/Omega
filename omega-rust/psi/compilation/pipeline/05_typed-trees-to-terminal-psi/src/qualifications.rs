@@ -1,12 +1,11 @@
 //! Publish the declared meaning of each qualification once, and intern the
 //! complete sets used by lowering. Source handles are construction coordinates;
-//! only exact declaration identities and module-local domain IDs leave this stage.
+//! only exact application identities and module-local domain IDs leave this stage.
 
 use semantic_vocabulary::{
     DomainSemanticId, MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType,
     StructuralDomainId, StructuralTypeId,
 };
-use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute,
@@ -16,20 +15,39 @@ use terminal_psi::{
     TerminalIdentityTableBuilder,
 };
 
-use crate::body::{DomainSet, Policy, Qualification, Regions, ValueType};
+use crate::body::{DomainInstance, DomainSet, Policy, Qualification, Regions, ValueType};
 use crate::{Unserved, refuse};
+
+pub(crate) fn domain_identity(
+    typed: &typed_trees::TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    instance: DomainInstance,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    let declaration = crate::declare::nominal(typed, sources, instance.declaration, identities)?;
+    let exact = identities
+        .text(declaration)
+        .ok_or("domain application lost its retained declaration identity")?;
+    let identity = typed.domain_application_identity(
+        instance.declaration,
+        instance.identity,
+        exact,
+        sources,
+    )?;
+    Ok(identities.intern(&identity))
+}
 
 #[derive(Default)]
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
     pub identities: TerminalIdentityTableBuilder,
-    domains: Vec<(SymbolHandle, ScalarDomainId)>,
+    domains: Vec<(DomainInstance, ScalarDomainId)>,
     policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
     issuers: Vec<(MachineId, ScalarDomainId, u32)>,
     /// The module's structural domain catalog, in identity order.
     pub structural: Vec<StructuralDomainDeclaration>,
-    /// Each used record domain by its declaration, and its catalog identity.
-    structural_domains: Vec<(SymbolHandle, StructuralDomainId)>,
+    /// Each used record domain by its exact application and catalog identity.
+    structural_domains: Vec<(DomainInstance, StructuralDomainId)>,
     structural_issuers: Vec<(MachineId, StructuralDomainId, u32)>,
     /// Explicit structural casts, in machine and edge order.
     pub structural_changes: Vec<StructuralQualificationChange>,
@@ -225,11 +243,9 @@ impl Qualifications {
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
-            let definition = typed
-                .domain_definition(symbol)
-                .ok_or_else(|| unavailable("a used scalar domain lost its declaration"))?;
+            let definition = source.domain_theory(diagnostic, symbol)?;
             let identity =
-                crate::declare::nominal(typed, &sources, symbol, builder).map_err(unavailable)?;
+                domain_identity(typed, &sources, symbol, builder).map_err(unavailable)?;
             let domains = DomainSet::EMPTY
                 .with(symbol)
                 .ok_or_else(|| unavailable("scalar domain subject"))?;
@@ -455,7 +471,7 @@ impl Qualifications {
         diagnostic: MachineId,
         source: &crate::read::Program<'_>,
         sources: &[(source::SourceId, [u8; 32])],
-        symbol: SymbolHandle,
+        symbol: DomainInstance,
         carrier: StructuralTypeId,
         regions: Regions,
     ) -> Checked<()> {
@@ -467,9 +483,7 @@ impl Qualifications {
                 Unserved::Declaration(detail),
             )
         };
-        let definition = typed
-            .domain_definition(symbol)
-            .ok_or_else(|| unavailable("a used record domain lost its declaration"))?;
+        let definition = source.domain_theory(diagnostic, symbol)?;
         let predicate = if crate::read::has_predicates(definition) {
             let domains = DomainSet::EMPTY
                 .with(symbol)
@@ -493,8 +507,8 @@ impl Qualifications {
         };
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
-        let identity = crate::declare::nominal(typed, sources, symbol, &mut self.identities)
-            .map_err(unavailable)?;
+        let identity =
+            domain_identity(typed, sources, symbol, &mut self.identities).map_err(unavailable)?;
         // A governed domain's access plan decides who may issue it, and
         // nothing evaluates a plan yet: no machine in the program is shown to
         // be an issuer, so the lowered form permits nobody. Its values still

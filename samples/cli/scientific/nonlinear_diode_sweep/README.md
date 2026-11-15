@@ -100,10 +100,8 @@ control. It has no package dependency and is checked separately.
 
 ## Commands
 
-Run from the repository root. Use the verified `omega` binary recorded in
-`validation/EVIDENCE.md`, or build one with `mbx build --locked -p omega --release
--j 4` (`cargo` if mbx is unavailable). Do not run simultaneous compiler or Rust
-build processes on one executor.
+Run from the repository root. Do not run simultaneous compiler or Rust build
+processes on one executor.
 
 ```sh
 sample=samples/cli/independent/nonlinear_diode_sweep
@@ -117,8 +115,7 @@ omega --check "$sample/controls/intended_invalid/main.omg"
 ```
 
 Package acceptance is a distinct review operation. A denied acceptance is
-recorded without retry or bypass. See `validation/EVIDENCE.md` for the actual
-commands, routes, exits, binary/base identities, and artifacts from this run.
+recorded without retry or bypass.
 
 The same Python 3 entrypoint works on Linux, macOS, and Windows with the
 corresponding available target. The application binds four host targets; validation

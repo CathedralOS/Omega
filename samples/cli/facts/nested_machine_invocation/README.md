@@ -7,12 +7,10 @@ static type. The call must retain the exact enclosing type binder without
 capturing the parent's runtime argument or inheriting its entry facts.
 
 The [generic-context witness](generic_context/main.omg) exercises three-level
-nesting with enclosing and independently declared static type parameters.
-Its [reject twin](generic_context/invalid/main.omg) returns the intermediate
+nesting with enclosing and independently declared static type parameters. Its
+[reject twin](generic_context/invalid/main.omg) returns the intermediate
 machine's `U` instead of the outer machine's `T`. Both remain distinct rigid
 binders in the deepest helper, even before a caller supplies concrete types.
-The [uncalled generic control](../../../../tests/omega/fail/generics/named_value_parameter_mismatch/main.omg)
-checks that no concrete invocation is needed to reject an invalid template.
 Baseline `02e7d90a49aee` refuses this shape in resolution with `nested machines
 retaining an enclosing static telescope are not yet supported`. After removing
 that refusal, the unchanged witness exposed the missing specialization context.
@@ -33,8 +31,7 @@ declarations and operands; it adds no runtime environment.
 
 Every positive returns its authored exit 0 in Terminal Psi and Windows x86-64
 native execution. Every twin changes only the nested helper's result from its
-supplied `T` to `bool` and rejects at that result. Copies and oracles are pinned
-under `tests/omega/{pass,fail}/facts/nested_machine_invocation/`.
+supplied `T` to `bool` and rejects at that result.
 
 Each twin pins the template line, ``machine `keep` state `entry` terminal
 expression expects `T`, got `bool` ``: the helper's final value judged against
@@ -49,9 +46,7 @@ expression statement. Until the gate ran for every completion value
 (`validate_completion_value`), the template line was absent and the specialized
 line read ``stores a boolean into a `u64` return value``. All nine twins still
 rejected, but a generic body valid only for the requested instance
-(`bad<T>(value: T) -> T { true }` instantiated at `bool`) compiled. That shape
-is pinned alone, with no specialization diagnostic to stand in for the template
-check, by [the template-versus-instance control](../../../../tests/omega/fail/generics/final_value_judged_against_type_parameter_not_instance/main.omg).
+(`bad<T>(value: T) -> T { true }` instantiated at `bool`) compiled.
 
 Additional witnesses exercise [static constants](const_context/main.omg),
 [explicit borrowed arguments](borrow_context/main.omg),

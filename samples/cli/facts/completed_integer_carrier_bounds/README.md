@@ -12,9 +12,11 @@ The unchanged receiving predicate must reject that missing upper bound. A receiv
 constructor annotation is not evidence for its own predicate. The runtime oracle
 remains zero/255, so incorrectly accepting the twin cannot silently pass execution.
 
-Places: [local](local/main.omg), [parameter](parameter/main.omg), [call_result](call_result/main.omg), [other_machine](other_machine/main.omg), [other_state](other_state/main.omg), [field](field/main.omg), [match_join](match_join/main.omg), [const_name](const_name/main.omg), [target_body](target_body/main.omg).
-Each place has an `invalid/main.omg` twin and pinned positive/reject fixtures under
-`tests/omega/{pass,fail}/facts/completed_integer_carrier_bounds_through_*`.
+Places: [local](local/main.omg), [parameter](parameter/main.omg),
+[call_result](call_result/main.omg), [other_machine](other_machine/main.omg),
+[other_state](other_state/main.omg), [field](field/main.omg),
+[match_join](match_join/main.omg), [const_name](const_name/main.omg),
+[target_body](target_body/main.omg).
 
 This row covers the source-bound propagation prerequisite discovered by the
 dungeon compilation performance investigation. It does not consolidate integer

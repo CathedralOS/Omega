@@ -13,10 +13,9 @@ into a decisive scalar carrier. Generic outcomes retain payload multiplicity;
 neither result shape nor zero initialization proves an event happened.
 
 Every atomic family takes shared access to its storage. The access-plan vocabulary
-carries that fact as `AccessOperation::receiver_polarity`, and validation's
-`value_custody::atomic_operations` reads it so a store, fetch, swap, or
-compare-exchange on an atomic cell is admitted through `&self` while ordinary
-assignment keeps its exclusive demand.
+carries that fact as `AccessOperation::receiver_polarity`. The lowered-form
+checker applies shared access only to an authenticated atomic event on dedicated
+storage; ordinary assignment keeps its exclusive demand.
 
 Atomic source, interpreter, and native consumers require the same exact
 operation and instruction-observed prior. A separately loaded prior is not a
@@ -25,16 +24,23 @@ attribution even when the source has one primitive event.
 
 ## Serial producer route
 
-The parser's arithmetic-shaped carrier is decoded once, by
-`validation::atomic_load_carrier`, `atomic_assignment_carrier`, or
-`atomic_once_carrier`, into the
-sealed operation, the accessed place, and the authored operands. Checking
-plans one `CheckedAtomicAccessPlan` per operation: a writing carrier's result
-placeholder reserves the dense binding the event binds to the observed prior,
-and each operand keeps its own `AtomicOperand` scalar row. Lowering emits
-the plan as one Terminal `AtomicAccess` at a complete rooted storage path.
-An empty projection names a whole dedicated cell; an inline record cell keeps
-its actual final field identity (terminal-psi `control_flow.rs`).
+The lowered-form reader decodes the parser's retained atomic syntax once in
+`typed-trees-to-terminal-psi/src/read/atomics.rs`. A writing operation's result
+placeholder must identify the exact local that receives the instruction-observed
+prior value. The reader keeps the place and authored operands separately and
+uses the existing `AtomicAccessEvent` throughout lowering; it never computes
+the prior with a separate load. Lowering evaluates the place and operands once
+and emits one `AtomicAccess` with the complete rooted path.
+
+The lowered-form checker authenticates dedicated atomic storage, exact operand
+and result types, orderings and shared access. A modifying event invalidates
+its exact storage path; it does not establish a plain-value equation. Ordinary
+shared writes and competing exclusive loans remain forbidden. This source route
+currently serves unbounded builtin atomic loads, stores, integer fetch operations
+and swap. Bounded residents and single-attempt source operations remain refused;
+their existing event, codec and target representations described below do not
+by themselves establish source admission.
+
 The codec's independent operation verifier
 (`terminal-psi/codec/src/foundation_validation.rs`)
 and interpreter consume that event; the verifier refuses illegal orderings,

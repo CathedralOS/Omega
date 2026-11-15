@@ -50,10 +50,7 @@ as `ensures result == buckets.len as u64` states the same length through an
 admitted Exact cast, and the measurement contract now recognizes the length
 member under that cast. Without the repair the call-result place, the
 measurement in each target body, and every width that flows from such a
-measurement were refused. A non-Exact cast is not peeled:
-`tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected`
-keeps rejecting the same selection. The row is pinned by
-`tests/omega/{pass,fail}/facts/remainder_width_index_through_*` fixtures.
+measurement were refused.
 
 ## Requirements and Evidence
 
@@ -82,11 +79,6 @@ caller guards.
   indexing. Each `<place>/invalid/main.omg` differs from `<place>/main.omg`
   only in widening the width relation to `buckets.len as u64 + 1` (and `5` at
   call sites where required by the widened contract).
-- **Soundness boundaries:** Every `invalid/` twin and corresponding
-  `tests/omega/fail/facts/remainder_width_index_through_*_rejected` fixture rejects at
-  `buckets[value % ...]` with `cannot prove index ... is within unknown slice length`,
-  and non-Exact casts remain rejected by
-  `tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected`.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Exact `u64` remainder
   arithmetic and borrowed slice indexing lower into canonical target-neutral
   Terminal Psi (`PSITERM\0`), preserving the borrowed `&[u8]` view descriptor

@@ -24,11 +24,12 @@ pub use constant_jobs::{
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
-    pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
+    /// Exact computation roots. An empty list never requests library-wide geometry.
+    pub entry_declarations: Vec<symbols::SymbolHandle>,
     pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
 /// Evaluate the layout policies needed by the requested entry declarations.
-/// Unused open library applications remain deferred at their declarations.
+/// Unused applications remain deferred at their owning declarations.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
@@ -1015,6 +1016,63 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn an_empty_layout_scope_preserves_the_unrequested_application() {
+        // The same kept application must remain a real deferred request when
+        // no computation asks for its geometry; no successful plan is invented.
+        let mut source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/fixed_layout_storage/local/main.omg"
+        )));
+        let entry = query_machine(&source, "main");
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        let scope = FixedLayoutTargetScope {
+            target: facts.profile.clone(),
+            facts: Some(facts),
+            entry_declarations: Vec::new(),
+            provider_declarations: Vec::new(),
+        };
+        let mut foreign = scope.clone();
+        foreign.facts.as_mut().unwrap().profile = "windows_x86_64".into();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let errors = evaluate_fixed_layout_applications(
+            &mut source,
+            &[foreign],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .expect_err("empty roots do not authenticate another target's facts");
+        assert!(
+            diagnostics::join_messages(&errors)
+                .contains("layout scope and immutable target facts disagree")
+        );
+        assert!(accounting.receipts().is_empty());
+        evaluate_fixed_layout_applications(
+            &mut source,
+            &[scope],
+            None,
+            None,
+            source::DependencyScope::Product,
+            &mut accounting,
+        )
+        .expect("an unused layout application needs no policy invocation");
+        assert!(source.plan_laid_layouts.is_empty());
+        assert!(source.plan_laid_target_layouts.is_empty());
+        assert!(accounting.receipts().is_empty());
+        assert!(source.deferred_refusals_of(entry).any(|row| {
+            row.request == typed_trees::deferred_refusals::DeferredRequest::LayoutPolicyStorage
+        }));
+    }
+
+    #[test]
     fn fixed_layout_policy_installs_the_retained_pairs_authored_geometry() {
         // The kept program deliberately puts lo after hi. Evaluate that same
         // policy and retain its geometry, rather than assigning default offsets.
@@ -1047,7 +1105,7 @@ pub(crate) mod tests {
         let scope = FixedLayoutTargetScope {
             target: facts.profile.clone(),
             facts: Some(facts.clone()),
-            entry_declarations: Some(vec![entry]),
+            entry_declarations: vec![entry],
             provider_declarations: Vec::new(),
         };
         let mut conflicting = scope.clone();
@@ -1231,7 +1289,7 @@ pub(crate) mod tests {
                 &[FixedLayoutTargetScope {
                     target: facts.profile.clone(),
                     facts: Some(facts),
-                    entry_declarations: Some(vec![root]),
+                    entry_declarations: vec![root],
                     provider_declarations: Vec::new(),
                 }],
                 None,
@@ -1346,7 +1404,7 @@ pub(crate) mod tests {
             &[FixedLayoutTargetScope {
                 target: facts.profile.clone(),
                 facts: Some(facts),
-                entry_declarations: Some(vec![entry]),
+                entry_declarations: vec![entry],
                 provider_declarations: Vec::new(),
             }],
             None,
@@ -3422,6 +3480,44 @@ pub(crate) mod tests {
             compiler_storage::encode(&accounting, compiler_storage::RecordLimits::default())
                 .expect_err("temporary callers cannot become portable cached evidence");
         assert!(error.to_string().contains("invocation-local"), "{error}");
+    }
+
+    #[test]
+    fn source_jobs_run_the_kept_ranked_control_loop() {
+        let fixture = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        ));
+        let ranked = fixture
+            .split_once("machine parity(")
+            .and_then(|(_, source)| source.split_once("data Packet"))
+            .map(|(tail, _)| format!("machine parity({tail}"))
+            .expect("the kept fixture declares parity before Packet");
+        let arguments = [BuildTimeValue::Int(3), BuildTimeValue::Bool(false)];
+
+        let trees = with_reflection(&ranked);
+        let parity = query_machine(&trees, "parity");
+        let entry = PreparedBuildMachineProgram::prepare(&trees, None)
+            .unwrap()
+            .entry(parity, parity, &arguments)
+            .expect("the original rank proves the local control cycle");
+        assert_eq!(
+            entry.invoke(target(), &mut terminal_work::WorkMeter::unbounded()),
+            Ok(BuildTimeValue::Bool(true)),
+        );
+
+        let trees = with_reflection(&ranked.replace("remaining - 1", "remaining"));
+        let parity = query_machine(&trees, "parity");
+        let Err(refusal) = PreparedBuildMachineProgram::prepare(&trees, None)
+            .unwrap()
+            .entry(parity, parity, &arguments)
+        else {
+            panic!("a nondecreasing local cycle must fail source checking");
+        };
+        assert!(
+            refusal.contains("removing strict rank edges leaves a control cycle"),
+            "{refusal}",
+        );
     }
 
     #[test]

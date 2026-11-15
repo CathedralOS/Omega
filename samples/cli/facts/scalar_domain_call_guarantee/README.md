@@ -14,12 +14,10 @@ not the truth of Windows mode bits or foreign completion/lifetime promises.
 transport as the behavior its ordinary/boundary call lowering must preserve.
 
 The places are [local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[a nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
-and [target body](target_body/main.omg). Each has `invalid/main.omg`; the
-positive place is pinned as `tests/omega/pass/facts/scalar_domain_call_guarantee_through_<place>_exit`
-and its twin as `tests/omega/fail/facts/scalar_domain_call_guarantee_through_<place>_rejected`.
+[parameter](parameter/main.omg), [call result](call_result/main.omg), [match
+join](match_join/main.omg), [const name](const_name/main.omg), [a nested
+machine](other_state/main.omg), [another machine](other_machine/main.omg), and [target
+body](target_body/main.omg).
 
 Each program binds all four hosted targets and expects exit zero. Run a place
 with `omega run --both <place>/main.omg`; check its twin with `omega --check`.

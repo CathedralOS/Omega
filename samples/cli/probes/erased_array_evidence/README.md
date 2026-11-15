@@ -10,10 +10,8 @@ Run `omega packages update --project samples/cli/erased_array_evidence --target 
 complete this checkout's package review, then run
 `omega run --both samples/cli/erased_array_evidence/main.omg`.
 
-`python3 tools/validate_erased_array_evidence.py runtime /absolute/path/to/omega`
-checks the separately captured native and Terminal statuses and empty output.
-The `sources` mode checks the related positive and invalid fixtures;
-`inspection` observes their retained evidence and separate runtime signatures.
+The `sources` mode checks the related positive and invalid fixtures; `inspection`
+observes their retained evidence and separate runtime signatures.
 
 The base compiler at `763aa6f057109d9d4eb1b74f3746e178d286917d` rejects
 array-bearing erased formals because they have no contract-term representation.

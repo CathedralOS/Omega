@@ -241,16 +241,6 @@ impl ArgumentHome {
     }
 }
 
-/// One loan a call forms. `formation` is the access the program wrote and
-/// the loan's occurrence records; `lent` is the formal's access, the one the
-/// callee receives (`ReferenceAccess::forms`).
-struct CallLoan {
-    place: ExactPlaceId,
-    formation: ReferenceAccess,
-    lent: ReferenceAccess,
-    lender: Lender,
-}
-
 /// A call's evaluated arguments.
 struct Arguments {
     /// In authored formal order, as the invocation row holds them.
@@ -263,8 +253,9 @@ struct Arguments {
     /// The homes created while staging owned values and shared descriptors.
     /// One normal continuation retires both, after all call loans end.
     homes: Vec<ArgumentHome>,
-    /// One per loan, in formal order.
-    loans: Vec<CallLoan>,
+    /// One per loan, in formal order: the place lent, its access and where
+    /// the authority comes from.
+    loans: Vec<(ExactPlaceId, ReferenceAccess, Lender)>,
     /// The erased lane: the term each `[erased]` formal stands for, in
     /// position order. Nothing was evaluated for it, and it is not among
     /// `actuals`: an invocation row's actual is a value or a place, and the
@@ -302,25 +293,17 @@ impl Lowering<'_> {
             }
             if let ExpressionKind::Borrow {
                 access,
-                formation,
                 place,
                 home,
             } = &argument.kind
             {
-                if signature.borrowed(position).map(|formal| formal.access) != Some(*access)
-                    || !formation.forms(*access)
-                {
+                if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
                 let lent = continuing!(self.lend(place, *access, home.as_deref()));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
-                evaluated.loans.push(CallLoan {
-                    place: lent.place,
-                    formation: *formation,
-                    lent: *access,
-                    lender: lent.lender,
-                });
+                evaluated.loans.push((lent.place, *access, lent.lender));
                 evaluated
                     .homes
                     .extend(lent.temporary.map(ArgumentHome::BorrowedDescriptor));
@@ -421,17 +404,18 @@ impl Lowering<'_> {
     /// lineage, captured place, access, parent lifetime, and restoration
     /// obligation." The occurrence is the call: each loan is formed for it
     /// and ends when it returns, so none is live on any edge.
-    ///
-    /// Each records the access the program formed, not the access the callee
-    /// receives: `&mut place` for a `&T` formal is an exclusive formation, so
-    /// the checker judges it against every overlapping live loan as one.
-    fn loans(&mut self, loans: &[CallLoan], before: ProgramPoint, source: SourceOrigin) {
-        for loan in loans {
+    fn loans(
+        &mut self,
+        loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
+        before: ProgramPoint,
+        source: SourceOrigin,
+    ) {
+        for (captured, access, lender) in loans {
             self.obligation(
                 ObligationKind::Loan {
-                    captured: loan.place,
-                    access: loan.formation,
-                    lender: loan.lender,
+                    captured: *captured,
+                    access: *access,
+                    lender: *lender,
                 },
                 before,
                 source,
@@ -441,12 +425,15 @@ impl Lowering<'_> {
 
     /// What an exclusive loan's callee may have stored: anything beneath the
     /// lent place, from the call's normal continuation on. Nothing else the
-    /// caller holds changes, so siblings keep what they held. A callee given
-    /// shared access through an exclusive formation stores nothing.
-    fn returned_loans(&mut self, loans: &[CallLoan], operation: OperationId) -> Checked<()> {
-        for loan in loans {
-            if loan.lent.is_exclusive() {
-                self.unknown_contents(loan.place, operation)?;
+    /// caller holds changes, so siblings keep what they held.
+    fn returned_loans(
+        &mut self,
+        loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
+        operation: OperationId,
+    ) -> Checked<()> {
+        for (captured, access, _) in loans {
+            if access.is_exclusive() {
+                self.unknown_contents(*captured, operation)?;
             }
         }
         Ok(())

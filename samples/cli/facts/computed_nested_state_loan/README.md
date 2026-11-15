@@ -24,13 +24,12 @@ Canonical fixed coordinates had displaced retained reference formation. The repa
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Each twin changes only `&mut rows[...]` to `&rows[...]` at the state argument. It must reject with `but the caller lends only immutable access`; setup or unrelated rejections do not count. Mirrored fixtures are under `tests/omega/{pass,fail}/facts/computed_nested_state_loan_through_*`.
+Each twin changes only `&mut rows[...]` to `&rows[...]` at the state argument.
+It must reject with `but the caller lends only immutable access`; setup or
+unrelated rejections do not count.
 
 ```sh
 omega run --both samples/cli/facts/computed_nested_state_loan/main.omg
-python3 tools/sample_native_gate.py --facts --filter computed_nested_state_loan
-python3 tools/corpus_gate.py --both --filter computed_nested_state_loan
-python3 tools/corpus_gate.py --filter computed_nested_state_loan
 ```
 
 ## Requirements and evidence

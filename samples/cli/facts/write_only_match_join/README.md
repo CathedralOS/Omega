@@ -33,9 +33,6 @@ through both arms, through a copy, or at the wrong field offset traps.
 | other machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the cells to the top-level `apply`, which performs the join |
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::apply`; each checks its target tag (17 / 29) before the join |
 
-Pinned fixtures: `tests/omega/pass/facts/write_only_match_join_through_<place>_exit`
-and `tests/omega/fail/facts/write_only_match_join_through_<place>_rejected`.
-
 Every twin differs from its positive by one statement: it reads the joined loan
 (`let previous: i64 = selected;`) before the store, and rejects with
 ``reads write-only parameter `selected`; `&write` permits replacement or exact
@@ -66,13 +63,8 @@ write-only arms to a readable `&mut` or shared loan would accept that read.
 | Psi 06–08 | Terminal Psi execution agrees with native execution for both flag values in all nine places. |
 | Omega 00–09 | macOS AArch64 native images run with exit 0; canaries show the store hits only the `value` field of the selected record. |
 
-Evidence, 2026-11-01, base `c79bb826816`, generation producer built at that base,
-host macOS AArch64: `omega run --both` exit 0 for the nine positives (native and
-interpreter agree), `omega --check` rejects the nine twins with the fragment
-above; `python3 tools/corpus_gate.py --both --filter facts/write_only_match_join_`
-recorded 9 `built exit:0 interpreter:agrees` rows, and the check tier recorded 9
-`checked` and 9 `rejected expected` rows. All places passed on that base without
-a compiler change. Linux and Windows native execution are not observed here.
+All places passed on that base without a compiler change. Linux and Windows native
+execution are not observed here.
 
 ## Open
 

@@ -96,5 +96,4 @@ After observing Terminal, the driver publishes that same retained native product
 through the ordinary product API and prints its executable path.
 
 The retained build path is printed by `run --keep`; reuse that unchanged native
-application for all fixture inputs. [Qualification evidence](validation/EVIDENCE.md)
-and [actual output receipt](validation/observed.json) are committed.
+application for all fixture inputs.

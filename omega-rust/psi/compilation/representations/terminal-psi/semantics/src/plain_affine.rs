@@ -230,9 +230,11 @@ impl Region {
 struct Root {
     structural_type: StructuralTypeId,
     owned: bool,
-    /// Availability applies to copyable values too; only affine custody
-    /// grants moves, restoration debt and scheduled disposal.
+    /// A reference-bearing home participates in the availability walk even
+    /// when it holds an unrestricted value. Its contract still determines
+    /// which disposal the home owes.
     affine: bool,
+    multiplicity: terminal_psi::StructuralMultiplicity,
     parameter: bool,
     /// A parameter lent with `&mut`: the only storage the machine does not
     /// own that an owned value may be moved out of, leaving a window the
@@ -955,10 +957,13 @@ fn analyze(
         {
             copyable_owned_roots.insert(place.id);
         }
+        let (_, multiplicity, _, _) = contracts[roots.len()]
+            .ok_or(Error::malformed("tracked storage has no custody contract"))?;
         roots.push((tracked || observe_copyable).then_some(Root {
             structural_type: ty,
             owned,
             affine: tracked,
+            multiplicity,
             parameter,
             exclusive,
         }));
@@ -2264,6 +2269,11 @@ impl Analysis<'_> {
         let info = self
             .root(place)?
             .ok_or(Error::malformed("missing affine owner"))?;
+        // Retire the unrestricted home after its last use. Each surviving
+        // reference copy retains its own link to the checked backing.
+        if info.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted {
+            return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
+        }
         if region.whole {
             return Ok(vec![TerminalAffineCleanupAction::DiscardRoot(place)]);
         }
@@ -3148,6 +3158,7 @@ mod tests {
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 owned: true,
                 affine: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 parameter: false,
                 exclusive: false,
             })],

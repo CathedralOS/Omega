@@ -13,10 +13,10 @@ This guide covers coordinating concurrent in-session subagents in an Antigravity
    - Use `invoke_subagent` with `TypeName: "self"`, `Model: "inherit"`, and `Workspace: "inherit"`.
    - Do **not** pass tiered model aliases (`"flash"`, `"pro"`, `"flash_lite"`) when `PlatformClient` is unconfigured in the remote agent container (`PlatformClient is nil`); `"inherit"` uses the active session's model directly.
    - Branched or shared workspace modes are unsupported in the container; isolation comes from each worker operating exclusively inside its assigned `.agents/worktree/<short-name>` directory.
-3. **Symptom-level dispatch:** Give each worker its worktree path, remote ref (`work/<short-name>`), and assigned `TASKS.md` outcome immediately after preflight so workers perform all `omega-rust/` reading and root-cause tracing in parallel.
+3. **Dispatch before tracing:** Give each worker its worktree path, remote ref (`work/<short-name>`), and assigned `TASKS.md` outcome immediately after preflight so workers perform all `omega-rust/` reading and root-cause tracing in parallel.
 
 ## 2. Verify Compiler Execution Access
 
 The observed `exebox` container lacked a local `rustc`/`cargo` toolchain and mapped `/home` and `/tmp` to UID `65534` (`nobody:nogroup`) under its user namespace. Omega's cache-ancestry ownership verification (`verify_cache_ancestry`) refused execution there. Verify the current executor through [cloud launch preflight](cloud-launch.md); do not assume those historical limits still apply.
 
-Use an authorized executor with the pinned toolchain and valid custody for the focused checks required by [testing](../../../../tools/docs/testing.md). If this executor cannot provide them, report the exact limitation and preserve the source and evidence while continuing feasible work. Admission does not replace behavioral validation. Follow the current landing route once the assigned validation is complete; the retired hosted compiler-pilot workflow supplies no acceptance evidence.
+For the focused checks required by [testing](../../../../tools/docs/testing.md), use an authorized executor that has the pinned toolchain and passes the cache ownership checks. If this executor cannot provide them, report the exact limitation and preserve the source and evidence while continuing feasible work. Admission does not replace behavioral validation. Follow the current landing route once the assigned validation is complete; the retired hosted compiler-pilot workflow supplies no acceptance evidence.

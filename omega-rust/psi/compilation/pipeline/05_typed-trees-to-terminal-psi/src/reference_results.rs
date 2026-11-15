@@ -36,8 +36,10 @@ pub(crate) fn publish(
 /// A generic check form's requirement has no body whose returns could
 /// supply its origins. Its declared lifetime groups stand for them, every
 /// input of a leaf's lifetime a possible source (lifetimes.md, "Returned
-/// views"), so a rigid call keeps each such input region borrowed. Run
-/// before the bodies' own results are reconstructed, which read this header.
+/// views"), so a rigid call keeps each such input region borrowed. They go
+/// on the requirement's contract, the same account a selected call reads
+/// from its public header. Run before the bodies' own results are
+/// reconstructed, which read this header.
 pub(crate) fn publish_requirements(
     module: &mut TerminalModule,
     program: &crate::read::Program<'_>,
@@ -50,18 +52,18 @@ pub(crate) fn publish_requirements(
         let machine = module
             .machine(requirement)
             .ok_or_else(|| unavailable(requirement, "requirement result lost its declaration"))?;
-        let Some(result) = machine.result.structural().filter(|result| {
+        if !machine.result.structural().is_some_and(|result| {
             terminal_psi::structural_type_contains_reference_by(
                 |id| module.structural_type(id),
                 result.structural_type,
             )
-        }) else {
+        }) {
             continue;
-        };
-        if !machine.blocks.is_empty() || !result.reference_sources.is_empty() {
+        }
+        if !machine.blocks.is_empty() || machine.contract.result_lifetimes.is_some() {
             return Err(unavailable(
                 requirement,
-                "requirement reference result already has body origins",
+                "requirement result already has a lifetime account",
             ));
         }
         let signature = terminal_check_tables::row(
@@ -72,34 +74,14 @@ pub(crate) fn publish_requirements(
         )?;
         let groups = program
             .declared_result_lifetimes(requirement, signature, &module.structural_types)
-            .map_err(|reason| unavailable(requirement, reason))?
-            .ok_or_else(|| {
-                unavailable(
-                    requirement,
-                    "requirement result has an unresolved declared lifetime frontier",
-                )
-            })?;
-        let sources = terminal_semantics::declared_reference_result_sources(
-            module,
-            &machine.contract,
-            &groups,
-        )
-        .map_err(|reason| unavailable(requirement, reason))?;
-        let machine = module
+            .map_err(|reason| unavailable(requirement, reason))?;
+        module
             .machines
             .iter_mut()
             .find(|machine| machine.id == requirement)
-            .ok_or_else(|| {
-                unavailable(requirement, "requirement result declaration disappeared")
-            })?;
-        let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.contract.result
-        else {
-            return Err(unavailable(
-                requirement,
-                "requirement result changed before publication",
-            ));
-        };
-        result.reference_sources = sources;
+            .ok_or_else(|| unavailable(requirement, "requirement result declaration disappeared"))?
+            .contract
+            .result_lifetimes = groups;
     }
     Ok(())
 }
@@ -563,12 +545,13 @@ fn publish_parents(
                             continue;
                         };
                         if row.created_at != before
-                            || !access.forms(reference_access(source.access).ok_or_else(|| {
-                                unavailable(
-                                    machine.id,
-                                    "reference formation has no borrowed access",
-                                )
-                            })?)
+                            || access
+                                != reference_access(source.access).ok_or_else(|| {
+                                    unavailable(
+                                        machine.id,
+                                        "reference formation has no borrowed access",
+                                    )
+                                })?
                         {
                             continue;
                         }
@@ -643,9 +626,7 @@ fn publish_parents(
                             else {
                                 continue;
                             };
-                            if row.created_at != before
-                                || !actual.forms(access)
-                                || claimed.contains(&id)
+                            if row.created_at != before || actual != access || claimed.contains(&id)
                             {
                                 continue;
                             }

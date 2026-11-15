@@ -15,6 +15,7 @@ pub(crate) fn check_product_source(
     source: PreparedProductSource,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
+    inspection: Option<&str>,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, CompileFailure> {
     let build_accounting = source.build_accounting.clone();
@@ -50,7 +51,7 @@ pub(crate) fn check_product_source(
             .collect::<Vec<_>>();
         let mut selected = Vec::new();
         for scope in &layout_scopes {
-            selected.extend(scope.entry_declarations.iter().flatten().copied());
+            selected.extend(scope.entry_declarations.iter().copied());
         }
         // A library is judged where it is demanded, not wholesale. Every native
         // supply this package's own Build declares needs its exact boundary and
@@ -123,9 +124,18 @@ pub(crate) fn check_product_source(
     };
 
         let subject = package_inputs.map(PackageCompilationInputs::root);
+        let inspection_root = inspection
+            .map(|name| inspection_root(&typed, subject, name))
+            .transpose()?;
+        if inspection_root.is_some() {
+            // The artifact names the inspected machine. Still check the Build's
+            // bound entries and arrivals, and settle supply from those entries.
+            selected.extend(external_roots.iter().copied());
+        }
         let roster = products::ProductRoster {
             declaration_metadata: Vec::new(),
             entries: external_roots,
+            inspection_root,
             subject,
             selected,
             bindings,
@@ -237,6 +247,43 @@ pub(crate) fn check_product_source(
     result.map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))
 }
 
+/// Resolve the exact authored Product path before preparing or judging its body.
+fn inspection_root(
+    typed: &typed_trees::TypedTrees,
+    subject: Option<semantic_vocabulary::PackageKeyIdentity>,
+    path: &str,
+) -> Result<symbols::SymbolHandle, Vec<Diagnostic>> {
+    let symbols = &typed.symbols;
+    let leaf = path.rsplit("::").next().unwrap_or(path);
+    let mut selected = None;
+    for machine in typed.machines() {
+        let symbol = machine.symbol;
+        if symbols.name(symbol) != leaf
+            || symbols.authored_origin(symbol) != symbol
+            || symbols.display_path(symbol, "::") != path
+            || !typed_trees::source_subjects::contains(
+                typed,
+                symbol,
+                &[subject],
+                source::DependencyScope::Product,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            continue;
+        }
+        if selected.replace(symbol).is_some() {
+            return Err(vec![Diagnostic::error(format!(
+                "cannot inspect machine `{path}`: the source name is ambiguous"
+            ))]);
+        }
+    }
+    selected.ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "cannot inspect machine `{path}`: no declaration has that source name"
+        ))]
+    })
+}
+
 pub(super) fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
     build: &products::BuildConfig,
@@ -269,8 +316,7 @@ pub(super) fn layout_target_scopes(
             }
         }
     }
-    let reusable = profiles.is_empty();
-    if reusable {
+    if profiles.is_empty() {
         profiles.extend(
             target::TargetProfile::ALL
                 .into_iter()
@@ -318,9 +364,27 @@ pub(super) fn layout_target_scopes(
         scopes.push(build_time_evaluation::FixedLayoutTargetScope {
             target: profile.target_name().to_owned(),
             facts: profile.layout_target_facts(),
-            entry_declarations: (!reusable).then_some(entries),
+            entry_declarations: entries,
             provider_declarations: providers,
         });
     }
     Ok(scopes)
+}
+
+#[cfg(test)]
+mod layout_demand_tests {
+    #[test]
+    fn an_entryless_product_does_not_demand_every_library_layout() {
+        let scopes = super::layout_target_scopes(
+            &typed_trees::TypedTrees::default(),
+            &products::BuildConfig::default(),
+        )
+        .unwrap();
+        assert!(
+            scopes
+                .iter()
+                .all(|scope| scope.entry_declarations.is_empty()),
+            "an entryless product needs explicit empty layout roots, not all declarations: {scopes:?}"
+        );
+    }
 }

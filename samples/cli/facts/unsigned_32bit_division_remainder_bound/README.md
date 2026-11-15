@@ -5,17 +5,17 @@
 ## Places & witnesses
 
 | Place | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Pinned Pass Fixture | Pinned Reject Fixture | Note |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | - | - | - | Root package probe exercising 32-bit unsigned remainder bound |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_local_rejected` | remainder is copied into an intermediate local binding before exact subtraction |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_field_rejected` | bounded operands are packed into and projected from a nominal record field (`Operands`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_parameter_rejected` | bounded operands are operated on directly through parameter bindings |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_call_result_rejected` | helper call returns remainder with postcondition contract `ensures result <= 15u32` |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_match_join_rejected` | remainder is synthesized and unified across conditional match branches |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_const_name_rejected` | declared symbolic constants (`DIVISOR_EXACT`, `MAX_REMAINDER`) define bounds |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_other_state_rejected` | successor machine `check_state(r: u32)` receives remainder and verifies underflow-free subtraction |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_other_machine_rejected` | forwarding machine passes the remainder to another machine for interval verification |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_target_body_rejected` | target-scoped implementations across all four platforms perform remainder and interval subtraction |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |  |  | remainder is copied into an intermediate local binding before exact subtraction |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |  |  | bounded operands are packed into and projected from a nominal record field (`Operands`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |  |  | bounded operands are operated on directly through parameter bindings |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |  |  | helper call returns remainder with postcondition contract `ensures result <= 15u32` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |  |  | remainder is synthesized and unified across conditional match branches |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |  |  | declared symbolic constants (`DIVISOR_EXACT`, `MAX_REMAINDER`) define bounds |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |  |  | successor machine `check_state(r: u32)` receives remainder and verifies underflow-free subtraction |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |  |  | forwarding machine passes the remainder to another machine for interval verification |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |  |  | target-scoped implementations across all four platforms perform remainder and interval subtraction |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -51,10 +51,10 @@ The recorded 0 exit is discriminating:
 - Each invalid twin relaxes the divisor bound to `divisor <= 17u32`, allowing `rem` to take value up to `16u32 > 15u32`. The subtraction `15u32 - rem` is no longer provably underflow-free, causing the compiler to fail closed at compile time with `may overflow \`u32\``. None reaches native execution.
 
 | Obligation Class | Verified Witness / Control | Observed Outcome |
-|---|---|---|
-| Positive runtime & proof oracle (10 programs) | `main.omg` + 9 `<place>/main.omg` (`tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_<place>_exit`) | `omega run --both` exits `0` (`interp exit: 0`, `native exit 0`) |
+| --- | --- | --- |
+| Positive runtime & proof oracle (10 programs) |  | `omega run --both` exits `0` (`interp exit: 0`, `native exit 0`) |
 | 1-token runtime perturbation | `main.omg` with `headroom == 5u32` instead of `4u32` | Traps in both engines (`interp crash: Trap`, `native exit -1073741795`) |
-| Static boundary reject twins (9 controls) | 9 `<place>/invalid/main.omg` (`tests/omega/fail/facts/unsigned_32bit_division_remainder_bound_through_<place>_rejected`) | Fails closed at compile time with `may overflow \`u32\`` |
+| Static boundary reject twins (9 controls) |  | Fails closed at compile time with `may overflow \`u32\`` |
 
 Check all nine invalid twins with:
 
@@ -64,17 +64,8 @@ omega --check samples/cli/facts/unsigned_32bit_division_remainder_bound/<place>/
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/unsigned_32bit_division_remainder_bound --jobs 4
-python tools/corpus_gate.py --native --filter facts/unsigned_32bit_division_remainder_bound
-python tools/corpus_gate.py --filter facts/unsigned_32bit_division_remainder_bound
-```
-
-`sample_native_gate.py` and `corpus_gate.py` report:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u32\``).
-- 9/9 pass fixtures in `tests/omega/corpus_native_windows_x86_64.txt` and 18/18 pass/fail fixtures in `tests/omega/corpus_outcomes.txt` verify cleanly.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `TERMINAL-INTEGER-ARITHMETIC-INTERVALS` ([`TASKS.md`](../../../../TASKS.md)).
@@ -107,10 +98,10 @@ return fixture remains unchanged. This is the same unsigned remainder-bound
 mechanism, with a completed local value instead of an inline expression.
 
 The [reject twin](controls/wrapping_local_result/invalid/main.omg) changes only
-the remainder's divisor operand to an explicitly typed Wrapping zero, keeping
-the original helper contract and actual calls. It must reject the remainder's
-own zero-divisor obligation; the desired result guarantee cannot form that
-partial operation. Both sources are pinned under `tests/omega/{pass,fail}/facts/`.
+the remainder's divisor operand to an explicitly typed Wrapping zero, keeping the
+original helper contract and actual calls. It must reject the remainder's own
+zero-divisor obligation; the desired result guarantee cannot form that partial
+operation.
 
 This control belongs to the DOMAIN-DEFAULT-PREDICATE-UNIFICATION native-harness
 prerequisite. The retained `177a9d65` baseline rejects the valid local return's

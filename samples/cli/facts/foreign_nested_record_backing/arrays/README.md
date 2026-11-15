@@ -16,18 +16,15 @@ checks both neighbors, marker, observed output and the earlier scalar copy.
 Neither an equality guard nor the old scalar contents establishes those predicates.
 
 The nine places transport the same pending claim and original backing:
-[local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
-and [target body](target_body/main.omg). Each has an `invalid/main.omg` twin
-that reads the middle cell while its exclusive retained loan remains live.
-The complete row and twins are pinned under
-`tests/omega/{pass,fail}/facts/foreign_nested_array_backing_*`.
-Every positive build declares all four hosted targets. The match invokes both
-incoming branches with distinct route tags and checks the selected route.
-The const place materializes a copyable array before registering its runtime copy;
-a retained pending occurrence is never a constant.
+[local](local/main.omg), [field](field/main.omg), [parameter](parameter/main.omg),
+[call result](call_result/main.omg), [match join](match_join/main.omg), [const
+name](const_name/main.omg), [nested machine](other_state/main.omg), [another
+machine](other_machine/main.omg), and [target body](target_body/main.omg). Each
+has an `invalid/main.omg` twin that reads the middle cell while its exclusive
+retained loan remains live. Every positive build declares all four hosted targets.
+The match invokes both incoming branches with distinct route tags and checks the
+selected route. The const place materializes a copyable array before registering
+its runtime copy; a retained pending occurrence is never a constant.
 
 [Computed completions](controls/computed_completions/main.omg) additionally passes
 a forwarded pending result directly to completion and nests completion,

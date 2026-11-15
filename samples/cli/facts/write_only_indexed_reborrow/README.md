@@ -41,8 +41,7 @@ both authored selected positions unchanged.
 Every reject inserts a read of `cell.value` through the callee's existing
 `&write Cell` parameter. It must reject specifically because write-only access
 permits replacement without observation; a lowering refusal is not a passing
-reject. The nine places and the selector production are pinned under
-`tests/omega/{pass,fail}/facts/write_only_indexed_reborrow_*`.
+reject.
 
 ## Requirements and evidence
 
@@ -84,13 +83,6 @@ root/place positives, only the call-result production met its native oracle in t
 that gate did not measure Terminal execution. The other nine refused. All ten sensitive controls rejected
 for the intended write-only read. The parameter production additionally exposed
 a missing retained selector operand, rather than an invalid source program.
-
-Run the row with:
-
-```text
-python tools/sample_native_gate.py --cli <optimized-omega> --filter write_only_indexed_reborrow --jobs 8
-python tools/corpus_gate.py --runner <optimized-runner> --both --filter write_only_indexed_reborrow
-```
 
 Candidate validation and remaining hosted coverage are recorded in the claim and
 qualification ledger. A recovered pre-crash four-file candidate passed the native-only sample gates

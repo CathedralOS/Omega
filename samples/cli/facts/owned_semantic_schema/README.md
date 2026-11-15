@@ -33,17 +33,14 @@ views; scalar/aggregate instruction and frame realization; and actual native
 image/Terminal agreement. All eight layers are exercised by the accepted places; the remaining
 places and other hosts stay open.
 
-Measured source: `6b1e6a51ea7019f8c4a3dd4ecf3bc012633968af`, optimized Mac CLI
-SHA256 `579c89a1bbe618fe4254d7739596f449be9647bf80728ebc8b41df637d8f00df`.
-The exact nine-fixture checking cohort produced four checked positives and
-five intended rejections. All four execution positives produced native 0,
-Terminal 0 and agreement; the six sample projects also passed. Canonical rows
-retain actual diagnostics, target facts and timings in `corpus_outcomes.txt`
-and `corpus_both_macos_arm64.txt`, stamped at the measured source.
-The warm CLI build cost 393.616s, the one necessary runner build 250.373s,
-and the six sample projects 152.136s. No full corpus, Product or release sweep
-was run. Raw checking/both/sample JSON, source bundle and verified producer
-receipts are retained outside Scratch under
+Measured source: `6b1e6a51ea7019f8c4a3dd4ecf3bc012633968af`, optimized Mac CLI SHA256
+`579c89a1bbe618fe4254d7739596f449be9647bf80728ebc8b41df637d8f00df`. The exact nine-fixture
+checking cohort produced four checked positives and five intended rejections. All four
+execution positives produced native 0, Terminal 0 and agreement; the six sample projects
+also passed. The warm CLI build cost 393.616s, the one necessary runner build 250.373s,
+and the six sample projects 152.136s. No full corpus, Product or release sweep was run.
+Raw checking/both/sample JSON, source bundle and verified producer receipts are retained
+outside Scratch under
 `/Users/zcanann/Omega-build/data-decomposition-20261102/retained-proof-scope-acceptance/`.
 
 The result/join milestone uses Rust producer

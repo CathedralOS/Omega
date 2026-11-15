@@ -189,6 +189,23 @@ fn a_literal_argument_disproves_an_equality_crash_guard() {
     assert_unproved(verdicts(&elaboration, &result, 1, coverage)[0].1);
 }
 
+/// The arm the guard leaves can only be ruled out through a closed term:
+/// `diff` is `63 - (100 & 63)`, which has a value, but no literal. The
+/// refutation must reach the kernel stated between plain literals, which is
+/// the only form its denotation calls `Falsehood`; stated over the closed
+/// term itself the kernel refused the certificate
+/// (`RuleConclusionMismatch("predicate denotation")`) and the program, which
+/// is correct, could not be checked.
+#[test]
+fn a_contradiction_through_a_closed_term_reaches_the_kernel_at_literals() {
+    const SOURCE: &str = include_str!(
+        "../../../../../../../samples/cli/facts/wrapping_integer_arithmetic/local/main.omg"
+    );
+    let source = format!("{SOURCE}\nmachine build_entry() crashes Trap {{ main(); }}\n");
+    let verdict = super::build_purpose::judge_build(&source).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
 /// Closed arithmetic is not a literal in bounded predicate denotation. The
 /// contradiction certificate must retain checked conversions at both ends.
 #[test]

@@ -311,11 +311,14 @@ impl Program<'_> {
             if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
                 continue;
             }
+            self.served(entry, domain.symbol)?;
             if !judged_where_used(typed, domain) {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
-                    Unserved::Declaration("domain with a cleanup machine, operators or parameters"),
+                    Unserved::Declaration(
+                        "domain with a cleanup machine, operators or unsupported parameters",
+                    ),
                 ));
             }
             // Its predicates are stated wherever a type carries the domain;
@@ -342,6 +345,42 @@ impl Program<'_> {
                 self.mathematical_predicate_definition(entry, definition, None, &[])?;
             }
         }
+        // A token binding selects the same named machine, not another body or
+        // contract. Its machine was rooted above; require the selection view
+        // to describe that exact declaration before accounting for it here.
+        for binding in typed.machine_token_bindings() {
+            if self.owner(entry, binding.symbol, subjects, purpose)? != Owner::Subject {
+                continue;
+            }
+            let matches_machine = typed
+                .machine_by_symbol(binding.symbol)
+                .is_some_and(|machine| {
+                    typed.machine_states(machine).first().is_some_and(|state| {
+                        binding.spelling.is_some()
+                            && binding.spelling == machine.spelling
+                            && binding.is_public == machine.is_public
+                            && binding.is_boundary
+                                == matches!(machine.supply_mode,
+                            language_semantics::MachineSupplyMode::Boundary
+                                | language_semantics::MachineSupplyMode::TopLevelRequirement)
+                            && binding.lifetime_parameters == machine.lifetime_parameters
+                            && binding.type_parameters == machine.type_parameters
+                            && binding.parameters == state.parameters
+                            && binding.return_type == state.return_type
+                            && binding.contracts == machine.contracts
+                            && binding.token_count == 0
+                            && (!binding.home_domain.is_valid()
+                                || typed.domain_definition(binding.home_domain).is_some())
+                    })
+                });
+            if !matches_machine {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("operator binding does not describe its named machine"),
+                ));
+            }
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
@@ -352,10 +391,6 @@ impl Program<'_> {
             ),
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
-            (
-                symbols_of(typed.machine_token_bindings(), |row| row.symbol),
-                "machine token binding",
-            ),
             (
                 symbols_of(typed.propositions(), |row| row.symbol),
                 "proposition",
@@ -831,8 +866,9 @@ fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
 /// Whether everything a domain declaration says is judged where a value of
 /// the domain is used, so that as a subject it is passed over: a tag,
 /// `domain i32::Km;`, optionally with predicates, an access policy or
-/// establishment routes. It has no cleanup selection, operator, alias or
-/// parameter. A type that names it resolves it where the type is read
+/// establishment routes. It has no cleanup selection, operator or alias;
+/// type and const parameters are retained in each exact application. A type
+/// that names it resolves it where the type is read
 /// (`declared_domain`), and its predicates join the contract of each place
 /// declared in it (`predicates`).
 ///
@@ -849,8 +885,17 @@ fn judged_where_used(
     domain.alias.is_none()
         && domain.cleanup_selection.is_none()
         && domain.operators.is_empty()
-        && domain.index_arguments.is_empty()
-        && typed.domain_type_parameters(domain).is_empty()
+        && typed_trees::domain::has_direct_index_telescope(typed, domain)
+        && typed
+            .domain_type_parameters(domain)
+            .iter()
+            .all(|parameter| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Type
+                        | typed_trees::data::TypeParameterKind::Const { .. }
+                )
+            })
 }
 
 fn symbols_of<T>(rows: &[T], symbol: impl Fn(&T) -> SymbolHandle) -> Vec<SymbolHandle> {

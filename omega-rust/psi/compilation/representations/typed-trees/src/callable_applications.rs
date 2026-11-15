@@ -1305,55 +1305,162 @@ pub(crate) mod domain_scopes {
 
     impl CallableApplication {
         pub(crate) fn domain_identity(
+            &mut self,
             program: &mut TypedTrees,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
             original: language_semantics::SemanticDomainId,
         ) -> Result<language_semantics::SemanticDomainId, &'static str> {
-            if arguments.is_empty() || !declaration.is_valid() {
+            if !declaration.is_valid() {
                 return Ok(original);
             }
-            let Some(domain) = program.domain_definition(declaration) else {
-                return Ok(original);
+            let domain = program
+                .domain_definition(declaration)
+                .ok_or("applied domain lost its declaration")?;
+            if program.domain_type_parameters(domain).is_empty() {
+                if !arguments.is_empty() {
+                    return Err("unindexed domain received index arguments");
+                }
+                return Ok(domain.semantic_id);
+            }
+            // A fixed carrier's entire telescope is already explicit in
+            // this packet. Only a carrier-generic family needs the retained
+            // implicit carrier coordinate from its source application.
+            if !domain::has_generic_carrier(program, domain) {
+                return program
+                    .retain_domain_arguments(declaration, arguments)
+                    .map_err(|_| "copied domain indices have no canonical instance identity");
+            }
+            let retained = program
+                .domain_arguments_for_instance(declaration, original)
+                .ok_or("applied domain lost its complete carrier/index coordinate")?
+                .to_vec();
+            let complete = retained
+                .into_iter()
+                .map(|argument| self.type_reference(program, argument))
+                .collect::<Result<Vec<_>, _>>()?;
+            if arguments.len()
+                != domain::index_parameters(
+                    program,
+                    program
+                        .domain_definition(declaration)
+                        .ok_or("applied domain lost its declaration")?,
+                )
+                .len()
+            {
+                return Err("applied domain has an incomplete explicit index telescope");
             };
-            let identity = domain::indexed_domain_instance_name(
-                program,
-                domain,
-                domain::index_parameters(program, domain),
-                arguments,
-            )
-            .map_err(|_| "applied domain arguments have no canonical instance identity")?;
-            Ok(program.semantic_domains.intern(&identity))
+            program
+                .retain_domain_arguments(declaration, &complete)
+                .map_err(|_| "copied domain arguments have no canonical instance identity")
         }
     }
 
     impl TypedTrees {
-        pub fn prepare_closed_domain_application(
+        /// Retains a domain's complete declaration application while the
+        /// producer still knows the carrier. This captures meaning, not proof.
+        pub fn retain_domain_application(
+            &mut self,
+            declaration: SymbolHandle,
+            carrier: types::TypeReferenceHandle,
+            arguments: &[types::TypeReferenceHandle],
+        ) -> Result<language_semantics::SemanticDomainId, diagnostics::Diagnostic> {
+            let definition = self.domain_definition(declaration).ok_or_else(|| {
+                diagnostics::Diagnostic::error("domain application lost its declaration")
+            })?;
+            if arguments.len() != domain::index_parameters(self, definition).len() {
+                return Err(diagnostics::Diagnostic::error(
+                    "domain application has an incomplete index telescope",
+                ));
+            }
+            if !self.contains_type_reference(carrier) {
+                return Err(diagnostics::Diagnostic::error(
+                    "domain application lost its exact carrier",
+                ));
+            }
+            let mut complete = Vec::with_capacity(self.domain_type_parameters(definition).len());
+            if domain::has_generic_carrier(self, definition) {
+                complete.push(
+                    self.type_reference_table
+                        .unconstrained_type_reference(carrier),
+                );
+            }
+            complete.extend_from_slice(arguments);
+            self.retain_domain_arguments(declaration, &complete)
+        }
+
+        fn retain_domain_arguments(
             &mut self,
             declaration: SymbolHandle,
             arguments: &[types::TypeReferenceHandle],
-            closed_arguments: &[types::TypeReferenceHandle],
-            identity: language_semantics::SemanticDomainId,
-        ) -> Result<bool, &'static str> {
-            if self.applied_domain_applications.iter().any(|application| {
-                application.declaration == declaration && application.theory.semantic_id == identity
-            }) {
-                return Ok(false);
+        ) -> Result<language_semantics::SemanticDomainId, diagnostics::Diagnostic> {
+            let definition = self.domain_definition(declaration).ok_or_else(|| {
+                diagnostics::Diagnostic::error("domain application lost its declaration")
+            })?;
+            let parameters = self.domain_type_parameters(definition);
+            let identity =
+                domain::indexed_domain_instance_name(self, definition, parameters, arguments)?;
+            if parameters.is_empty() {
+                return Ok(definition.semantic_id);
             }
+            let identity = self.semantic_domains.intern(&identity);
+            if self.domain_application(declaration, identity).is_none() {
+                let is_closed = arguments
+                    .iter()
+                    .all(|argument| domain::index_argument_is_closed(self, *argument));
+                self.applied_domain_applications
+                    .insert(domain::AppliedDomainApplication {
+                        declaration,
+                        identity,
+                        arguments: arguments.to_vec(),
+                        is_closed,
+                        theory: None,
+                    });
+            }
+            Ok(identity)
+        }
+
+        /// Applies every retained coordinate after callable specialization.
+        /// Copied facts may retain further applications; the same queue serves
+        /// them before the program is frozen for the lowered checker.
+        pub fn prepare_domain_applications(&mut self) {
+            let mut position = 0;
+            while position < self.applied_domain_applications.len() {
+                if self
+                    .applied_domain_applications
+                    .get(position)
+                    .is_some_and(|row| row.theory.is_none())
+                    && let Err(reason) = self.prepare_domain_application(position)
+                {
+                    self.applied_domain_applications
+                        .set_theory(position, Err(reason.to_owned()));
+                }
+                position += 1;
+            }
+        }
+
+        fn prepare_domain_application(&mut self, position: usize) -> Result<(), &'static str> {
+            let retained = self
+                .applied_domain_applications
+                .get(position)
+                .ok_or("domain application has no retained coordinate")?;
+            let declaration = retained.declaration;
+            let identity = retained.identity;
+            let arguments = retained.arguments.clone();
             let mut theory = self
                 .domain_definition(declaration)
                 .ok_or("applied domain lost its declaration")?
                 .clone();
-            if domain::has_generic_carrier(self, &theory) {
-                return Err("applied domain requires its exact generic carrier coordinate");
+            if !domain::has_direct_index_telescope(self, &theory) {
+                return Err("domain index declaration is not its direct parameter telescope");
             }
             let parameters = self.domain_type_parameters(&theory).to_vec();
-            if parameters.len() != arguments.len() || parameters.len() != closed_arguments.len() {
-                return Err("applied domain has an incomplete explicit index telescope");
+            if parameters.len() != arguments.len() {
+                return Err("applied domain has an incomplete declaration telescope");
             }
             let substitutions = parameters
                 .iter()
-                .zip(closed_arguments)
+                .zip(&arguments)
                 .map(|(parameter, argument)| (parameter.symbol, *argument))
                 .collect::<Vec<_>>();
             let source_subject = theory.subject_symbol;
@@ -1405,12 +1512,8 @@ pub(crate) mod domain_scopes {
                     Some(self.apply_cleanup_selection(&mut application, selection, declaration)?);
             }
             self.applied_domain_applications
-                .push(domain::AppliedDomainApplication {
-                    declaration,
-                    arguments: arguments.to_vec(),
-                    theory,
-                });
-            Ok(true)
+                .set_theory(position, Ok(theory));
+            Ok(())
         }
 
         pub(crate) fn apply_cleanup_selection(
@@ -1460,6 +1563,91 @@ pub(crate) mod domain_scopes {
         use crate::name::Identifier;
         use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        #[test]
+        fn domain_application_lookup_is_exact_and_rebuilt_from_stored_rows() {
+            use compiler_storage::{RecordLimits, decode, encode};
+            use language_semantics::SemanticDomainId;
+
+            let mut applications = domain::AppliedDomainApplications::default();
+            for (declaration, identity) in [
+                (SymbolHandle::from_parts(7, 2), SemanticDomainId(42)),
+                (SymbolHandle::from_parts(7, 3), SemanticDomainId(42)),
+                (SymbolHandle::from_parts(7, 2), SemanticDomainId(41)),
+            ] {
+                assert!(applications.insert(domain::AppliedDomainApplication {
+                    declaration,
+                    identity,
+                    arguments: Vec::new(),
+                    is_closed: true,
+                    theory: Some(Err(format!("refusal for {}", identity.0))),
+                }));
+            }
+            let rows = applications.iter().cloned().collect::<Vec<_>>();
+            assert!(!applications.insert(rows[0].clone()));
+            let bytes = encode(&applications, RecordLimits::default()).unwrap();
+            let restored: domain::AppliedDomainApplications =
+                decode(&bytes, RecordLimits::default()).unwrap();
+            assert_eq!(restored.iter().cloned().collect::<Vec<_>>(), rows);
+            for row in restored.iter() {
+                assert_eq!(restored.find(row.declaration, row.identity), Some(row));
+            }
+            assert!(
+                restored
+                    .find(rows[0].declaration, SemanticDomainId(40))
+                    .is_none()
+            );
+            let malformed = encode(
+                &vec![rows[0].clone(), rows[0].clone()],
+                RecordLimits::default(),
+            )
+            .unwrap();
+            let error =
+                decode::<domain::AppliedDomainApplications>(&malformed, RecordLimits::default())
+                    .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("duplicate exact domain application"),
+                "{error}"
+            );
+        }
+
+        #[test]
+        fn a_generic_domain_carrier_is_its_binder_not_a_matching_diagnostic_name() {
+            let mut symbols = SymbolTableBuilder::new();
+            let nominal = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("T"));
+            let binder =
+                symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Binder"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let parameters = program.data_type_parameters.insert_many([TypeParameter {
+                symbol: binder,
+                name: Identifier::generated("T"),
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            }]);
+            let mut definition = domain::DomainDefinition {
+                type_parameters: parameters,
+                ..Default::default()
+            };
+            for (symbol, expected) in [
+                (binder, true),
+                (nominal, false),
+                (SymbolHandle::invalid(), false),
+            ] {
+                definition.target_type =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol,
+                            name: Identifier::generated("T"),
+                        });
+                assert_eq!(domain::has_generic_carrier(&program, &definition), expected);
+            }
+        }
 
         #[test]
         fn applied_domain_carrier_matches_its_exact_argument_telescope() {
@@ -1562,13 +1750,9 @@ pub(crate) mod domain_scopes {
                 semantic_id: declaration_id,
                 ..Default::default()
             });
-            let original = CallableApplication::domain_identity(
-                &mut program,
-                domain_symbol,
-                &[operand],
-                declaration_id,
-            )
-            .unwrap();
+            let original = program
+                .retain_domain_application(domain_symbol, carrier, &[operand])
+                .unwrap();
             let constraints =
                 program
                     .type_reference_table
@@ -1605,13 +1789,9 @@ pub(crate) mod domain_scopes {
                 panic!("lost domain instance");
             };
             let applied = applied.clone();
-            let expected = CallableApplication::domain_identity(
-                &mut program,
-                domain_symbol,
-                &[carrier],
-                declaration_id,
-            )
-            .unwrap();
+            let expected = program
+                .retain_domain_application(domain_symbol, carrier, &[carrier])
+                .unwrap();
             assert_ne!(original, expected);
             assert_eq!(applied.arguments, [carrier]);
             assert_eq!(applied.semantic_id, expected);
@@ -3879,12 +4059,13 @@ pub(crate) mod payloads {
                                     .into_iter()
                                     .map(|argument| self.type_reference(program, argument))
                                     .collect::<Result<Vec<_>, _>>()?;
-                                domain.semantic_id = Self::domain_identity(
-                                    program,
-                                    domain.symbol,
-                                    &domain.arguments,
-                                    domain.semantic_id,
-                                )?;
+                                if domain.subject == types::DomainConstraintSubject::Declared
+                                    && program.domain_definition(domain.symbol).is_some()
+                                {
+                                    domain.semantic_id = program.retain_domain_application(
+                                        domain.symbol, base_type, &domain.arguments,
+                                    ).map_err(|_| "copied qualification lost its complete domain application")?;
+                                }
                                 domain.semantic_roles.denotation_dimension = domain
                                     .semantic_roles
                                     .denotation_dimension
@@ -4344,7 +4525,7 @@ pub(crate) mod payloads {
                             .type_reference_table
                             .type_reference_handles(cast.semantic_domain_arguments)
                             .to_vec();
-                        cast.semantic_domain_id = Self::domain_identity(
+                        cast.semantic_domain_id = self.domain_identity(
                             program,
                             cast.semantic_domain_symbol,
                             &arguments,
@@ -7090,7 +7271,7 @@ pub(crate) mod signatures {
                             .type_reference_table
                             .type_reference_handles(membership.domain_arguments)
                             .to_vec();
-                        membership.semantic_domain = Self::domain_identity(
+                        membership.semantic_domain = self.domain_identity(
                             program,
                             membership.domain_symbol,
                             &arguments,

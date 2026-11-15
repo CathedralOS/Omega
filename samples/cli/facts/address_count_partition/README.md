@@ -87,17 +87,6 @@ cleanly during compile-time proof checking:
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `exact arithmetic` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `exact arithmetic` |
 
-## Pinned Fixtures
-
-- Positive passes: `tests/omega/pass/facts/address_count_partition_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
-- Negative controls: `tests/omega/fail/facts/address_count_partition_through_<place>_rejected` (all 9 places pinned, rejecting with `exact arithmetic`).
-- Core regressions:
-  - `tests/omega/pass/core/address_interval_partition_unrelated_store_exit`
-  - `tests/omega/pass/core/address_interval_content_partition_exit`
-  - `tests/omega/fail/core/address_interval_partition_missing_ceiling`
-  - `tests/omega/fail/core/address_interval_partition_missing_count_bound`
-  - `tests/omega/fail/core/address_interval_partition_overlap`
-
 ## Requirements and Evidence
 
 - **Owning requirement:** `wiki/spec/language/counts_and_addresses.md`

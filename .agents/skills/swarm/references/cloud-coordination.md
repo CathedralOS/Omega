@@ -17,25 +17,27 @@ messages/results, use bounded preflight/report turns and controller-issued
 continuations. Local checkpoint files alone are not remotely observable. Reports
 carry assignment/thread/environment, sequence, phase, actual command/session,
 start/progress timestamps, reason, next gate and confirmed artifact identity.
-No event API, keep-alive control or lifecycle operation is inferred. Validated
-preflight and exact child acknowledgment gate implementation continuation;
-message admission alone is insufficient. Unknown recovery operations and held
-executor build slots block continuation and final acceptance.
+Do not assume an event API, keep-alive control or lifecycle operation exists.
+A worker continues to implementation only after its preflight is validated and
+it has acknowledged the exact assignment; an accepted message is not enough. A
+recovery operation with an unknown result, or a build slot still held on the
+executor, blocks continuation and final acceptance.
 
 An authorized advance continues automatically through required tests, commit/push,
 verified ancestry and cleanup. Bounded report turns provide observability; they
 do not introduce routine parent sign-off or a separate reviewer. Independent
 review required by the user or assignment remains mandatory.
 
-Runtime completion is not a landed advance. Final acceptance binds before/after
-program observations, authored native/interpreter result, scoped tests/negatives,
-merged PR source identity, published-commit ancestry, reconciled claims/tickets
-and owned-resource cleanup. Source evidence stays bound to the submitted SHA,
+A session finishing is not a landed advance. Final acceptance needs the
+program's observed behavior before and after, native and Psi results matching
+the authored exit, the scoped tests and refused programs, the merged PR's
+source, proof that the published commit is on `main`, reconciled
+claims/tickets, and cleanup of the resources the assignment owns. Source evidence stays bound to the submitted SHA,
 not relabeled as a run of the squash commit. Historical evidence remains separate;
 reuse needs unchanged reviewed inputs/environment and explicit justification.
 
-Admit only a bounded two-session canary first: two currently red real programs
-with distinct outcomes and eligible hosts. Shared implementation paths are allowed. Declare a dependency
+Start with a trial of only two sessions: two real programs that currently fail,
+with different outcomes and hosts that can run them. Shared implementation paths are allowed. Declare a dependency
 only for an actual producer prerequisite that another session is building;
 shared-file closure alone does not require one. Independent assignments use an
 empty dependency list. A sample and its compiler repairs stay one assignment

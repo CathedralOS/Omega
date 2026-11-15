@@ -6,17 +6,16 @@ reference access capabilities.
 */
 
 mod boundary_results;
-mod requirement_results;
-mod selected_results;
+mod declared_results;
 pub(crate) use boundary_results::provider_lifetime_debts;
 pub use boundary_results::{
     boundary_result_lifetimes, boundary_result_lifetimes_match, boundary_result_slots,
 };
-pub use requirement_results::{
-    RequirementReferenceResult, declared_reference_result_sources, requirement_reference_result,
+pub(crate) use declared_results::validate_result_lifetime_groups;
+pub use declared_results::{
+    DeclaredReferenceResult, declared_lifetime_path_is_static, public_reference_result,
+    requirement_reference_result, selected_reference_result,
 };
-pub(crate) use selected_results::validate_result_lifetime_groups;
-pub use selected_results::{SelectedReferenceResult, selected_reference_result};
 
 pub(crate) mod reference_completion {
 
@@ -745,14 +744,14 @@ pub(crate) mod reference_completion {
                     return Err("returned reference call changes its declared result carrier");
                 }
                 // A rigid call reaches a bodiless requirement: its declared
-                // regions are the only origins, and no body can narrow them.
+                // lifetimes are the only origins, and no body can narrow them.
+                // It binds through the same public account a selected call reads.
                 if let Some(requirement) = super::requirement_reference_result(module, callee.id)? {
-                    let sources = requirement.sources().to_vec();
                     (
                         callee.structural_parameters.as_slice(),
                         Vec::new(),
-                        sources,
-                        None,
+                        Vec::new(),
+                        Some(requirement),
                     )
                 } else {
                     let slots = analysis.result_slots(callee.id).ok_or(
@@ -1547,17 +1546,12 @@ pub(crate) mod reference_origins {
                     .module
                     .machine(*callee)
                     .ok_or("reference call has no callee")?;
-                let public = operation
-                    .required_contract
-                    .map(|required| {
-                        crate::selected_reference_result(
-                            self.module,
-                            caller.id,
-                            callee.id,
-                            required,
-                        )
-                    })
-                    .transpose()?;
+                let public = crate::public_reference_result(
+                    self.module,
+                    caller.id,
+                    callee.id,
+                    operation.required_contract,
+                )?;
                 let contract = public
                     .as_ref()
                     .map_or(&callee.contract, |public| public.contract());

@@ -84,18 +84,16 @@ stderr and statuses; termination-only `--both` agreement is insufficient.
 The separate source-invalid project writes observation 8 into an eight-element
 array and must reject specifically for its bounds obligation.
 
-The sample first exposed a guard-call typing defect already repaired upstream
-by `658da8228c736fba8b460dad4382117a8e30e0d4`. This assignment preserves that
-implementation rather than duplicating it. Its natural mixed-format controls
-then exposed a distinct correctness defect on fetched main
+The sample first exposed a guard-call typing defect already repaired upstream by
+`658da8228c736fba8b460dad4382117a8e30e0d4`. This assignment preserves that
+implementation rather than duplicating it. Its natural mixed-format controls then
+exposed a distinct correctness defect on fetched main
 `5b32c4eb36ffa2a6161794b068e9e0282b0bb482`: concrete f64/f32 comparisons and
 retained contracts were accepted without explicit conversion. The shared compiler
-repair checks both actual operand formats before admitting builtin operations,
-in runtime expressions and concrete/abstract specification formation. Resolved
+repair checks both actual operand formats before admitting builtin operations, in
+runtime expressions and concrete/abstract specification formation. Resolved
 heterogeneous authored operators retain their own meaning and requirements.
-Unknown generic carriers remain unresolved. Focused conversion, guard, field,
-index, authored-domain operator and requires controls live in
-`tests/omega/{pass,fail}/float/`. Canonical contracts are
+Unknown generic carriers remain unresolved. Canonical contracts are
 `wiki/spec/language/numeric_values.md` (literal landing, floating formats and
 mixed-integer comparison limits), `wiki/spec/language/expressions.md` (operand
 selection and ordinary call obligations), and `wiki/spec/terminal-psi/product.md`.

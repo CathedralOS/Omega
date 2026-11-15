@@ -36,9 +36,7 @@ Neither parent task is closed by this row.
 
 The [root program](main.omg) checks the same operation. Positive programs bind
 `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64 and Linux ARM64 and
-expect exit 0. Each place has matching programs under
-`tests/omega/{pass,fail}/facts/match_reference_referent_through_*`; the fail
-fixture's `expected.txt` and sample's `invalid/sample.json` pin its rejection.
+expect exit 0.
 
 ## What establishes the result
 
@@ -54,13 +52,10 @@ import or ownership setup error. See
 [fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md) and
 [loans](../../../../wiki/spec/terminal-psi/loans.md).
 
-Private helpers can use caller facts only when every incoming call establishes
-them after argument substitution. Public entries, callbacks and selected
-provider members must work for their independently admitted inputs. Existing
-controls reject a [bad second caller](../../../../tests/omega/fail/contracts/match_reference_private_second_arrival/main.omg),
-an [unsupported public input](../../../../tests/omega/fail/contracts/match_reference_public_input/main.omg),
-and an [unsupported provider input](../../../../tests/omega/fail/contracts/match_reference_selected_provider_input/main.omg).
-The governing rule is [invocation contracts](../../../../wiki/spec/language/state_contracts.md).
+Private helpers can use caller facts only when every incoming call establishes them after
+argument substitution. Public entries, callbacks and selected provider members must work for
+their independently admitted inputs. The governing rule is [invocation
+contracts](../../../../wiki/spec/language/state_contracts.md).
 
 Acceptance carries the checked match, both candidate borrows and the consuming
 call through Terminal Psi and native execution. Calls must preserve the

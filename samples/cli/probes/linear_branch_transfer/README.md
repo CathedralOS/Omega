@@ -10,6 +10,3 @@ provider `ReceiptSink` is an external sink (each target's C library `abs`), so
 the acknowledged value is the receipt's code. `Receipt` selects no `dropped by` cleanup
 plan, so an arm that skips the requirement call is rejected.
 
-Without a selected provider, native closure review refuses the program
-(`reachable requirement ... resolves to 0 selected provider rows`), pinned by
-`tests/omega/fail/providers/consuming_trait_requirement_without_provider`.
