@@ -33,17 +33,7 @@ pub(crate) mod contracts {
                 symbol: parameter.symbol,
             }
                 } else {
-                    let service_symbol = program
-                        .symbols
-                        .find_top_level_by_name_and_kinds_from_source(
-                            declaration.as_str(),
-                            &[SymbolKind::Trait],
-                            declaration.source_span(),
-                        );
-                    service_symbol.map_or(
-                        typed::signature::AuthoredInvocationTarget::Unresolved,
-                        typed::signature::AuthoredInvocationTarget::Service,
-                    )
+                    invocation_target(program, declaration)
                 };
                 lowered.push(typed::signature::AuthoredInvocation {
                     name: crate::lowerer::name::lower_name(declaration),
@@ -53,6 +43,72 @@ pub(crate) mod contracts {
             }
             Ok(lowered)
         }
+
+        /// The requirement an `invokes` row that names no parameter selects,
+        /// by the same scoped lookup that resolves every top-level name from
+        /// the row's own source (modules.md, "Resolution"). When that lookup
+        /// finds no requirement, it says why: nothing visible there has the
+        /// spelling (`Undeclared`, wrong in every program), or something
+        /// does (another kind, two requirements) and the row stays a request.
+        /// A field path through a parameter is a valid row typing does not
+        /// follow yet, so it is never classified as naming nothing.
+        fn invocation_target(
+            program: &resolved::SymbolResolvedTrees,
+            declaration: &resolved::name::DiagnosticName,
+        ) -> typed::signature::AuthoredInvocationTarget {
+            use typed::signature::AuthoredInvocationTarget as Target;
+            let name = declaration.as_str();
+            let span = declaration.source_span();
+            if let Some(service) = program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(name, &[SymbolKind::Trait], span)
+            {
+                return Target::Service(service);
+            }
+            let plain_path = !name.is_empty()
+                && name.split("::").all(|segment| {
+                    !segment.is_empty()
+                        && segment
+                            .chars()
+                            .all(|character| character == '_' || character.is_alphanumeric())
+                });
+            let visible = program
+                .symbols
+                .lookup_top_level_by_name_and_kinds_from_source_matching(
+                    name,
+                    &DECLARATION_KINDS,
+                    span,
+                    |_| true,
+                );
+            if declaration.is_source_backed()
+                && plain_path
+                && visible == symbols::SymbolLookup::NotFound
+            {
+                Target::Undeclared
+            } else {
+                Target::Unresolved
+            }
+        }
+
+        /// Every kind a top-level name can select: a written row naming any
+        /// of these names something, even when it is not a requirement.
+        const DECLARATION_KINDS: [SymbolKind; 15] = [
+            SymbolKind::Module,
+            SymbolKind::BuiltinType,
+            SymbolKind::BuiltinFunction,
+            SymbolKind::Data,
+            SymbolKind::Domain,
+            SymbolKind::Machine,
+            SymbolKind::Operator,
+            SymbolKind::Measure,
+            SymbolKind::Proposition,
+            SymbolKind::MathematicalDefinition,
+            SymbolKind::State,
+            SymbolKind::Trait,
+            SymbolKind::Conformance,
+            SymbolKind::Const,
+            SymbolKind::WireSchema,
+        ];
     }
     pub(crate) mod parameter_domains {
         use crate::lowerer::Lowerer;

@@ -166,14 +166,12 @@ mod proposal {
         TerminalNativeBodyProposal, TerminalNativeBoundaryApplications, TerminalNativeOccurrences,
         TerminalNativeProviders, TerminalNativeRealizationProposal,
     };
-    use backend_plan::SelectedFamilyRealizationSource;
     use diagnostics::Diagnostic;
 
     pub struct TerminalNativeProposalRequest<'input> {
         pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
         pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
         pub target_profile: Option<target::TargetProfile>,
-        pub family_realizations: &'input [SelectedFamilyRealizationSource],
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
         pub native_target: Option<target::NativeTarget>,
         pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
@@ -185,72 +183,6 @@ mod proposal {
             Vec<effects::ServiceTerminalAuthorityPermission>,
         pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
         pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    }
-
-    fn close_family_realizations(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        selections: &terminal_installation::AdmittedTargetMachineSelections,
-        selected: &effects::SelectedProviderPlanFacts,
-        sources: &[SelectedFamilyRealizationSource],
-    ) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
-        use terminal_psi::TargetMachineCallable;
-        let error = |message: String| vec![Diagnostic::error(message)];
-        let module = artifact.semantic_module();
-        let mut rows = Vec::new();
-        let mut row_identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        for source in sources {
-            let mut heads = module.boundary_machines.iter().filter(|boundary| {
-                boundary.declaration.as_ref().is_some_and(|declaration| {
-                    module
-                        .identities
-                        .text(declaration.source.semantic_declaration)
-                        == Some(source.head_declaration_identity.as_str())
-                        && module.identities.text(declaration.source.callable)
-                            == Some(source.head_callable_identity.as_str())
-                })
-            });
-            let Some(head) = heads.next() else {
-                continue;
-            };
-            if heads.next().is_some() {
-                return Err(error(
-                    "selected provider family has multiple retained heads".to_owned(),
-                ));
-            }
-            if source.target != selections.target() {
-                return Err(error(
-                    "selected provider family has a different target".to_owned(),
-                ));
-            }
-            let selected_member = selections
-                .member(TargetMachineCallable::Boundary(head.id))
-                .map_err(|message| error(format!("selected provider family member: {message}")))?;
-            let TargetMachineCallable::Boundary(member_id) = selected_member.callable() else {
-                continue;
-            };
-            let member = terminal_psi::find_boundary_machine(&module.boundary_machines, member_id)
-                .ok_or_else(|| {
-                    error("selected provider family member declaration is absent".to_owned())
-                })?;
-            rows.push(effects::SelectedTargetFamilyRealization {
-                terminal: selections.terminal_psi(),
-                target: source.target.clone(),
-                head: head.id,
-                member: member.id,
-                head_identity: row_identities
-                    .intern(module.identities.text(head.identity).unwrap_or_default()),
-                member_identity: row_identities
-                    .intern(module.identities.text(member.identity).unwrap_or_default()),
-                selected_requirement_identity: row_identities
-                    .intern(&source.selected_requirement_identity),
-                provider_plan_report_identity: source.provider_plan_report_identity,
-                provider_plan_digest: source.provider_plan_digest,
-            });
-        }
-        selected
-            .clone()
-            .with_family_realization_rows(rows, &row_identities.build())
-            .map_err(error)
     }
 
     pub fn project_terminal_native_realization_proposal(
@@ -309,17 +241,11 @@ mod proposal {
         request: &TerminalNativeProposalRequest<'_>,
     ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
         let terminal_module = artifact.semantic_module();
-        let targets = terminal_installation::admit_target_machine_selections(
-            artifact.view(),
-            target_profile.target_name(),
-        );
         let selected = backend_plan::close_checked_provider_specializations(
             request.boundaries.selected_provider_plans.clone(),
             terminal_module,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        let selected =
-            close_family_realizations(artifact, &targets, &selected, request.family_realizations)?;
         task_plans::realize_task_activations(
             &terminal_module.task_activation_demands,
             &terminal_module.identities,
@@ -359,7 +285,6 @@ mod proposal {
             .collect::<Result<Vec<_>, _>>()?;
         let callback_placements = crate::settle_native_callback_placements(
             terminal_module,
-            Some(&targets),
             &selected,
             &request.boundaries.calling_applications,
         )
@@ -377,7 +302,6 @@ mod proposal {
             )?;
         let external_binding_rows = crate::settle_callback_registrar_imports(
             terminal_module,
-            Some(&targets),
             &selected,
             &callback_placements,
             callback_occurrences
@@ -394,7 +318,6 @@ mod proposal {
             crate::settlement::callback_settlement::settle_installed_callback_placements(
                 terminal_module,
                 target_profile,
-                Some(&targets),
                 &request.boundaries.calling_applications,
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;

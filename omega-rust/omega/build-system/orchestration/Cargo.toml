@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+execution-admission = { path = "../../../psi/foundation/execution-admission" }
+rayon = "1.10"
 native-compiler = { path = "../../compilation/native-compiler" }
 image-emission = { path = "../../compilation/backend/images/image-emission" }
 compiler = { path = "../../compilation/compiler" }

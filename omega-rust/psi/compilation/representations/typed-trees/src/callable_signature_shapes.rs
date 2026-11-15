@@ -137,10 +137,7 @@ impl crate::TypedTrees {
         &'static str,
     > {
         use crate::static_applications::StaticMachineBindingValue;
-        let mut receipts = self
-            .machine_specializations
-            .iter()
-            .filter(|receipt| receipt.instance == instance);
+        let mut receipts = self.machine_specializations.for_instance(instance);
         let receipt = receipts
             .next()
             .ok_or("selected parameter has no supplying specialization")?;
@@ -173,6 +170,17 @@ impl crate::TypedTrees {
     /// Read the public requirement chosen by the existing named-member or
     /// implementation-parameter owner, before asking for an executable body.
     pub fn source_call_requirement_signature<'source>(
+        &'source self,
+        owner: SymbolHandle,
+        call: crate::references::StaticArgumentCall<'_>,
+    ) -> Result<&'source crate::signature::StateSignature, String> {
+        let source = self.source_call_requirement_declaration(owner, call)?;
+        Ok(self
+            .selected_requirement_invocation_signature(owner, call.application(), source)?
+            .unwrap_or(source))
+    }
+
+    fn source_call_requirement_declaration<'source>(
         &'source self,
         owner: SymbolHandle,
         call: crate::references::StaticArgumentCall<'_>,

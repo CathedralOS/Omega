@@ -3956,10 +3956,10 @@ pub(crate) mod replay {
             self.0.lowering_facts().module()
         }
 
-        pub(crate) fn target_machine_selections(
+        pub(crate) fn target_context(
             &self,
-        ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
-            self.0.lowering_facts().target_machine_selections()
+        ) -> Option<&terminal_installation::TerminalTargetContext> {
+            self.0.lowering_facts().target_context()
         }
 
         pub(crate) fn selected_terminal_entry(
@@ -3985,7 +3985,7 @@ pub(crate) mod replay {
             {
                 return Err("native object entry differs from its admitted executable input");
             }
-            let Some(selections) = input.target_machine_selections() else {
+            let Some(selections) = input.target_context() else {
                 return Ok(None);
             };
             let profile = target::TargetProfile::from_canonical_target_name(selections.target())
@@ -11948,11 +11948,6 @@ mod source {
                             entry,
                             ..
                         } => *actual == boundary && *entry == callee,
-                        target_operations::NativeCallOrigin::TargetFamily {
-                            boundary: actual,
-                            member,
-                            ..
-                        } => *actual == boundary && *member == callee,
                         target_operations::NativeCallOrigin::InstalledProvider {
                             boundary: actual,
                             provider,
@@ -19278,7 +19273,7 @@ mod source {
                         || empty_run_release_retained(operation, targeted, abstract_plan)
                         || static_interrupts::retained(operation, &interrupt_helpers, &interrupt_replay)?
                         || placed_scalar_retained(operation, targeted, selected)
-                        || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
+                        || selected.calls.iter().any(|row| row.owner == target_operations::CallSiteOwner::Operation(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                         || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
                     AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
                     AbstractOperation::InvokeNoNormal {
@@ -19314,7 +19309,6 @@ mod source {
                             + selected.calls.iter().filter(|row| row.owner == target_operations::CallSiteOwner::ExternalCompletion(*psi_edge)
                                 && matches!(&row.call.source,
                                     legalized_operations::NativeCallOrigin::InstalledProvider { boundary: required, .. }
-                                    | legalized_operations::NativeCallOrigin::TargetFamily { boundary: required, .. }
                                     if required == boundary)).count()) == 1
                             && control_flow::retained(operation, targeted)
                     },
@@ -22720,8 +22714,7 @@ mod structural {
             let (abstracted, _) = source::function(source, selected.machine)?;
             let installed_boundary = match &contract.call.source {
                 legalized_operations::NativeCallOrigin::InstalledProvider { boundary, .. }
-                | legalized_operations::NativeCallOrigin::ProgramEntry { boundary, .. }
-                | legalized_operations::NativeCallOrigin::TargetFamily { boundary, .. } => {
+                | legalized_operations::NativeCallOrigin::ProgramEntry { boundary, .. } => {
                     Some(*boundary)
                 }
                 legalized_operations::NativeCallOrigin::Authored => None,
@@ -23033,26 +23026,6 @@ mod structural {
                     ) if boundary == wanted_boundary
                         && entry == wanted_entry
                         && source_signature == wanted_signature
-                        && completion_claim_sources == wanted_sources
-                        && completion_receipts == wanted_receipts => {}
-                    (
-                        InternalUnitCallSource::TargetFamily {
-                            boundary,
-                            member,
-                            target,
-                            completion_claim_sources,
-                            completion_receipts,
-                        },
-                        NativeCallOrigin::TargetFamily {
-                            boundary: wanted_boundary,
-                            member: wanted_member,
-                            target: wanted_target,
-                            completion_claim_sources: wanted_sources,
-                            completion_receipts: wanted_receipts,
-                        },
-                    ) if boundary == wanted_boundary
-                        && member == wanted_member
-                        && target == wanted_target
                         && completion_claim_sources == wanted_sources
                         && completion_receipts == wanted_receipts => {}
                     (
@@ -24361,19 +24334,6 @@ mod structural {
                     boundary: *boundary,
                     entry: *entry,
                     source_signature: *source_signature,
-                    completion_claim_sources: completion_claim_sources.clone(),
-                    completion_receipts: completion_receipts.clone(),
-                },
-                NativeCallOrigin::TargetFamily {
-                    boundary,
-                    member,
-                    target,
-                    completion_claim_sources,
-                    completion_receipts,
-                } => InternalUnitCallSource::TargetFamily {
-                    boundary: *boundary,
-                    member: *member,
-                    target: target.clone(),
                     completion_claim_sources: completion_claim_sources.clone(),
                     completion_receipts: completion_receipts.clone(),
                 },

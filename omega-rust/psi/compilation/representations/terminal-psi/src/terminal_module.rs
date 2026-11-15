@@ -10,9 +10,7 @@ pub use crate::{boundary, control_flow, identity, observation, ownership, proof}
 pub use boundary::*;
 pub(crate) mod folded_constants {
 
-    use super::{
-        NominalDeclarationIdentity, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
-    };
+    use super::{NominalDeclarationIdentity, TerminalIdentityIndex, TerminalModule};
     use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -113,19 +111,6 @@ pub(crate) mod folded_constants {
                     return Err(
                         "folded constant dependency lost its exact checked candidate association",
                     );
-                }
-                let callable = TargetMachineCallable::Machine(association.machine);
-                for family in &module.target_machine_families {
-                    if family
-                        .members
-                        .iter()
-                        .any(|member| member.callable == callable)
-                        && !family.members.iter().any(|member| {
-                            member.callable == callable && member.target == dependency.target
-                        })
-                    {
-                        return Err("folded constant candidate belongs to another target scope");
-                    }
                 }
             }
             Ok(())
@@ -774,10 +759,9 @@ pub use control_flow::{
     OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
     RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
-    TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
-    TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, TrappingIntegerOperation,
-    TrappingIntegerPrimitive, structural_parameter_position,
+    TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle,
+    TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,
+    TrappingIntegerOperation, TrappingIntegerPrimitive, structural_parameter_position,
 };
 pub use identity::*;
 pub use observation::*;
@@ -1101,7 +1085,6 @@ pub struct TerminalModule {
     /// Real declaration contracts with no executable body, ordered by ContractId.
     pub declaration_contracts: Vec<crate::MachineContract>,
     pub machines: Vec<TerminalMachine>,
-    pub target_machine_families: Vec<TargetMachineFamily>,
     pub target_layout_applications: Vec<crate::TargetLayoutApplication>,
     pub native_layouts: crate::NativeLayoutCatalog,
     pub boundary_application_demands: Vec<TerminalBoundaryApplicationDemand>,
@@ -1427,7 +1410,6 @@ impl TerminalModule {
             suspension_call_plans: Vec::new(),
             declaration_contracts: Vec::new(),
             machines: Vec::new(),
-            target_machine_families: Vec::new(),
             target_layout_applications: Vec::new(),
             native_layouts: Default::default(),
             boundary_application_demands: Vec::new(),

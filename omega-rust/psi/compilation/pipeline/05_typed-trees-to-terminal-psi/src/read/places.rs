@@ -50,7 +50,7 @@ use typed_trees::expression::{
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
 
-use super::authority::Access;
+use super::authority::{Access, Opened};
 use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
@@ -580,10 +580,10 @@ impl Program<'_> {
     pub(super) fn member_of(
         &self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         symbol: SymbolHandle,
     ) -> Checked<Member> {
-        let source = self.source(id, record)?;
+        let source = self.source(id, record.record())?;
         if let Some(field) = source.fields.iter().position(|field| *field == symbol) {
             return Ok(Member::Field(field));
         }
@@ -606,10 +606,10 @@ impl Program<'_> {
     pub(super) fn case_position(
         &self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         symbol: SymbolHandle,
     ) -> Checked<usize> {
-        self.source(id, record)?
+        self.source(id, record.record())?
             .cases
             .iter()
             .position(|(case, _)| *case == symbol)
@@ -628,10 +628,11 @@ impl Program<'_> {
     fn field_type(
         &mut self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         regions: crate::body::Regions,
         field: usize,
     ) -> Checked<ValueType> {
+        let record = record.record();
         let declared = self.declared_field_type(id, record, field)?;
         let substitution = self.field_regions(id, record, regions)?;
         Ok(self.substitute(declared, &substitution))
@@ -659,11 +660,12 @@ impl Program<'_> {
     fn payload_type(
         &mut self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         regions: crate::body::Regions,
         case: usize,
         field: usize,
     ) -> Checked<ValueType> {
+        let record = record.record();
         let declared = self.declared_payload_type(id, record, case, field)?;
         let substitution = self.field_regions(id, record, regions)?;
         Ok(self.substitute(declared, &substitution))
@@ -726,8 +728,12 @@ impl Program<'_> {
                 "record pattern over a value that is not a record",
             )));
         };
-        let source =
-            terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?;
+        let source = terminal_check_tables::row(
+            &self.record_sources,
+            record.record(),
+            id,
+            Construct::Machine,
+        )?;
         if source.declaration != local.pattern_subject {
             return Err(refused(Unserved::Typing(
                 "record pattern resolved against another record",
@@ -846,6 +852,7 @@ impl Program<'_> {
         slots: &[Slot],
         member: &TableMemberExpression,
         source: SourceOrigin,
+        access: Access,
     ) -> Checked<Expression> {
         if let typed_trees::expression::MemberSelection::CollectionMeasure(measure) =
             member.selection
@@ -855,8 +862,8 @@ impl Program<'_> {
         if !member.selection.field_symbol().is_valid() {
             return Err(self.unselected_member(id, slots, member, source));
         }
-        let base = self.expression(id, slots, member.receiver, None)?;
-        let Some(record) = self.opened(id, base.result, Access::Read)? else {
+        let base = self.place(id, slots, member.receiver, None, access)?;
+        let Some(record) = self.opened(id, base.result, access)? else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -986,8 +993,11 @@ impl Program<'_> {
         {
             return Err(unserved("record literal of an applied type"));
         }
+        // The literal constructs this carrier, so it names its fields and
+        // cases without asking any domain (`authority::Opened::constructing`).
+        let constructed = Opened::constructing(record);
         let case = match case_symbol {
-            Some(symbol) => Some(self.case_position(id, record, symbol)?),
+            Some(symbol) => Some(self.case_position(id, constructed, symbol)?),
             None => None,
         };
         let substitution = self.field_regions(id, record, regions)?;
@@ -1024,7 +1034,7 @@ impl Program<'_> {
                     field.field_symbol,
                     Unserved::Typing("record literal names a field of another type"),
                 )?,
-                Some(case) => match self.member_of(id, record, field.field_symbol)? {
+                Some(case) => match self.member_of(id, constructed, field.field_symbol)? {
                     Member::Payload { case: owner, field } if owner == case => field,
                     Member::Payload { .. } | Member::Field(_) => {
                         return Err(typing("case literal names a field of another case"));
@@ -1166,7 +1176,7 @@ impl Program<'_> {
     pub(super) fn case_pattern(
         &self,
         id: MachineId,
-        record: StructuralTypeId,
+        record: Opened,
         pattern: &TableDestructurePattern,
         at: SourceOrigin,
     ) -> Checked<usize> {
@@ -1184,7 +1194,7 @@ impl Program<'_> {
             return Err(unserved("pattern head that is not a case"));
         };
         let case = self.case_position(id, record, symbol)?;
-        let payload = self.source(id, record)?.cases[case].1.len();
+        let payload = self.source(id, record.record())?.cases[case].1.len();
         let mut seen = vec![false; payload];
         let listed = self.typed.expression_table.match_fields(pattern.fields);
         for field in listed {

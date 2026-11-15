@@ -832,7 +832,7 @@ pub(crate) mod empty_run {
                 boundary,
             )
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             if self.result_place_in_use(result.place)
                 || !result.qualification_establishments.is_empty()
                 || !self
@@ -1003,7 +1003,7 @@ pub(crate) mod extraction {
             let [parameter, _] = boundary.structural_parameters.as_slice() else {
                 return Err(malformed());
             };
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             if self.result_place_in_use(result.place)
                 || !result.qualification_establishments.is_empty()
                 || !self
@@ -1049,7 +1049,7 @@ pub(crate) mod extraction {
             backing_source.path.extend(
                 plan.storage
                     .owner_storage_path(&program.catalogs.structural_types)
-                    .ok_or_else(malformed)?,
+                    .ok_or(malformed())?,
             );
             let child = ConstructorValue::resolve(self, &backing_source)?;
             let ConstructorValue::Access(original_extent) = &child else {
@@ -1164,12 +1164,12 @@ pub(crate) mod extraction {
                 .offset
                 .checked_add(required)
                 .and_then(|end| usize::try_from(end).ok())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let backing = allocation
                 .bytes
                 .read()
                 .map_err(TerminalInterpretError::ResidentStorage)?;
-            let image = backing.get(start..end).ok_or_else(malformed)?;
+            let image = backing.get(start..end).ok_or(malformed())?;
             let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
             let extent_path = vec![
                 StructuralPathSegment::Case(moved.id),
@@ -1337,7 +1337,7 @@ pub(crate) mod field_access {
                 .plan()
                 .entries()
                 .get(field.access_slot as usize)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let operation = match kind {
                 TerminalAccessorKind::Read => AccessOperation::Read,
                 TerminalAccessorKind::Write => AccessOperation::Write,
@@ -1373,8 +1373,7 @@ pub(crate) mod field_access {
                     entry.key(),
                     projected.byte_offset,
                     u16::from(
-                        reference_storage_byte_width(projected.stored_scalar)
-                            .ok_or_else(malformed)?,
+                        reference_storage_byte_width(projected.stored_scalar).ok_or(malformed())?,
                     ) * 8,
                     operation.receiver_polarity(),
                     source_borrow,
@@ -1434,10 +1433,7 @@ pub(crate) mod field_access {
                     || supply.kind() == EffectiveSupplyKind::Stable)
                     && supply.offset() == footprint.byte_offset()
                     && u64::from(supply.width_bits())
-                        == footprint
-                            .length_bytes()
-                            .checked_mul(8)
-                            .ok_or_else(malformed)?
+                        == footprint.length_bytes().checked_mul(8).ok_or(malformed())?
             } else {
                 compatibility.field_regions().iter().any(|region| {
                     region.key() == entry.key()
@@ -1456,7 +1452,7 @@ pub(crate) mod field_access {
             let source_field = fields
                 .iter()
                 .find(|row| row.identity == field.schema_field)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if initialized.is_some_and(|initialized| {
                 initialized.image_fields.get(field.access_slot as usize) != Some(&source_field.id)
             }) {
@@ -1471,7 +1467,7 @@ pub(crate) mod field_access {
                     "resident accessor requires a scalar value contract",
                 ),
             )?;
-            let width = reference_storage_byte_width(scalar).ok_or_else(malformed)?;
+            let width = reference_storage_byte_width(scalar).ok_or(malformed())?;
             let write = match (kind, arguments) {
                 (TerminalAccessorKind::Read, []) => None,
                 (TerminalAccessorKind::Write, [value])
@@ -1507,7 +1503,7 @@ pub(crate) mod field_access {
                 .try_fold(0_u64, |sum, fragment| {
                     sum.checked_add(fragment.width_bits())
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let needs_read = write.is_none() || represented_bits != footprint.length_bytes() * 8;
             let (allocation, profile, _) =
                 self.provider_storage.live_provider_allocation(&binding)?;
@@ -1538,14 +1534,14 @@ pub(crate) mod field_access {
                 .offset
                 .checked_add(footprint.byte_offset())
                 .and_then(|offset| usize::try_from(offset).ok())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let length = usize::try_from(footprint.length_bytes()).map_err(|_| malformed())?;
-            let end = start.checked_add(length).ok_or_else(malformed)?;
+            let end = start.checked_add(length).ok_or(malformed())?;
             let backing = allocation
                 .bytes
                 .read()
                 .map_err(TerminalInterpretError::ResidentStorage)?;
-            let bytes = backing.get(start..end).ok_or_else(malformed)?;
+            let bytes = backing.get(start..end).ok_or(malformed())?;
             let mut transfer = if needs_read {
                 ByteSequenceStorage::copy(bytes, self.account.as_ref())?
             } else {
@@ -1557,7 +1553,7 @@ pub(crate) mod field_access {
                     entry.field(),
                     access
                         .field_region(entry.key())
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .byte_offset(),
                     footprint.length_bytes(),
                 )?;
@@ -1571,11 +1567,7 @@ pub(crate) mod field_access {
                     footprint.length_bytes(),
                 )?
             };
-            let member = layout
-                .entries
-                .first()
-                .ok_or_else(malformed)?
-                .member_identity;
+            let member = layout.entries.first().ok_or(malformed())?.member_identity;
             let result = if let Some(value) = write {
                 let bits = crate::storage::primitive_storage::encoding::encode(scalar, value)?;
                 let bits = u64::try_from(bits).map_err(|_| {
@@ -1610,9 +1602,7 @@ pub(crate) mod field_access {
                 }
                 .map_err(TerminalInterpretError::ValueImage)?;
                 let mut encoded = [0_u8; 16];
-                let decoded = encoded
-                    .get_mut(..usize::from(width))
-                    .ok_or_else(malformed)?;
+                let decoded = encoded.get_mut(..usize::from(width)).ok_or(malformed())?;
                 layout_plans::decode_aggregate_field_into(
                     &layout,
                     &schema,
@@ -1644,7 +1634,7 @@ pub(crate) mod field_access {
                     .write()
                     .map_err(TerminalInterpretError::ResidentStorage)?
                     .get_mut(start..end)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .copy_from_slice(transfer.bytes());
             }
             Ok(result)
@@ -1665,7 +1655,7 @@ pub(crate) mod field_access {
                 | LayoutPlacementReport::IntegerAt { offset, .. } => offset,
                 LayoutPlacementReport::Bits { container, .. } => container,
             };
-            *offset = offset.checked_sub(base).ok_or_else(malformed)?;
+            *offset = offset.checked_sub(base).ok_or(malformed())?;
             entries.push(entry);
         }
         if entries.is_empty() {
@@ -1720,7 +1710,7 @@ pub(crate) mod initialization {
             image: ByteSequenceStorage,
         ) -> Result<Result<PreparedProviderImage, InitializationRejection>, TerminalInterpretError>
         {
-            let required = placement.layout().size.ok_or_else(malformed)?;
+            let required = placement.layout().size.ok_or(malformed())?;
             if u64::try_from(image.bytes().len()).ok() != Some(required) {
                 return Err(malformed());
             }
@@ -1737,7 +1727,7 @@ pub(crate) mod initialization {
             let end = binding
                 .offset
                 .checked_add(binding.length)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let bytes = allocation
                 .bytes
                 .read()
@@ -1764,7 +1754,7 @@ pub(crate) mod initialization {
                 .extent
                 .base()
                 .checked_add(binding.offset)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let congruence = compatibility.placement().base_congruence();
             if !congruence.admits(base) {
                 return Ok(Err(InitializationRejection::Misaligned {
@@ -1823,10 +1813,7 @@ pub(crate) mod initialization {
         };
         storage.stage_case(
             reason.clone(),
-            reason_field
-                .field_type
-                .as_structural()
-                .ok_or_else(malformed)?,
+            reason_field.field_type.as_structural().ok_or(malformed())?,
             failure.id,
         )?;
         for (field, coordinate) in failure.fields.iter().zip(coordinates) {
@@ -1840,7 +1827,7 @@ pub(crate) mod initialization {
                         .field_type
                         .scalar_type()
                         .and_then(|scalar| scalar.as_integer())
-                        .ok_or_else(malformed)?,
+                        .ok_or(malformed())?,
                     value: IntegerValue::Unsigned(u128::from(coordinate)),
                 },
             )?;
@@ -1887,7 +1874,7 @@ pub(crate) mod lifecycle {
             let [extent, original, _profile] = structural_arguments.as_slice() else {
                 return Err(malformed());
             };
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             if self.result_place_in_use(result.place)
                 || !result.qualification_establishments.is_empty()
                 || !self
@@ -1989,7 +1976,7 @@ pub(crate) mod lifecycle {
             backing_destination.path.extend(
                 plan.storage
                     .owner_storage_path(&program.catalogs.structural_types)
-                    .ok_or_else(malformed)?,
+                    .ok_or(malformed())?,
             );
             let mut storage = ConstructorStorage::new(self.account.as_ref());
             storage.stage_case(
@@ -2019,7 +2006,7 @@ pub(crate) mod lifecycle {
                             &program.catalogs.structural_types,
                             carrier,
                         )
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .shape
                     else {
                         return Err(malformed());
@@ -2027,7 +2014,7 @@ pub(crate) mod lifecycle {
                     let count = fields
                         .iter()
                         .find(|field| field.id == count)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     storage.stage_scalar_endpoint(
                         &PrimitiveStorageEndpoint::ScalarField(
                             StructuralScalarRuntimeField::member(destination.clone(), count.id),
@@ -2037,12 +2024,12 @@ pub(crate) mod lifecycle {
                                 .field_type
                                 .scalar_type()
                                 .and_then(|scalar| scalar.as_integer())
-                                .ok_or_else(malformed)?,
+                                .ok_or(malformed())?,
                             value: IntegerValue::Unsigned(1),
                         },
                     )?;
                     terminal_psi::StructuralPathQualification::append_under(
-                        &[resident_domain, singleton.ok_or_else(malformed)?],
+                        &[resident_domain, singleton.ok_or(malformed())?],
                         &[],
                         &destination_path,
                         &mut value.projected_qualifications,
@@ -2096,7 +2083,7 @@ pub(crate) mod lifecycle {
             let start = usize::try_from(prepared.binding.offset).map_err(|_| malformed())?;
             let end = start
                 .checked_add(prepared.image.bytes().len())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let ProviderStorageSlot::Live { allocation, .. } = self
                 .provider_storage
                 .allocations
@@ -2108,7 +2095,7 @@ pub(crate) mod lifecycle {
                 .bytes
                 .write()
                 .map_err(TerminalInterpretError::ResidentStorage)?;
-            let bytes = backing.get_mut(start..end).ok_or_else(malformed)?;
+            let bytes = backing.get_mut(start..end).ok_or(malformed())?;
 
             bytes.copy_from_slice(prepared.image.bytes());
             drop(backing);
@@ -2142,7 +2129,7 @@ pub(crate) mod lifecycle {
             let [extent, original, ..] = structural_arguments.as_slice() else {
                 return Err(malformed());
             };
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             if !self
                 .loan_completions_for_operation(operation.id)?
                 .is_empty()
@@ -2203,7 +2190,7 @@ pub(crate) mod lifecycle {
                 let parameter = boundary
                     .structural_parameters
                     .get(position)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if source.access != StructuralAccess::Owned
                     || parameter.access != StructuralAccess::Owned
                 {
@@ -2468,7 +2455,7 @@ pub(crate) mod profile_values {
                     .get(&StructuralRuntimePlace::from(&entry.value))
                     .map(crate::storage::scalar_storage::ScalarCell::read)
                     .transpose()?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 BoundaryServiceReachId::from_normalized_identity(unsigned(scalar)?).map_err(|_| {
                     TerminalInterpretError::ContentTransformationMismatch(
                         "profile reach contains an invalid service identity",
@@ -2524,7 +2511,7 @@ pub(crate) mod profile_values {
         }
 
         fn scalar(&self, position: usize) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            let field = self.fields()?.get(position).ok_or_else(malformed)?;
+            let field = self.fields()?.get(position).ok_or(malformed())?;
             let parent = StructuralRuntimePlace::from(&self.value);
             let cell = if self.case.is_some() {
                 StructuralScalarRuntimeField::case_payload(parent, field.id)
@@ -2537,7 +2524,7 @@ pub(crate) mod profile_values {
                 .get(&cell)
                 .map(crate::storage::scalar_storage::ScalarCell::read)
                 .transpose()?
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if !value.satisfies_field(&field.field_type) {
                 return Err(malformed());
             }
@@ -2556,7 +2543,7 @@ pub(crate) mod profile_values {
         }
 
         fn field(&self, position: usize) -> Result<Self, TerminalInterpretError> {
-            let field = self.fields()?.get(position).ok_or_else(malformed)?;
+            let field = self.fields()?.get(position).ok_or(malformed())?;
             let mut path = Vec::with_capacity(2);
             if let Some(case) = self.case {
                 path.push(StructuralPathSegment::Case(case));
@@ -2584,14 +2571,14 @@ pub(crate) mod profile_values {
                 .execution
                 .structural_cases
                 .get(&StructuralRuntimePlace::from(&self.value))
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if stored.structural_type != self.value.structural_type {
                 return Err(malformed());
             }
             let position = cases
                 .iter()
                 .position(|case| case.id == stored.case)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             self.case = Some(stored.case);
             Ok((position, self))
         }
@@ -2681,10 +2668,8 @@ pub(crate) mod profiles {
             if profile_requirements.len() != operands.len() {
                 return Err(malformed());
             }
-            let requirement = profile_requirements
-                .get(role_position)
-                .ok_or_else(malformed)?;
-            let operand = operands.get(role_position).ok_or_else(malformed)?;
+            let requirement = profile_requirements.get(role_position).ok_or(malformed())?;
+            let operand = operands.get(role_position).ok_or(malformed())?;
             let completion = self
                 .provider_storage
                 .completed_profiles
@@ -2836,7 +2821,7 @@ pub(crate) mod profiles {
                 }
                 let (base, length) = self
                     .provider_storage_geometry(&storage, &plan.storage)?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let request = super::TerminalProviderStorageRequest {
                     base,
                     length,
@@ -2943,7 +2928,7 @@ pub(crate) mod relocation {
                     StructuralRuntimePlace::from(&owner),
                     count_field,
                 ))
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .read()?;
             let TerminalScalarValue::Integer {
                 value: IntegerValue::Unsigned(count),
@@ -2956,7 +2941,7 @@ pub(crate) mod relocation {
             let backing_path = plan
                 .storage
                 .owner_storage_path(&program.catalogs.structural_types)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let mut backing_source = source.clone();
             backing_source.path.extend_from_slice(&backing_path);
             let source_child = ConstructorValue::resolve(self, &backing_source)?;
@@ -3011,11 +2996,11 @@ pub(crate) mod relocation {
             let source_end = source_binding
                 .offset
                 .checked_add(source_binding.length)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let destination_end = destination_binding
                 .offset
                 .checked_add(destination_binding.length)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if source_binding.allocation == destination_binding.allocation
                 && source_binding.offset < destination_end
                 && destination_binding.offset < source_end
@@ -3089,12 +3074,12 @@ pub(crate) mod relocation {
             let image = ByteSequenceStorage::copy(
                 source_bytes
                     .get(source_start..source_end)
-                    .ok_or_else(malformed)?,
+                    .ok_or(malformed())?,
                 self.account.as_ref(),
             )?;
             drop(source_bytes);
 
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             if self.result_place_in_use(result.place)
                 || !result.qualification_establishments.is_empty()
                 || !self
@@ -3269,7 +3254,7 @@ pub(crate) mod relocation {
                 .map_err(TerminalInterpretError::ResidentStorage)?;
             let destination_bytes = bytes
                 .get_mut(destination_start..destination_end)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let resident = match compatibility {
                 Some(compatibility) => {
                     let ResidentStorageSlot::Live {
@@ -3361,14 +3346,14 @@ pub(crate) mod value_image {
                 let field = fields
                     .iter()
                     .find(|field| field.id == *identity)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let layout_entry = plan
                     .placement
                     .layout()
                     .entries
                     .iter()
                     .find(|layout| layout.field == entry.field())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let schema = field_schema(
                     execution,
                     &geometry,
@@ -3403,7 +3388,7 @@ pub(crate) mod value_image {
             bytes: &[u8],
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
             let width =
-                terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?;
+                terminal_semantics::reference_storage_byte_width(scalar).ok_or(malformed())?;
             if bytes.len() != usize::from(width) || bytes.len() > 16 {
                 return Err(malformed());
             }
@@ -3442,10 +3427,7 @@ pub(crate) mod value_image {
                     self.home
                         .path
                         .push(StructuralPathSegment::Field(field.identity));
-                    self.structure(
-                        field.field_type.as_structural().ok_or_else(malformed)?,
-                        bytes,
-                    )?;
+                    self.structure(field.field_type.as_structural().ok_or(malformed())?, bytes)?;
                     self.home.path.pop();
                     if case.is_some() {
                         self.home.path.pop();
@@ -3503,14 +3485,14 @@ pub(crate) mod value_image {
                                 let start = usize::try_from(element_index)
                                     .ok()
                                     .and_then(|index| index.checked_mul(stride))
-                                    .ok_or_else(malformed)?;
-                                let end = start.checked_add(stride).ok_or_else(malformed)?;
+                                    .ok_or(malformed())?;
+                                let end = start.checked_add(stride).ok_or(malformed())?;
                                 self.home
                                     .path
                                     .push(StructuralPathSegment::FixedIndex(element_index));
                                 self.structure(
                                     *element,
-                                    bytes.get(start..end).ok_or_else(malformed)?,
+                                    bytes.get(start..end).ok_or(malformed())?,
                                 )?;
                                 self.home.path.pop();
                             }
@@ -3568,7 +3550,7 @@ pub(crate) mod value_image {
                 let layout = self.geometry.sum_layout(root)?;
                 let width = self.geometry.tag_width()?;
                 let mut tag = [0_u8; 8];
-                tag[..width].copy_from_slice(bytes.get(..width).ok_or_else(malformed)?);
+                tag[..width].copy_from_slice(bytes.get(..width).ok_or(malformed())?);
                 let case_position =
                     usize::try_from(u64::from_le_bytes(tag)).map_err(|_| malformed())?;
                 let case = cases.get(case_position).ok_or(
@@ -3601,8 +3583,8 @@ pub(crate) mod value_image {
                     let schema = field_schema(self.execution, &self.geometry, field, "", None)?;
                     let start = usize::try_from(*offset).map_err(|_| malformed())?;
                     let length = usize::try_from(schema.byte_size).map_err(|_| malformed())?;
-                    let end = start.checked_add(length).ok_or_else(malformed)?;
-                    self.field(field, bytes.get(start..end).ok_or_else(malformed)?, case)?;
+                    let end = start.checked_add(length).ok_or(malformed())?;
+                    self.field(field, bytes.get(start..end).ok_or(malformed())?, case)?;
                 }
                 Ok(())
             }
@@ -3636,7 +3618,7 @@ pub(crate) mod value_image {
                             descriptor_byte_size: target
                                 .pointer_size
                                 .checked_mul(2)
-                                .ok_or_else(malformed)?,
+                                .ok_or(malformed())?,
                             descriptor_byte_alignment: target.pointer_alignment,
                             case_tag_byte_size: target.case_tag_size,
                             case_tag_byte_alignment: target.case_tag_alignment,
@@ -3740,14 +3722,14 @@ pub(crate) mod value_image {
             let field = fields
                 .iter()
                 .find(|field| field.id == *identity)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let layout_entry = plan
                 .placement
                 .layout()
                 .entries
                 .iter()
                 .find(|layout| layout.field == entry.field())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let (schema, value) =
                 reader.field(field, entry.field(), layout_entry.member_identity)?;
             schemas.push(schema);
@@ -3781,7 +3763,7 @@ pub(crate) mod value_image {
                     .read_primitive_place(self.source.place, &self.path, scalar)?;
             let bits = crate::storage::primitive_storage::encoding::encode(scalar, value)?;
             let width = usize::from(
-                terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?,
+                terminal_semantics::reference_storage_byte_width(scalar).ok_or(malformed())?,
             );
             let encoded = match self.byte_order {
                 ByteOrder::LittleEndian => bits.to_le_bytes(),
@@ -3811,7 +3793,7 @@ pub(crate) mod value_image {
             self.path.push(StructuralPathSegment::Field(field.identity));
             let bytes = match field.field_type.scalar_type() {
                 Some(scalar) => self.scalar(scalar),
-                None => self.structure(field.field_type.as_structural().ok_or_else(malformed)?),
+                None => self.structure(field.field_type.as_structural().ok_or(malformed())?),
             }?;
             self.path.pop();
             let value = AggregateFieldValue::from_storage(name, bytes)
@@ -3846,15 +3828,15 @@ pub(crate) mod value_image {
                             let element = self.structure(*element)?;
                             self.path.pop();
                             let start =
-                                usize::try_from(index.checked_mul(stride).ok_or_else(malformed)?)
+                                usize::try_from(index.checked_mul(stride).ok_or(malformed())?)
                                     .map_err(|_| malformed())?;
                             let end = start
                                 .checked_add(element.bytes().len())
-                                .ok_or_else(malformed)?;
+                                .ok_or(malformed())?;
                             bytes
                                 .bytes_mut()
                                 .get_mut(start..end)
-                                .ok_or_else(malformed)?
+                                .ok_or(malformed())?
                                 .copy_from_slice(element.bytes());
                         }
                     }
@@ -3918,7 +3900,7 @@ pub(crate) mod value_image {
             let case_position = cases
                 .iter()
                 .position(|case| case.id == contents.case)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let case = &cases[case_position];
             let mut bytes = zeroed(layout.storage.byte_size, self.execution.account.as_ref())?;
             let width = self.geometry.tag_width()?;
@@ -3937,7 +3919,7 @@ pub(crate) mod value_image {
             bytes
                 .bytes_mut()
                 .get_mut(..width)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .copy_from_slice(encoded);
             self.sum_fields(common, &layout.common_field_offsets, &mut bytes)?;
             self.path.push(StructuralPathSegment::Case(case.id));
@@ -3964,17 +3946,15 @@ pub(crate) mod value_image {
                 self.path.push(StructuralPathSegment::Field(field.identity));
                 let value = match field.field_type.scalar_type() {
                     Some(scalar) => self.scalar(scalar),
-                    None => self.structure(field.field_type.as_structural().ok_or_else(malformed)?),
+                    None => self.structure(field.field_type.as_structural().ok_or(malformed())?),
                 }?;
                 self.path.pop();
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
-                let end = start
-                    .checked_add(value.bytes().len())
-                    .ok_or_else(malformed)?;
+                let end = start.checked_add(value.bytes().len()).ok_or(malformed())?;
                 bytes
                     .bytes_mut()
                     .get_mut(start..end)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .copy_from_slice(value.bytes());
             }
             Ok(())
@@ -3993,11 +3973,11 @@ pub(crate) mod value_image {
             Some(scalar) => terminal_semantics::reference_storage_byte_width(scalar).map(u64::from),
             None => Some(
                 geometry
-                    .layout(field.field_type.as_structural().ok_or_else(malformed)?)?
+                    .layout(field.field_type.as_structural().ok_or(malformed())?)?
                     .0,
             ),
         }
-        .ok_or_else(malformed)?;
+        .ok_or(malformed())?;
         let repeated =
             field
                 .field_type
@@ -4055,7 +4035,7 @@ pub(crate) mod value_image {
                 (StructuralRecordStorage::Packed, _) => {
                     let region = geometry
                         .region(root, &[StructuralPathSegment::Field(field.identity)])
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     append(
                         &mut layout,
                         LayoutPlacementReport::At {
@@ -4091,7 +4071,7 @@ pub(crate) mod value_image {
                         .field_type
                         .as_structural()
                         .and_then(|child| types.get(&child))
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let StructuralTypeShape::FixedArray {
                         length: terminal_psi::ArrayExtent::Literal(length),
                         ..
@@ -4101,8 +4081,8 @@ pub(crate) mod value_image {
                     };
                     for index in 0..length {
                         let offset = byte_offset
-                            .checked_add(index.checked_mul(*element_stride).ok_or_else(malformed)?)
-                            .ok_or_else(malformed)?;
+                            .checked_add(index.checked_mul(*element_stride).ok_or(malformed())?)
+                            .ok_or(malformed())?;
                         append(&mut layout, LayoutPlacementReport::At { offset });
                     }
                 }
@@ -4129,7 +4109,7 @@ pub(crate) mod value_image {
                     append(
                         &mut layout,
                         LayoutPlacementReport::At {
-                            offset: placement.byte_offset().ok_or_else(malformed)?,
+                            offset: placement.byte_offset().ok_or(malformed())?,
                         },
                     );
                 }
@@ -4179,7 +4159,7 @@ pub(crate) mod value_image {
         byte_order: ByteOrder,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<ByteSequenceStorage, TerminalInterpretError> {
-        let mut bytes = zeroed(layout.size.ok_or_else(malformed)?, account)?;
+        let mut bytes = zeroed(layout.size.ok_or(malformed())?, account)?;
         layout_plans::stage_aggregate_layout(
             layout,
             schemas,
@@ -4215,7 +4195,7 @@ pub(crate) mod view {
                 ));
             }
             let (allocation, profile, base) = self.live_provider_allocation(&binding)?;
-            let required = placement.layout().size.ok_or_else(malformed)?;
+            let required = placement.layout().size.ok_or(malformed())?;
             if required > binding.length {
                 return Ok(Err(InitializationRejection::RangeTooSmall {
                     required,
@@ -4244,7 +4224,7 @@ pub(crate) mod view {
                 }
                 actual = Some(compatibility);
             }
-            Ok(Ok(actual.ok_or_else(malformed)?))
+            Ok(Ok(actual.ok_or(malformed())?))
         }
     }
 }
@@ -4351,7 +4331,7 @@ impl RuntimeProviderStorage {
             .extent
             .base()
             .checked_add(binding.offset)
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
         Ok((allocation, profile, base))
     }
 }
@@ -4382,7 +4362,7 @@ impl TerminalExecution<'_> {
             .access_lifecycle_plans()
             .iter()
             .find(|plan| plan.boundary == *initialized_by)
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
         Ok((initialized, custody, compatibility))
     }
 }

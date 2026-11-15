@@ -19,6 +19,7 @@ fn guarded_calls(other: u128) -> Machine {
                 guard: Some(expression(
                     ExpressionKind::Strict {
                         operation: Strict::Less,
+                        policy: None,
                         left: Box::new(unsigned(0)),
                         right: Box::new(slot(0, u32_type())),
                     },

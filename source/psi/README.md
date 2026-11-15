@@ -706,7 +706,7 @@ selected target profile. Acceptance evidence prints the CLI and Omega artifact
 SHA-256 identities beside that target. The gate has no cached-artifact or ambient
 `target/debug` lookup; focused iteration may invoke the Python decoder directly
 with the explicit Omega executable path. The gate is its own package beside this
-root: under it, the gate's lock and build output would be `psi` source. Delete
+root: under it, the gate's build output would be `psi` source. Delete
 the gate only when an equal or stronger product-source gate subsumes every
 retained failure class, and the harness only when an equal or stronger
 semantic-free gate preserves all of its cases.

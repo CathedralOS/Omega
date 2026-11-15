@@ -15,7 +15,7 @@ mod error {
     #[derive(Debug)]
     pub enum ArtifactLoweringError {
         TargetSelectionRequired,
-        TargetFamily(String),
+        TargetContext(String),
         HostAuthorization(terminal_installation::ArtifactTrustError),
         AccessViewInputsRequireCustodyLowering,
         AccessViewEstablishmentUnexpected {
@@ -142,7 +142,7 @@ mod native {
     use crate::lowering::lower_decoded_module;
     use abstract_operations::AbstractOperationPlan;
     use terminal_installation::TerminalAccessViewEstablishment;
-    use terminal_installation::{AdmittedScalarApplications, AdmittedTargetMachineSelections};
+    use terminal_installation::{AdmittedScalarApplications, TerminalTargetContext};
     use verified_optimization_input::{
         VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
     };
@@ -167,7 +167,7 @@ mod native {
         authorization: terminal_installation::AuthorizedTerminalArtifact,
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
-        pub(crate) targets: AdmittedTargetMachineSelections,
+        pub(crate) targets: TerminalTargetContext,
         pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
         pub(crate) scope: Option<crate::NativeExecutionScope>,
         pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
@@ -183,17 +183,17 @@ mod native {
             let artifact = authorization.artifact();
             profile
                 .admit_address_representation()
-                .map_err(ArtifactLoweringError::TargetFamily)?;
+                .map_err(ArtifactLoweringError::TargetContext)?;
             let module = artifact.semantic_module();
-            let selections = terminal_installation::admit_target_machine_selections(
+            let selections = terminal_installation::terminal_target_context(
                 artifact.view(),
                 profile.target_name(),
             );
             let entry = selections
                 .entry(artifact.view().identity(), module, root)
-                .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+                .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
             let target_facts = profile.layout_target_facts().ok_or_else(|| {
-                ArtifactLoweringError::TargetFamily(
+                ArtifactLoweringError::TargetContext(
                     "selected native target has no representation facts".into(),
                 )
             })?;
@@ -202,7 +202,7 @@ mod native {
                 &selections,
                 &target_facts,
             )
-            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
+            .map_err(|error| ArtifactLoweringError::TargetContext(error.to_string()))?;
             let scope = if let Some(scope) = selection.scope {
                 scope
                     .require_source_input(
@@ -212,11 +212,11 @@ mod native {
                         selection.plans,
                         selection.providers,
                     )
-                    .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.into()))?;
+                    .map_err(|reason| ArtifactLoweringError::TargetContext(reason.into()))?;
                 if scope.entry_call() != selection.entry_call
                     || scope.callbacks() != selection.callbacks
                 {
-                    return Err(ArtifactLoweringError::TargetFamily(
+                    return Err(ArtifactLoweringError::TargetContext(
                         "native preparation changes its checked entry or callback inputs".into(),
                     ));
                 }
@@ -227,7 +227,7 @@ mod native {
                 None
             };
             let scalar_demand = match scope.as_ref() {
-                Some(scope) => scope.scalar_application_demand(module, &selections, &layouts),
+                Some(scope) => scope.scalar_application_demand(module, &layouts),
                 None => crate::NativeExecutionScope::full_module_scalar_demand(
                     module,
                     entry,
@@ -235,7 +235,7 @@ mod native {
                     &layouts,
                 ),
             }
-            .map_err(ArtifactLoweringError::TargetFamily)?;
+            .map_err(ArtifactLoweringError::TargetContext)?;
             Ok(Self {
                 authorization: authorization.clone(),
                 profile,
@@ -283,7 +283,7 @@ mod native {
                 .map(|evidence| evidence.project_for_machines(module, machines))
                 .transpose()
                 .map_err(|error| {
-                    ArtifactLoweringError::TargetFamily(format!(
+                    ArtifactLoweringError::TargetContext(format!(
                         "native operation evidence: {error}"
                     ))
                 })?;
@@ -302,7 +302,7 @@ mod native {
                     )
                 })
                 .transpose()
-                .map_err(ArtifactLoweringError::TargetFamily)?;
+                .map_err(ArtifactLoweringError::TargetContext)?;
             let mut structural_types = module.structural_types.clone();
             let geometry = scalar_applications.map_or_else(
                 || layouts.resolved_records(),
@@ -313,7 +313,7 @@ mod native {
                     .iter_mut()
                     .find(|row| row.id == resolved.id)
                     .ok_or_else(|| {
-                        ArtifactLoweringError::TargetFamily(
+                        ArtifactLoweringError::TargetContext(
                             "selected layout lost its executable structural declaration".into(),
                         )
                     })?;
@@ -344,10 +344,10 @@ mod native {
                         crate::NativeExecutionScope::selected_provider_closure,
                     ),
                 )
-                .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.into()))?;
+                .map_err(|reason| ArtifactLoweringError::TargetContext(reason.into()))?;
             if let Some(evidence) = evidence {
                 input.attach_evidence(evidence).map_err(|error| {
-                    ArtifactLoweringError::TargetFamily(format!(
+                    ArtifactLoweringError::TargetContext(format!(
                         "native operation evidence: {error}"
                     ))
                 })?;
@@ -357,8 +357,8 @@ mod native {
     }
 
     impl VerifiedNativeArtifactInput {
-        pub fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
-            self.optimization_input.target_machine_selections()
+        pub fn target_context(&self) -> Option<&TerminalTargetContext> {
+            self.optimization_input.target_context()
         }
 
         pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
@@ -408,7 +408,7 @@ mod native {
             provider_admission::AdmissionSource {
                 plan: self.plan(),
                 closed_module: input.context().closed_module(),
-                target_machine_selections: input.target_machine_selections(),
+                target_context: input.target_context(),
                 program_entry: input.selected_program_entry_call().map(|call| {
                     provider_admission::AdmittedProgramEntryCall {
                         boundary: call.boundary(),
@@ -433,7 +433,7 @@ mod native {
                 .iter()
                 .any(|recipe| recipe.terminal() != artifact.view().identity())
             {
-                return Err(ArtifactLoweringError::TargetFamily(
+                return Err(ArtifactLoweringError::TargetContext(
                     "private entry RAM recipe belongs to another Terminal artifact".into(),
                 ));
             }
@@ -442,7 +442,7 @@ mod native {
                     .iter()
                     .any(|recipe| recipe.layouts() != &self.layouts)
             {
-                return Err(ArtifactLoweringError::TargetFamily(
+                return Err(ArtifactLoweringError::TargetContext(
                     "private entry RAM recipe belongs to another target or selected geometry"
                         .into(),
                 ));
@@ -456,7 +456,7 @@ mod native {
                         index,
                     )
                     .ok_or_else(|| {
-                        ArtifactLoweringError::TargetFamily(
+                        ArtifactLoweringError::TargetContext(
                             "private entry RAM identity namespace is exhausted".into(),
                         )
                     })?;
@@ -486,40 +486,8 @@ mod native {
                 .authorization()
                 .require_artifact(artifact)
                 .map_err(|error| error.to_string())?;
-            let selections = self
-                .optimization_input
-                .target_machine_selections()
-                .ok_or_else(|| "selected family providers require target selection".to_owned())?;
-            for row in selected.family_realization_rows() {
-                let member = selections
-                    .member(terminal_psi::TargetMachineCallable::Boundary(row.head))
-                    .map_err(|error| error.to_string())?;
-                let module = artifact.semantic_module();
-                if row.terminal != artifact.manifest().semantic()
-                    || row.terminal != selections.terminal_psi()
-                    || row.target != selections.target()
-                    || member.callable()
-                        != terminal_psi::TargetMachineCallable::Boundary(row.member)
-                    || terminal_psi::find_boundary_machine(&module.boundary_machines, row.head)
-                        .is_none_or(|head| {
-                            module.identities.text(head.identity)
-                                != selected.identities().text(row.head_identity)
-                        })
-                    || terminal_psi::find_boundary_machine(&module.boundary_machines, row.member)
-                        .is_none_or(|member| {
-                            module.identities.text(member.identity)
-                                != selected.identities().text(row.member_identity)
-                        })
-                {
-                    return Err(
-                        "selected family provider row disagrees with the exact artifact member"
-                            .to_owned(),
-                    );
-                }
-            }
             self.optimization_input
                 .retain_selected_providers(
-                    selected.family_realization_rows().to_vec(),
                     selected.external_requirement_applications().to_vec(),
                     selected.identities().clone(),
                     *selected.identity_digest().as_bytes(),
@@ -645,7 +613,7 @@ mod native {
     pub(super) fn lower_decoded_native_module(
         authorization: &terminal_installation::AuthorizedTerminalArtifact,
         entry: semantic_vocabulary::MachineId,
-        selections: Option<AdmittedTargetMachineSelections>,
+        selections: Option<TerminalTargetContext>,
     ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
         let plan = lower_decoded_module(authorization.artifact().semantic_module(), entry)
             .map_err(ArtifactLoweringError::Lowering)?;
@@ -655,7 +623,7 @@ mod native {
     fn retain_native_plan(
         authorization: &terminal_installation::AuthorizedTerminalArtifact,
         plan: AbstractOperationPlan,
-        selections: Option<AdmittedTargetMachineSelections>,
+        selections: Option<TerminalTargetContext>,
     ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
         Ok(AdmittedNativeArtifact {
             optimization_input: VerifiedPsiOptimizationInput::lowered(
@@ -663,7 +631,7 @@ mod native {
                 authorization.clone(),
                 selections,
             )
-            .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.to_owned()))?,
+            .map_err(|reason| ArtifactLoweringError::TargetContext(reason.to_owned()))?,
         })
     }
 
@@ -704,10 +672,8 @@ mod native {
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")
                 .clone();
-            let selections = terminal_installation::admit_target_machine_selections(
-                artifact.view(),
-                "linux_x86_64",
-            );
+            let selections =
+                terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
             let layouts = terminal_installation::admit_target_layouts(
                 artifact.view(),
                 &selections,
@@ -766,7 +732,7 @@ mod native {
             assert_eq!(recipe.target(), "linux_x86_64");
             {
                 let profile = target::TargetProfile::MacosArm64;
-                let other_selections = terminal_installation::admit_target_machine_selections(
+                let other_selections = terminal_installation::terminal_target_context(
                     artifact.view(),
                     profile.target_name(),
                 );
@@ -1041,7 +1007,7 @@ mod retention {
 }
 mod scalar_applications {
     use terminal_installation::{
-        AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
+        AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
     };
 
     pub struct NativeScalarApplications<'request> {
@@ -1053,7 +1019,7 @@ mod scalar_applications {
             &self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
             profile: target::TargetProfile,
-            targets: &AdmittedTargetMachineSelections,
+            targets: &TerminalTargetContext,
             layouts: &AdmittedTargetLayouts,
             selection: &super::NativeExecutionSelection<'_>,
             scalar_demand: &[semantic_vocabulary::ScalarApplicationId],

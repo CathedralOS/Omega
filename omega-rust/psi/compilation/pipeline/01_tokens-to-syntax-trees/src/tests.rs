@@ -7712,7 +7712,6 @@ pub(crate) mod properties_and_requirements {
 }
 pub(crate) mod source_parsing {
     use crate::{parse, parse_source_units, parse_sources};
-    use rayon::ThreadPoolBuilder;
     use source::{DependencyScope, LoadedSource, LoadedSources, SourceId, SourceOrigin};
     use source_files_to_tokens::{Lexer, lex_sources};
     use std::sync::Arc;
@@ -7865,8 +7864,8 @@ pub(crate) mod source_parsing {
             .iter()
             .map(|source| source.path.as_os_str().as_encoded_bytes().as_ptr() as usize)
             .collect::<Vec<_>>();
-        let pool = ThreadPoolBuilder::new().num_threads(4).build().unwrap();
-        let parsed = pool.install(|| parse_source_units(lexed)).unwrap();
+        let budget = execution_admission::ExecutionBudget::with_workers(4).unwrap();
+        let parsed = budget.run(|| parse_source_units(lexed)).unwrap();
 
         assert_eq!(parsed.page_count(), 16);
         assert_eq!(parsed.sources().len(), 16);

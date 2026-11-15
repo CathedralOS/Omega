@@ -211,25 +211,6 @@ fn admit_checked_roster(
         }
     }
     let module = artifact.module();
-    let target_members = terminal_installation::admit_target_machine_selections(artifact, target);
-    for selection in supplied {
-        let callable = terminal_psi::TargetMachineCallable::Machine(selection.candidate);
-        for family in module.target_machine_families.iter().filter(|family| {
-            family
-                .members
-                .iter()
-                .any(|member| member.callable == callable)
-        }) {
-            let member = target_members
-                .member(family.canonical)
-                .map_err(|error| format!("provider target membership rejected: {error:?}"))?;
-            if member.callable() != callable {
-                return Err(
-                    "checked provider candidate belongs to another deployment target".into(),
-                );
-            }
-        }
-    }
     let dependencies =
         matching_folded_constant_dependencies(artifact, target, selected.plans().iter())?;
     let installation = terminal_installation::admit_provider_installation(
@@ -247,7 +228,7 @@ fn admit_checked_roster(
             .collect::<Vec<_>>(),
     )
     .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
-    validate_synchronous_calls(artifact, target, selected)?;
+    validate_synchronous_calls(artifact, selected)?;
     if artifact.module().folded_constants.target.is_some() {
         installation.admit_folded_constant_closure(artifact, target, &dependencies)
     } else {
@@ -257,14 +238,11 @@ fn admit_checked_roster(
 
 fn validate_synchronous_calls(
     artifact: terminal_codec::TerminalArtifactView<'_>,
-    target: &str,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let module = artifact.module();
     let candidates = selected_checked_candidates(selected.plans(), module)?;
-    let target_members = terminal_installation::admit_target_machine_selections(artifact, target);
-    let calls =
-        terminal_installation::SynchronousCallGraph::new(module, Some(&target_members), None)?;
+    let calls = terminal_installation::SynchronousCallGraph::new(module, None)?;
     validate_selected_synchronous_invocation_cycles(selected.plans(), |plan, row| {
         let failure = |reason: String| {
             diagnostics::Diagnostic::error(format!(
@@ -581,17 +559,6 @@ pub fn selected_provider_candidate_rows<'plan>(
                         module,
                         candidate.declaration_application,
                     )
-                    && module.target_machine_families.iter().all(|family| {
-                        let callable =
-                            terminal_psi::TargetMachineCallable::Machine(candidate.candidate);
-                        !family
-                            .members
-                            .iter()
-                            .any(|member| member.callable == callable)
-                            || family.members.iter().any(|member| {
-                                member.target == plan.target && member.callable == callable
-                            })
-                    })
             })
             .map(|(position, _)| position)
             .collect::<Vec<_>>();
@@ -1187,51 +1154,19 @@ mod tests {
     }
 
     #[test]
-    fn canonical_projection_joins_exact_target_before_rejecting_duplicate_coordinates() {
+    fn canonical_projection_rejects_duplicate_coordinates_on_every_target() {
         let (mut declaration, mut module) = fixture();
-        let first = module.provider_candidates[0].clone();
-        let mut alternate = first.clone();
+        let mut alternate = module.provider_candidates[0].clone();
         alternate.candidate = semantic_vocabulary::MachineId::new(5).unwrap();
-        module.provider_candidates = vec![first.clone(), alternate.clone()];
-        let callable = |candidate| terminal_psi::TargetMachineCallable::Machine(candidate);
-        module.target_machine_families = vec![terminal_psi::TargetMachineFamily {
-            canonical: terminal_psi::TargetMachineCallable::Boundary(first.boundary),
-            head_contract: [0; 32],
-            members: vec![
-                terminal_psi::TargetMachineFamilyMember {
-                    target: "macos_arm64".into(),
-                    callable: callable(first.candidate),
-                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                },
-                terminal_psi::TargetMachineFamilyMember {
-                    target: "windows_x86_64".into(),
-                    callable: callable(alternate.candidate),
-                    supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                },
-            ],
-        }];
-        for (target, expected) in [
-            ("macos_arm64", first.candidate),
-            ("windows_x86_64", alternate.candidate),
-        ] {
-            declaration.target = target.into();
-            let selected = checked_candidate_roster(std::slice::from_ref(&declaration), &module)
-                .expect("distinct target members are not duplicates");
-            assert_eq!(selected.len(), 1);
-            assert_eq!(selected[0].candidate, expected);
-        }
         module.provider_candidates.push(alternate);
-        assert!(
-            checked_candidate_roster(std::slice::from_ref(&declaration), &module)
-                .unwrap_err()
-                .contains("duplicate canonical realizations")
-        );
-        declaration.target = "linux_arm64".into();
-        assert!(
-            checked_candidate_roster(std::slice::from_ref(&declaration), &module)
-                .unwrap_err()
-                .contains("no emitted exact declaration candidate")
-        );
+        for target in ["macos_arm64", "windows_x86_64", "linux_arm64"] {
+            declaration.target = target.into();
+            assert!(
+                checked_candidate_roster(std::slice::from_ref(&declaration), &module)
+                    .unwrap_err()
+                    .contains("duplicate canonical realizations")
+            );
+        }
     }
 
     #[test]

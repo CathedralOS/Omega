@@ -147,7 +147,10 @@ machine build_entry{binders}(holder: &mut View{holder}, cell: &{cell}Cell) {{
 "#
         )
     };
-    assert_eq!(verdict(&stashed("", "", "")), "typing assigned value type");
+    assert_eq!(
+        verdict(&stashed("", "", "")),
+        "typing assigned value type while reading the body of `build_entry`"
+    );
     // Stated as one region the store is typed; what stops it then is the
     // checker's own question about a reference kept in storage the caller
     // lent, which no slice answers yet.
@@ -175,7 +178,7 @@ machine build_entry(left: &Cell, right: &Cell) {{
 }}
 "#
         )),
-        "typing arm value type"
+        "typing arm value type while reading the body of `pick`"
     );
 }
 

@@ -91,7 +91,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as eight counted tables, in the
-order below. This layout uses semantic format marker 269 even when every table
+order below. The current format retains these tables even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -315,8 +315,8 @@ Product eligibility is independent of retained descriptions. Declaring a proof
 owner does not root an executable body; actual evaluation entries and observed
 entry results still retain their bodies. Receiving validation rejects dangling
 coordinates, ambiguous state ownership, repeated static parameters, malformed
-family correspondence, and missing spans. The legacy family rows remain
-migration metadata, not authorization to retain target-prefixed source syntax.
+family correspondence, and missing spans. These declaration-graph relationships
+do not authorize executable target-body selection or target-prefixed source syntax.
 
 Target-scoped membership selects fixed ranges and predicates by their exact
 recorded owner. Address-model ranges and completion requirements additionally include the selected declaration
@@ -1137,14 +1137,13 @@ Older markers are rejected before their payload is read.
 | 38 | scalar block invariants | the counted invariant rows above |
 | 39 | operation crash contracts | counted operation crash contract rows |
 | 40 | machines | counted machine rows |
-| 41 | legacy target-machine families | counted family rows; removal pending |
-| 42 | target layout applications | counted complete checked policy alternatives |
-| 43 | native layout catalog | counted nominal records and complete native reports, below |
-| 44 | boundary application demands | counted exact requirement/application rows |
-| 45 | callback applications | counted checked registrar occurrences |
-| 46 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
-| 47 | boundary application candidates | counted checked bodies for closed applications |
-| 48 | task activation demands | counted task activation demand rows |
+| 41 | target layout applications | counted complete checked policy alternatives |
+| 42 | native layout catalog | counted nominal records and complete native reports, below |
+| 43 | boundary application demands | counted exact requirement/application rows |
+| 44 | callback applications | counted checked registrar occurrences |
+| 45 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
+| 46 | boundary application candidates | counted checked bodies for closed applications |
+| 47 | task activation demands | counted task activation demand rows |
 
 Marker 238 requires the explicit prerequisite/result role byte after the
 subject of every integer-range and predicate condition, together with complete
@@ -1430,33 +1429,16 @@ Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
 
-The reference wire still contains the legacy family section below. It documents
-existing bytes, not accepted target-prefixed source syntax or a second provider
-selection model. `BUILD-OWNED-TARGET-SELECTION` in
-[the task board](../../../TASKS.md#pipeline-route) removes family rows and
-portable heads, including layout-policy references to family callables. The
-replacement retains ordinary implementation identities and exact requirement
-edges; target selection belongs to the Build companion. A codec migration must
-change the format identity rather than reinterpret these old fields.
+Semantic format marker 270 removes the legacy target-family catalog. A module's
+optional entry names one retained executable machine; a bodyless boundary cannot
+be a portable default root. There is no member roster, target-tag selection or
+family supply tag to interpret. Ordinary callable tags remain `1` for a machine
+and `2` for a boundary wherever the semantic vocabulary admits either kind.
+Provider choice belongs to the Build companion and preserves exact requirement,
+implementation and application identities. Older formats reject at the header;
+the removed rows are not decoded or migrated into provider evidence.
 
-A legacy family row carries its canonical callable, a nonzero 32-byte checked head
-contract commitment, and counted members ordered by the exact authored
-deployment tag. A callable is a `u8` tag (`1` machine,
-`2` boundary) followed by its nonzero id. Each member carries a counted UTF-8
-deployment tag, callable, and a `u8` supply tag: `1` checked body, `2`
-requirement, `3` top-level requirement, `4` boundary, `5` admission claim,
-`6` external realization. Families are ordered by canonical callable; each
-member callable belongs to exactly one member. An independent portable head
-names a requirement boundary outside the member roster; a retained executable
-canonical head instead names one of its members. Both forms retain the exact
-checked head commitment, never a selected member's private contract substituted
-for the portable head. Checked and opaque references must name their corresponding
-module rosters. Deployment tags are source identities, not native ISA names.
-Membership alone grants no call redirection or physical installation authority.
-Provider-default declaration programs produce Build-owned selections rather
-than executable members of this runtime roster.
-
-Marker 138 adds the head commitment and completion-receipt path. A receipt's
+A completion receipt's
 path records current argument-relative custody, including conditional case
 payload guards. Historical claim provenance remains separate: a claim moved
 into a containing record need not still occupy its original entry path.
@@ -1464,7 +1446,7 @@ The call must settle the complete current owned roster at the selected paths;
 the receipt neither recreates a claim nor grants boundary issuance. Earlier
 markers are not reinterpreted under this layout.
 
-Marker 140 adds target layout applications after the legacy family section. A
+Target layout applications follow the machine roster. A
 record whose geometry remains target dependent uses structural shape tag `13`,
 a nonzero layout-application `u32`, and its counted structural fields. It has
 no packed or host-selected geometry in the portable artifact.
@@ -1486,12 +1468,12 @@ encoding; marker 266's float conversion carrier and marker 265's field observati
 identities remain part of the current schema.
 
 A layout application encodes its `u32` id, record and schema type ids, policy
-identity string, family callable, and `u16` Schema ABI version. Its counted
+identity string, ordinary checked policy callable, and `u16` Schema ABI version. Its counted
 Schema fields each carry record-field and schema-field ids, `u64` key, optional
 `u64` identity, `u64` byte size and alignment, and a kind byte (`0` scalar,
-`1` nested). Counted alternatives follow: deployment string, member machine id,
+`1` nested). Counted alternatives follow: deployment string, implementation machine id,
 `u64` record size and alignment, then counted field ids with non-absent authored
-field storage. The codec requires a complete exact family roster and validates
+field storage. The codec requires the complete declared alternative roster and validates
 every alternative against the retained invariant Schema argument. This is
 representation validation; semantic checking remains the producer's obligation.
 Deployment selection consumes one retained alternative without changing the
@@ -1977,8 +1959,8 @@ Rows are strictly ordered and unique. Referenced declarations and signatures
 must exist; checked commitments, target membership and field names must be
 nonempty. Numeric meaning agrees with any corresponding callable boundary.
 These are checked satisfaction edges, not provider choices or external execution
-grants. Authored target membership retains the existing family migration
-vocabulary; it is never inferred from a normalized overload's spelling.
+grants. Retained target applicability is exact declaration data, not a
+same-path family lookup or a normalized overload's spelling.
 
 Marker 204 adds counted structural arguments to each structural-case successor,
 after its payload field ids and before its affine cleanup actions. These are
@@ -2696,7 +2678,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 256 | yes |
+| semantic module | `PSITERM\0` | 270 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

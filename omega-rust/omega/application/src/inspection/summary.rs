@@ -18,16 +18,6 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
         "terminal selected_machine={} entry={:?}",
         selected_machine, module.entry
     );
-    for family in &module.target_machine_families {
-        let _ = writeln!(output, "target_family canonical={:?}", family.canonical);
-        for member in &family.members {
-            let _ = writeln!(
-                output,
-                "  target={} callable={:?} supply={:?}",
-                member.target, member.callable, member.supply,
-            );
-        }
-    }
     for candidate in &module.provider_candidates {
         let _ = writeln!(
             output,

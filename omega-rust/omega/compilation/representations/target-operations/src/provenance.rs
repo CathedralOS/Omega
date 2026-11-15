@@ -3,7 +3,7 @@
 
 use installation_evidence::InstalledAssumedBindingEvidence;
 use semantic_vocabulary::{EdgeId, InvocationSite, OperationId};
-use terminal_installation::AdmittedTargetMachineSelections;
+use terminal_installation::TerminalTargetContext;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TerminalPsiProvenance {
@@ -76,7 +76,7 @@ impl From<InvocationSite> for CallSiteOwner {
 pub struct BoundaryOriginFacts<'input> {
     pub program_entry: Option<ProgramEntryOrigin>,
     pub assumed_bindings: &'input [InstalledAssumedBindingEvidence],
-    pub target_machine_selections: Option<&'input AdmittedTargetMachineSelections>,
+    pub target_context: Option<&'input TerminalTargetContext>,
     pub module: &'input terminal_psi::TerminalModule,
 }
 

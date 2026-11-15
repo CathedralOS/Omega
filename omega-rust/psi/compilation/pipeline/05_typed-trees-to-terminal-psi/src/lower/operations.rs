@@ -307,6 +307,7 @@ impl Lowering<'_> {
             }
             ExpressionKind::Strict {
                 operation,
+                policy,
                 left: left_expression,
                 right,
             } => {
@@ -318,12 +319,9 @@ impl Lowering<'_> {
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
                 let operand_type = self.result_type(left_expression)?;
-                // An arithmetic or shift result that carries a policy is
-                // that policy's operation; a comparison's result is `bool`
-                // and carries none.
-                if let Some(policy) = expression.result.and_then(ValueType::policy) {
+                if let Some(policy) = policy {
                     return self
-                        .policy_operation(*operation, policy, left, right, result, source)
+                        .policy_operation(*operation, *policy, left, right, result, source)
                         .map(Reached::Value);
                 }
                 self.strict(*operation, operand_type, left, right, result, source)
@@ -352,8 +350,7 @@ impl Lowering<'_> {
         }
     }
 
-    /// One arithmetic or shift operation under the policy its result type
-    /// carries.
+    /// One arithmetic or shift operation under its selected policy.
     ///
     /// numeric_values.md, "Overflow policies": "Wrapping reduces
     /// representable-range overflow modulo the selected carrier; Saturating

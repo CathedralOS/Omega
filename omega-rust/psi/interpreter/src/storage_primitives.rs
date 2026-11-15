@@ -192,7 +192,7 @@ pub(crate) mod activation_storage {
             else {
                 return Err(malformed());
             };
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             let committed = match self.scalar_value(committed)? {
                 crate::boundary::values::TerminalScalarValue::Integer {
                     value: semantic_vocabulary::IntegerValue::Unsigned(value),
@@ -239,7 +239,7 @@ pub(crate) mod activation_storage {
                     .activation_storage
                     .ledgers
                     .get_mut(&frame)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .establish(ActivationClaimRequest {
                         site,
                         branch: ActivationClaimBranch::trunk(),
@@ -456,7 +456,7 @@ pub(crate) mod activation_storage {
             self.activation_storage
                 .ledgers
                 .get_mut(&frame)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .release(identity)?;
             self.commit_constructor_operands(frontier, std::slice::from_ref(source), claims)?;
             self.activation_storage
@@ -550,10 +550,10 @@ pub(crate) mod activation_storage {
                 .activation_storage
                 .ledgers
                 .get_mut(&frame)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .split(identity, committed_at, bound_at)?;
             if let Some((lower_id, upper_id)) = covered {
-                *children.get_mut(&home).ok_or_else(malformed)? = (lower_id, upper_id);
+                *children.get_mut(&home).ok_or(malformed())? = (lower_id, upper_id);
                 self.activation_storage
                     .split_children
                     .append(&mut children)?;
@@ -625,7 +625,7 @@ pub(crate) mod activation_storage {
                 .grants
                 .get(lower_home)
                 .map(|grant| grant.3)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let publication = self.prepare_activation_division(
                 operation,
                 rejected_case,
@@ -677,7 +677,7 @@ pub(crate) mod activation_storage {
             referent: &TerminalStructuralValue,
             claim_type: semantic_vocabulary::StructuralTypeId,
         ) -> Result<PreparedActivationDivision, TerminalInterpretError> {
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             let value = TerminalStructuralValue::minted(
                 self.local_structural_identities.allocate()?,
                 result.structural_type,
@@ -733,13 +733,10 @@ pub(crate) mod activation_storage {
             case: semantic_vocabulary::StructuralCaseId,
             mut publication: PreparedActivationDivision,
         ) -> Result<OperationFlow, TerminalInterpretError> {
-            let result = operation.result.structural().ok_or_else(malformed)?;
-            let value = publication
-                .values
-                .get(&result.place)
-                .ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
+            let value = publication.values.get(&result.place).ok_or(malformed())?;
             let root = StructuralRuntimePlace::from(value);
-            publication.cases.get_mut(&root).ok_or_else(malformed)?.case = case;
+            publication.cases.get_mut(&root).ok_or(malformed())?.case = case;
             let on_case = |binding: &terminal_psi::StructuralResultClaimBinding| {
                 binding.path.iter().any(|segment| {
                 matches!(segment, StructuralPathSegment::Case(selected) if *selected == case)
@@ -840,16 +837,16 @@ pub(crate) mod primitive_storage {
                 writing: bool,
             ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
                 let width =
-                    reference_storage_byte_width(observed.stored_scalar).ok_or_else(malformed)?;
+                    reference_storage_byte_width(observed.stored_scalar).ok_or(malformed())?;
                 if u64::from(width) != byte_length {
                     return Err(malformed());
                 }
-                let first = observed.byte_offset.checked_mul(8).ok_or_else(malformed)?;
+                let first = observed.byte_offset.checked_mul(8).ok_or(malformed())?;
                 let end = observed
                     .byte_offset
                     .checked_add(byte_length)
                     .and_then(|end| end.checked_mul(8))
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let types = self.structural_types();
                 let geometry = crate::storage::reference::scalar_storage_fragments(
                     &types,
@@ -865,7 +862,7 @@ pub(crate) mod primitive_storage {
                 for fragment in geometry {
                     let canonical =
                         backing_scalar_path(&types, referent.structural_type, &fragment.path)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                     let (storage, actual, shared_view) = self.original_view_primitive_access(
                         referent,
                         home,
@@ -881,19 +878,19 @@ pub(crate) mod primitive_storage {
                     let fragment_end = fragment
                         .bit_offset
                         .checked_add(fragment.bit_length)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .min(end);
                     let source_bit_offset = fragment
                         .source_bit_offset
                         .checked_add(start - fragment.bit_offset)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let selected_length = fragment_end - start;
                     let stored_bits = u64::from(
                         reference_storage_byte_width(fragment.scalar.stored_scalar)
-                            .ok_or_else(malformed)?,
+                            .ok_or(malformed())?,
                     )
                     .checked_mul(8)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     if selected_length == 0
                         || source_bit_offset
                             .checked_add(selected_length)
@@ -999,8 +996,7 @@ pub(crate) mod primitive_storage {
             ) -> Result<(), TerminalInterpretError> {
                 let bits = encoding::encode(stored, value)?;
                 for fragment in fragments {
-                    let width =
-                        reference_storage_byte_width(fragment.stored).ok_or_else(malformed)?;
+                    let width = reference_storage_byte_width(fragment.stored).ok_or(malformed())?;
                     let source_shift = usize::from(fragment.source_bit_offset);
                     let selected_mask = mask(fragment.bit_length)? << source_shift;
                     let old_bits = if fragment.source_bit_offset == 0
@@ -1121,7 +1117,7 @@ pub(crate) mod primitive_storage {
                     &projected_path,
                     std::iter::once((anchor, region)),
                 )?
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .scalar_storage()
             }
 
@@ -1184,7 +1180,7 @@ pub(crate) mod primitive_storage {
                     }
                     let path = projected_path
                         .strip_prefix(anchor.path.as_slice())
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let geometry = terminal_semantics::reference_storage_region(
                         self.structural_types().values(),
                         anchor.structural_type,
@@ -1231,7 +1227,7 @@ pub(crate) mod primitive_storage {
                 logical_scalar: ScalarType,
             ) -> Result<(), TerminalInterpretError> {
                 let width =
-                    usize::from(reference_storage_byte_width(stored_scalar).ok_or_else(malformed)?);
+                    usize::from(reference_storage_byte_width(stored_scalar).ok_or(malformed())?);
                 if !reference_storage_view_is_compatible(stored_scalar, logical_scalar) {
                     return Err(malformed());
                 }
@@ -1317,12 +1313,12 @@ pub(crate) mod primitive_storage {
                             });
                             phase = "projection has no stored byte width";
                             let stored_width = usize::from(
-                                reference_storage_byte_width(*stored).ok_or_else(malformed)?,
+                                reference_storage_byte_width(*stored).ok_or(malformed())?,
                             );
                             available = Some(stored_width);
                             fragment_count = Some(fragments.len());
                             phase = "projection end overflows";
-                            let end = byte_offset.checked_add(width).ok_or_else(malformed)?;
+                            let end = byte_offset.checked_add(width).ok_or(malformed())?;
                             span_end = Some(end);
                             phase = "region exceeds the stored projection";
                             if end > stored_width {
@@ -1330,10 +1326,9 @@ pub(crate) mod primitive_storage {
                             }
                             let mut selected = Vec::new();
                             phase = "projection bit offset overflows";
-                            let selected_start =
-                                byte_offset.checked_mul(8).ok_or_else(malformed)?;
+                            let selected_start = byte_offset.checked_mul(8).ok_or(malformed())?;
                             phase = "projection bit end overflows";
-                            let selected_end = end.checked_mul(8).ok_or_else(malformed)?;
+                            let selected_end = end.checked_mul(8).ok_or(malformed())?;
                             for (position, fragment) in fragments.iter().enumerate() {
                                 fragment_index = Some(position);
                                 let start = usize::from(fragment.destination_bit_offset);
@@ -1350,7 +1345,7 @@ pub(crate) mod primitive_storage {
                                     .checked_add(
                                         u8::try_from(first - start).map_err(|_| malformed())?,
                                     )
-                                    .ok_or_else(malformed)?;
+                                    .ok_or(malformed())?;
                                 phase = "fragment destination bit offset is too large";
                                 fragment.destination_bit_offset =
                                     u8::try_from(first - selected_start)
@@ -1369,10 +1364,10 @@ pub(crate) mod primitive_storage {
                                 return Err(malformed());
                             }
                             phase = "array start overflows";
-                            let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                            let start = index.checked_add(byte_offset).ok_or(malformed())?;
                             span_start = Some(start);
                             phase = "array end overflows";
-                            let end = start.checked_add(width).ok_or_else(malformed)?;
+                            let end = start.checked_add(width).ok_or(malformed())?;
                             span_end = Some(end);
                             use crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorageHome;
                             requested_frame = match array.home {
@@ -1399,22 +1394,21 @@ pub(crate) mod primitive_storage {
                             }
                             requested_frame = Some((home.depth, home.place, home.structural_type));
                             phase = "owned array start overflows";
-                            let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                            let start = index.checked_add(byte_offset).ok_or(malformed())?;
                             span_start = Some(start);
                             phase = "owned array end overflows";
-                            let end = start.checked_add(width).ok_or_else(malformed)?;
+                            let end = start.checked_add(width).ok_or(malformed())?;
                             span_end = Some(end);
                             phase = "owned array activation is unavailable";
                             let (machine, arrays) = if home.depth == self.call_stack.len() {
                                 (self.current_machine, &self.scalar_array_values)
                             } else {
-                                let frame =
-                                    self.call_stack.get(home.depth).ok_or_else(malformed)?;
+                                let frame = self.call_stack.get(home.depth).ok_or(malformed())?;
                                 (frame.current_machine, &frame.scalar_array_values)
                             };
                             actual_machine = Some((home.machine, machine));
                             phase = "owned array backing is unavailable";
-                            let array = arrays.backing(&home.place).ok_or_else(malformed)?;
+                            let array = arrays.backing(&home.place).ok_or(malformed())?;
                             actual_type = Some(array.structural_type);
                             available = Some(array.len());
                             if machine != home.machine
@@ -1449,8 +1443,7 @@ pub(crate) mod primitive_storage {
                                 return Err(malformed());
                             }
                             phase = "representation start overflows";
-                            let start =
-                                byte.index.checked_add(byte_offset).ok_or_else(malformed)?;
+                            let start = byte.index.checked_add(byte_offset).ok_or(malformed())?;
                             span_start = Some(start);
                             phase = "region exceeds the representation or its end overflows";
                             if start.checked_add(width).is_none_or(|end| {
@@ -1469,10 +1462,10 @@ pub(crate) mod primitive_storage {
                                 return Err(malformed());
                             }
                             phase = "view start overflows";
-                            let start = index.checked_add(byte_offset).ok_or_else(malformed)?;
+                            let start = index.checked_add(byte_offset).ok_or(malformed())?;
                             span_start = Some(start);
                             phase = "view end overflows";
-                            let end = start.checked_add(width).ok_or_else(malformed)?;
+                            let end = start.checked_add(width).ok_or(malformed())?;
                             span_end = Some(end);
                             let length = bytes.len();
                             available = Some(length);
@@ -1486,8 +1479,7 @@ pub(crate) mod primitive_storage {
                         | PrimitiveStorageEndpoint::ScalarField(_) => {
                             phase = "scalar endpoint has no stored byte width";
                             let source_width = usize::from(
-                                reference_storage_byte_width(loan.scalar_type)
-                                    .ok_or_else(malformed)?,
+                                reference_storage_byte_width(loan.scalar_type).ok_or(malformed())?,
                             );
                             available = Some(source_width);
                             phase = "region exceeds a single scalar cell";
@@ -1527,7 +1519,7 @@ pub(crate) mod primitive_storage {
                     }
                     _ => {
                         let width =
-                            reference_storage_byte_width(stored_scalar).ok_or_else(malformed)?;
+                            reference_storage_byte_width(stored_scalar).ok_or(malformed())?;
                         let mut bits = 0_u128;
                         for byte_index in 0..usize::from(width) {
                             let storage = shifted_byte_endpoint(endpoint, byte_index)?;
@@ -1587,7 +1579,7 @@ pub(crate) mod primitive_storage {
                     }
                     _ => {
                         let width =
-                            reference_storage_byte_width(stored_scalar).ok_or_else(malformed)?;
+                            reference_storage_byte_width(stored_scalar).ok_or(malformed())?;
                         for byte_index in 0..usize::from(width) {
                             let byte = TerminalScalarValue::Integer {
                                 scalar_type: byte_integer_type()?,
@@ -1642,13 +1634,13 @@ pub(crate) mod primitive_storage {
                     fragments, stored, ..
                 } => {
                     let width =
-                        usize::from(reference_storage_byte_width(*stored).ok_or_else(malformed)?);
+                        usize::from(reference_storage_byte_width(*stored).ok_or(malformed())?);
                     if byte_offset >= width {
                         return Err(malformed());
                     }
                     let mut selected = Vec::new();
-                    let byte_start = byte_offset.checked_mul(8).ok_or_else(malformed)?;
-                    let byte_end = byte_start.checked_add(8).ok_or_else(malformed)?;
+                    let byte_start = byte_offset.checked_mul(8).ok_or(malformed())?;
+                    let byte_end = byte_start.checked_add(8).ok_or(malformed())?;
                     for fragment in fragments {
                         let first = usize::from(fragment.destination_bit_offset);
                         let last = first + usize::from(fragment.bit_length);
@@ -1661,7 +1653,7 @@ pub(crate) mod primitive_storage {
                         fragment.source_bit_offset = fragment
                             .source_bit_offset
                             .checked_add(u8::try_from(start - first).map_err(|_| malformed())?)
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         fragment.destination_bit_offset =
                             u8::try_from(start - byte_start).map_err(|_| malformed())?;
                         fragment.bit_length = u8::try_from(end - start).map_err(|_| malformed())?;
@@ -1684,17 +1676,17 @@ pub(crate) mod primitive_storage {
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                     Ok(PrimitiveStorageEndpoint::ArrayElement {
                         array: array.clone(),
-                        index: index.checked_add(byte_offset).ok_or_else(malformed)?,
+                        index: index.checked_add(byte_offset).ok_or(malformed())?,
                     })
                 }
                 PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                     Ok(PrimitiveStorageEndpoint::OwnedArrayElement {
                         home: *home,
-                        index: index.checked_add(byte_offset).ok_or_else(malformed)?,
+                        index: index.checked_add(byte_offset).ok_or(malformed())?,
                     })
                 }
                 PrimitiveStorageEndpoint::RepresentationByte(byte) => {
-                    let index = byte.index.checked_add(byte_offset).ok_or_else(malformed)?;
+                    let index = byte.index.checked_add(byte_offset).ok_or(malformed())?;
                     if index >= byte.view.len() {
                         return Err(malformed());
                     }
@@ -1708,7 +1700,7 @@ pub(crate) mod primitive_storage {
                 PrimitiveStorageEndpoint::ViewByte { bytes, index } => {
                     Ok(PrimitiveStorageEndpoint::ViewByte {
                         bytes: bytes.clone(),
-                        index: index.checked_add(byte_offset).ok_or_else(malformed)?,
+                        index: index.checked_add(byte_offset).ok_or(malformed())?,
                     })
                 }
                 PrimitiveStorageEndpoint::Scalar(_) | PrimitiveStorageEndpoint::ScalarField(_)
@@ -1782,7 +1774,7 @@ pub(crate) mod primitive_storage {
             scalar: TerminalScalarValue,
         ) -> Result<u128, TerminalInterpretError> {
             let scalar = convert_scalar(scalar, stored)?;
-            let width = reference_storage_byte_width(stored).ok_or_else(malformed)?;
+            let width = reference_storage_byte_width(stored).ok_or(malformed())?;
             let bits = match scalar {
                 TerminalScalarValue::Boolean(value) => u128::from(value),
                 TerminalScalarValue::Integer {
@@ -1808,7 +1800,7 @@ pub(crate) mod primitive_storage {
             stored: ScalarType,
             bits: u128,
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            let width = reference_storage_byte_width(stored).ok_or_else(malformed)?;
+            let width = reference_storage_byte_width(stored).ok_or(malformed())?;
             let result = match stored {
                 ScalarType::Boolean => boolean_bits(bits)?,
                 ScalarType::Integer(integer) => {
@@ -1839,7 +1831,7 @@ pub(crate) mod primitive_storage {
             };
             terminal_scalar_belongs_to_type(result)
                 .then_some(result)
-                .ok_or_else(malformed)
+                .ok_or(malformed())
         }
 
         pub(crate) fn boolean_bits(
@@ -2335,13 +2327,13 @@ pub(crate) mod primitive_storage {
                     let index = start
                         .checked_add(*index)
                         .filter(|index| *index < end)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let machine = if depth == self.call_stack.len() {
                         self.current_machine
                     } else {
                         self.call_stack
                             .get(depth)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .current_machine
                     };
                     (
@@ -2358,7 +2350,7 @@ pub(crate) mod primitive_storage {
             };
             self.owned_array_home(&home)?;
             let (depth, place, structural_type) = home.scalar_array_frame();
-            let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+            let array = self.frame_array(depth, place).ok_or(malformed())?;
             if array.structural_type != structural_type || index >= array.len() {
                 return Err(malformed());
             }
@@ -2402,7 +2394,7 @@ pub(crate) mod primitive_storage {
                 Some(ArrayCell::Frame { home, index }) => {
                     self.owned_array_home(&home)?;
                     let (depth, place, structural_type) = home.scalar_array_frame();
-                    let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+                    let array = self.frame_array(depth, place).ok_or(malformed())?;
                     if !matches!(
                         array.cell(index),
                         Some(crate::storage::scalar_storage::ScalarCell::Resident { .. })
@@ -2416,9 +2408,9 @@ pub(crate) mod primitive_storage {
                         structural_type,
                         u64::try_from(index).map_err(|_| malformed())?,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     Some(StructuralRuntimePlace {
-                        opaque_identity: array.storage_identity.ok_or_else(malformed)?,
+                        opaque_identity: array.storage_identity.ok_or(malformed())?,
                         path,
                     })
                 }
@@ -2733,11 +2725,11 @@ pub(crate) mod primitive_storage {
                             &self.structural_types(),
                             *array_type,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if self.stored_byte_array_length(array)? as u128 != u128::from(extent) {
                         return Err(malformed());
                     }
-                    let index = offset.checked_add(index).ok_or_else(malformed)?;
+                    let index = offset.checked_add(index).ok_or(malformed())?;
                     referent.opaque_identity = array.referent.opaque_identity;
                     referent.path = array.referent.path.clone();
                     referent.path.push(StructuralPathSegment::FixedIndex(index));
@@ -2797,7 +2789,7 @@ pub(crate) mod primitive_storage {
                 };
                 let captured = self
                     .resolve_reference_storage_projection(owner, path, access)?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if let Some(storage) = captured.primitive_storage {
                     let projection_type = if writing {
                         terminal_semantics::primitive_projection_type
@@ -2809,12 +2801,12 @@ pub(crate) mod primitive_storage {
                         owner.structural_type,
                         path,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     return Ok(Some((storage, scalar_type, !writing)));
                 }
                 let (referent, view) = self
                     .resolve_reference_view_path(owner, &path[..=crossing], access)?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if let Some(view) = view {
                     return self
                         .aggregate_view_primitive_access(
@@ -2844,11 +2836,11 @@ pub(crate) mod primitive_storage {
                     referent.structural_type,
                     suffix,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if suffix.is_empty() {
                     let (carrier, _) = self
                         .resolve_reference_view_path(owner, &path[..crossing], access)?
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     if let Some(captured) = self
                         .reference_referents
                         .get(&StructuralRuntimePlace::from(&carrier))
@@ -2876,7 +2868,7 @@ pub(crate) mod primitive_storage {
                     referent.structural_type,
                     suffix,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 return self
                     .primitive_view_access(&referent, canonical.as_slice(), scalar_type, false)
                     .map(Some);
@@ -2902,7 +2894,7 @@ pub(crate) mod primitive_storage {
                 structural_type,
                 path,
             )
-            .ok_or_else(malformed)
+            .ok_or(malformed())
         }
 
         pub(crate) fn aggregate_view_primitive_access(
@@ -2997,7 +2989,7 @@ pub(crate) mod primitive_storage {
                         referent.structural_type,
                         path,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     let mut selected = home.path.clone();
                     selected.extend(suffix);
                     self.primitive_home_access(home.storage, writing, &selected)
@@ -3119,7 +3111,7 @@ pub(crate) mod primitive_storage {
                         })
                         .map(|result| (result.structural_type, false))
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if structural_type != home.structural_type {
                 return Err(malformed());
             }
@@ -3157,10 +3149,10 @@ pub(crate) mod primitive_storage {
                     &self
                         .call_stack
                         .get(home.depth)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .structural_values
                 };
-                let owner = homes.get(&home.place).ok_or_else(malformed)?;
+                let owner = homes.get(&home.place).ok_or(malformed())?;
                 if owner.structural_type != home.structural_type {
                     return Err(malformed());
                 }
@@ -3170,7 +3162,7 @@ pub(crate) mod primitive_storage {
                         &path[..position],
                         StructuralAccess::SharedBorrow,
                     )?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if selected.structural_type != descriptor.id || aggregate_view.is_some() {
                     return Err(malformed());
                 }
@@ -3200,7 +3192,7 @@ pub(crate) mod primitive_storage {
                     &self.element_view_values,
                 )
             } else {
-                let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
+                let frame = self.call_stack.get(home.depth).ok_or(malformed())?;
                 (
                     frame.current_machine,
                     &frame.structural_values,
@@ -3212,7 +3204,7 @@ pub(crate) mod primitive_storage {
                 return Err(malformed());
             }
             if let Some(loan) = views.get(&home.place) {
-                let value = values.get(&home.place).ok_or_else(malformed)?;
+                let value = values.get(&home.place).ok_or(malformed())?;
                 if value.structural_type != home.structural_type
                     || !loan.matches_descriptor_home(value)
                 {
@@ -3239,7 +3231,7 @@ pub(crate) mod primitive_storage {
                 )
                 .is_some_and(|(_, count)| count == 0 && array.is_empty()));
             }
-            let value = values.get(&home.place).ok_or_else(malformed)?;
+            let value = values.get(&home.place).ok_or(malformed())?;
             if value.structural_type != home.structural_type {
                 return Err(malformed());
             }
@@ -3273,7 +3265,7 @@ pub(crate) mod primitive_storage {
                     &self.aggregate_argument_backings,
                 )
             } else {
-                let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
+                let frame = self.call_stack.get(home.depth).ok_or(malformed())?;
                 (
                     frame.current_machine,
                     &frame.structural_values,
@@ -3329,7 +3321,7 @@ pub(crate) mod primitive_storage {
             }
             let machine = self.program.machine(machine_id)?;
             if let Some(loan) = primitive_loan_values.get(&place) {
-                let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
+                let parameter = machine.structural_parameter(place).ok_or(malformed())?;
                 if !path.is_empty()
                     || structural_values.get(&place) != Some(&loan.referent)
                     || loan.referent.structural_type != home.structural_type
@@ -3362,7 +3354,7 @@ pub(crate) mod primitive_storage {
                     )?;
                     return Ok((storage, scalar_type, shared_view));
                 }
-                let region = backing.byte_region.as_ref().ok_or_else(malformed)?;
+                let region = backing.byte_region.as_ref().ok_or(malformed())?;
                 let (storage, scalar_type) =
                     self.captured_byte_region_access(&backing.value, region, path)?;
                 return Ok((storage, scalar_type, shared_view));
@@ -3399,14 +3391,14 @@ pub(crate) mod primitive_storage {
             };
             let scalar_type =
                 projection_type(self.structural_types().values(), structural_type, path)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
             let canonical_path = if writing {
                 terminal_semantics::canonical_primitive_path
             } else {
                 terminal_semantics::canonical_primitive_read_path
             };
             let path = canonical_path(self.structural_types().values(), structural_type, path)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let path = path.as_slice();
             if let Some(array) = scalar_array_values.backing(&place) {
                 if array.structural_type != structural_type
@@ -3439,13 +3431,13 @@ pub(crate) mod primitive_storage {
                                 self.structural_types().values(),
                                 element,
                             )
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .1
                         }
                     };
                     leaf_offset = leaf_offset
-                        .checked_add(index.checked_mul(leaf_count).ok_or_else(malformed)?)
-                        .ok_or_else(malformed)?;
+                        .checked_add(index.checked_mul(leaf_count).ok_or(malformed())?)
+                        .ok_or(malformed())?;
                     carrier = element;
                 }
                 let index = usize::try_from(leaf_offset).map_err(|_| malformed())?;
@@ -3517,10 +3509,10 @@ pub(crate) mod primitive_storage {
                     view.structural_type,
                     path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let resolved = self
                     .reference_primitive_access(view, false, &physical)?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if resolved.1 != scalar_type {
                     return Err(malformed());
                 }
@@ -3548,7 +3540,7 @@ pub(crate) mod primitive_storage {
                         let actual = self
                             .structural_cases
                             .get(&StructuralRuntimePlace::from(&projected))
-                            .ok_or_else(malformed)?;
+                            .ok_or(malformed())?;
                         if actual.structural_type != carrier || actual.case != *case {
                             return Err(malformed());
                         }
@@ -3556,7 +3548,7 @@ pub(crate) mod primitive_storage {
                             cases
                                 .iter()
                                 .find(|row| row.id == *case)
-                                .ok_or_else(malformed)?,
+                                .ok_or(malformed())?,
                         );
                     }
                     (semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity), _) => {
@@ -3564,9 +3556,9 @@ pub(crate) mod primitive_storage {
                         let fields = if let Some(case) = selected_case.take() {
                             case.fields.as_slice()
                         } else {
-                            declaration.shape.direct_fields().ok_or_else(malformed)?
+                            declaration.shape.direct_fields().ok_or(malformed())?
                         };
-                        let field = live_field_by_id(fields, *identity).ok_or_else(malformed)?;
+                        let field = live_field_by_id(fields, *identity).ok_or(malformed())?;
                         if position + 1 == path.len()
                             && (!matches!(
                                 field.field_type,
@@ -3725,14 +3717,14 @@ pub(crate) mod primitive_storage {
             };
             let types = self.structural_types();
             let cell = terminal_semantics::atomic_cell_type(types.values(), declared, path)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let scalar = cell.scalar_type();
             let endpoint = if let Some((StructuralPathSegment::Field(identity), prefix)) =
                 path.split_last()
             {
                 let field =
                     terminal_semantics::runtime_structural_field(types.values(), declared, path)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                 if field.identity != *identity || field.field_type.atomic_cell_type() != Some(cell)
                 {
                     return Err(malformed());
@@ -3743,7 +3735,7 @@ pub(crate) mod primitive_storage {
                     prefix,
                     field.id,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 PrimitiveStorageEndpoint::ScalarField(
                     self.observed_field_cell_in(parent, view, &canonical, field.id)?,
                 )
@@ -3793,7 +3785,7 @@ pub(crate) mod primitive_storage {
                 .find_map(|value| {
                     (value.opaque_identity == view.opaque_identity).then_some(value.structural_type)
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let parent = resolve_structural_path_type(&self.structural_types(), root, parent_path)?;
             let declaration = self.structural_declaration(parent)?;
             let parent_place = StructuralRuntimePlace {
@@ -3813,8 +3805,8 @@ pub(crate) mod primitive_storage {
                     if stored.structural_type != parent {
                         return Err(malformed());
                     }
-                    let selected = terminal_psi::find_structural_case(cases, stored.case)
-                        .ok_or_else(malformed)?;
+                    let selected =
+                        terminal_psi::find_structural_case(cases, stored.case).ok_or(malformed())?;
                     terminal_psi::live_field_by_identity(&selected.fields, identity)
                 }
                 _ => None,
@@ -3825,7 +3817,7 @@ pub(crate) mod primitive_storage {
                 _ => return Err(malformed()),
             };
             if matches!(observation, ScalarStorageObservation::AtomicEvent) {
-                let actual = field.field_type.atomic_cell_type().ok_or_else(malformed)?;
+                let actual = field.field_type.atomic_cell_type().ok_or(malformed())?;
                 if actual.scalar_type() != scalar_type
                     || self.structural_declaration(view.structural_type)?.shape
                         != terminal_psi::StructuralTypeShape::AtomicCell(actual)
@@ -3849,7 +3841,7 @@ pub(crate) mod primitive_storage {
                     Some(expected),
                 )
                 .and_then(|leaf| leaf.leaf_declaration(types.values()))
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if selected.id != view.structural_type {
                     return Err(malformed());
                 }
@@ -3876,7 +3868,7 @@ pub(crate) mod primitive_storage {
             operation: &Operation,
             value: ValueId,
         ) -> Result<(), TerminalInterpretError> {
-            let result = operation.result.structural().ok_or_else(malformed)?;
+            let result = operation.result.structural().ok_or(malformed())?;
             let machine = self.program.machine(self.current_machine)?;
             if local_type(machine, result.place) != Some(result.structural_type)
             || !machine.structural_places.iter().any(|place| {
@@ -3936,7 +3928,7 @@ pub(crate) mod primitive_storage {
                         backing,
                         field_path,
                     )
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                     let crate::storage::reference::AggregateViewTip::Scalar {
                         view: observed,
                         backing: stored,
@@ -3983,7 +3975,7 @@ pub(crate) mod primitive_storage {
             if declared != stored_type {
                 return Err(malformed());
             }
-            let (_, namespace) = field_path.split_last().ok_or_else(malformed)?;
+            let (_, namespace) = field_path.split_last().ok_or(malformed())?;
             let namespace = match namespace {
                 [] => Vec::new(),
                 [StructuralPathSegment::Case(case)] => {
@@ -4105,7 +4097,7 @@ pub(crate) mod primitive_storage {
                         prefix,
                         StructuralAccess::SharedBorrow,
                     )?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if let Some(value) = self
                     .scalar_field_projection_read(source, projection, field_path, expected, None)?
                 {
@@ -4118,7 +4110,7 @@ pub(crate) mod primitive_storage {
             }
             let (storage, scalar, shared) = self
                 .reference_primitive_access(owner, false, path)?
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             self.read_primitive_storage(source, storage, scalar, expected, shared)
         }
 
@@ -4278,7 +4270,7 @@ pub(crate) mod primitive_storage {
                     arrays
                         .backing(&home.place)
                         .filter(|array| array.structural_type == home.structural_type)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .element(index)?
                         .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                             source,
@@ -4312,7 +4304,7 @@ pub(crate) mod primitive_storage {
                             scalar_type: integer,
                             value: IntegerValue::Unsigned(u128::from(*byte)),
                         })
-                        .ok_or_else(malformed)
+                        .ok_or(malformed())
                 }
                 PrimitiveStorageEndpoint::ArrayElement { array, index } => {
                     let Some(integer) = scalar_type.as_integer() else {
@@ -4374,7 +4366,7 @@ pub(crate) mod primitive_storage {
                             )
                         })
                 })
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let restriction = terminal_semantics::primitive_store_restriction(
                 self.structural_types().values(),
                 self.program.catalogs.structural_domains.iter(),
@@ -4384,7 +4376,7 @@ pub(crate) mod primitive_storage {
                 additional_input,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let predicates = terminal_semantics::primitive_store_byte_predicates(
                 self.structural_types().values(),
                 self.program.catalogs.structural_domains.iter(),
@@ -4394,7 +4386,7 @@ pub(crate) mod primitive_storage {
                 additional_input,
                 path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             if predicates
                 .predicates()
                 .any(|predicate| predicate == terminal_psi::ByteSequencePredicate::ValidUtf8)
@@ -4439,7 +4431,7 @@ pub(crate) mod primitive_storage {
                 root,
                 array_path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let terminal_psi::StructuralTypeShape::FixedArray {
                 length: terminal_psi::ArrayExtent::Literal(length),
                 ..
@@ -4625,7 +4617,7 @@ pub(crate) mod primitive_storage {
             } else {
                 self.call_stack
                     .get(home.depth)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .current_machine
             };
             if owner_machine != home.machine {
@@ -4635,7 +4627,7 @@ pub(crate) mod primitive_storage {
         }
 
         fn frame_at_depth(&self, depth: usize) -> Result<&SuspendedCall, TerminalInterpretError> {
-            self.call_stack.get(depth).ok_or_else(malformed)
+            self.call_stack.get(depth).ok_or(malformed())
         }
     }
 
@@ -4758,8 +4750,8 @@ pub(crate) mod runtime_indexes {
                     }
                     _ => return Err(malformed()),
                 };
-                let element = terminal_semantics::runtime_index_selects(value, length)
-                    .ok_or_else(malformed)?;
+                let element =
+                    terminal_semantics::runtime_index_selects(value, length).ok_or(malformed())?;
                 path[position] = StructuralPathSegment::FixedIndex(element);
             }
             Ok(())
@@ -4929,7 +4921,7 @@ pub(crate) mod runtime_rows {
         }
 
         pub(crate) fn require(&self, key: &Key) -> Result<&Value, TerminalInterpretError> {
-            self.get(key).ok_or_else(malformed)
+            self.get(key).ok_or(malformed())
         }
         pub(crate) fn get_mut(&mut self, key: &Key) -> Option<&mut Value> {
             self.rows.get_mut(key)
@@ -5869,7 +5861,7 @@ pub(crate) mod storage_addresses {
                         }
                     }
                     None => StructuralRuntimePlace::from(
-                        selected.collection.as_ref().ok_or_else(malformed)?,
+                        selected.collection.as_ref().ok_or(malformed())?,
                     ),
                 };
                 return Ok(PrimitiveStorageEndpoint::Scalar(place));
@@ -5925,7 +5917,7 @@ pub(crate) mod storage_addresses {
         ) -> Result<u64, TerminalInterpretError> {
             if let Some(identity) = self
                 .frame_array(depth, place)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .storage_identity
             {
                 return Ok(identity);
@@ -5934,7 +5926,7 @@ pub(crate) mod storage_addresses {
             let arrays = frame_field_mut!(self, depth, scalar_array_values);
             arrays
                 .backing_mut(&place)
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .storage_identity = Some(identity);
             Ok(identity)
         }
@@ -6019,7 +6011,7 @@ pub(crate) mod storage_addresses {
             operation: &Operation,
             source: &StructuralArgument,
         ) -> Result<(), TerminalInterpretError> {
-            let result = operation.result.scalar().ok_or_else(malformed)?;
+            let result = operation.result.scalar().ok_or(malformed())?;
             let ScalarType::Integer(integer) = result.scalar_type else {
                 return Err(malformed());
             };

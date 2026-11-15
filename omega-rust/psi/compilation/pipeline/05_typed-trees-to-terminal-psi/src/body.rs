@@ -1031,9 +1031,11 @@ pub enum ExpressionKind {
         arms: Vec<(Selector, Expression)>,
         default: Option<Box<Expression>>,
     },
-    /// Both operands, left then right, then the operation.
+    /// Both operands, left then right, then the operation under its selected
+    /// policy. A suffix selects a policy even when the result is bare.
     Strict {
         operation: Strict,
+        policy: Option<Policy>,
         left: Box<Expression>,
         right: Box<Expression>,
     },

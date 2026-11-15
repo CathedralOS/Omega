@@ -67,7 +67,7 @@ pub(crate) mod borrowed_completion {
                     .binary_search_by(|value| value.path.cmp(&scalar.path))
                     .ok()
                     .and_then(|position| buffer.values.get(position))
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let TerminalStorageContents::Scalar { value, .. } = value.contents.clone() else {
                     return Err(malformed());
                 };
@@ -159,7 +159,7 @@ pub(crate) mod borrowed_completion {
                     if changed_case {
                         staged.stage_scalar_endpoint(destination, value)?;
                     } else {
-                        let original = original.ok_or_else(malformed)?;
+                        let original = original.ok_or(malformed())?;
                         binding
                             .stores
                             .push((original.storage.clone(), original.scalar, value));
@@ -368,7 +368,7 @@ pub(crate) mod byte_views {
         ) -> Result<(), TerminalInterpretError> {
             let access =
                 descriptor_parameter_access(parameter, execution.structural_types().values())
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
             if parameter.structural_type != referent.structural_type
                 || !matches!(
                     access,
@@ -397,7 +397,7 @@ pub(crate) mod byte_views {
                     ..
                 } => {
                     let start = usize::try_from(*offset).map_err(|_| malformed())?;
-                    let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
+                    let end = usize::try_from(offset.checked_add(*length).ok_or(malformed())?)
                         .map_err(|_| malformed())?;
                     let view = execution.stored_byte_array_read_view(array, start, end)?;
                     ByteSequenceStorage::from_values(
@@ -465,10 +465,7 @@ pub(crate) mod byte_views {
                     return Err(malformed());
                 }
                 if let Some(array) = binding.array_window()? {
-                    let end = array
-                        .offset
-                        .checked_add(array.length)
-                        .ok_or_else(malformed)?;
+                    let end = array.offset.checked_add(array.length).ok_or(malformed())?;
                     for (relative, index) in (array.offset..end).enumerate() {
                         let current = execution.stored_byte_array_read(&array.array, index)?;
                         if buffer.access == StructuralAccess::SharedBorrow
@@ -524,19 +521,16 @@ pub(crate) mod byte_views {
                         }
                         _ => None,
                     })
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 if binding.access != StructuralAccess::MutableBorrow {
                     continue;
                 }
-                let array = binding.array_window()?.ok_or_else(malformed)?;
+                let array = binding.array_window()?.ok_or(malformed())?;
                 if !buffer.acknowledged {
                     return Err(malformed());
                 }
-                for index in array.offset
-                    ..array
-                        .offset
-                        .checked_add(array.length)
-                        .ok_or_else(malformed)?
+                for index in
+                    array.offset..array.offset.checked_add(array.length).ok_or(malformed())?
                 {
                     execution.record_original_scalar_write(&PrimitiveStorage {
                         endpoint: PrimitiveStorageEndpoint::ArrayElement {
@@ -634,7 +628,7 @@ pub(crate) mod original_residence {
             let end = window
                 .offset
                 .checked_add(window.length)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             if end > execution.stored_byte_array_length(&window.array)? {
                 return Err(malformed());
             }
@@ -714,7 +708,7 @@ pub(crate) mod original_residence {
                 .iter()
                 .enumerate()
                 .map(|(relative, byte)| {
-                    let index = offset.checked_add(relative).ok_or_else(malformed)?;
+                    let index = offset.checked_add(relative).ok_or(malformed())?;
                     let backing = execution
                         .original_byte_cells
                         .get(&(namespace, index))
@@ -898,7 +892,7 @@ pub(crate) mod original_residence {
                             .byte_views
                             .iter()
                             .find(|binding| binding.argument_index == request.argument_index)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .raw_bytes()?;
                         if let Some(cell) = execution
                             .original_byte_cells
@@ -949,7 +943,7 @@ pub(crate) mod original_residence {
                             execution
                                 .structural_byte_storage
                                 .get_mut(&array)
-                                .ok_or_else(malformed)?
+                                .ok_or(malformed())?
                                 .prepare_resident_install(
                                     index,
                                     resident,
@@ -962,7 +956,7 @@ pub(crate) mod original_residence {
                     let arrays = frame_field_mut!(execution, depth, scalar_array_values);
                     arrays
                         .backing_mut(&place)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .prepare_resident_install(index, resident)
                         .map_err(|error| {
                             error.in_argument_preparation("prepare original frame-array residence")
@@ -1007,13 +1001,13 @@ pub(crate) mod original_residence {
                             encoding: None,
                         };
                         let (home, index) =
-                            match execution.array_cell(&storage)?.ok_or_else(malformed)? {
+                            match execution.array_cell(&storage)?.ok_or(malformed())? {
                                 ArrayCell::Frame { home, index } => (home, index),
                                 ArrayCell::Structural { array, index } => {
                                     execution
                                         .structural_byte_storage
                                         .get_mut(&array)
-                                        .ok_or_else(malformed)?
+                                        .ok_or(malformed())?
                                         .install_resident(index, resident)?;
                                     continue;
                                 }
@@ -1022,19 +1016,19 @@ pub(crate) mod original_residence {
                         let arrays = frame_field_mut!(execution, depth, scalar_array_values);
                         arrays
                             .backing_mut(&place)
-                            .ok_or_else(malformed)?
+                            .ok_or(malformed())?
                             .install_resident(index, resident)?;
                         continue;
                     }
                 }
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 *cell = resident;
             }
             for (argument_index, residents) in raw_prepared {
                 self.byte_views
                     .iter_mut()
                     .find(|binding| binding.argument_index == argument_index)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .residents = residents;
             }
             for request in requests {
@@ -1056,7 +1050,7 @@ pub(crate) mod original_residence {
                             buffer.argument_index() == request.argument_index
                         }
                     })
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 match buffer {
                     TerminalBoundaryStorageBuffer::Scalar(buffer) => {
                         buffer.original_storage = Some(loan)
@@ -1095,7 +1089,7 @@ pub(crate) mod original_residence {
         if *index >= window.length {
             return Err(malformed());
         }
-        let index = window.offset.checked_add(*index).ok_or_else(malformed)?;
+        let index = window.offset.checked_add(*index).ok_or(malformed())?;
         if index >= execution.stored_byte_array_length(&window.array)? {
             return Err(malformed());
         }
@@ -1184,7 +1178,7 @@ pub(crate) mod original_residence {
         ) -> Result<Vec<TerminalOriginalScalarValue>, TerminalInterpretError> {
             if let Some(ArrayCell::Frame { home, index }) = self.array_cell(storage)? {
                 let (depth, place, _) = home.scalar_array_frame();
-                let length = self.frame_array(depth, place).ok_or_else(malformed)?.len();
+                let length = self.frame_array(depth, place).ok_or(malformed())?.len();
                 return (0..length)
                     .filter(|cell| *cell != index)
                     .map(|cell| {
@@ -1254,7 +1248,7 @@ pub(crate) mod original_residence {
                     identity,
                     structural_type,
                     self.frame_array(depth, place)
-                        .ok_or_else(malformed)?
+                        .ok_or(malformed())?
                         .qualifications
                         .clone(),
                 ));
@@ -1392,14 +1386,14 @@ pub(crate) mod original_residence {
                     }
                 };
                 let (depth, place, structural_type) = home.scalar_array_frame();
-                let array = self.frame_array(depth, place).ok_or_else(malformed)?;
+                let array = self.frame_array(depth, place).ok_or(malformed())?;
                 if array.storage_identity != Some(original.opaque_identity)
                     || structural_type != original.structural_type
                     || !original.path.is_empty()
                 {
                     return Err(malformed());
                 }
-                let cell = array.cell(index).ok_or_else(malformed)?;
+                let cell = array.cell(index).ok_or(malformed())?;
                 if storage
                     .encoding
                     .is_some_and(|encoding| encoding.source != cell.scalar_type())
@@ -1413,7 +1407,7 @@ pub(crate) mod original_residence {
                     structural_type,
                     u64::try_from(index).map_err(|_| malformed())?,
                 )
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
                 .into_iter()
                 .map(|step| match step {
                     StructuralPathSegment::FixedIndex(index) => Ok(Path::FixedIndex(index)),
@@ -1448,7 +1442,7 @@ pub(crate) mod original_residence {
                 }
                 _ => return Err(malformed()),
             }
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             Ok(TerminalOriginalScalarValue {
                 path,
                 value: cell.read()?,
@@ -1578,7 +1572,7 @@ pub(crate) mod original_residence {
                 referent.structural_type,
                 &leaf.path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let mut full = source_path.to_vec();
             full.extend_from_slice(&relative);
             full.push(StructuralPathSegment::Referent);
@@ -1647,7 +1641,7 @@ pub(crate) mod reference_outputs {
             capture.argument_index == selection.argument_index
                 && Arc::ptr_eq(&capture.identity, &selection.identity)
         });
-        let selected = matching.next().ok_or_else(malformed)?;
+        let selected = matching.next().ok_or(malformed())?;
         if matching.next().is_some() {
             return Err(malformed());
         }
@@ -1694,13 +1688,13 @@ pub(crate) mod reference_outputs {
                 }
                 _ => None,
             });
-            let buffer = matching.next().ok_or_else(malformed)?;
+            let buffer = matching.next().ok_or(malformed())?;
             if matching.next().is_some() {
                 return Err(malformed());
             }
             request_count = request_count
                 .checked_add(buffer.references.len())
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let destination_index =
                 u32::try_from(binding.argument_index).map_err(|_| malformed())?;
             let mut outputs = declaration
@@ -1713,7 +1707,7 @@ pub(crate) mod reference_outputs {
             if outputs.peek().is_none() {
                 continue;
             }
-            let leaves = binding.completed_leaves.as_deref().ok_or_else(malformed)?;
+            let leaves = binding.completed_leaves.as_deref().ok_or(malformed())?;
             let cases = leaves
                 .iter()
                 .filter_map(|leaf| match &leaf.kind {
@@ -1727,7 +1721,7 @@ pub(crate) mod reference_outputs {
                         &leaf.path,
                     )
                     .map(|path| (path, case))
-                    .ok_or_else(malformed)
+                    .ok_or(malformed())
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             for output in outputs {
@@ -1736,7 +1730,7 @@ pub(crate) mod reference_outputs {
                     binding.referent.structural_type,
                     &output.path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 let StructuralTypeShape::Reference { access, .. } = endpoint.shape else {
                     return Err(malformed());
                 };
@@ -1754,7 +1748,7 @@ pub(crate) mod reference_outputs {
                     .references
                     .iter()
                     .filter(|request| request.path == output.path);
-                let request = requests.next().ok_or_else(malformed)?;
+                let request = requests.next().ok_or(malformed())?;
                 if requests.next().is_some() {
                     return Err(malformed());
                 }
@@ -1769,7 +1763,7 @@ pub(crate) mod reference_outputs {
                     selected.referent.structural_type,
                     &request.source.path,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 if let Some(source_binding) = bindings
                     .iter()
                     .find(|binding| binding.argument_index == selected.argument_index)
@@ -1777,7 +1771,7 @@ pub(crate) mod reference_outputs {
                     let leaves = source_binding
                         .completed_leaves
                         .as_deref()
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let prefix_end = relative
                         .iter()
                         .position(|step| matches!(step, StructuralPathSegment::Referent))
@@ -1814,11 +1808,11 @@ pub(crate) mod reference_outputs {
                     let parameter = declaration
                         .structural_parameters
                         .get(argument_index)
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                     let mut anchor_captures = captures
                         .iter()
                         .filter(|capture| capture.argument_index == argument_index);
-                    let capture = anchor_captures.next().ok_or_else(malformed)?;
+                    let capture = anchor_captures.next().ok_or(malformed())?;
                     if anchor_captures.next().is_some() {
                         return Err(malformed());
                     }
@@ -1828,7 +1822,7 @@ pub(crate) mod reference_outputs {
                             capture.referent.structural_type,
                             path,
                         )
-                        .ok_or_else(malformed)?;
+                        .ok_or(malformed())?;
                         if !matches!(tip.shape, StructuralTypeShape::Reference { access, .. } if crate::storage::reference::access_covers(access, expected_access))
                         {
                             return Err(malformed());
@@ -1966,7 +1960,7 @@ pub(crate) mod reference_outputs {
                     }
                     _ => None,
                 });
-                let destination = leaves.next().ok_or_else(malformed)?.clone();
+                let destination = leaves.next().ok_or(malformed())?.clone();
                 if leaves.next().is_some() {
                     return Err(malformed());
                 }
@@ -2060,10 +2054,8 @@ pub(crate) mod reference_result {
             }
             let selected = super::reference_outputs::source(selection, &self.reference_inputs)?;
             let types = execution.structural_types();
-            let terminal_psi::StructuralTypeShape::Reference { access, .. } = types
-                .get(&result.structural_type)
-                .ok_or_else(malformed)?
-                .shape
+            let terminal_psi::StructuralTypeShape::Reference { access, .. } =
+                types.get(&result.structural_type).ok_or(malformed())?.shape
             else {
                 return Err(malformed());
             };
@@ -2077,7 +2069,7 @@ pub(crate) mod reference_result {
                 selected.referent.structural_type,
                 &selection.path,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let allowed = declaration.result_reference_regions.iter().any(|region| {
                 if !region.path.is_empty()
                     || region.access != access
@@ -2105,7 +2097,7 @@ pub(crate) mod reference_result {
                 .iter()
                 .find(|binding| binding.argument_index == selected.argument_index)
             {
-                let leaves = binding.completed_leaves.as_deref().ok_or_else(malformed)?;
+                let leaves = binding.completed_leaves.as_deref().ok_or(malformed())?;
                 let prefix_end = relative
                     .iter()
                     .position(|step| matches!(step, StructuralPathSegment::Referent))
@@ -2416,7 +2408,7 @@ impl BoundaryStorageInputs {
             argument_index,
             identity_cursor,
         )?;
-        let buffer = self.scalars.buffers.pop().ok_or_else(malformed)?;
+        let buffer = self.scalars.buffers.pop().ok_or(malformed())?;
         self.buffers
             .push(TerminalBoundaryStorageBuffer::Scalar(buffer));
         Ok(referent)
@@ -2590,9 +2582,9 @@ impl BoundaryStorageInputs {
             let parameter = declaration
                 .structural_parameters
                 .get(argument_index)
-                .ok_or_else(malformed)?;
-            let argument = arguments.get(argument_index).ok_or_else(malformed)?;
-            let referent = values.get(argument_index).ok_or_else(malformed)?;
+                .ok_or(malformed())?;
+            let argument = arguments.get(argument_index).ok_or(malformed())?;
+            let referent = values.get(argument_index).ok_or(malformed())?;
             if parameter.access != access
                 || argument.access != access
                 || parameter.structural_type != referent.structural_type

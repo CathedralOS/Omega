@@ -18,7 +18,7 @@ OMEGA_CLI=/absolute/path/to/fresh/omega OMEGA_TARGET=linux_x86_64 \
 
 When using a comparator built in another checkout, set `OMEGA_LIBRARY_ROOT`
 to this checkout's absolute `source/library` path. Pin the executable too; a
-long review/build run must not switch compiler or library inputs midway.
+long build run must not switch compiler or library inputs midway.
 
 The executable is the actual production construction application. Its
 [closed-source-set input](../../../source/omega/README.md#closed-source-set-input)

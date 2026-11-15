@@ -559,12 +559,15 @@ impl<'b> Walk<'b> {
             // A Trapping operation is its own `Trap` site (numeric_values.md,
             // "Policy operators": it "contributes that route to its
             // machine's crash contract like any other Trapping operation").
-            ExpressionKind::Strict { left, right, .. } => {
+            ExpressionKind::Strict {
+                policy,
+                left,
+                right,
+                ..
+            } => {
                 let completes =
                     self.expression(machine, left)? && self.expression(machine, right)?;
-                if expression.result.and_then(crate::body::ValueType::policy)
-                    == Some(crate::body::Policy::Trapping)
-                {
+                if *policy == Some(crate::body::Policy::Trapping) {
                     self.causes.insert(CrashCause::Trap);
                 }
                 Ok(completes)

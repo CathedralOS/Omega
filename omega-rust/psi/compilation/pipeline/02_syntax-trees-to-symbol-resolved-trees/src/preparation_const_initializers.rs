@@ -985,4 +985,36 @@ mod tests {
             symbol_resolved_trees::expression::ExpressionNode::Call(_)
         ));
     }
+
+    /*
+        A generic domain's carrier bound is judged against the declaration
+        that owns the const's value. Another package's same-named `data` that
+        comes first in the forest must not answer for it, in either direction.
+    */
+    #[test]
+    fn a_carrier_bound_reads_the_selected_data_not_a_same_named_one() {
+        let bounded = "domain<T [copy]> T::Plain;\n";
+        let foreign_plain = "public data Token { v: u8 }\n";
+        let foreign_copy = "public data Token [copy] { v: u8 }\n";
+        let holder = "data Holder { t: Token in Plain }\n\
+            public const ONE: Holder = Holder { t: Token { v: 1 } };";
+        let own_copy = format!("{bounded}data Token [copy] {{ v: u8 }}\n{holder}");
+        let own_plain = format!("{bounded}data Token {{ v: u8 }}\n{holder}");
+        resolve_files(
+            &[("other/a.omg", foreign_plain), ("app/main.omg", &own_copy)],
+            None,
+        )
+        .expect("the selected `copy` carrier satisfies the bound");
+        let diagnostics = resolve_files(
+            &[("other/a.omg", foreign_copy), ("app/main.omg", &own_plain)],
+            None,
+        )
+        .expect_err("the selected carrier is not `copy`");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("declaration-site proof checking")),
+            "{diagnostics:?}"
+        );
+    }
 }

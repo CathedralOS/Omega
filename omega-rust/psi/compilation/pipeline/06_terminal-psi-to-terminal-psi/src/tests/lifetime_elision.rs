@@ -38,7 +38,8 @@ data Session<'storage> { ready: bool; count: u32; }
 machine build_entry(session: &mut Session<'missing>) { session.ready = true; }
 "#
         ),
-        "typing lifetime argument its owner does not declare"
+        "typing lifetime argument its owner does not declare while reading the signature of \
+         `build_entry`"
     );
 }
 
@@ -64,7 +65,9 @@ data Session<'storage> { ready: bool; name: &'other [u8]; }
 machine build_entry(session: &mut Session) { session.ready = true; }
 "#
         ),
-        "type byte view has no complete owned region identity"
+        "type byte view has no complete owned region identity while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
+         while reading the signature of `build_entry`"
     );
 }
 
@@ -95,7 +98,9 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
     ] {
         assert_eq!(
             refusal(&holder(field, binders)),
-            "typing data field that elides a lifetime argument",
+            "typing data field that elides a lifetime argument while reading the record application \
+             `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Holder\\)\\)))` \
+             while reading the signature of `hold`",
             "{field}"
         );
     }
@@ -125,7 +130,7 @@ data Session<'storage> { ready: bool; name: &'storage [u8]; }
 machine build_entry(session: &mut Session, name: &[u8]) { session.name = name; }
 "#
         ),
-        "typing assigned value type"
+        "typing assigned value type while reading the body of `build_entry`"
     );
     assert_eq!(
         refusal(
@@ -135,7 +140,8 @@ machine build_entry(session: &mut Session) { let kept: &[u8] = helper(session); 
 machine helper(session: &Session) -> &[u8] { session.name }
 "#
         ),
-        "typing result without a lifetime of a signature with several input lifetimes"
+        "typing result without a lifetime of a signature with several input lifetimes while reading \
+         the signature of `helper`"
     );
     assert_eq!(
         refusal(
@@ -145,7 +151,8 @@ machine build_entry(name: &[u8], other: &[u8]) { let made: Session = helper(name
 machine helper(name: &[u8], other: &[u8]) -> Session { Session { ready: true, name: name } }
 "#
         ),
-        "typing result without a lifetime of a signature with several input lifetimes"
+        "typing result without a lifetime of a signature with several input lifetimes while reading \
+         the signature of `helper`"
     );
 }
 
@@ -224,7 +231,9 @@ data Session<'storage> { ready: bool; inner: Inner<'missing>; }
 machine build_entry(session: &mut Session) { session.ready = true; }
 "#
         ),
-        "typing lifetime argument its owner does not declare"
+        "typing lifetime argument its owner does not declare while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
+         while reading the signature of `build_entry`"
     );
 }
 

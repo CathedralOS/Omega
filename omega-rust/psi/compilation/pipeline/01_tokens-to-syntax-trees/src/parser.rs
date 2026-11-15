@@ -1,7 +1,8 @@
 /*
 Batch and per-source parsing entry points (`parse_sources`,
 `parse_source_pages_from`, `parse_source_units`, `parse`, and
-`parse_syntax_trees`) and the dedicated 256 MiB stack parser worker pool.
+`parse_syntax_trees`). Page parsing runs on the invocation's
+`execution_admission` budget, so the parser owns no worker pool of its own.
 */
 
 pub use crate::diagnostics::parse_error;
@@ -89,7 +90,7 @@ pub fn parse_source_pages_from(
     let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let source_count = lexed_sources.len();
     let desired_pages = source_count
-        .min(parse_worker_count().max(1).saturating_mul(4))
+        .min(execution_admission::current_workers().saturating_mul(4))
         .max(1);
     parse_source_pages_with_count(lexed_sources, desired_pages, first_page_identity)
 }
@@ -98,27 +99,6 @@ pub fn parse_source_units(mut lexed: LexedSources) -> Result<ParsedSyntaxPages, 
     let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let desired_pages = lexed_sources.len().max(1);
     parse_source_pages_with_count(lexed_sources, desired_pages, 1)
-}
-
-const PARSE_STACK_SIZE: usize = 256 * 1024 * 1024;
-
-pub fn parse_worker_count() -> usize {
-    parse_thread_pool().current_num_threads()
-}
-
-pub fn with_parse_workers<Output: Send>(operation: impl FnOnce() -> Output + Send) -> Output {
-    parse_thread_pool().install(operation)
-}
-
-fn parse_thread_pool() -> &'static rayon::ThreadPool {
-    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
-    POOL.get_or_init(|| {
-        rayon::ThreadPoolBuilder::new()
-            .thread_name(|index| format!("omega-parse-{index}"))
-            .stack_size(PARSE_STACK_SIZE)
-            .build()
-            .expect("parser worker pool must spawn")
-    })
 }
 
 fn parse_source_pages_with_count(
@@ -144,16 +124,15 @@ fn parse_source_pages_with_count(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let parsed_pages = parse_thread_pool()
-        .install(|| {
-            page_reservations
-                .into_par_iter()
-                .zip(lexed_sources.par_chunks_mut(chunk_size))
-                .map(|(page, sources)| parse_source_page(page, sources))
-                .collect::<Vec<_>>()
-        })
-        .into_iter()
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let parsed_pages = execution_admission::within_budget(|| {
+        page_reservations
+            .into_par_iter()
+            .zip(lexed_sources.par_chunks_mut(chunk_size))
+            .map(|(page, sources)| parse_source_page(page, sources))
+            .collect::<Vec<_>>()
+    })
+    .into_iter()
+    .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
 
     let mut parsed_sources = Vec::with_capacity(source_count);
     for (syntax, sources) in parsed_pages {

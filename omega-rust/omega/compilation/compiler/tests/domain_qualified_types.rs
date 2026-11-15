@@ -673,12 +673,30 @@ fn reading_inside_a_governed_value_is_refused_by_name() {
     );
 }
 
+/// A store's destination is a place it writes, not a value it reads: each
+/// value its path goes through is asked for write authority only.
 #[test]
 fn writing_inside_a_governed_value_is_refused_by_name() {
     refused_with(
         "governed_write",
         "machine wrong(seal: Seal in Issued) -> Seal in Issued {\n    let mut held: Seal in Issued = seal;\n    held.mark = 2;\n    held\n}\n",
-        "inside a value governed by an access policy",
+        "write inside a value governed by an access policy",
+    );
+}
+
+/// The governed value is a field of a plain record: the path to the store
+/// goes through it, so the store is a write inside it as well.
+#[test]
+fn writing_inside_a_governed_field_is_refused_by_name() {
+    refused_with(
+        "governed_field_write",
+        "machine wrong(seal: Seal in Issued) -> Sealed {
+    let mut sealed: Sealed = Sealed { seal: seal, count: 1 };
+    sealed.seal.mark = 2;
+    sealed
+}
+",
+        "write inside a value governed by an access policy",
     );
 }
 
@@ -764,7 +782,7 @@ fn writing_through_a_reference_to_a_governed_value_is_refused_by_name() {
     seal.mark = 2;
 }
 ",
-        "inside a value governed by an access policy",
+        "write inside a value governed by an access policy",
     );
 }
 

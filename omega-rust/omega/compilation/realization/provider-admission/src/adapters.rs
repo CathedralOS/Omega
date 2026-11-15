@@ -15,7 +15,7 @@ use crate::SelectedProviderAdapter;
 use effects::provider_plan::ProviderBinding;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_installation::{
-    AdmittedProviderSelections, AdmittedTargetMachineSelections, SynchronousCallGraph,
+    AdmittedProviderSelections, SynchronousCallGraph, TerminalTargetContext,
 };
 
 pub fn retain_selected_provider_adapters(
@@ -162,7 +162,7 @@ impl AdmittedProgramProviderContext {
 
 pub fn selected_synchronous_call_graph<'module>(
     artifact: terminal_codec::TerminalArtifactView<'module>,
-    target_members: Option<&'module AdmittedTargetMachineSelections>,
+    target_members: Option<&'module TerminalTargetContext>,
     entry_bridge: Option<(BoundaryMachineId, MachineId)>,
     installation: Option<&AdmittedProviderSelections>,
     profile: target::TargetProfile,
@@ -192,17 +192,10 @@ pub fn selected_synchronous_call_graph<'module>(
                 members
                     .entry(identity, module, callable)
                     .map_err(|error| format!("synchronous provider body target: {error:?}"))?;
-            } else if module.target_machine_families.iter().any(|family| {
-                family
-                    .members
-                    .iter()
-                    .any(|member| member.callable == callable)
-            }) {
-                return Err("synchronous provider body needs its exact target selection".into());
             }
         }
     }
-    SynchronousCallGraph::new(module, target_members, entry_bridge)?.with_boundary_calls(calls)
+    SynchronousCallGraph::new(module, entry_bridge)?.with_boundary_calls(calls)
 }
 
 #[cfg(test)]

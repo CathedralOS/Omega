@@ -83,3 +83,54 @@ pub fn derive_plain_syntax_equivalent(input: TokenStream) -> TokenStream {
         }
     }.into()
 }
+
+/// Rebinding a parsed unit page to admitted coordinates must reach every
+/// handle and source span the page stores, so the walk is derived from the
+/// same field lists as equality rather than written per node.
+#[proc_macro_derive(SyntaxRelocate)]
+pub fn derive_syntax_relocate(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+    let visit = |fields: &Fields, prefix: proc_macro2::TokenStream| {
+        let bindings = fields
+            .iter()
+            .enumerate()
+            .map(|(index, _)| format_ident!("field_{index}"))
+            .collect::<Vec<_>>();
+        let pattern = match fields {
+            Fields::Named(fields) => {
+                let names = fields.named.iter().map(|field| &field.ident);
+                quote! { #prefix { #(#names: #bindings),* } }
+            }
+            Fields::Unnamed(_) => quote! { #prefix(#(#bindings),*) },
+            Fields::Unit => quote! { #prefix },
+        };
+        quote! { #pattern => { #(crate::SyntaxRelocate::relocate(#bindings, relocation);)* } }
+    };
+    let arms = match &input.data {
+        Data::Struct(data) => vec![visit(&data.fields, quote! { Self })],
+        Data::Enum(data) => data
+            .variants
+            .iter()
+            .map(|variant| {
+                let variant_name = &variant.ident;
+                visit(&variant.fields, quote! { Self::#variant_name })
+            })
+            .collect(),
+        Data::Union(_) => {
+            return syn::Error::new_spanned(name, "syntax relocation does not support unions")
+                .to_compile_error()
+                .into();
+        }
+    };
+    let (implementation, arguments, requirements) = input.generics.split_for_impl();
+    quote! {
+        impl #implementation crate::SyntaxRelocate for #name #arguments #requirements {
+            #[allow(unused_variables)]
+            fn relocate(&mut self, relocation: &crate::PageRelocation) {
+                match self { #(#arms)* }
+            }
+        }
+    }
+    .into()
+}

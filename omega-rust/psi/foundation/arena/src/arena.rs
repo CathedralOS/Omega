@@ -15,6 +15,53 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut, Range};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// The next unassigned freshness stamp. A stamp names one arena storage at one
+/// mutation epoch, so it is drawn from one process-wide sequence: replacement storage
+/// can never present the stamp a derived index was built against.
+static NEXT_REVISION_STAMP: AtomicU64 = AtomicU64::new(1);
+
+/// The freshness stamp of one arena. Zero means "mutated since the last query"; the
+/// first query after a mutation draws the next process-wide stamp. Mutation stays a
+/// plain store through `&mut`, and only queries that follow a mutation touch the
+/// shared sequence.
+struct RevisionStamp(AtomicU64);
+
+impl RevisionStamp {
+    const UNSTAMPED: u64 = 0;
+
+    const fn unstamped() -> Self {
+        Self(AtomicU64::new(Self::UNSTAMPED))
+    }
+
+    #[inline]
+    fn get(&self) -> u64 {
+        let current = self.0.load(Ordering::Acquire);
+        if current != Self::UNSTAMPED {
+            return current;
+        }
+        let fresh = NEXT_REVISION_STAMP.fetch_add(1, Ordering::Relaxed);
+        assert!(fresh != Self::UNSTAMPED, "arena revision overflow");
+        match self
+            .0
+            .compare_exchange(Self::UNSTAMPED, fresh, Ordering::AcqRel, Ordering::Acquire)
+        {
+            Ok(_) => fresh,
+            Err(winner) => winner,
+        }
+    }
+
+    #[inline]
+    fn invalidate(&mut self) {
+        *self.0.get_mut() = Self::UNSTAMPED;
+    }
+
+    /// A copy names the same contents, so it keeps the stamp it was copied at.
+    fn copy(&self) -> Self {
+        Self(AtomicU64::new(self.0.load(Ordering::Acquire)))
+    }
+}
 
 pub struct Handle<T> {
     arena_index: u32,
@@ -419,7 +466,7 @@ pub struct Arena<T> {
     fresh_generation: u32, // Generation assigned to every newly appended row.
     fresh: bool, // True while no slot has been freed or cleared since the arena was last empty.
     implicit_slot_metadata: bool, // Physical storage mode separate from logical `fresh`.
-    revision: u64, // Monotonic mutation counter across inserts, frees, and mutable borrows.
+    revision: RevisionStamp, // Process-unique stamp of this storage's current contents.
     rewrite_revision: u64, // Monotonic counter bumped on non-append rewrites and frees.
 }
 
@@ -495,7 +542,7 @@ impl<T> Arena<T> {
             active_count,
             fresh_generation,
             fresh,
-            revision: 0,
+            revision: RevisionStamp::unstamped(),
             rewrite_revision: 0,
         })
     }
@@ -616,7 +663,6 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Arena<T> {
             .field("active_count", &self.active_count)
             .field("fresh_generation", &self.fresh_generation)
             .field("fresh", &self.fresh)
-            .field("revision", &self.revision)
             .finish()
     }
 }
@@ -635,7 +681,7 @@ impl<T: Clone> Clone for Arena<T> {
             fresh_generation: self.fresh_generation,
             fresh: self.fresh,
             implicit_slot_metadata: self.implicit_slot_metadata,
-            revision: self.revision,
+            revision: self.revision.copy(),
             rewrite_revision: self.rewrite_revision,
         }
     }
@@ -704,8 +750,12 @@ pub struct ArenaSpanInserter<'arena, T> {
 
 impl<T> Arena<T> {
     #[inline]
+    /// A process-unique stamp of this storage's current contents: equal stamps mean
+    /// the same storage lineage with no mutation between, so a derived index keyed on
+    /// it survives clones and is rebuilt after mutation or storage replacement. Stamps
+    /// assigned later are larger.
     pub fn revision(&self) -> u64 {
-        self.revision
+        self.revision.get()
     }
 
     #[inline]
@@ -716,10 +766,7 @@ impl<T> Arena<T> {
 
     #[inline]
     fn bump_revision(&mut self) {
-        self.revision = self
-            .revision
-            .checked_add(1)
-            .expect("arena revision overflow");
+        self.revision.invalidate();
     }
 
     #[inline]
@@ -729,6 +776,29 @@ impl<T> Arena<T> {
             .rewrite_revision
             .checked_add(1)
             .expect("arena rewrite revision overflow");
+    }
+}
+
+impl<T> Arena<T> {
+    /// Moves every row of a never-rewritten arena to `generation`, visiting
+    /// each row so the caller can move the handles it stores with it. An
+    /// arena whose slots were freed or reused keeps per-slot generations that
+    /// no single move can rewrite, so it is refused.
+    pub fn relocate_fresh_generation(
+        &mut self,
+        generation: u32,
+        visit: impl FnMut(&mut T),
+    ) -> Result<(), &'static str> {
+        if generation == 0 {
+            return Err("arena generation must be nonzero");
+        }
+        if !self.fresh || !self.implicit_slot_metadata {
+            return Err("arena rows were rewritten after they were appended");
+        }
+        self.bump_rewrite_revision();
+        self.fresh_generation = generation;
+        self.items.iter_mut().for_each(visit);
+        Ok(())
     }
 }
 
@@ -776,7 +846,7 @@ impl<T: Default> Arena<T> {
             fresh_generation: generation,
             fresh: true,
             implicit_slot_metadata: true,
-            revision: 0,
+            revision: RevisionStamp::unstamped(),
             rewrite_revision: 0,
         }
     }
@@ -1247,7 +1317,7 @@ impl<T: Default> Arena<T> {
             fresh_generation: self.fresh_generation,
             fresh: self.fresh,
             implicit_slot_metadata: self.implicit_slot_metadata,
-            revision: self.revision,
+            revision: RevisionStamp::unstamped(),
             rewrite_revision: self.rewrite_revision,
         }
     }
@@ -1835,6 +1905,33 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
 
 #[cfg(test)]
 mod tests {
+
+    /// A freshness stamp names one storage at one mutation epoch: a clone keeps it,
+    /// mutation of either copy leaves it, and replacement storage at the same row count
+    /// and mutation count never reproduces it.
+    #[test]
+    fn revision_stamps_identify_storage_and_mutation_epoch() {
+        let mut original = Arena::<u64>::new();
+        let row = original.insert(1);
+        let warmed = original.revision();
+        assert_eq!(warmed, original.revision());
+
+        let mut copy = original.clone();
+        assert_eq!(copy.revision(), warmed);
+        *copy.get_mut(row) = 2;
+        assert_ne!(copy.revision(), warmed);
+        assert_eq!(original.revision(), warmed);
+
+        let mut replacement = Arena::<u64>::new();
+        replacement.insert(3);
+        assert_ne!(replacement.revision(), warmed);
+        assert_ne!(replacement.revision(), copy.revision());
+
+        let later = copy.revision();
+        *original.get_mut(row) = 2;
+        assert!(original.revision() > later);
+        assert_ne!(original.revision(), copy.revision());
+    }
     #[test]
     fn removed_ordered_roots_retain_metadata_without_membership() {
         let mut roots = super::OrderedRootArena::new();

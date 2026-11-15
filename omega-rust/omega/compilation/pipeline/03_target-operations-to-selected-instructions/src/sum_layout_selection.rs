@@ -508,7 +508,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
         BoundaryOriginFacts {
             program_entry: None,
             assumed_bindings: &[],
-            target_machine_selections: None,
+            target_context: None,
             module: &module,
         },
         &interrupts,

@@ -1,13 +1,17 @@
-// Drain native-completion jobs across at most `MAX_NATIVE_EXECUTORS` (4) compiler-stack worker threads.
+// Drain native-completion jobs on the invocation's execution budget, at most
+// `MAX_NATIVE_JOBS_IN_FLIGHT` (4) at a time.
 //
-// Zero or one job runs inline on the calling thread without spawning. When two
-// or more jobs are queued, we spawn up to `MAX_NATIVE_EXECUTORS - 1` helper
-// threads via `spawn_compile_worker` while the calling thread also drains the
-// shared `Mutex<IntoIter>`. If spawning an optional helper thread fails, the
-// remaining threads still drain every job; each mutex lock guard is dropped
-// before running `execute()`.
+// Native jobs no longer start threads of their own: they run on the workers of
+// the `execution_admission::ExecutionBudget` the invocation already holds, so
+// parsing and native completion share one bound on active workers and their
+// 256 MiB stacks. The in-flight cap stays because each native job holds its
+// own lowered program and image while it runs; the budget bounds workers, not
+// memory. Zero or one job runs inline on the calling thread. Otherwise the
+// caller and up to `MAX_NATIVE_JOBS_IN_FLIGHT - 1` helper tasks drain one
+// shared `Mutex<IntoIter>`; each lock guard is dropped before `execute()`, and
+// a job that starts parallel work of its own reuses the same workers.
 
-const MAX_NATIVE_EXECUTORS: usize = 4;
+const MAX_NATIVE_JOBS_IN_FLIGHT: usize = 4;
 
 pub(super) fn execute<Work, Output>(jobs: Vec<(usize, Work)>) -> Vec<(usize, Output)>
 where
@@ -19,21 +23,29 @@ where
     if count < 2 {
         return drain(&pending);
     }
-    std::thread::scope(|scope| {
-        let mut workers = Vec::with_capacity(count.min(MAX_NATIVE_EXECUTORS) - 1);
-        for _ in 1..count.min(MAX_NATIVE_EXECUTORS) {
-            if let Ok(worker) = compiler::checked::spawn_compile_worker(scope, || drain(&pending)) {
-                workers.push(worker);
+    execution_admission::within_budget(|| {
+        let helpers = count
+            .min(MAX_NATIVE_JOBS_IN_FLIGHT)
+            .min(execution_admission::current_workers())
+            - 1;
+        let helped = std::sync::Mutex::new(Vec::with_capacity(count));
+        let mut completed = rayon::scope(|scope| {
+            for _ in 0..helpers {
+                scope.spawn(|_| {
+                    let mut drained = drain(&pending);
+                    helped
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .append(&mut drained);
+                });
             }
-        }
-        let mut completed = drain(&pending);
-        for worker in workers {
-            completed.extend(
-                worker
-                    .join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-            );
-        }
+            drain(&pending)
+        });
+        completed.append(
+            &mut helped
+                .into_inner()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         completed
     })
 }
@@ -88,7 +100,8 @@ mod tests {
                 })
             })
             .collect();
-        let mut completed = execute(jobs);
+        let budget = execution_admission::ExecutionBudget::with_workers(8).unwrap();
+        let mut completed = budget.run(|| execute(jobs));
         completed.sort_unstable_by_key(|(position, _)| *position);
         assert_eq!(completed.len(), counts.len());
         for (expected, (position, (owner, result))) in completed.into_iter().enumerate() {
@@ -104,8 +117,35 @@ mod tests {
             );
             assert_eq!(counts[position].load(Ordering::Relaxed), 1);
         }
-        assert!(peak.load(Ordering::Relaxed) <= MAX_NATIVE_EXECUTORS);
+        assert!(peak.load(Ordering::Relaxed) <= MAX_NATIVE_JOBS_IN_FLIGHT);
         assert_eq!(active.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn native_jobs_never_exceed_the_invocation_budget() {
+        let budget = execution_admission::ExecutionBudget::with_workers(2).unwrap();
+        let active = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let jobs = (0..9)
+            .map(|position| {
+                let active = &active;
+                let peak = &peak;
+                (position, move || {
+                    let running = active.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(running, Ordering::SeqCst);
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                    active.fetch_sub(1, Ordering::SeqCst);
+                    std::thread::current().name().map(str::to_owned)
+                })
+            })
+            .collect();
+        let completed = budget.run(|| execute(jobs));
+        assert_eq!(completed.len(), 9);
+        assert!(peak.load(Ordering::SeqCst) <= 2);
+        assert!(completed.iter().all(|(_, name)| {
+            name.as_deref()
+                .is_some_and(|name| name.starts_with("omega-worker-"))
+        }));
     }
 
     #[test]

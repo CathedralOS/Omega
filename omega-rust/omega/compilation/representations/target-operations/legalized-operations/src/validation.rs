@@ -216,18 +216,6 @@ fn validate_call_source(
             }
             validate_completion(call, ownership, claim_sources, receipts)
         }
-        NativeCallOrigin::TargetFamily {
-            member,
-            target,
-            completion_claim_sources: claim_sources,
-            completion_receipts: receipts,
-            ..
-        } => {
-            if call.target.machine() != Some(*member) || target.is_empty() {
-                return Err(LegalizedCallSourceError::ProviderIdentityMismatch);
-            }
-            validate_completion(call, ownership, claim_sources, receipts)
-        }
     }
 }
 

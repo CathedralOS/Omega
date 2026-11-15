@@ -52,11 +52,7 @@ pub(crate) mod source_parsing {
                 count.max(1)
             } else {
                 count
-                    .min(
-                        tokens_to_syntax_trees::parser::parse_worker_count()
-                            .max(1)
-                            .saturating_mul(4),
-                    )
+                    .min(execution_admission::current_workers().saturating_mul(4))
                     .max(1)
             };
             let chunk_size = count.max(1).div_ceil(desired_pages);
@@ -80,19 +76,18 @@ pub(crate) mod source_parsing {
                 })
                 .collect();
             let mut pages = Vec::with_capacity(if page_count == 1 { 0 } else { page_count });
-            let mut single_page_sources =
-                tokens_to_syntax_trees::parser::with_parse_workers(|| {
-                    if let [syntax] = trees.as_mut_slice() {
-                        Some(parse_page(sources, syntax))
-                    } else {
-                        sources
-                            .par_chunks_mut(chunk_size)
-                            .zip_eq(trees.par_iter_mut())
-                            .map(|(sources, syntax)| parse_page(sources, syntax))
-                            .collect_into_vec(&mut pages);
-                        None
-                    }
-                });
+            let mut single_page_sources = execution_admission::within_budget(|| {
+                if let [syntax] = trees.as_mut_slice() {
+                    Some(parse_page(sources, syntax))
+                } else {
+                    sources
+                        .par_chunks_mut(chunk_size)
+                        .zip_eq(trees.par_iter_mut())
+                        .map(|(sources, syntax)| parse_page(sources, syntax))
+                        .collect_into_vec(&mut pages);
+                    None
+                }
+            });
             for page in single_page_sources.iter_mut().chain(&mut pages) {
                 if let Some(error) = page.lexical_error.take() {
                     return Err(vec![error]);
@@ -251,10 +246,11 @@ pub(crate) mod source_parsing {
     }
 
     use crate::{PsiCompilationObserver, PsiCompilationStage};
+    use arena::Arena;
     use diagnostics::Diagnostic;
-    use source::{DependencyScope, LoadedSources, SourceContents, SourceFileSystem};
+    use source::{DependencyScope, LoadedSource, LoadedSources, SourceContents, SourceFileSystem};
     use std::path::PathBuf;
-    use syntax_trees::{ParsedSources, SyntaxTrees};
+    use syntax_trees::{ParsedSource, ParsedSources, ParsedUnit, SyntaxTrees};
 
     pub fn load_source_files(
         frontier: Vec<(PathBuf, DependencyScope)>,
@@ -292,6 +288,81 @@ pub(crate) mod source_parsing {
             self.parse_batch(1, true, observer).map(|(pages, _)| pages)
         }
 
+        /// Parses each source into its own standalone page and retains it
+        /// with its root items, so a later admission of the same bytes can
+        /// adopt the parse through `append_reusing`.
+        pub fn into_parsed_units(
+            self,
+            observer: &mut impl PsiCompilationObserver,
+        ) -> Result<Vec<ParsedUnit>, Vec<Diagnostic>> {
+            let (pages, mut sources) = self.parse_batch(1, true, observer)?;
+            let parsed = sources.sources.span_mut_or_empty(sources.batch);
+            if parsed.len() != pages.len() {
+                return Err(vec![Diagnostic::error(
+                    "independent parse lost the page of a source",
+                )]);
+            }
+            Ok(pages
+                .into_iter()
+                .zip(parsed)
+                .map(|(syntax, source)| ParsedUnit {
+                    syntax,
+                    source: source.source.clone(),
+                    root_items: std::mem::take(&mut source.root_items),
+                    import_root_range: source.import_root_range.clone(),
+                })
+                .collect())
+        }
+
+        /// Appends these admitted sources to `syntax` as `append` does, except
+        /// that a source for which `retained` supplies the parse of its exact
+        /// bytes adopts that parse instead of being lexed and parsed again.
+        /// The result lists every source in input order either way.
+        pub fn append_reusing<'unit>(
+            self,
+            syntax: &mut SyntaxTrees,
+            observer: &mut impl PsiCompilationObserver,
+            mut retained: impl FnMut(&LoadedSource) -> Option<&'unit ParsedUnit>,
+        ) -> Result<ParsedSources, Vec<Diagnostic>> {
+            let loaded = self.0.sources.span_or_empty(self.0.batch);
+            let units = loaded
+                .iter()
+                .map(|source| retained(source).filter(|unit| unit.source == source.source))
+                .collect::<Vec<_>>();
+            let fresh = Self(
+                loaded
+                    .iter()
+                    .zip(&units)
+                    .filter(|(_, unit)| unit.is_none())
+                    .map(|(source, _)| source.clone())
+                    .collect(),
+            )
+            .append(syntax, observer)?;
+            let mut fresh = fresh.sources.span_or_empty(fresh.batch).iter().cloned();
+            let mut sources = Arena::with_capacity(loaded.len());
+            let mut ordered = Vec::with_capacity(loaded.len());
+            for (source, unit) in loaded.iter().zip(units) {
+                ordered.push(match unit {
+                    Some(unit) => ParsedSource {
+                        source_id: source.source_id,
+                        path: source.path.clone(),
+                        source: source.source.clone(),
+                        origin: source.origin,
+                        root_items: syntax
+                            .adopt_unit(unit, source.source_id)
+                            .map_err(|message| vec![Diagnostic::error(message)])?,
+                        import_root_range: unit.import_root_range.clone(),
+                        scope: source.scope,
+                    },
+                    None => fresh
+                        .next()
+                        .ok_or_else(|| vec![Diagnostic::error("parser lost an admitted source")])?,
+                });
+            }
+            let batch = sources.insert_many(ordered);
+            Ok(ParsedSources { sources, batch })
+        }
+
         fn parse_batch(
             self,
             first_page: u32,
@@ -301,6 +372,114 @@ pub(crate) mod source_parsing {
             observer.record_result(PsiCompilationStage::SourceParsing, || {
                 batches::parse(self.0, first_page, independent_units)
             })
+        }
+    }
+
+    #[cfg(test)]
+    mod reuse_tests {
+        use super::*;
+        use crate::UnmeasuredProduction;
+        use source::SourceId;
+        use std::sync::Arc;
+
+        fn core_sources() -> Vec<(PathBuf, Arc<str>)> {
+            let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../../source/library/core");
+            let mut paths = std::fs::read_dir(&core)
+                .expect("bundled core is readable")
+                .map(|entry| entry.expect("core entry").path())
+                .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
+                .collect::<Vec<_>>();
+            paths.sort();
+            paths
+                .into_iter()
+                .map(|path| {
+                    let text = std::fs::read_to_string(&path).expect("core source is UTF-8");
+                    (path, Arc::from(text))
+                })
+                .collect()
+        }
+
+        fn loaded(source_id: usize, path: &std::path::Path, source: &Arc<str>) -> LoadedSource {
+            LoadedSource {
+                source_id: SourceId(source_id),
+                path: path.to_path_buf(),
+                source: source.clone(),
+                ..Default::default()
+            }
+        }
+
+        // Discovery parses every unit under private coordinates; admission
+        // gives each file a different source ID and a later page. The adopted
+        // parse must be exactly the forest and roots a fresh parse of the
+        // same bytes would have produced there, for every core construct.
+        #[test]
+        fn adopted_discovery_parse_equals_a_fresh_parse_at_admitted_coordinates() {
+            let sources = core_sources();
+            assert!(sources.len() > 20, "core sources were found");
+            let units = SourceInput(
+                sources
+                    .iter()
+                    .enumerate()
+                    .map(|(index, (path, text))| loaded(usize::MAX - index, path, text))
+                    .collect(),
+            )
+            .into_parsed_units(&mut UnmeasuredProduction)
+            .expect("core parses");
+            let prefix = Arc::from("data Prefix {}");
+            let mut fresh = SyntaxTrees::new(SourceId(500));
+            let mut adopted = SyntaxTrees::new(SourceId(500));
+            for forest in [&mut fresh, &mut adopted] {
+                SourceInput(
+                    [loaded(500, std::path::Path::new("prefix.omg"), &prefix)]
+                        .into_iter()
+                        .collect(),
+                )
+                .append(forest, &mut UnmeasuredProduction)
+                .unwrap();
+            }
+            for (index, (path, text)) in sources.iter().enumerate().rev() {
+                let admitted = || -> LoadedSources {
+                    [loaded(1000 + index, path, text)].into_iter().collect()
+                };
+                let expected = SourceInput(admitted())
+                    .append(&mut fresh, &mut UnmeasuredProduction)
+                    .unwrap();
+                let mut offered = 0;
+                let actual = SourceInput(admitted())
+                    .append_reusing(&mut adopted, &mut UnmeasuredProduction, |source| {
+                        offered += 1;
+                        assert_eq!(source.path, *path);
+                        Some(&units[index])
+                    })
+                    .unwrap();
+                assert_eq!(offered, 1);
+                assert_eq!(actual, expected, "{}", path.display());
+            }
+            assert_eq!(adopted, fresh);
+            assert_eq!(adopted.page_count(), fresh.page_count());
+        }
+
+        // A retained parse of different bytes is never adopted: the file
+        // parses afresh, so a changed capture cannot reuse stale syntax.
+        #[test]
+        fn retained_parse_of_other_bytes_is_not_adopted() {
+            let path = std::path::Path::new("unit.omg");
+            let old: Arc<str> = Arc::from("data Old {}");
+            let new: Arc<str> = Arc::from("data New { value: u8 }");
+            let units = SourceInput([loaded(usize::MAX, path, &old)].into_iter().collect())
+                .into_parsed_units(&mut UnmeasuredProduction)
+                .unwrap();
+            let mut fresh = SyntaxTrees::new(SourceId(3));
+            let mut reused = SyntaxTrees::new(SourceId(3));
+            let expected = SourceInput([loaded(3, path, &new)].into_iter().collect())
+                .append(&mut fresh, &mut UnmeasuredProduction)
+                .unwrap();
+            let actual = SourceInput([loaded(3, path, &new)].into_iter().collect())
+                .append_reusing(&mut reused, &mut UnmeasuredProduction, |_| Some(&units[0]))
+                .unwrap();
+            assert_eq!(actual, expected);
+            assert_eq!(reused, fresh);
         }
     }
 

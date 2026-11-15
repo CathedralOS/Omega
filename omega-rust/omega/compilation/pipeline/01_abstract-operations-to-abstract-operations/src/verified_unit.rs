@@ -521,6 +521,7 @@ mod evidence_seal_tests {
             call_context: None,
             kind: ExpressionKind::Strict {
                 operation: Strict::Add,
+                policy: None,
                 left: Box::new(slot(0)),
                 right: Box::new(slot(1)),
             },

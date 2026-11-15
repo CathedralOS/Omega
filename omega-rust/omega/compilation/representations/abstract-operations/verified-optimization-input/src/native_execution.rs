@@ -1,5 +1,5 @@
 // Finish provider demand after the complete execution scope is known. Keep
-// authored choices separate from the direct and target-family rows added here.
+// authored choices separate from the direct requirement rows added here.
 use crate::native_proposal::TerminalNativeRealizationProposal;
 use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
@@ -81,9 +81,8 @@ impl TerminalNativeRealizationProposal {
             previous
                 .scope
                 .require_proposal_context(artifact.view(), self)?;
-            if previous.scope.target_selections().terminal_psi() != artifact.view().identity()
-                || previous.scope.target_selections().target()
-                    != self.target_profile().target_name()
+            if previous.scope.target_context().terminal_psi() != artifact.view().identity()
+                || previous.scope.target_context().target() != self.target_profile().target_name()
             {
                 return Err(vec![Diagnostic::error(
                     "native callable preparation belongs to another artifact or target",
@@ -114,7 +113,7 @@ impl TerminalNativeRealizationProposal {
                 "native proposal belongs to another canonical artifact",
             )]);
         }
-        let targets = terminal_installation::admit_target_machine_selections(
+        let targets = terminal_installation::terminal_target_context(
             artifact.view(),
             self.target_profile().target_name(),
         );
@@ -252,7 +251,6 @@ impl TerminalNativeRealizationProposal {
         };
         let mut demands = BTreeSet::new();
         let mut direct_demands = BTreeSet::new();
-        let mut family_members = Vec::new();
         for boundary in module
             .boundary_machines
             .iter()
@@ -268,26 +266,7 @@ impl TerminalNativeRealizationProposal {
             {
                 continue;
             }
-            match terminal_installation::admitted_boundary_member(
-                module,
-                Some(scope.target_selections()),
-                boundary.id,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?
-            {
-                Some(terminal_psi::TargetMachineCallable::Boundary(member)) => {
-                    let member = module.boundary_machine(member).ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "foreign family lost its exact target member",
-                        )]
-                    })?;
-                    direct_demands.insert(identity(member)?.to_owned());
-                    family_members.push((boundary, member));
-                }
-                _ => {
-                    direct_demands.insert(name.to_owned());
-                }
-            }
+            direct_demands.insert(name.to_owned());
         }
         let mut direct = Vec::new();
         let mut external_bindings = self.providers().external_bindings.clone();
@@ -303,33 +282,11 @@ impl TerminalNativeRealizationProposal {
                 }
             }
         }
-        let mut selection = self
+        let selection = self
             .providers()
             .selection
             .clone()
             .with_direct_boundary_plans(direct)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let mut family_rows = selection.family_realization_rows().to_vec();
-        let mut identities = selection.identities().clone().into_builder();
-        for (head, member) in family_members {
-            let Some((plan, row)) = selection.selected_requirement_row(identity(member)?) else {
-                continue;
-            };
-            family_rows.push(effects::SelectedTargetFamilyRealization {
-                terminal: artifact.manifest().semantic(),
-                target: self.target_profile().target_name().to_owned(),
-                head: head.id,
-                member: member.id,
-                head_identity: identities.intern(identity(head)?),
-                member_identity: identities.intern(identity(member)?),
-                selected_requirement_identity: identities
-                    .intern(plan.identities.text(row.requirement_identity)),
-                provider_plan_report_identity: plan.report_fingerprint(),
-                provider_plan_digest: plan.identity_digest(),
-            });
-        }
-        selection = selection
-            .with_family_realization_rows(family_rows, &identities.build())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let intrinsic_provenance = self.selected_intrinsic_provenance(&selection)?;
         let boundary_application_coverage = self.settle_scoped_boundary_applications(

@@ -150,7 +150,41 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         Vec<(Elaboration, terminal_psi_to_terminal_psi::Discharge)>,
     )> = Vec::new();
     let mut carried_all = true;
-    for (mut consumer, specialization) in roots {
+    for (mut consumer, mut specialization) in roots {
+        let Some(implementation) = consumer.machines.get(specialization).copied() else {
+            return "route=defect\tgenerated body has no source declaration".to_owned();
+        };
+        let mut owned = consumer
+            .conformance_witnesses
+            .iter()
+            .filter(|witness| witness.implementation == implementation);
+        let witness = owned.next().cloned();
+        if owned.next().is_some() {
+            return "route=defect\tgenerated body has several owning requirements".to_owned();
+        }
+        if let Some(witness) = witness {
+            // The executable entry advertises the public requirement, whereas
+            // body certificates describe the member's own authored contract.
+            // The existing refinement model retains both without donating the
+            // private contract to callers; its second machine is the real body.
+            consumer = match typed_trees_to_terminal_psi::elaborate_witness(
+                typed,
+                witness.declaring_trait,
+                witness.requirement,
+                &witness.value_arguments,
+                witness.implementation,
+            ) {
+                Ok(body) => body,
+                Err(refusal) => {
+                    return format!("route=outside\tbody: {}", one_line(&refusal.detail));
+                }
+            };
+            specialization = MachineId::new(2).expect("the witness forwards to its second machine");
+            if consumer.machines.get(specialization) != Some(&implementation) {
+                return "route=defect\twitness does not retain the actual generated body"
+                    .to_owned();
+            }
+        }
         let Some(template) = consumer
             .machines
             .get(specialization)

@@ -222,7 +222,7 @@ impl TerminalExecution<'_> {
                         referent,
                         path,
                     )
-                    .ok_or_else(malformed)?,
+                    .ok_or(malformed())?,
                 },
                 crate::storage::reference::ReferenceReferent {
                     view: nested_view,
@@ -256,8 +256,8 @@ impl TerminalExecution<'_> {
             let field = fields
                 .iter()
                 .find(|field| &field.id == identity && !field.relevance.is_erased())
-                .ok_or_else(malformed)?;
-            current = field.field_type.as_structural().ok_or_else(malformed)?;
+                .ok_or(malformed())?;
+            current = field.field_type.as_structural().ok_or(malformed())?;
         }
         self.reference_contract(current)
     }
@@ -366,7 +366,7 @@ impl TerminalExecution<'_> {
             }
             match &binding.value {
                 terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
-                    let scalar = self.values.get(operand).copied().ok_or_else(malformed)?;
+                    let scalar = self.values.get(operand).copied().ok_or(malformed())?;
                     if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
                         || !terminal_scalar_belongs_to_type(scalar)
                     {
@@ -559,7 +559,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishZeroedStructural {});
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
         if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
             || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
                 self.structural_types().values(),
@@ -651,7 +651,7 @@ impl TerminalExecution<'_> {
                     };
                     let cell = StructuralScalarRuntimeField::member(parent, *field);
                     self.structural_scalar_fields
-                        .insert(cell, zero(*scalar_type).ok_or_else(malformed)?)?;
+                        .insert(cell, zero(*scalar_type).ok_or(malformed())?)?;
                 }
                 ZeroedStructuralLeaf::EmptyView {
                     field: Some(field),
@@ -719,7 +719,7 @@ impl TerminalExecution<'_> {
                     };
                     self.structural_scalar_fields.insert(
                         StructuralScalarRuntimeField::case_payload(parent, *field),
-                        zero(*scalar_type).ok_or_else(malformed)?,
+                        zero(*scalar_type).ok_or(malformed())?,
                     )?;
                 }
                 ZeroedStructuralLeaf::EmptyScalarArray {
@@ -746,7 +746,7 @@ impl TerminalExecution<'_> {
                             crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage::new(
                                 crate::boundary::structural_inputs::byte_arrays::array_path_type(
                                     &self.structural_types(), value.structural_type, leaf.path(),
-                                ).ok_or_else(malformed)?,
+                                ).ok_or(malformed())?,
                                 ByteSequenceView::new(ByteSequenceStorage::zeroed(length, self.account.as_ref())?),
                                 self.account.as_ref(),
                             ),
@@ -759,7 +759,7 @@ impl TerminalExecution<'_> {
                             opaque_identity: value.opaque_identity,
                             path: storage_path(),
                         },
-                        zero(*scalar_type).ok_or_else(malformed)?,
+                        zero(*scalar_type).ok_or(malformed())?,
                     )?;
                 }
                 ZeroedStructuralLeaf::SumSelection {
@@ -789,7 +789,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishStructuralLocal {});
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
         terminal_semantics::validate_vacant_structural_local(
             self.structural_types().values(),
             result,
@@ -959,7 +959,7 @@ impl TerminalExecution<'_> {
         };
         let types = self.structural_types();
         let member = observed_field_declaration(types.values(), declared_parent, &namespace, field)
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
         if member.relevance.is_erased()
             || member.field_type.scalar_type() != Some(source.scalar_type())
             || !terminal_scalar_belongs_to_type(source)
@@ -968,7 +968,7 @@ impl TerminalExecution<'_> {
         }
         if let Some(view) = view {
             let carrier = record_field_carrier(types.values(), declared_parent, &namespace)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let mut logical = carrier.path;
             logical.push(StructuralPathSegment::Field(member.identity));
             let (storage, scalar_type, _) = self.aggregate_view_primitive_access(
@@ -1014,7 +1014,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         };
         let retired = self.content_parent_claims(parents, derivations)?;
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
         let machine = self.program.verified_machine(self.current_machine)?;
         let whole_multiplicity = machine
             .structural_parameter(source.place)
@@ -1111,7 +1111,7 @@ impl TerminalExecution<'_> {
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => MoveStructuralField { source, ref path, field });
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
         if self.structural_values.contains_key(&result.place) {
             return Err(malformed());
         }
@@ -1209,7 +1209,7 @@ impl TerminalExecution<'_> {
                             .map(|result| result.multiplicity)
                     })
             })
-            .ok_or_else(malformed)?
+            .ok_or(malformed())?
             == StructuralMultiplicity::Unrestricted;
         let failure = |phase, cause| TerminalInterpretError::StructuralReplacement {
             operation: operation.id,
@@ -1221,8 +1221,8 @@ impl TerminalExecution<'_> {
         let (storage, window) = if let Some(home) = &reserved {
             let (producer, declared_type) = machine
                 .producing_operation(destination)
-                .ok_or_else(malformed)?;
-            let result = producer.result.structural().ok_or_else(malformed)?;
+                .ok_or(malformed())?;
+            let result = producer.result.structural().ok_or(malformed())?;
             if !matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
                 || result.place != destination
                 || result.structural_type != declared_type
@@ -1238,7 +1238,7 @@ impl TerminalExecution<'_> {
                 path,
                 field,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             if !terminal_semantics::projection_stays_in_inline_storage(
                 self.structural_types().values(),
                 declared_type,
@@ -1297,7 +1297,7 @@ impl TerminalExecution<'_> {
                 &home.projected_qualifications,
                 &window.path,
             )
-            .ok_or_else(malformed)?
+            .ok_or(malformed())?
         } else {
             self.structural_window_requirements(operation, destination, path, field)
                 .map_err(|error| failure("receiving memberships", error))?
@@ -1448,15 +1448,13 @@ impl TerminalExecution<'_> {
             } else {
                 self.call_stack
                     .get_mut(frame_index)
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
                     .structural_values
                     .insert(place, repaired)?;
             }
         }
         if reserved.is_some() && publishes_value {
-            self.linear_homes
-                .remove(&destination)
-                .ok_or_else(malformed)?;
+            self.linear_homes.remove(&destination).ok_or(malformed())?;
         }
         if !copies_storage {
             if let Some(retired) = self.structural_values.remove(&value.place) {
@@ -1487,7 +1485,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(Vec<StructuralDomainId>, Vec<StructuralPathQualification>), TerminalInterpretError>
     {
         let machine = self.program.verified_machine(self.current_machine)?;
-        let declared = machine.operation(operation.id).ok_or_else(malformed)?;
+        let declared = machine.operation(operation.id).ok_or(malformed())?;
         operation_kind!(*declared => StoreStructuralField {
             destination, path: declared_path, field: declared_field, ..
         });
@@ -1506,7 +1504,7 @@ impl TerminalExecution<'_> {
                     .operations()
                     .filter_map(|operation| operation.result.structural())
                     .find(|result| result.place == root)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 (
                     result.structural_type,
                     result.qualifications.as_slice(),
@@ -1519,14 +1517,14 @@ impl TerminalExecution<'_> {
             declared_path,
             field,
         )
-        .ok_or_else(malformed)?;
+        .ok_or(malformed())?;
         projection
             .path
             .get_mut(..path.len())
-            .ok_or_else(malformed)?
+            .ok_or(malformed())?
             .clone_from_slice(path);
         StructuralPathQualification::select_restorable(whole, projected, &projection.path)
-            .ok_or_else(malformed)
+            .ok_or(malformed())
     }
 
     fn structural_window_hole(
@@ -1539,7 +1537,7 @@ impl TerminalExecution<'_> {
         required_access: StructuralAccess,
     ) -> Result<ResolvedStructuralWindow, TerminalInterpretError> {
         let machine = self.program.verified_machine(self.current_machine)?;
-        let declared = machine.operation(operation.id).ok_or_else(malformed)?;
+        let declared = machine.operation(operation.id).ok_or(malformed())?;
         let (declared_root, declared_path, declared_field) = match &declared.kind {
             OperationKind::MoveStructuralField {
                 source,
@@ -1563,11 +1561,11 @@ impl TerminalExecution<'_> {
             declared_path,
             field,
         )
-        .ok_or_else(malformed)?;
+        .ok_or(malformed())?;
         let mut complete_path = projection.path;
         complete_path
             .get_mut(..path.len())
-            .ok_or_else(malformed)?
+            .ok_or(malformed())?
             .clone_from_slice(path);
         let path = complete_path.as_slice();
         let prefix_length = path
@@ -1582,7 +1580,7 @@ impl TerminalExecution<'_> {
                     access: required_access,
                 }])?
                 .pop()
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let machine = self.program.machine(self.current_machine)?;
             let borrowed_origin = machine
                 .structural_parameters
@@ -1635,7 +1633,7 @@ impl TerminalExecution<'_> {
             let (collection, selected) =
                 view.structural_projection(&self.structural_types(), path, true)?;
             self.resolve_reference_storage_projection(&collection, &selected, required_access)?
-                .ok_or_else(malformed)?
+                .ok_or(malformed())?
         } else {
             self.resolve_storage_projection_with_leaf_type(
                 root,
@@ -1688,7 +1686,7 @@ impl TerminalExecution<'_> {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let result = operation.result.structural().ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
             && path.is_empty()
             && let Some(terminal_psi::StructuralTypeDeclaration {
@@ -1808,7 +1806,7 @@ impl TerminalExecution<'_> {
                         elements.push(crate::storage::scalar_storage::ScalarCell::Local(scalar));
                         Ok(())
                     })?
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
                 let mut identity_cursor = self.local_structural_identities.cursor();
                 let copied = TerminalStructuralValue {
                     opaque_identity: self
@@ -1984,7 +1982,7 @@ impl TerminalExecution<'_> {
             } else {
                 self.structural_element_view_fields
                     .get(&StructuralRuntimePlace::from(&leaf))
-                    .ok_or_else(malformed)?
+                    .ok_or(malformed())?
             };
             if descriptor.access() != StructuralAccess::SharedBorrow {
                 return Err(malformed());
@@ -2041,19 +2039,19 @@ impl TerminalExecution<'_> {
         let bytes = self.structural_byte_storage.require(&array)?;
         let layout =
             byte_carrier_scalar_layout(self.structural_types().values(), result.structural_type)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
         let index = usize::try_from(*index).map_err(|_| malformed())?;
         let mut leaves = Vec::with_capacity(layout.leaves.len());
         for member in &layout.leaves {
             let offset = index
                 .checked_add(usize::try_from(member.offset).map_err(|_| malformed())?)
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
             let size = usize::from(match member.scalar_type {
                 ScalarType::Boolean => 1u16,
                 ScalarType::Integer(integer) => self.closed_integer(integer)?.bits() / 8,
                 _ => return Err(malformed()),
             });
-            let end = offset.checked_add(size).ok_or_else(malformed)?;
+            let end = offset.checked_add(size).ok_or(malformed())?;
             let window = bytes.read_window(offset, end)?;
             let mut value = 0u128;
             for position in 0..size {
@@ -2137,7 +2135,7 @@ impl TerminalExecution<'_> {
                     path,
                     field,
                 )
-                .ok_or_else(malformed)?;
+                .ok_or(malformed())?;
                 translated = backing_path;
                 (translated.as_slice(), backing_field)
             }
@@ -2207,7 +2205,7 @@ impl TerminalExecution<'_> {
             path,
             field,
         )
-        .ok_or_else(malformed)?;
+        .ok_or(malformed())?;
         if declaration.field_type.scalar_type() != Some(scalar_type) {
             return Err(malformed());
         }
@@ -2219,14 +2217,14 @@ impl TerminalExecution<'_> {
                 declared_root,
                 &selected,
             )
-            .ok_or_else(malformed)?;
+            .ok_or(malformed())?;
             let (storage, actual, shared) = self.primitive_access(source, false, &physical)?;
             return self.read_primitive_storage(source, storage, actual, scalar_type, shared);
         }
         if let Some(view) = view {
             let carrier =
                 record_field_carrier(self.structural_types().values(), declared_root, path)
-                    .ok_or_else(malformed)?;
+                    .ok_or(malformed())?;
             let mut logical = carrier.path;
             logical.push(StructuralPathSegment::Field(declaration.identity));
             let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
