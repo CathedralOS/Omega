@@ -25,6 +25,12 @@ return and one `PublishedGuarantee` like an authored clause, and reaches
 callers as ordinary `CalleeGuarantee` knowledge under the call's actuals.
 Describing a return is inference, never evidence.
 
+An equation that contains partial arithmetic also retains that arithmetic's
+canonical formation conditions. A normal successor of a trapping operation
+can establish them even when the entry does not. The complete proposal must
+be proved at every normal return and formed before publication; the result
+equation cannot supply its own missing condition.
+
 Which machines get one is elaboration's decision (`Elaboration::local_results`):
 private machines of the subject package, which no other verification unit can
 call. A public machine, a dependency, a requirement, a selected implementation
@@ -41,8 +47,8 @@ no input, and what it returns because of the input its callers establish is
 a further clause the second run adds; a clause already in the contract is
 not added again.
 
-Limits. Only a scalar result is summarized, and only by comparisons that name
-it: what it equals, what bounds it, how it relates to a scalar formal. A
+Limits. Only a scalar result is summarized: what it equals, what bounds it,
+how it relates to a scalar formal, and what forms those comparisons. A
 helper whose returns differ is summarized by what they share, never by one
 alternative per return: a helper that returns its input inside `[20, 60]`
 and 40 otherwise is known to return a value in `[20, 60]`, not `value` or
@@ -65,6 +71,7 @@ use terminal_check_tables::{
     program::{Elaboration, SourceOrigin, Unpositioned},
 };
 use terminal_psi::{ContractClause, TerminalMachine, TerminalMachineResult, Terminator};
+use terminal_semantics::CanonicalScalarGoal;
 
 use crate::{
     Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prepare_with_inhabitation, prove,
@@ -250,6 +257,38 @@ fn widest(
     }))
 }
 
+/// A normal return can establish the conditions that made its computation
+/// complete. Keep those conditions beside a proposed result equation; the
+/// equation alone cannot make its own partial terms safe. These remain a
+/// proposal until every return proves the whole conjunction below.
+fn with_formation_conditions(summary: Proposition, id: MachineId) -> Checked<Proposition> {
+    let mut conditions = Vec::new();
+    let mut failure = None;
+    summary.visit_scalar_terms(|term| {
+        let condition = CanonicalScalarGoal::for_term(term)
+            .and_then(|goal| goal.map(|goal| goal.kernel_proposition()).transpose());
+        match condition {
+            Ok(Some(condition)) => {
+                if condition != Proposition::Truth && !conditions.contains(&condition) {
+                    conditions.push(condition);
+                }
+            }
+            Ok(None) => {}
+            Err(error) => failure = Some(error),
+        }
+    });
+    if let Some(error) = failure {
+        return Err(refusal(
+            RefusalReason::Unsupported,
+            id,
+            Construct::Machine,
+            &format!("result summary has no canonical formation condition: {error:?}"),
+        ));
+    }
+    conditions.push(summary);
+    entry_inputs::canonical(joins::connective(conditions, true), id)
+}
+
 fn summarize(
     scope: &mut crate::ReplayScope<'_>,
     id: MachineId,
@@ -401,6 +440,7 @@ fn summarize(
     let Ok(summary) = entry_inputs::canonical(joins::connective(parts, true), id) else {
         return Ok(());
     };
+    let summary = with_formation_conditions(summary, id)?;
     if matches!(summary, Proposition::Truth | Proposition::Falsehood)
         || lowered
             .contract
