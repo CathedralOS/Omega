@@ -678,9 +678,15 @@ pub(crate) fn follow_the_lowered_form(
                     minted.owed(kind, before, concerns)?;
                 }
             }
+            // Structural-only joins owe the same arrival predicate as
+            // mixed joins. Their storage/loan transport is judged separately;
+            // an empty scalar telescope does not erase the edge's obligation.
             Terminator::Jump {
-                edge, arguments, ..
-            } if !arguments.is_empty() => {
+                edge,
+                arguments,
+                structural_arguments,
+                ..
+            } if !arguments.is_empty() || !structural_arguments.is_empty() => {
                 let kind = ObligationKind::ArrivalInvariant { edge: *edge };
                 minted.owed(kind, ProgramPoint::Edge(*edge), concerns)?;
             }
@@ -690,7 +696,8 @@ pub(crate) fn follow_the_lowered_form(
                 ..
             } => {
                 for successor in [when_true, when_false] {
-                    if !successor.arguments.is_empty() {
+                    if !successor.arguments.is_empty() || !successor.structural_arguments.is_empty()
+                    {
                         let kind = ObligationKind::ArrivalInvariant {
                             edge: successor.edge,
                         };

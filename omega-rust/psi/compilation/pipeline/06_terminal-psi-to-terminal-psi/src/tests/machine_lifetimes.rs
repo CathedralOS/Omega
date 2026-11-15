@@ -31,11 +31,26 @@ fn verdict(build: &str) -> String {
 /// form. Module-local identity indices and source declaration coordinates are
 /// deliberately excluded from comparisons between separately read programs.
 fn published_label_signature(source: &str) -> (Vec<String>, String, [u8; 32]) {
-    let verdict = judge_build(source);
+    // Portable receiving checks start from package-owned Product source.
+    // Invocation-scoped code deliberately cannot be serialized as an artifact.
+    let typed = super::build_purpose::frontier_of(source, "machine unused_build() {}");
+    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let input = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[Some(super::build_purpose::package())],
+            source::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let mut verdicts = crate::judge_compilation(input.program);
+    assert_eq!(verdicts.len(), 1);
+    let verdict = verdicts.remove(0);
     let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
-        panic!("both lifetime promises admit the literal body: {verdict:?}");
+        panic!("the complete declared signature must be judged: {verdict:?}");
     };
-    let publication = accepted.publish_invocation().unwrap();
+    let publication = accepted.publish().unwrap();
     let signature = |module: &terminal_psi::TerminalModule| {
         let mut declarations = module
             .machines
@@ -134,7 +149,7 @@ fn an_ordinary_record_signature_retains_its_elided_lifetime_relation() {
                 r#"
             data View<'storage> {{ bytes: &'storage [u8]; }}
             machine build_entry() {{
-                let value = View {{ bytes: "input" }};
+                let value: View = View {{ bytes: "input" }};
                 take(label({argument}));
             }}
             machine label{binders}(value: {formal}) -> {result} {{ {body} }}
