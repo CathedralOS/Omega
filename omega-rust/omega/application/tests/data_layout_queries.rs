@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn fixture(path: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures").join(path)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures")
+        .join(path)
 }
 
 fn run_both(project: &Path) -> (Output, String) {
