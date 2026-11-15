@@ -1450,6 +1450,7 @@ pub mod control_flow {
                             evidence_arguments: Box::default(),
                             source_span: Default::default(),
                             authored_call_selection: None,
+                            unresolved_name: Default::default(),
                         },
                     }),
                     continuation: None,

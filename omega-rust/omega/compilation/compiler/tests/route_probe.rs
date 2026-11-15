@@ -1083,7 +1083,8 @@ fn a_value_name_nothing_declares_is_rejected() {
             stopped,
             [
                 "constant `LIMIT` evaluation: this expression has no visible value declaration in its \
-              source scope: an unknown name is an error wherever it appears"
+              source scope: an unknown name is an error wherever it appears while reading the \
+              signature of `@constant-initializer<LIMIT>` while reading the body of `@const-invocation`"
             ],
             "{name}"
         );
