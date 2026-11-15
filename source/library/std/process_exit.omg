@@ -9,10 +9,6 @@ use omega::language::core::Never;
 use omega::language::core::ProcessExit;
 use omega::language::core::ProcessExitPrimitive;
 
-// Target defaults use this ordinary namespace value to select the checked
-// implementation below. It is neither a provider nor a native realization.
-public data ProcessExitNativeProvider { }
-
 // The selected implementation owns the complete ProcessExit map. Its one
 // member calls the core primitive directly. Its distinct declaration keeps
 // the canonical requirement's terminal outcome and exact i32 status; neither
