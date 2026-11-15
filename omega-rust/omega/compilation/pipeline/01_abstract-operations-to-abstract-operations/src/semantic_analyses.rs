@@ -937,8 +937,12 @@ pub(crate) mod place_access_summaries {
             O::StructuralCaseMembership { source, path, .. } => {
                 pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
             }
-            O::StructuralCase { source, path, .. } | O::EliminateEmpty { source, path, .. } => {
+            O::StructuralCase { source, path, .. } => {
                 pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
+            }
+            O::EliminateEmpty { source, path, .. } => {
+                let observed = terminal_semantics::inhabitation::observed_storage_path(path);
+                pending.attribute(context, *source, runtime_prefix(observed), AccessKind::Read);
             }
             O::StructuralLeafCopy { source, path, .. } => {
                 let view = match path {

@@ -898,13 +898,7 @@ impl Analysis<'_> {
                 )?;
             }
             Terminator::EliminateEmpty { source, path, .. } => {
-                // A final case selects its payload namespace, which has no
-                // independent stored home. Observe the containing sum intact;
-                // selected-case and emptiness judgments remain separate.
-                let observed = match path.split_last() {
-                    Some((StructuralPathSegment::Case(_), carrier)) => carrier,
-                    _ => path,
-                };
+                let observed = crate::inhabitation::observed_storage_path(path);
                 self.argument(
                     &mut state,
                     &StructuralArgument {

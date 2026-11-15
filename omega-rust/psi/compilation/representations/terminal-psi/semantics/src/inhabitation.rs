@@ -32,6 +32,18 @@ pub trait TypeContracts {
     fn visit_owned_fields(&self, index: usize, visit: impl FnMut(Option<usize>, StructuralTypeId));
 }
 
+/// The actual stored value observed by an empty-domain terminal. A final
+/// `Case` selects a payload namespace, so availability and read footprints
+/// observe its containing sum; all earlier projections remain exact. The full
+/// semantic path still names the selected namespace for emptiness and case
+/// evidence. This projection alone grants neither case selection nor emptiness.
+pub fn observed_storage_path(path: &[StructuralPathSegment]) -> &[StructuralPathSegment] {
+    match path.split_last() {
+        Some((StructuralPathSegment::Case(_), carrier)) => carrier,
+        _ => path,
+    }
+}
+
 /// Whether actual retained clauses exclude every value by Boolean constants
 /// alone. An unproved atom/comparison is unknown, even if its type is unserved.
 /// This is also usable for a named domain's already-instantiated predicates.
