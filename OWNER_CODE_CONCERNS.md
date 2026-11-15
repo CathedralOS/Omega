@@ -94,13 +94,6 @@ framework or a list of unimplemented features.
 - Cost: Any fixture reaching discovery through that path stalls before its positive test can observe the build result. Serve discovery from the actual reached-call roster, including a proved empty roster, and preserve refusal when that custody is unavailable.
 - Reported: 2026-11-15, Codex, while replaying the compiler's kept compound-index checks.
 
-### The match index probe cannot share a mutable scalar across its arms
-- Category: knowledge crossing a boundary
-- Where: [match bound controls](omega-rust/omega/compilation/compiler/tests/package_review.rs), [qualified match](tests/fixtures/pass/facts/compound_index_guard_through_match_join_exit/main.omg#L30)
-- Saw: On `4ca9e890360` the two kept match fixtures refuse the enclosing array's `Wrapping` qualifier. In scratch, qualify the element and stored literals with the same policy. The reader then refuses “expression match with a qualified result”. Allowing that unchanged policy-only result in the existing scalar join advances to “call loan of a value local on some paths only” at `&mut route`. Each arm calls `mark_coordinate` with the same mutable binder declared before the match.
-- Cost: Both match placements stop before checking the index. Carry the exact wrapping value and mutable binder through the existing join and storage owners. Preserve both route tags, the original indexed writeback and neighboring slots, and the missing-upper-bound refusal.
-- Reported: 2026-11-15, Codex, while replaying the kept compound-index fixtures.
-
 ### Product declaration requests rescan the source roster
 - Category: re-deriving
 - Where: [Product path and author resolution](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1241), [exact source matcher](omega-rust/psi/foundation/symbols/src/table.rs#L2041), [Build declaration formations](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L589)

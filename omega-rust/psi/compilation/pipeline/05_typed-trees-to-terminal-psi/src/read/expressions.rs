@@ -832,9 +832,14 @@ impl<'t> Program<'t> {
             return Ok(value);
         }
         let value_type = match value.result {
-            Some(
-                value_type @ (ValueType::Scalar(_, Qualification::NONE) | ValueType::Record(..)),
-            ) => value_type,
+            // Every returning arm supplies the same arithmetic policy.
+            // Predicate-domain membership still needs its own arrival proof.
+            Some(value_type @ ValueType::Scalar(_, qualification))
+                if qualification.domains.is_empty() =>
+            {
+                value_type
+            }
+            Some(value_type @ ValueType::Record(..)) => value_type,
             Some(ValueType::Scalar(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
