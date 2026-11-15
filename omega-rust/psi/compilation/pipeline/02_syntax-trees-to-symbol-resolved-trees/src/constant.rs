@@ -28,10 +28,10 @@
     and unused. Check declarations before substitution, reusing the same validator
     during module normalization so public identity construction cannot bypass it.
 
-    Nominal index values retain a private link to the actual parent-owned
-    argument span while lowering. Finalization rejoins the resolved parameter
-    and selected declaration before publishing occurrence custody. The ordinary
-    generic application and indexed-domain owners provide that relationship;
+    Nominal index values retain their receiving application while lowering.
+    Ordinary symbol assignment publishes that application's selected declaration;
+    its declaration supplies the exact binder span before finalization. Argument
+    storage shared by distinct applications never identifies their receiving owner.
     Body materialization retains those same nominal declaration identities without
     turning canonical index encodings into constructor authority.
 
@@ -61,6 +61,8 @@
     `initializer_normalization` carry the const carrier and initializer
     dependencies.
 */
+
+mod receiving_applications;
 
 mod carrier {
     /* Numeric substitution preserves the selected declaration's landing boundary. */
@@ -226,107 +228,6 @@ mod carrier {
         CanonicalConstValue::new("", encoding, "")
             .decode_encoding()
             .is_some_and(|value| contains(&value))
-    }
-
-    /*
-        Rejoin the parent-owned child span in actual resolved type owners. Copies
-        of one application may share its span, but must agree on the resolved base.
-        No encoded name or detached provisional application supplies this identity.
-    */
-    pub(super) fn receiving_parameters<'program>(
-        program: &'program SymbolResolvedTrees,
-        arguments: arena::HandleSpan<TypeReference>,
-        lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
-    ) -> Option<&'program [symbol_resolved_trees::data::TypeParameter]> {
-        let mut selected = SymbolHandle::invalid();
-        let mut conflicting = false;
-        let mut inspect = |reference: &TypeReference| {
-            if let TypeReference::Generic(application) = reference
-                && application.arguments == arguments
-            {
-                if !application.base_symbol.is_valid()
-                    || (selected.is_valid() && selected != application.base_symbol)
-                {
-                    conflicting = true;
-                }
-                selected = application.base_symbol;
-            }
-        };
-        let declarations = &program.tables.declarations;
-        for (_, reference) in declarations.child_type_references.iter() {
-            inspect(reference);
-        }
-        for declaration in program.const_declarations.iter() {
-            inspect(&declaration.declared_type);
-        }
-        for (_, parameter) in declarations.state_parameters.iter() {
-            inspect(&parameter.type_reference);
-        }
-        for (_, state) in declarations.machine_states.iter() {
-            if let Some(reference) = &state.return_type {
-                inspect(reference);
-            }
-        }
-        for (_, member) in declarations.data_members.iter() {
-            if let symbol_resolved_trees::data::DataMember::Field(field) = member {
-                inspect(&field.type_reference);
-            }
-        }
-        for (_, field) in declarations.data_payload_fields.iter() {
-            inspect(&field.type_reference);
-        }
-        for (_, statement) in declarations.state_statements.iter() {
-            if let symbol_resolved_trees::statement::Statement::LocalData(local) = statement {
-                inspect(&local.type_reference);
-            }
-        }
-        for input in lexical_inputs {
-            for statement in &input.locals {
-                if let symbol_resolved_trees::statement::Statement::LocalData(local) = statement {
-                    inspect(&local.type_reference);
-                }
-            }
-            for (_, reference) in &input.types {
-                inspect(reference);
-            }
-        }
-        for definition in program.data_definitions.iter() {
-            if let Some(reference) = &definition.generic_instance {
-                inspect(reference);
-            }
-        }
-        for (_, constraint) in program.tables.types.constraints.iter() {
-            if let symbol_resolved_trees::types::TypeConstraint::Domain(domain) = constraint
-                && domain.arguments == arguments
-            {
-                let domain_symbol = program
-                    .symbols
-                    .find_top_level_by_name_and_kinds_from_source(
-                        domain.name.as_str(),
-                        &[symbols::SymbolKind::Domain],
-                        domain.name.source_span(),
-                    )?;
-                if selected.is_valid() && selected != domain_symbol {
-                    conflicting = true;
-                }
-                selected = domain_symbol;
-            }
-        }
-        if conflicting || !selected.is_valid() {
-            return None;
-        }
-        if let Some(template) = program.data_definition_by_symbol(selected) {
-            return Some(program.data_type_parameters(template.type_parameters));
-        }
-        let domain = program.domain_definition_by_symbol(selected)?;
-        let parameters = program.data_type_parameters(domain.type_parameters);
-        let carrier_binder = parameters.first().is_some_and(|parameter| matches!(parameter.kind, symbol_resolved_trees::data::TypeParameterKind::Type)
-        && matches!(&domain.target_type, TypeReference::Named { symbol, .. } if *symbol == parameter.symbol));
-        Some(if carrier_binder {
-            &parameters[1..]
-        } else {
-            parameters
-        })
     }
 }
 mod declaration_values {
@@ -4829,6 +4730,9 @@ mod selections {
     /* Finalizing const selections, declarations and argument selections. */
 
     use crate::constant::carrier;
+    #[cfg(test)]
+    use crate::constant::receiving_applications::FINALIZATION_WORK;
+    use crate::constant::receiving_applications::{self, ConstArgumentInputs};
     use carrier::retain_declared_carrier;
     use carrier::same_resolved_carrier;
     use diagnostics::Diagnostic;
@@ -4975,24 +4879,24 @@ mod selections {
         program: &mut SymbolResolvedTrees,
         pending: &[crate::resolution::lowerer::PendingConstArgumentSelection],
         slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
-        lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
     ) -> Result<(), Diagnostic> {
+        let inputs = ConstArgumentInputs::prepare(program, pending, slots)?;
         let mut selected_arguments = Vec::new();
         for (selection_ordinal, selection) in pending.iter().enumerate() {
             let origin = &selection.origin;
-            let mut declarations = program.const_declarations.iter().filter(|declaration| {
-                program.symbols.symbol_source_span(declaration.symbol) == Some(origin.declaration)
+            #[cfg(test)]
+            FINALIZATION_WORK.with(|work| {
+                let (preparation, declarations, slots) = work.get();
+                work.set((preparation, declarations + 1, slots));
             });
-            let declaration = declarations
-                .next()
-                .ok_or_else(|| {
-                    Diagnostic::error(
-                        "normalized constant argument lost its exact selected declaration",
-                    )
-                    .with_source_span(origin.reference)
-                })?
-                .clone();
-            if declarations.next().is_some()
+            let declaration = inputs.declarations[selection_ordinal].ok_or_else(|| {
+                Diagnostic::error(
+                    "normalized constant argument lost its exact selected declaration",
+                )
+                .with_source_span(origin.reference)
+            })?;
+            let declaration = program.const_declarations[declaration].clone();
+            if inputs.duplicate_declarations[selection_ordinal]
                 || declaration.initializer_source_span != origin.initializer
                 || declaration.evaluated_value.as_ref() != Some(&origin.evaluated_value)
             {
@@ -5021,16 +4925,14 @@ mod selections {
                     )
                 });
             let mut matched = false;
-            for slot in slots
-                .iter()
-                .filter(|slot| slot.selection == selection_ordinal)
-            {
-                let parameters =
-                    carrier::receiving_parameters(program, slot.arguments, lexical_inputs)
-                        .ok_or_else(|| {
-                            Diagnostic::error("constant lost its actual receiving application")
-                                .with_source_span(origin.reference)
-                        })?;
+            for slot in &inputs.slots[inputs.slot_runs[selection_ordinal].clone()] {
+                #[cfg(test)]
+                FINALIZATION_WORK.with(|work| {
+                    let (preparation, declarations, slots) = work.get();
+                    work.set((preparation, declarations, slots + 1));
+                });
+                let parameters = receiving_applications::receiving_parameters(program, slot)
+                    .map_err(|diagnostic| diagnostic.with_source_span(origin.reference))?;
                 let arguments = program.child_type_references(slot.arguments);
                 if parameters.len() != arguments.len() {
                     return Err(Diagnostic::error(
@@ -5362,6 +5264,7 @@ pub(crate) use normalized_expressions::{
     normalization_requires_expression, validate_normalized_const_argument,
     validate_normalized_expression,
 };
+pub(crate) use receiving_applications::bind_receiving_application;
 pub(crate) use scalar_carriers::{is_builtin_scalar_carrier, is_structural_scalar_carrier};
 pub(crate) use selections::{
     finalize_const_argument_selections, finalize_const_declarations, finalize_const_selections,
@@ -5432,11 +5335,14 @@ pub fn requires_const_initializer_evaluation(
 */
 pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let program = &mut lowerer.symbol_resolved_trees;
+    receiving_applications::bind_receiving_parameters(
+        program,
+        &lowerer.pending_const_argument_slots,
+    );
     finalize_const_argument_selections(
         program,
         &lowerer.pending_const_argument_selections,
         &lowerer.pending_const_argument_slots,
-        &lowerer.resolved_lexical_inputs,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     let const_expression_roots = lowerer

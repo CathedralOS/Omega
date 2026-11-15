@@ -1,0 +1,25 @@
+// Expected exit: 0. The named record constant keeps its receiving declaration
+// through a closed type equation and through ordinary signature copies.
+data Index [copy] { value: u64; }
+data Sizes {}
+const Sizes::SIZE: Index = Index { value: 1 };
+data Indexed<const Selected: Index> [copy] { value: u8; }
+
+machine keep(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> { value }
+machine before_local(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> {
+    let Sizes: u64 = 0;
+    value
+}
+machine close<Shape>() requires Shape == Indexed<Sizes::SIZE> {}
+machine instantiate() { close<Indexed<Sizes::SIZE>>(); }
+
+machine complete() {}
+machine fail() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let mut item: Indexed<Sizes::SIZE>;
+    item.value = 9;
+    transition keep(item).value == 9 && before_local(item).value == 9 {
+        true -> complete()
+        _ -> fail()
+    }
+}

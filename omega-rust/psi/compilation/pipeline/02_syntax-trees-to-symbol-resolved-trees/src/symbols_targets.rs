@@ -1209,7 +1209,7 @@ mod transitions {
         parameters: &[symbol_resolved_trees::signature::StateParameter],
         state_symbol: SymbolHandle,
         expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
-        child_type_references: &mut arena::Arena<symbol_resolved_trees::types::TypeReference>,
+        child_type_references: &mut symbol_resolved_trees::types::TypeReferenceArena,
         statement_path_members: &mut Arena<symbol_resolved_trees::name::DiagnosticName>,
         target: &mut symbol_resolved_trees::statement::TransitionTarget,
         symbols: &SymbolTable,
