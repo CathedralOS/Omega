@@ -77,31 +77,27 @@ impl Storage<'_> {
                 // A direct byte window's formal carries the canonical view
                 // and keeps its access on the parameter. Its bytes are judged
                 // as the view that access grants, exactly like the
-                // access-bearing view the caller lent.
+                // access-bearing view the caller lent. The canonical view is
+                // only ever a formal's whole root.
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
-                ) => terminal_semantics::structural_projection_authority(
-                    self.lowered,
-                    self.types,
-                    &terminal_psi::StructuralArgument {
-                        place,
-                        path: path.to_vec(),
-                        access: StructuralAccess::SharedBorrow,
-                    },
-                )
-                .filter(|access| {
-                    matches!(
-                        access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    )
-                })
-                .map_or(declaration.shape.clone(), |access| {
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(access),
-                        },
-                    )
-                }),
+                ) if path.is_empty() => {
+                    terminal_semantics::structural_argument_source(self.lowered, place, 0)
+                        .map(|formal| formal.access)
+                        .filter(|access| {
+                            matches!(
+                                access,
+                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            )
+                        })
+                        .map_or(declaration.shape.clone(), |access| {
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                    access: Some(access),
+                                },
+                            )
+                        })
+                }
                 _ => declaration.shape.clone(),
             })
             .or_else(|| {

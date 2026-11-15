@@ -2649,7 +2649,12 @@ impl<'a> Storage<'a> {
                             }
                             let mut source = self.argument(argument, Construct::Edge(edge))?;
                             if !matches!(self.shape(&source, Construct::Edge(edge))?,
-                            Shape::Typed(actual) if actual == parameter.structural_type)
+                            Shape::Typed(actual) if terminal_semantics::formal_accepts_actual_type(
+                                self.types.iter(),
+                                parameter.structural_type,
+                                parameter.access,
+                                actual,
+                            ))
                             {
                                 return Err(self.foreign(
                                     Construct::Edge(edge),

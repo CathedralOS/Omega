@@ -3838,6 +3838,21 @@ pub(crate) mod engine {
         ) -> Option<bool> {
             let path = machine.location_path(self.types, backing, completed)?;
             let root = *machine.place_types.get(&backing.root)?;
+            // A reference to a direct byte window's own descriptor names the
+            // view its parameter's access grants; the formal itself carries
+            // the canonical view with that access on the parameter.
+            if path.is_empty()
+                && let Some(StructuralTypeShape::Reference { referent, .. }) =
+                    find_structural_type(self.types, reference).map(|row| &row.shape)
+                && *referent != root
+                && let DescriptorDefinition::Parameter { access, .. }
+                | DescriptorDefinition::Arrival { access } =
+                    exactly_one(machine.places.iter(), |row| row.place == backing.root)?
+                        .definition
+                && crate::formal_accepts_actual_type(self.types.iter(), root, access, *referent)
+            {
+                return Some(true);
+            }
             Some(crate::reference_source_projection_compatible(
                 self.types.iter(),
                 root,

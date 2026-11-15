@@ -1270,7 +1270,14 @@ fn validate_successor(
                 "structural successor argument has no actual source declaration",
             ))?;
         if crate::runtime_structural_path_tip(types.iter(), source, &argument.path)
-            .is_none_or(|selected| selected.id != parameter.structural_type)
+            .is_none_or(|selected| {
+                !crate::formal_accepts_actual_type(
+                    types.iter(),
+                    parameter.structural_type,
+                    parameter.access,
+                    selected.id,
+                )
+            })
         {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
