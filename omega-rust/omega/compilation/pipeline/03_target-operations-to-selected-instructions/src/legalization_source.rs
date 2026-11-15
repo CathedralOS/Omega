@@ -41,14 +41,6 @@ pub(crate) mod ordinary_roster {
         abstract_plan: &crate::native_geometry::NativePlan<'_>,
         unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
-        let call_descriptor_graph = std::cell::OnceCell::new();
-        let mut call_descriptor_origins =
-            crate::legalization::scalar_graph_input::byte_views::CallDescriptorOrigins::new(
-                unit,
-                target,
-                abstract_plan,
-                &call_descriptor_graph,
-            );
         for target_function in &target.functions {
             let mut current_operation = None;
             let function = derive_one(
@@ -57,7 +49,6 @@ pub(crate) mod ordinary_roster {
                 abstract_plan,
                 unit,
                 &mut current_operation,
-                &mut call_descriptor_origins,
             )
             .map_err(|error| error.attributed(target_function.machine, current_operation))?;
             rosters.scalar_functions.push(function);
@@ -65,17 +56,13 @@ pub(crate) mod ordinary_roster {
         Ok(())
     }
 
-    fn derive_one<'a, 'g>(
+    fn derive_one<'a>(
         target_function: &target_operations::TargetFunction,
         target: &'a TargetOperationPlan,
         abstract_plan: &'a crate::native_geometry::NativePlan<'a>,
         unit: &'a crate::native_geometry::NativeUnit<'a>,
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
-        call_descriptor_origins: &mut crate::legalization::scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
-    ) -> Result<legalized_operations::LegalizedScalarFunction, LegalizationError>
-    where
-        'a: 'g,
-    {
+    ) -> Result<legalized_operations::LegalizedScalarFunction, LegalizationError> {
         let abstract_matches = abstract_plan
             .functions
             .iter()
@@ -99,7 +86,6 @@ pub(crate) mod ordinary_roster {
             abstract_plan,
             unit,
             current_operation,
-            call_descriptor_origins,
         )
     }
 }
@@ -133,18 +119,11 @@ pub(crate) mod scalar_graph {
             use scalar_graph_input::normalized_foreign::native_callbacks_at;
             use semantic_vocabulary::OperationId;
 
-            pub(crate) fn project_call<'a, 'g>(
+            pub(crate) fn project_call<'a>(
                 optimized: &optimization_unit::PsiOptimizationFunction,
                 unit: &'a crate::native_geometry::NativeUnit<'a>,
                 targeted: &target_operations::TargetUnitOperation,
-                call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<
-                    'a,
-                    'g,
-                >,
-            ) -> Result<LegalizedScalarInstructionKind, LegalizationError>
-            where
-                'a: 'g,
-            {
+            ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::Call {
                     psi_operation,
                     origin,
@@ -192,9 +171,11 @@ pub(crate) mod scalar_graph {
                     }
                     _ => None,
                 };
-                let mut descriptor_origins = match &structural_result {
-                    Some(result) => call_descriptor_origins.resolve(optimized.machine, result)?,
-                    None => Vec::new(),
+                let mut descriptor_origins = match result {
+                    target_operations::TargetCallResult::Structural {
+                        descriptor_origins, ..
+                    } => descriptor_origins.clone(),
+                    _ => Vec::new(),
                 };
                 if let target_operations::TargetCallResult::Structural {
                     reference_results, ..
@@ -1574,28 +1555,21 @@ pub(crate) mod scalar_graph {
             home.layout.sum().cloned().ok_or(Error::custody())
         }
 
-        pub(crate) fn project<'a, 'g>(
+        pub(crate) fn project<'a>(
             node: &optimization_unit::OptimizationNode,
             optimized: &optimization_unit::PsiOptimizationFunction,
             native: &'a TargetOperationPlan,
             plan: &'a crate::native_geometry::NativePlan<'a>,
             unit: &'a crate::native_geometry::NativeUnit<'a>,
             targeted: &target_operations::TargetUnitOperation,
-            call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<
-                'a,
-                'g,
-            >,
-        ) -> Result<LegalizedScalarInstruction, LegalizationError>
-        where
-            'a: 'g,
-        {
+        ) -> Result<LegalizedScalarInstruction, LegalizationError> {
             let (operation, result) =
                 scalar_graph_input::instruction(node).ok_or(Error::custody())?;
             let kind = if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::Call { .. }
             ) {
-                call_instructions::project_call(optimized, unit, targeted, call_descriptor_origins)?
+                call_instructions::project_call(optimized, unit, targeted)?
             } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::StructuralLeafCopy { .. }
@@ -3088,7 +3062,7 @@ pub(crate) mod scalar_graph {
         }
     }
 
-    pub(crate) fn derive<'a, 'g>(
+    pub(crate) fn derive<'a>(
         target: &target_operations::TargetFunction,
         abstracted: &abstract_operations::AbstractFunction,
         optimized: &optimization_unit::PsiOptimizationFunction,
@@ -3096,11 +3070,7 @@ pub(crate) mod scalar_graph {
         plan: &'a crate::native_geometry::NativePlan<'a>,
         unit: &'a crate::native_geometry::NativeUnit<'a>,
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
-        call_descriptor_origins: &mut scalar_graph_input::byte_views::CallDescriptorOrigins<'a, 'g>,
-    ) -> Result<LegalizedScalarFunction, LegalizationError>
-    where
-        'a: 'g,
-    {
+    ) -> Result<LegalizedScalarFunction, LegalizationError> {
         let call_plan = target.graph.call_plan.clone();
         let parameters = optimized
             .parameters
@@ -3149,13 +3119,7 @@ pub(crate) mod scalar_graph {
                     *current_operation =
                         scalar_graph_input::instruction(node).map(|(operation, _)| operation);
                     instructions.push(instruction::project(
-                        node,
-                        optimized,
-                        native,
-                        plan,
-                        unit,
-                        row,
-                        call_descriptor_origins,
+                        node, optimized, native, plan, unit, row,
                     )?);
                 }
                 *current_operation = None;

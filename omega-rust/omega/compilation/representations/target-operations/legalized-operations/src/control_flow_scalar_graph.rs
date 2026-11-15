@@ -1445,20 +1445,7 @@ impl LegalizedScalarTerminator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegalizedDescriptorOrigin {
-    Opaque,
-    Empty,
-    Argument {
-        source: terminal_psi::StructuralArgument,
-        exact: bool,
-        indirect: bool,
-    },
-    Literal {
-        machine: MachineId,
-        place: PlaceId,
-    },
-}
+pub use target_operations::TargetDescriptorOrigin as LegalizedDescriptorOrigin;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarCall {
