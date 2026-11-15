@@ -162,7 +162,7 @@ pub(super) fn formal_place(id: MachineId, slots: &[Slot], slot: usize) -> Checke
 
 impl Program<'_> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
-    // conjunction of those. Terms name formal `i` as value `i + 1`.
+    // conjunction or disjunction of those. Terms name formal `i` as value `i + 1`.
 
     /// A contract fact that is an expression; memberships and named
     /// propositions are outside the subset.
@@ -194,6 +194,25 @@ impl Program<'_> {
         } else {
             out.push(expression);
         }
+    }
+
+    /// Read every remaining alternative before simplifying. Otherwise `true`
+    /// could hide arithmetic that still needs a safety proof. Reuse the
+    /// existing representation for `!=`.
+    fn disjunctive_clause(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        operands: &[ExpressionHandle],
+    ) -> Checked<Proposition> {
+        let mut disjuncts = Vec::new();
+        for &operand in operands {
+            match self.clause(id, scope, operand)? {
+                Proposition::Disjunction(inner) => disjuncts.extend(inner),
+                other => disjuncts.push(other),
+            }
+        }
+        canonical::clauses(disjuncts, Repeated::Refuse, id).map(Proposition::Disjunction)
     }
 
     /// Read one authored callable predicate at the observation its contract
@@ -297,7 +316,7 @@ impl Program<'_> {
                 return match open[..] {
                     [only] => self.clause(id, scope, only),
                     [] => unserved("disjunction that type equations decide false"),
-                    _ => unserved("disjunction"),
+                    _ => self.disjunctive_clause(id, scope, &open),
                 };
             }
         }
@@ -342,16 +361,8 @@ impl Program<'_> {
                 return canonical::clauses(conjuncts, Repeated::Refuse, id)
                     .map(Proposition::Conjunction);
             }
-            BinaryOperator::Or if scope.subject.is_some() => {
-                let mut disjuncts = Vec::new();
-                for side in [binary.left, binary.right] {
-                    match self.clause(id, scope, side)? {
-                        Proposition::Disjunction(inner) => disjuncts.extend(inner),
-                        other => disjuncts.push(other),
-                    }
-                }
-                return canonical::clauses(disjuncts, Repeated::Refuse, id)
-                    .map(Proposition::Disjunction);
+            BinaryOperator::Or => {
+                return self.disjunctive_clause(id, scope, &[binary.left, binary.right]);
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -359,7 +370,6 @@ impl Program<'_> {
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::NotEqual => operator,
-            BinaryOperator::Or => return unserved("disjunction"),
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply

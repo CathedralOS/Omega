@@ -113,6 +113,28 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
     );
 }
 
+#[test]
+fn source_boundary_contract_alternatives_keep_each_actual_argument() {
+    for actual in [34603008, 36700160] {
+        let source = boundary_source("reaches none", actual).replace(
+            "requires value <= 10",
+            "requires value == 34603008 || value == 36700160",
+        );
+        let verdict = judge(invocation(typed(&source))).unwrap();
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+    let source = boundary_source("reaches none", 0).replace(
+        "requires value <= 10",
+        "requires value == 34603008 || value == 36700160",
+    );
+    let verdict = judge(invocation(typed(&source))).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}",
+    );
+}
+
 /// A boundary requirement may take a type parameter of its own. It has no
 /// body, so a call that applies it, `Probe::take<Reading>(..)`, is held to
 /// the requirement's signature and contract with `Reading` where it named
