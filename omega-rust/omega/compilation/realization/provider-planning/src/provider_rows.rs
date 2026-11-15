@@ -106,6 +106,8 @@ impl DirectBoundaryInput {
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
         plan.provider_type = self.realization_owner.clone();
         plan.provider_type_package_identity = self.realization_package;
+        plan.origin_package_identity = self.realization_package;
+        plan.provider_application = plan.identities.intern(&self.realization_owner);
         declaration.trait_name = declaration.identities.intern(&self.callable_identity);
         declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
@@ -134,4 +136,94 @@ impl DirectBoundaryInput {
         leaf.validate_calling_custody().map_err(Diagnostic::error)?;
         Ok(leaf)
     }
+}
+
+/// Realize the checked core primitive at its own callable coordinate, retaining
+/// the selected canonical requirement's complete schema as its semantic owner.
+/// No source callback or provider-name classification supplies execution here.
+pub fn direct_hosted_primitive_leaves(
+    module: &terminal_psi::TerminalModule,
+    selected: &effects::SelectedProviderPlanFacts,
+    target: &str,
+) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+    let fail = |reason: &str| vec![Diagnostic::error(reason)];
+    let text = |identity| {
+        module
+            .identities
+            .text(identity)
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| fail("hosted primitive lost its exact declaration identity"))
+    };
+    let mut leaves = Vec::new();
+    for boundary in &module.boundary_machines {
+        let Some(declaration) = &boundary.declaration else {
+            continue;
+        };
+        let terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
+            operation,
+            requirement,
+        } = declaration.execution
+        else {
+            continue;
+        };
+        let execution = match operation {
+            language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
+                effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+            }
+            _ => return Err(fail("hosted primitive has no native catalog projection")),
+        };
+        let canonical = module
+            .boundary_machine(requirement)
+            .ok_or_else(|| fail("hosted primitive lost its canonical requirement link"))?;
+        let requirement = text(canonical.identity)?;
+        let mut originals = selected.plans().iter().flat_map(|plan| {
+            plan.rows
+                .iter()
+                .enumerate()
+                .filter_map(move |(index, row)| {
+                    (plan.identities.text(row.declared_requirement_identity) == requirement)
+                        .then_some((plan, index))
+                })
+        });
+        let (Some((original, row_index)), None) = (originals.next(), originals.next()) else {
+            return Err(fail(
+                "hosted primitive needs one exact selected canonical requirement schema",
+            ));
+        };
+        if original.target != target {
+            return Err(fail(
+                "hosted primitive and selected plan name different targets",
+            ));
+        }
+        let mut original = original.clone();
+        let machine = text(declaration.source.semantic_declaration)?.to_owned();
+        original.rows[row_index].binding =
+            effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine };
+        let input = DirectBoundaryInput {
+            row_index,
+            declaration_identity: text(declaration.source.semantic_declaration)?.to_owned(),
+            callable_identity: text(declaration.source.callable)?.to_owned(),
+            realization_owner: text(declaration.source.machine.identity())?.to_owned(),
+            // Receiving has already authenticated both declarations as exact
+            // core members; the canonical schema retains that package custody.
+            realization_package: original.schema.declaration.trait_package_identity,
+            mechanism: DirectBoundaryMechanism::Intrinsic,
+        };
+        let mut leaf = input
+            .finish(
+                &original,
+                backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+        if !leaf
+            .bind_to_terminal(module)
+            .map_err(|reason| fail(&reason))?
+        {
+            return Err(fail(
+                "hosted primitive lost its exact receiving declaration",
+            ));
+        }
+        leaves.push(leaf);
+    }
+    Ok(leaves)
 }
