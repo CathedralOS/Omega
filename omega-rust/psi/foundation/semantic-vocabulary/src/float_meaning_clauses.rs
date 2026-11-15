@@ -54,6 +54,58 @@ pub struct FloatMeaningClause {
 }
 
 impl FloatMeaningClause {
+    fn projection(source: ScalarTerm) -> Result<FloatMeaningClauseValue, &'static str> {
+        let operation = match source.scalar_type() {
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => FloatProjectionOperation::Meaning32,
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => FloatProjectionOperation::Meaning64,
+            _ => return Err("float meaning equation has a non-float source"),
+        };
+        Ok(FloatMeaningClauseValue::Projection {
+            source,
+            contract: operation.contract_identity(),
+        })
+    }
+
+    /// The source is unchanged by conversion to `through` and back to its own
+    /// format. This states representability before a runtime result exists;
+    /// neither constructing the equation nor naming it proves it.
+    pub fn conversion_roundtrip(
+        source: ScalarTerm,
+        through: IeeeFloatFormat,
+    ) -> Result<Self, &'static str> {
+        use FloatSemanticValueKind::{Format, Meaning};
+        let format = source
+            .scalar_type()
+            .as_ieee_float()
+            .ok_or("float conversion roundtrip has a non-float source")?;
+        let operation = FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "convert",
+            &[Format, Meaning],
+            Meaning,
+        )
+        .ok_or("float conversion roundtrip has no exact semantic catalog row")?;
+        let contract = operation.contract_identity();
+        let application = |format, operand| FloatMeaningClauseValue::Application {
+            contract,
+            format,
+            operands: vec![
+                FloatMeaningClauseOperand::Format(format),
+                FloatMeaningClauseOperand::Meaning(FloatMeaningSlot(operand)),
+            ],
+        };
+        let clause = Self {
+            values: vec![
+                Self::projection(source)?,
+                application(through, 0),
+                application(format, 1),
+            ],
+            left: FloatMeaningSlot(0),
+            right: FloatMeaningSlot(2),
+        };
+        clause.intern_sources::<&'static str>(|source| Ok(source.clone()))
+    }
+
     /// The result projection equals one complete semantic application. This
     /// builds the same typed equation for unary, binary and ternary meaning
     /// operations; it does not select or authorize runtime execution.
@@ -68,22 +120,7 @@ impl FloatMeaningClause {
         if operation.result != FloatSemanticValueKind::Meaning {
             return Err("float result equation has a non-meaning catalog result");
         }
-        let projection = |source: ScalarTerm| {
-            let operation = match source.scalar_type() {
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => {
-                    FloatProjectionOperation::Meaning32
-                }
-                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => {
-                    FloatProjectionOperation::Meaning64
-                }
-                _ => return Err("float result equation has a non-float source"),
-            };
-            Ok(FloatMeaningClauseValue::Projection {
-                source,
-                contract: operation.contract_identity(),
-            })
-        };
-        let mut values = vec![projection(result)?];
+        let mut values = vec![Self::projection(result)?];
         let mut arguments = arguments.into_iter();
         let mut operands = Vec::new();
         for kind in operation.parameters() {
@@ -96,7 +133,7 @@ impl FloatMeaningClause {
                     let slot = FloatMeaningSlot(
                         u32::try_from(values.len()).map_err(|_| "too many float meaning values")?,
                     );
-                    values.push(projection(source)?);
+                    values.push(Self::projection(source)?);
                     FloatMeaningClauseOperand::Meaning(slot)
                 }
                 _ => return Err("float result equation has an unsupported argument kind"),

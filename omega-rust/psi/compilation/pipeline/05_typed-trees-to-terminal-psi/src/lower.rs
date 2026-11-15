@@ -1080,7 +1080,11 @@ impl<'a> Lowering<'a> {
                 let mut clauses = Vec::with_capacity(signature.requires.len());
                 for clause in &signature.requires {
                     clauses.push(canonical::substitute_parameters(
-                        clause, &scalars, &roots, id,
+                        clause,
+                        &scalars,
+                        &roots,
+                        &self.tables.values,
+                        id,
                     )?);
                 }
                 self.invariants.push(ScalarBlockInvariant {
