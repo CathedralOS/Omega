@@ -101,13 +101,6 @@ framework or a list of unimplemented features.
 - Cost: Totality depends on where the term is written before the shared checker can look at its operands. Admit the same wrapping expression under its exact mathematical input and retain the shared definedness obligation for a division. A trapping term must still refuse.
 - Reported: 2026-11-15, Codex, while comparing overflow controls for the unused mathematical predicate.
 
-### The private-operator twin in `lowered_route_qualified` expects wording typing no longer prints
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/compiler/tests/support/qualified_operator_homes.rs:133`
-- Saw: with `Distance::add` made private, typing refuses with "builtin operator `+` takes unqualified operands only, but `distance_left` has type `u32 in Distance` and no operator `+` is declared for it" (`03_symbol-resolved-trees-to-typed-trees/src/operator_calls.rs`, wording from #3541); the test accepts only "not a plain or policy-qualified scalar", "no visible operator" or "private operator", so `domain_operators_cross_package_boundaries_without_importing_their_module` fails at dc83fcb65264.
-- Cost: the lowered-form checker's area tests are red for a correct refusal; the oracle should name the refusal by what it checks, not by retired text.
-- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
-
 ### A `fail/` proof fixture compiles, so `lowered_route_governance` fails at its base
 - Category: a verdict with nothing behind it
 - Where: `tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg`, `omega-rust/omega/compilation/compiler/tests/lowered_route_governance.rs:44`
