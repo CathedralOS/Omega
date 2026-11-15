@@ -246,6 +246,42 @@ fn a_case_literal_owes_only_its_active_fields_without_losing_conditional_domains
             terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
                 .unwrap();
         assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+        if !has_qualified_payload {
+            for wrong_carrier in [false, true] {
+                let mut missing = checked.elaboration.module.clone();
+                let non_byte = missing
+                    .structural_types
+                    .iter()
+                    .find(|row| matches!(row.shape, StructuralTypeShape::Sum { .. }))
+                    .unwrap()
+                    .id;
+                let domain = missing
+                    .structural_domains
+                    .iter_mut()
+                    .find(|domain| domain.byte_predicate.is_some())
+                    .expect("the actual primitive condition is retained");
+                if wrong_carrier {
+                    domain.carrier = non_byte;
+                } else {
+                    domain.byte_predicate = None;
+                }
+                let encoded = terminal_codec::ClosedTerminalModule::new(missing).unwrap();
+                let received = terminal_codec::ClosedTerminalModule::from_semantic_bytes(
+                    encoded.semantic_bytes(),
+                );
+                let expected = if wrong_carrier {
+                    "primitive byte domain has a non-byte carrier"
+                } else {
+                    "complete structural domain lost part of its required theory"
+                };
+                assert!(
+                    matches!(received,
+                    Err(terminal_codec::CodecError::MalformedStructuralFoundation(reason))
+                        if reason == expected),
+                    "{received:?}"
+                );
+            }
+        }
         let mut forged = checked.elaboration.module.clone();
         let operation = forged
             .machines

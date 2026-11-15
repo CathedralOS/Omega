@@ -2331,6 +2331,14 @@ pub(crate) mod declaration_foundations {
 
     pub(crate) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError> {
         for domain in &module.structural_domains {
+            if domain.byte_predicate.is_some()
+                && !terminal_semantics::byte_predicate_carrier(
+                    module.structural_types.iter(),
+                    domain.carrier,
+                )
+            {
+                return malformed("primitive byte domain has a non-byte carrier");
+            }
             if !domain.required_memberships_are_well_formed(&module.structural_domains) {
                 return malformed(
                     "structural domain has ambiguous, cyclic or wrong-carrier prerequisites",
@@ -2340,9 +2348,10 @@ pub(crate) mod declaration_foundations {
                 && domain
                     .required_domain_closure(&module.structural_domains)
                     .is_none_or(|nodes| {
-                        nodes
-                            .into_iter()
-                            .any(|node| !node.complete_predicate_theory || node.predicate.is_none())
+                        nodes.into_iter().any(|node| {
+                            !node.complete_predicate_theory
+                                || (node.predicate.is_none() && node.byte_predicate.is_none())
+                        })
                     })
             {
                 return malformed("complete structural domain lost part of its required theory");
