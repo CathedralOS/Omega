@@ -7,10 +7,36 @@
 
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
-    StructuralAccess, TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    StructuralAccess, StructuralMultiplicity, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
+    Terminator, ValueDeclaration,
 };
 
 use crate::inhabitation::{Inhabitation, Status};
+
+/// A loan-producing operation owns an affine occurrence even for a copyable
+/// shared-reference type. A checked return transfers that occurrence and its
+/// loan into the result. The caller's copy permission comes from the result
+/// type. The ordinary return custody checks still prove liveness and backing.
+pub fn structural_return_carrier_matches(
+    result: &StructuralResultDeclaration,
+    source: &StructuralTypeDeclaration,
+    multiplicity: StructuralMultiplicity,
+) -> bool {
+    source.id == result.structural_type
+        && (multiplicity == result.multiplicity
+            || (multiplicity == StructuralMultiplicity::Affine
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && source.copyable
+                && !source.owns_linear_claim
+                && matches!(
+                    source.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )))
+}
 
 /// Once-per-machine borrowed declaration scratch. Prepare it from the machine
 /// whose terminators will be queried; IDs from another machine confer no source

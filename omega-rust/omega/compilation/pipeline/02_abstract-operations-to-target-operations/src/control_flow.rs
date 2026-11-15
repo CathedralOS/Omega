@@ -1754,6 +1754,14 @@ mod terminator {
                         cleanup_actions,
                     });
                 }
+                let matches_result =
+                    |structural_type, multiplicity| {
+                        structural_types.get(structural_type).is_some_and(|source| {
+                        terminal_semantics::normal_completion::structural_return_carrier_matches(
+                            result, source, multiplicity,
+                        )
+                    })
+                    };
                 if let Some(parameter) = function.structural_parameter(*source) {
                     let actual = prepared
                         .parameter(*source)
@@ -1763,8 +1771,7 @@ mod terminator {
                             LoweringError::unsupported_control_flow(function.machine)
                         })?;
                     if parameter.access != StructuralAccess::Owned
-                        || parameter.structural_type != result.structural_type
-                        || parameter.multiplicity != result.multiplicity
+                        || !matches_result(parameter.structural_type, parameter.multiplicity)
                         || !trivial_affine_locals.is_empty()
                         || actual.shape != placement.shape
                     {
@@ -1781,8 +1788,7 @@ mod terminator {
                     .structural_homes
                     .get(source)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if result.structural_type != home.structural_type()
-                    || result.multiplicity != home.multiplicity()
+                if !matches_result(home.structural_type(), home.multiplicity())
                     || prepared
                         .call_plan
                         .result
