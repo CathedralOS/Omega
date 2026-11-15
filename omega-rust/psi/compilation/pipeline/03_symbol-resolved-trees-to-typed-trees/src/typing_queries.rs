@@ -1381,9 +1381,9 @@ mod tests {
             targets[0],
         )
         .unwrap_err();
-        assert!(
-            error.message.contains("collection field owner/type"),
-            "{error:?}"
+        assert_eq!(
+            error.message,
+            "typing could not complete the check (collection field owner/type)"
         );
         let DataMember::Field(field) = program.data_members.get_mut(applied_field) else {
             panic!("field")
