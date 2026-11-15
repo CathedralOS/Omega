@@ -74,9 +74,11 @@ impl BuildEntrySyntaxProjection {
 pub fn project_build_declaration_from_source(
     source: &str,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
-    let parsed = psi_compiler::parse_text(source).map_err(|error| match error {
-        psi_compiler::SourceParseError::Lex { message } => BuildDeclarationError::Lex { message },
-        psi_compiler::SourceParseError::Parse { message } => {
+    let parsed = source_compiler::parse_text(source).map_err(|error| match error {
+        source_compiler::SourceParseError::Lex { message } => {
+            BuildDeclarationError::Lex { message }
+        }
+        source_compiler::SourceParseError::Parse { message } => {
             BuildDeclarationError::Parse { message }
         }
     })?;

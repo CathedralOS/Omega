@@ -1,1 +1,1 @@
-pub machine b_value() -> i32 { b_seed() }
+public machine b_value() -> i32 { b_seed() }

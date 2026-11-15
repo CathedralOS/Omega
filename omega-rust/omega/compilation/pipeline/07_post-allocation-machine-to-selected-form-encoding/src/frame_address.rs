@@ -30,7 +30,7 @@ without invoking `resolve`.
 
 use crate::OptimizedSelectedFormEncodingError as Error;
 use machine_code::{FunctionTargetFrameLayout, ResolvedPhysicalAddress, TargetFrameLayoutPlan};
-use physical_instructions::{
+use post_allocation_machine::{
     PhysicalAddressOperation as Address, PostAllocationMachineFunction,
     PostAllocationMachineInstruction, PostAllocationMachinePlan,
 };
@@ -631,7 +631,7 @@ mod tests {
         };
         let frame = TargetFrameLayoutPlan {
             post_allocation_machine:
-                physical_instructions::PostAllocationMachineIdentity::from_bytes([0; 32]),
+                post_allocation_machine::PostAllocationMachineIdentity::from_bytes([0; 32]),
             callee_saved_requirements:
                 register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0; 32]),
             callee_save_storage:

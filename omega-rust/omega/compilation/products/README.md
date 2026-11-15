@@ -93,7 +93,7 @@ free of these semantic dependencies.
 
 Validation uses the compiler corpus for production and the CLI's existing
 publication tests, including completed output replay and tamper rejection.
-`cargo check -p compilation-products` checks this ownership boundary directly.
+`mbx check -p products` checks this ownership boundary directly.
 
 ## Native component export index
 

@@ -1261,6 +1261,7 @@ mod value_expressions {
         symbols: &SymbolTable,
     ) {
         let attached_machines = crate::symbols::scope::attached_machines(program);
+        let binder_roles = crate::symbols::scope::BinderRoles::of(program);
         let declarations = &mut program.tables.declarations;
         let applications = program
             .roots
@@ -1300,6 +1301,7 @@ mod value_expressions {
                 symbol: owner,
                 lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
                 attached_machines: &attached_machines,
+                binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
                 type_parameters: declarations.data_type_parameters.span_or_empty(parameters),
                 attached_data_symbol: SymbolHandle::invalid(),
@@ -1332,6 +1334,7 @@ mod value_expressions {
                 symbol: conformance.symbol,
                 lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
                 attached_machines: &attached_machines,
+                binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
                 type_parameters: declarations
                     .data_type_parameters
@@ -1367,6 +1370,7 @@ mod value_expressions {
                     symbol: declaration.symbol,
                     lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
                     attached_machines: &attached_machines,
+                    binder_roles: &binder_roles,
                     resolution_indexes: &program.resolution_indexes,
                     type_parameters: &[],
                     attached_data_symbol: SymbolHandle::invalid(),
@@ -1404,6 +1408,7 @@ mod value_expressions {
                 symbol: alias.symbol,
                 lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
                 attached_machines: &attached_machines,
+                binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
                 type_parameters: &parameters,
                 attached_data_symbol: SymbolHandle::invalid(),
@@ -1445,6 +1450,7 @@ mod value_expressions {
                 symbol: definition.symbol,
                 lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
                 attached_machines: &attached_machines,
+                binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
                 type_parameters: declarations
                     .data_type_parameters
@@ -2053,6 +2059,7 @@ mod value_expressions {
                     });
                 }
                 let attached = attached_machines(&program);
+                let binder_roles = crate::symbols::scope::BinderRoles::of(&program);
                 let parameter = StateParameter {
                     symbol: parameter,
                     name: name("index"),
@@ -2096,6 +2103,7 @@ mod value_expressions {
                         symbol: owner,
                         lexical_requirements: LexicalRequirements::none(),
                         attached_machines: &attached,
+                        binder_roles: &binder_roles,
                         resolution_indexes: &program.resolution_indexes,
                         type_parameters: &[],
                         attached_data_symbol: SymbolHandle::invalid(),

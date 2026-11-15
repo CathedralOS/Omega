@@ -24,6 +24,7 @@ resolved `PackageCompilationInputs`) through the final source join:
 
 */
 
+#[path = "source_resolution_readiness.rs"]
 mod readiness;
 
 use crate::BuildSession;
@@ -42,16 +43,16 @@ use target::TargetProfile;
 pub enum ProjectSourceResolutionError {
     Preparation {
         error: PrepareLocalProjectError,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     },
     Compilation(CompileFailure),
     Source {
         reason: String,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     },
     Resources {
         error: package_manager::review::CompileResolvedPackageReviewsError,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     },
 }
 
@@ -80,9 +81,7 @@ fn resources_error(
 }
 
 impl ProjectSourceResolutionError {
-    pub fn source_completion_accounting(
-        &self,
-    ) -> Option<&compilation_products::SourceCompletionAccounting> {
+    pub fn source_completion_accounting(&self) -> Option<&products::SourceCompletionAccounting> {
         match self {
             Self::Compilation(failure) => failure.source_completion_accounting(),
             Self::Preparation { accounting, .. }
@@ -107,7 +106,7 @@ impl ProjectSourceResolutionError {
 
     fn with_source_completion_accounting(
         mut self,
-        accounting: compilation_products::SourceCompletionAccounting,
+        accounting: products::SourceCompletionAccounting,
     ) -> Self {
         match &mut self {
             Self::Compilation(failure) => {

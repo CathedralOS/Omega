@@ -16,12 +16,12 @@ a fresh receiving-host decision. There is no native component disk cache;
 [compiler storage](../../../../../wiki/spec/build/compiler_storage.md) retires it.
 
 The build's starting function, implementations and callbacks are joined before
-lowering. The [shared input owner](../../representations/abstract-operations/verified-input/src/lib.rs)
+lowering. The [shared input owner](../../representations/abstract-operations/verified-optimization-input/src/lib.rs)
 keeps that checked record with the lowered program. Later stages read the same
 record without depending on this earlier stage. The entry map is [lib.rs](src/lib.rs),
 which preserves the established public names through reexports.
 
-- The [shared proposal owner](../../representations/abstract-operations/verified-input/src/native_proposal.rs)
+- The [shared proposal owner](../../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs)
   checks the chosen target, program entry, provider rows and callback occurrences
   against the canonical artifact before publishing its immutable native proposal.
   It does not compile source or grant native authority. Target identity comes
@@ -31,10 +31,10 @@ which preserves the established public names through reexports.
   package permissions and behavior exclusions remain independent inputs.
   Selected exclusions map to the artifact's local service IDs without reopening
   a typed or checked program or calling a source resolver.
-- The [shared execution owner](../../representations/abstract-operations/verified-input/src/native_execution.rs)
+- The [shared execution owner](../../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
   follows calls from the proposal's entry, implementations and callbacks. It
   validates component replacements before excluding their local implementations.
-  The [scope walk](../../representations/abstract-operations/verified-input/src/native_execution_scope.rs)
+  The [scope walk](../../representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs)
   also retains cleanup, installed-interrupt and code-layout requirements, plus
   functions referenced by dynamic dispatch tables. Reached calls can require
   additional direct or target-family implementations; demand completion checks
@@ -70,9 +70,9 @@ which preserves the established public names through reexports.
   cleanup, callbacks, native metadata and dynamic-table address roots retain
   their existing demand and per-block diagnostic order. Explicit artifact
   inspection and independent ownership validation still cover the full catalog.
-- The admitted handoff to Omega 01 is `VerifiedPsiOptimizationInput` in [verified-input](../../representations/abstract-operations/verified-input/src/lib.rs); Omega 01 builds its optimization unit from it.
+- The admitted handoff to Omega 01 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../../representations/abstract-operations/verified-optimization-input/src/lib.rs); Omega 01 builds its optimization unit from it.
 - `provider_installation`: exact selected-adapter and installation custody.
-- [shared callback settlement](../../representations/abstract-operations/verified-input/src/callback_settlement.rs): rejoin a produced
+- [shared callback settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs): rejoin a produced
   callback's Terminal interface to its exact selected calling application.
   Native placement reads each reached boundary's canonical calling telescope:
   semantic/native-only argument identities and order, nominal callback binders,
@@ -85,12 +85,12 @@ which preserves the established public names through reexports.
   the private channel's import exclusion live here, beside program-entry
   settlement. The coordinator supplies the artifact, placement and calling-plan
   roster; no checked-compilation wrapper or new pipeline stage is involved.
-  Its [registrar-import settlement](../../representations/abstract-operations/verified-input/src/callback_settlement.rs)
+  Its [registrar-import settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
   joins each ordered callback occurrence to the registrar's separate outbound
   plan and selected import row. The retained-Terminal and direct-native routes
   share this operation; exact operation multiplicity and check-only absence of
   an import remain explicit.
-- [Shared boundary settlement](../../representations/abstract-operations/verified-input/src/settlement.rs)
+- [Shared boundary settlement](../../representations/abstract-operations/verified-optimization-input/src/settlement.rs)
   binds calls and comparisons to implementations already chosen by the build.
   It selects from canonical requirements and checked body candidates using the
   target's Build rows. Intrinsic executions arrive already established by

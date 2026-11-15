@@ -11,7 +11,7 @@ pub(crate) struct RunArguments {
     pub(crate) selection: ExecutionSelection, // Native unless --engine psi or --both was named.
     pub(crate) build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
     pub(crate) psi_work_budget: Option<std::num::NonZeroU64>,
-    pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+    pub(crate) private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
     pub(crate) target_name: Option<String>,
     pub(crate) inputs: Option<std::path::PathBuf>, // Directory of *.stdin cases run against one compilation.
@@ -117,10 +117,8 @@ pub(super) fn parse_arguments(
                         )
                     })
                     .collect::<Result<Vec<_>, String>>()?;
-                private_entry_ram.push(compilation_products::PrivateEntryRamInitialization {
-                    position,
-                    contents,
-                });
+                private_entry_ram
+                    .push(products::PrivateEntryRamInitialization { position, contents });
             }
             Some("--input") => {
                 let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;

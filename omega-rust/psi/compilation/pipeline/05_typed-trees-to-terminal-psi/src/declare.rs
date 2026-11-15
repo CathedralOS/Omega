@@ -31,6 +31,7 @@ that lists one, because it would publish a source-produced body with no
 declaration identity.
 */
 
+#[path = "declare_selected.rs"]
 mod selected;
 
 use std::hash::{Hash, Hasher};
@@ -108,6 +109,13 @@ pub(crate) fn declare(
             .collect::<Result<Vec<_>, _>>()
     };
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
+    // Anonymous invocation source has exact local declaration identities, not
+    // portable toolchain ownership. Keep those declarations available to the
+    // lowered authority judgment without exporting a fabricated source hash.
+    let sources = match sources {
+        Err(_) if identities.is_invocation_scoped() => Ok(Vec::new()),
+        sources => sources,
+    };
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -489,7 +497,7 @@ fn application(
             "a generated machine's application binds other than one argument per parameter",
         );
     }
-    for (binding, argument) in bindings.iter().zip(arguments) {
+    for binding in bindings {
         match &binding.value {
             StaticMachineBindingValue::Type(type_reference) => typed
                 .type_identity_text(typed.package_qualified_type_identity(*type_reference))
@@ -521,28 +529,44 @@ fn application(
             }
             // generics.md, "Closed applications and canonical identity":
             // a value argument is part of the application's identity. It is
-            // stated by the parameter's type and the literal's canonical
-            // spelling, with its kind, so `7` given to a `u8` and to a `u64`
+            // stated by the exact binder's type and the prepared value's
+            // canonical spelling, so `7` given to a `u8` and to a `u64`
             // parameter, or a value and a type, never commit alike. A
             // Boolean is stated the same way, by `true` or `false`: its
             // parameter's type is `bool`, which no integer literal lands in.
-            StaticMachineBindingValue::Const(type_reference) => {
+            StaticMachineBindingValue::Const(value_reference) => {
+                let parameter = typed
+                    .data_type_parameter_by_symbol(binding.parameter)
+                    .ok_or("an application's value binder has no declaration")?;
+                let carrier_reference = match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        type_reference
+                    }
+                    _ => {
+                        return Err(
+                            "an application's value binding belongs to another binder kind",
+                        );
+                    }
+                };
                 let carrier = typed
-                    .type_identity_text(typed.package_qualified_type_identity(*type_reference))
+                    .type_identity_text(typed.package_qualified_type_identity(carrier_reference))
                     .filter(|text| !text.is_empty())
                     .ok_or("an application's value parameter type has no identity")?;
-                let is_bool = typed.primitive_type_reference(*type_reference)
-                    == Some(typed_trees::types::PrimitiveType::Bool);
-                match (&argument.const_literal, argument.closed_boolean()) {
-                    (Some(literal), None) if !is_bool => {
+                let primitive = typed
+                    .primitive_type_reference(carrier_reference)
+                    .ok_or("an application's value binder needs its admitted scalar carrier")?;
+                let value = typed.static_operand_from_type_reference(*value_reference)?;
+                match typed.prepare_callable_scalar_argument(primitive, &value)? {
+                    typed_trees::expression::ExpressionNode::Integer(literal) => {
                         ("value", carrier, literal.canonical_spelling().as_str())
                             .hash(&mut commitment);
                     }
-                    (None, Some(value)) if is_bool => {
+                    typed_trees::expression::ExpressionNode::Boolean(value) => {
                         ("value", carrier, if value { "true" } else { "false" })
                             .hash(&mut commitment);
                     }
-                    _ => return Err("an application's value argument is not a literal"),
+                    _ => return Err("an application's value binding has no admitted scalar value"),
                 }
             }
             StaticMachineBindingValue::RuntimeValue { .. }
@@ -831,7 +855,16 @@ fn declaration_contract_commitment<'a>(
         proposition.hash(&mut commitment);
     }
     crash_routes.hash(&mut commitment);
-    signature.termination.hash(&mut commitment);
+    // A caller relies on the promise, never on how it is discharged:
+    // termination.md, "Ranking subjects, view, rank range, cyclic-component
+    // mapping, and proof certificate remain private. Changing a valid
+    // witness revalidates the provider and its proof cache, not
+    // caller/requirement identity". So a witness commits as its promise.
+    match signature.termination {
+        crate::Termination::Witnessed(_) => crate::Termination::Promised,
+        published => published,
+    }
+    .hash(&mut commitment);
     // Open requirements and explicit empty promises must not share identity.
     (
         matches!(signature.reaches, crate::Ceiling::Authored(_)),
@@ -865,7 +898,7 @@ pub(crate) struct Published<'a> {
 
 /// Reuse the declaration owner's existing scoped identity for application
 /// constituents too; portable publication still requires a hermetic owner.
-fn semantic_identity(
+pub(crate) fn semantic_identity(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     identities: &mut TerminalIdentityTableBuilder,

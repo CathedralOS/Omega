@@ -373,8 +373,8 @@ fn declared_package_name(build_source: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::{BuildDeclarationKind, PackageSourceBinding};
-    use psi_compiler::{SourceInput, UnmeasuredProduction};
     use source::{CapturedSourceNode, CapturedSourceTree, LoadedSource, SourceId};
+    use source_compiler::{SourceInput, UnmeasuredProduction};
     use std::sync::Arc;
     use syntax_trees::{SyntaxTrees, item::Item};
 

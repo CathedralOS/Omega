@@ -67,8 +67,8 @@ use terminal_check_tables::{
 use terminal_psi::{ContractClause, TerminalMachine, TerminalMachineResult, Terminator};
 
 use crate::{
-    Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prepare, prove, refusal,
-    returned_for_result, terminal_machine,
+    Bindings, Unbound, decide, entry_inputs, hypotheses, joins, prepare_with_inhabitation, prove,
+    refusal, returned_for_result, terminal_machine,
 };
 
 /// Adds a proved result summary to the contract of each machine in
@@ -76,13 +76,14 @@ use crate::{
 pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(scope, id, unreached)?;
+        summarize(scope, id, unreached, inhabitation)?;
     }
     Ok(())
 }
@@ -253,6 +254,7 @@ fn summarize(
     scope: &mut crate::ReplayScope<'_>,
     id: MachineId,
     unreached: &mut crate::Unreached,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let module = &elaboration.module;
@@ -277,7 +279,13 @@ fn summarize(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = prepare(scope.formed(), &elaboration.domains, id, &mut scratch)?;
+    let prepared = prepare_with_inhabitation(
+        scope.formed(),
+        &elaboration.domains,
+        id,
+        &mut scratch,
+        inhabitation,
+    )?;
     let declared_joins = joins::prepare(
         lowered,
         id,

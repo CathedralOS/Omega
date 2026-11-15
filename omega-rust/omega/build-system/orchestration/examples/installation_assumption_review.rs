@@ -2,11 +2,11 @@
 //! native compilation from the saved program. No physical truth is certified.
 #[path = "installation_assumption_review/saved_project.rs"]
 mod saved_project;
-use compilation_products::{
+use orchestration::{BuildRequest, BuildTargets, ProjectProduct};
+use products::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
-use orchestration::{BuildRequest, BuildTargets, ProjectProduct};
 use sha2::{Digest, Sha256};
 use std::{error::Error, fs, io::Read, path::Path};
 
@@ -31,7 +31,7 @@ fn main() -> Result<()> {
             accept(mode, artifact, target, entry, installation, environment, caller, output)
         }
         [mode, record] if mode == "show" => {
-            for row in compilation_products::decode_installation_assumptions(&read_bounded(record, 1024 * 1024)?)? {
+            for row in products::decode_installation_assumptions(&read_bounded(record, 1024 * 1024)?)? {
                 println!("Assumption (not observed or proved): {}\n{row:#?}", row.description());
             }
             Ok(())
@@ -83,7 +83,7 @@ fn inspect(root: &str, target: &str, output: &str) -> Result<()> {
 }
 
 fn write_inspection(
-    retained: &compilation_products::RetainedTerminalArtifact,
+    retained: &products::RetainedTerminalArtifact,
     target: &str,
     output: &Path,
 ) -> Result<()> {
@@ -183,7 +183,7 @@ fn accept(
             caller_provenance: row.caller_provenance,
         })
     };
-    let record = compilation_products::encode_installation_assumptions(std::slice::from_ref(&row))?;
+    let record = products::encode_installation_assumptions(std::slice::from_ref(&row))?;
     use std::io::Write;
     let mut file = fs::OpenOptions::new()
         .write(true)

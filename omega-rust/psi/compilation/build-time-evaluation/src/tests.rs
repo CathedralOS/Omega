@@ -668,7 +668,7 @@ impl RequestedConstants for crate::PreCheckEvaluation {
             .and_then(|file| file.package_identity);
         crate::evaluate_constant_initializers(
             program,
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[],
                 subjects: &[subject],
@@ -718,7 +718,7 @@ fn a_machine_call_constant_retains_its_accepted_value_and_receipt() {
         .unwrap()
         .entry(answer, answer, &[])
         .unwrap();
-    let mut meter = psi_work::WorkMeter::unbounded();
+    let mut meter = terminal_work::WorkMeter::unbounded();
     let value = entry
         .invoke(
             crate::InvocationTarget {
@@ -1037,9 +1037,9 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
     )
     .unwrap();
-    let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+    let accepted = terminal_production::AcceptedTerminalSource::judge(
         std::sync::Arc::new(source),
-        psi_terminal_production::TerminalSourceCompilation {
+        terminal_production::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[main],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
@@ -1056,7 +1056,7 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
     let produced = accepted
         .produce(
             Default::default(),
-            &mut psi_terminal_production::UnmeasuredProduction,
+            &mut terminal_production::UnmeasuredProduction,
         )
         .unwrap();
     assert_eq!(
@@ -1067,7 +1067,7 @@ fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
     let mut instance = program
         .instantiate(terminal_interpreter::TerminalInstantiation::default())
         .unwrap();
-    let mut meter = psi_work::WorkMeter::unbounded();
+    let mut meter = terminal_work::WorkMeter::unbounded();
     let terminal_interpreter::TerminalExecutionStatus::Complete(
         terminal_interpreter::TerminalExecutionResult::Scalar(value),
     ) = instance.invoke(&mut meter).unwrap()
@@ -1126,7 +1126,7 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
         let recorded = pending.evaluate_or_defer_recorded(&mut program).unwrap();
         assert!(recorded.accounting.receipts().is_empty());
         let main = program.realized_machine_named("main").unwrap().symbol;
-        let request = psi_terminal_production::TerminalSourceCompilation {
+        let request = terminal_production::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[main],
             subjects: &[],
@@ -1143,12 +1143,12 @@ fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
         crate::validate_constant_evaluations(&program, &accounting).unwrap();
         let demanded = program.realized_machine_named("demanded").unwrap().symbol;
         for requested in [
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[demanded],
                 ..request
             },
-            psi_terminal_production::TerminalSourceCompilation {
+            terminal_production::TerminalSourceCompilation {
                 subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
                     [1; 32],
                 )],
@@ -1258,7 +1258,7 @@ fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
     let mut accounting = crate::SourceCompletionAccounting::default();
     let error = crate::evaluate_constant_initializers(
         &mut program,
-        psi_terminal_production::TerminalSourceCompilation {
+        terminal_production::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
@@ -1311,7 +1311,7 @@ fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
     let mut accounting = crate::SourceCompletionAccounting::default();
     let error = crate::evaluate_constant_initializers(
         &mut program,
-        psi_terminal_production::TerminalSourceCompilation {
+        terminal_production::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[],
             subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
@@ -1435,7 +1435,7 @@ fn evaluate_const_arguments_of(
     let mut accounting = crate::SourceCompletionAccounting::default();
     let result = crate::evaluate_const_arguments(
         &mut program,
-        psi_terminal_production::TerminalSourceCompilation {
+        terminal_production::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

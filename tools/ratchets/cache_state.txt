@@ -27,7 +27,7 @@
 3 omega-rust/omega/packages/source-acquisition/src/storage.rs
 1 omega-rust/omega/packages/source-acquisition/src/test_support.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs
-3 omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs
+3 omega-rust/psi/compilation/proof-admission/src/bounded_denotation.rs
 3 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/declarations_and_machines.rs
 3 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/storage_and_indexes.rs
 3 omega-rust/psi/compilation/representations/terminal-psi/src/identity.rs

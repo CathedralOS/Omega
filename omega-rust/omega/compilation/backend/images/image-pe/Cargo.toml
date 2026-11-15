@@ -13,5 +13,5 @@ calling-conventions = { path = "../../calling-conventions" }
 arena = { path = "../../../../../psi/foundation/arena" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 image = { path = "../image" }
-object-file = { path = "../../object/object-file" }
+object-file = { path = "../../object-file" }
 target = { path = "../../target" }

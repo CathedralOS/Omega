@@ -18,7 +18,10 @@ use crate::{SourceOrigin, Unserved, refuse};
 
 impl Lowering<'_> {
     pub(super) fn operation_identity(&mut self, source: SourceOrigin) -> OperationId {
-        self.sources.operations.push(source)
+        let id = self.sources.operations.push(source);
+        let location = self.operation_locations.push(None);
+        debug_assert_eq!(id, location);
+        id
     }
 
     /// The obligation guarding `operation`, created at the point before it.
@@ -59,6 +62,19 @@ impl Lowering<'_> {
         result: OperationResult,
         kind: OperationKind,
     ) -> Checked<()> {
+        let block = self.current()?;
+        let ordinal = self.draft()?.operations.len();
+        let location = self.operation_locations.get_mut(operation).ok_or_else(|| {
+            terminal_check_tables::Refusal {
+                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                machine: self.id,
+                concerns: Construct::Operation(operation),
+                detail: "an operation has no allocated source coordinate".to_owned(),
+            }
+        })?;
+        if location.replace((block, ordinal)).is_some() {
+            return Err(self.internal("an operation was emitted twice"));
+        }
         self.draft()?
             .operations
             .push(Operation::unsuspended(operation, result, kind));
@@ -112,6 +128,16 @@ impl Lowering<'_> {
     }
 
     pub(super) fn expression(&mut self, expression: &Expression) -> Evaluation<Value> {
+        let evaluated = self.expression_inner(expression)?;
+        if let Reached::Value(Value::Scalar(value)) = evaluated
+            && let Some(ValueType::Scalar(_, qualification)) = expression.result
+        {
+            self.qualify(value, qualification)?;
+        }
+        Ok(evaluated)
+    }
+
+    fn expression_inner(&mut self, expression: &Expression) -> Evaluation<Value> {
         let source = expression.source;
         // A record-typed expression names storage; its value is a root that
         // holds it. Everything below is scalar or Unit.
@@ -263,9 +289,12 @@ impl Lowering<'_> {
                 self.emit(operation, result, kind).map(Reached::Value)
             }
             // The operand's value under another policy: nothing is computed.
-            ExpressionKind::Requalify(operand) => self
-                .scalar(operand)
-                .map(|reached| reached.map(Value::Scalar)),
+            ExpressionKind::Requalify(operand) => {
+                let scalar_type = self.result_type(operand)?;
+                let operand = continuing!(self.scalar(operand));
+                self.prove_membership(operand, scalar_type, &[], "", source)
+                    .map(|value| Reached::Value(Value::Scalar(value)))
+            }
             ExpressionKind::Establish {
                 operand,
                 clauses,

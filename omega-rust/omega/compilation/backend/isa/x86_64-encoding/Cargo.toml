@@ -1,0 +1,9 @@
+[package]
+name = "x86_64-encoding"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "x86_64_encoding"
+path = "src/lib.rs"

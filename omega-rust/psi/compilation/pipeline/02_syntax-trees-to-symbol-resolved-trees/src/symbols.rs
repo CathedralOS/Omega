@@ -32,7 +32,6 @@ mod contracts {
         assign_struct_literal_symbols,
     };
     use super::scope::MachineScope;
-    use super::targets::assign_static_argument_symbols;
 
     macro_rules! assign_calls {
         ($symbols:ident, $machine:ident, $parameters:ident, $state_symbol:ident, $expression_table:ident, $child_type_references:ident, $expression:expr) => {
@@ -63,6 +62,7 @@ mod contracts {
     ) -> Result<(), Vec<Diagnostic>> {
         let conformance_scopes = super::scope::DeclarationTypeScopes::of(program)?;
         let attached_machines = super::scope::attached_machines(program);
+        let binder_roles = super::scope::BinderRoles::of(program);
         let trait_scopes = super::scope::TraitLexicalScopes::of(program);
         let SymbolResolvedTrees { roots, tables, .. } = program;
         let data_definitions = &roots.data_definitions;
@@ -79,6 +79,7 @@ mod contracts {
         let child_type_references = &mut tables.declarations.child_type_references;
         let scope_context = super::scope::ContractScopeContext {
             attached_machines: &attached_machines,
+            binder_roles: &binder_roles,
             resolution_indexes: &program.resolution_indexes,
             data_definitions,
             type_aliases: &roots.type_aliases,
@@ -464,15 +465,14 @@ mod contracts {
                 );
                 if let ExpressionNode::Call(call) = expression_table.expression_mut(expression) {
                     call.target_symbol = target_symbol;
-                    let proof_static =
-                        super::targets::proof_static_call_target(symbols, target_symbol);
-                    for argument in &mut call.machine_arguments {
-                        assign_static_argument_symbols(
+                    for (position, argument) in call.machine_arguments.iter_mut().enumerate() {
+                        super::targets::assign_call_static_argument_symbol(
                             symbols,
-                            machine.symbol,
-                            machine.type_parameters,
+                            machine,
+                            state_symbol,
+                            target_symbol,
+                            position,
                             argument,
-                            proof_static,
                         );
                     }
                 }
@@ -2380,6 +2380,7 @@ mod measures {
         symbols: &SymbolTable,
     ) {
         let attached_machines = super::scope::attached_machines(program);
+        let binder_roles = super::scope::BinderRoles::of(program);
         let declarations = &mut program.tables.declarations;
         let expressions = &mut program.tables.bodies.expressions;
         for measure in &program.roots.measures {
@@ -2388,6 +2389,7 @@ mod measures {
             };
             let scope = MachineScope {
                 attached_machines: &attached_machines,
+                binder_roles: &binder_roles,
                 resolution_indexes: &program.resolution_indexes,
                 symbol: SymbolHandle::invalid(),
                 lexical_requirements: super::scope::LexicalRequirements::none(),
@@ -3861,6 +3863,100 @@ mod scope {
     }
 
     /*
+        The role a generic binder gives the static argument written for it
+        (`wiki/spec/language/modules.md#builtin-type-names`): a type binder
+        reads a type, `const N: u64` or a runtime value binder reads a value,
+        and the remaining binders select a declaration.
+    */
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) enum BinderRole {
+        Type,
+        Value,
+        Declaration,
+    }
+
+    impl BinderRole {
+        pub(super) fn of(kind: &symbol_resolved_trees::data::TypeParameterKind) -> Self {
+            use symbol_resolved_trees::data::TypeParameterKind;
+            match kind {
+                TypeParameterKind::Type => Self::Type,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => Self::Value,
+                TypeParameterKind::Implementation
+                | TypeParameterKind::Machine { .. }
+                | TypeParameterKind::Proposition { .. } => Self::Declaration,
+            }
+        }
+    }
+
+    /*
+        Every machine's authored binder roles in declaration order, so a call
+        reads each static argument by the binder it fills once its target is
+        selected. Built once per assignment pass from the resolved machine
+        headers: one flat role list and one row per machine, sorted by symbol.
+    */
+    pub(super) struct BinderRoles {
+        machines: Vec<(SymbolHandle, u32, u32)>,
+        roles: Vec<BinderRole>,
+    }
+
+    impl BinderRoles {
+        pub(super) fn of(program: &SymbolResolvedTrees) -> Self {
+            let mut machines = Vec::with_capacity(program.machines.len());
+            let mut roles = Vec::new();
+            for machine in program.machines.iter() {
+                let binders = program.machine_type_parameters(machine);
+                if !machine.symbol.is_valid() || binders.is_empty() {
+                    continue;
+                }
+                let start = roles.len() as u32;
+                roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
+                machines.push((machine.symbol, start, roles.len() as u32));
+            }
+            machines.sort_unstable_by_key(|(symbol, _, _)| symbol.arena_index());
+            Self { machines, roles }
+        }
+
+        /*
+            The role of the binder at `position` of the machine a call selected,
+            whether the call names the machine or one of its states. A target
+            with no known telescope, or a position past its binders, selects a
+            declaration and never a role.
+        */
+        pub(super) fn role(
+            &self,
+            symbols: &SymbolTable,
+            target: SymbolHandle,
+            position: usize,
+        ) -> BinderRole {
+            if !target.is_valid() {
+                return BinderRole::Declaration;
+            }
+            let selected = symbols.get(target);
+            let machine = match selected.kind {
+                symbols::SymbolKind::State => selected.parent,
+                symbols::SymbolKind::Machine => target,
+                _ => return BinderRole::Declaration,
+            };
+            let Ok(row) = self
+                .machines
+                .binary_search_by_key(&machine.arena_index(), |(symbol, _, _)| {
+                    symbol.arena_index()
+                })
+            else {
+                return BinderRole::Declaration;
+            };
+            let (symbol, start, end) = self.machines[row];
+            if symbol != machine {
+                return BinderRole::Declaration;
+            }
+            self.roles[start as usize..end as usize]
+                .get(position)
+                .copied()
+                .unwrap_or(BinderRole::Declaration)
+        }
+    }
+
+    /*
         For every trait, the requirements it inherits through `requires` and
         header parents, built once per assignment batch from declaration
         identities. A trait's own requirements are its symbol children and need no
@@ -3991,6 +4087,8 @@ mod scope {
         /* Bare requirement names of the trait this scope is lexically inside. */
         pub(super) lexical_requirements: LexicalRequirements<'program>,
         pub(super) attached_machines: &'program AttachedMachines,
+        /* Each callee's binder roles, which decide how a static argument reads. */
+        pub(super) binder_roles: &'program BinderRoles,
         /*
             The program's owned position indexes — local-statement, parameter,
             and data-definition positions resolve through these instead of
@@ -4040,6 +4138,7 @@ mod scope {
     */
     pub(super) struct ContractScopeContext<'program> {
         pub(super) attached_machines: &'program AttachedMachines,
+        pub(super) binder_roles: &'program BinderRoles,
         pub(super) resolution_indexes: &'program ResolvedIndexes,
         pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
         pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
@@ -4069,6 +4168,7 @@ mod scope {
                 symbol,
                 lexical_requirements,
                 attached_machines: self.attached_machines,
+                binder_roles: self.binder_roles,
                 resolution_indexes: self.resolution_indexes,
                 type_parameters,
                 attached_data_symbol,
@@ -5183,12 +5283,10 @@ pub(crate) mod type_predicates {
                             ExpressionNode::TypeExpression(reference);
                     }
                 }
-                _ => {
+                [left_is_type, _] => {
+                    let value = if left_is_type { right } else { left };
                     return Err(vec![
-                        Diagnostic::error(
-                            "static type equality cannot mix a type operand with a runtime value",
-                        )
-                        .with_source_span(
+                        Diagnostic::error(mixed_equality_message(program, value)).with_source_span(
                             program.tables.bodies.expressions.source_span(expression),
                         ),
                     ]);
@@ -5196,6 +5294,37 @@ pub(crate) mod type_predicates {
             }
         }
         Ok(())
+    }
+
+    /*
+        A value binding never hides a builtin type, so in `requires T == i32`
+        with a parameter `i32` in scope the operand reads the parameter and
+        the equality mixes a type with a value. Name both meanings so the
+        author can see which one was read and how to reach the other.
+    */
+    fn mixed_equality_message(program: &SymbolResolvedTrees, value: ExpressionHandle) -> String {
+        const MIXED: &str = "static type equality cannot mix a type operand with a runtime value";
+        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(value) else {
+            return MIXED.to_owned();
+        };
+        let [name] = body_expressions(program).name_path_members(path.members) else {
+            return MIXED.to_owned();
+        };
+        let name = name.as_str();
+        if !symbols::is_builtin_type_spelling(name) || !path.symbol.is_valid() {
+            return MIXED.to_owned();
+        }
+        let meaning = match program.symbols.get(path.symbol).kind {
+            SymbolKind::Parameter => "parameter",
+            SymbolKind::Local => "local",
+            SymbolKind::Const => "constant",
+            SymbolKind::TypeParameter => "generic value binder",
+            _ => "value",
+        };
+        format!(
+            "{MIXED}: `{name}` here is the {meaning} `{name}`, a value, not the builtin type \
+             `{name}`; rename the {meaning} or name the type through a type alias"
+        )
     }
 
     pub(crate) fn is_type_predicate(
@@ -5692,9 +5821,11 @@ pub(crate) fn assign_constant_expression_symbols(
     initializers: impl IntoIterator<Item = symbol_resolved_trees::expression::ExpressionHandle>,
 ) {
     let attached_machines = scope::attached_machines(program);
+    let binder_roles = scope::BinderRoles::of(program);
     let declarations = &mut program.tables.declarations;
     let mut scope = scope::MachineScope {
         attached_machines: &attached_machines,
+        binder_roles: &binder_roles,
         resolution_indexes: &program.resolution_indexes,
         symbol: symbols::SymbolHandle::invalid(),
         lexical_requirements: scope::LexicalRequirements::none(),

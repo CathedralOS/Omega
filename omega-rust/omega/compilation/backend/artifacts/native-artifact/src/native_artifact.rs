@@ -21,11 +21,16 @@ use installation_evidence::ProviderExecutionEvidence;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
 use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 
+#[path = "dynamic_elf.rs"]
 mod dynamic_elf;
+#[path = "identity.rs"]
 mod identity;
+#[path = "mixed_structural_scalar.rs"]
 mod mixed_structural_scalar;
+#[path = "provider_execution.rs"]
 mod provider_execution;
 #[cfg(test)]
+#[path = "native_artifact_tests.rs"]
 mod tests;
 
 use crate::physical::{

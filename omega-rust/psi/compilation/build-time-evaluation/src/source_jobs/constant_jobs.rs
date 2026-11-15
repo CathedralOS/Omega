@@ -435,7 +435,7 @@ fn materialize_uses(
 /// dependency row admits an invocation or supplies its result.
 fn demanded_constants(
     program: &TypedTrees,
-    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+    request: terminal_production::TerminalSourceCompilation<'_>,
 ) -> Result<Vec<SymbolHandle>, String> {
     let selected = demanded_declarations(program, request)?;
     let mut constants = program
@@ -455,7 +455,7 @@ fn demanded_constants(
 /// holds it (`const_argument_jobs`).
 pub(super) fn demanded_declarations(
     program: &TypedTrees,
-    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+    request: terminal_production::TerminalSourceCompilation<'_>,
 ) -> Result<typed_trees::references::DeclarationSelection, String> {
     let mut pending = request
         .entries
@@ -518,7 +518,7 @@ pub(super) fn demanded_declarations(
 
 pub fn evaluate(
     program: &mut TypedTrees,
-    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+    request: terminal_production::TerminalSourceCompilation<'_>,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
@@ -527,7 +527,7 @@ pub fn evaluate(
 
 pub fn evaluate_with_source_consent(
     program: &mut TypedTrees,
-    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+    request: terminal_production::TerminalSourceCompilation<'_>,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     source_consent: Option<std::sync::Arc<dyn crate::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,

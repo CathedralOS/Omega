@@ -19,8 +19,7 @@ pub(crate) struct CompileArguments {
     pub(crate) offline: bool,
     pub(crate) timings: bool,
     pub(crate) report_file: Option<PathBuf>,
-    pub(crate) installation_assumptions:
-        Vec<compilation_products::InstallationEnvironmentAssumption>,
+    pub(crate) installation_assumptions: Vec<products::InstallationEnvironmentAssumption>,
     pub(crate) root_path: PathBuf,
     pub(crate) target_names: Vec<String>, // Every --target named, in first-seen order, repeats removed; empty means host default.
     pub(crate) optimization_rollback: OptimizationRollback,
@@ -104,7 +103,7 @@ pub(super) fn parse_arguments(
                     path.display()
                 )
             })?;
-            let rows = compilation_products::decode_installation_assumptions(&bytes)?;
+            let rows = products::decode_installation_assumptions(&bytes)?;
             if rows
                 .iter()
                 .any(|row| row.interrupt_delivery().is_some() != delivery)

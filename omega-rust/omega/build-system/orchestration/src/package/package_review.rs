@@ -219,12 +219,10 @@ fn component_descriptions(
             PackageReviewComponent::Description(description) => description,
             PackageReviewComponent::Source(source) => {
                 source.publish_component().map_err(|diagnostics| {
-                    completion.compilation_failure(
-                        compilation_products::CompileFailure::source_completion(
-                            diagnostics,
-                            source.source_completion_accounting().clone(),
-                        ),
-                    )
+                    completion.compilation_failure(products::CompileFailure::source_completion(
+                        diagnostics,
+                        source.source_completion_accounting().clone(),
+                    ))
                 })?
             }
         };

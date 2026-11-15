@@ -126,6 +126,8 @@ public boundary trait BuildProductOperations {
 // Calling this requirement directly supplies no selection or host authority.
 // These are compiler host operations, not a user-selected service binding.
 // Their activation-local ticket is interpreted only at admitted call sites.
+// Selection first calls the checked mutable-receiver helper below. The host
+// only observes identity; it cannot replace Build's reference-bearing fields.
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
     machine prepare_tests(tests: &BuildTests) -> u64 reaches none crashes none;
@@ -136,6 +138,11 @@ public boundary trait BuildBindingOperations {
     machine select(activation: u64) reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
     machine exclude(activation: u64, code: u64) reaches none crashes none;
+}
+// The ordinary call establishes exclusive activation access and retains that
+// loan through the returned original view, without granting an opaque host writes.
+public machine build_selection_receiver<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> &'activation mut Build<'storage> {
+    builder
 }
 public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
     match cause {

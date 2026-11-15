@@ -332,9 +332,9 @@ machine run() -> i64 crashes none {
     )
     .expect("ordinary source preparation retains the public lifetime family");
     let entry = portable.realized_machine_named("run").unwrap().symbol;
-    let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+    let accepted = terminal_production::AcceptedTerminalSource::judge(
         std::sync::Arc::new(portable),
-        psi_terminal_production::TerminalSourceCompilation {
+        terminal_production::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],

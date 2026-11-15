@@ -87,7 +87,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     .into_optimization_input();
     abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
-        psi_work::WorkSchedule::CURRENT.identity(),
+        terminal_work::WorkSchedule::CURRENT.identity(),
     )
     .expect("Omega 01 verifies the same owned homes and their cleanup");
     let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
@@ -97,7 +97,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
             .expect("the interpreter loads the route's own module");
     let status = execution
         .resume(
-            &mut psi_work::WorkMeter::with_budget(10_000_000),
+            &mut terminal_work::WorkMeter::with_budget(10_000_000),
             &mut NoEffects,
         )
         .expect("the route's owned values execute");
@@ -177,7 +177,7 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
     let (_, unit) =
         abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )
         .expect("Omega 01 verifies the restored owned home")
         .into_parts();
@@ -197,7 +197,7 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
             .expect("restored module loads");
     let status = execution
         .resume(
-            &mut psi_work::WorkMeter::with_budget(1_000_000),
+            &mut terminal_work::WorkMeter::with_budget(1_000_000),
             &mut NoEffects,
         )
         .expect("the old moved value and restored owner execute independently");
@@ -680,7 +680,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
             TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
                 .expect("the focused module loads");
         execution.resume(
-            &mut psi_work::WorkMeter::with_budget(1_000_000),
+            &mut terminal_work::WorkMeter::with_budget(1_000_000),
             &mut NoEffects,
         )
     };
@@ -1003,7 +1003,7 @@ mod transferred_on_one_path {
         let (_, unit) =
             abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
                 input,
-                psi_work::WorkSchedule::CURRENT.identity(),
+                terminal_work::WorkSchedule::CURRENT.identity(),
             )
             .expect("Omega 01 builds the unit")
             .into_parts();
@@ -1022,7 +1022,7 @@ mod transferred_on_one_path {
                 .expect("the interpreter loads the module");
         let status = execution
             .resume(
-                &mut psi_work::WorkMeter::with_budget(1_000_000),
+                &mut terminal_work::WorkMeter::with_budget(1_000_000),
                 &mut NoEffects,
             )
             .expect("the program executes");

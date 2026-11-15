@@ -2790,12 +2790,14 @@ impl<'a> Storage<'a> {
         if let Some(leaf) = self.read_leaf(operation)? {
             return Ok(vec![leaf]);
         }
+        if let Some(source) = self.moved_source(operation)? {
+            return Ok(vec![source]);
+        }
         match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::MoveStructuralValue { source }
-            | OperationKind::EstablishReference { source, .. } => {
+            OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
             OperationKind::ReleaseReference { source, path } => {
@@ -2842,6 +2844,40 @@ impl<'a> Storage<'a> {
         }
     }
 
+    /// Both owned transport and an exclusive storage window read exactly the
+    /// region they vacate. The same source drives the read check and write log.
+    fn moved_source(&self, operation: &Operation) -> Checked<Option<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        match &operation.kind {
+            OperationKind::MoveStructuralValue { source } => {
+                self.argument(source, concerns).map(Some)
+            }
+            OperationKind::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => self
+                .projected_storage(*source, path, *field, concerns)
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    fn projected_storage(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: Option<semantic_vocabulary::StructuralFieldId>,
+        concerns: Construct,
+    ) -> Checked<Lineage> {
+        let mut selected = self.stored_at(root, path, concerns)?;
+        if let Some(field) = field {
+            selected.segments.push(Segment::Field(field));
+            self.shape(&selected, concerns)?;
+        }
+        Ok(selected)
+    }
+
     /// The explicit field destination, used to state that field's invariant.
     /// This is not an inventory of call effects or owned consumption.
     fn field_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
@@ -2870,12 +2906,8 @@ impl<'a> Storage<'a> {
             } => (destination, path, None),
             _ => return Ok(None),
         };
-        let mut stored = self.stored_at(*destination, path, concerns)?;
-        if let Some(field) = field {
-            stored.segments.push(Segment::Field(field));
-            self.shape(&stored, concerns)?;
-        }
-        Ok(Some(stored))
+        self.projected_storage(*destination, path, field, concerns)
+            .map(Some)
     }
 
     /// Every storage change uses the already derived write log, including

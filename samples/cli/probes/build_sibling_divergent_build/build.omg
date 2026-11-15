@@ -1,5 +1,5 @@
 // Convergent pool: three product siblings whose builds each edge-pool on
-// the shared dep and call `shared::main`'s `seed()` in build scope.
+// the shared dep and call `shared::seed()` in build scope after preparing it.
 // Controls beside this sample interleave divergent siblings into the pool.
 
 machine build(builder: &mut Build) {

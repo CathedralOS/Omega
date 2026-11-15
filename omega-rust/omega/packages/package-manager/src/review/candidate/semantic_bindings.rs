@@ -209,7 +209,7 @@ pub(super) fn projection_error(
             CompileResolvedPackageReviewsError::new(
                 crate::review::CompileResolvedPackageReviewCause::Compilation {
                     package: consumer.clone(),
-                    failure: compilation_products::CompileFailure::Diagnostics(diagnostics),
+                    failure: products::CompileFailure::Diagnostics(diagnostics),
                 },
             )
         }

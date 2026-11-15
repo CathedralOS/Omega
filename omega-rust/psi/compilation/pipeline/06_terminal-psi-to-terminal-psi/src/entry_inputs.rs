@@ -30,8 +30,8 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 
 use crate::{
-    Bindings, Unbound, graph::Graph, joins, prepare, refusal, scalar_actuals, substitute,
-    terminal_machine,
+    Bindings, Unbound, graph::Graph, joins, prepare_with_inhabitation, refusal, scalar_actuals,
+    substitute, terminal_machine,
 };
 
 /// Callers precede helpers. The lowering of terminal call components already
@@ -40,6 +40,7 @@ use crate::{
 pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
     unreached: &mut crate::Unreached,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
     let elaboration = scope.source();
     if elaboration.private_inputs.is_empty() {
@@ -71,7 +72,14 @@ pub(crate) fn infer(
                 }
             }
         }
-        describe_calls(scope, id, &sites, &mut incoming, unreached)?;
+        describe_calls(
+            scope,
+            id,
+            &sites,
+            &mut incoming,
+            unreached,
+            inhabitation,
+        )?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
@@ -90,6 +98,7 @@ fn describe_calls(
     sites: &CallSites,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<()> {
     let elaboration = scope.source();
     let original =
@@ -101,7 +110,13 @@ fn describe_calls(
     // One caller's construction scratch; the final evidence tables remain
     // untouched. No typed trees or completed proof products are copied.
     let mut tables = original.clone();
-    let prepared = prepare(scope.formed(), &elaboration.domains, id, &mut tables)?;
+    let prepared = prepare_with_inhabitation(
+        scope.formed(),
+        &elaboration.domains,
+        id,
+        &mut tables,
+        inhabitation,
+    )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
     let declared = joins::prepare(
         lowered,

@@ -5,7 +5,6 @@
 //! Run alone because work counters are process-wide.
 
 use artifacts::compile_timings::counters;
-use compilation_products::NativeProductRequest;
 use compiler::{
     CompilationProduct, CompletedBuild, PackageCompilationRequest, PackageSourceRequest,
 };
@@ -14,6 +13,7 @@ use package_manager::operations::{
     ProjectCompilationAdmissionRequest, ProjectCompilationCompletion, admit_project_products,
     begin_local_project_preparation,
 };
+use products::NativeProductRequest;
 use std::path::Path;
 use target::TargetProfile;
 use terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy;

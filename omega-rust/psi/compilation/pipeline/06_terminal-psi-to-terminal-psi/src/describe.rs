@@ -149,9 +149,31 @@ pub(crate) fn unproved(
         ObligationKind::CrashCoverage { site: crash, cause } => {
             crash_coverage(elaboration, tables, names, crash, cause, site)
         }
-        ObligationKind::WellFoundedness { .. } | ObligationKind::RankComparison { .. } => {
-            format!("cannot prove termination in {}", owner(names, site))
+        // A failed comparison is stated as what the witness needs of the
+        // call, never as "the loop does not end": the measure was not
+        // shown to go down, which is not a proof that it does not.
+        ObligationKind::RankComparison { edge, .. } => {
+            let strict = elaboration
+                .module
+                .machine(machine)
+                .and_then(|lowered| crate::ranking::claims_strict(lowered, edge));
+            match strict {
+                Some(false) => format!(
+                    "cannot prove the `terminates by` measure does not grow in {}",
+                    owner(names, site)
+                ),
+                _ => format!(
+                    "cannot prove the `terminates by` measure decreases at this call in {} \
+                     (the recursive call must pass a strictly smaller measure; establish it \
+                     via a guard or a `requires` of this machine)",
+                    owner(names, site)
+                ),
+            }
         }
+        ObligationKind::WellFoundedness { .. } => format!(
+            "cannot prove the `terminates by` measure is bounded below in {}",
+            owner(names, site)
+        ),
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }

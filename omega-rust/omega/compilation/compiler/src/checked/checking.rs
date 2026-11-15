@@ -25,24 +25,24 @@ mod source_checking;
 pub(crate) mod typed_frontier;
 pub(super) mod unbuilt_source;
 
-pub use compilation_products::{
+pub use package_compilation::build_execution::RestrictedBuildGrants;
+pub use product_queries::ProductQueries;
+pub use products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild,
 };
-pub use package_compilation::build_execution::RestrictedBuildGrants;
-pub use product_queries::ProductQueries;
 pub(crate) use source_checking::check_product_source;
 
 use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::{CompileTimings, counters};
-use compilation_products::{
-    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
-    PreparedSourceFrontier, TypedCompilationFrontier,
-};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
+use products::{
+    CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
+    PreparedSourceFrontier, TypedCompilationFrontier,
+};
 use std::path::Path;
 
 pub(crate) mod compile_thread {
@@ -121,7 +121,7 @@ pub(crate) fn prepare_checked_source(
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
     source_capture: Option<&package_compilation::CapturedLocalSource>,
     collect_timings: bool,
-    preparation: compilation_products::SourcePreparation,
+    preparation: products::SourcePreparation,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
         CompileTimings::enabled()
@@ -177,6 +177,7 @@ fn prepare_typed_frontier(
         build_execution_profile,
         package_inputs,
         &mut timings,
+        Some(0),
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
@@ -292,6 +293,17 @@ impl PreparedPackageInvocation {
         self.source.execution()
     }
 
+    pub(super) fn has_later_stage(&self) -> bool {
+        self.source.has_later_stage()
+    }
+
+    pub(super) fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        self.source.prepare_next_stage(prepared)
+    }
+
     pub(super) fn source_completion_accounting(
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
@@ -301,7 +313,7 @@ impl PreparedPackageInvocation {
     pub(super) fn settle(
         self,
         returned: Option<build_settings::ReturnedBuild>,
-    ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+    ) -> Result<products::SettledPackageBuild, CompileFailure> {
         let spent = self.source.source_completion_accounting().clone();
         let inputs = self.inputs.ok_or_else(|| {
             CompileFailure::source_completion(
@@ -314,7 +326,7 @@ impl PreparedPackageInvocation {
         let source = self
             .source
             .settle(returned, Some(&inputs), Some(self.target))?;
-        Ok(compilation_products::SettledPackageBuild {
+        Ok(products::SettledPackageBuild {
             root: self.root,
             target: self.target,
             inputs,
@@ -325,7 +337,7 @@ impl PreparedPackageInvocation {
 }
 
 pub(super) fn prepare_settled_package_product(
-    settled: compilation_products::SettledPackageBuild,
+    settled: products::SettledPackageBuild,
     target: target::TargetProfile,
     inputs: PackageCompilationInputs,
 ) -> Result<PreparedPackageBuild, CompileFailure> {
@@ -441,7 +453,7 @@ impl SourceCompilation {
     pub(super) fn check(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
+    ) -> Result<products::CheckedProductSource, CompileFailure> {
         let spent = self.source.source_completion_accounting().clone();
         let returned =
             returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;

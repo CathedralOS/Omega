@@ -198,17 +198,21 @@ impl Known {
                         // to its formal or producing call. Join scope is
                         // checked separately against the owning root.
                         ScalarTerm::Value { id, .. } => {
-                            subject.scalar_type() == ScalarType::Boolean
-                                || (fact.axiom.is_some() && values.is_storage_content(*id))
+                            matches!(
+                                subject.scalar_type(),
+                                ScalarType::Boolean | ScalarType::Integer(_)
+                            ) || (fact.axiom.is_some() && values.is_storage_content(*id))
                         }
-                        // Actual integer operation equations retain their
-                        // selected meaning. The kernel's transport lifts exact
-                        // arithmetic and leaves policy arithmetic embedded;
-                        // neither becomes an unchecked mathematical rewrite.
+                        // Immutable scalar equalities retain their selected
+                        // meaning whether an operation or a checked arrival
+                        // supplied them. Their proof accompanies transport;
+                        // policy arithmetic stays embedded, not rewritten as
+                        // mathematical arithmetic.
                         _ => {
-                            subject.scalar_type() == ScalarType::Boolean
-                                || (fact.axiom.is_some()
-                                    && matches!(subject.scalar_type(), ScalarType::Integer(_)))
+                            matches!(
+                                subject.scalar_type(),
+                                ScalarType::Boolean | ScalarType::Integer(_)
+                            )
                         }
                     }
                 }

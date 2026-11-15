@@ -1,4 +1,4 @@
-use kit::main;
+use kit;
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_product_in_build");
     builder.freestanding = true;

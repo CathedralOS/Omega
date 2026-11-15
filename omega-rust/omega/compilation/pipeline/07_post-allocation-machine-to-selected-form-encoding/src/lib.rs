@@ -54,7 +54,7 @@ not run replay on its own output.
 Provenance and custody boundaries:
 
 We consume `CurrentSelectedProgram` (`selected-instructions`),
-`PostAllocationMachinePlan` (`physical-instructions`, produced by Stage 06),
+`PostAllocationMachinePlan` (`post-allocation-machine`, produced by Stage 06),
 `ValidatedPhysicalRegisterModel` (`register-model`), and an optional
 `TargetFrameLayoutPlan` (`machine-code`). We produce
 `StagedOptimizedSelectedFormEncoding`, which wraps an immutable
@@ -86,7 +86,7 @@ use machine_code::{
     SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
     TargetFrameLayoutPlan,
 };
-use physical_instructions::{
+use post_allocation_machine::{
     PostAllocationMachineFunction, PostAllocationMachineIdentity, PostAllocationMachineInstruction,
     PostAllocationMachineOptimizationCustody, PostAllocationMachinePlan,
 };

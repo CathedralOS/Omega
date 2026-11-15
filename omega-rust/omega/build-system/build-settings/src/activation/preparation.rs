@@ -24,10 +24,13 @@ use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
-    produced: Arc<psi_compiler::ProducedTerminalProgram>,
-    accepted: Arc<psi_compiler::AcceptedTerminalSource>,
+    produced: Arc<source_compiler::ProducedTerminalProgram>,
+    accepted: Arc<source_compiler::AcceptedTerminalSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
+    /// The sponsor the caller supplied, kept for the admission of a later
+    /// stage of the same activation.
+    evaluation_sponsor: Option<BuildEvaluationSponsor>,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
     host_issued: bool,
@@ -53,12 +56,15 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let produced =
-            prepared.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)?;
+        let produced = prepared.produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
         const INVOCATION_WORK: u64 = 100_000;
+        let supplied_sponsor = evaluation_sponsor.clone();
         let sponsor = match evaluation_sponsor {
             Some(sponsor) => sponsor,
             None => {
@@ -86,6 +92,7 @@ impl PreparedBuildExecution {
             accepted: prepared,
             providers: Arc::new(providers),
             account,
+            evaluation_sponsor: supplied_sponsor,
             machine: Arc::new(machine),
             filesystem_scope,
             host_issued: false,
@@ -93,6 +100,100 @@ impl PreparedBuildExecution {
             default_sources,
             execution_profile,
         })
+    }
+
+    /// Admits the accepted program of the next stage of this activation
+    /// (`admission/build_stages.rs`) under the filesystem scope, sponsor and
+    /// execution profile the activation already has.
+    pub(crate) fn admit_stage(
+        &self,
+        prepared: Arc<source_compiler::AcceptedTerminalSource>,
+        providers: crate::admission::provider_execution::BuildProviderPlans,
+        machine: symbols::SymbolHandle,
+        source: package_compilation::BuildSourceSelection,
+        package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
+        crate::admit_build_program(
+            prepared,
+            providers,
+            machine,
+            &self.filesystem_scope,
+            self.evaluation_sponsor.as_ref(),
+            self.execution_profile,
+            false,
+            source,
+            package_inputs,
+        )
+    }
+
+    /// The execution of the next stage. It is charged to the same invocation
+    /// account as the stages before it: one Build activation is one
+    /// invocation, however many programs it runs as.
+    pub(crate) fn continue_with(
+        &self,
+        admitted: AdmittedBuildProgram,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let AdmittedBuildProgram {
+            prepared,
+            providers,
+            mut machine,
+            filesystem_scope,
+            evaluation_sponsor: _,
+            execution_profile,
+            artifact_only: _,
+            default_source,
+            default_sources,
+        } = admitted;
+        // Files an earlier stage staged are settled when the last one
+        // returns, whether or not that stage reaches the filesystem itself.
+        machine.filesystem_reachable |= self.machine.filesystem_reachable;
+        let produced = prepared.produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )?;
+        let providers = providers.admit(produced.view())?;
+        Ok(Self {
+            execution_purpose: self.execution_purpose,
+            produced: Arc::new(produced),
+            providers: Arc::new(providers),
+            // Package review reads the contracts of the accepted program
+            // this execution holds: for a staged Build, its last stage.
+            accepted: prepared,
+            account: self.account.clone(),
+            evaluation_sponsor: self.evaluation_sponsor.clone(),
+            machine: Arc::new(machine),
+            filesystem_scope,
+            host_issued: false,
+            default_source,
+            default_sources,
+            execution_profile,
+        })
+    }
+
+    /// Starts this stage where `previous`, the stage before it, returned.
+    pub fn resume(
+        &mut self,
+        previous: crate::TerminalBuildActivation,
+    ) -> Result<crate::TerminalBuildActivation, Vec<Diagnostic>> {
+        if self.host_issued {
+            return Err(self.refuse("Build invocation already issued its execution host"));
+        }
+        self.host_issued = true;
+        let mut carried = previous.carry().map_err(|reason| self.refuse(&reason))?;
+        crate::TerminalBuildHost::new(
+            self.execution_purpose,
+            Arc::clone(&self.produced),
+            Arc::clone(&self.providers),
+            &self.account,
+            Arc::clone(&self.machine),
+            &self.filesystem_scope,
+            self.execution_profile,
+            self.default_source,
+            self.default_sources.clone(),
+            carried.filesystem.take(),
+        )
+        .and_then(|host| host.resume(carried))
+        .map_err(|reason| self.refuse(&reason))
     }
 
     pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
@@ -110,6 +211,7 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
+            None,
         )
         .map_err(|reason| self.refuse(&reason))
     }

@@ -5,10 +5,7 @@
 
 use std::path::Path;
 
-pub(super) fn inspect(
-    report: &compilation_products::CompileReport,
-    fixture: &Path,
-) -> Result<(), String> {
+pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Result<(), String> {
     inspect_body_cpu_state(report, fixture)?;
     inspect_instruction_sources(report, fixture)?;
     let oracle = fixture.join("expected_native_entry_controls.txt");
@@ -223,10 +220,7 @@ pub(super) fn inspect(
     Ok(())
 }
 
-fn inspect_body_cpu_state(
-    report: &compilation_products::CompileReport,
-    fixture: &Path,
-) -> Result<(), String> {
+fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> Result<(), String> {
     let oracle = fixture.join("expected_native_cpu_state_controls.txt");
     if !oracle.exists() {
         return Ok(());
@@ -435,7 +429,7 @@ fn inspect_body_cpu_state(
 /// The source's ordinary native object supplies both sides of this relation.
 /// Mutated copies remain plain rows; none becomes an admitted object or image.
 fn inspect_instruction_sources(
-    report: &compilation_products::CompileReport,
+    report: &products::CompileReport,
     fixture: &Path,
 ) -> Result<(), String> {
     let oracle = fixture.join("expected_native_instruction_controls.txt");

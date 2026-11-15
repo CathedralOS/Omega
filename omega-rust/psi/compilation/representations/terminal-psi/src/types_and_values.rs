@@ -503,6 +503,9 @@ pub mod types {
         #[derive(Debug, Clone, Default, PartialEq, Eq)]
         pub struct ScalarQualificationCatalog {
             pub fields: Vec<ScalarFieldQualification>,
+            /// Complete scalar types of addressable primitive storage. A
+            /// reference or scalar home cannot erase its referent's domains.
+            pub primitives: Vec<ScalarPrimitiveQualification>,
             pub returns: Vec<ScalarReturnQualification>,
             pub domains: Vec<ScalarDomainDeclaration>,
             pub sets: Vec<ScalarQualificationSet>,
@@ -514,6 +517,12 @@ pub mod types {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct ScalarFieldQualification {
             pub field: semantic_vocabulary::StructuralFieldId,
+            pub value_type: semantic_vocabulary::QualifiedScalarType,
+        }
+
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub struct ScalarPrimitiveQualification {
+            pub structural_type: semantic_vocabulary::StructuralTypeId,
             pub value_type: semantic_vocabulary::QualifiedScalarType,
         }
 
@@ -538,8 +547,13 @@ pub mod types {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub enum ScalarReturnOrigin {
             Forwarded,
-            Established { route: u32 },
+            Established {
+                route: u32,
+            },
             Vacuous,
+            /// An unrestricted predicate domain introduced at the exact
+            /// completion whose arrival proves the retained domain predicate.
+            Proved,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1562,9 +1576,9 @@ pub mod types {
     };
     pub use scalar_qualifications::{
         ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,
-        ScalarFieldQualification, ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog,
-        ScalarQualificationCoercion, ScalarQualificationSet, ScalarReturnOrigin,
-        ScalarReturnQualification, ScalarReturnSite,
+        ScalarFieldQualification, ScalarFloatRange, ScalarIntegerRange,
+        ScalarPrimitiveQualification, ScalarQualificationCatalog, ScalarQualificationCoercion,
+        ScalarQualificationSet, ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite,
     };
     pub use structural::{
         ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,

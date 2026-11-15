@@ -25,6 +25,19 @@ pub struct ReplayScope<'a> {
 pub fn prepare_replay(
     elaboration: &mut terminal_check_tables::program::Elaboration,
 ) -> Checked<ReplayScope<'_>> {
+    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
+        crate::refusal(
+            RefusalReason::ForeignIdentity,
+            elaboration
+                .module
+                .machines
+                .first()
+                .map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            &format!("invalid declared scalar qualifications: {error:?}"),
+        )
+    })?;
     module(&elaboration.module)?;
     Ok(ReplayScope { elaboration })
 }
@@ -53,12 +66,20 @@ impl ReplayScope<'_> {
         }
     }
 
-    pub(crate) fn infer_inputs(&mut self, unreached: &mut crate::Unreached) -> Checked<()> {
-        crate::entry_inputs::infer(self, unreached)
+    pub(crate) fn infer_inputs(
+        &mut self,
+        unreached: &mut crate::Unreached,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    ) -> Checked<()> {
+        crate::entry_inputs::infer(self, unreached, inhabitation)
     }
 
-    pub(crate) fn infer_results(&mut self, unreached: &mut crate::Unreached) -> Checked<()> {
-        crate::result_summaries::infer(self, unreached)
+    pub(crate) fn infer_results(
+        &mut self,
+        unreached: &mut crate::Unreached,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    ) -> Checked<()> {
+        crate::result_summaries::infer(self, unreached, inhabitation)
     }
 
     pub(crate) fn require(

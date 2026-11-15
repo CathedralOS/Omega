@@ -58,21 +58,21 @@ struct Predicate {
 }
 
 impl Program<'_> {
-    /// Domain uses retain their instantiated obligations, but those cannot
-    /// establish safety of the declaration for all carrier values. Publish
-    /// the uninstantiated theory and its original issuance restrictions in
-    /// the existing catalog for declaration formation.
-    pub(crate) fn publish_domains(
+    /// A record's use-site predicates cannot establish safety for every
+    /// carrier value. Retain its generic theory and issuance restrictions
+    /// for formation; scalar domains use the shared Qualifications owner.
+    pub(crate) fn publish_structural_domains(
         &self,
         diagnostic: MachineId,
         module: &mut terminal_psi::TerminalModule,
     ) -> Checked<()> {
-        use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, StructuralDomainId};
-        use terminal_psi::{
-            ScalarDomainDeclaration, ScalarDomainPredicate, StructuralDomainDeclaration,
-            StructuralDomainPredicate,
-        };
-        if self.declared_domains.is_empty() {
+        use semantic_vocabulary::{DomainSemanticId, StructuralDomainId};
+        use terminal_psi::{StructuralDomainDeclaration, StructuralDomainPredicate};
+        if !self
+            .declared_domains
+            .iter()
+            .any(|(_, carrier)| matches!(carrier, ValueType::Record(..)))
+        {
             return Ok(());
         }
         let sources =
@@ -87,6 +87,13 @@ impl Program<'_> {
         let unavailable =
             |what| refuse(diagnostic, Construct::Machine, Unserved::Declaration(what));
         for (position, (symbol, carrier)) in self.declared_domains.iter().enumerate() {
+            let (carrier, regions) = match *carrier {
+                ValueType::Record(carrier, _, regions) => (carrier, regions),
+                ValueType::Scalar(..) => continue,
+                ValueType::Rigid(_) => {
+                    return Err(unavailable("domain retains an unresolved carrier"));
+                }
+            };
             let definition = self
                 .typed
                 .domain_definition(*symbol)
@@ -104,56 +111,28 @@ impl Program<'_> {
                 policy: None,
                 domains,
             };
-            match carrier {
-                ValueType::Scalar(carrier, _) => {
-                    let (clauses, _) = self.cast_predicates(diagnostic, qualification, *carrier)?;
-                    let id =
-                        ScalarDomainId::new(module.scalar_qualifications.domains.len() as u64 + 1)
-                            .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
-                    module
-                        .scalar_qualifications
-                        .domains
-                        .push(ScalarDomainDeclaration {
-                            required_memberships: Some(Vec::new()),
-                            predicate: Some(ScalarDomainPredicate {
-                                subject: ValueId::new(1).expect("nonzero"),
-                                proposition: Proposition::Conjunction(clauses),
-                            }),
-                            id,
-                            semantic_domain,
-                            identity,
-                            carrier: *carrier,
-                            establishment_routes,
-                        });
-                }
-                ValueType::Record(carrier, _, regions) => {
-                    let clauses = self.field_predicates(
-                        diagnostic,
-                        &[],
-                        ValueType::Record(*carrier, qualification, *regions),
-                    )?;
-                    let id = StructuralDomainId::new(module.structural_domains.len() as u64 + 1)
-                        .ok_or_else(|| unavailable("structural domain identity overflow"))?;
-                    module.structural_domains.push(StructuralDomainDeclaration {
-                        required_memberships: Some(Vec::new()),
-                        complete_predicate_theory: true,
-                        predicate: Some(StructuralDomainPredicate {
-                            subject: crate::body::self_place().expect("nonzero"),
-                            proposition: Proposition::Conjunction(clauses),
-                        }),
-                        id,
-                        semantic_domain,
-                        identity,
-                        carrier: *carrier,
-                        content_projection: None,
-                        byte_predicate: None,
-                        establishment_routes,
-                    });
-                }
-                ValueType::Rigid(_) => {
-                    return Err(unavailable("domain retains an unresolved carrier"));
-                }
-            }
+            let clauses = self.field_predicates(
+                diagnostic,
+                &[],
+                ValueType::Record(carrier, qualification, regions),
+            )?;
+            let id = StructuralDomainId::new(module.structural_domains.len() as u64 + 1)
+                .ok_or_else(|| unavailable("structural domain identity overflow"))?;
+            module.structural_domains.push(StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: Some(StructuralDomainPredicate {
+                    subject: crate::body::self_place().expect("nonzero"),
+                    proposition: Proposition::Conjunction(clauses),
+                }),
+                id,
+                semantic_domain,
+                identity,
+                carrier,
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes,
+            });
         }
         module.identities = identities.build();
         Ok(())
@@ -442,7 +421,7 @@ impl Program<'_> {
     /// which lowering replaces by the parameter of the block the cast
     /// continues in (`canonical::substitute`). Beside them, the domain and
     /// the predicates as written.
-    pub(super) fn cast_predicates(
+    pub(crate) fn cast_predicates(
         &self,
         id: MachineId,
         added: Qualification,

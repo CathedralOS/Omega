@@ -110,7 +110,7 @@ impl std::error::Error for OptimizedX86BranchRelaxationError {}
 pub struct StagedOptimizedX86BranchRelaxation {
     source: ResolvedSelectedFormLayoutIdentity, // Baseline resolved-layout identity before relaxation.
     selected: selected_instructions::SelectedInstructionPlanIdentity, // Upstream selected-instruction plan identity.
-    machine: physical_instructions::PostAllocationMachineIdentity, // Upstream post-allocation machine identity.
+    machine: post_allocation_machine::PostAllocationMachineIdentity, // Upstream post-allocation machine identity.
     pre_layout: machine_code::SelectedFormEncodingIdentity, // Upstream pre-layout encoding identity.
     target: NativeTarget, // Target platform for which relaxation was performed.
     policy: X86BranchRelaxationPolicy, // Relaxation policy applied during the sweep.
@@ -133,7 +133,7 @@ impl StagedOptimizedX86BranchRelaxation {
         self.selected
     }
 
-    pub const fn machine(&self) -> physical_instructions::PostAllocationMachineIdentity {
+    pub const fn machine(&self) -> post_allocation_machine::PostAllocationMachineIdentity {
         self.machine
     }
 
@@ -1245,7 +1245,9 @@ mod tests {
                 selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
                     [2; 32],
                 ),
-                machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([3; 32]),
+                machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes(
+                    [3; 32],
+                ),
                 pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([4; 32]),
                 target: NativeTarget::linux_x64(),
             };
@@ -1487,7 +1489,7 @@ mod tests {
         RevisionRoots {
             source: ResolvedSelectedFormLayoutIdentity::from_bytes([11; 32]),
             selected: selected_instructions::SelectedInstructionPlanIdentity::from_bytes([12; 32]),
-            machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([13; 32]),
+            machine: post_allocation_machine::PostAllocationMachineIdentity::from_bytes([13; 32]),
             pre_layout: machine_code::SelectedFormEncodingIdentity::from_bytes([14; 32]),
             target: NativeTarget::linux_x64(),
         }

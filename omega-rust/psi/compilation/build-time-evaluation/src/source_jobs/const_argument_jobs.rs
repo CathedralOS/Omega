@@ -215,7 +215,7 @@ fn entry(probe: &mut TypedTrees, job: &Job) -> SymbolHandle {
 /// through a type whose argument is evaluated here.
 pub fn evaluate(
     program: &mut TypedTrees,
-    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+    request: terminal_production::TerminalSourceCompilation<'_>,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     source_consent: Option<std::sync::Arc<dyn crate::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,

@@ -478,7 +478,7 @@ For an explicitly scoped manual library check, a nextest filter can select a
 crate and its reverse dependencies while retaining workspace features:
 
 ```sh
-mbx nextest run --workspace --lib --no-fail-fast -E 'rdeps(=x86-encoding)'
+mbx nextest run --workspace --lib --no-fail-fast -E 'rdeps(=x86_64-encoding)'
 ```
 
 This command does not add source-reader edges or audits.
