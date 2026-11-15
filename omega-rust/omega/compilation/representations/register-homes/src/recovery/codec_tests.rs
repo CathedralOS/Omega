@@ -445,8 +445,14 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
 fn empty_elimination_recovery_binds_its_edge_and_distinguishes_authored_crashes() {
     fn set_terminal(plan: &mut FixedViewCopyPlan, terminal: SelectedTerminator) {
         let transformed = std::sync::Arc::make_mut(&mut plan.transformed);
-        let functions = std::sync::Arc::make_mut(&mut transformed.functions);
-        functions[0].blocks[2].terminator = terminal;
+        transformed
+            .functions
+            .get_mut(0)
+            .unwrap()
+            .blocks
+            .get_mut(2)
+            .unwrap()
+            .terminator = terminal;
     }
 
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
