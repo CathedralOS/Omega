@@ -80,12 +80,19 @@ framework or a list of features that remain unimplemented.
 - Cost: Nothing checks that a host-supplied shared typed view keeps its backing through a returned view, or that immutable host values cannot supply an exclusive one. Identify the probe caller's actual view argument as the borrow `echo` returns.
 - Reported: 2026-11-15, Claude Code, while repairing the Build-time sequence controls
 
-### The local-loan escape fixture no longer reads its rejection evidence
-- Category: tests that pin the bug
-- Where: [local borrow negative](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/loan_regions.rs#L109)
-- Saw: On clean `1a5fd676246` on macOS arm64, `a_loan_of_a_local_is_not_returned_for_a_lifetime_of_the_machine` reaches a rule violation naming the current invocation's local storage and the result field's declared lifetime. The test expects the earlier unavailable verdict and panics before comparing that exact rejection, which currently carries no source span.
-- Cost: The original escape witness cannot pin its current rejection or its authored location. Read the precise rule evidence and preserve the escape and legal argument-backed controls.
-- Reported: 2026-11-14, Codex, while verifying the shared-window completion repair
+### A foreign template generation panics before application admission can refuse it
+- Category: knowledge crossing a boundary
+- Where: [foreign template control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/boundary_calls.rs#L1199), [conformer discovery](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/machine.rs#L1465), [owned realization lookup](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L2081)
+- Saw: On clean `4d3852b953f` on macOS arm64, the anonymous machine argument fixture changes only its specialization template's generation and confirms the arena does not resolve it. Stage 05 panics with `arena get received an unresolved handle` while discovering the conformer, before the existing application refusal `executable application lost its template machine` can run. The focused backtrace goes through `owned_conformance_realization` from `conformer_requirement`.
+- Cost: Malformed application evidence aborts compilation. Validate template identity before using it to ask who owns a realization, and preserve the valid specialization and the exact foreign-generation refusal.
+- Reported: 2026-11-14, Codex, while comparing the local-loan escape fix with a clean Stage 06 run
+
+### A shared reference copy traps when its loan is released
+- Category: knowledge crossing a boundary
+- Where: [shared reference copy control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/references.rs#L995), [release operation](omega-rust/psi/interpreter/src/storage_references.rs#L3201)
+- Saw: On clean `72401d8d9e2` on macOS arm64, the original reference to `owner.value` and its ordinary shared copy both pass checking and invocation publication. The interpreter then traps at machine 2, block 3, operation 12 with `ReleaseReference` and `AffineFrontierMismatch`, before the owner replacement can demonstrate that both borrows ended. The same control completed before the stored-reference release change on clean `4d3852b953f`.
+- Cost: Accepted source cannot execute its checked cleanup. Preserve the fresh loan's affine formation and the shared copy's unrestricted custody while making release consume only the ownership the checked place actually carries. Keep the negative control that retags the copy as affine.
+- Reported: 2026-11-14, Codex, while comparing the local-loan escape fix against the rebased Stage 06 suite
 
 ### Existing match and reference controls reach obligations with no lowered owner
 - Category: knowledge crossing a boundary
