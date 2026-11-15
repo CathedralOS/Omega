@@ -1053,7 +1053,13 @@ fn binary_expression(
     source: SourceOrigin,
 ) -> Checked<Expression> {
     let (operation, policy, result) = binary_selection(
-        id, operator, left.result, right.result, anonymous, suffix, source,
+        id,
+        operator,
+        left.result,
+        right.result,
+        anonymous,
+        suffix,
+        (source, right.source),
     )?;
     let kind = match operation {
         Some(operation) => ExpressionKind::Strict {
@@ -1086,7 +1092,7 @@ pub(super) fn binary_selection(
     right: Option<ValueType>,
     anonymous: (bool, bool),
     suffix: Option<Policy>,
-    source: SourceOrigin,
+    (source, right_source): (SourceOrigin, SourceOrigin),
 ) -> Checked<(Option<Strict>, Option<Policy>, ValueType)> {
     enum Operands {
         /// Same integer type; the result has it.
@@ -1123,7 +1129,7 @@ pub(super) fn binary_selection(
         {
             return Err(crate::reject(
                 id,
-                source,
+                right_source,
                 "policy operator operand types differ",
             ));
         }

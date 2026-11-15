@@ -945,7 +945,10 @@ impl Program<'_> {
             Some(right_type),
             anonymous,
             suffix,
-            source,
+            (
+                source,
+                crate::SourceOrigin::of(self.typed.expression_table.source_span(binary.right)),
+            ),
         )?;
         let operation = operation
             .ok_or_else(|| unserved("short-circuit expression is not a scalar arithmetic term"))?;
