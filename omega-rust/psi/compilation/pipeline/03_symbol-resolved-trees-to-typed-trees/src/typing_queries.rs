@@ -722,16 +722,19 @@ pub(crate) fn defer_unbound_calls(
                 let request = case_call(program, request, receiver, call.target.as_str());
                 // A compiler operation the call was recognized as, or a
                 // selection bound some other way, is not a bare name.
-                let bare = (!call.static_machine_parameter.is_valid()
+                let bare = if !call.static_machine_parameter.is_valid()
                     && call.static_requirement_dispatch.is_none()
                     && call.authored_call_binding.is_none()
                     && call.quotient_operation.is_none()
                     && call.private_layout_operation.is_none()
                     && call.installed_interrupt_operation.is_none()
                     && call.layout_query.is_none()
-                    && call.native_code_layout.is_none())
-                .then(|| program.expression_table.unresolved_name(handle))
-                .unwrap_or_default();
+                    && call.native_code_layout.is_none()
+                {
+                    program.expression_table.unresolved_name(handle)
+                } else {
+                    Default::default()
+                };
                 in_expressions.push((handle, request, bare));
             }
             if targets.named_expression_call(call)
@@ -757,10 +760,13 @@ pub(crate) fn defer_unbound_calls(
                         if let Some(request) = targets.unserved(call.target_symbol, receiver) {
                             let request =
                                 case_call(program, request, receiver, call.target.as_str());
-                            let bare = (call.installed_interrupt_operation.is_none()
-                                && !call.static_machine_parameter.is_valid())
-                            .then_some(call.unresolved_name)
-                            .unwrap_or_default();
+                            let bare = if call.installed_interrupt_operation.is_none()
+                                && !call.static_machine_parameter.is_valid()
+                            {
+                                call.unresolved_name
+                            } else {
+                                Default::default()
+                            };
                             in_declarations.push((machine.symbol, request, call.source_span, bare));
                         }
                         if targets.named_call(call.target_symbol, receiver)
