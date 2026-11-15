@@ -58,22 +58,31 @@ pub(super) fn evaluate(
             }
         }
     }
+    // Available target facts do not request geometry. With no computation
+    // roots, retain the declarations' deferred requests without preparing
+    // a whole-program occurrence inventory or running any layout policy.
+    if scopes
+        .iter()
+        .all(|scope| scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty())
+    {
+        return crate::source_frontier::refresh_layout_policy_requests(typed);
+    }
     let occurrences = collect_program_type_occurrences(typed);
     let mut requests = Vec::new();
     for (scope_index, scope) in scopes.iter().enumerate() {
-        let selection = match &scope.entry_declarations {
-            None => DeclarationSelection::all(),
-            Some(entries) => DeclarationSelection::from_computation_roots(
-                typed,
-                entries.iter().copied().chain(
-                    scope
-                        .provider_declarations
-                        .iter()
-                        .map(|row| row.provider_type.symbol),
-                ),
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        };
+        if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
+            continue;
+        }
+        let selection = DeclarationSelection::from_computation_roots(
+            typed,
+            scope.entry_declarations.iter().copied().chain(
+                scope
+                    .provider_declarations
+                    .iter()
+                    .map(|row| row.provider_type.symbol),
+            ),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for occurrence in &occurrences {
             if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {
                 continue;

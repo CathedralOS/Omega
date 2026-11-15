@@ -50,7 +50,7 @@ pub(crate) fn check_product_source(
             .collect::<Vec<_>>();
         let mut selected = Vec::new();
         for scope in &layout_scopes {
-            selected.extend(scope.entry_declarations.iter().flatten().copied());
+            selected.extend(scope.entry_declarations.iter().copied());
         }
         // A library is judged where it is demanded, not wholesale. Every native
         // supply this package's own Build declares needs its exact boundary and
@@ -269,8 +269,7 @@ pub(super) fn layout_target_scopes(
             }
         }
     }
-    let reusable = profiles.is_empty();
-    if reusable {
+    if profiles.is_empty() {
         profiles.extend(
             target::TargetProfile::ALL
                 .into_iter()
@@ -318,9 +317,27 @@ pub(super) fn layout_target_scopes(
         scopes.push(build_time_evaluation::FixedLayoutTargetScope {
             target: profile.target_name().to_owned(),
             facts: profile.layout_target_facts(),
-            entry_declarations: (!reusable).then_some(entries),
+            entry_declarations: entries,
             provider_declarations: providers,
         });
     }
     Ok(scopes)
+}
+
+#[cfg(test)]
+mod layout_demand_tests {
+    #[test]
+    fn an_entryless_product_does_not_demand_every_library_layout() {
+        let scopes = super::layout_target_scopes(
+            &typed_trees::TypedTrees::default(),
+            &products::BuildConfig::default(),
+        )
+        .unwrap();
+        assert!(
+            scopes
+                .iter()
+                .all(|scope| scope.entry_declarations.is_empty()),
+            "an entryless product needs explicit empty layout roots, not all declarations: {scopes:?}"
+        );
+    }
 }
