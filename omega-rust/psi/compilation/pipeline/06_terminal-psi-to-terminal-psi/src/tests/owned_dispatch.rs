@@ -274,7 +274,7 @@ machine done() {{ }}
         matches!(
             &verdict,
             Ok(RouteVerdict::FallBack(refusal))
-                if refusal.detail == WRONG_CUSTODY
+                if refusal.detail == format!("{WRONG_CUSTODY} in machine `dispatch`")
                     && refusal.machine == machine
                     && refusal.concerns == terminal_check_tables::Construct::Edge(edge)
         ),

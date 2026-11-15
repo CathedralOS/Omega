@@ -1453,6 +1453,10 @@ impl<'t> Program<'t> {
             .and_then(|template| self.typed.machine_by_symbol(template))
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
+        names.declared = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(authored.symbol);
         names.state = state.name.as_str().to_owned();
         if matches!(reading, Reading::Closed | Reading::Provider)
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
@@ -2090,6 +2094,10 @@ impl<'t> Program<'t> {
         signature.invokes =
             self.entry_ceiling(id, self.typed.state_signature_invokes(requirement), true)?;
         names.machine = requirement.name.as_str().to_owned();
+        names.declared = self
+            .typed
+            .symbols
+            .symbol_provenance_source_span(requirement.symbol);
         Ok((signature, names))
     }
 
@@ -2804,7 +2812,11 @@ impl<'t> Program<'t> {
     }
 
     // The outer caller may only receive a refusal, without the partial machine
-    // roster. Keep the actual declaration here, where its identity is known.
+    // roster. Keep the actual declaration here, where its identity is known:
+    // its name, and its position when the refused construct has none of its
+    // own, so the diagnostic leads to the file, line and column even inside
+    // a dependency. The innermost declaration read places the refusal; an
+    // outer one only adds its name.
     fn read_failure_at(
         &self,
         mut refusal: terminal_check_tables::Refusal,
@@ -2815,6 +2827,13 @@ impl<'t> Program<'t> {
             " while reading {part} of `{}`",
             self.typed.symbols.display_path(declaration, "::")
         ));
+        if refusal.source_span.is_none() {
+            refusal.source_span = self
+                .typed
+                .symbols
+                .symbol_provenance_source_span(declaration)
+                .filter(|span| *span != source::SourceSpan::default());
+        }
         refusal
     }
 
