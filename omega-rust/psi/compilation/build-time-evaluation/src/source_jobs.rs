@@ -2866,10 +2866,9 @@ pub(crate) mod tests {
         }
         assert_ne!(descriptions[0], descriptions[1]);
         let used = query_machine(&source, "used");
+        let used_entry = program.entry(used, used, &[]).unwrap();
         assert_eq!(
-            program
-                .entry(used, used, &[])
-                .unwrap()
+            used_entry
                 .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
                 .unwrap(),
             BuildTimeValue::Int(7)
@@ -2939,6 +2938,71 @@ pub(crate) mod tests {
         .and_then(|identity| source.type_identity_text(identity))
         .unwrap();
         assert_eq!(original.1[1], invoked_identity.as_bytes());
+        // Use the actual generated body and its checked argument account.
+        // A matching template or argument count cannot hide a changed value.
+        let mut module = used_entry.accepted().module().clone();
+        let mut bodies = module.machines.iter().filter(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| declaration.specialization.as_ref())
+                .is_some_and(|application| {
+                    module
+                        .identities
+                        .text(application.template_semantic_declaration)
+                        .map(str::as_bytes)
+                        == Some(original.1[0].as_slice())
+                })
+        });
+        let body = bodies.next().expect("one actual generated selected body");
+        assert!(bodies.next().is_none(), "the actual application is unique");
+        let current = body.id;
+        let application = body
+            .declaration
+            .as_ref()
+            .unwrap()
+            .specialization
+            .as_ref()
+            .unwrap();
+        let declaration = application.template.clone();
+        let identity = terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+            module
+                .identities
+                .text(application.template_callable)
+                .unwrap(),
+            Some(&application.commitment),
+        );
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let machine_identity = identities.intern(&identity);
+        module.identities = identities.build();
+        let caller = (
+            original.clone(),
+            terminal_psi::StructuralEstablishmentRoute::ExactMachine {
+                declaration,
+                machine_identity,
+            },
+        );
+        assert!(
+            terminal_semantics::structural_qualifications::caller_matches_machine(
+                &module, current, &caller
+            )
+            .expect("the same declaration, entry, signature and actual u128 argument match")
+        );
+        let mut changed_value = caller;
+        let applied = std::str::from_utf8(&changed_value.0.1[1]).unwrap();
+        let value = "170141183460469231731687303715884105728";
+        assert_eq!(applied.matches(value).count(), 1);
+        changed_value.0.1[1] = applied
+            .replace(value, "170141183460469231731687303715884105729")
+            .into_bytes();
+        assert!(
+            !terminal_semantics::structural_qualifications::caller_matches_machine(
+                &module,
+                current,
+                &changed_value
+            )
+            .expect("a different value cannot borrow the checked application's caller identity")
+        );
         let typed_trees::static_applications::StaticMachineBindingValue::Const(value) =
             binding.value
         else {

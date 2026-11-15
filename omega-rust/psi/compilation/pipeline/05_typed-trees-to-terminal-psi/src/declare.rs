@@ -574,6 +574,16 @@ fn application(
     Ok((
         terminal_psi::CheckedMachineSpecialization {
             capture: None,
+            template_entry: NominalDeclarationIdentity::new(nominal(
+                typed,
+                sources,
+                typed
+                    .machine_states(declared)
+                    .first()
+                    .ok_or("a generated machine's template has no exact entry")?
+                    .symbol,
+                identities,
+            )?),
             template: NominalDeclarationIdentity::new(nominal(
                 typed, sources, template, identities,
             )?),
@@ -644,11 +654,23 @@ fn application_bindings_commitment(
                 let (carrier, value) = const_argument(typed, binding.parameter, *value_reference)?;
                 ("value", carrier.as_str(), value.as_str()).hash(&mut commitment);
                 if let Some(prepared) = prepared.as_mut() {
+                    let operand = typed.static_operand_from_type_reference(*value_reference)?;
+                    let argument = typed_trees::type_identity::portable_applied_index_identity(
+                        typed,
+                        typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&operand),
+                        binding.parameter,
+                        &[],
+                    )
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or("a generated value argument lost its canonical index identity")?;
                     prepared.parameter_kinds.push(1);
-                    prepared.telescope.push(ClosedReachParameter::Const {
-                        // The length keeps the carrier and literal distinct.
-                        argument: format!("{}:{carrier}{value}", carrier.len()),
-                    });
+                    // The binder/value check and commitment above retain the
+                    // declared carrier. The telescope uses the same value
+                    // identity as reflection and public requirement calls.
+                    prepared
+                        .telescope
+                        .push(ClosedReachParameter::Const { argument });
                 }
             }
             StaticMachineBindingValue::RuntimeValue { .. }
@@ -1408,6 +1430,12 @@ fn requirement_application(
     Ok((
         terminal_psi::CheckedMachineSpecialization {
             capture: None,
+            template_entry: NominalDeclarationIdentity::new(nominal(
+                typed,
+                sources,
+                closed.template,
+                identities,
+            )?),
             template: NominalDeclarationIdentity::new(nominal(
                 typed,
                 sources,

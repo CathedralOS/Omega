@@ -562,6 +562,7 @@ mod correspondence_tests {
         let mut specialized = original.clone();
         specialized.body.specialization = Some(terminal_psi::CheckedMachineSpecialization {
             capture: None,
+            template_entry: original.body.state.clone(),
             template: original.body.machine.clone(),
             template_callable: original.body.callable,
             template_semantic_declaration: original.body.semantic_declaration,

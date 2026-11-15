@@ -316,6 +316,7 @@ pub(crate) mod boundary_application_wire {
                 None,
                 Some(terminal_psi::CheckedMachineSpecialization {
                     capture: None,
+                    template_entry: nominal("owner::template::entry"),
                     template: nominal("owner::template"),
                     template_callable: TerminalIdentityIndex(8),
                     template_semantic_declaration: TerminalIdentityIndex(9),

@@ -1442,6 +1442,7 @@ pub(crate) mod machine_declaration_wire {
         writer.boolean(body.specialization.is_some());
         if let Some(specialization) = &body.specialization {
             writer.u32(specialization.template.identity().0);
+            writer.u32(specialization.template_entry.identity().0);
             writer.u32(specialization.template_callable.0);
             writer.u32(specialization.template_semantic_declaration.0);
             writer.bytes(&specialization.commitment);
@@ -1469,6 +1470,9 @@ pub(crate) mod machine_declaration_wire {
         let specialization = if reader.boolean()? {
             Some(CheckedMachineSpecialization {
                 template: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
+                template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                    reader.u32()?,
+                )),
                 template_callable: TerminalIdentityIndex(reader.u32()?),
                 template_semantic_declaration: TerminalIdentityIndex(reader.u32()?),
                 commitment: reader.array()?,
@@ -1505,6 +1509,7 @@ pub(crate) mod machine_declaration_wire {
         if body.contract == [0; 32]
             || body.specialization.as_ref().is_some_and(|row| {
                 row.commitment == [0; 32]
+                    || row.template_entry.identity().is_absent()
                     || row.template_callable.is_absent()
                     || row.template_semantic_declaration.is_absent()
                     || row.capture.as_ref().is_some_and(|capture| {
@@ -4130,6 +4135,7 @@ mod routed_scalar_tests {
             .as_mut()
             .unwrap()
             .specialization = Some(CheckedMachineSpecialization {
+            template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template_callable: TerminalIdentityIndex(3),
             template_semantic_declaration: TerminalIdentityIndex(1),
@@ -4229,6 +4235,7 @@ mod routed_scalar_tests {
         declaration.callable = TerminalIdentityIndex(2);
         declaration.specialization = Some(CheckedMachineSpecialization {
             capture: None,
+            template_entry: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
             template_callable: TerminalIdentityIndex(3),
             template_semantic_declaration: TerminalIdentityIndex(1),

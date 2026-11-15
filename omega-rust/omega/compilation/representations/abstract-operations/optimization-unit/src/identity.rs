@@ -824,6 +824,7 @@ pub(crate) mod runtime_evidence_encoding {
                     declaration.specialization.as_ref(),
                     |bytes, specialization| {
                         bytes.u32(specialization.template.identity().0);
+                        bytes.u32(specialization.template_entry.identity().0);
                         bytes.u32(specialization.template_callable.0);
                         bytes.u32(specialization.template_semantic_declaration.0);
                         bytes.bytes(&specialization.commitment);

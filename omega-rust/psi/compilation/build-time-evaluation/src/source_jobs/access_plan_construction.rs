@@ -401,6 +401,25 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         route.1,
         terminal_psi::StructuralEstablishmentRoute::ExactMachine { .. }
     ));
+    let stamp = typed.realized_machine_named("stamp").unwrap().symbol;
+    let stamp_identity = typed.normalized_hermetic_symbol_identity(stamp).unwrap();
+    let stamp = restored
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.declaration.as_ref().is_some_and(|declaration| {
+                restored.identities.text(declaration.semantic_declaration)
+                    == Some(stamp_identity.as_str())
+            })
+        })
+        .expect("the actual issuer's normally checked body")
+        .id;
+    assert!(
+        terminal_semantics::structural_qualifications::caller_matches_machine(
+            &restored, stamp, route
+        )
+        .expect("match the actual declaration, entry and complete application")
+    );
     let number = typed.realized_machine_named("number").unwrap().symbol;
     let number_identity = typed.normalized_hermetic_symbol_identity(number).unwrap();
     let other = restored
@@ -412,6 +431,36 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
                 == Some(number_identity.as_str())
         })
         .expect("the original program's other genuine declaration");
+    let number = restored
+        .machines
+        .iter()
+        .find(|machine| machine.declaration.as_ref() == Some(other))
+        .unwrap()
+        .id;
+    assert!(
+        !terminal_semantics::structural_qualifications::caller_matches_machine(
+            &restored, number, route
+        )
+        .expect("another genuine machine is not the named caller")
+    );
+    let mut wrong_entry = restored.clone();
+    wrong_entry
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == stamp)
+        .unwrap()
+        .declaration
+        .as_mut()
+        .unwrap()
+        .state = other.state.clone();
+    assert!(
+        !terminal_semantics::structural_qualifications::caller_matches_machine(
+            &wrong_entry,
+            stamp,
+            route
+        )
+        .expect("a counted entry nominal cannot replace the exact original entry")
+    );
     let mut redirected = restored.clone();
     let changed = redirected.structural_domains[domain]
         .access_policy

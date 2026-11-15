@@ -1347,6 +1347,7 @@ pub(crate) mod external_providers {
             if let Some(specialization) = &declaration.specialization
                 && (![
                     specialization.template.identity(),
+                    specialization.template_entry.identity(),
                     specialization.template_semantic_declaration,
                     specialization.template_callable,
                 ]

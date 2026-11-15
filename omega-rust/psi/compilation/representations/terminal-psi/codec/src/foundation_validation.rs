@@ -4981,6 +4981,7 @@ pub(crate) mod scalar_applications {
                 declaration.callable = TerminalIdentityIndex(4);
                 declaration.result_type = TerminalIdentityIndex(5);
                 declaration.specialization = Some(terminal_psi::CheckedMachineSpecialization {
+                    template_entry: declaration.state.clone(),
                     template: declaration.machine.clone(),
                     template_callable: declaration.callable,
                     template_semantic_declaration: declaration.semantic_declaration,
@@ -10979,6 +10980,7 @@ fn declaration_identity_references(
             .flat_map(|specialization| {
                 [
                     specialization.template.identity(),
+                    specialization.template_entry.identity(),
                     specialization.template_callable,
                     specialization.template_semantic_declaration,
                 ]

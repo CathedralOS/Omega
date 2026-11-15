@@ -1080,6 +1080,7 @@ pub mod closed_conformances {
         match &declaration.specialization {
             Some(specialization) => {
                 identity(module, specialization.template.identity())?;
+                identity(module, specialization.template_entry.identity())?;
                 if let Some(capture) = &specialization.capture {
                     identity(module, capture.template_identity)?;
                     if capture.template_commitment == [0; 32]
@@ -1861,6 +1862,7 @@ pub mod closed_conformances {
                     Some(specialization) => {
                         if specialization.capture.is_some()
                             || specialization.template != schema.requirement_declaration
+                            || specialization.template_entry != schema.requirement_declaration
                             || specialization.template_callable
                                 != schema.public_requirement_identity
                         {
