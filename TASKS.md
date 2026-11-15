@@ -163,6 +163,7 @@ Write each item so any agent can start from it alone: current state, files and e
 - **ARRAY-ELEMENT-VIEWS.** Implement [views of a fixed array](wiki/spec/language/expressions.md#views-of-a-fixed-array) and migrate the programs that assumed a conversion.
   - The checker keeps refusing `&array` and `&mut array` where `&[T]` or `&mut [T]` is expected, and its diagnostic names the fix, `&array[..]` or `&mut array[..]`, instead of only `typing argument types`.
   - Full-range formation on a fixed array establishes `len == N` for the lowered-form checker.
+  - A full-range view of a field reached through a borrowed formal, `Console::read_line(&mut main.pause[..])` with `main: &mut Main`, is refused as `reference backing with an unresolved selector or extent` (`06_terminal-psi-to-terminal-psi/src/places.rs`, `backing`: the slice segment has no descriptor location). `samples/cli/algorithms/bubble_sort` and `dutch_flag` stop there and nowhere else.
   - Migrate the `Console::read_line` callers in `source/library` and `samples/` that pass a borrowed `[u8; N]` for a view; Build programs, guide and spec examples already use the range form.
 
 - **APPLIED-BOUNDARY-SERVICE-REACH.** Implement [boundary services with parameters](wiki/spec/language/effects.md#boundary-services-with-parameters): name a boundary trait with parameters in `reaches` and `invokes` rows by its application, and carry that application end to end.

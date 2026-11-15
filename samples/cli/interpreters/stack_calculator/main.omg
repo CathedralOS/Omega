@@ -32,7 +32,7 @@ requires self.sp >= 0 && self.sp <= 8
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("stack_calculator: evaluates (3 + 4) * 5 with an explicit operand stack");
     main.sp = 0;
 
@@ -101,13 +101,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine done(main: &mut Main) {
         Console::write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(main.stack[0] as i32);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -115,5 +115,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
