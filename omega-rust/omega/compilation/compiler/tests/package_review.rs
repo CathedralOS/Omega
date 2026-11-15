@@ -1253,6 +1253,54 @@ fn numeric_review_retains_calls_inside_a_selected_provider() {
 }
 
 #[test]
+fn native_process_exit_review_preserves_its_source_type_without_a_calling_result() {
+    use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
+
+    let fixture = kept_fixture("run/effects/native_process_exit_review/main.omg");
+    for target in [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ] {
+        let recovered = reviewed_and_recovered(&fixture, target);
+        let [binding] = recovered.native_bindings() else {
+            panic!("one canonical process exit binding for {target}");
+        };
+        let method = binding.method();
+        assert!(
+            method
+                .requirement()
+                .path()
+                .ends_with("ProcessExit::exit_process")
+        );
+        assert_eq!(
+            method.completion(),
+            BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
+        );
+        assert!(method.terminates_guarantee());
+        let source_result = method.signature().result().expect("source result type");
+        assert!(source_result.canonical().contains("Never"));
+        assert!(
+            recovered
+                .callables()
+                .callables()
+                .iter()
+                .all(|callable| callable.identity() != method.requirement())
+        );
+        assert_eq!(
+            method.authority().service_reach(),
+            std::slice::from_ref(method.requirement_owner())
+        );
+        let [calling] = method.calling() else {
+            panic!("one validated calling application for {target}");
+        };
+        assert!(calling.semantic_result().is_none());
+        assert!(calling.physical().result().is_none());
+    }
+}
+
+#[test]
 fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
     use review_evidence::record::PackageReviewForeignLocator;
 
