@@ -810,9 +810,9 @@ fn machine(
     }
     let windows = opened;
     let mut uses = storage.uses(&mut references, tables)?;
-    // A store into a field of a byte domain is judged by the bytes it
-    // supplies; a refused store is that operation's verdict.
-    for judged in storage.byte_predicate_stores()? {
+    // Byte-domain establishments are judged from their actual source at the
+    // producer, including qualified transfers whose result is never consumed.
+    for judged in storage.byte_predicate_establishments(module)? {
         match uses.iter_mut().find(|used| used.at == judged.at) {
             Some(used) if used.verdict.is_ok() => used.verdict = judged.verdict,
             Some(_) => {}

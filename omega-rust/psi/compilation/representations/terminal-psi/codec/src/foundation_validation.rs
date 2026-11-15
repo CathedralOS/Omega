@@ -6997,7 +6997,8 @@ pub(crate) mod storage_foundations {
                 &contract.qualifications,
                 &contract.projected_qualifications,
                 result,
-            )
+            )?;
+            validate_byte_transfer_qualifications(module, machine, operation)
         }
 
         fn validate_transfer_domain_additions(
@@ -7038,6 +7039,19 @@ pub(crate) mod storage_foundations {
                 }
             }
             Ok(())
+        }
+
+        fn validate_byte_transfer_qualifications(
+            module: &TerminalModule,
+            machine: &TerminalMachine,
+            operation: &Operation,
+        ) -> Result<(), CodecError> {
+            match terminal_semantics::byte_transfer_qualifications_hold(module, machine, operation)
+            {
+                Ok(None | Some(true)) => Ok(()),
+                Ok(Some(false)) => malformed("value transfer does not establish its byte domains"),
+                Err(reason) => malformed(reason),
+            }
         }
 
         pub(crate) fn validate_structural_leaf_copy(
@@ -7169,7 +7183,7 @@ pub(crate) mod storage_foundations {
                     }
                 })?;
             }
-            Ok(())
+            validate_byte_transfer_qualifications(module, machine, operation)
         }
 
         fn trace_payload_producer_chain(machine: &TerminalMachine, failing: &Operation) {

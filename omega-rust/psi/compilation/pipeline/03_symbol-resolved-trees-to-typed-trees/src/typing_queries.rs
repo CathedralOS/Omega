@@ -1645,7 +1645,23 @@ mod tests {
             call
         }
 
-        let program = typed("public domain [u8]::Path requires no_nul(self);");
+        fn references(program: &TypedTrees, expression: ExpressionHandle) -> Vec<SymbolHandle> {
+            #[derive(Default)]
+            struct References(Vec<SymbolHandle>);
+            impl Extend<SymbolHandle> for References {
+                fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                    self.0.extend(symbols);
+                }
+            }
+            impl typed_trees::references::TypedReferences for References {}
+            let mut references = References::default();
+            typed_trees::references::visit_expression(program, &mut references, expression);
+            references.0
+        }
+
+        let program = typed(
+            "public domain [u8]::Path requires no_nul(self);\ndomain [u8]::Ascii requires ascii_only(self);",
+        );
         let domain = &program.domain_definitions()[0];
         let symbol = domain.symbol;
         let target_type = domain.target_type;
@@ -1661,6 +1677,10 @@ mod tests {
             Some(ByteSequencePredicate::NoNul)
         );
         assert!(deferred(&program).unwrap().is_empty());
+        assert!(
+            !references(&program, expression).contains(&SymbolHandle::invalid()),
+            "the exact completed primitive has no absent declaration dependency"
+        );
 
         let original = program.expression_table.call_node(expression).unwrap();
         let occurrence = original
@@ -1687,6 +1707,7 @@ mod tests {
 
         let mut missing = program.clone();
         call_mut(&mut missing, expression).authored_call_selection = None;
+        assert!(references(&missing, expression).contains(&SymbolHandle::invalid()));
         assert!(
             deferred(&missing)
                 .unwrap_err()
@@ -1694,14 +1715,22 @@ mod tests {
                 .contains("own attached Call occurrence")
         );
 
+        let other_domain = &program.domain_definitions()[1];
+        let [ProofFact::Expression(other_expression)] =
+            program.proof_facts.span_or_empty(other_domain.facts)
+        else {
+            panic!("the sibling domain retains its own authored clause")
+        };
         let other = program
-            .authored_declaration_selections()
-            .iter()
-            .find(|row| row.occurrence_id() != occurrence)
-            .expect("the source also retains its type selection")
-            .occurrence_id();
+            .expression_table
+            .call_node(*other_expression)
+            .unwrap()
+            .authored_call_selection
+            .expect("the sibling call retains its actual source occurrence");
+        assert_ne!(other, occurrence);
         let mut wrong_occurrence = program.clone();
         call_mut(&mut wrong_occurrence, expression).authored_call_selection = Some(other);
+        assert!(references(&wrong_occurrence, expression).contains(&SymbolHandle::invalid()));
         assert!(
             deferred(&wrong_occurrence)
                 .unwrap_err()
@@ -1712,6 +1741,7 @@ mod tests {
         let mut changed_primitive = program.clone();
         call_mut(&mut changed_primitive, expression).target =
             typed_trees::name::Identifier::generated("ascii_only");
+        assert!(references(&changed_primitive, expression).contains(&SymbolHandle::invalid()));
         assert!(
             deferred(&changed_primitive)
                 .unwrap_err()
@@ -1751,12 +1781,16 @@ mod tests {
                 },
             ] {
                 let mut malformed = program.clone();
+                let target = malformed_call.target_symbol;
                 *call_mut(&mut malformed, expression) = malformed_call;
                 assert_eq!(
                     primitive_byte_slice_domain(&malformed, symbol),
                     None,
                     "a malformed optional handle is present metadata, not exact absence"
                 );
+                if target != SymbolHandle::invalid() {
+                    assert!(references(&malformed, expression).contains(&target));
+                }
             }
         }
 
@@ -1804,6 +1838,12 @@ mod tests {
         let mut stale = program.clone();
         call_mut(&mut stale, expression).target_symbol =
             SymbolHandle::from_parts(symbol.arena_index(), symbol.generation() + 1);
+        assert!(
+            references(&stale, expression).contains(&SymbolHandle::from_parts(
+                symbol.arena_index(),
+                symbol.generation() + 1
+            ))
+        );
         assert_eq!(primitive_byte_slice_domain(&stale, symbol), None);
         assert_eq!(
             deferred(&stale).unwrap(),

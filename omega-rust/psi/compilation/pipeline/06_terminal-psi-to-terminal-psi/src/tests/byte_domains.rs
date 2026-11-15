@@ -86,17 +86,37 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 
 #[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
+    fn judged(source: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+        use super::build_purpose::{frontier_of, package, roster, symbol};
+        let typed = frontier_of("machine product_entry() { }", source);
+        let entries = [symbol(&typed, "build_entry")];
+        let subjects = [Some(package())];
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            roster(&entries, &subjects, source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Portable,
+        );
+        let mut verdicts = crate::judge_compilation(prepared.program);
+        assert_eq!(verdicts.len(), 1);
+        verdicts.remove(0)
+    }
     let source = r#"
 domain [u8]::Text requires no_nul(self);
-machine same<'a>(text: &'a [u8] in Text) -> &'a [u8] in Text { text }
+data Choice { case First; case Second; }
+machine same<'a>(text: &'a [u8] in Text, choice: Choice) -> &'a [u8] in Text {
+    match choice {
+        Choice::First -> text
+        Choice::Second -> text
+    }
+}
 machine take(text: &[u8] in Text) { }
 machine build_entry() {
     let local: &[u8] in Text = "plain" as +Text;
-    let returned: &[u8] in Text = same(local);
+    let returned: &[u8] in Text = same(local, Choice::First {});
     take(returned);
 }
 "#;
-    let accepted = match judge_build(source) {
+    let accepted = match judged(source) {
         Ok(RouteVerdict::Accepted(accepted)) => accepted,
         other => panic!("the declared membership must cross the actual call: {other:?}"),
     };
@@ -116,10 +136,45 @@ machine build_entry() {
         terminal_psi::TerminalMachineResult::Structural(result)
             if !result.qualifications.is_empty()
     )));
-    accepted.publish_invocation().unwrap();
+    let encoded = terminal_codec::encode_module(module)
+        .expect("the actual package declarations have portable custody");
+    terminal_codec::decode_module(&encoded)
+        .expect("the actual established descriptor crosses receiving validation");
+    let mut forged = module.clone();
+    let mut corrupted = 0;
+    for machine in &mut forged.machines {
+        for block in &mut machine.blocks {
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationKind::EstablishByteSequenceLiteral { bytes, .. } =
+                    &mut operation.kind
+                    && bytes.as_slice() == b"plain"
+                {
+                    bytes[0] = 0;
+                    corrupted += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(
+        corrupted, 1,
+        "corrupt the actual source of the qualification"
+    );
+    forged.unoptimized_behavior = forged
+        .machines
+        .iter()
+        .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+        .collect();
+    assert_eq!(
+        terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+            .expect_err("the receiving boundary must rejoin actual primitive bytes"),
+        terminal_codec::CodecError::MalformedStructuralFoundation(
+            "value transfer does not establish its byte domains"
+        )
+    );
+    accepted.publish().unwrap();
 
     let invalid = source.replace("\"plain\"", r#""pla\x00in""#);
-    match judge_build(&invalid) {
+    match judged(&invalid) {
         Ok(RouteVerdict::Rejected {
             violations,
             unestablished,
@@ -141,9 +196,9 @@ machine build_entry() {
 /// it, and the view row is the one a plain `&[u8]` has.
 #[test]
 fn the_field_carries_its_predicates_on_its_type() {
-    let Ok(RouteVerdict::Accepted(accepted)) = judge_build(&rejection("valid_utf8", "no plan"))
-    else {
-        panic!("not accepted");
+    let accepted = match judge_build(&rejection("valid_utf8", "no plan")) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the field must retain its exact byte predicate: {other:?}"),
     };
     let fields: Vec<&StructuralFieldType> = accepted
         .elaboration
@@ -208,10 +263,10 @@ requires
 data Plain { reason: &[u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
+    let judged = judge_build(laundered);
     assert!(
-        matches!(judge_build(laundered), Ok(RouteVerdict::Rejected { .. })),
-        "{:?}",
-        judge_build(laundered)
+        matches!(&judged, Ok(RouteVerdict::Rejected { .. })),
+        "{judged:?}"
     );
     let non_empty = r#"
 domain [u8]::Filled

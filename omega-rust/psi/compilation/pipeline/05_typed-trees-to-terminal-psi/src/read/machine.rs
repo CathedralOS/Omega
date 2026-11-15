@@ -2570,8 +2570,11 @@ impl<'t> Program<'t> {
         // A byte view keeps the region it names in its type (`bytes`). A
         // reference to anything else is a loan of one place, and what its
         // lifetime relates it to has no reader yet.
+        // Domains retain the slice carrier. The full qualified formal still
+        // goes through value_type below, where its domains and region are read.
+        let table = &self.typed.type_reference_table;
         let is_view = matches!(
-            self.typed.type_reference_table.type_reference(referee),
+            table.type_reference(table.unconstrained_type_reference(referee)),
             TypeReferenceNode::Slice { .. }
         );
         // Retain the outer loan itself, independently of nested views in

@@ -3532,6 +3532,52 @@ fn visit_static_requirement_dispatch(
     visit_symbol(retained, dispatch.declaring_trait);
 }
 
+/// A completed primitive has no nominal callee. Its exact call occurrence,
+/// attachment and primitive meaning establish that absence; unresolved names
+/// and conflicting retained coordinates remain ordinary references.
+fn completed_byte_predicate_call(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    call: &TableCallExpression,
+) -> bool {
+    use crate::{
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+
+    let Some((predicate, _)) = crate::byte_predicates::byte_predicate_call(program, expression)
+    else {
+        return false;
+    };
+    let Some(occurrence) = call.authored_call_selection else {
+        return false;
+    };
+    let Some(row) = program.authored_declaration_selections().get(occurrence) else {
+        return false;
+    };
+    if row.kind() != Kind::Call
+        || row.target() != Target::Intrinsic(Intrinsic::ByteSequencePredicate(predicate))
+    {
+        return false;
+    }
+    let mut own_attached = false;
+    for attached in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let Some(row) = program.authored_declaration_selections().get(attached) else {
+            return false;
+        };
+        if row.kind() == Kind::Call {
+            if attached != occurrence {
+                return false;
+            }
+            own_attached = true;
+        }
+    }
+    own_attached
+}
+
 fn visit_call_expression(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -3554,7 +3600,9 @@ fn visit_call_expression(
     // A computed call retains its evaluated operand and contract above. It
     // has no nominal target; a conflicting retained target remains a real
     // reference for the source admission owner to diagnose.
-    if call.runtime_call.is_none() || call.target_symbol.is_valid() {
+    if (call.runtime_call.is_none() && !completed_byte_predicate_call(program, expression, call))
+        || call.target_symbol != SymbolHandle::invalid()
+    {
         visit_callable_symbol(program, retained, call.target_symbol);
     }
     for operator in crate::operator::named_expression_call_candidates(program, call) {

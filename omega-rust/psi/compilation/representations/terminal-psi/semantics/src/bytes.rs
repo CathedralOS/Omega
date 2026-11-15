@@ -533,6 +533,97 @@ pub(crate) mod byte_sequence_predicates {
         Some(field.field_type.byte_predicates())
     }
 
+    /// Read the predicates of the actual argument, including a stored view
+    /// projection. A write-only argument supplies no observation of its bytes.
+    pub fn byte_sequence_argument_predicates(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        source: &terminal_psi::StructuralArgument,
+    ) -> Option<ByteSequencePredicateSet> {
+        if source.access == StructuralAccess::WriteOnlyBorrow {
+            return None;
+        }
+        if source.path.is_empty() {
+            return byte_sequence_source_predicates(module, machine, source.place);
+        }
+        let (root, access) = byte_field_root(machine, source.place)?;
+        if access == StructuralAccess::WriteOnlyBorrow {
+            return None;
+        }
+        shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
+    }
+
+    /// A transfer must establish its byte qualifications from the source.
+    /// Its own result annotations cannot justify the qualifications they add.
+    pub fn byte_transfer_qualifications_hold(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<Option<bool>, &'static str> {
+        let (source, source_path, access) = match &operation.kind {
+            OperationKind::StructuralLeafCopy { source, path } => {
+                (*source, path.as_slice(), StructuralAccess::SharedBorrow)
+            }
+            OperationKind::MoveStructuralValue { source } => {
+                (source.place, source.path.as_slice(), source.access)
+            }
+            _ => return Ok(None),
+        };
+        let result = operation
+            .result
+            .structural()
+            .ok_or("byte transfer has no structural result")?;
+        let mut checked = false;
+        for (path, id) in result.qualifications.iter().map(|id| (&[][..], id)).chain(
+            result
+                .projected_qualifications
+                .iter()
+                .map(|row| (row.path.as_slice(), &row.domain)),
+        ) {
+            let mut matching = module.structural_domains.iter().filter(|row| row.id == *id);
+            let domain = matching.next().ok_or("byte transfer domain is absent")?;
+            if matching.next().is_some() {
+                return Err("byte transfer domain is ambiguous");
+            }
+            if domain.byte_predicate.is_none() {
+                continue;
+            }
+            let carrier = crate::qualification_path_carrier(
+                module.structural_types.iter(),
+                result.structural_type,
+                path,
+            )
+            .ok_or("byte transfer qualification has no exact carrier")?;
+            if !byte_predicate_carrier(module.structural_types.iter(), carrier) {
+                return Err("byte transfer qualification carrier is not bytes");
+            }
+            let required = byte_qualification_predicates_in(
+                module.structural_domains.iter(),
+                carrier,
+                std::slice::from_ref(id),
+            )
+            .ok_or("byte transfer qualification is not a complete primitive byte domain")?;
+            if source == result.place {
+                return Err("byte transfer cannot use its own result as evidence");
+            }
+            let mut combined_path = Vec::with_capacity(source_path.len() + path.len());
+            combined_path.extend_from_slice(source_path);
+            combined_path.extend_from_slice(path);
+            let argument = terminal_psi::StructuralArgument {
+                place: source,
+                path: combined_path,
+                access,
+            };
+            let supplied = byte_sequence_argument_predicates(module, machine, &argument)
+                .ok_or("byte transfer source predicates are unavailable")?;
+            checked = true;
+            if !supplied.implies(required) {
+                return Ok(Some(false));
+            }
+        }
+        Ok(checked.then_some(true))
+    }
+
     pub fn byte_sequence_concatenation_predicates(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -779,12 +870,14 @@ pub(crate) mod byte_sequence_predicates {
                 | StructuralPlaceKind::BlockParameter { .. } => {
                     let parameter =
                         crate::storage::arrival_storage::arrival_parameter(machine, source)?;
-                    let owned_buffer = parameter.access == StructuralAccess::Owned
+                    // A join owns its shared descriptor, whose byte facts
+                    // arrive with the parameter just as a buffer's do.
+                    let owned_readable = parameter.access == StructuralAccess::Owned
                         && module.structural_types.iter().any(|row| {
                             row.id == parameter.structural_type
-                                && row.shape.is_bounded_owned_byte_sequence()
+                                && row.shape.is_owned_or_shared_byte_carrier()
                         });
-                    if !owned_buffer
+                    if !owned_readable
                         && !matches!(
                             parameter.access,
                             terminal_psi::reading_borrow_pair_pattern!()

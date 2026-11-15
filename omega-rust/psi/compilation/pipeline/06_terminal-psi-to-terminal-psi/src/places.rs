@@ -221,7 +221,7 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
 /// A shared view whose field type carries primitive byte predicates is one
 /// too, when the empty view, its zero, satisfies them: a record holding it is
 /// then zero-constructible like any other, and each store into the field is
-/// judged against the predicates (`Storage::byte_predicate_stores`). One the
+/// judged against the predicates (`Storage::byte_predicate_establishments`). One the
 /// empty view does not satisfy would make its owner gated, which this route
 /// does not judge.
 fn is_stored_view(field_type: &StructuralFieldType) -> bool {
@@ -2989,37 +2989,52 @@ impl<'a> Storage<'a> {
         Ok(Ok(()))
     }
 
-    /// One verdict per operation that puts a view into a field whose type
-    /// carries primitive byte predicates
-    /// (`StructuralFieldType::PredicateByteSequence`, a source field written
-    /// `&[u8] in Utf8`): a record or case literal naming the field, a whole
-    /// store into it, or a view store into it.
-    ///
-    /// The predicates are decided by the bytes the view shows, so each is
-    /// judged from the bytes its source supplies. byte_views.md: "Checking
-    /// rejoins the source's declared predicates or literal contents";
-    /// structural_access.md: "Primitive byte predicates replay independently
-    /// from exact literal octets". A source is served when it is, whole, the
-    /// home of one literal established by the one
-    /// `EstablishByteSequenceLiteral` that names it: a shared view never
-    /// writes its backing, so those octets are what every later read sees.
-    /// Bytes some predicate does not hold of are `Unestablished`, a compile
-    /// error of the program: the field's domain was never established for
-    /// that value. Any other source is refused as unsupported, never judged
-    /// true.
-    pub(crate) fn byte_predicate_stores(&self) -> Checked<Vec<StorageUse>> {
+    /// Judge primitive byte-domain establishment from the exact source.
+    /// Copies and moves owe their new qualifications at their producer, even
+    /// when nothing later consumes the result. A field store owes the field's
+    /// predicates, independently of its storage and loan obligations.
+    /// Exact literal bytes, declared qualified inputs and supported descriptor
+    /// producers supply predicates through the shared source-free owner.
+    pub(crate) fn byte_predicate_establishments(
+        &self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Checked<Vec<StorageUse>> {
         let mut verdicts = Vec::new();
         for block in &self.lowered.blocks {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
+                let establishment = self.byte_literal_establishment(module, operation).and_then(
+                    |()| match terminal_semantics::byte_transfer_qualifications_hold(
+                        module,
+                        self.lowered,
+                        operation,
+                    ) {
+                        Ok(None | Some(true)) => Ok(()),
+                        Ok(Some(false)) => Err(refusal(
+                            RefusalReason::Unestablished,
+                            self.machine,
+                            concerns,
+                            "a byte transfer's source does not establish its primitive byte-domain \
+                                 qualifications",
+                        )),
+                        Err(reason) => Err(self.unsupported(concerns, reason)),
+                    },
+                );
+                if let Err(refused) = establishment {
+                    verdicts.push(StorageUse {
+                        at: concerns,
+                        verdict: Err(refused),
+                    });
+                    continue;
+                }
                 for (predicates, source) in self.predicate_view_sources(operation, concerns)? {
-                    let bytes = if source.path.is_empty() {
-                        self.literal_bytes(source.place, concerns)?
-                    } else {
-                        None
-                    };
-                    let verdict = match bytes {
-                        Some(bytes) if predicates.holds_for(bytes) => Ok(()),
+                    let supplied = terminal_semantics::byte_sequence_argument_predicates(
+                        module,
+                        self.lowered,
+                        &source,
+                    );
+                    let verdict = match supplied {
+                        Some(supplied) if supplied.implies(predicates) => Ok(()),
                         Some(_) => Err(refusal(
                             RefusalReason::Unestablished,
                             self.machine,
@@ -3029,8 +3044,10 @@ impl<'a> Storage<'a> {
                         )),
                         None => Err(self.unsupported(
                             concerns,
-                            "a byte view stored into a field of a byte domain from other than a \
-                             literal",
+                            &format!(
+                                "a byte view stored into a field of a byte domain has no \
+                                 reconstructed source predicates: {source:?}",
+                            ),
                         )),
                     };
                     if let Err(refused) = verdict {
@@ -3044,6 +3061,57 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(verdicts)
+    }
+
+    fn byte_literal_establishment(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        operation: &Operation,
+    ) -> Checked<()> {
+        let OperationKind::EstablishByteSequenceLiteral {
+            destination,
+            bytes,
+            qualifications,
+        } = &operation.kind
+        else {
+            return Ok(());
+        };
+        let concerns = Construct::Operation(operation.id);
+        let StructuralPlaceKind::ByteSequenceLiteral {
+            structural_type, ..
+        } = self.root_kind(*destination, concerns)?
+        else {
+            return Err(self.foreign(concerns, "a byte literal has no declared literal root"));
+        };
+        if terminal_semantics::byte_qualification_predicates_in(
+            module.structural_domains.iter(),
+            structural_type,
+            qualifications,
+        )
+        .is_none()
+        {
+            return Err(self.unsupported(
+                concerns,
+                &format!(
+                    "byte literal qualifications do not name exact pure primitive byte domains: \
+                     carrier {structural_type:?}, domains {qualifications:?}",
+                ),
+            ));
+        }
+        if !terminal_semantics::byte_literal_qualifications_hold(
+            &module.structural_domains,
+            structural_type,
+            qualifications,
+            bytes,
+        ) {
+            return Err(refusal(
+                RefusalReason::Unestablished,
+                self.machine,
+                concerns,
+                "a byte literal's contents do not establish its primitive byte-domain qualifications",
+            ));
+        }
+        Ok(())
     }
 
     /// The fields of a byte domain an operation stores a view into, each
@@ -3157,32 +3225,6 @@ impl<'a> Storage<'a> {
             .structural()
             .map(|result| result.structural_type)
             .ok_or_else(|| self.foreign(concerns, "a literal with no structural result"))
-    }
-
-    /// The octets of the literal whose home is `place`, when `place` is a
-    /// literal's home and exactly one operation establishes it.
-    fn literal_bytes(&self, place: PlaceId, concerns: Construct) -> Checked<Option<&'a [u8]>> {
-        if !matches!(
-            self.root_kind(place, concerns)?,
-            StructuralPlaceKind::ByteSequenceLiteral { .. }
-        ) {
-            return Ok(None);
-        }
-        let mut producers = self.lowered.blocks.iter().flat_map(|block| {
-            block
-                .operations
-                .iter()
-                .filter_map(|operation| match &operation.kind {
-                    OperationKind::EstablishByteSequenceLiteral {
-                        destination, bytes, ..
-                    } if *destination == place => Some(bytes.as_slice()),
-                    _ => None,
-                })
-        });
-        match (producers.next(), producers.next()) {
-            (Some(bytes), None) => Ok(Some(bytes)),
-            _ => Ok(None),
-        }
     }
 
     /// Every operation and terminator that reads storage or names a case
