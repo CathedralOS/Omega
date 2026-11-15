@@ -1,11 +1,10 @@
 #![forbid(unsafe_code)]
 
 /*
-Discharge on the lowered form: every obligation that structure-only
-elaboration minted is decided here, and an obligation counts as discharged
-only when the proof kernel (`proof_admission::verify_obligation`) accepted a
-certificate for it. Anything else is a `Refusal` with reason `Unproved`; there
-is no interval verdict, no admitted route and no assumption.
+Discharge on the lowered form: settle every obligation that elaboration
+minted. The proof kernel accepts certificates for proof goals. A ground
+layout call requirement retains its exact predicate for the selected target
+closure; that target must establish it before admitting execution.
 (`wiki/drafts/designs/check_on_lowered_form.md`, "Route one";
 `wiki/drafts/designs/stage_trust.md`, rule 2.)
 
@@ -62,6 +61,7 @@ mod formation;
 mod graph;
 mod joins;
 mod known;
+mod machine_batch;
 mod machine_inputs;
 mod minted;
 mod operational;
@@ -137,6 +137,8 @@ pub struct Evidence {
 pub enum Discharged {
     /// A certificate the kernel accepted.
     Certificate(Evidence),
+    /// A ground call requirement still owed in its actual target closure.
+    TargetCondition(Box<terminal_psi::ScalarPredicateCondition>),
     /// A `PublishedGuarantee`: the `NormalGuarantee` of every normal return
     /// edge for this clause was discharged by a certificate, and these are
     /// they. Empty when the machine has no normal return, where the clause
@@ -188,7 +190,8 @@ impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_)
+            Self::TargetCondition(_)
+            | Self::EveryExit(_)
             | Self::Window(_)
             | Self::Preserved
             | Self::Lent
@@ -474,23 +477,13 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
-    let mut machines = IdTable::default();
-    let identities: Vec<MachineId> = checking.machines.keys().collect();
-    for id in identities {
-        let tables = checking.machines.get_mut(id).ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Machine,
-                "machine tables are past the end",
-            )
-        })?;
+    let machines = machine_batch::check(&mut checking.machines, |id, tables| {
         // A requirement has a contract and no body, so nothing about it is
         // decided here. Its guarantees are each selected implementation's to
         // prove; leaving them without a verdict would read as vacuously held.
         let inputs = inputs.for_machine(id)?;
         if inputs.requirement {
-            machines.push(MachineDischarge {
+            return Ok(MachineDischarge {
                 verdicts: tables.obligations.map(|obligation, _| {
                     Err(refusal(
                         RefusalReason::Unsupported,
@@ -505,10 +498,9 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
                 conflicts: Vec::new(),
                 impossible: Vec::new(),
             });
-            continue;
         }
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
-        machines.push(machine(
+        machine(
             formed,
             &inhabitation,
             domains,
@@ -518,8 +510,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             inputs.carried.map(|position| &carried[position]),
             inputs.branches,
             &empty_contracts,
-        )?);
-    }
+        )
+    })?;
     Ok(Discharge { machines })
 }
 
@@ -706,6 +698,18 @@ fn machine(
     // A machine stage 04 generated takes each one its generic form proved,
     // and searches only where none is carried (`discharge_carrying`).
     let carrier = carried.and_then(|carried| carried.carrier(tables, lowered));
+    let mut layout_conditions = module
+        .layout_call_conditions(lowered)
+        .map_err(|detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Machine,
+                detail,
+            )
+        })?
+        .into_iter()
+        .peekable();
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -718,6 +722,22 @@ fn machine(
                 rankings::well_founded(lowered, &ranking_bindings, obligation, component)
                     .map(Discharged::FiniteIntegerRanking),
             );
+            continue;
+        }
+        if layout_conditions
+            .peek()
+            .is_some_and(|(target, _)| *target == obligation)
+            && let Some((_, condition)) = layout_conditions.next()
+        {
+            if !matches!(row.kind, ObligationKind::CallRequirement { .. }) {
+                return Err(refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Obligation(obligation),
+                    "layout condition names a different obligation",
+                ));
+            }
+            decided[index] = Some(Ok(Discharged::TargetCondition(Box::new(condition))));
             continue;
         }
         let verdict = goal(
@@ -757,6 +777,14 @@ fn machine(
             .map(Discharged::Certificate)
         });
         decided[index] = Some(verdict);
+    }
+    if layout_conditions.next().is_some() {
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            "layout condition lost its checked call obligation",
+        ));
     }
     // Published guarantees read normal-return verdicts, so finish that last
     // dependency pass before moving any certificate out of this table. Once

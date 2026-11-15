@@ -15,7 +15,7 @@ use terminal_psi::{
     TerminalIdentityTableBuilder,
 };
 
-use crate::body::{DomainInstance, DomainSet, Policy, Qualification, Regions, ValueType};
+use crate::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) fn domain_identity(
@@ -51,38 +51,29 @@ pub(crate) struct Qualifications {
     structural_issuers: Vec<(MachineId, StructuralDomainId, u32)>,
     /// Explicit structural casts, in machine and edge order.
     pub structural_changes: Vec<StructuralQualificationChange>,
-    /// The module's scalar applications. Every machine's lowering shares
-    /// it, so one layout question about one row is one application however
-    /// many bodies ask it (`layout_observation`).
-    pub scalar_applications: terminal_psi::ScalarApplications,
 }
 
-impl Qualifications {
-    /// The application observing `measurement` of `subject` under the
-    /// selected target's validated geometry, published once per module.
-    pub(crate) fn layout_observation(
-        &mut self,
-        subject: semantic_vocabulary::StructuralTypeId,
-        measurement: terminal_psi::LayoutMeasurement,
-        scalar_type: ScalarType,
-    ) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
-        let declaration = terminal_psi::ScalarApplication::LayoutObservation {
-            subject,
-            measurement,
-            semantics_version: terminal_psi::LayoutMeasurement::SEMANTICS_VERSION,
-            scalar_type,
-        };
-        if let Some(position) = self
-            .scalar_applications
-            .declarations()
-            .iter()
-            .position(|existing| *existing == declaration)
-        {
-            return semantic_vocabulary::ScalarApplicationId::new(position as u64 + 1)
-                .ok_or("scalar application namespace is exhausted");
-        }
-        self.scalar_applications.insert(declaration)
+pub(crate) fn layout_observation(
+    applications: &mut terminal_psi::ScalarApplications,
+    subject: semantic_vocabulary::StructuralTypeId,
+    measurement: terminal_psi::LayoutMeasurement,
+    scalar_type: ScalarType,
+) -> Result<semantic_vocabulary::ScalarApplicationId, &'static str> {
+    let declaration = terminal_psi::ScalarApplication::LayoutObservation {
+        subject,
+        measurement,
+        semantics_version: terminal_psi::LayoutMeasurement::SEMANTICS_VERSION,
+        scalar_type,
+    };
+    if let Some(position) = applications
+        .declarations()
+        .iter()
+        .position(|existing| *existing == declaration)
+    {
+        return semantic_vocabulary::ScalarApplicationId::new(position as u64 + 1)
+            .ok_or("scalar application namespace is exhausted");
     }
+    applications.insert(declaration)
 }
 
 /// Which declared route an issuer restriction names.
@@ -259,12 +250,18 @@ impl Qualifications {
                 Unserved::Declaration(detail),
             )
         };
-        for &(symbol, carrier) in &source.declared_domains {
-            let carrier = match carrier {
+        for declared in &source.declared_domains {
+            let symbol = declared.instance;
+            let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
-                ValueType::Record(carrier, _, regions) => {
+                ValueType::Record(carrier, _, _) => {
                     result.declare_structural(
-                        diagnostic, source, &sources, symbol, carrier, regions,
+                        diagnostic,
+                        source,
+                        &sources,
+                        symbol,
+                        carrier,
+                        declared.predicate.clone(),
                     )?;
                     continue;
                 }
@@ -278,25 +275,14 @@ impl Qualifications {
             let definition = source.domain_theory(diagnostic, symbol)?;
             let identity =
                 domain_identity(typed, &sources, symbol, builder).map_err(unavailable)?;
-            let domains = DomainSet::EMPTY
-                .with(symbol)
-                .ok_or_else(|| unavailable("scalar domain subject"))?;
-            let (clauses, _) = source.cast_predicates(
-                diagnostic,
-                Qualification {
-                    policy: None,
-                    domains,
-                },
-                carrier,
-            )?;
-            let mut predicate = if clauses.is_empty() {
-                None
-            } else {
-                Some(ScalarDomainPredicate {
-                    subject: semantic_vocabulary::ValueId::new(1).expect("one is a subject"),
-                    proposition: crate::canonical::conjunction(clauses, diagnostic)?,
-                })
-            };
+            let mut predicate =
+                declared
+                    .predicate
+                    .clone()
+                    .map(|proposition| ScalarDomainPredicate {
+                        subject: semantic_vocabulary::ValueId::new(1).expect("one is a subject"),
+                        proposition,
+                    });
             let establishment_routes = match establishment_routes(
                 typed,
                 source,
@@ -505,7 +491,7 @@ impl Qualifications {
         sources: &[(source::SourceId, [u8; 32])],
         symbol: DomainInstance,
         carrier: StructuralTypeId,
-        regions: Regions,
+        proposition: Option<semantic_vocabulary::Proposition>,
     ) -> Checked<()> {
         let typed = source.typed();
         let unavailable = |detail| {
@@ -519,27 +505,15 @@ impl Qualifications {
         let byte_predicate =
             typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition)
                 .map(|(_, predicate)| predicate);
-        let predicate = if byte_predicate.is_none() && crate::read::has_predicates(definition) {
-            let domains = DomainSet::EMPTY
-                .with(symbol)
-                .ok_or_else(|| unavailable("record domain subject"))?;
-            let qualification = Qualification {
-                policy: None,
-                domains,
-            };
-            let clauses = source.field_predicates(
-                diagnostic,
-                &[],
-                ValueType::Record(carrier, qualification, regions),
-            )?;
-            Some(StructuralDomainPredicate {
-                subject: crate::body::self_place()
-                    .ok_or_else(|| unavailable("record domain subject identity"))?,
-                proposition: crate::canonical::conjunction(clauses, diagnostic)?,
+        let predicate = proposition
+            .map(|proposition| {
+                Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
+                    subject: crate::body::self_place()
+                        .ok_or_else(|| unavailable("record domain subject identity"))?,
+                    proposition,
+                })
             })
-        } else {
-            None
-        };
+            .transpose()?;
         let id = StructuralDomainId::new(self.structural.len() as u64 + 1)
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
         let identity =

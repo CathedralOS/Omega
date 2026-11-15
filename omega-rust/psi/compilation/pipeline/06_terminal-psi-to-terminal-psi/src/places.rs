@@ -2031,14 +2031,15 @@ impl<'a> Storage<'a> {
                 }
                 if let OperationKind::ByteSequenceSubslice {
                     obligation: owned, ..
+                }
+                | OperationKind::ElementViewSubslice {
+                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
-                        return Err(
-                            self.foreign(concerns, "a byte subslice owns another obligation")
-                        );
+                        return Err(self.foreign(concerns, "a subslice owns another obligation"));
                     }
-                    return self.byte_subslice_goal(operation, types);
+                    return self.subslice_goal(operation, types);
                 }
                 if let OperationKind::ByteSequenceRead {
                     obligation: owned, ..
@@ -2228,7 +2229,7 @@ impl<'a> Storage<'a> {
                         self.types,
                         source,
                     )
-                    .is_none_or(|access| !access.admits_referent(source.access))
+                    .is_none_or(|available| !source.access.admits_referent(available))
                 {
                     return Err(self.foreign(concerns, "an element read needs a readable view"));
                 }
@@ -2373,6 +2374,7 @@ impl<'a> Storage<'a> {
                         && matches!(
                             self.operation(row.operation, concerns)?.kind,
                             OperationKind::ByteSequenceSubslice { .. }
+                                | OperationKind::ElementViewSubslice { .. }
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
                                 | OperationKind::EstablishElementView { .. }
                                 | OperationKind::EstablishMutableElementView { .. }

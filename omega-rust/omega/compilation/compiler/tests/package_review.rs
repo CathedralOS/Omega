@@ -97,7 +97,25 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let checked = session
         .check_package_build(build)
         .expect("checked installation closure");
+    let module = checked.terminal_publication().accepted().unwrap().module();
+    let [dependency] = module
+        .root_service_reach
+        .installation_dependencies
+        .as_slice()
+    else {
+        panic!("the root reaches one installation-bound requirement");
+    };
+    let requirement = module
+        .identities
+        .text(dependency.requirement_identity)
+        .unwrap();
+    assert!(requirement.contains("A::visit"), "{requirement}");
+    assert_eq!(dependency.upper_bound.len(), 2);
     let selected = checked.execution().plans();
+    assert_eq!(
+        selected.resolve_root_service_reach(module).unwrap().len(),
+        2
+    );
     let reach = |provider: &str| {
         let plan = selected
             .plans()
@@ -136,9 +154,41 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
             ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
         },
     );
-    session
+    let reviewed = session
         .review_package_build(build, usize::MAX)
         .expect("exact installed reach remains reviewable");
+    let bytes = reviewed.evidence.policy.canonical_bytes().unwrap();
+    let recovered = review_evidence::record::PackagePolicyBaseline::recover_canonical(
+        &bytes,
+        review_evidence::encoding::PackagePolicyRecoveryLimits::default(),
+    )
+    .unwrap();
+    for (provider, resolved) in [
+        ("AProvider", &["X", "Y"][..]),
+        ("BProvider", &["X"][..]),
+        ("CProvider", &["Y"][..]),
+        ("DProvider", &["Y"][..]),
+    ] {
+        let plan = recovered
+            .selected_providers()
+            .plans()
+            .iter()
+            .find(|plan| plan.provider_type() == provider)
+            .unwrap();
+        let [row] = plan.rows() else {
+            panic!("one exact visited requirement for {provider}");
+        };
+        let reach = row
+            .installation_reach()
+            .expect("saved selected installation reach");
+        let names = |row: &[review_evidence::record::PackageReviewNominalIdentity]| {
+            row.iter()
+                .map(|name| name.path().to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(reach.upper_bound()), ["X", "Y"]);
+        assert_eq!(names(reach.resolved()), resolved);
+    }
 }
 
 #[test]

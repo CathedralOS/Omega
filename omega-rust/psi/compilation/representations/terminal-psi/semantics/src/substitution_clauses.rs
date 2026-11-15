@@ -259,7 +259,8 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
                     root,
                     path,
                 } => bindings.byte_predicate(predicate, root, &path)?,
-                ScalarTerm::Integer { .. }
+                ScalarTerm::Application { .. }
+                | ScalarTerm::Integer { .. }
                 | ScalarTerm::Boolean(_)
                 | ScalarTerm::IeeeFloatLiteral(_) => term,
                 ScalarTerm::StructuralRead { .. } => {

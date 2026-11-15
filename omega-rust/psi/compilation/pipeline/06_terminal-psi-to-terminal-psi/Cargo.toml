@@ -12,6 +12,8 @@ path = "src/lib.rs"
 # form, and accepts one only when the proof kernel accepted its certificate.
 # Production consumes retained Terminal representations, never a preceding stage.
 [dependencies]
+execution-admission = { path = "../../../foundation/execution-admission" }
+rayon = "1.11"
 diagnostics = { path = "../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 optimization = { path = "../../../foundation/optimization" }
@@ -25,6 +27,7 @@ terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 
 [dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
 numerics = { path = "../../../foundation/numerics" }
 terminal-work = { path = "../../representations/terminal-psi/work" }
 terminal-interpreter = { path = "../../../interpreter" }

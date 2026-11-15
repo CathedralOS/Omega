@@ -80,26 +80,12 @@ framework or a list of unimplemented features.
 - Cost: A constructor admitted by one validator can fail the other. Both should consume the same declaration roster and preserve each field's namespace and exact memberships. This predates the byte-case repair and is not on its current Calling-policy sum path.
 - Reported: 2026-11-15, Codex, while carrying shared-byte contracts through the original Cathedral package and native consumer.
 
-### Fixed-array windows reach slice formation only for bytes
-- Category: branch per shape
-- Where: [fixed-array view elaboration](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L309), [element subslice contract](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views)
-- Saw: On clean `67fda671ffc` on macOS arm64, `extent(&numbers[1..2])` refuses with “partial typed array views need their element-view subslice formation” for `numbers: [u32; 2]` and `extent(view: &[u32]) -> u64 { view.len }`. The whole typed-array twin reads length 2, and the same partial range and length check over `u8` reads length 1. Both twins exit 0 in native and Psi and reopen independently. The elaborator rejects the typed range before forming its array loan or window.
-- Cost: The existing two-endpoint subslice rule cannot receive this typed array's backing and element extent. Carry the shared array loan into the existing element-window operation, keeping the actual range and distinct ordered bounds.
-- Reported: 2026-11-15, Codex, while checking typed slice fields through a runtime-selected array element.
-
-### An affine-view refusal hides the source sequence bounds test
-- Category: tests that pin the bug
-- Where: [literal index witness](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L36), [exact diagnostic assertion](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L207)
-- Saw: The isolated test fails on clean `1b4247dd558` and the computed-extent candidate with “affine element views” on `forbidden_index(value: [Item])`. The expected refusal is the missing live length and bounds fact for `value[0].number`. The test reaches the earlier wrong-element-identity check.
-- Cost: The final negative never reaches the operation-safety judgment. Determine how an exact checked view can observe the same scalar field through the original owned sequence before restoring the bound oracle.
-- Reported: 2026-11-15, Codex, while validating checked type computations.
-
-### A target-computed array extent lacks its selected provider during evaluation
+### A narrow installation bound rejects a valid selected child
 - Category: knowledge crossing a boundary
-- Where: [authored extent and size query](samples/cli/facts/target_layout_derived_constant/main.omg#L8), [closed computation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/const_argument_jobs.rs), [invocation admission](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs)
-- Saw: A direct array field whose length calls a target-independent helper runs in native and Psi and reopens. On `f8e3039998f`, the unchanged target-layout sample advances to `limit()` at line 8, column 26 and refuses with “source invocation requires selected target, scalar or external authority that is not supplied”. Its Build selects different `Answer` implementations for Linux and macOS.
-- Cost: The early checked computation has no selected provider. Carry the symbolic extent into the existing checked scalar application and target-closure path so the request retains its exact selected realization, result and proof. Keep the original layout query, bound and invalid twin.
-- Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory. Narrowed after the target-independent field extent ran and reopened.
+- Where: [staggered installation source](tests/fixtures/pass/providers/staggered_installation_reach_exit/main.omg), [call reach check](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/ceilings.rs), [installation rule](wiki/spec/build/external_roots.md#installation-bound-reach)
+- Saw: The original fixture retains B's X and C/D's Y in A's selected row. Narrow A to `reaches <= X` and move its C call to `main` after the call to A, leaving the same two writes and target selections. On macOS arm64, `AProvider::visit` at line 13, column 59 still refuses. Source checking charges B's whole X + Y upper bound even though the exact selected B only reaches X.
+- Cost: A caller cannot state the tighter valid bound on a deployment that supplies a narrower child. Carry that containment question to the existing installation closure and preserve the refusal when the selected child actually reaches Y or has no supplier.
+- Reported: 2026-11-15, Codex, while restoring the staggered provider review and manifest.
 
 ### Float fixtures stop before target and requirement policy checks
 - Category: tests that pin the bug
@@ -123,27 +109,6 @@ framework or a list of unimplemented features.
 - Cost: Route ordinary callable arguments and named transition calls through the existing binder check and exact source application. Generalize the retained reach dependency to preserve the originating open or finite bound across production and readback. An empty finite bound cannot stand for omitted reach.
 - Reported: 2026-11-15, Codex, macOS arm64, while carrying the static callback witness into a saved Psi artifact.
 
-### A layout-query constant lacks target authority at evaluation
-- Category: knowledge crossing a boundary
-- Where: [kept layout-query constant](tests/fixtures/pass/layouts/runtime_constant_layout_contract_exit/main.omg#L5), [constant evaluation](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs), [folded-constant closure](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module.rs#L17)
-- Saw: A record constant computed through a `LayoutStorage` application now runs once under each deployment's admitted layout and folds the value all of them agree on (`fixed_layout_storage/const_name` exits 0 natively and in Psi). On that same branch the kept `const BYTES: u64 = size_of<Cell>();` still refuses: "source invocation requires selected target, scalar or external authority that is not supplied". Admission in `source_jobs.rs` finds a target, scalar or external demand on the invocation; the per-deployment run supplies only the target's admitted layouts, not its scalar observations (which demand list is non-empty was not isolated). The historical scalar control exposes an [earlier computed extent refusal](#a-computed-array-extent-blocks-a-layout-constant-before-target-evaluation). The existing Psi folded-constant rows have readers and no source producer.
-- Cost: Supply each deployment's target observations to the constant's per-deployment run, as its layouts now are, and fold it only when the deployments agree. Publish the exact source-selected provider commitment through the existing folded-constant closure. Preserve the wrong-target, absent/repeated plan, equal-result substitution and cast refusals.
-- Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles; narrowed the same day by Claude Code after the record constant was repaired.
-
-### A textual merge can pass Admission with a Rust type error
-- Category: verifying costs more than writing
-- Where: [pre-merge Admission](.github/workflows/admission.yml#L68), [post-merge checks](.github/workflows/post-merge-check.yml#L64), [atomic store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L223)
-- Saw: [PR #3326](https://github.com/CathedralOS/Omega/pull/3326) had green Admission, then squash commit `d5d5c987120` failed a clean macOS arm64 Rust build with E0533. The new evaluation statement shape and the existing atomic-store constructor were in different files. Git merged the text without a conflict. Admission runs rules and formatting on the merge, and the compiler checks start after publication.
-- Cost: Unrelated compiler builds and two in-flight repairs stopped before tests could run. Compare the latency and detection coverage of checking the affected crates on a warmed merge tree with the current post-merge validation.
-- Reported: 2026-11-15, Codex, while validating copyable record constants and the owned-element call path.
-
-### An assigned local worktree can lose its warm target between checks
-- Category: verifying costs more than writing
-- Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
-- Saw: On macOS arm64 at `c55c52f59b1`, below the workstation's 45.0 GiB free-space floor, mbx 1.29.2 deleted assigned `worker-8`'s target between commands. The next test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. With a zero budget and simulated low disk, both a running `mbx run` lease and an explicit `MBX_TARGET_KEEP` kept the view. Once the command ended, the same scratch view could be collected unless explicitly kept.
-- Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Add an advisory priority for managed views to mbx and set it from the pool’s existing assignment state. Respect explicit operator rules and running-command locks, and still let assigned views be reclaimed under disk pressure.
-- Reported: 2026-11-15, Codex, while validating const-index record arguments
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L565), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L942), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L727)
@@ -151,10 +116,3 @@ framework or a list of unimplemented features.
 - Cost: Even an empty body batch needs a copy of unrelated typed storage with the current projection owner. Moving the copy into projection leaves the cost. Per-table copy-on-write still copies body arenas that completion appends to, and `Arena` exposes contiguous spans. If repeated nonempty completion proves costly, use the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract) to share immutable declaration and type storage and publish body replacements through stable handles. Preserve exact source authority, refusal behavior, and signature and inferred-summary dependencies.
 - Measured: The two Build routes from the [earlier measurement](wiki/drafts/measurements/selected_body_copies.md) on macOS arm64 at `d66164cd0f5` each selected 75 source files with zero bodies to finish. Activation requested 32,333,303 bytes across 14,553 allocations and cloned 101 arenas. Projection's typed extraction allocated zero bytes. Neither route measures repeated nonempty continuations.
 - Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals; narrowed 2026-11-15, Claude Code, after removing the projection copy
-
-### Reflection runtime visitation and the wire policy still stop at separate boundaries
-- Category: knowledge crossing a boundary
-- Where: [reflection elaboration](omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/passes/specialization/reflected_fields.rs), [wire protocol sample](samples/cli/systems/wire_protocol/main.omg#L170)
-- Saw: `reflect::inspect_record_fields` closes into checked per-field calls. The runtime record visitors, mutable visit and active-case visitors still have no elaboration. The unchanged wire example independently reaches its retired data-owned `machine AuthoredCompactBinary::plan(...)` at line 170. The `policy_kind` specializations for `RoomHeader` and `FixedVec<i32, 4>` also independently refuse `expression type expression` on the baseline and candidate.
-- Cost: Runtime visitors need typed field and case projections with ordinary borrow checking. The wire example needs the checked replacement for its retired machine declarations and needs to decide the specialized type comparisons.
-- Reported: 2026-11-15, Codex and Claude Code, while checking the wire policy across the portable interpreter and native compiler.

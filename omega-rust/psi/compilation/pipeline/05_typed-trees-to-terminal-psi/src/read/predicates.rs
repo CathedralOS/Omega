@@ -98,7 +98,7 @@ impl Program<'_> {
     /// The predicates of `qualification` about one scalar value, `subject`,
     /// read in `scope` with each clause's `self` bound to that value.
     fn of_value(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         qualification: Qualification,
@@ -133,7 +133,7 @@ impl Program<'_> {
     /// are the scopes the callable's authored `requires` and `ensures` are
     /// read in.
     pub(super) fn signature_predicates(
-        &self,
+        &mut self,
         id: MachineId,
         entry: &ClauseScope<'_>,
         exit: &ClauseScope<'_>,
@@ -274,8 +274,69 @@ impl Program<'_> {
     /// which lowering replaces by the parameter of the block the cast
     /// continues in (`canonical::substitute`). Beside them, the domain and
     /// the predicates as written.
+    pub(crate) fn prepare_domain_predicates(&mut self, id: MachineId) -> Checked<()> {
+        let mut slot = 0;
+        while let Some(domain) = self.declared_domains.get(slot) {
+            let instance = domain.instance;
+            let carrier = domain.carrier;
+            // The primitive byte condition has its own canonical declaration.
+            // Generic propositions are prepared here with the selected target.
+            if typed_trees::byte_predicates::byte_slice_domain_predicate(
+                self.typed,
+                self.domain_theory(id, instance)?,
+            )
+            .is_some()
+            {
+                slot += 1;
+                continue;
+            }
+            let domains = crate::DomainSet::EMPTY.with(instance).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("domain predicate subject"),
+                )
+            })?;
+            let qualification = Qualification {
+                policy: None,
+                domains,
+            };
+            self.declared_domains[slot].predicate = match carrier {
+                ValueType::Scalar(scalar, _) => {
+                    let (clauses, _) = self.cast_predicates(id, qualification, scalar)?;
+                    if clauses.is_empty() {
+                        None
+                    } else {
+                        Some(crate::canonical::conjunction(clauses, id)?)
+                    }
+                }
+                ValueType::Record(record, _, regions) => {
+                    if super::has_predicates(self.domain_theory(id, instance)?) {
+                        let clauses = self.field_predicates(
+                            id,
+                            &[],
+                            ValueType::Record(record, qualification, regions),
+                        )?;
+                        Some(crate::canonical::conjunction(clauses, id)?)
+                    } else {
+                        None
+                    }
+                }
+                ValueType::Rigid(_) => {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("domain retains an unresolved carrier"),
+                    ));
+                }
+            };
+            slot += 1;
+        }
+        Ok(())
+    }
+
     pub(crate) fn cast_predicates(
-        &self,
+        &mut self,
         id: MachineId,
         added: Qualification,
         carrier: ScalarType,
@@ -322,7 +383,7 @@ impl Program<'_> {
     /// `Referent` step; a shared referent cannot change while it is lent,
     /// so what the cast proves holds while the reference does.
     pub(crate) fn record_cast_predicates(
-        &self,
+        &mut self,
         id: MachineId,
         added: Qualification,
         result: ValueType,
@@ -434,7 +495,7 @@ impl Program<'_> {
     /// root. Fields, invocation inputs and results share this binding; their
     /// surrounding contract selects entry or completion observations.
     fn storage_predicates(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         value_type: ValueType,
@@ -485,7 +546,7 @@ impl Program<'_> {
     /// Instantiate domain clauses at a field path under `self`. An empty
     /// path gives the declaration's own predicate over its plain carrier.
     pub(crate) fn field_predicates(
-        &self,
+        &mut self,
         id: MachineId,
         path: &[CanonicalStructuralPathSegment],
         value_type: ValueType,

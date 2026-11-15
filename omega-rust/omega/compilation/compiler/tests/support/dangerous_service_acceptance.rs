@@ -78,16 +78,15 @@ impl DangerousServiceDiscovery {
         let publication = checked.terminal_publication();
         let accepted = publication.accepted()?;
         let module = accepted.module();
-        if !checked.execution().plans().assumed_bindings().is_empty()
-            || !module
-                .root_service_reach
-                .installation_dependencies
-                .is_empty()
-        {
+        let plans = checked.execution().plans();
+        if !plans.assumed_bindings().is_empty() {
             return Err(unavailable(
-                "assumed or unresolved installation reach has no fixture consent projection",
+                "assumed installation reach has no fixture consent projection",
             ));
         }
+        let root_reach = plans
+            .resolve_root_service_reach(module)
+            .map_err(unavailable)?;
         let selected = backend_plan::selected_checked_invocation_rows(
             checked.execution().plans().plans(),
             module,
@@ -138,9 +137,7 @@ impl DangerousServiceDiscovery {
         // A foreign contract can require a service without calling one of its
         // methods here. Do not mistake that opaque reach for an empty request.
         // Its consent needs a separate exact operation association.
-        if module
-            .root_service_reach
-            .concrete
+        if root_reach
             .iter()
             .any(|service| operation_services.binary_search(service).is_err())
         {

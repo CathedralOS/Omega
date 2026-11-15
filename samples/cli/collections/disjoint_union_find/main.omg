@@ -22,7 +22,7 @@ data Main {
     sets: DisjointSet;
 }
 
-machine DisjointSet::init(sets: &mut DisjointSet) {
+machine init(sets: &mut DisjointSet) {
     sets.components = 64;
     transition { _ -> loop_init(sets, 0) }
 
@@ -43,7 +43,7 @@ machine DisjointSet::init(sets: &mut DisjointSet) {
     machine done() {}
 }
 
-machine DisjointSet::find(sets: &mut DisjointSet, element: u64) -> u64
+machine find(sets: &mut DisjointSet, element: u64) -> u64
 requires element < 64
 ensures result < 64
 {
@@ -90,11 +90,11 @@ ensures result < 64
     }
 }
 
-machine DisjointSet::union_sets(sets: &mut DisjointSet, left: u64, right: u64) -> bool
+machine union_sets(sets: &mut DisjointSet, left: u64, right: u64) -> bool
 requires left < 64 && right < 64
 {
-    let root_left: u64 = DisjointSet::find(sets, left);
-    let root_right: u64 = DisjointSet::find(sets, right);
+    let root_left: u64 = find(sets, left);
+    let root_right: u64 = find(sets, right);
     transition root_left == root_right {
         true -> unchanged()
         _ -> link(sets, root_left, root_right)
@@ -173,7 +173,7 @@ machine run_waves(sets: &mut DisjointSet) {
 
     machine wave1_union(sets: &mut DisjointSet, group: u64, first: u64, second: u64)
     requires first < 64 && second < 64 {
-        _ = DisjointSet::union_sets(sets, first, second);
+        _ = union_sets(sets, first, second);
         transition { _ -> wave1(sets, group + 1) }
     }
 
@@ -196,7 +196,7 @@ machine run_waves(sets: &mut DisjointSet) {
 
     machine wave2_union(sets: &mut DisjointSet, group: u64, first: u64, second: u64)
     requires first < 64 && second < 64 {
-        _ = DisjointSet::union_sets(sets, first, second);
+        _ = union_sets(sets, first, second);
         transition { _ -> wave2(sets, group + 1) }
     }
 
@@ -219,31 +219,31 @@ machine run_waves(sets: &mut DisjointSet) {
 
     machine wave3_union(sets: &mut DisjointSet, group: u64, first: u64, second: u64)
     requires first < 64 && second < 64 {
-        _ = DisjointSet::union_sets(sets, first, second);
+        _ = union_sets(sets, first, second);
         transition { _ -> wave3(sets, group + 1) }
     }
 
     machine wave4(sets: &mut DisjointSet) {
-        _ = DisjointSet::union_sets(sets, 32, 0);
-        _ = DisjointSet::union_sets(sets, 8, 36);
-        _ = DisjointSet::union_sets(sets, 16, 24);
-        _ = DisjointSet::union_sets(sets, 48, 52);
-        _ = DisjointSet::union_sets(sets, 1, 35);
-        _ = DisjointSet::union_sets(sets, 9, 39);
+        _ = union_sets(sets, 32, 0);
+        _ = union_sets(sets, 8, 36);
+        _ = union_sets(sets, 16, 24);
+        _ = union_sets(sets, 48, 52);
+        _ = union_sets(sets, 1, 35);
+        _ = union_sets(sets, 9, 39);
     }
 }
 
 machine verify_workload(sets: &mut DisjointSet) -> bool {
-    let rep_0: u64 = DisjointSet::find(sets, 0);
-    let rep_7: u64 = DisjointSet::find(sets, 7);
-    let rep_35: u64 = DisjointSet::find(sets, 35);
-    let rep_8: u64 = DisjointSet::find(sets, 8);
-    let rep_39: u64 = DisjointSet::find(sets, 39);
-    let rep_16: u64 = DisjointSet::find(sets, 16);
-    let rep_31: u64 = DisjointSet::find(sets, 31);
-    let rep_48: u64 = DisjointSet::find(sets, 48);
-    let rep_55: u64 = DisjointSet::find(sets, 55);
-    let rep_63: u64 = DisjointSet::find(sets, 63);
+    let rep_0: u64 = find(sets, 0);
+    let rep_7: u64 = find(sets, 7);
+    let rep_35: u64 = find(sets, 35);
+    let rep_8: u64 = find(sets, 8);
+    let rep_39: u64 = find(sets, 39);
+    let rep_16: u64 = find(sets, 16);
+    let rep_31: u64 = find(sets, 31);
+    let rep_48: u64 = find(sets, 48);
+    let rep_55: u64 = find(sets, 55);
+    let rep_63: u64 = find(sets, 63);
     let agreed: bool = rep_0 == rep_7
         && rep_0 == rep_35
         && rep_8 == rep_39
@@ -266,7 +266,7 @@ machine verify_workload(sets: &mut DisjointSet) -> bool {
 
     machine checksum_step(sets: &mut DisjointSet, index: u64, acc: u64 in Wrapping) -> bool
     requires index < 64 {
-        let rep: u64 = DisjointSet::find(sets, index);
+        let rep: u64 = find(sets, index);
         let rep_wrapping: u64 in Wrapping = (rep as u64) as u64 in Wrapping;
         let idx_wrapping: u64 in Wrapping = index as u64 in Wrapping;
         let next_acc: u64 in Wrapping = acc * 131 + rep_wrapping + idx_wrapping * 7;
@@ -282,8 +282,8 @@ machine verify_workload(sets: &mut DisjointSet) -> bool {
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
-    DisjointSet::init(&mut main.sets);
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    init(&mut main.sets);
     run_waves(&mut main.sets);
     let ok: bool = verify_workload(&mut main.sets);
     transition ok {
@@ -305,5 +305,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

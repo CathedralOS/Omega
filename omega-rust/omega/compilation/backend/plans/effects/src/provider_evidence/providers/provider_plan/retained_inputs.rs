@@ -7,9 +7,8 @@ realizations to verified bodies without minting a `ProviderPlan` or granting
 execution authority.
 */
 
+use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
 use sha2::{Digest, Sha256};
-
-const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v8\0";
 
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
@@ -129,6 +128,10 @@ impl<'a> ProviderPlanInput<'a> {
             }
             reader.calling_applications(requirement)?;
         }
+        // The service contract commits one SHA-256 type signature per method
+        // after the complete method roster. The digest above authenticates
+        // these signatures before this reader recovers the provider rows.
+        reader.take(methods.len() * 32)?;
         let mut rows = Vec::new();
         let mut row_keys = Vec::new();
         for _ in 0..reader.count()? {
@@ -426,6 +429,8 @@ mod tests {
         let mut method = declaration.methods[0].clone();
         method.name = "produce".into();
         method.requirement_identity = requirement;
+        method.declared_type_signature = [0x72; 32];
+        declaration.methods[0].declared_type_signature = [0x31; 32];
         declaration.methods.push(method);
         declaration.receiver_applications[0]
             .requirement_identities
@@ -442,6 +447,16 @@ mod tests {
             Some("ConsumeDeclaration".into()),
             Some("ProduceDeclaration".into()),
         ];
+        let preimage = plan.identity_preimage();
+        let input = ProviderPlanInput::read(&preimage, plan.identity_digest().as_bytes()).unwrap();
+        assert_eq!(
+            input
+                .rows
+                .iter()
+                .map(|row| row.declared_requirement)
+                .collect::<Vec<_>>(),
+            ["Boundary::consume(opaque)", "Boundary::produce(opaque)"],
+        );
         let facts =
             |plan| crate::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
         let selected = facts(plan.clone());

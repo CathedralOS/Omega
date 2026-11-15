@@ -201,7 +201,7 @@ impl Program<'_> {
     /// could hide arithmetic that still needs a safety proof. Reuse the
     /// existing representation for `!=`.
     fn disjunctive_clause(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         operands: &[ExpressionHandle],
@@ -220,7 +220,7 @@ impl Program<'_> {
     /// chooses. Both ordinary and projected refinement signatures use this
     /// owner; naming a logical membership never introduces its own evidence.
     pub(super) fn contract_clause(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         fact: &ProofFact,
@@ -242,7 +242,7 @@ impl Program<'_> {
     }
 
     pub(super) fn clause(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -475,7 +475,7 @@ impl Program<'_> {
     /// full result contract states equivalence, so this is the same Boolean
     /// meaning rather than a consequence guessed from an operator token.
     fn numeric_comparison_clause(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         call: &typed_trees::expression::TableCallExpression,
@@ -637,7 +637,7 @@ impl Program<'_> {
     /// Keep the qualification with the value until its consuming operation.
     /// A cast can remove a named domain; merely naming the value cannot.
     pub(super) fn term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -1010,6 +1010,26 @@ impl Program<'_> {
             ExpressionNode::Call(call) if self.embeds(call) => {
                 unserved("embed outside a mathematical comparison")
             }
+            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+                let query = call.layout_query.as_ref().expect("matched a layout query");
+                let source =
+                    crate::SourceOrigin::of(typed.expression_table.source_span(expression));
+                let measured = self.layout_query(id, call, query, source)?;
+                if let (
+                    crate::body::ExpressionKind::LayoutObservation { application },
+                    Some(ValueType::Scalar(scalar_type, qualification)),
+                ) = (measured.kind, measured.result)
+                {
+                    return Ok((
+                        ScalarTerm::Application {
+                            application,
+                            scalar_type,
+                        },
+                        ValueType::Scalar(scalar_type, qualification),
+                    ));
+                }
+                unserved("layout query has no scalar application")
+            }
             ExpressionNode::Call(_) => unserved("call in a clause term"),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
         }
@@ -1020,7 +1040,7 @@ impl Program<'_> {
     /// its exact root/path and asks the existing storage binding for the entry
     /// observation. Results and computed terms have no such input.
     fn old_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         call: &typed_trees::expression::TableCallExpression,
@@ -1099,7 +1119,7 @@ impl Program<'_> {
     }
 
     fn clause_cast(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         cast: &typed_trees::expression::TableCastExpression,
@@ -1107,6 +1127,16 @@ impl Program<'_> {
     ) -> Checked<(ScalarTerm, ValueType)> {
         use language_core::cast_form::CastEntryKind;
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        if cast.form == language_core::cast_form::CastForm::Value && cast.result_type.is_valid() {
+            let (term, before) = self.term(id, scope, cast.value, expected)?;
+            let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
+            if before == after {
+                return Ok((term, after));
+            }
+            return Err(unavailable(
+                "value cast in a clause changes its qualification",
+            ));
+        }
         let Some(entry) = cast.form.entry() else {
             return Err(unavailable("cast in a clause term"));
         };
@@ -1143,7 +1173,7 @@ impl Program<'_> {
     /// divide or remainder therefore owes a condition before it forms a term.
     /// Declaration formation checks that condition before using the clause.
     fn arithmetic_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         binary: &typed_trees::expression::TableBinaryExpression,
@@ -1244,7 +1274,7 @@ impl Program<'_> {
     /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
     /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
     fn mathematical_comparison(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         comparison: BinaryOperator,
@@ -1286,7 +1316,7 @@ impl Program<'_> {
     /// literal that is not embedded, since no promotion of one into the
     /// mathematical integers is implied.
     fn mathematical_term(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,

@@ -11,7 +11,7 @@ pub(crate) mod operation_bounds {
     use terminal_psi::{Operation, OperationKind};
 
     /// The goal owned by an operation, shared by checking and evidence
-    /// publication. Byte bounds do not establish their own source, access or
+    /// publication. Collection bounds do not establish their own source, access or
     /// measurement correspondence; those remain separate storage judgments.
     pub fn operation_safety_goal(
         operation: &Operation,
@@ -71,8 +71,15 @@ pub(crate) mod operation_bounds {
                 length,
                 obligation,
                 ..
+            }
+            | OperationKind::ElementViewSubslice {
+                start,
+                end,
+                length,
+                obligation,
+                ..
             } => {
-                let tag = OperationSemanticTag::ByteSequenceSubslice;
+                let tag = OperationSemanticTag::for_operation(&operation.kind);
                 let (start, end, length) =
                     (value(*start, tag)?, value(*end, tag)?, value(*length, tag)?);
                 (

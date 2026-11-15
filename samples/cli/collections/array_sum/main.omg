@@ -25,12 +25,12 @@ requires
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator");
     main.nums[0] = 0x7735_9400;
     main.nums[1] = 0x0BEB_C200;
     main.i = 0;
-    main.sum = 0;
+    main.sum = 0i64 as +Wrapping;
 
     transition {
         _ -> block step(main)
@@ -63,14 +63,14 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -78,5 +78,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }

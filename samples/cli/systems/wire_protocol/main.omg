@@ -24,7 +24,7 @@ use omega::language::core::narrow_u64_to_i64_wrapping;
 // Wire protocol sample: encode a sensor packet containing a nested header,
 // a repeated (packed) sample array, and a scalar depth field; then decode
 // it back and verify all fields round-trip correctly. The wire format is
-// AUTHORED by an explicit `AuthoredCompactBinary::plan` grammar policy (see below).
+// authored by the explicit `authored_compact_binary_plan` policy below.
 //
 // Wire schema:
 //   RoomHeader  { #0 room_id: u32 }
@@ -35,7 +35,7 @@ use omega::language::core::narrow_u64_to_i64_wrapping;
 //   samples = FixedVec([150, -2], capacity 4)
 //   depth = -64
 //
-// Encoded bytes (hand-computed, see runtime_wire_roundtrip_nested_and_repeated_exit):
+// Hand-computed encoded bytes:
 //   0x00 0x00 0x03 0x00 0xAC 0x02 0x01 0x03 0xAC 0x02 0x03 0x02 0x7F
 //   written = 13, read = 13, ok = true
 //
@@ -141,17 +141,11 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     }
 }
 
-// --- THE GRAMMAR POLICY (mint arc rung 2b/2c) ----------------------------
-// The wire format above is not hand-wired in the compiler -- it is AUTHORED by
-// this `AuthoredCompactBinary::plan` policy. Because it exists, the compiler evaluates
-// it at build time against each schema's facts (field number + FieldKind) and
-// derives the placement of every field: a scalar varint-encodes (`Varint`),
-// while a text/nested/repeated payload is length-prefixed (`LengthPrefixed`).
-// The policy is AGREEMENT-CHECKED against the codec -- a plan that disagreed
-// would be a compile error -- so this block cannot change the bytes above; it
-// makes the grammar EXPLICIT and programmable (the Grammar law: policies
-// author plan(), everything else is derived). The std layout vocabulary is
-// remains an explicit sample-owned budget; it does not bound the library.
+// The sample evaluates this ordinary policy through POLICY_ACCEPTED. It maps
+// scalar fields to Varint and text, nested and repeated fields to
+// LengthPrefixed. policy_matches checks those choices against the schema;
+// the runtime round-trip checks the values above, not a general codec law.
+// The policy's fixed storage and work budgets belong to this sample.
 data FieldKind [copy] { case Scalar; case Text; case Nested; case Repeated; }
 data WireSchemaField [copy] { number: i64; kind: FieldKind; }
 data WireSchema [copy] requires 0 <= field_count, field_count <= 32 { fields: [WireSchemaField; 32]; field_count: i64; }
@@ -167,16 +161,16 @@ data AuthoredCompactBinary {
     plans: [FieldPlan; 32];
     tag: i64;
 }
-machine AuthoredCompactBinary::plan(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan
+machine authored_compact_binary_plan(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema) -> Plan
 {
-    AuthoredCompactBinary::evaluate(compact_binary, schema, 128)
+    evaluate_compact_binary_plan(compact_binary, schema, 128)
 }
 
-machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64) -> Plan
+machine evaluate_compact_binary_plan(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64) -> Plan
 requires 1 <= remaining_steps
 requires remaining_steps <= 128
 {
-    transition { _ -> fill(compact_binary, schema, remaining_steps, 0) }
+    transition { _ -> fill(compact_binary, schema, remaining_steps, 0 as +Wrapping) }
 
     // The remaining_steps witness belongs to the recursive fill/place component.
     machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, remaining_steps: u64, index: i64 in Wrapping) -> Plan
@@ -408,7 +402,7 @@ machine selected_policy_is_valid() -> bool {
     capture.valid = true;
     reflect::inspect_record_fields<SensorPacket, describe_policy_member>(&mut capture);
     let mut policy: AuthoredCompactBinary;
-    let selected: Plan = AuthoredCompactBinary::plan(&mut policy, capture.schema);
+    let selected: Plan = authored_compact_binary_plan(&mut policy, capture.schema);
     capture.valid && selected.entry_count == capture.schema.field_count && policy_matches(&capture.schema, &selected, 0u64, 100u64)
 }
 machine policy_kind<Kind>() -> PolicyKind {

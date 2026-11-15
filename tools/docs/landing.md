@@ -67,9 +67,12 @@ do not create releases or tags for it.
 
 ## Squash-merge after admission
 
-`admission` checks repository rules and formatting. It does not build the
-compiler, run Clippy or test runtime behavior, so the author must finish the
-focused checks before merging.
+`admission` checks repository rules and formatting, and type-checks the merge
+commit (`mbx check --locked --workspace --all-targets`) when Rust or Cargo files
+changed. That catches two pull requests whose Rust merges without a Git
+conflict but no longer compiles. It does not build the compiler, run Clippy or
+test runtime behavior, so the author must finish the focused checks before
+merging.
 
 Inspect the checks and submitted head:
 
