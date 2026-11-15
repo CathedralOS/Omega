@@ -545,12 +545,13 @@ fn publish_parents(
                             continue;
                         };
                         if row.created_at != before
-                            || !access.forms(reference_access(source.access).ok_or_else(|| {
-                                unavailable(
-                                    machine.id,
-                                    "reference formation has no borrowed access",
-                                )
-                            })?)
+                            || access
+                                != reference_access(source.access).ok_or_else(|| {
+                                    unavailable(
+                                        machine.id,
+                                        "reference formation has no borrowed access",
+                                    )
+                                })?
                         {
                             continue;
                         }
@@ -625,9 +626,7 @@ fn publish_parents(
                             else {
                                 continue;
                             };
-                            if row.created_at != before
-                                || !actual.forms(access)
-                                || claimed.contains(&id)
+                            if row.created_at != before || actual != access || claimed.contains(&id)
                             {
                                 continue;
                             }

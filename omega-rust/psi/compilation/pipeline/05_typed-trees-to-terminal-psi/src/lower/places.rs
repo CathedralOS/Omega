@@ -1913,7 +1913,6 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Borrow {
                 access,
-                formation,
                 place,
                 home,
             } => {
@@ -1924,14 +1923,12 @@ impl<'a> Lowering<'a> {
                 else {
                     return Err(self.internal("a persistent loan has no reference descriptor type"));
                 };
-                if Some(declared) != borrowed_access(*access) || !formation.forms(*access) {
+                if Some(declared) != borrowed_access(*access) {
                     return Err(self.internal("a reference formation changed its source access"));
                 }
                 let reinterpret = place.result.map(ValueType::erased)
                     != Some(self.storage_value_type(referent, qualification)?.erased());
-                // An exclusive formation lending shared access is still
-                // exclusive here.
-                if reinterpret && *formation != language_core::ReferenceAccess::Shared {
+                if reinterpret && *access != language_core::ReferenceAccess::Shared {
                     return Err(refuse(
                         self.id,
                         Construct::Machine,
@@ -1970,13 +1967,10 @@ impl<'a> Lowering<'a> {
                 };
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
-                // The occurrence records the written formation: an exclusive
-                // loan holds its place for as long as the shared reference
-                // it lends lives.
                 self.obligation(
                     ObligationKind::Loan {
                         captured: lent.place,
-                        access: *formation,
+                        access: *access,
                         lender: lent.lender,
                     },
                     before,
@@ -3795,7 +3789,6 @@ mod tests {
                             call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
-                                formation: language_core::ReferenceAccess::Shared,
                                 place: Box::new(Expression {
                                     call_context: None,
                                     kind: ExpressionKind::Slot(3),

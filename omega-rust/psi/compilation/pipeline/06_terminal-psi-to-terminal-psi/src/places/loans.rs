@@ -613,12 +613,19 @@ impl Storage<'_> {
                 ));
             }
             self.byte_array_presentation(argument, parameter, concerns)?;
+            let (expected_lender, parent, from, permitted) = self.source_lender(
+                &lent,
+                &argument.path,
+                access,
+                self.borrowed_resource(parameter.structural_type),
+                concerns,
+            )?;
             let (obligation, row) = tables
                 .obligations
                 .iter()
                 .find(|(id, row)| {
-                    matches!(row.kind, ObligationKind::Loan { captured, access: formation, .. }
-                    if captured == place && formation.forms(access))
+                    matches!(row.kind, ObligationKind::Loan { captured, access: borrowed, .. }
+                    if captured == place && borrowed == access)
                         && row.created_at == before
                         && !claimed[index(id.get())]
                 })
@@ -628,26 +635,9 @@ impl Storage<'_> {
                         "a loan the call forms has no exact occurrence row",
                     )
                 })?;
-            // The loan is judged at the access the program formed, which
-            // may exceed what the callee receives (`&mut place` for a `&T`
-            // formal): its source must admit that formation, and it
-            // conflicts with overlapping live loans as an exclusive loan.
-            let ObligationKind::Loan {
-                lender,
-                access: formation,
-                ..
-            } = row.kind
-            else {
+            let ObligationKind::Loan { lender, .. } = row.kind else {
                 unreachable!()
             };
-            let access = formation;
-            let (expected_lender, parent, from, permitted) = self.source_lender(
-                &lent,
-                &argument.path,
-                access,
-                self.borrowed_resource(parameter.structural_type),
-                concerns,
-            )?;
             if expected_lender.is_some_and(|expected| expected != lender) {
                 return Err(self.foreign(
                     concerns,
@@ -875,12 +865,19 @@ impl Storage<'_> {
         let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
             self.foreign(concerns, "reference formation has no captured place row")
         })?;
+        let (expected_lender, parent, from, permitted) = self.source_lender(
+            &raw,
+            &source.path,
+            access,
+            BorrowedResource::Storage,
+            concerns,
+        )?;
         let (obligation, row) = tables
             .obligations
             .iter()
             .find(|(id, row)| {
-                matches!(row.kind, ObligationKind::Loan { captured: actual, access: formation, .. }
-                if actual == captured && formation.forms(access))
+                matches!(row.kind, ObligationKind::Loan { captured: actual, access: borrowed, .. }
+                if actual == captured && borrowed == access)
                     && row.created_at == before
                     && !claimed[index(id.get())]
             })
@@ -890,23 +887,9 @@ impl Storage<'_> {
                     "reference formation has no exact Loan occurrence row",
                 )
             })?;
-        // Judged at the written formation, as a call's loans are.
-        let ObligationKind::Loan {
-            lender,
-            access: formation,
-            ..
-        } = row.kind
-        else {
+        let ObligationKind::Loan { lender, .. } = row.kind else {
             unreachable!()
         };
-        let access = formation;
-        let (expected_lender, parent, from, permitted) = self.source_lender(
-            &raw,
-            &source.path,
-            access,
-            BorrowedResource::Storage,
-            concerns,
-        )?;
         if expected_lender.is_some_and(|expected| expected != lender) {
             return Err(self.foreign(
                 concerns,
@@ -1369,6 +1352,78 @@ impl Storage<'_> {
         ))
     }
 
+    /// A descriptor's last direct use does not restore its loan while a child
+    /// still uses that authority. Close liveness over the authenticated forest,
+    /// without making child descriptors names for their parent's permission.
+    fn retain_ancestors(&self, formed: &mut [Formed]) -> Checked<()> {
+        let mut positions = formed
+            .iter()
+            .enumerate()
+            .map(|(position, loan)| (loan.obligation, position))
+            .collect::<Vec<_>>();
+        positions.sort_unstable_by_key(|(identity, _)| *identity);
+        let mut parents = Vec::with_capacity(formed.len());
+        let mut children = vec![0usize; formed.len()];
+        for loan in formed.iter() {
+            let parent = match loan.lender {
+                Lender::Loan(identity) => {
+                    let position = positions
+                        .binary_search_by_key(&identity, |(identity, _)| *identity)
+                        .map_err(|_| {
+                            self.foreign(
+                                Construct::Obligation(loan.obligation),
+                                "loan ancestry names no actual parent occurrence",
+                            )
+                        })?;
+                    let parent = positions[position].1;
+                    children[parent] += 1;
+                    Some(parent)
+                }
+                Lender::Owner | Lender::Incoming | Lender::Provider => None,
+            };
+            parents.push(parent);
+        }
+        let mut pending = children
+            .iter()
+            .enumerate()
+            .filter_map(|(position, count)| (*count == 0).then_some(position))
+            .collect::<Vec<_>>();
+        let mut closed = 0;
+        while let Some(child) = pending.pop() {
+            closed += 1;
+            let Some(parent) = parents[child] else {
+                continue;
+            };
+            let (owner, descendant) = if parent < child {
+                let (before, after) = formed.split_at_mut(child);
+                (&mut before[parent], &after[0])
+            } else {
+                let (before, after) = formed.split_at_mut(parent);
+                (&mut after[0], &before[child])
+            };
+            if let Some(lifetime) = &descendant.lifetime {
+                let retained = owner.lifetime.as_mut().ok_or_else(|| {
+                    self.foreign(
+                        Construct::Obligation(owner.obligation),
+                        "a retained child has no retained parent occurrence",
+                    )
+                })?;
+                retained.live.extend(lifetime.live.iter().copied());
+            }
+            children[parent] -= 1;
+            if children[parent] == 0 {
+                pending.push(parent);
+            }
+        }
+        if closed != formed.len() {
+            return Err(self.foreign(
+                Construct::Machine,
+                "loan ancestry does not reach an original lender",
+            ));
+        }
+        Ok(())
+    }
+
     /// The loans a call with no normal return carries into its transfer are
     /// exactly the obligations its edge consumes, each once, and the edge
     /// disposes of nothing else. ownership.md: "every incoming owned
@@ -1787,10 +1842,11 @@ impl Storage<'_> {
         tables: &MachineTables,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(module)?;
-        let formed = self.formed(module, tables)?;
+        let mut formed = self.formed(module, tables)?;
         self.parents(module, &formed)?;
         self.successor_borrows(&formed)?;
         self.reference_completions(module, &formed)?;
+        self.retain_ancestors(&mut formed)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {

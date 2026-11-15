@@ -15254,15 +15254,6 @@ pub(crate) mod references {
         leaf_referent(types, current, fields)
     }
 
-    pub(crate) fn is_reference_projection(
-        function: &PsiOptimizationFunction,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        source: &StructuralArgument,
-    ) -> bool {
-        projected_carrier_type(function, types, source).is_some()
-            && source.access != StructuralAccess::Owned
-    }
-
     pub(crate) fn storage_projection(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -15324,12 +15315,6 @@ pub(crate) mod references {
         if !reference_source_accessible(function, types, source) {
             return None;
         }
-        let contract = structural_source_contract(function, source.place)?;
-        let path = reference_source_storage_path(
-            types.values().copied(),
-            contract.structural_type,
-            &source.path,
-        );
         if !source.path.contains(&StructuralPathSegment::Referent) {
             let contract = structural_source_contract(function, source.place)?;
             if !access_covers(contract.access, source.access)
@@ -15354,12 +15339,11 @@ pub(crate) mod references {
                 _ => None,
             });
         }
-        let source = StructuralArgument {
-            place: source.place,
-            access: source.access,
-            path: path.to_vec(),
-        };
-        projected_carrier_type(function, types, &source)
+        // A reborrow can select storage below a permission crossing. Keep
+        // the checked final suffix instead of requiring Referent to end the
+        // path, which would lose a stored parent's selected sibling field.
+        let (referent, suffix) = access_referent_tail(function, types, source)?;
+        access_path_type(types, referent, &source.path[suffix..])
     }
 
     fn direct_reference_parameter<'a>(
