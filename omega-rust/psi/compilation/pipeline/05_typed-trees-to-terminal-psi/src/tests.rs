@@ -477,6 +477,77 @@ fn disjunction_evaluates_the_right_operand_only_on_the_false_edge() {
 }
 
 #[test]
+fn associating_one_connective_preserves_mixed_call_order() {
+    let boolean_call = |callee| call(callee, Vec::new(), Some(ScalarType::Boolean));
+    let combine = |conjunction, left, right| {
+        expression(
+            ExpressionKind::ShortCircuit {
+                conjunction,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+            Some(ScalarType::Boolean),
+        )
+    };
+    for left_associated in [true, false] {
+        let both = combine(true, boolean_call(2), boolean_call(3));
+        let either = if left_associated {
+            combine(
+                false,
+                combine(false, both, boolean_call(4)),
+                boolean_call(5),
+            )
+        } else {
+            combine(
+                false,
+                both,
+                combine(false, boolean_call(4), boolean_call(5)),
+            )
+        };
+        let (machine, _) = lower(
+            Body {
+                slots: Vec::new(),
+                statements: vec![returns(either)],
+            },
+            vec![signature(Vec::new(), Some(ScalarType::Boolean)); 5],
+        );
+        // Calls that the first result can skip stay in their own branches.
+        // The final two disjunctions share one result, regardless of grouping.
+        let between = |source, when_true, when_false| {
+            let Terminator::Conditional {
+                when_true: yes,
+                when_false: no,
+                ..
+            } = &block(&machine, source).terminator
+            else {
+                panic!("a mixed guard operand must branch")
+            };
+            assert_eq!((yes.target, no.target), (id(when_true), id(when_false)));
+        };
+        for (source, callee) in [(1, 2), (2, 3), (4, 4), (6, 5)] {
+            let [operation] = block(&machine, source).operations.as_slice() else {
+                panic!("each reached block invokes one operand")
+            };
+            assert!(matches!(
+                operation.kind,
+                OperationKind::Call { callee: target, .. } if target == id(callee)
+            ));
+        }
+        between(1, 2, 3);
+        between(3, 5, 4);
+        between(4, 5, 6);
+        assert!(matches!(
+            block(&machine, 6).terminator,
+            Terminator::Jump { target, .. } if target == id(5)
+        ));
+        assert!(matches!(
+            block(&machine, 5).terminator,
+            Terminator::Return { .. }
+        ));
+    }
+}
+
+#[test]
 fn every_call_owes_one_requirement_per_callee_requires_clause() {
     // machine 1(x: u32) { f(x); f(x); }  with f requiring two clauses
     let body = Body {
