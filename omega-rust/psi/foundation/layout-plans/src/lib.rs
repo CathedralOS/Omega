@@ -58,10 +58,31 @@ macro_rules! numbered_variant {
 }
 
 mod aggregate_geometry {
+    use semantic_vocabulary::ClosedIntegerType;
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StorageGeometry {
         pub byte_size: u64,
         pub byte_alignment: u64,
+    }
+
+    // Schema reflection and native placement must report the same chosen
+    // integer storage. These are the current default realizations, not a
+    // language promise about the alignment of every representation.
+    pub fn standalone_integer_geometry(integer: ClosedIntegerType) -> StorageGeometry {
+        integer_geometry(integer, 8)
+    }
+
+    pub fn field_integer_geometry(integer: ClosedIntegerType) -> StorageGeometry {
+        integer_geometry(integer, 16)
+    }
+
+    fn integer_geometry(integer: ClosedIntegerType, alignment_cap: u16) -> StorageGeometry {
+        let bytes = integer.bits().div_ceil(8);
+        StorageGeometry {
+            byte_size: u64::from(bytes),
+            byte_alignment: u64::from(bytes.next_power_of_two().min(alignment_cap)),
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -148,6 +169,14 @@ mod aggregate_geometry {
                 byte_alignment: alignment,
             },
         ))
+    }
+
+    /// Default records place each complete field at its alignment and round
+    /// the final extent to the largest field alignment.
+    pub fn conventional_record_geometry(
+        fields: impl IntoIterator<Item = StorageGeometry>,
+    ) -> Result<(Vec<u64>, StorageGeometry), AggregateGeometryError> {
+        pack_fields_at(fields, 0)
     }
 
     fn valid_alignment(alignment: u64) -> Result<(), AggregateGeometryError> {
@@ -1139,7 +1168,8 @@ mod symbolic_values {
 }
 
 pub use aggregate_geometry::{
-    AggregateGeometryError, ConventionalSumGeometry, StorageGeometry, conventional_sum_geometry,
+    AggregateGeometryError, ConventionalSumGeometry, StorageGeometry, conventional_record_geometry,
+    conventional_sum_geometry, field_integer_geometry, standalone_integer_geometry,
 };
 pub use layout_reports::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalNestedRecordSumOccurrenceLayoutReport,

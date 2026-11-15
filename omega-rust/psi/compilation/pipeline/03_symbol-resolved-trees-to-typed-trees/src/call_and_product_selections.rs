@@ -1296,6 +1296,7 @@ pub(crate) mod construction_destinations {
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
+    use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
     use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -1316,6 +1317,9 @@ pub(crate) mod construction_destinations {
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
         let mut unlanded = Vec::new();
+        // Values this pass cannot land, each with the request its holder
+        // carries instead (`defer_to_holders`).
+        let mut deferred = Vec::<(ExpressionHandle, DeferredRequest)>::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1330,13 +1334,18 @@ pub(crate) mod construction_destinations {
                         .mathematical_definitions()
                         .iter()
                         .any(|definition| definition.symbol == call.target_symbol)
-                        && arguments
-                            .iter()
-                            .any(|argument| needs_destination(program, *argument))
                     {
-                        return Err(crate::unavailable_judgment(
-                            "mathematical call receiving types",
-                        ));
+                        // A mathematical parameter has a mathematical type,
+                        // not a receiving type a value is built at, and no
+                        // pass lands one there yet.
+                        if let Some(argument) = arguments
+                            .iter()
+                            .find(|argument| needs_destination(program, **argument))
+                        {
+                            deferred
+                                .push((*argument, DeferredRequest::MathematicalCallDestination));
+                        }
+                        continue;
                     }
                     collect_call_destinations(
                         program,
@@ -1471,7 +1480,20 @@ pub(crate) mod construction_destinations {
                     .map_err(Diagnostic::error)?;
                 substitutions.push((binder.symbol, actual));
             }
-            let parameters = crate::typing_queries::call_target_parameters(program, call.target)?;
+            let Some(parameters) =
+                crate::typing_queries::call_target_parameters(program, call.target)
+            else {
+                // `collect_call_destinations` keeps only calls with an
+                // argument that needs its parameter's type.
+                if let Some(argument) = call
+                    .arguments
+                    .iter()
+                    .find(|argument| needs_destination(program, **argument))
+                {
+                    deferred.push((*argument, DeferredRequest::CallParameterSelection));
+                }
+                continue;
+            };
             let required: Vec<_> = parameters
                 .iter()
                 .map(|parameter| parameter.type_reference)
@@ -1571,7 +1593,12 @@ pub(crate) mod construction_destinations {
                 )?;
             }
         }
-        defer_unselected_constructors(program, unselected)?;
+        deferred.extend(
+            unselected
+                .into_iter()
+                .map(|constructor| (constructor, DeferredRequest::ConstructorFieldSelection)),
+        );
+        defer_to_holders(program, deferred)?;
         Ok(cast_destinations)
     }
 
@@ -1589,42 +1616,41 @@ pub(crate) mod construction_destinations {
         selected_construction_field_type(program, constructor, literal, field).ok()
     }
 
-    /// Records each constructor whose field types typing did not select on
-    /// the declaration that holds it. The constructor keeps the fields it was
-    /// written with; its declaration is refused where it is demanded. One
-    /// that no declaration owns has no reader to raise it and refuses here.
-    fn defer_unselected_constructors(
+    /// Records each value this pass could not land on the declaration that
+    /// holds it, under the request that names why. This pass sees the
+    /// program with every bundled library, so a value in a declaration the
+    /// program never reaches must not stop the program; the value keeps the
+    /// form it was written with, and its declaration is refused where it is
+    /// demanded. One that no declaration owns has no reader to raise it and
+    /// refuses here.
+    fn defer_to_holders(
         program: &mut TypedTrees,
-        unselected: Vec<ExpressionHandle>,
+        deferred: Vec<(ExpressionHandle, DeferredRequest)>,
     ) -> Result<(), Diagnostic> {
-        use typed_trees::deferred_refusals::DeferredRequest;
-        if unselected.is_empty() {
+        if deferred.is_empty() {
             return Ok(());
         }
         let owners = typed_trees::references::collect_program_operand_owners(program);
         let mut rows = Vec::new();
-        for constructor in unselected {
-            let source_span = program.expression_table.source_span(constructor);
+        for (value, request) in deferred {
+            let source_span = program.expression_table.source_span(value);
             let before = rows.len();
             rows.extend(
                 owners
-                    .expression_owners(constructor)
+                    .expression_owners(value)
                     .filter(|owner| owner.is_valid())
-                    .map(|owner| (owner, source_span)),
+                    .map(|owner| (owner, request, source_span)),
             );
             if rows.len() == before {
-                return Err(crate::unavailable_judgment(
-                    "selected constructor field type outside every declaration",
-                )
+                return Err(Diagnostic::error(format!(
+                    "no product route yet: a value outside every declaration, {}",
+                    request.construct()
+                ))
                 .with_source_span(source_span));
             }
         }
-        for (owner, source_span) in rows {
-            program.record_deferred_refusal(
-                owner,
-                DeferredRequest::ConstructorFieldSelection,
-                source_span,
-            );
+        for (owner, request, source_span) in rows {
+            program.record_deferred_refusal(owner, request, source_span);
         }
         Ok(())
     }
@@ -2209,6 +2235,161 @@ pub(crate) mod construction_destinations {
                 Some(DeferredRequest::ConstructorFieldSelection)
             );
             assert_eq!(refused.deferred_refusals.len(), 1);
+        }
+
+        #[test]
+        fn a_call_typing_cannot_build_an_argument_for_refuses_its_own_machine() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::expression::TableCallExpression;
+            use typed_trees::machine::{Machine, MachineBodyStatus};
+            use typed_trees::mathematical::MathematicalDefinition;
+            use typed_trees::state::State;
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Machine, SymbolNameRef::Static("caller")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("callee")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("bystander")),
+                    (
+                        SymbolKind::MathematicalDefinition,
+                        SymbolNameRef::Static("measure"),
+                    ),
+                ],
+            );
+            let [caller, callee, bystander, measure] =
+                [0, 1, 2, 3].map(|position| declarations.handle_at(position));
+            let [run, entry, idle] =
+                [(caller, "run"), (callee, "entry"), (bystander, "idle")].map(|(machine, name)| {
+                    symbols
+                        .insert_children(
+                            machine,
+                            [(SymbolKind::State, SymbolNameRef::Static(name))],
+                        )
+                        .handle_at(0)
+                });
+            let mut base = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            base.push_mathematical_definition(MathematicalDefinition {
+                symbol: measure,
+                ..Default::default()
+            });
+            let idle_states = base.machine_states.insert_many([State {
+                symbol: idle,
+                ..Default::default()
+            }]);
+            base.push_machine(Machine {
+                symbol: bystander,
+                states: idle_states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+
+            // `caller` evaluates `target(argument)`; `callee` has its entry
+            // state only when `callee_has_state`.
+            let build = |target: SymbolHandle, argument: ExpressionNode, callee_has_state| {
+                let mut program = base.clone();
+                let argument = program.expression_table.insert(argument);
+                let arguments = program
+                    .expression_table
+                    .insert_expression_handles([argument]);
+                let call =
+                    program
+                        .expression_table
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            authored_call_selection: None,
+                            authored_call_binding: None,
+                            build_selection: Default::default(),
+                            authored_machine_application: Default::default(),
+                            exact_coercion_target: Default::default(),
+                            requirement_application: Default::default(),
+                            receiver: Default::default(),
+                            target_symbol: target,
+                            static_machine_parameter: Default::default(),
+                            target: Default::default(),
+                            static_requirement_dispatch: None,
+                            machine_arguments: Box::default(),
+                            quotient_operation: None,
+                            private_layout_operation: None,
+                            installed_interrupt_operation: None,
+                            layout_query: None,
+                            native_code_layout: None,
+                            arguments,
+                            evidence_arguments: Box::default(),
+                            operational_acknowledgement: Default::default(),
+                        }));
+                let statement_nodes = program
+                    .statement_table
+                    .insert_statements([StatementNode::Expression(call)]);
+                let states = program.machine_states.insert_many([State {
+                    symbol: run,
+                    statement_nodes,
+                    ..Default::default()
+                }]);
+                program.push_machine(Machine {
+                    symbol: caller,
+                    states,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    ..Default::default()
+                });
+                let callee_states = if callee_has_state {
+                    program.machine_states.insert_many([State {
+                        symbol: entry,
+                        ..Default::default()
+                    }])
+                } else {
+                    Default::default()
+                };
+                program.push_machine(Machine {
+                    symbol: callee,
+                    states: callee_states,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    ..Default::default()
+                });
+                prepare(&mut program, 0, 0, &[])
+                    .expect("an unlanded argument refuses its declaration, not the program");
+                program
+            };
+            let array = || ExpressionNode::ArrayLiteral(Default::default());
+
+            // The callee's entry state selects its parameters: nothing is
+            // deferred. The twin's callee has no state to select them from,
+            // so the machine holding the call carries the refusal and no
+            // other declaration does.
+            assert!(build(callee, array(), true).deferred_refusals.is_empty());
+            let unselected = build(callee, array(), false);
+            assert_eq!(
+                unselected
+                    .deferred_refusal(caller)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::CallParameterSelection)
+            );
+            assert_eq!(unselected.deferred_refusals.len(), 1);
+            assert!(unselected.deferred_refusal(bystander).is_none());
+
+            // A mathematical call with a scalar argument needs no receiving
+            // type; the twin passes an array literal, which no pass builds
+            // at a mathematical parameter.
+            assert!(
+                build(measure, ExpressionNode::Boolean(true), true)
+                    .deferred_refusals
+                    .is_empty()
+            );
+            let mathematical = build(measure, array(), true);
+            assert_eq!(
+                mathematical
+                    .deferred_refusal(caller)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::MathematicalCallDestination)
+            );
+            assert_eq!(mathematical.deferred_refusals.len(), 1);
         }
 
         #[test]

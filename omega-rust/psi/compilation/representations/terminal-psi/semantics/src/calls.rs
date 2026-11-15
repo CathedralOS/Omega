@@ -770,39 +770,6 @@ pub mod closed_conformances {
         ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
     };
 
-    pub fn is_checked_body_family_contract(
-        module: &TerminalModule,
-        boundary: &terminal_psi::BoundaryMachineDeclaration,
-    ) -> bool {
-        let head = TargetMachineCallable::Boundary(boundary.id);
-        let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == head)
-        else {
-            return false;
-        };
-        boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
-            && boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
-            && family.head_contract != [0; 32]
-            && boundary
-                .declaration
-                .as_ref()
-                .is_some_and(|declaration| declaration.source.contract == family.head_contract)
-            && validate_boundary_callable(module, boundary).is_ok()
-            && !family.members.is_empty()
-            && family.members.iter().all(|member| match member.callable {
-                TargetMachineCallable::Machine(machine) => {
-                    matches!(
-                        member.supply,
-                        terminal_psi::TargetMachineSupply::CheckedBody
-                            | terminal_psi::TargetMachineSupply::Boundary
-                    ) && module.machine(machine).is_some()
-                }
-                TargetMachineCallable::Boundary(_) => false,
-            })
-    }
-
     pub fn validate_boundary_callable(
         module: &TerminalModule,
         boundary: &terminal_psi::BoundaryMachineDeclaration,
@@ -871,27 +838,6 @@ pub mod closed_conformances {
                 }
             };
             identity(module, coordinate)?;
-        }
-        if let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == TargetMachineCallable::Boundary(boundary.id))
-        {
-            if family.head_contract != declaration.contract {
-                return Err(
-                    "checked boundary declaration differs from its published family contract",
-                );
-            }
-            if !family
-                .members
-                .iter()
-                .any(|member| member.callable == family.canonical)
-                && identity(module, declaration.callable)? != identity(module, boundary.identity)?
-            {
-                return Err(
-                    "checked boundary declaration differs from its published family overload",
-                );
-            }
         }
         Ok(())
     }

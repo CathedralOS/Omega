@@ -2359,20 +2359,17 @@ pub(crate) mod program {
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
             let selected =
                 installation.and_then(|installation| installation.target_machines.as_ref());
-            let machine = terminal_installation::AdmittedTargetMachineSelections::resolve_entry(
+            let machine = terminal_installation::TerminalTargetContext::resolve_entry(
                 selected,
                 self.identity.semantic(),
                 &self.catalogs,
                 root,
             )
             .map_err(|error| match error {
-                terminal_installation::TargetMachineSelectionError::MissingDeployment { head } => {
-                    TerminalInterpretError::TargetMachineSelectionMissing(head)
-                }
-                terminal_installation::TargetMachineSelectionError::MissingMachine(_) => {
+                terminal_installation::TerminalEntryError::MissingMachine(_) => {
                     TerminalInterpretError::VerifiedEntryMachineMissing
                 }
-                other => TerminalInterpretError::TargetMachineSelection(other),
+                other => TerminalInterpretError::TerminalEntry(other),
             })?;
             self.machines()
                 .get(&machine)
@@ -2484,25 +2481,11 @@ pub(crate) mod program {
                 .is_ok()
         }
 
-        pub(crate) fn is_target_family_head(&self, boundary: BoundaryMachineId) -> bool {
-            let head = terminal_psi::TargetMachineCallable::Boundary(boundary);
-            self.catalogs
-                .target_machine_families
-                .binary_search_by_key(&head, |family| family.canonical)
-                .ok()
-                .is_some_and(|position| {
-                    !self.catalogs.target_machine_families[position]
-                        .members
-                        .iter()
-                        .any(|member| member.callable == head)
-                })
-        }
-
         pub(crate) fn import_declaration(
             &self,
             slot: BoundaryMachineId,
         ) -> Option<&BoundaryMachineDeclaration> {
-            if self.has_provider(&slot) || self.is_target_family_head(slot) {
+            if self.has_provider(&slot) {
                 return None;
             }
             self.boundary_machines().get(&slot).filter(|declaration| {
@@ -2711,7 +2694,7 @@ pub(crate) mod program {
                 .target_machines
                 .is_some_and(|selected| selected.terminal_psi() != self.program.identity.semantic())
             {
-                return Err(TerminalInterpretError::TargetMachineSelectionIdentityMismatch);
+                return Err(TerminalInterpretError::TargetContextIdentityMismatch);
             }
             let mut installation = request
                 .installation
@@ -2825,18 +2808,6 @@ pub(crate) mod program {
                     "compiler primitive cannot be replaced by an external supply",
                 ));
             }
-            if self.program.is_target_family_head(boundary) {
-                let member = crate::engine::calls::target_families::selected_member(
-                    &self.program,
-                    installation.target_machines.as_ref(),
-                    boundary,
-                )?;
-                if !matches!(member, terminal_psi::TargetMachineCallable::Boundary(_)) {
-                    return Err(rejected(
-                        "a checked target-family member cannot be replaced by an external supply",
-                    ));
-                }
-            }
             if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
                 return Err(rejected(
                     "external completion requires separate domain admission",
@@ -2864,7 +2835,6 @@ pub(crate) mod program {
                     declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
                         && !compiler_owns_boundary_execution(declaration)
                         && !self.program.has_provider(&declaration.id)
-                        && !self.program.is_target_family_head(declaration.id)
                 })
         }
 
@@ -3280,10 +3250,8 @@ pub(crate) mod program {
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")
                 .clone();
-            let machines = terminal_installation::admit_target_machine_selections(
-                artifact.view(),
-                "linux_x86_64",
-            );
+            let machines =
+                terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
             let layouts = terminal_installation::admit_target_layouts(
                 artifact.view(),
                 &machines,
@@ -3316,7 +3284,7 @@ pub(crate) mod program {
             {
                 let name = "macos_arm64";
                 let other_machines =
-                    terminal_installation::admit_target_machine_selections(artifact.view(), name);
+                    terminal_installation::terminal_target_context(artifact.view(), name);
                 let other_layouts = terminal_installation::admit_target_layouts(
                     artifact.view(),
                     &other_machines,

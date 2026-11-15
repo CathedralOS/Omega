@@ -487,7 +487,7 @@ mod model {
             machine: semantic_vocabulary::MachineId,
             reason: &'static str,
         },
-        TargetFamily(String),
+        TargetContext(String),
         TargetDrift,
         CallingPlanPairingDrift,
         SourceSignatureSubstitution,
@@ -706,7 +706,7 @@ mod semantic_call {
         {
             return Err("semantic-entry transport does not join the exact selected artifact, requirement and entry shape".into());
         }
-        let selections = terminal_installation::admit_target_machine_selections(
+        let selections = terminal_installation::terminal_target_context(
             artifact.view(),
             entry.source().target_slot().owner.target_name(),
         );
@@ -775,17 +775,15 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);
     }
-    let selections = terminal_installation::admit_target_machine_selections(
-        artifact.view(),
-        slot.owner.target_name(),
-    );
+    let selections =
+        terminal_installation::terminal_target_context(artifact.view(), slot.owner.target_name());
     let entry = selections
         .entry(
             artifact.view().identity(),
             module,
             terminal_psi::TargetMachineCallable::Machine(checked_entry.terminal_entry()),
         )
-        .map_err(|error| NativeProgramEntrySettlementError::TargetFamily(error.to_string()))?;
+        .map_err(|error| NativeProgramEntrySettlementError::TargetContext(error.to_string()))?;
     let entry_count = module
         .machines
         .iter()

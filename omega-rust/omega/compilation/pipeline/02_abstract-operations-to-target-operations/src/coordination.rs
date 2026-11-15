@@ -76,8 +76,7 @@ mod installed_provider_calls {
             .iter()
             .flat_map(|function| {
                 function
-                    .operations
-                    .iter()
+                    .operations()
                     .filter_map(move |operation| match operation {
                         AbstractOperation::BoundaryCall {
                             psi_operation,
@@ -485,7 +484,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
     verified_input: Option<&verified_optimization_input::AdmittedLoweringFacts>,
 ) -> Result<TargetOperationPlan, LoweringError> {
     let profile = verified_input
-        .and_then(|input| input.target_machine_selections())
+        .and_then(|input| input.target_context())
         .map(|selections| target::TargetProfile::from_canonical_target_name(selections.target()))
         .transpose()
         .map_err(|_| LoweringError::ForeignLoweringFacts("unknown selected deployment profile"))?;

@@ -1061,7 +1061,7 @@ mod structural_case {
         let mut reference_exits = Vec::with_capacity(cases.len());
         for (case_ordinal, (case, declared)) in cases.iter().zip(declared_cases).enumerate() {
             let target = function
-                .block_entry(case.target)
+                .block(case.target)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             if case.case != declared.id
                 || target.structural_parameters.len() != case.structural_bindings.len()
@@ -1432,7 +1432,7 @@ mod terminator {
                          edge: &abstract_operations::AbstractSuccessor|
          -> Result<TargetControlSuccessor, LoweringError> {
             let destination = function
-                .block_entry(edge.target)
+                .block(edge.target)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             super::transfers::re_home_bound_references(
                 function,
@@ -1812,7 +1812,7 @@ mod terminator {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let destination = function
-                    .block_entry(*target)
+                    .block(*target)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 super::transfers::re_home_bound_references(
                     function,
@@ -1902,9 +1902,7 @@ mod transfers {
     use crate::LoweringError;
     use crate::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::control_flow::address_joins::is_static_projection;
-    use abstract_operations::{
-        AbstractBlockEntry, AbstractFunction, AbstractOperation, ValueBinding,
-    };
+    use abstract_operations::{AbstractBlock, AbstractFunction, AbstractOperation, ValueBinding};
     use semantic_vocabulary::{BlockId, ScalarType, ValueId};
     use std::collections::BTreeSet;
     use target_operations::TargetScalarBlockValue;
@@ -1915,7 +1913,7 @@ mod transfers {
         definitions: &mut BTreeSet<ValueId>,
     ) -> Result<(), LoweringError> {
         for block in function
-            .block_entries
+            .blocks
             .iter()
             .filter(|block| block.block != function.entry)
         {
@@ -2032,7 +2030,7 @@ mod transfers {
         Ok(())
     }
 
-    pub(crate) fn enter(block: &AbstractBlockEntry, live: &mut LiveDefinitions) {
+    pub(crate) fn enter(block: &AbstractBlock, live: &mut LiveDefinitions) {
         for parameter in &block.parameters {
             match parameter.scalar_type {
                 ScalarType::Integer(scalar_type) => {
@@ -2139,8 +2137,7 @@ mod transfers {
                 .and_then(|_| {
                     let (producer, structural_type) = live.views.get(&argument.place)?;
                     let (_, result) = function
-                        .operations
-                        .iter()
+                        .operations()
                         .find(|operation| operation.psi_operation() == Some(*producer))?
                         .structural_result()?;
                     let access = result_access(structural_types.values().copied(), result)?;
@@ -2170,7 +2167,7 @@ mod transfers {
              bindings: &[ValueBinding],
              structural: &[abstract_operations::AbstractStructuralBinding]| {
                 let block = function
-                    .block_entry(target)
+                    .block(target)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if bindings.len() != block.parameters.len() {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -2575,7 +2572,7 @@ pub(crate) fn lower(
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
     installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,
 ) -> Result<TargetFunction, LoweringError> {
-    if function.block_entries.is_empty() {
+    if function.blocks.is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     if !matches!(
@@ -2603,7 +2600,7 @@ pub(crate) fn lower(
         }
     }
     transfers::validate_parameters(function, &mut definitions)?;
-    for operation in &function.operations {
+    for operation in function.operations() {
         let result = match operation {
             abstract_operations::constant_value_triple_pattern!(result, ..)
             | AbstractOperation::IeeeFloatCompare { result, .. }
@@ -2649,7 +2646,7 @@ pub(crate) fn lower(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let entry_references = references::entry(function, structural_types)?;
-    for entry in &function.block_entries {
+    for entry in &function.blocks {
         for (position, parameter) in entry.structural_parameters.iter().enumerate() {
             if entry.block == function.entry
                 || parameter.position as usize != position
@@ -2673,7 +2670,7 @@ pub(crate) fn lower(
             }
         }
     }
-    for operation in &function.operations {
+    for operation in function.operations() {
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
@@ -2702,9 +2699,8 @@ pub(crate) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
-    let entries = &function.block_entries;
+    let entries = &function.blocks;
     if entries.is_empty()
-        || entries[0].operation_offset != 0
         || entries.iter().any(|entry| {
             entry.block == function.entry
                 && !entry.parameters.is_empty()
@@ -2713,28 +2709,21 @@ pub(crate) fn lower(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let mut ranges = Vec::new();
     let mut incoming = vec![Vec::new(); entries.len()];
     let mut outgoing = vec![Vec::new(); entries.len()];
     let mut entry_position = None;
     for (position, entry) in entries.iter().enumerate() {
-        if entries[..position]
-            .iter()
-            .any(|earlier| earlier.block == entry.block)
-        {
+        if position > 0 && entries[position - 1].block >= entry.block {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         if entry.block == function.entry {
             entry_position = Some(position);
         }
-        let end = entries
-            .get(position + 1)
-            .map_or(function.operations.len(), |next| next.operation_offset);
-        if entry.operation_offset >= end || end > function.operations.len() {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        ranges.push(entry.operation_offset..end);
-        let targets = match &function.operations[end - 1] {
+        let terminator = entry
+            .operations
+            .last()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let targets = match terminator {
             AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
@@ -2791,7 +2780,8 @@ pub(crate) fn lower(
             Some(dominator) => {
                 let mut storage = reference_storage[dominator].clone();
                 storage.extend(
-                    function.operations[ranges[dominator].clone()]
+                    entries[dominator]
+                        .operations
                         .iter()
                         .filter_map(|operation| {
                             operation
@@ -2963,14 +2953,14 @@ pub(crate) fn lower(
                         .map(|parameter| parameter.place),
                 );
             }
-            let range = ranges[position].clone();
+            let (terminal, body) = entries[position]
+                .operations
+                .split_last()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             let mut operations = Vec::new();
             block_provenance[position] = TerminalPsiProvenance::default();
             let provenance = &mut block_provenance[position];
-            for (operation_index, operation) in function.operations[range.start..range.end - 1]
-                .iter()
-                .enumerate()
-            {
+            for (operation_index, operation) in body.iter().enumerate() {
                 live.reference_position = (
                     entries[position].block,
                     u32::try_from(operation_index)
@@ -3001,17 +2991,12 @@ pub(crate) fn lower(
             }
             live.reference_position = (
                 entries[position].block,
-                u32::try_from(range.end - range.start - 1)
+                u32::try_from(body.len())
                     .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
             );
-            transfers::validate_successors(
-                &function.operations[range.end - 1],
-                function,
-                &live,
-                structural_types,
-            )?;
+            transfers::validate_successors(terminal, function, &live, structural_types)?;
             calls::lower_cleanup_calls(
-                &function.operations[range.end - 1],
+                terminal,
                 function,
                 target,
                 functions,
@@ -3020,12 +3005,9 @@ pub(crate) fn lower(
                 &live,
                 &mut operations,
             )?;
-            let terminator = if matches!(
-                &function.operations[range.end - 1],
-                AbstractOperation::InvokeNoNormal { .. }
-            ) {
+            let terminator = if matches!(terminal, AbstractOperation::InvokeNoNormal { .. }) {
                 calls::lower_no_normal(
-                    &function.operations[range.end - 1],
+                    terminal,
                     function,
                     target,
                     functions,
@@ -3038,7 +3020,7 @@ pub(crate) fn lower(
                 )?
             } else {
                 lower_terminator(
-                    &function.operations[range.end - 1],
+                    terminal,
                     function,
                     &prepared,
                     &mut live,

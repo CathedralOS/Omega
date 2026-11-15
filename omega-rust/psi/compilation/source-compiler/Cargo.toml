@@ -26,6 +26,7 @@ optimization = { path = "../../foundation/optimization" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 
+execution-admission = { path = "../../foundation/execution-admission" }
 rayon = "1.10"
 arena = { path = "../../foundation/arena" }
 flow-effects = { path = "../../foundation/flow-effects" }

@@ -1,6 +1,6 @@
 /*
 We re-derive validated liveness, live-range, and allocation-legality facts over
-a selected program transformed by `ValidatedFixedViewCopies` so post-copy home
+a selected program transformed by `MaterializedFixedViewCopies` so post-copy home
 assignment and residual runtime-spill recovery operate on current checked facts.
 */
 
