@@ -50,6 +50,78 @@ fn refused(elaboration: typed_trees_to_terminal_psi::Elaboration, expected: &str
 }
 
 #[test]
+fn a_persistent_reference_carries_the_exact_referent_domain() {
+    use terminal_interpreter::{
+        TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    };
+
+    let source = r#"
+data Ticket { number: u32; }
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine number(ticket: &Ticket in Stamped) -> u32 { ticket.number }
+machine entry() -> u32 {
+    let stamped: Ticket in Stamped = stamp(Ticket { number: 7u32 });
+    let saved: &Ticket in Stamped = &stamped;
+    number(saved)
+}
+"#;
+    let mut elaboration = invocation(source).unwrap();
+    let domain = elaboration.module.structural_domains[0].id;
+    let formed = elaboration
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishReference { .. }
+            )
+        })
+        .expect("source forms the persistent reference");
+    let terminal_psi::OperationResult::Structural(result) = &mut formed.result else {
+        panic!("forming a reference yields its descriptor");
+    };
+    assert!(result.qualifications.is_empty());
+    assert_eq!(
+        result.projected_qualifications,
+        [terminal_psi::StructuralPathQualification {
+            path: vec![terminal_psi::StructuralPathSegment::Referent],
+            domain,
+        }]
+    );
+    result.projected_qualifications.clear();
+    let encoded = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone()).unwrap();
+    let detail = "a reference does not keep its referent's exact domains";
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(reason)) if reason == detail
+    ));
+    refused(elaboration, detail);
+    let verdict = judge(invocation(source)).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the unmodified reference must check: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(matches!(
+        status,
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                ..
+            }
+        ))
+    ));
+}
+
+#[test]
 fn the_lowered_record_type_retains_its_domains_and_casts() {
     let elaboration = invocation(STAMPED).unwrap();
     let module = &elaboration.module;

@@ -591,18 +591,21 @@ fn validate_machine(module: &TerminalModule, machine: &TerminalMachine) -> Judge
                         );
                     }
                 }
-                // A reference holds its referent's field memberships beneath
-                // `Referent`. Its type cannot name domains of the whole
-                // referent, so a source in one has no reference form.
+                // A reference carries the source's exact memberships at
+                // the referent, including the source's whole-value domains.
                 OperationKind::EstablishReference { source, .. } => {
                     let lent = places.argument(source);
-                    if !lent.whole.is_empty() {
-                        return malformed(
-                            id,
-                            "a reference cannot carry its referent's whole-value domains",
-                        );
-                    }
                     let mut expected = Memberships::default();
+                    expected
+                        .projected
+                        .extend(
+                            lent.whole
+                                .into_iter()
+                                .map(|domain| StructuralPathQualification {
+                                    path: vec![StructuralPathSegment::Referent],
+                                    domain,
+                                }),
+                        );
                     for row in lent.projected {
                         let mut path = vec![StructuralPathSegment::Referent];
                         path.extend(row.path);
