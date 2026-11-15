@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A runtime selector makes an initialized affine array look incomplete
+- Category: branch per shape
+- Where: [affine receiving-region check](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/plain_affine.rs#L2407)
+- Saw: On macOS arm64 at `12ee91e4303`, an owned local array starts with two initialized records whose `identifier` fields hold shared byte views. With `let index: u64 = 1;`, the assignment `settings[index].identifier = "omega";` refuses at the field with “runtime-indexed replacement in an incomplete affine array”. The source moves no element. The literal-index twin runs native and Psi to exit 0 with both the original sibling and replacement length checks.
+- Cost: A local store with a proved selector cannot obtain the same receiving region as the literal store. Reproduce with the [existing intact-array rule](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/calling_policies.rs#L690) and keep the genuinely incomplete array refused when a move can leave a hole at the selected position.
+- Reported: 2026-11-15, Codex, while tracing descriptor writeback through a borrowed array.
+
 ### The bounded concat probe describes an operation its source no longer uses
 - Category: the documents disagree
 - Where: [probe guide](samples/cli/probes/bounded_concat/README.md#L5), [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [fixed-array rule](wiki/spec/language/domains.md#domains-and-qualification)
@@ -107,13 +114,6 @@ framework or a list of unimplemented features.
 - Saw: A direct array field whose length calls a target-independent helper runs in native and Psi and reopens. On `f8e3039998f`, the unchanged target-layout sample advances to `limit()` at line 8, column 26 and refuses with “source invocation requires selected target, scalar or external authority that is not supplied”. Its Build selects different `Answer` implementations for Linux and macOS.
 - Cost: The early checked computation has no selected provider. Carry the symbolic extent into the existing checked scalar application and target-closure path so the request retains its exact selected realization, result and proof. Keep the original layout query, bound and invalid twin.
 - Reported: 2026-11-15, Codex, while restoring the exact historical layout input inventory. Narrowed after the target-independent field extent ran and reopened.
-
-### A runtime-indexed byte-view replacement loses descriptor flow at its call
-- Category: branch per shape
-- Where: [descriptor graph closure](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13411)
-- Saw: On macOS arm64 at `99191b767cf`, a callee replaces `settings[index].identifier` in `&mut [Settings<'storage>; 2]`, with `identifier: &'storage [u8]` and `requires index < 2`. Calling it on an array of two initialized records with index 1 refuses in the caller with “descriptor storage flow cannot be reconstructed”. With literal index 1 in the same callee, the caller's unchanged-sibling and replacement checks run with native and Psi exit 0. Constructing the array and reading both stored view lengths also runs without the call.
-- Cost: A checked runtime selector cannot carry the replacement back to the exact record at the call boundary. Trace the existing descriptor-flow owner for the selected element and preserve the unchanged sibling and the bounds refusal.
-- Reported: 2026-11-15, Codex, while validating retained byte-view store operands
 
 ### Two package-review probes use retired source declarations
 - Category: zombie machinery
