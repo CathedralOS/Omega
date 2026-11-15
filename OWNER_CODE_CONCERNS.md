@@ -122,13 +122,6 @@ framework or a list of unimplemented features.
 - Cost: The suite no longer establishes when a returned descriptor keeps or retires its exact loan. Reproduce the accepted and rejected cases through their actual authored source and distinguish stale artifact fixtures from changes to the loan and disposition checks before changing their oracles.
 - Reported: 2026-11-15, Codex, while comparing the stored-length repair with an unchanged Stage06 test baseline.
 
-### Build-time returned views keep their caller loans past last use
-- Category: knowledge crossing a boundary
-- Where: [shared returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L576), [exclusive returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L631)
-- Saw: On clean `781f2f5cb50` on macOS arm64, the shared positive refuses its write after `see(view)` as a conflicting loan. The exclusive positive refuses its array read after `fill(view)` as observation outside a live exclusive reference. The controls call `run()` with no host inputs and both passed on clean `a225808b7c9`.
-- Cost: Build-time source judgment cannot reuse the backing after these returned references' last use. Keep the exact call result origin and end its loan at the existing caller frontier. The twins that use the view after accessing the backing must still refuse.
-- Reported: 2026-11-15, Codex, while verifying closed Build-time arguments against current main.
-
 ### A constant snapshot loses a checked element qualification
 - Category: knowledge crossing a boundary
 - Where: [constant reconstruction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/constant_jobs.rs#L674), [Product judgment](omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs#L277), [collection membership check](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_qualifications.rs#L589)

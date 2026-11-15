@@ -623,7 +623,8 @@ pub(crate) mod descriptor_operands {
         self as geometry, ReferenceSourceGeometry,
     };
     use legalized_operations::LegalizedRuntimeIndexOperand;
-    use terminal_psi::{StructuralArgument, StructuralTypeShape};
+    use semantic_vocabulary::PlaceId;
+    use terminal_psi::{StructuralArgument, StructuralPathSegment, StructuralTypeShape};
 
     pub(crate) fn source_geometry(
         function: &crate::native_geometry::NativeFunction<'_>,
@@ -689,8 +690,15 @@ pub(crate) mod descriptor_operands {
         if let Some([backing, _]) = completed_view_words(function, builder, row, source, indices)? {
             return Ok(backing);
         }
-        let (pointer, leaf_index) =
-            stored_address(function, builder, row, source, indices, &geometry)?;
+        let (pointer, leaf_index) = stored_address(
+            function,
+            builder,
+            row,
+            source.place,
+            &source.path,
+            indices,
+            &geometry,
+        )?;
         let leaf_indices = &indices[leaf_index..];
         let address_width = if matches!(shape, StructuralTypeShape::FixedArray { .. }) {
             0
@@ -771,17 +779,18 @@ pub(crate) mod descriptor_operands {
         geometry::align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
     }
 
-    fn stored_address(
+    pub(super) fn stored_address(
         function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
-        source: &StructuralArgument,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
         indices: &[LegalizedRuntimeIndexOperand],
         geometry: &ReferenceSourceGeometry,
     ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
-        let (pointer, pointer_slots) = if source.path.is_empty() {
+        let (pointer, pointer_slots) = if path.is_empty() {
             (
-                Some(place_pointer(builder, row, source.place, 0)?),
+                Some(place_pointer(builder, row, place, 0)?),
                 geometry.pointer_slots.as_slice(),
             )
         } else {
@@ -789,19 +798,19 @@ pub(crate) mod descriptor_operands {
                 function,
                 builder,
                 row,
-                source.place,
+                place,
                 geometry.byte_offset,
                 &geometry.pointer_slots,
             )?
         };
         let pointer = pointer.ok_or_else(invalid)?;
         let (pointer, leaf_index) =
-            cross_references(builder, row, source.place, pointer, indices, pointer_slots)?;
-        let leaf_indices = &indices[leaf_index..];
+            cross_references(builder, row, place, pointer, indices, pointer_slots)?;
+        let leaf_indices = indices.get(leaf_index..).ok_or_else(invalid)?;
         let pointer = scale(
             builder,
             row,
-            source.place,
+            place,
             geometry.byte_offset,
             pointer,
             leaf_indices,
@@ -831,7 +840,15 @@ pub(crate) mod descriptor_operands {
         {
             return Err(invalid());
         }
-        let (pointer, leaf) = stored_address(function, builder, row, source, indices, &geometry)?;
+        let (pointer, leaf) = stored_address(
+            function,
+            builder,
+            row,
+            source.place,
+            &source.path,
+            indices,
+            &geometry,
+        )?;
         let (pointer, displacement) = super::memory_pointer(
             builder,
             row,
@@ -1064,31 +1081,18 @@ pub(crate) mod leaf_copy {
         {
             return Err(invalid());
         }
-        let (root, pointer_slots) = projection_origin(
+        // A whole descriptor store writes its own header. Only explicit
+        // backing projections may load and follow the descriptor's pointer.
+        let (root, leaf_index) = super::descriptor_operands::stored_address(
             source,
             builder,
             row,
             destination.place(),
-            *byte_offset,
-            &geometry.pointer_slots,
-        )?;
-        let (root, leaf_index) = cross_references(
-            builder,
-            row,
-            destination.place(),
-            root.ok_or_else(invalid)?,
+            &projection.path,
             indices,
-            pointer_slots,
+            &geometry,
         )?;
         let indices = indices.get(leaf_index..).ok_or_else(invalid)?;
-        let root = scale(
-            builder,
-            row,
-            destination.place(),
-            *byte_offset,
-            root,
-            indices,
-        )?;
         let destination = CopyEnd {
             place: destination.place(),
             pointer: root,

@@ -1107,7 +1107,7 @@ pub(crate) mod completion {
             Ok(())
         }
 
-        fn retire_home_companions(&mut self, place: PlaceId) {
+        pub(crate) fn retire_home_companions(&mut self, place: PlaceId) {
             self.aggregate_argument_backings.remove(&place);
             self.byte_sequence_values.remove(&place);
             self.element_view_values.remove(&place);
