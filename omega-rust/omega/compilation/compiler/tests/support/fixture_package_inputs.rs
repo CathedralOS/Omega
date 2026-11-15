@@ -18,8 +18,7 @@ use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
-    PackageSourceBinding,
+    AcceptedSemanticBinding, PackageCompilationInputs, PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
@@ -57,51 +56,8 @@ pub fn bundled_standard_library_root() -> PathBuf {
     repo_root().join("source/library/std")
 }
 
-/// The reviewed `ProgramEntry` candidate the standard library at
-/// `standard_library_root` owns for `target_name`.
-///
-/// Entry acceptance is decided by the target profile, not by spelling: every
-/// hosted profile with a reviewed ProgramEntry candidate binds it here, and a
-/// profile without one (macOS x86-64, the cross-platform, unchecked and
-/// bootstrap profiles) is `None` rather than falling through a chain of
-/// string comparisons. An unknown target name is the vocabulary's diagnostic.
+/// Independently check a captured default supplier when the Product graph has no target schema.
 pub fn candidate_program_entry_binding(
-    target_name: &str,
-    standard_library_root: &Path,
-    standard_library: PackageKeyIdentity,
-) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
-    // The candidate depends only on these three inputs, and each derivation
-    // checks the whole standard library entry: a test that compiles many
-    // fixtures (the sample run oracle) would otherwise repeat that check for
-    // every one. Compute outside the lock; a racing duplicate is only waste.
-    type Key = (String, std::path::PathBuf, PackageKeyIdentity);
-    type Candidate = Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>>;
-    static CANDIDATES: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<Key, Candidate>>,
-    > = std::sync::OnceLock::new();
-    let candidates = CANDIDATES.get_or_init(Default::default);
-    let key = (
-        target_name.to_owned(),
-        standard_library_root.to_path_buf(),
-        standard_library,
-    );
-    if let Some(candidate) = candidates
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .get(&key)
-    {
-        return candidate.clone();
-    }
-    let candidate =
-        derive_program_entry_binding(target_name, standard_library_root, standard_library);
-    candidates
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(key, candidate.clone());
-    candidate
-}
-
-fn derive_program_entry_binding(
     target_name: &str,
     standard_library_root: &Path,
     standard_library: PackageKeyIdentity,
@@ -148,66 +104,45 @@ fn derive_entry_from_inputs(
     let supplier = inputs.root();
     let supplier_root = inputs
         .package_root(supplier)
-        .expect("entry supplier source")
-        .to_path_buf();
+        .expect("entry supplier source");
     let profile = TargetProfile::from_canonical_target_name(target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let (target_name, role, schema) = match profile {
-        TargetProfile::MacosArm64 => (
-            "macos_arm64",
-            AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
-            "MacosApplication",
-        ),
-        TargetProfile::LinuxX64 => (
-            "linux_x86_64",
-            AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry,
-            "LinuxX86_64Application",
-        ),
-        TargetProfile::LinuxArm64 => (
-            "linux_arm64",
-            AcceptedSemanticBindingRole::LinuxArm64ProgramEntry,
-            "LinuxArm64Application",
-        ),
-        TargetProfile::WindowsX64 => (
-            "windows_x86_64",
-            AcceptedSemanticBindingRole::WindowsX64ProgramEntry,
-            "WindowsX86_64Application",
-        ),
-        TargetProfile::UefiX64 => (
-            "uefi_x86_64",
-            AcceptedSemanticBindingRole::UefiX64ProgramEntry,
-            "UefiApplication",
-        ),
-        TargetProfile::MacosX64 => (
-            "macos_x86_64",
-            AcceptedSemanticBindingRole::MacosX64ProgramEntry,
-            "MacosX64Application",
-        ),
-        TargetProfile::CrossPlatformCli
-        | TargetProfile::LocalUnchecked
-        | TargetProfile::AlphaBootstrap => return Ok(None),
+    let Some(contract) = profile.program_entry_slot().physical_contract_package else {
+        return Ok(None);
     };
-    // Check the package-owned target contract independently on every derivation;
-    // application discovery alone cannot authorize the program-entry role.
+    let entry = supplier_root.join(contract.package_relative_source());
+    // An explicitly named supplier is checked on its own, before that
+    // supplier is used to disambiguate the fixture's target contract.
     let checked = orchestration::check_source(
         &mut compiler::CompilationSession::default(),
         CheckedCompileRequest {
             package_inputs: Some(inputs),
-            ..CheckedCompileRequest::new(
-                &supplier_root.join(format!("targets/{target_name}/entry.omg")),
-                Some(target_name),
-            )
+            ..CheckedCompileRequest::new(&entry, Some(profile.target_name()))
         },
     )
     .result
     .map_err(|failure| failure.into_diagnostics())?;
-    // The supplier compiles; the binding itself needs the service schema the
-    // lowered route does not publish yet.
-    let _ = (checked, role, supplier);
-    Err(vec![Diagnostic::error(format!(
-        "no product route yet: fixture acceptance of the `{}` service requires its route-owned service schema",
-        schema
-    ))])
+    entry_binding(&checked, supplier, profile)
+}
+
+fn entry_binding(
+    checked: &compiler::CheckedCompilation,
+    supplier: PackageKeyIdentity,
+    profile: TargetProfile,
+) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    use review_evidence::SemanticBindingProjectionError;
+    review_evidence::candidate_target_entry_binding(checked, supplier, profile)
+        .map(|candidate| candidate.map(|candidate| candidate.binding().clone()))
+        .map_err(|error| match error {
+            SemanticBindingProjectionError::MissingCallableFacts { diagnostics } => diagnostics,
+            SemanticBindingProjectionError::Ambiguous {
+                candidate_count, ..
+            } => {
+                vec![Diagnostic::error(format!(
+                    "fixture entry supplier has {candidate_count} competing target declarations"
+                ))]
+            }
+        })
 }
 
 /// One fixture's retained execution and target-specific Product plans. Acquisition
@@ -674,15 +609,6 @@ fn review_fixture_recording(
                 &completed,
             )?);
         }
-        if suppliers.is_empty()
-            && let Some(owner) = standard_library
-        {
-            bindings.extend(candidate_program_entry_binding(
-                profile.target_name(),
-                &standard_library_root,
-                owner,
-            )?);
-        }
         inputs = inputs
             .with_accepted_semantic_bindings(bindings.clone())
             .map_err(|errors| {
@@ -704,6 +630,32 @@ fn review_fixture_recording(
         let build = orchestration::prepare_package(session.compiler(), discovery, &mut completed)
             .map_err(|error| error.failure.into_diagnostics())?;
         let preliminary = check_package(session.compiler(), build, record.as_deref_mut())?;
+        let slot = profile.program_entry_slot();
+        if slot.physical_contract_package.is_some()
+            && suppliers.is_empty()
+            && let Some(owner) = standard_library
+        {
+            // The ordinary Product check already owns this contract. Require
+            // its actual supplier before applying the fixture's consent.
+            let program = preliminary.source_inspection().program();
+            let declaration = package_compilation::selected_program_entry_boundary(
+                program,
+                slot,
+                Some(&inputs),
+                preliminary.sources().exact_toolchain_sources(),
+            )?;
+            if program.symbols.symbol_package_identity(declaration) != Some(owner) {
+                return Err(vec![Diagnostic::error(
+                    "fixture Product selected a different entry supplier",
+                )]);
+            }
+            let binding = entry_binding(&preliminary, owner, profile)?.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "fixture Product did not publish its checked entry schema",
+                )]
+            })?;
+            bindings.push(binding);
+        }
         let services = dangerous_service_acceptance::DangerousServiceDiscovery::new(&preliminary)?;
         for (owner, _) in inputs.packages() {
             let required = services.for_package(owner);
