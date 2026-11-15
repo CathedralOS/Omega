@@ -1050,13 +1050,22 @@ impl<'a> Storage<'a> {
         tables: &'s MachineTables,
         actuals: &[Actual],
         callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
-        site: OperationId,
+        site: InvocationSite,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
-        let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(site))?;
-        let before = after
-            .checked_sub(1)
-            .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
+        let (block, before) = match site {
+            InvocationSite::Operation(operation) => {
+                let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+                let before = after
+                    .checked_sub(1)
+                    .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
+                (block, before)
+            }
+            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
+                let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
+                (block, self.block(block)?.operations.len())
+            }
+        };
         let mut places = Vec::new();
         for actual in actuals {
             if let Actual::Place(place) = actual {
@@ -1158,7 +1167,13 @@ impl<'a> Storage<'a> {
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
-        let inputs = self.at_call(tables, actuals, formals, site, concerns)?;
+        let inputs = self.at_call(
+            tables,
+            actuals,
+            formals,
+            InvocationSite::Operation(site),
+            concerns,
+        )?;
         let operation = self.operation(site, concerns)?;
         let structural = match (result, operation.result.as_structural()) {
             (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
@@ -4645,6 +4660,13 @@ impl<'a> AtCall<'_, 'a> {
             .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
             ))?;
+        extended(self.readable_actual(formal)?.clone(), path)
+    }
+
+    fn readable_actual(
+        &self,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+    ) -> Result<&Lineage, crate::Unbound> {
         if !terminal_psi::structural_access_covers(
             formal.access,
             terminal_psi::StructuralAccess::SharedBorrow,
@@ -4653,13 +4675,32 @@ impl<'a> AtCall<'_, 'a> {
                 "a clause reads a write-only input",
             ));
         }
-        let actual = usize::try_from(formal.position)
+        usize::try_from(formal.position)
             .ok()
             .and_then(|position| self.places.get(position))
             .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
-            ))?;
-        extended(actual.clone(), path)
+            ))
+    }
+
+    pub(crate) fn observations(&self) -> CallObservations<'_, 'a> {
+        let mut readable: Vec<_> = self
+            .callee_formals
+            .iter()
+            .enumerate()
+            .filter_map(|(position, formal)| {
+                self.readable_actual(formal)
+                    .ok()
+                    .map(|actual| (actual, position))
+            })
+            .collect();
+        readable.sort_unstable();
+        CallObservations {
+            call: self,
+            readable,
+            projections: None,
+            terms: Vec::new(),
+        }
     }
 
     fn held_at<'p>(&'p self, place: &'p Lineage) -> Held<'p, 'a> {
@@ -4672,6 +4713,112 @@ impl<'a> AtCall<'_, 'a> {
             concerns: self.concerns,
         }
     }
+}
+
+/// Inference may encounter the same value in several facts. Its binding is
+/// fixed for this call point, including observations that have no formal name.
+pub(crate) struct CallObservations<'s, 'a> {
+    call: &'s AtCall<'s, 'a>,
+    readable: Vec<(&'s Lineage, usize)>,
+    // Keep unvisited and unbound distinct. Only named fields keep a term.
+    projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
+    terms: Vec<ScalarTerm>,
+}
+
+impl CallObservations<'_, '_> {
+    pub(crate) fn formal_observation(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+        same: impl FnOnce(ScalarTerm, ScalarTerm) -> bool,
+    ) -> Option<ScalarTerm> {
+        if self.readable.is_empty() {
+            return None;
+        }
+        let row = self.call.tables.values.get(value)?;
+        let ValueOrigin::StorageContent { place, .. } = row.origin else {
+            return None;
+        };
+        if row.scalar_type != scalar_type {
+            return None;
+        }
+        let slot = self
+            .projections
+            .get_or_insert_with(|| self.call.tables.values.map(|_, _| None))
+            .get_mut(value)?;
+        let projection = *slot.get_or_insert_with(|| {
+            let call = self.call;
+            let recorded = lineage(call.storage.machine, &call.tables.places, place).ok()?;
+            let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
+            let root = call.callee_formals[formal].place;
+            let held = call
+                .held_at(&recorded)
+                .observation(&recorded, scalar_type)
+                .ok()?;
+            if !same(held, ScalarTerm::value(value, scalar_type)) {
+                return None;
+            }
+            let version = semantic_vocabulary::ContentPlaceVersion::Entry;
+            let term = match scalar_type {
+                ScalarType::Boolean => ScalarTerm::BooleanField {
+                    version,
+                    root,
+                    path,
+                },
+                ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                    version,
+                    root,
+                    path,
+                    scalar_type,
+                },
+                ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                    version,
+                    root,
+                    path,
+                    format,
+                },
+            };
+            let index = self.terms.len();
+            self.terms.push(term);
+            Some(index)
+        });
+        projection.map(|index| self.terms[index].clone())
+    }
+}
+
+/// Only exact prefixes of this observation can name it. If several actuals
+/// match, keep the first formal in declaration order, even across prefixes.
+fn formal_observation_path(
+    readable: &[(&Lineage, usize)],
+    recorded: &Lineage,
+) -> Option<(usize, Vec<CanonicalStructuralPathSegment>)> {
+    let segment = |segment: &Segment| match segment {
+        Segment::Field(field) => Some(CanonicalStructuralPathSegment::Field(*field)),
+        Segment::Case(case) => Some(CanonicalStructuralPathSegment::Case(*case)),
+        Segment::FixedIndex(index) => Some(CanonicalStructuralPathSegment::FixedIndex(*index)),
+        Segment::Referent => Some(CanonicalStructuralPathSegment::Referent),
+        _ => None,
+    };
+    // Any segment unavailable in a contract must lie inside the actual.
+    let shortest = recorded
+        .segments
+        .iter()
+        .rposition(|step| segment(step).is_none())
+        .map_or(0, |position| position + 1);
+    let (formal, prefix) = (shortest..=recorded.segments.len())
+        .filter_map(|length| {
+            let prefix = (recorded.root, &recorded.segments[..length]);
+            let first = readable
+                .partition_point(|(actual, _)| (actual.root, actual.segments.as_slice()) < prefix);
+            let (actual, formal) = readable.get(first)?;
+            ((actual.root, actual.segments.as_slice()) == prefix).then_some((*formal, length))
+        })
+        .min()?;
+    let path = recorded.segments[prefix..]
+        .iter()
+        .map(segment)
+        .collect::<Option<Vec<_>>>()?;
+    Some((formal, path))
 }
 
 impl crate::Bindings for AtCall<'_, '_> {
@@ -5189,6 +5336,70 @@ impl crate::Bindings for Observed<'_, '_> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    use semantic_vocabulary::StructuralFieldId;
+
+    #[test]
+    fn call_observation_keeps_the_first_readable_formal_across_exact_prefixes() {
+        let root = PlaceId::new(1).unwrap();
+        let field = StructuralFieldId::new(2).unwrap();
+        let sibling = StructuralFieldId::new(3).unwrap();
+        let at = |root, segments| Lineage { root, segments };
+        let whole = at(root, vec![]);
+        let narrowed = at(root, vec![Segment::Field(field)]);
+        let disjoint = at(root, vec![Segment::Field(sibling)]);
+        let foreign = at(PlaceId::new(2).unwrap(), vec![]);
+        let recorded = at(root, vec![Segment::Field(field), Segment::FixedIndex(4)]);
+
+        let mut readable = [
+            (&disjoint, 0),
+            (&foreign, 1),
+            (&whole, 4),
+            (&narrowed, 3),
+            (&narrowed, 2),
+        ];
+        readable.sort_unstable();
+        assert_eq!(
+            formal_observation_path(&readable, &recorded),
+            Some((2, vec![CanonicalStructuralPathSegment::FixedIndex(4)]))
+        );
+        let readable = [(&whole, 1), (&narrowed, 2)];
+        assert_eq!(
+            formal_observation_path(&readable, &recorded),
+            Some((
+                1,
+                vec![
+                    CanonicalStructuralPathSegment::Field(field),
+                    CanonicalStructuralPathSegment::FixedIndex(4)
+                ]
+            ))
+        );
+        assert_eq!(
+            formal_observation_path(&[(&disjoint, 0), (&foreign, 1)], &recorded),
+            None
+        );
+    }
+
+    #[test]
+    fn a_runtime_index_can_name_an_actual_but_cannot_enter_a_formal_path() {
+        let root = PlaceId::new(1).unwrap();
+        let selector = ValueId::new(1).unwrap();
+        let whole = Lineage {
+            root,
+            segments: Vec::new(),
+        };
+        let actual = Lineage {
+            root,
+            segments: vec![Segment::RuntimeIndex { selector }],
+        };
+        let mut recorded = actual.clone();
+        recorded.segments.push(Segment::FixedIndex(4));
+
+        assert_eq!(formal_observation_path(&[(&whole, 0)], &recorded), None);
+        assert_eq!(
+            formal_observation_path(&[(&whole, 0), (&actual, 1)], &recorded),
+            Some((1, vec![CanonicalStructuralPathSegment::FixedIndex(4)]))
+        );
+    }
 
     #[test]
     fn a_copy_trace_scans_its_blocks_and_preserves_every_arrival() {

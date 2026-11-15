@@ -1135,7 +1135,14 @@ fn conclude(
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                statement: describe::unproved(
+                    &elaboration,
+                    machine,
+                    tables,
+                    obligation,
+                    row.kind,
+                    site,
+                ),
                 consumed: None,
             });
         }
@@ -1186,7 +1193,14 @@ fn conclude(
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                statement: describe::unproved(
+                    &elaboration,
+                    machine,
+                    tables,
+                    consumed.opened_by,
+                    row.kind,
+                    site,
+                ),
                 consumed: Some(ConsumptionSite {
                     at: consumed.at,
                     site: source_of(sources, machine, consumed.at)?,
