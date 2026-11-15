@@ -49,8 +49,8 @@ pub use package_compilation::{
     PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub(crate) use target_preparation::{PreparedProductTarget, selected_supplies};
 pub use target_preparation::{
-    ProductSupplySource, SuppliedProduct, TargetSupplySource, judge_supplied_product,
-    prepare_supplied_target,
+    ChosenDefaultLayout, ProductSupplySource, SuppliedProduct, SupplyJudgment, TargetSupplySource,
+    judge_supplied_product, prepare_supplied_target,
 };
+pub(crate) use target_preparation::{PreparedProductTarget, selected_supplies};

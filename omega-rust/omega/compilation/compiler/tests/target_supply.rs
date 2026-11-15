@@ -127,6 +127,19 @@ fn judged(
     (Arc::new(frozen), defaults, roster)
 }
 
+/// The supplied publication. These sources defer no default's layout, so the
+/// judgment never asks for another preparation.
+fn supplied_product(
+    source: compiler::ProductSupplySource<'_>,
+) -> Result<compiler::SuppliedProduct, Vec<diagnostics::Diagnostic>> {
+    match compiler::judge_supplied_product(source)? {
+        compiler::SupplyJudgment::Supplied(product) => Ok(product),
+        compiler::SupplyJudgment::PrepareLayouts(layouts) => {
+            panic!("no default's layout was deferred: {layouts:?}")
+        }
+    }
+}
+
 /// What a product of one target reads after its source is checked.
 #[derive(Debug)]
 struct Supplied {
@@ -171,10 +184,12 @@ fn supplied_on(
         )
         .map_err(first)?,
     );
-    let product = compiler::judge_supplied_product(compiler::ProductSupplySource {
+    let product = supplied_product(compiler::ProductSupplySource {
         publication: Arc::clone(&original),
         build: &[],
         defaults: &defaults,
+        layout_deferred: &[],
+        layout_prepared: &[],
     })
     .map_err(first)?;
     let supply = compiler::prepare_supplied_target(compiler::TargetSupplySource {
@@ -238,10 +253,12 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
     assert!(message.contains("crash"), "{message}");
     // The global queue must mint B's own publication too: A cannot stand in
     // for the newly chosen provider's body and refinement obligations.
-    let error = compiler::judge_supplied_product(compiler::ProductSupplySource {
+    let error = supplied_product(compiler::ProductSupplySource {
         publication: Arc::new(original),
         build: &[],
         defaults: &defaults,
+        layout_deferred: &[],
+        layout_prepared: &[],
     })
     .unwrap_err();
     let message = diagnostics::join_messages(&error);

@@ -48,6 +48,17 @@ fn data_argument<'value>(
     destination: TypeReferenceHandle,
     value: &'value BuildTimeValue,
 ) -> Result<DataArgument<'value>, String> {
+    // A formal or member type can be a data application no preparation has
+    // viewed yet, such as a parameter's `Shelf<u64>` or a member type copied
+    // for its enclosing lifetimes. Form its view the way typing forms one for
+    // its own references; an application that stays open is still refused.
+    if matches!(
+        program.type_reference_table.type_reference(destination),
+        TypeReferenceNode::Generic { .. }
+    ) && program.data_application_definition(destination).is_none()
+    {
+        program.prepare_data_application_view(destination)?;
+    }
     let definition = program
         .closed_data_definition(destination)
         .cloned()

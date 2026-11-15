@@ -1,0 +1,16 @@
+// The Linux and macOS targets reach `Measure` through the kit's default
+// `PairMeasure`, so its Pair layout is prepared for them; byte 8 holds 42 only
+// when that authored layout was applied. The kit's overlapping Windows default
+// is replaced by this Build and never laid out.
+// Expected exit: 0
+use layout_default_kit::main::Measure;
+
+machine main() crashes Trap {
+    let byte: u8 = Measure::measure();
+    transition byte == 42u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
