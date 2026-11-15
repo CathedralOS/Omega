@@ -44,7 +44,7 @@ stress. `scalar` is
 `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg`; `borrowed` is
 `tests/fixtures/run/ownership/borrowed_root_replacement/main.omg`. `square`
 uses the retained canonical-literal square-sum source reconstructed by
-the portable `omega-bench proof-square` command, preserving its algorithm,
+the portable `omega-bench proof-square` command for reproduction, preserving its algorithm,
 constants and checksum. Its source archive remains under the raw-data root.
 
 Full source-route profiling counted every `Known` invocation, including
@@ -229,6 +229,16 @@ The current-base candidate again completes scalar native/Psi agreement, exit
 `abe2e510430a8bf7caf7abc2641bd18e4f6b40b09a82b69c554158e675a66280`.
 This also verifies the old queue report about `settle(product)` is already
 resolved; its stale bullet is removed without claiming a new semantic repair.
+
+Portable plan/input preparation is carried from helper commit
+`d619a243381bafdb0981edad8a02890cb08d067e` (exact source from the tested helper slice). Its five focused planning tests,
+release all-target Clippy and formatting pass. Default and identity square
+CLI preparation reproduce all three pinned hashes; source/prove A/A plans
+complete the existing runner's oracles in two-pair smoke checks, not timing
+claims. Those exact tool checks are reused: benchmark and bounded-process
+sources/dependencies are unchanged between the helper's `4d7ea467f89e7` base
+and the `a0802ba24dbe2` integration base. Root helper records remain under
+worker-31's ignored `build/performance/portable-*` directories.
 
 Raw data, baseline/candidate producers, source and harness snapshots, all
 individual streams, allocation summaries and paired journals remain outside
