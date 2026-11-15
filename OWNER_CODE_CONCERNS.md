@@ -123,13 +123,6 @@ framework or a list of unimplemented features.
 - Cost: Supply each deployment's target observations to the constant's per-deployment run, as its layouts now are, and fold it only when the deployments agree. Publish the exact source-selected provider commitment through the existing folded-constant closure. Preserve the wrong-target, absent/repeated plan, equal-result substitution and cast refusals.
 - Reported: 2026-11-15, Codex, while replaying the fixed-layout cast oracles; narrowed the same day by Claude Code after the record constant was repaired.
 
-### A textual merge can pass Admission with a Rust type error
-- Category: verifying costs more than writing
-- Where: [pre-merge Admission](.github/workflows/admission.yml#L68), [post-merge checks](.github/workflows/post-merge-check.yml#L64), [atomic store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/atomics.rs#L223)
-- Saw: [PR #3326](https://github.com/CathedralOS/Omega/pull/3326) had green Admission, then squash commit `d5d5c987120` failed a clean macOS arm64 Rust build with E0533. The new evaluation statement shape and the existing atomic-store constructor were in different files. Git merged the text without a conflict. Admission runs rules and formatting on the merge, and the compiler checks start after publication.
-- Cost: Unrelated compiler builds and two in-flight repairs stopped before tests could run. Compare the latency and detection coverage of checking the affected crates on a warmed merge tree with the current post-merge validation.
-- Reported: 2026-11-15, Codex, while validating copyable record constants and the owned-element call path.
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L565), [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L942), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L727)

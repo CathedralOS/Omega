@@ -310,8 +310,9 @@ mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
-The only pre-merge check is `admission` (rules and formatting, about a
-minute); `main` is checked after every merge.
+The only pre-merge check is `admission` (rules, formatting and, when Rust or
+Cargo files changed, a type check of the merge tree; about two minutes);
+`main` is checked after every merge.
 
 Passing tests on the change and on the small area around it end pre-merge
 testing. A failure there is an investigation of that failure, never a wider

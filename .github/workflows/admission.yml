@@ -1,9 +1,10 @@
 name: Admission
 
-# The only check a pull request needs before it merges. It builds no compiler:
-# the rules a description and a diff must hold, and formatting. Everything that
-# needs a build (lint, tests, samples) runs on main after merge; see
-# wiki/drafts/designs/ci_rebuild_plan.md. Target: about one minute.
+# The only check a pull request needs before it merges: the rules a
+# description and a diff must hold, formatting, and, when Rust or Cargo files
+# changed, a type check of the merge tree. It builds no compiler: lint, tests
+# and samples run on main after merge; see
+# wiki/drafts/designs/ci_rebuild_plan.md. Target: about two minutes.
 on:
   pull_request:
     branches: [main]
@@ -33,7 +34,7 @@ concurrency:
 jobs:
   admission:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       CARGO_INCREMENTAL: '0'
       # Only xtask is built here, so its objects get their own small cache.
@@ -83,4 +84,23 @@ jobs:
             mbx xtask fmt --check
           else
             echo "No Rust files changed."
+          fi
+      # Two pull requests can each type-check alone and still break together:
+      # Git merges edits in different files without a conflict. #3326 changed
+      # `Statement::Evaluate` while main had gained a new use of the old form
+      # in another file, and its merge failed with E0533 until #3457. This
+      # checks the merge commit GitHub built, not the branch. `cargo check`
+      # stops before code generation, so a cold run over every workspace
+      # target takes about 90 seconds on four CPUs; a restored target
+      # directory saved only about 12 seconds, so there is no cache.
+      # A change to this file runs the step too, so its own pull request tests it.
+      - name: Type-check the merge tree when Rust or Cargo files changed
+        if: github.event_name == 'pull_request'
+        env:
+          CARGO_TARGET_DIR: /tmp/check-target
+        run: |
+          if git diff --name-only HEAD^1 HEAD | grep -qE '\.rs$|(^|/)Cargo\.(toml|lock)$|^rust-toolchain\.toml$|^\.github/workflows/admission\.yml$'; then
+            mbx check --locked --workspace --all-targets
+          else
+            echo "No Rust or Cargo files changed."
           fi
