@@ -420,15 +420,21 @@ pub(crate) fn merge(parts: &[(PathBuf, Header, Vec<Row>)]) -> Result<(Header, Ve
     let count = first.shard.count;
     let mut owner: Vec<Option<&Path>> = vec![None; count + 1];
     for (path, header, _) in parts {
-        for unit in header.shard.first..=header.shard.last {
-            if let Some(other) = owner[unit] {
+        let units = header.shard.first..=header.shard.last;
+        for (unit, slot) in owner
+            .iter_mut()
+            .enumerate()
+            .skip(*units.start())
+            .take(units.count())
+        {
+            if let Some(other) = slot {
                 return Err(format!(
                     "unit {unit}/{count} is in both {} and {}",
                     other.display(),
                     path.display()
                 ));
             }
-            owner[unit] = Some(path);
+            *slot = Some(path);
         }
     }
     let missing: Vec<String> = (1..=count)
