@@ -305,9 +305,24 @@ fn an_owned_payload_store_requires_its_exact_selected_case() {
 #[test]
 fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
     let source = owned_store_source().replace("let mut choice:", "let choice:");
+    let verdict = judge_build(&source);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+        panic!("the immutable root cannot receive the payload: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one mutability violation: {violations:?}");
+    };
     assert_eq!(
-        verdict(&source),
-        "statement store into an immutable binding while reading the body of `build_entry`"
+        violation.statement,
+        "writing to an immutable owned binding requires `mut` while reading the body of `build_entry`"
+    );
+    let start = source.find("choice.item = item(7);").unwrap() + "choice.".len();
+    assert_eq!(
+        violation.site,
+        Some(source::SourceSpan::new(
+            source::SourceId(1),
+            source::Span::new(start, start + "item".len())
+        ))
     );
 }
 

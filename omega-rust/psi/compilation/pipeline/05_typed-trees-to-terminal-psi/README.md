@@ -676,6 +676,10 @@ formal without `mut`.
 - `&mut x` and `&mut p.a` lend the formal as owned storage
   (`Lender::Owner`), as they lend a `mut` local.
 
+An assignment to an immutable owned formal or local rejects at the written
+target, including a field or element of that binding. Writes through an
+existing reference follow that reference's access.
+
 Refused by name:
 
 | Construct | Refusal detail |
@@ -683,7 +687,6 @@ Refused by name:
 | an `ensures` clause or a crash route guard that names a `mut` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
 | a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
 | a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
-| an assignment to, or a store into, a formal that is not `mut` | `statement assignment to an immutable binding`, `statement store into an immutable binding` |
 
 A `mut` formal of plain data without `[copy]` is refused as that data is
 anywhere (`type data with custody`). A formal passed by reference is
@@ -792,7 +795,6 @@ the slice that serves it:
 | data with common fields beside its cases | `type mixed data` |
 | a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing data field that elides a lifetime argument` |
 | data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field or retired field identities | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities` |
-| a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
