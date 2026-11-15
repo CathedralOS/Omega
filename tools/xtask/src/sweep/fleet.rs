@@ -295,14 +295,14 @@ fn unix_job(run: &Run, assignment: &Assignment) -> String {
         ));
     }
     script.push_str(&format!(
-        "if [ ! -d {checkout}/.git ]; then\n\
+        "if [ ! -e {checkout}/.git ]; then\n\
          \x20 st fetching \"cloning {origin}\"\n\
          \x20 git clone -q {origin_q} {checkout} || {{ st failed \"cannot clone {origin} into {checkout_plain}\"; exit 1; }}\n\
          fi\n\
          cd {checkout} || {{ st failed \"no checkout at {checkout_plain}\"; exit 1; }}\n\
          st fetching \"\"\n\
          if [ -n \"$(git status --porcelain --untracked-files=no)\" ]; then st failed \"{checkout_plain} has local changes; fleet only uses a clean clone\"; exit 1; fi\n\
-         git fetch -q origin && git checkout -q --detach {commit} || {{ st failed \"cannot check out {commit}\"; exit 1; }}\n",
+         git fetch -q origin {commit} && git checkout -q --detach {commit} || {{ st failed \"cannot check out {commit}\"; exit 1; }}\n",
         checkout = q(&host.checkout),
         checkout_plain = host.checkout,
         origin = run.origin,
@@ -386,8 +386,8 @@ fn windows_job(run: &Run, assignment: &Assignment) -> Result<String, String> {
          Set-Location {checkout}\n\
          St 'fetching' ''\n\
          if (git status --porcelain --untracked-files=no) {{ St 'failed' {dirty}; exit 1 }}\n\
-         git fetch -q origin\n\
-         if ($LASTEXITCODE) {{ St 'failed' 'git fetch failed'; exit 1 }}\n\
+         git fetch -q origin {commit}\n\
+         if ($LASTEXITCODE) {{ St 'failed' {no_fetch}; exit 1 }}\n\
          git checkout -q --detach {commit}\n\
          if ($LASTEXITCODE) {{ St 'failed' {no_commit}; exit 1 }}\n",
         checkout_git = q(&format!("{checkout}\\.git")),
@@ -404,6 +404,7 @@ fn windows_job(run: &Run, assignment: &Assignment) -> Result<String, String> {
         )),
         commit = run.commit,
         no_commit = q(&format!("cannot check out {}", run.commit)),
+        no_fetch = q(&format!("cannot fetch {} from origin", run.commit)),
     );
     for (key, value) in &host.env {
         body.push_str(&format!("$env:{key} = {}\n", q(value)));
@@ -710,6 +711,28 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
+/// The full commit `rev` names here, or, for a branch this clone does not
+/// fetch (`origin/work/x`), the commit origin has under that name.
+fn resolve_commit(root: &Path, rev: &str) -> Result<String, String> {
+    if let Ok(commit) = git(
+        root,
+        &["rev-parse", "--verify", &format!("{rev}^{{commit}}")],
+    ) {
+        return Ok(commit);
+    }
+    let branch = rev.strip_prefix("origin/").unwrap_or(rev);
+    let listed = git(
+        root,
+        &["ls-remote", "origin", &format!("refs/heads/{branch}")],
+    )?;
+    listed
+        .split_whitespace()
+        .next()
+        .filter(|commit| commit.len() == 40)
+        .map(str::to_owned)
+        .ok_or_else(|| format!("`{rev}` names no commit here and no branch on origin"))
+}
+
 fn save_run(run: &Run) -> Result<PathBuf, String> {
     let dir = runs_dir()?;
     fs::create_dir_all(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
@@ -815,20 +838,12 @@ fn start(args: &[String]) -> Result<(), String> {
     }
     let root = crate::repository::current()?;
     git(&root, &["fetch", "-q", "origin"])?;
-    let commit = git(
-        &root,
-        &[
-            "rev-parse",
-            "--verify",
-            &format!("{}^{{commit}}", options.commit),
-        ],
-    )?;
-    // Every host fetches from origin, so the commit has to be there.
-    if git(&root, &["branch", "-r", "--contains", &commit])?.is_empty() {
-        return Err(format!(
-            "{commit} is on no origin branch; push it first so every host can fetch it"
-        ));
-    }
+    let commit = resolve_commit(&root, &options.commit)?;
+    // Every job fetches exactly this commit from origin; fetching it here
+    // first proves they can, before any host is touched.
+    git(&root, &["fetch", "-q", "origin", &commit]).map_err(|_| {
+        format!("origin does not have {commit}; push it first so every host can fetch it")
+    })?;
     let origin = git(&root, &["remote", "get-url", "origin"])?;
     let id = format!(
         "{}-{}-{}",
