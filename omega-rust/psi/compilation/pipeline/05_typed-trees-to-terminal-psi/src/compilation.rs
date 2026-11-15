@@ -185,7 +185,9 @@ pub fn prepare_compilation(
     if let Some(reason) = selected_failure {
         closure = Err(reason);
     }
-    let forms = prepare_generic_forms(typed, templates, &captures);
+    // A template checked for an invocation must retain its own exact local
+    // declaration to supply the contract of a specialization in that invocation.
+    let forms = prepare_generic_forms(typed, templates, &captures, publication);
     closure = closure.and_then(|mut elaboration| {
         crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
             .map_err(|(owner, reason)| {
@@ -456,13 +458,18 @@ fn prepare_generic_forms(
     typed: &TypedTrees,
     mut templates: Vec<SymbolHandle>,
     captures: &crate::NamedCaptures,
+    publication: terminal_codec::TerminalPublication,
 ) -> Vec<GenericForms> {
     let mut forms = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated =
-            crate::elaborate_generic_forms_with_captures(typed, &[template], captures.clone());
+        let elaborated = crate::elaborate_generic_forms_with_captures(
+            typed,
+            &[template],
+            captures.clone(),
+            publication,
+        );
         let mut applies = Some(Vec::new());
         for form in elaborated.iter().flatten() {
             for application in &form.applications {

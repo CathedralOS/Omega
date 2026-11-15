@@ -73,12 +73,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Named map checks ask for portable template identities
-- Category: knowledge crossing a boundary
-- Where: [check form preparation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/compilation.rs), [application closure](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs), [named-map controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/boundary_calls.rs)
-- Saw: All seven `generic_named_map_*` Stage06 checks pass on clean `4d76bebd83e` and fail on clean macOS arm64 `781f2f5cb50`. The complete invocation closure refuses “a specialization's template check form has no exact contract.” Its anonymous template cannot supply a portable identity. The independently published named-map artifact can still be reloaded.
-- Cost: The closure and its generic check forms need to use the same identity scope. Preserve the published capture and its arguments, and recover the original weaker body, requirement, reach and owner verdicts in the invocation checks.
-- Reported: 2026-11-15, Codex, while comparing Stage06 collection validation against clean source.
+### The record-domain catalog test has no declared predicate subject
+- Category: tests that pin the bug
+- Where: [catalog fixture](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L638), [subject requirement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/predicates.rs#L408)
+- Saw: On clean `cdd086553fa` on macOS arm64, `a_record_domain_catalog_keeps_the_declared_predicate_and_its_presence` fails with `spelling domain predicate without a subject symbol`. Its hand-built false and true predicate declarations leave the subject at its invalid default, so lowering never reaches the catalog assertions.
+- Cost: The control cannot distinguish false, true and absent record-domain predicates. Supply the same declaration-owned subject that real source retains, and preserve all three catalog assertions.
+- Reported: 2026-11-15, Codex, while verifying named-map invocation contracts.
 
 ### A descriptor length premise cannot cross the loop join
 - Category: knowledge crossing a boundary
