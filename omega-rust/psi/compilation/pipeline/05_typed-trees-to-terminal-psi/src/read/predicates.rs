@@ -314,7 +314,9 @@ impl Program<'_> {
         // predicate of a byte slice is decided by a view's bytes, where a
         // field of the domain is stored (`read::bytes`), not stated as a
         // clause.
-        if super::bytes::primitive_byte_domain(self.typed, definition, id) {
+        if typed_trees::byte_predicates::byte_slice_domain_predicate(self.typed, definition)
+            .is_some()
+        {
             return Ok(());
         }
         let carrier = self.value_type(id, definition.target_type)?;

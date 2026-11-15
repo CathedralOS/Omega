@@ -980,7 +980,7 @@ impl Program<'_> {
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
-        if !super::bytes::primitive_byte_domain(typed, definition, id)
+        if typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition).is_none()
             && !self
                 .declared_domains
                 .iter()

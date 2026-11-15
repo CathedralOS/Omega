@@ -7,9 +7,10 @@ inspection snapshots (`inspection`) for `TypedTrees`.
 pub mod evidence {
     pub mod byte_predicates {
         use crate::TypedTrees;
+        use crate::domain::DomainDefinition;
         use crate::expression::ExpressionHandle;
         use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-        use symbols::SymbolHandle;
+        use symbols::{BuiltinTypeAtom, SymbolHandle, UnresolvedName};
 
         pub use language_semantics::byte_predicates::ByteSequencePredicate;
 
@@ -18,7 +19,13 @@ pub mod evidence {
             expression: ExpressionHandle,
         ) -> Option<(ByteSequencePredicate, ExpressionHandle)> {
             let call = program.expression_table.call_node(expression)?;
-            if call.target_symbol.is_valid() || call.receiver.is_valid() {
+            if call.target_symbol.is_valid()
+                || call.receiver.is_valid()
+                || !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+                || program.expression_table.unresolved_name(expression)
+                    != UnresolvedName::NoVisibleDeclaration
+            {
                 return None;
             }
             let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
@@ -34,6 +41,42 @@ pub mod evidence {
             domain_symbol: SymbolHandle,
         ) -> Option<ByteSequencePredicate> {
             let domain = program.domain_definition(domain_symbol)?;
+            domain_byte_predicate_fact(program, domain).map(|(_, predicate)| predicate)
+        }
+
+        /// The exact fact read by the byte-slice checker. Keep the authored
+        /// subject and call occurrence when an applied theory supplies the carrier.
+        pub fn byte_slice_domain_predicate(
+            program: &TypedTrees,
+            theory: &DomainDefinition,
+        ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
+            let types = &program.type_reference_table;
+            if !types.contains_type_reference(theory.target_type) {
+                return None;
+            }
+            let TypeReferenceNode::Slice { element_type } =
+                types.type_reference(theory.target_type)
+            else {
+                return None;
+            };
+            if !types.contains_type_reference(*element_type) {
+                return None;
+            }
+            let TypeReferenceNode::Named { symbol, .. } = types.type_reference(*element_type)
+            else {
+                return None;
+            };
+            if program.symbols.builtin_type_atom(*symbol) != Some(BuiltinTypeAtom::U8) {
+                return None;
+            }
+            let declaration = program.domain_definition(theory.symbol)?;
+            domain_byte_predicate_fact(program, declaration)
+        }
+
+        fn domain_byte_predicate_fact(
+            program: &TypedTrees,
+            domain: &DomainDefinition,
+        ) -> Option<(ExpressionHandle, ByteSequencePredicate)> {
             if domain.alias.is_some()
                 || !domain.index_arguments.is_empty()
                 || domain.issuance() != crate::domain::DomainIssuance::Unrestricted
@@ -47,7 +90,8 @@ pub mod evidence {
                 return None;
             };
             let (predicate, argument) = byte_predicate_call(program, *expression)?;
-            crate::domain::domain_subject_reference(program, domain, argument).then_some(predicate)
+            crate::domain::domain_subject_reference(program, domain, argument)
+                .then_some((*expression, predicate))
         }
 
         pub fn type_reference_domain_predicates(
