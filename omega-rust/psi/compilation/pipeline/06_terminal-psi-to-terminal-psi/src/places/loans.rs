@@ -969,8 +969,10 @@ impl Storage<'_> {
         }
     }
 
-    /// A retained loan constrains every use of its backing, not just later
-    /// loan formation. Only a live transported descriptor may use an exclusive
+    /// A retained loan constrains every use of its backing until its actual
+    /// carriers are disposed, even after their last observation. Future-use
+    /// liveness can propose a release, but cannot itself return custody.
+    /// Only an authenticated transported descriptor may use an exclusive
     /// loan; a shared loan permits observation but no write through any alias.
     fn uses_retained_loan(
         &self,
@@ -1008,18 +1010,22 @@ impl Storage<'_> {
                         .is_some_and(|names| names.contains(&descriptor))
                     {
                         for child in formed {
-                            if child
-                                .lifetime
-                                .as_ref()
-                                .is_some_and(|life| life.live.contains(&at))
-                                && self.descends(child, loan.obligation, formed)?
+                            if child.lifetime.as_ref().is_some_and(|life| {
+                                life.surviving
+                                    .get(&at)
+                                    .is_some_and(|names| !names.is_empty())
+                            }) && self.descends(child, loan.obligation, formed)?
                             {
                                 return Ok(Some((concerns, LoanConflict::ReleaseBeforeChildren)));
                             }
                         }
                     }
                 }
-                if !lifetime.live.contains(&at) {
+                if !lifetime
+                    .surviving
+                    .get(&at)
+                    .is_some_and(|names| !names.is_empty())
+                {
                     continue;
                 }
                 for effect in self.operation_read_effects(operation)? {
@@ -1174,7 +1180,9 @@ impl Storage<'_> {
                 continue;
             }
             if candidate.lifetime.as_ref().is_some_and(|life| {
-                life.live.contains(&at)
+                life.surviving
+                    .get(&at)
+                    .is_some_and(|names| !names.is_empty())
                     && life
                         .authorized
                         .get(&at)
@@ -1866,14 +1874,16 @@ impl Storage<'_> {
                 // arena ordering is not lifetime ordering.
                 for earlier in formed[..at].iter().filter(|earlier| {
                     (earlier.invocation.is_some() && earlier.invocation == loan.invocation)
-                        || earlier
-                            .lifetime
-                            .as_ref()
-                            .is_some_and(|life| life.live.contains(&loan.at))
-                        || loan
-                            .lifetime
-                            .as_ref()
-                            .is_some_and(|life| life.live.contains(&earlier.at))
+                        || earlier.lifetime.as_ref().is_some_and(|life| {
+                            life.surviving
+                                .get(&loan.at)
+                                .is_some_and(|names| !names.is_empty())
+                        })
+                        || loan.lifetime.as_ref().is_some_and(|life| {
+                            life.surviving
+                                .get(&earlier.at)
+                                .is_some_and(|names| !names.is_empty())
+                        })
                 }) {
                     if self.descends(loan, earlier.obligation, &formed)?
                         || self.descends(earlier, loan.obligation, &formed)?

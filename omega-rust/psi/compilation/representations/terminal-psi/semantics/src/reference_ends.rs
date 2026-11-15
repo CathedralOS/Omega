@@ -264,7 +264,6 @@ fn machine_candidates(
             ) {
                 continue;
             }
-            let mut unproved_case = None;
             for (position, segment) in location.path.iter().enumerate() {
                 let crate::descriptor_lifetimes::DescriptorPathSegment::Case(case) = segment else {
                     continue;
@@ -276,15 +275,12 @@ fn machine_candidates(
                     },
                     case: *case,
                 };
-                if analysis.case_is_established(machine.id, at, &predicate) {
-                    continue;
-                }
-                if analysis.case_feasibility(machine.id, at, &predicate)
-                    == crate::descriptor_results::FlowFeasibility::ProvedImpossible
-                {
+                // A possible payload is not an actual descriptor. Propose an
+                // inline release only for an established case; ordinary
+                // guarded whole-carrier cleanup still owns the other paths.
+                if !analysis.case_is_established(machine.id, at, &predicate) {
                     continue 'locations;
                 }
-                unproved_case = Some(predicate);
             }
             selected.insert(
                 location.clone(),
@@ -294,7 +290,7 @@ fn machine_candidates(
                         path,
                         access: StructuralAccess::Owned,
                     },
-                    unproved_case,
+                    unproved_case: None,
                 },
             );
         }

@@ -592,6 +592,136 @@ fn a_cherry_pick_label_cannot_hide_a_skipped_parent_or_merge() {
 }
 
 #[test]
+fn legacy_interval_keeps_the_real_checkout_boundary_through_an_integration_merge() {
+    let fixture = WorktreeInterval::new();
+    fixture.transcript(Some("2026-01-03T00:00:00Z"));
+    fixture.append_usage("2026-01-06T00:00:00Z", 20);
+    WorktreeInterval::git(
+        &fixture.worker,
+        &["commit", "--allow-empty", "-m", "owned checkpoint"],
+        "2026-01-04T00:00:00Z",
+    );
+    let owned = WorktreeInterval::git(
+        &fixture.worker,
+        &["rev-parse", "HEAD"],
+        "2026-01-04T00:00:00Z",
+    );
+    fs::write(
+        fixture.repository.join("helper"),
+        "integration prerequisite\n",
+    )
+    .unwrap();
+    WorktreeInterval::git(
+        &fixture.repository,
+        &["add", "helper"],
+        "2026-01-04T00:00:00Z",
+    );
+    WorktreeInterval::git(
+        &fixture.repository,
+        &["commit", "-m", "published prerequisite"],
+        "2026-01-04T00:00:00Z",
+    );
+    let helper = WorktreeInterval::git(
+        &fixture.repository,
+        &["rev-parse", "HEAD"],
+        "2026-01-04T00:00:00Z",
+    );
+    WorktreeInterval::git(
+        &fixture.worker,
+        &["merge", "--no-ff", "--no-edit", &helper],
+        "2026-01-05T00:00:00Z",
+    );
+    let parents = WorktreeInterval::git(
+        &fixture.worker,
+        &["show", "-s", "--format=%P", "HEAD"],
+        "2026-01-05T00:00:00Z",
+    );
+    assert!(
+        parents
+            .split_whitespace()
+            .eq([owned.as_str(), helper.as_str()])
+    );
+    assert!(!fixture.git_dir.join("omega-work-interval.json").exists());
+    let audit = fixture.audit();
+    assert!(audit.contains("Tokens: 30 in (4 cached), 2 out"), "{audit}");
+    let interval: serde_json::Value = serde_json::from_slice(
+        &fs::read(fixture.git_dir.join("omega-work-interval.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(interval["source"], fixture.base);
+    assert_eq!(interval["started_epoch"], 1_767_312_000_i64);
+    assert_eq!(fixture.audit(), audit);
+}
+
+#[test]
+fn a_merge_label_requires_multiple_parents_and_the_owned_first_parent() {
+    for layout in [
+        "root",
+        "single-parent",
+        "skipped-parent",
+        "owned-second-parent",
+    ] {
+        let fixture = WorktreeInterval::new();
+        fixture.transcript(Some("2026-01-03T00:00:00Z"));
+        for label in ["first helper", "second helper"] {
+            WorktreeInterval::git(
+                &fixture.repository,
+                &["commit", "--allow-empty", "-m", label],
+                "2026-01-04T00:00:00Z",
+            );
+        }
+        let helper = WorktreeInterval::git(
+            &fixture.repository,
+            &["rev-parse", "HEAD"],
+            "2026-01-04T00:00:00Z",
+        );
+        let tree = WorktreeInterval::git(
+            &fixture.repository,
+            &["rev-parse", "HEAD^{tree}"],
+            "2026-01-04T00:00:00Z",
+        );
+        let source = if layout == "skipped-parent" {
+            helper.clone()
+        } else {
+            let mut arguments = vec!["commit-tree", tree.as_str()];
+            if layout == "owned-second-parent" {
+                arguments.extend(["-p", helper.as_str()]);
+            }
+            if layout != "root" {
+                arguments.extend(["-p", fixture.base.as_str()]);
+            }
+            arguments.extend(["-m", "forged merge label"]);
+            WorktreeInterval::git(&fixture.repository, &arguments, "2026-01-04T00:00:00Z")
+        };
+        WorktreeInterval::git(
+            &fixture.worker,
+            &[
+                "update-ref",
+                "-m",
+                "merge forged: Merge made by the 'ort' strategy.",
+                "HEAD",
+                &source,
+                &fixture.base,
+            ],
+            "2026-01-05T00:00:00Z",
+        );
+        let output = fixture.command(&fixture.worker, &["provenance", "--allow-unavailable"]);
+        assert!(!output.status.success(), "{layout}");
+        assert!(output.stdout.is_empty(), "{layout}");
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("unverifiable merge checkpoint"),
+            "{layout}",
+        );
+        assert!(
+            !fixture.git_dir.join("omega-work-interval.json").exists(),
+            "{layout}"
+        );
+    }
+}
+
+#[test]
 fn warm_next_outcome_and_fresh_acquisition_record_without_resetting_source_cache_or_lease() {
     let fixture = WorktreeInterval::new();
     fixture.transcript(Some("2026-01-03T00:00:00Z"));

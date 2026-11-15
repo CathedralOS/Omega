@@ -205,3 +205,36 @@ fn a_contradiction_through_a_closed_term_reaches_the_kernel_at_literals() {
     let verdict = super::build_purpose::judge_build(&source).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
+
+/// Closed arithmetic is not a literal in bounded predicate denotation. The
+/// contradiction certificate must retain checked conversions at both ends.
+#[test]
+fn a_closed_arithmetic_disequality_has_a_kernel_checked_contradiction() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+    let add = |left, right| ScalarTerm::ExactIntegerAdd {
+        scalar_type: integer,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let sum = add(add(literal(7), literal(5)), literal(3));
+    let context = PropositionContext::from_value_types(std::iter::empty()).unwrap();
+    let values = IdTable::default();
+    for endpoint in [15, 16] {
+        let assumptions = [Proposition::Disjunction(vec![
+            Proposition::LessThan(sum.clone(), literal(endpoint)),
+            Proposition::LessThan(literal(endpoint), sum.clone()),
+        ])];
+        let goal = Proposition::Falsehood;
+        let proof = crate::prove::Prover::new(&context, &assumptions, &[], &values).prove(&goal);
+        if endpoint == 15 {
+            proof_admission::check_certificate(&context, &goal, &assumptions, &[], &proof.unwrap())
+                .unwrap();
+        } else {
+            assert!(
+                proof.is_err(),
+                "the unequal endpoint is a consistent arrival"
+            );
+        }
+    }
+}

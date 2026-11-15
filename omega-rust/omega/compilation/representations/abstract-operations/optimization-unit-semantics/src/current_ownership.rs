@@ -1531,6 +1531,7 @@ pub(crate) mod address_joins {
                             successors: targets
                                 .into_iter()
                                 .map(|target| DescriptorFlowEdge {
+                                    definitions: Vec::new(),
                                     target,
                                     parameters: vec![],
                                     bindings: vec![],

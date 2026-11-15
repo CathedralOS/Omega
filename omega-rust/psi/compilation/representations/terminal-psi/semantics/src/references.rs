@@ -289,11 +289,21 @@ pub(crate) mod reference_completion {
     ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
         for (identity, lifetime) in candidates {
-            if !lifetime
+            let authorized = lifetime
                 .authorized
                 .get(&at)
+                .is_some_and(|names| names.contains(descriptor));
+            if lifetime
+                .surviving
+                .get(&at)
                 .is_some_and(|names| names.contains(descriptor))
+                && !authorized
             {
+                return Err(
+                    "reference descriptor has an unresolved surviving immediate loan occurrence",
+                );
+            }
+            if !authorized {
                 continue;
             }
             if parent.is_some_and(|previous| previous != identity) {
@@ -496,6 +506,12 @@ pub(crate) mod reference_completion {
             .ok_or("returned borrow dependency has no input position")?;
         if let Some(previous) = previous {
             previous.live.extend(lifetime.live);
+            for (at, names) in lifetime.demanded {
+                previous.demanded.entry(at).or_default().extend(names);
+            }
+            for (at, names) in lifetime.surviving {
+                previous.surviving.entry(at).or_default().extend(names);
+            }
             for (at, names) in lifetime.authorized {
                 previous.authorized.entry(at).or_default().extend(names);
             }
@@ -626,6 +642,8 @@ pub(crate) mod reference_completion {
                     position,
                     crate::descriptor_lifetimes::DescriptorLifetime {
                         live: lifetime.live.clone(),
+                        demanded: lifetime.demanded.clone(),
+                        surviving: lifetime.surviving.clone(),
                         authorized: Default::default(),
                     },
                 )?;

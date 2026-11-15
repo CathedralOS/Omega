@@ -1089,6 +1089,13 @@ pub(crate) mod analysis {
                     .iter()
                     .map(|(source, destination)| Ok((canonical(source)?, canonical(destination)?)))
                     .collect::<Result<_, DescriptorGraphError>>()?;
+                for edge in &mut step.successors {
+                    edge.definitions = edge.definitions.iter().map(canonical).collect::<Result<
+                        _,
+                        DescriptorGraphError,
+                    >>(
+                    )?;
+                }
                 if residence_rules.is_some() {
                     for edge in &mut step.successors {
                         for binding in &mut edge.bindings {
@@ -1376,7 +1383,12 @@ pub(crate) mod analysis {
                             && strong
                             && match origin {
                                 DescriptorStoredOrigin::Parameter { projection, .. } => {
-                                    projection.exact
+                                    // A reference to parameter storage is a
+                                    // newly retained call loan. Existing
+                                    // descriptor custody arrives as an exact
+                                    // IncomingSlot instead of this address.
+                                    self.replay.slot_kind != DescriptorSlotKind::References
+                                        && projection.exact
                                         && !projection.indirect
                                         && projection.window.is_none()
                                         && projection.captured_at.is_none()
@@ -1847,6 +1859,7 @@ pub(crate) mod case_flow {
                                     successors: targets
                                         .iter()
                                         .map(|target| DescriptorFlowEdge {
+                                            definitions: Vec::new(),
                                             target: position(*target),
                                             parameters: vec![],
                                             bindings: vec![],
@@ -3868,12 +3881,19 @@ pub(crate) mod engine {
                 if current.path.is_empty() && !borrowed {
                     return Some(StorageResolution::Unique(current));
                 }
-                let aliases_backing = borrowed
-                    || matches!(
-                        find_structural_type(self.types, root_type)?.shape,
-                        StructuralTypeShape::Reference { .. }
-                    )
-                    || is_descriptor(self.types.iter(), root_type);
+                // A machine parameter names the lender's original home. A
+                // whole-value store replaces its contents, not that address;
+                // following the stored value would retarget retained loans to
+                // the consumed replacement. Block arrivals do transport their
+                // backing address, as do actual descriptor values.
+                let aliases_backing = matches!(
+                    definition,
+                    DescriptorDefinition::Arrival { access }
+                        if *access != StructuralAccess::Owned
+                ) || matches!(
+                    find_structural_type(self.types, root_type)?.shape,
+                    StructuralTypeShape::Reference { .. }
+                ) || is_descriptor(self.types.iter(), root_type);
                 // An Incoming origin names the entry value, not whatever its
                 // original descriptor home holds after a later reassignment.
                 let captured_crossing = captured_entry
@@ -4489,10 +4509,16 @@ pub(crate) mod engine {
             case_storage: &super::case_flow::Storage,
             reads: &DescriptorReadDepth<'_>,
         ) -> Option<State> {
+            let definitions = edge
+                .parameters
+                .iter()
+                .chain(&edge.definitions)
+                .cloned()
+                .collect::<Vec<_>>();
             let mut after = self.transfer(
                 machine,
                 before,
-                &edge.parameters,
+                &definitions,
                 edge.derivations(),
                 super::case_flow::Transfer::Arrival { edge, reads },
                 case_storage,
@@ -5815,6 +5841,7 @@ pub(crate) mod engine {
                 let mut step = DescriptorFlowStep::default();
                 if let Some(&target) = positions.get(index + 1) {
                     step.successors.push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target,
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -6292,6 +6319,7 @@ pub(crate) mod engine {
             let exit = (BlockId::new(2).unwrap(), 0);
             let replace = (BlockId::new(3).unwrap(), 0);
             let edge = |target| DescriptorFlowEdge {
+                definitions: Vec::new(),
                 target,
                 parameters: vec![],
                 bindings: vec![],
