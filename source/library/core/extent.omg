@@ -21,11 +21,11 @@ public data Extent [linear] {
 // the routes alone supply neither actual backing nor a Stable access profile.
 public domain Extent::Vacant
 established by VacantContentTransfer::transfer, AccessLifecycle::move_out,
-    Access::extract_resident, Run::extract_from_profile, Run::retire_empty,
+    access::extract_resident, Run::extract_from_profile, Run::retire_empty,
     Run::relocate_from_profiles;
 public domain<P, T> Extent::Resident<P, T>
 established by ResidentContentTransfer::transfer, AccessLifecycle::initialize,
-    Access::initialize_from_profile;
+    access::initialize_from_profile;
 
 // Transfer an existing grant after an admitted provider establishes that its
 // exact range contains no live resident. This does not zero bytes, release the

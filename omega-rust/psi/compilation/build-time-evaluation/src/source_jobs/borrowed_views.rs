@@ -7,12 +7,12 @@ use crate::{
 use typed_trees::{TypedTrees, expression::ExpressionNode};
 
 const SOURCE: &str = r#"
-use omega::language::core::Access;
+use omega::language::core::access;
 machine relay<'owner>(source: &'owner mut i64) -> &'owner mut i64 crashes none {
-    Access::view_mut<i64, i64>(source)
+    access::view_mut<i64, i64>(source)
 }
 machine other(source: &mut u64) -> &mut u64 crashes none {
-    Access::view_mut<u64, u64>(source)
+    access::view_mut<u64, u64>(source)
 }
 machine run() -> i64 crashes none {
     let mut backing: i64 = 17;
@@ -457,7 +457,7 @@ machine run() -> i64 crashes none {
 fn a_closed_core_borrow_cannot_invent_a_different_view_interpretation() {
     let source = SOURCE
         .replace("-> &'owner mut i64", "-> &'owner mut u64")
-        .replace("Access::view_mut<i64, i64>", "Access::view_mut<i64, u64>")
+        .replace("access::view_mut<i64, i64>", "access::view_mut<i64, u64>")
         .replace("machine run() -> i64", "machine run() -> u64")
         .replace("let child: &mut i64", "let child: &mut u64")
         .replace("let observed: i64", "let observed: u64");
