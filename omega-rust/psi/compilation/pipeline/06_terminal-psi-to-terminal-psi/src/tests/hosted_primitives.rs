@@ -48,7 +48,7 @@ fn judge_program(
 #[test]
 fn hosted_primitive_retains_distinct_source_and_public_completion() {
     let typed = program(
-        "use omega::language::core::Never; use omega::language::core::ProcessExit; use omega::language::core::ProcessExitPrimitive; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive::exit_process(7); }",
+        "use omega::language::core::Never; use omega::language::core::ProcessExit; use omega::language::core::ProcessExitPrimitive; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
     );
     let mut verdicts = judge_program(&typed);
     let accepted = match verdicts.remove(0) {
@@ -103,17 +103,14 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
     for (original, replacement) in [
         ("ProcessExit::exit_process", "ProcessExit::fake_process"),
         (
-            "toolchain::ProcessExitPrimitive::exit_process",
-            "toolchain::ProcessExitPrimitive::fake_process",
+            "toolchain::ProcessExitPrimitive",
+            "toolchain::ProcessExitPrimitivf",
         ),
         (
-            r"path\(ProcessExitPrimitive::exit_process\)",
-            r"path\(ProcessExitPrimitive::fake_process\)",
+            r"path\(ProcessExitPrimitive\)",
+            r"path\(ProcessExitPrimitivf\)",
         ),
-        (
-            "ProcessExitPrimitive::exit_process::entry",
-            "ProcessExitPrimitive::exit_process::other",
-        ),
+        ("ProcessExitPrimitive::entry", "ProcessExitPrimitive::other"),
     ] {
         let mut relabelled = closed.semantic_bytes().to_vec();
         assert_eq!(original.len(), replacement.len());
@@ -244,7 +241,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
 #[test]
 fn a_copied_primitive_name_does_not_receive_compiler_custody() {
     let typed = program(
-        "use omega::language::core::Never; use omega::language::core::ProcessExit; public data CopiedPrimitive {} public boundary machine CopiedPrimitive::exit_process(return_code: i32) -> Never satisfies ProcessExit::exit_process reaches ProcessExit crashes none terminates; machine main() reaches ProcessExit crashes none terminates { CopiedPrimitive::exit_process(7); }",
+        "use omega::language::core::Never; use omega::language::core::ProcessExit; public boundary machine ProcessExitPrimitive(return_code: i32) -> Never satisfies ProcessExit::exit_process reaches ProcessExit crashes none terminates; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
     );
     let verdicts = judge_program(&typed);
     let diagnostic = format!("{verdicts:?}");

@@ -281,7 +281,7 @@ mod tests {
             requirement_lifetime_partition: Vec::new(),
             admitted_same_stack_bytes: 0,
             binding: ProviderBinding::CompilerIntrinsic {
-                machine: "core::ProcessExitPrimitive::exit_process".into(),
+                machine: "core::ProcessExitPrimitive".into(),
             },
         });
         let input = DirectBoundaryInput {

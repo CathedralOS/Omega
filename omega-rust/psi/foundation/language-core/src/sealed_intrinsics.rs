@@ -551,7 +551,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "process_exit_native.omg",
-        "ProcessExitPrimitive::exit_process",
+        "ProcessExitPrimitive",
         CORE_PROCESS_EXIT_NATIVE,
         SealedIntrinsic::HostedPrimitive(HostedOperation::ProcessExit),
     ),
@@ -667,7 +667,7 @@ pub fn hosted_process_exit_sources() -> [(&'static str, &'static str, &'static [
     [
         (
             "process_exit_native.omg",
-            "ProcessExitPrimitive::exit_process",
+            "ProcessExitPrimitive",
             CORE_PROCESS_EXIT_NATIVE,
         ),
         ("process_exit.omg", "ProcessExit", CORE_PROCESS_EXIT),
