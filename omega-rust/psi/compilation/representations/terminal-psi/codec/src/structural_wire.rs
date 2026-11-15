@@ -1329,6 +1329,24 @@ pub(crate) mod structural_signature_wire {
         QualifiedScalar: QualifiedScalarType { scalar_type: Scalar, qualifications: QualificationSet }
     }
 
+    struct HostedOperationWire;
+    impl Field<language_core::sealed_intrinsics::HostedOperation> for HostedOperationWire {
+        fn write(writer: &mut Writer, value: &language_core::sealed_intrinsics::HostedOperation) -> Result<(), CodecError> {
+            use language_core::sealed_intrinsics::HostedOperation;
+            writer.u8(match value {
+                HostedOperation::ProcessExit => 0,
+                _ => return Err(CodecError::InvalidTag("hosted primitive operation", 255)),
+            });
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<language_core::sealed_intrinsics::HostedOperation, CodecError> {
+            match reader.u8()? {
+                0 => Ok(language_core::sealed_intrinsics::HostedOperation::ProcessExit),
+                tag => Err(CodecError::InvalidTag("hosted primitive operation", tag)),
+            }
+        }
+    }
+
     wire_enum! {
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
@@ -1341,6 +1359,7 @@ pub(crate) mod structural_signature_wire {
             7 => StaticInterruptContext,
             8 => StaticInterruptBeginCompletion,
             9 => StaticInterruptFinishCompletion,
+            10 => HostedPrimitive(operation: HostedOperationWire, requirement: Id),
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

@@ -892,6 +892,11 @@ pub(crate) mod declarations {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum CheckedBoundaryExecution {
         Provider,
+        /// The actual primitive remains distinct from the public requirement.
+        HostedPrimitive {
+            operation: language_core::sealed_intrinsics::HostedOperation,
+            requirement: semantic_vocabulary::BoundaryMachineId,
+        },
         AccessInitialize,
         AccessMoveOut,
         AccessRelocate,
@@ -918,6 +923,7 @@ pub(crate) mod declarations {
                     Some(StaticInterruptOperation::FinishCompletion)
                 }
                 Self::Provider
+                | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::AccessInitialize
                 | Self::AccessMoveOut
@@ -933,6 +939,7 @@ pub(crate) mod declarations {
         pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
             match self {
                 Self::Provider
+                | Self::HostedPrimitive { .. }
                 | Self::EmptyRunRelease
                 | Self::StaticInterruptInstall
                 | Self::StaticInterruptContext
