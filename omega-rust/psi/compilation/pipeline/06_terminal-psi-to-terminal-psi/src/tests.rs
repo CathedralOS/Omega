@@ -61,6 +61,7 @@ mod mutable_formals;
 mod operational_effects;
 mod owned_dispatch;
 mod owned_match_results;
+mod parallel_checks;
 mod proof_scope;
 mod provider_supplies;
 mod published_no_return;

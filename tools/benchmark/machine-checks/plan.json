@@ -1,0 +1,25 @@
+{
+  "schema": "omega-performance-plan/1",
+  "name": "mixed machine checking, one to eight workers",
+  "working_directory": "../../..",
+  "inputs": [
+    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/examples/machine_checks.rs"
+  ],
+  "baseline": {
+    "program": "build/performance/parallel-machine-checks/before/machine_checks",
+    "arguments": ["1", "1", "mixed", "256", "64"]
+  },
+  "candidate": {
+    "program": "build/performance/parallel-machine-checks/after/machine_checks",
+    "arguments": ["8", "1", "mixed", "256", "64"]
+  },
+  "warmups": 1,
+  "pairs": 5,
+  "timeout_ms": 180000,
+  "measurement": {
+    "kind": "reported_work",
+    "stdin": "",
+    "work_units": 1648,
+    "checksum": "92a681f1b71f0606"
+  }
+}
