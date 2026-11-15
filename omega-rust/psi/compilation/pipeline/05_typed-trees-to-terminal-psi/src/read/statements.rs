@@ -157,7 +157,7 @@ impl Program<'_> {
                 // evaluates the replacement while old loans remain active,
                 // ends the overwritten field's carried loans, then installs
                 // the replacement's exact loans."
-                let place = self.assigned_place(id, slots, assignment.target)?;
+                let place = self.place(id, slots, assignment.target, None, Access::Replace)?;
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
@@ -276,10 +276,9 @@ impl Program<'_> {
             return unserved("reflected query");
         }
         // A selector must keep the value captured before later operands run.
-        // Resolution emits an immutable relevant binding; typing must retain
-        // its complete carrier. The ordinary binder below evaluates it once
-        // and keeps that carrier, including any supported backing. It never
-        // turns a reference into its referent's value.
+        // Resolution emits an immutable relevant binding. The ordinary
+        // binder below evaluates it once and keeps its complete carrier,
+        // including any supported backing.
         if local.is_operand_capture {
             if local.role != language_core::LocalBindingRole::Value
                 || local.is_mutable
@@ -394,7 +393,18 @@ impl Program<'_> {
         }
         // A declared type is the initializer's expected type; without one the
         // local takes the initializer's type.
-        let declared = if local.type_reference.is_valid() {
+        // Unit is resolution's inference sentinel for captures without a
+        // declared result, such as arithmetic. Read those without an expected
+        // type so the checked initializer selects its own carrier.
+        let infer_capture = local.is_operand_capture
+            && local.type_is_inferred
+            && matches!(
+                self.typed
+                    .type_reference_table
+                    .type_reference(local.type_reference),
+                typed_trees::types::TypeReferenceNode::Unit
+            );
+        let declared = if local.type_reference.is_valid() && !infer_capture {
             Some(self.local_type(id, local.type_reference)?)
         } else {
             None

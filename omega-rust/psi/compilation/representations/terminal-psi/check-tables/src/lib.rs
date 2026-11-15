@@ -164,12 +164,11 @@ pub enum RefusalReason {
     /// carries other domains than its destination declares, a cast that adds
     /// a domain outside the domain's establishment routes. It is a compile
     /// error of the program and is published as a rejection, never as "not
-    /// supported". `detail` states the rule; the span is where the program
-    /// breaks it, absent only when the authored node carries none. A step
+    /// supported". `detail` states the rule. A step
     /// gives this reason only where the specification defines the error for
     /// every program of that form: a form the step merely cannot judge is
     /// `Unsupported`.
-    Violation(Option<source::SourceSpan>),
+    Violation,
 }
 
 /// Why an obligation's evidence did not check. Closed like `RefusalReason`:
@@ -226,16 +225,25 @@ impl UnprovedCause {
     }
 }
 
-/// The only negative result of a checking step: a reason, the machine, and
-/// the lowered construct it concerns.
+/// The negative result of a checking step, with its reason, machine and
+/// construct. A retained authored source span can accompany any reason.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refusal {
     pub reason: RefusalReason,
     pub machine: MachineId,
     pub concerns: Construct,
+    /// The retained source span, when the authored construct carries one.
+    pub source_span: Option<source::SourceSpan>,
     /// Diagnostic text only. Nothing may branch on it or compare it.
     pub detail: String,
+}
+
+impl Refusal {
+    pub fn with_source_span(mut self, source_span: Option<source::SourceSpan>) -> Self {
+        self.source_span = source_span;
+        self
+    }
 }
 
 /// Every later checking step returns `Checked<T>`: a row or a refusal.
@@ -260,6 +268,7 @@ pub fn row<Id: PsiSemanticId, T>(
         reason: RefusalReason::ForeignIdentity,
         machine,
         concerns,
+        source_span: None,
         detail: String::from("identity is past the end of this machine's table"),
     })
 }

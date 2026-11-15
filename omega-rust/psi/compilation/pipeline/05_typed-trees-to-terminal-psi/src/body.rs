@@ -463,6 +463,9 @@ pub struct Signature {
     /// What the header says about synchronous entry (`invokes`).
     pub invokes: Ceiling,
     pub termination: Termination,
+    /// The body's private decreasing measure. A conforming public signature
+    /// cannot replace this witness or publish it as a caller guarantee.
+    pub ranking: Option<Vec<Expression>>,
 }
 
 /// Borrow the one signature representation across the two actual declaration
@@ -596,21 +599,6 @@ pub enum Termination {
     Silent,
     /// The header promises termination and names no ranking.
     Promised,
-    /// The header supplies a ranking witness, with or without the promise.
-    Witnessed(Ranking),
-}
-
-/// The ranking a `terminates by` witness supplies, as the reader serves it:
-/// one scalar formal of an unsigned integer type under `Nat::Descending`.
-/// termination.md, "Ranking": "`terminates by subject -> View` selects a
-/// well-founded ranking theory. The view may be descending naturals".
-/// Every other view, a rank range, several subjects and a subject that is
-/// not a formal are refused by name where the witness is read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Ranking {
-    /// The subject's position among the machine's formals
-    /// (`Signature::parameters`).
-    pub subject: u32,
 }
 
 impl Signature {

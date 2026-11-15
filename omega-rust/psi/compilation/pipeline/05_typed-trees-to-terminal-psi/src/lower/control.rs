@@ -28,12 +28,14 @@ impl Lowering<'_> {
     pub(super) fn block(&mut self, source: SourceOrigin) -> BlockId {
         let block = self.blocks.push(Draft::default());
         self.sources.blocks.push(source.into());
+        self.inherit_ranking(block);
         block
     }
 
     pub(super) fn enter(&mut self, block: BlockId) {
         self.current = Some(block);
         self.point = Some(ProgramPoint::BlockEntry(block));
+        self.enter_ranking(block);
     }
 
     pub(super) fn open(&self) -> bool {
@@ -57,6 +59,7 @@ impl Lowering<'_> {
             reason: RefusalReason::ForeignIdentity,
             machine: id,
             concerns: Construct::Block(block),
+            source_span: None,
             detail: String::from("block is past the end of this machine"),
         })
     }
@@ -130,9 +133,9 @@ impl Lowering<'_> {
         })
     }
 
-    /// An arrival at a member's loop head: the jump with the member's scalar
-    /// formals as its arguments, and, when the head has an invariant, the
-    /// one `ArrivalInvariant` obligation this edge owes it.
+    /// Arrive at a loop head with the same scalar and storage arguments a
+    /// call would pass. Staged values are captured before their old homes
+    /// retire, and a header invariant is proved for every arrival.
     /// control_flow.md: "Every arrival proves the predicate under
     /// simultaneous destination-parameter to actual-argument substitution,
     /// before destination hypotheses become available."
@@ -140,6 +143,8 @@ impl Lowering<'_> {
         &mut self,
         member: MachineId,
         arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
         source: SourceOrigin,
         acknowledgement: Option<terminal_psi::CallAcknowledgement>,
     ) -> Checked<()> {
@@ -147,9 +152,12 @@ impl Lowering<'_> {
             return Err(self.internal("an arrival at a machine outside the call component"));
         };
         let target = head.block;
-        if head.parameters.len() != arguments.len() {
+        if head.parameters.len() != arguments.len()
+            || head.structural_parameters.len() != structural_arguments.len()
+        {
             return Err(self.internal("an arrival does not match the head's parameters"));
         }
+        self.successor_ranking(member, &arguments, &structural_arguments)?;
         let edge = self.edge(Destination::Block(target), source)?;
         if let Some(acknowledgement) = acknowledgement {
             self.call_formations.push(terminal_psi::CallFormation {
@@ -164,8 +172,8 @@ impl Lowering<'_> {
             arguments,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            cleanup_actions: Vec::new(),
+            structural_arguments,
+            cleanup_actions,
         })?;
         if let Some((owner, node)) = source.node() {
             self.source_folded_calls.push((self.id, edge, owner, node));
@@ -415,16 +423,16 @@ impl Lowering<'_> {
             // A member's arguments are scalars, evaluated left to right like
             // any call's, and the edge carries them.
             Target::Value(expression) if let Some((member, arguments)) = self.loops(expression) => {
-                let mut values = Vec::with_capacity(arguments.len());
-                for argument in arguments {
-                    match self.scalar(argument)? {
-                        Reached::Value(value) => values.push(value),
+                let (values, structural, cleanup) =
+                    match self.tail_arguments(member, arguments, expression.source)? {
+                        Reached::Value(arguments) => arguments,
                         Reached::Ended(_) => return Ok(()),
-                    }
-                }
+                    };
                 self.arrive(
                     member,
                     values,
+                    structural,
+                    cleanup,
                     expression.source,
                     Some(expression.call_context.unwrap_or_default()),
                 )
@@ -749,6 +757,7 @@ impl Lowering<'_> {
                         reason: RefusalReason::ForeignIdentity,
                         machine: id,
                         concerns: Construct::Block(join),
+                        source_span: None,
                         detail: String::from("a match join is past its function"),
                     })?
                     .structural_parameters
@@ -853,6 +862,7 @@ impl Lowering<'_> {
                 reason: RefusalReason::ForeignIdentity,
                 machine: id,
                 concerns: Construct::Block(block),
+                source_span: None,
                 detail: String::from("block is past the end of this machine"),
             })?
             .parameters
@@ -860,18 +870,41 @@ impl Lowering<'_> {
         Ok(())
     }
 
-    /// `left && right` / `left || right`: the left value decides on one edge
-    /// and is itself the result there; the other edge evaluates the right
-    /// operand in its own block. Both meet at a join block whose one Boolean
-    /// parameter is the result.
+    /// A chain of one connective shares its result join. Each short-circuit
+    /// edge passes the deciding operand, so the continuing edge retains its
+    /// guard facts until the next operand is evaluated.
     pub(super) fn short_circuit(
         &mut self,
         conjunction: bool,
         left: &Expression,
         right: &Expression,
     ) -> Evaluation<Value> {
-        let decided = continuing!(self.scalar(left));
-        let evaluate_right =
+        let mut pending = vec![right, left];
+        let mut operands = std::iter::from_fn(|| {
+            while let Some(operand) = pending.pop() {
+                if let ExpressionKind::ShortCircuit {
+                    conjunction: nested,
+                    left,
+                    right,
+                } = &operand.kind
+                    && *nested == conjunction
+                {
+                    pending.extend([right.as_ref(), left.as_ref()]);
+                } else {
+                    return Some(operand);
+                }
+            }
+            None
+        });
+        let first = operands
+            .next()
+            .expect("a binary connective has a left operand");
+        let mut decided = continuing!(self.scalar(first));
+        let mut decision_source = first.source;
+        let mut operand = operands
+            .next()
+            .expect("a binary connective has a right operand");
+        let mut evaluate_right =
             self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin));
         let result = self.value(
@@ -882,24 +915,36 @@ impl Lowering<'_> {
             },
         );
         self.parameter(join, result, ScalarType::Boolean)?;
-        let (when_true, when_false) = if conjunction {
-            ((evaluate_right, Vec::new()), (join, vec![decided]))
-        } else {
-            ((join, vec![decided]), (evaluate_right, Vec::new()))
-        };
-        self.branch(decided, when_true, when_false, left.source)?;
-        self.enter(evaluate_right);
-        self.joining += 1;
-        let right_value = self.scalar(right);
-        self.joining -= 1;
-        // A right operand whose every path ends at a call that never returns
-        // ends that branch only: the join has the left operand's arrival.
-        if let Reached::Value(right_value) = right_value? {
-            self.jump(
-                join,
-                vec![right_value],
-                SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin),
-            )?;
+        loop {
+            let continuing = (evaluate_right, Vec::new());
+            let short = (join, vec![decided]);
+            let (when_true, when_false) = if conjunction {
+                (continuing, short)
+            } else {
+                (short, continuing)
+            };
+            self.branch(decided, when_true, when_false, decision_source)?;
+            self.enter(evaluate_right);
+            self.joining += 1;
+            let evaluated = self.scalar(operand);
+            self.joining -= 1;
+            // A nonreturning operand ends only its continuing path.
+            let Reached::Value(value) = evaluated? else {
+                break;
+            };
+            let Some(next) = operands.next() else {
+                self.jump(
+                    join,
+                    vec![value],
+                    SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin),
+                )?;
+                break;
+            };
+            decided = value;
+            decision_source = operand.source;
+            operand = next;
+            evaluate_right =
+                self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
         }
         self.enter(join);
         Ok(Reached::Value(Value::Scalar(result)))

@@ -2682,21 +2682,6 @@ pub mod types {
             }
         }
 
-        pub fn revision(&self) -> u64 {
-            self.type_references
-                .revision()
-                .wrapping_add(self.type_reference_handles.revision())
-                .wrapping_add(self.constraints.revision())
-                .wrapping_add(self.constant_origins.revision())
-                .wrapping_add(self.constant_origin_spans.revision())
-                .wrapping_add(self.array_extent_arguments.revision())
-                .wrapping_add(self.operand_lifetime_owners.revision())
-                .wrapping_add(self.operand_lifetime_spans.revision())
-                .wrapping_add(self.operand_lifetimes.revision())
-                .wrapping_add(self.operand_origins.revision())
-                .wrapping_add(self.type_alias_applications.revision())
-        }
-
         pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
             self.arithmetic_rows.0.take();
             let named = match &type_reference {
@@ -3864,6 +3849,14 @@ pub mod types {
         pub semantic_roles: language_semantics::DomainSemanticRoles,
         pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
         pub source_selection: Option<DomainConstraintSource>,
+        /// Typing selected no domain for this written name, and no domain
+        /// of that name is visible from its source under ordinary
+        /// resolution, whatever the carrier: the type is malformed in every
+        /// program (state_contracts.md: "an unknown machine name or
+        /// malformed type is an error wherever it appears"). False on a
+        /// selected domain and on a name some visible domain has (another
+        /// carrier's, or two candidates), which stays a request.
+        pub names_no_visible_domain: bool,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
@@ -4175,11 +4168,11 @@ pub mod types {
         }
 
         #[test]
-        fn type_operand_origin_changes_retained_input_and_revision() {
+        fn type_operand_origin_changes_retained_input_and_origin_storage_stamp() {
             let mut table = TypeReferenceTable::new();
             let reference = table.insert(TypeReferenceNode::Unit);
             let before = table.clone();
-            let revision = table.revision();
+            let revision = table.operand_origins.revision();
             table.set_operand_origin(
                 reference,
                 TypeOperandOrigin::MachineParameter {
@@ -4188,7 +4181,7 @@ pub mod types {
                 },
             );
             assert_ne!(table, before);
-            assert_ne!(table.revision(), revision);
+            assert_ne!(table.operand_origins.revision(), revision);
             assert_ne!(
                 table.operand_origin(reference),
                 before.operand_origin(reference)

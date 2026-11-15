@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 271`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 272`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1796,7 +1796,7 @@ pub(crate) mod machine_wire {
         ClaimBinding, Field, Id, List, Multiplicity, OptionalId, Path, QualificationSet, Scalar,
         delegated_fields, wire_enum, wire_record,
     };
-    use crate::sections::semantic_module::wire::decode_counted;
+    use crate::semantic_module::wire::decode_counted;
 
     use super::wire_fields::Flag;
     use terminal_psi::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
@@ -2241,7 +2241,7 @@ pub(crate) mod reach_application_wire {
     use super::CodecError;
     use super::structural_signature_wire::encode_service_ceiling;
     use super::wire::{Reader, Writer};
-    use crate::sections::semantic_module::wire::{
+    use crate::semantic_module::wire::{
         decode_counted, decode_ids, decode_optional_id, encode_optional_id,
     };
     use terminal_psi::TerminalIdentityIndex;
@@ -3075,6 +3075,7 @@ mod numeric_intrinsic_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             result_reference_regions: Vec::new(),
+            result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
@@ -3726,6 +3727,7 @@ mod routed_scalar_tests {
             program_local_root_introductions: Vec::new(),
             content_guarantees: Vec::new(),
             result_reference_regions: Vec::new(),
+            result_lifetimes: None,
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
@@ -4419,7 +4421,7 @@ mod routed_scalar_tests {
 #[cfg(test)]
 pub(crate) mod entry_tests {
 
-    use crate::sections::semantic_module::module_wire::encode_raw;
+    use crate::semantic_module::module_wire::encode_raw;
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId};
     use terminal_psi::{
@@ -4689,11 +4691,12 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 271 combines normalized service schemas, provider selections and
-// exact entry commitments with the complete scalar storage, predicate
-// establishments, declared result lifetimes and retired target-family catalogs
-// of 270. Earlier markers cannot identify this combined layout.
-pub(crate) const FORMAT_MARKER: u16 = 271;
+// Marker 272 combines exact service/provider/entry schemas with boundary
+// logical result lifetimes independent of spatial regions. Both predecessors
+// used marker 271 for different layouts; neither identifies this combined wire.
+// Complete scalar storage, predicate establishments, declared result lifetimes
+// and retired executable target-family catalogs remain part of the format.
+pub(crate) const FORMAT_MARKER: u16 = 272;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4998,6 +5001,7 @@ mod normal_qualification_tests {
             scalar_requires: Vec::new(),
             scalar_ensures: Vec::new(),
             result_reference_regions: Vec::new(),
+            result_lifetimes: None,
             reference_outputs: vec![BoundaryReferenceOutput {
                 destination: BoundaryReferenceDestination::Parameter(2),
                 path: Vec::new(),
@@ -5016,6 +5020,71 @@ mod normal_qualification_tests {
             published_service_ceiling: Vec::new(),
         });
         module
+    }
+
+    #[test]
+    fn boundary_logical_result_lifetimes_round_trip_and_reject_missing_frontiers() {
+        let mut module = module();
+        module.structural_types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
+            id: type_id(5),
+            identity: TerminalIdentityIndex(12),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                },
+            ),
+        });
+        let boundary = &mut module.boundary_machines[0];
+        boundary.result =
+            BoundaryMachineResult::Structural(terminal_psi::BoundaryStructuralResultDeclaration {
+                structural_type: type_id(5),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        boundary.result_lifetimes = Some(vec![terminal_psi::DeclaredResultLifetime {
+            inputs: vec![BoundaryLifetimeDependency::Referent {
+                argument_index: 0,
+                access: StructuralAccess::MutableBorrow,
+            }],
+            results: vec![Vec::new()],
+        }]);
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(
+            decoded.boundary_machines[0].result_lifetimes,
+            module.boundary_machines[0].result_lifetimes
+        );
+        assert!(
+            decoded.boundary_machines[0]
+                .result_reference_regions
+                .is_empty()
+        );
+        let mut changed = module.clone();
+        changed.boundary_machines[0]
+            .result_lifetimes
+            .as_mut()
+            .unwrap()[0]
+            .inputs[0] = BoundaryLifetimeDependency::Referent {
+            argument_index: 1,
+            access: StructuralAccess::MutableBorrow,
+        };
+        assert_ne!(
+            semantic_fingerprint(&module).unwrap(),
+            semantic_fingerprint(&changed).unwrap()
+        );
+        for missing in [None, Some(Vec::new())] {
+            let mut changed = module.clone();
+            changed.boundary_machines[0].result_lifetimes = missing;
+            assert!(decode_module(&encode_module(&changed).unwrap()).is_err());
+        }
     }
 
     #[test]

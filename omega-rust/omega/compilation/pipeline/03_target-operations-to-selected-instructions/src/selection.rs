@@ -107,7 +107,8 @@ pub(crate) mod block_order {
         let mut outgoing = Vec::new();
         for block in &source.blocks {
             let targets = match &block.terminator {
-                LegalizedScalarTerminator::Crash { .. }
+                LegalizedScalarTerminator::EliminateEmpty { .. }
+                | LegalizedScalarTerminator::Crash { .. }
                 | LegalizedScalarTerminator::InvokeNoNormal { .. }
                 | LegalizedScalarTerminator::ExternalCompletion { .. }
                 | LegalizedScalarTerminator::Return(_)
@@ -1926,6 +1927,12 @@ pub(crate) mod value_transport {
                             .flat_map(|binding| {
                                 binding.indices.iter().map(|index| index.operand.value)
                             }),
+                    );
+                }
+                Terminator::EliminateEmpty { path, .. } => {
+                    pending.extend(
+                        path.iter()
+                            .filter_map(|segment| segment.runtime_index().map(|(index, _)| index)),
                     );
                 }
                 Terminator::Crash { .. } => {}

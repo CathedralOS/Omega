@@ -160,7 +160,7 @@ pub struct RawSelectionQuestion {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RawDesignationInput {
     pub expression: ExpressionHandle,
-    pub request: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+    pub request: arena::Handle<typed_trees::expression::BuildSelectionCall>,
     pub argument_ordinal: u32,
     pub resolved_target: Option<SymbolHandle>,
 }

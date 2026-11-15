@@ -256,6 +256,7 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         | AbstractOperation::StructuralCase { .. }
         | abstract_operations::return_or_return_unit_pattern!(..)
         | AbstractOperation::ReturnStructural { .. }
+        | AbstractOperation::EliminateEmpty { .. }
         | AbstractOperation::Crash { .. } => PhysicalAuthorityUse::None,
     }
 }

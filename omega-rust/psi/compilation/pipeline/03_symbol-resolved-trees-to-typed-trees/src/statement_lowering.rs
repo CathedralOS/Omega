@@ -231,6 +231,7 @@ pub(crate) mod statement {
 
             Ok(typed::statement::TableCall {
                 runtime_call: None,
+                unresolved_name: call.unresolved_name,
                 installed_interrupt_operation,
                 authored_machine_application: Default::default(),
                 receiver_root_symbol: call.receiver_root_symbol,
@@ -1159,6 +1160,7 @@ pub(crate) mod statement {
                     typed::statement::TransitionTargetNode::Named {
                         static_machine_parameter: symbols::SymbolHandle::invalid(),
                         path: typed::statement::TableNamePath {
+                            unresolved_name: path.unresolved_name,
                             receiver_symbol: path.receiver_symbol,
                             members: lower_statement_path_members(lowerer, path.members),
                             head_symbol: path.head_symbol,

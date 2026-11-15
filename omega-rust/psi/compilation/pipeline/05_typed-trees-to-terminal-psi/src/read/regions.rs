@@ -25,13 +25,15 @@
 //!   expected decides it, it is a region variable the result's first use
 //!   decides.
 //!
-//! A region is one of two kinds. A named lifetime is the parameter it
+//! A named lifetime is the parameter it
 //! resolves to (`Region::Parameter`): the declaration that binds it and its
-//! position there, which is what substitution replaces. Every other region,
-//! an elided reference's or a byte literal's, keeps the text identity the
-//! typed trees render for it (`Region::Fixed`): it stands for one region
-//! that no substitution names, so a view of it is a value only of a place of
-//! that same region, as before regions were split from rows.
+//! position there, which is what substitution replaces. An elided reference's
+//! or a byte literal's fixed region keeps the text identity the typed trees
+//! render for it (`Region::Fixed`): it stands for one region that no substitution
+//! names, so a view of it is a value only of a place of that same region.
+//! Storage owned by this invocation instead retains its exact
+//! machine and root symbol: it cannot establish one of that machine's universal
+//! result lifetimes, even when the borrowed window is empty.
 
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
@@ -48,8 +50,14 @@ mod result_lifetimes;
 pub(crate) enum Region {
     /// A lifetime parameter of a data declaration or a machine.
     Parameter(LifetimeParameterIdentity),
-    /// Any other region, by its position in `Program::fixed_regions`.
+    /// A fixed source type region, by its position in `Program::fixed_regions`.
     Fixed(u32),
+    /// Storage held by one owned root of this machine's invocation, distinct
+    /// from the backing a reference descriptor stored there may denote.
+    Storage {
+        machine: MachineId,
+        root: SymbolHandle,
+    },
     /// A region not yet decided, by its position in
     /// `Program::region_variables` (`Elision::Variables`).
     Variable(u32),
@@ -132,7 +140,7 @@ impl Program<'_> {
                 let admitted = match self.resolved(ceiling) {
                     ceiling if ceiling == other => true,
                     Region::Variable(open) => self.decide(open, other),
-                    Region::Parameter(_) | Region::Fixed(_) => false,
+                    Region::Parameter(_) | Region::Fixed(_) | Region::Storage { .. } => false,
                 };
                 if !admitted {
                     return false;
@@ -263,7 +271,7 @@ impl Program<'_> {
                     .iter()
                     .find(|(bound, _)| bound == parameter)
                     .map_or(*region, |(_, argument)| *argument),
-                Region::Fixed(_) | Region::Variable(_) => *region,
+                Region::Fixed(_) | Region::Variable(_) | Region::Storage { .. } => *region,
             })
             .collect();
         self.intern_regions(tuple)
@@ -717,6 +725,9 @@ impl Program<'_> {
                         retained if retained.is_valid() => retained,
                         _ => lexical_owner,
                     };
+                    super::places::reference_lifetime_declared(
+                        self.typed, machine, reference, owner,
+                    )?;
                     let parameter = owner
                         .is_valid()
                         .then(|| {

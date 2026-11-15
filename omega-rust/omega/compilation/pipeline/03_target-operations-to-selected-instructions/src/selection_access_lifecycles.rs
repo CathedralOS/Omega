@@ -5385,7 +5385,7 @@ pub(crate) mod tests {
         let scattered = aggregate_chunks(
             &types,
             &field,
-            8,
+            24,
             &[
                 LayoutPlacementReport::At { offset: 40 },
                 LayoutPlacementReport::At { offset: 20 },
@@ -5410,7 +5410,7 @@ pub(crate) mod tests {
         let contiguous = aggregate_chunks(
             &types,
             &field,
-            8,
+            24,
             &[LayoutPlacementReport::At { offset: 20 }],
         )
         .unwrap();
@@ -5438,7 +5438,17 @@ pub(crate) mod tests {
             )
             .is_err()
         );
-        assert!(aggregate_chunks(&types, &field, 8, &[]).is_err());
+        assert!(aggregate_chunks(&types, &field, 24, &[]).is_err());
+        assert!(
+            aggregate_chunks(
+                &types,
+                &field,
+                8,
+                &[LayoutPlacementReport::At { offset: 20 }]
+            )
+            .is_err(),
+            "the dense payload size cannot stand in for the owned field's extent"
+        );
     }
 
     fn image_fixture() -> (Vec<StructuralTypeDeclaration>, TerminalAccessLifecyclePlan) {
@@ -6583,25 +6593,35 @@ fn aggregate_chunks(
         let element_shape = structural_reference_input::shape(element, declarations)
             .ok_or_else(|| failure("resident array element has no native storage"))?;
         let element_size = u64::from(element_shape.byte_size);
+        let native_stride = calling_conventions::terminal_layout::checked_align_up_u32(
+            element_shape.byte_size,
+            u32::from(element_shape.alignment),
+        )
+        .map(u64::from)
+        .ok_or_else(|| failure("resident array element stride overflows"))?;
+        let destination_stride = field
+            .storage
+            .as_ref()
+            .and_then(AuthoredFieldStorage::element_stride)
+            .unwrap_or(native_stride);
+        // The owned field's extent includes its selected stride and padding.
+        // Coverage must account for that extent, while transfers copy only each
+        // element's bytes and leave the padding untouched.
         if (offsets.len() != 1 && u64::try_from(offsets.len()).ok() != Some(length))
-            || element_size.checked_mul(length) != Some(byte_count)
+            || destination_stride < element_size
+            || destination_stride.checked_mul(length) != Some(byte_count)
         {
             return Err(failure(
                 "resident element placements do not cover the complete array",
             ));
         }
-        let destination_stride = field
-            .storage
-            .as_ref()
-            .and_then(AuthoredFieldStorage::element_stride)
-            .unwrap_or(element_size);
         let mut chunks = Vec::new();
         for element_position in 0..length {
             let source_offset = if offsets.len() == 1 {
                 offset(
                     offsets[0],
                     element_position
-                        .checked_mul(element_size)
+                        .checked_mul(native_stride)
                         .ok_or_else(|| failure("resident array source offset overflows"))?,
                 )?
             } else {

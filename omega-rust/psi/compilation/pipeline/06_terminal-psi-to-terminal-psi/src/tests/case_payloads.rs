@@ -14,8 +14,8 @@ use super::build_purpose::judge_build;
 use super::*;
 
 /// `accepted` for a program the checker accepts and can publish. For one it
-/// judges wrong, what it could not establish or the loan that conflicts.
-/// Else the refusal's text.
+/// judges wrong, the rule it breaks, what it could not establish or the loan
+/// that conflicts. Else the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
         Err(crate::CompilationRefusal::Elaboration(refusal))
@@ -25,13 +25,15 @@ fn verdict(build: &str) -> String {
             "accepted".to_owned()
         }
         Ok(RouteVerdict::Rejected {
+            violations,
             unestablished,
             conflicts,
             ..
-        }) => match (&unestablished[..], &conflicts[..]) {
-            ([one], []) => one.detail.to_owned(),
-            ([], [one]) => one.statement.clone(),
-            _ => panic!("{unestablished:?} {conflicts:?}"),
+        }) => match (&violations[..], &unestablished[..], &conflicts[..]) {
+            ([], [one], []) => one.detail.to_owned(),
+            ([], [], [one]) => one.statement.clone(),
+            ([one], [], []) => one.statement.clone(),
+            _ => panic!("{violations:?} {unestablished:?} {conflicts:?}"),
         },
         other => panic!("{other:?}"),
     }
@@ -118,7 +120,11 @@ machine route(source: Source) {{
         )
     };
     assert_eq!(verdict(&arms("repository")), "accepted");
-    assert_eq!(verdict(&arms("location")), "spelling name without a symbol");
+    assert_eq!(
+        verdict(&arms("location")),
+        "this expression has no visible value declaration in its source scope: an unknown name is \
+         an error wherever it appears while reading the signature of `route`"
+    );
 }
 
 /// The same from a value-position `match`, and for a scalar payload lent
@@ -180,7 +186,7 @@ machine route(source: Source) {{
 machine replace_scalar(value: &mut u32) {{ }}
 "#
         )),
-        "call exclusive loan of an immutable binding"
+        "call exclusive loan of an immutable binding while reading the body of `route`"
     );
 }
 
@@ -339,7 +345,7 @@ fn an_owned_payload_store_requires_mutability_of_the_existing_root() {
     let source = owned_store_source().replace("let mut choice:", "let choice:");
     assert_eq!(
         verdict(&source),
-        "statement store into an immutable binding"
+        "statement store into an immutable binding while reading the body of `build_entry`"
     );
 }
 

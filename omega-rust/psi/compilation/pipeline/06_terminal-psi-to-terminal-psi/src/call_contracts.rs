@@ -66,6 +66,7 @@ pub(crate) fn terminator_site(terminator: &Terminator) -> Option<InvocationSite>
         Terminator::Jump { .. }
         | Terminator::Conditional { .. }
         | Terminator::StructuralCase { .. }
+        | Terminator::EliminateEmpty { .. }
         | Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
         | Terminator::ReturnStructural { .. }

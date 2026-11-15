@@ -7,10 +7,6 @@ not the agents' to fill: on 2026-11-09 four local workers each ran
 `mbx build -p omega` with default settings on a 24-CPU Windows workstation and
 made it unusable for its owner twice.
 
-`tools/build_slot.py`, the slot pool this page used to describe, was removed
-with the Python tooling in #2080 and has no replacement. Records that cite it
-describe how those runs were admitted at the time. Use the mechanisms below.
-
 ## What limits a build today
 
 | Limit | Scope | How to set it |

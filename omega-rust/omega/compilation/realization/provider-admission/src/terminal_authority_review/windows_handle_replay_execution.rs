@@ -772,6 +772,11 @@ impl<'a, 'module> Execution<'a, 'module> {
                 };
                 self.pending.push(work)
             }
+            terminal_psi::Terminator::EliminateEmpty { .. } => {
+                // Accepted canonical elimination proves this arrival cannot
+                // hold a value. It is no resource-releasing execution exit.
+                Ok(())
+            }
             terminal_psi::Terminator::Crash { edge, .. } => {
                 // A crash cannot silently dispose the process's resource debt.
                 work.state

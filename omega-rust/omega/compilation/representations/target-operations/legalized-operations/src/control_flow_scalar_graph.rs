@@ -1263,6 +1263,14 @@ pub type LegalizedCasePointerSlot = target_operations::TargetCasePointerSlot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
+    EliminateEmpty {
+        psi_edge: EdgeId,
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        work: Vec<WorkSettlement>,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
     InvokeNoNormal {
         psi_edge: EdgeId,
         call: LegalizedScalarCall,
@@ -1413,6 +1421,10 @@ impl LegalizedScalarTerminator {
             Self::ExternalCompletion { arguments, .. } => arguments
                 .iter()
                 .any(|argument| argument.source.source_value() == value),
+            Self::EliminateEmpty { path, .. } => path.iter().any(|segment| match segment {
+                terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. } => *index == value,
+                _ => false,
+            }),
             Self::Crash { .. } => false,
             Self::StructuralCase { cases, .. } => cases
                 .iter()

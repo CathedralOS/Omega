@@ -92,8 +92,8 @@ pub(crate) mod build_selections {
         BuildOperation, BuildSelectionRequest, RootBindingOperand,
     };
     use typed_trees::expression::{
-        BuildSelectionInput, BuildSelectionInputs, BuildSelectionPhase, ExpressionHandle,
-        ExpressionNode, TableCallExpression, TableNamePath,
+        BuildSelectionCall, BuildSelectionInput, BuildSelectionInputs, BuildSelectionPhase,
+        ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
 
     pub(crate) fn lower(
@@ -130,18 +130,19 @@ pub(crate) mod build_selections {
             .iter()
             .map(|input| input.occurrence)
             .collect::<Vec<_>>();
+        use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
         let operation = match (&request, arguments.len()) {
-            (BuildSelectionRequest::ProviderReadiness(_), 1) => "await_provider",
-            (BuildSelectionRequest::Exclusion(_), 2) => "exclude",
+            (BuildSelectionRequest::ProviderReadiness(_), 1) => Protocol::AwaitProvider,
+            (BuildSelectionRequest::Exclusion(_), 2) => Protocol::Exclude,
             (BuildSelectionRequest::Entry(binding), 1)
                 if matches!(binding.implementation, RootBindingOperand::AuthoredPath(_)) =>
             {
-                "bind"
+                Protocol::Bind
             }
             (BuildSelectionRequest::Entry(binding), 2)
                 if matches!(binding.implementation, RootBindingOperand::Description) =>
             {
-                "bind_description"
+                Protocol::BindDescription
             }
             (BuildSelectionRequest::Declaration(binding), count) => binding
                 .operation
@@ -151,7 +152,7 @@ pub(crate) mod build_selections {
                         || (binding.operation == BuildOperation::ProviderSelection
                             && count.checked_add(1) == Some(*arity))
                 })
-                .map(|(name, _)| name)
+                .map(|(operation, _)| operation)
                 .ok_or_else(|| {
                     Diagnostic::error("Build selection has unexpected ordinary operands")
                         .with_source_span(source_span)
@@ -168,21 +169,21 @@ pub(crate) mod build_selections {
             .iter()
             .find(|definition| {
                 definition.is_boundary
-                    && definition.name.as_str() == "BuildBindingOperations"
-                    && source
-                        .symbols
-                        .symbol_source_span(definition.symbol)
-                        .and_then(|span| source.symbols.source_file(span))
-                        .is_some_and(|file| {
-                            file.origin == source::SourceOrigin::Toolchain
-                                && file.path == std::path::Path::new("<build-prelude>")
-                        })
+                    && language_semantics::build_requests::is_build_protocol(
+                        &source.symbols,
+                        definition.symbol,
+                        language_semantics::build_requests::SELECTION_PROTOCOL,
+                    )
             })
             .ok_or_else(|| {
                 Diagnostic::error("Build selection requires its exact toolchain protocol")
                     .with_source_span(source_span)
             })?;
-        let find = |name| {
+        // The one place an operation meets its declared requirement: the
+        // generated call targets that declaration, and its row records the
+        // operation so no later reader matches the name again.
+        let find = |operation: Protocol| {
+            let name = operation.requirement_name();
             source
                 .trait_machine_signatures(owner.machines)
                 .iter()
@@ -199,16 +200,19 @@ pub(crate) mod build_selections {
         // original Build value.
         let tests_facet = matches!(&request,
             BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet());
-        let preparation = find(if tests_facet {
-            "prepare_tests"
+        let preparing = if tests_facet {
+            Protocol::PrepareTests
         } else {
-            "prepare"
-        })?;
+            Protocol::Prepare
+        };
+        let preparation = find(preparing)?;
         let commit = find(operation)?;
-        let mut value_helpers = match &request {
-            BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
-            _ if operation == "bind_native" => vec![(1, "build_selection_target")],
-            _ if operation == "select_provider" => {
+        let mut value_helpers = match (&request, operation) {
+            (BuildSelectionRequest::Exclusion(request), _) => {
+                vec![(1, request.vocabulary.helper())]
+            }
+            (_, Protocol::BindNative) => vec![(1, "build_selection_target")],
+            (_, Protocol::SelectProvider) => {
                 let mut helpers = vec![(1, "build_selection_target")];
                 if arguments.len() == 3 {
                     helpers.push((2, "build_selection_independent"));
@@ -231,8 +235,13 @@ pub(crate) mod build_selections {
             owner.symbol,
             owner.symbol,
         )));
-        let build_selection = table.insert_build_selection_request(request);
-        if operation == "select_provider" && arguments.len() == 2 {
+        let prepared_selection = table.insert_build_selection_call(BuildSelectionCall {
+            request: request.clone(),
+            operation: preparing,
+        });
+        let committed_selection =
+            table.insert_build_selection_call(BuildSelectionCall { request, operation });
+        if operation == Protocol::SelectProvider && arguments.len() == 2 {
             arguments.push(table.insert(ExpressionNode::Boolean(false)));
         }
         let mut emit = |symbol,
@@ -298,7 +307,7 @@ pub(crate) mod build_selections {
             crate::lowerer::name::lower_name(&preparation.name),
             receiver,
             vec![arguments[0]],
-            build_selection,
+            prepared_selection,
             Default::default(),
         );
         arguments[0] = prepared;
@@ -307,14 +316,14 @@ pub(crate) mod build_selections {
             crate::lowerer::name::lower_name(&commit.name),
             receiver,
             arguments,
-            build_selection,
+            committed_selection,
             acknowledgement,
         );
         table
             .retain_build_selection_inputs(
                 prepared,
                 BuildSelectionInputs {
-                    request: build_selection,
+                    request: prepared_selection,
                     lexical_owner,
                     phase: BuildSelectionPhase::Preparation,
                     inputs: Vec::new(),
@@ -325,7 +334,7 @@ pub(crate) mod build_selections {
             .retain_build_selection_inputs(
                 committed,
                 BuildSelectionInputs {
-                    request: build_selection,
+                    request: committed_selection,
                     lexical_owner,
                     phase: BuildSelectionPhase::Commit,
                     inputs,

@@ -94,6 +94,7 @@ impl Program<'_> {
     ) -> Checked<()> {
         let typed = self.typed;
         let refuse = |detail: String| Refusal {
+            source_span: None,
             machine,
             concerns: Construct::Machine,
             reason: RefusalReason::ForeignIdentity,

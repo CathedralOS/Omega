@@ -1255,6 +1255,13 @@ mod transitions {
 
         let path = statement_path_members.span_or_empty(named.path);
         let target_name = path.last().cloned();
+        named.unresolved_name = if let Some((target, receiver)) = path.split_last() {
+            crate::symbols::expressions::unresolved_call_name(
+                symbols, machine, parameters, receiver, target,
+            )
+        } else {
+            Default::default()
+        };
 
         if path.len() == 1
             && let Some(target_name) = target_name.as_ref()

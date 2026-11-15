@@ -201,11 +201,7 @@ impl<'host> NativeImport<'host> {
             service_reach::admit_additional_services(
                 program.module(),
                 declaration.owning_service,
-                declaration
-                    .fixed_service_reach
-                    .iter()
-                    .chain(&declaration.published_service_ceiling)
-                    .copied(),
+                declaration.reach_beyond_owning_supply(),
                 native.services(),
             )
             .map_err(|reason| {

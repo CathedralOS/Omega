@@ -2,10 +2,14 @@
 We implement the revision-keyed lazy index owned directly by the arena-bearing value
 it summarizes.
 
-`Arena::revision()` advances on every mutation-capable call, making the revision tuple
-the exact freshness key for any derived lookup table over an arena's contents. Pairing
+`Arena::revision()` is a process-unique stamp of one storage at one mutation epoch: a
+clone keeps it, and any mutation-capable call or replacement storage yields a stamp never
+seen before. A tuple of the stamps and complete rosters an index reads is therefore its
+exact freshness key; a sum or a lossy roster marker is not. Pairing
 the cached value with the revision it was built against inside the owning struct ensures
 a dropped owner takes its index with it and a mutated owner rebuilds on the next query.
+Composite arenas keep their own stamp: root selection, page membership and mutable row
+access invalidate that owner's epoch. Reading it does not scan or add child epochs.
 When an owner finishes mutating, `seal` moves the built index out of the mutex slot so
 parallel workers read the frozen copy without locking.
 */

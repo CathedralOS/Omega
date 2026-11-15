@@ -8,6 +8,7 @@ pub(crate) use terminal_codec::contract_forms::RepeatedClauses as Repeated;
 
 fn refusal(id: MachineId, detail: String) -> Refusal {
     Refusal {
+        source_span: None,
         reason: RefusalReason::Unsupported,
         machine: id,
         concerns: Construct::Machine,
@@ -77,6 +78,18 @@ pub(crate) fn substitute(
     id: MachineId,
 ) -> Checked<Proposition> {
     terminal_codec::contract_forms::substitute(proposition, actuals)
+        .map_err(|detail| refusal(id, detail))
+}
+
+/// Restate a loop header's contract over its actual scalar and storage formals.
+/// Each incoming edge still owes the resulting predicate.
+pub(crate) fn substitute_parameters(
+    proposition: &Proposition,
+    actuals: &[ValueId],
+    places: &[semantic_vocabulary::PlaceId],
+    id: MachineId,
+) -> Checked<Proposition> {
+    terminal_codec::contract_forms::substitute_parameters(proposition, actuals, places)
         .map_err(|detail| refusal(id, detail))
 }
 

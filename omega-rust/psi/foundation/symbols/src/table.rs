@@ -2605,6 +2605,27 @@ pub enum SymbolLookup {
     },
 }
 
+/// Scoped lookup evidence retained by a source occurrence that has no selected
+/// declaration. Absence is not reconstructed from other declarations' spellings.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum UnresolvedName {
+    /// No lookup outcome was established, or selection needs a later judgment.
+    #[default]
+    Unserved,
+    NoVisibleDeclaration,
+    Ambiguous,
+}
+
+impl From<SymbolLookup> for UnresolvedName {
+    fn from(lookup: SymbolLookup) -> Self {
+        match lookup {
+            SymbolLookup::NotFound => Self::NoVisibleDeclaration,
+            SymbolLookup::Ambiguous { .. } => Self::Ambiguous,
+            SymbolLookup::Unique(_) => Self::Unserved,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TopLevelSelection {
     Ordinary,
@@ -3855,6 +3876,18 @@ impl SymbolTable {
             FixedCoreDeclaration::COUNT,
         )
         .and_then(FixedCoreDeclaration::from_ordinal)
+    }
+
+    /// The compiler's mathematical universe sorts. Their sole operand is a
+    /// level in the proof calculus, with no ordinary constant carrier.
+    pub fn universe_sort_for_symbol(&self, symbol: SymbolHandle) -> Option<FixedCoreDeclaration> {
+        self.fixed_core_declaration_for_symbol(symbol)
+            .filter(|sort| {
+                matches!(
+                    sort,
+                    FixedCoreDeclaration::Type | FixedCoreDeclaration::Strict
+                )
+            })
     }
 
     /*

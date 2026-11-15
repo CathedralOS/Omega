@@ -5104,6 +5104,7 @@ machine hold(
             .source_id;
         let resumed = crate::resolve_extension(crate::ExtensionRequest {
             base: Arc::new(base),
+            base_declarations: Arc::new(parse(text, source)),
             syntax: parse(added, extension),
             sources: Arc::new(extended_sources),
             top_level_bindings: Vec::new(),

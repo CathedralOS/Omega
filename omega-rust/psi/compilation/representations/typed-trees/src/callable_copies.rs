@@ -18,7 +18,7 @@ pub(crate) struct TypeCopy<'source, 'target, 'records> {
     pub(crate) records: &'records mut Vec<TypeExpressionCopy>,
     pub(crate) types: Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
     contracts: Vec<(RuntimeCallableContractHandle, RuntimeCallableContractHandle)>,
-    build_requests: Vec<Handle<crate::expression::BuildSelectionRequest>>,
+    build_requests: Vec<Handle<crate::expression::BuildSelectionCall>>,
 }
 
 pub(crate) struct TypeRemap<'target, 'scope> {
@@ -28,7 +28,7 @@ pub(crate) struct TypeRemap<'target, 'scope> {
     contracts: Vec<RuntimeCallableContractHandle>,
     expressions: Vec<ExpressionHandle>,
     facts: Vec<Handle<ProofFact>>,
-    build_requests: Vec<Handle<crate::expression::BuildSelectionRequest>>,
+    build_requests: Vec<Handle<crate::expression::BuildSelectionCall>>,
 }
 
 impl TypedTreeTables {
@@ -388,7 +388,8 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
                 | crate::signature::AuthoredInvocationTarget::Service(symbol) => {
                     *symbol = remapped(*symbol, self.symbols)
                 }
-                crate::signature::AuthoredInvocationTarget::Unresolved => {}
+                crate::signature::AuthoredInvocationTarget::Unresolved
+                | crate::signature::AuthoredInvocationTarget::Undeclared => {}
             }
         }
         let mut contracts = self
@@ -489,7 +490,7 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
 trait TypePayloadTransform {
     fn visit_build_request(
         &mut self,
-        request: Handle<crate::expression::BuildSelectionRequest>,
+        request: Handle<crate::expression::BuildSelectionCall>,
     ) -> bool;
     fn tables(&mut self) -> &mut TypedTreeTables;
     fn reference(&mut self, reference: TypeReferenceHandle) -> TypeReferenceHandle;
@@ -506,7 +507,7 @@ trait TypePayloadTransform {
 impl TypePayloadTransform for TypeCopy<'_, '_, '_> {
     fn visit_build_request(
         &mut self,
-        request: Handle<crate::expression::BuildSelectionRequest>,
+        request: Handle<crate::expression::BuildSelectionCall>,
     ) -> bool {
         if self.build_requests.contains(&request) {
             return false;
@@ -537,7 +538,7 @@ impl TypePayloadTransform for TypeCopy<'_, '_, '_> {
 impl TypePayloadTransform for TypeRemap<'_, '_> {
     fn visit_build_request(
         &mut self,
-        request: Handle<crate::expression::BuildSelectionRequest>,
+        request: Handle<crate::expression::BuildSelectionCall>,
     ) -> bool {
         if self.build_requests.contains(&request) {
             return false;
@@ -768,10 +769,12 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
 #[cfg(test)]
 mod build_request_copy_tests {
     use super::*;
+    use crate::expression::BuildSelectionCall;
     use crate::expression::{
         BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest, TableCallExpression,
     };
     use crate::types::TypeReferenceNode;
+    use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
     use language_semantics::declaration_selection::{
         ProductDeclarationOperand, ProviderReadinessRequest,
     };
@@ -788,17 +791,27 @@ mod build_request_copy_tests {
                 symbol: binder,
                 name: crate::name::Identifier::generated("T"),
             });
-        let request = source.expression_table.insert_build_selection_request(
-            BuildSelectionRequest::ProviderReadiness(ProviderReadinessRequest {
-                source_span: Default::default(),
-                requirement,
-                backing: ProductDeclarationOperand::default(),
-            }),
-        );
+        let request = BuildSelectionRequest::ProviderReadiness(ProviderReadinessRequest {
+            source_span: Default::default(),
+            requirement,
+            backing: ProductDeclarationOperand::default(),
+        });
+        let preparation = source
+            .expression_table
+            .insert_build_selection_call(BuildSelectionCall {
+                request: request.clone(),
+                operation: Protocol::Prepare,
+            });
+        let request = source
+            .expression_table
+            .insert_build_selection_call(BuildSelectionCall {
+                request,
+                operation: Protocol::AwaitProvider,
+            });
         let prepared = source
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
-                build_selection: request,
+                build_selection: preparation,
                 ..Default::default()
             }));
         source
@@ -806,7 +819,7 @@ mod build_request_copy_tests {
             .retain_build_selection_inputs(
                 prepared,
                 BuildSelectionInputs {
-                    request,
+                    request: preparation,
                     lexical_owner: owner,
                     phase: BuildSelectionPhase::Preparation,
                     inputs: Vec::new(),

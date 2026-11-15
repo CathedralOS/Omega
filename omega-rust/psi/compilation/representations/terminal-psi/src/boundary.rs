@@ -870,6 +870,10 @@ pub(crate) mod declarations {
         pub structural_parameters: Vec<StructuralParameterDeclaration>,
         pub result: BoundaryMachineResult,
         pub result_reference_regions: Vec<crate::TerminalDynamicReferenceRegion>,
+        /// Declared logical lifetime membership, independent of spatial
+        /// containment in an input. `None` leaves the frontier unavailable;
+        /// an empty input group promises a caller-chosen provider result.
+        pub result_lifetimes: Option<Vec<crate::DeclaredResultLifetime>>,
         pub requires: Vec<StructuralDomainRequirement>,
         pub normal_qualifications: Vec<StructuralDomainRequirement>,
         pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,
@@ -971,6 +975,21 @@ pub(crate) mod declarations {
     }
 
     impl BoundaryMachineDeclaration {
+        /// The declared reach (fixed reach and published ceiling) that a
+        /// supply of this requirement's owning service needs its own
+        /// permission for. The owning service is left out because that supply
+        /// performs it. This is a host-permission projection, never a ceiling:
+        /// the owner is catalogue ownership and stays outside the explicit
+        /// ceiling unless authored there, so an empty result says nothing
+        /// about whether the declared ceiling is empty.
+        pub fn reach_beyond_owning_supply(&self) -> impl Iterator<Item = ServiceId> + '_ {
+            self.fixed_service_reach
+                .iter()
+                .chain(&self.published_service_ceiling)
+                .copied()
+                .filter(move |service| Some(*service) != self.owning_service)
+        }
+
         pub fn requires_checked_result(
             &self,
             domains: &[crate::StructuralDomainDeclaration],

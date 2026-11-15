@@ -396,15 +396,26 @@ impl Program<'_> {
                     )
                 })?;
             if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference
-                && (!supplied.satisfies.is_empty()
-                    || typed
-                        .owned_conformance_realization(supplied.symbol)
-                        .is_some())
+                && let Some((owner, required)) = self.conformer_requirement(context, supplied)?
             {
-                return Err(services::unavailable(
-                    context,
-                    "selection row cannot rebind a declared conformer",
-                ));
+                let same_requirement =
+                    owner == row.declaring_trait && required.symbol == row.requirement;
+                let same_application = same_requirement
+                    && (application.declaration.type_parameters.is_empty()
+                        || typed
+                            .machine_conformance_requirement_scope(
+                                supplied.symbol,
+                                owner,
+                                required.symbol,
+                            )
+                            .map_err(|reason| services::unavailable(context, reason))?
+                            .is_some_and(|own| own.same_application(typed, &application)));
+                if !same_application {
+                    return Err(services::unavailable(
+                        context,
+                        "selection row cannot rebind a declared conformer",
+                    ));
+                }
             }
             let [state] = typed.machine_states(supplied) else {
                 return Err(services::unavailable(

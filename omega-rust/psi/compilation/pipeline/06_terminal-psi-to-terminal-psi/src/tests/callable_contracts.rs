@@ -669,7 +669,7 @@ machine build_entry(value: u32) -> u32 crashes none { ACK Probe::read(value) }
         );
         let refusal = crate::operational::judge(&missing_audit).unwrap_err();
         assert!(
-            matches!(refusal.reason, RefusalReason::Violation(_)),
+            matches!(refusal.reason, RefusalReason::Violation),
             "{refusal:?}"
         );
         assert_eq!(

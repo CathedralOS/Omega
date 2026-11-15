@@ -1132,7 +1132,7 @@ fn invocations(
         .iter()
         .map(|invocation| {
             Ok(match invocation.target {
-                AuthoredInvocationTarget::Unresolved => {
+                AuthoredInvocationTarget::Unresolved | AuthoredInvocationTarget::Undeclared => {
                     return Err(RuntimeCallableIdentityError::UnresolvedInvocation);
                 }
                 AuthoredInvocationTarget::Parameter {

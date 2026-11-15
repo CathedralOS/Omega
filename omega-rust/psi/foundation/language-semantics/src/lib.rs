@@ -351,6 +351,50 @@ pub mod build_requests {
     /// designated operands (`Build::bind`, `Build::select_provider`, ...).
     pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
 
+    /// One requirement of the selection protocol, as typing chose it for a
+    /// generated call. Typing decides the operation from the request it
+    /// lowers and records it beside that request; publication and the
+    /// Build host read the recorded operation, so the requirement's
+    /// declared name is consulted once, here, to find its declaration.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum SelectionProtocolOperation {
+        /// Lends the Build value to the activation and returns its ticket.
+        Prepare,
+        /// Lends the Build's `tests` facet for test-group registration.
+        PrepareTests,
+        AwaitProvider,
+        /// `Build::bind(builder, slot, entry)` with an authored entry path.
+        Bind,
+        /// `Build::bind(builder, slot, description)` with an entry value.
+        BindDescription,
+        BindNative,
+        Select,
+        SelectProvider,
+        Exclude,
+    }
+
+    impl SelectionProtocolOperation {
+        /// The requirement of `BuildBindingOperations` this operation calls.
+        pub const fn requirement_name(self) -> &'static str {
+            match self {
+                Self::Prepare => "prepare",
+                Self::PrepareTests => "prepare_tests",
+                Self::AwaitProvider => "await_provider",
+                Self::Bind => "bind",
+                Self::BindDescription => "bind_description",
+                Self::BindNative => "bind_native",
+                Self::Select => "select",
+                Self::SelectProvider => "select_provider",
+                Self::Exclude => "exclude",
+            }
+        }
+
+        /// Whether this is the call that lends the Build before a commit.
+        pub const fn prepares(self) -> bool {
+            matches!(self, Self::Prepare | Self::PrepareTests)
+        }
+    }
+
     pub fn is_build_protocol(
         symbols: &symbols::SymbolTable,
         declaration: symbols::SymbolHandle,
@@ -1160,72 +1204,6 @@ pub mod conformance_identity {
 pub mod const_value;
 pub mod content;
 pub mod declaration_selection;
-pub mod direct_calls {
-    pub use source::DependencyScope;
-
-    pub struct DirectCallDeclarations<Declaration> {
-        pub scope: DependencyScope,
-        pub machines: Vec<DirectCallMachine<Declaration>>,
-        pub families: Vec<DirectCallFamily>,
-        machine_positions: std::collections::HashMap<Declaration, usize>,
-    }
-
-    pub struct DirectCallMachine<Declaration> {
-        pub declaration: Declaration,
-        pub name: String,
-        pub in_scope: bool,
-        pub family_interface: bool,
-        pub authored_target: Option<String>,
-        pub source_target_context: Option<String>,
-        pub target: Option<String>,
-        pub states: Vec<DirectCallState<Declaration>>,
-    }
-
-    pub struct DirectCallState<Declaration> {
-        pub declaration: Declaration,
-        pub name: String,
-        pub calls: Vec<DirectCall<Declaration>>,
-    }
-
-    pub struct DirectCall<Declaration> {
-        pub declaration: Declaration,
-        pub machine: Option<usize>,
-    }
-
-    pub struct DirectCallFamily {
-        pub canonical: Option<usize>,
-        pub members: Vec<DirectCallFamilyMember>,
-    }
-
-    pub struct DirectCallFamilyMember {
-        pub target: String,
-        pub machine: Option<usize>,
-    }
-
-    impl<Declaration: Eq + std::hash::Hash> DirectCallDeclarations<Declaration> {
-        pub fn new(
-            scope: DependencyScope,
-            machines: Vec<DirectCallMachine<Declaration>>,
-            families: Vec<DirectCallFamily>,
-            machine_positions: Vec<(Declaration, usize)>,
-        ) -> Self {
-            let mut positions = std::collections::HashMap::with_capacity(machine_positions.len());
-            for (declaration, position) in machine_positions {
-                positions.entry(declaration).or_insert(position);
-            }
-            Self {
-                scope,
-                machines,
-                families,
-                machine_positions: positions,
-            }
-        }
-
-        pub fn called_machine_position(&self, declaration: &Declaration) -> Option<usize> {
-            self.machine_positions.get(declaration).copied()
-        }
-    }
-}
 mod external_bindings {
     use crate::ExternalBindingId;
 
@@ -1383,6 +1361,20 @@ mod machine_termination {
         pub view_path: String,
         pub view_arguments: Vec<String>,
         pub rank_range: Option<RankRange>,
+    }
+
+    /// A ranking use retains what name resolution selected. A numeric view
+    /// tag alone is normalization metadata, never declaration authority.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
+    pub enum RankingViewSelection {
+        #[default]
+        Unresolved,
+        Declaration(symbols::SymbolHandle),
+        /// A closed view with no authored declaration, selected only after
+        /// ordinary declaration lookup found no shadowing declaration.
+        Builtin(RankingViewId),
+        /// The subject's typed carrier selected its stable default.
+        CanonicalDefault(RankingViewId),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
@@ -2568,8 +2560,8 @@ pub use language_core::{
 };
 pub use machine_termination::{
     MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject,
-    RANKING_VIEW_CORE_SOURCE, RankRange, RankingViewDeclaration, RankingWitness,
-    TerminationGuarantee, TerminationInterface,
+    RANKING_VIEW_CORE_SOURCE, RankRange, RankingViewDeclaration, RankingViewSelection,
+    RankingWitness, TerminationGuarantee, TerminationInterface,
 };
 pub use permissions::{
     PermissionAccess, PermissionArrival, PermissionClaimIdentity as ScopedPermissionClaimIdentity,

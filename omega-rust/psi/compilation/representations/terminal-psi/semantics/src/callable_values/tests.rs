@@ -212,6 +212,7 @@ fn boundary(id: u64, returns_callable: bool) -> terminal_psi::BoundaryMachineDec
             BoundaryMachineResult::Unit
         },
         result_reference_regions: Vec::new(),
+        result_lifetimes: Some(Vec::new()),
         requires: Vec::new(),
         normal_qualifications: Vec::new(),
         scalar_domain_requirements: Vec::new(),

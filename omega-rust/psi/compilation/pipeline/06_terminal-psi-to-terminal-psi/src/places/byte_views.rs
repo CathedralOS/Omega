@@ -360,6 +360,57 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
+    /// A rank observes one descriptor binding at a specified block cut.
+    /// Payload-only calls may keep that binding; replacement and unresolved
+    /// overlapping writes may not reuse its earlier observation.
+    pub(crate) fn rank_descriptor_kept(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        source: &StructuralArgument,
+        block: semantic_vocabulary::BlockId,
+        from: usize,
+        until: usize,
+    ) -> Checked<bool> {
+        let concerns = Construct::Block(block);
+        let raw = self.argument(source, concerns)?;
+        let descriptor = self.backing(references, &raw, block, from, concerns)?;
+        // Every pointer binding crossed on the way to the descriptor must
+        // remain frozen too; a stable old destination cannot authenticate a
+        // later observation through a rebound reference.
+        let mut prefixes = Vec::new();
+        for (position, segment) in raw.segments.iter().enumerate() {
+            if *segment == terminal_check_tables::bindings::Segment::Referent {
+                let prefix = super::Lineage {
+                    root: raw.root,
+                    segments: raw.segments[..position].to_vec(),
+                };
+                prefixes.push(self.backing(references, &prefix, block, from, concerns)?);
+            }
+        }
+        let mut leaf = descriptor.clone();
+        leaf.segments
+            .push(terminal_check_tables::bindings::Segment::Extent);
+        for row in &self.log {
+            if row.block != block || row.position <= from || row.position > until {
+                continue;
+            }
+            if prefixes
+                .iter()
+                .any(|prefix| super::overlap(&row.lineage, prefix))
+                || super::overlap(&row.lineage, &descriptor)
+                    && !self.call_preserves_extent(
+                        references,
+                        super::Asked::Contents(&leaf),
+                        row,
+                        concerns,
+                    )?
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
         let concerns = Construct::Operation(operation.id);
         let shape = self.byte_shape(root, &[], concerns)?;
@@ -492,16 +543,41 @@ impl<'a> Storage<'a> {
         for origin in origins {
             let shared = match origin {
                 DescriptorCallOrigin::Argument { source, projection } => {
-                    matches!(
+                    let shared_ingress = matches!(
                         self.root_kind(source, concerns)?,
                         StructuralPlaceKind::Parameter { .. }
-                    ) && is_shared_bytes(&self.byte_shape(source, &projection.path, concerns)?)
-                        && self.descriptor_access(
-                            source,
-                            &projection.path,
-                            concerns,
-                            StructuralAccess::SharedBorrow,
-                        )?
+                    ) && is_shared_bytes(&self.byte_shape(
+                        source,
+                        &projection.path,
+                        concerns,
+                    )?) && self.descriptor_access(
+                        source,
+                        &projection.path,
+                        concerns,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                    if shared_ingress {
+                        true
+                    } else {
+                        let enclosing = projection.enclosing_storage().ok_or_else(|| {
+                            self.unsupported(
+                                concerns,
+                                "a shared subslice has no captured backing path",
+                            )
+                        })?;
+                        terminal_semantics::fixed_byte_storage_window(
+                            self.types.iter(),
+                            self.root_type(source, concerns)?,
+                            &enclosing.path,
+                        )
+                        .is_some()
+                            && self.descriptor_access(
+                                source,
+                                &enclosing.path,
+                                concerns,
+                                StructuralAccess::SharedBorrow,
+                            )?
+                    }
                 }
                 DescriptorCallOrigin::Literal { machine, place } => self
                     .module
@@ -513,10 +589,9 @@ impl<'a> Storage<'a> {
                 _ => false,
             };
             if !shared {
-                return Err(self.unsupported(
-                    concerns,
-                    "a subslice whose backing is not shared ingress or immutable literal bytes",
-                ));
+                return Err(
+                    self.unsupported(concerns, "a subslice without authenticated shared backing")
+                );
             }
         }
         // Storage::uses separately proves the selected descriptor is available
@@ -587,6 +662,7 @@ impl<'a> Storage<'a> {
         &self,
         measurement: &Operation,
         producer: OperationId,
+        trace: &super::Reaching,
     ) -> Checked<Option<Proposition>> {
         let concerns = Construct::Operation(measurement.id);
         let producer = self.operation(producer, concerns)?;
@@ -597,6 +673,7 @@ impl<'a> Storage<'a> {
             return Ok(None);
         }
         if matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
+            && !self.current_extent(producer.id, trace)?
             && self.repeated_extent(producer.id)?
         {
             return Ok(None);
@@ -613,6 +690,7 @@ impl<'a> Storage<'a> {
                 producer.id,
                 ProgramPoint::AfterOperation(measurement.id),
                 result.scalar_type,
+                trace,
             )?
             else {
                 return Ok(None);
@@ -686,6 +764,7 @@ impl<'a> Storage<'a> {
         producer: OperationId,
         at: ProgramPoint,
         scalar: ScalarType,
+        trace: &super::Reaching,
     ) -> Checked<Option<semantic_vocabulary::ScalarTerm>> {
         use semantic_vocabulary::{IntegerValue, ScalarTerm};
         let concerns = Construct::Operation(producer);
@@ -711,7 +790,7 @@ impl<'a> Storage<'a> {
                 ),
             ),
             OperationKind::ByteSequenceSubslice { start, end, .. } => {
-                if self.repeated_extent(producer)? {
+                if !self.current_extent(producer, trace)? && self.repeated_extent(producer)? {
                     return Ok(None);
                 }
                 ScalarTerm::exact_integer_subtract(

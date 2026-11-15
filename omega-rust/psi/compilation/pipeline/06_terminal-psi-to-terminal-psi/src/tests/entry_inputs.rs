@@ -176,6 +176,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     let mut elaboration =
@@ -228,6 +229,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
                 invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
                 crashes: CrashCeiling::Authored(Vec::new()),
                 termination: Termination::Silent,
+                ranking: None,
             });
         }
         signatures

@@ -98,43 +98,25 @@ pub(crate) fn components(
     signatures: &IdTable<MachineId, Signature>,
 ) -> Checked<Components> {
     let (calls, mut table) = call_graph(bodies)?;
-    let witnessed: Vec<bool> = bodies
+    let ranked = bodies
         .keys()
         .map(|machine| {
-            signatures
-                .get(machine)
-                .is_some_and(|signature| matches!(signature.termination, Termination::Witnessed(_)))
+            terminal_check_tables::row(signatures, machine, machine, Construct::Machine)
+                .map(|signature| signature.ranking.is_some())
         })
-        .collect();
-    table.rank(&calls, &witnessed);
+        .collect::<Checked<Vec<_>>>()?;
+    table.rank(&calls, &ranked);
     for (machine, body) in bodies.iter() {
         let this = index(machine);
         let signature =
             terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
         let members = table.members(machine)?;
         let unserved = |what| Err(refuse(machine, Construct::Machine, what));
-        // A promise holds only when every cycle the machine lies on or
-        // calls into is ranked: termination.md, "A cyclic terminating body
-        // must supply its witness; inference never chooses its subjects or
-        // silently publishes a guarantee. Unknown progress dependencies
-        // prevent a checked guarantee." A cycle of one machine is ranked by
-        // that machine's own witness (`lower::ranking` writes its ranking
-        // and the checker compares every edge). A witness on a cycle of
-        // several machines is not ranked yet: the same page leaves "the
-        // exact source spelling for differently shaped mutual participants"
-        // undetermined, so that component is refused by name.
-        match signature.termination {
-            Termination::Silent => {}
-            Termination::Witnessed(_) if members.len() > 1 => {
-                return unserved(Unserved::Contract(
-                    "ranking witness on a call cycle of several machines",
-                ));
-            }
-            Termination::Witnessed(_) | Termination::Promised => {
-                if table.reaches_unranked_cycle(this) {
-                    return unserved(Unserved::Contract("termination promise over a call cycle"));
-                }
-            }
+        // A promise depends on every reachable cyclic member retaining its
+        // own measure. The graph propagates missing witnesses once; lowering
+        // and the control judgment still prove their actual edge comparisons.
+        if signature.termination == Termination::Promised && table.reaches_unranked_cycle(this) {
+            return unserved(Unserved::Contract("termination promise over a call cycle"));
         }
         if !members.is_empty() {
             // A frame-reusing jump cannot yet retain the public call's exact
@@ -151,10 +133,7 @@ pub(crate) fn components(
             {
                 return unserved(Unserved::Call("recursion outside a terminal position"));
             }
-            if uses_storage(body, signature) {
-                return unserved(Unserved::Machine("storage on a call cycle"));
-            }
-            // A head's parameters are its member's runtime scalar formals.
+            // A head's parameters carry the member's runtime formals.
             // An erased binding has no runtime lane to carry around the
             // loop, and a value of a type parameter is not one the heads
             // declare yet; each needs its own slice.
@@ -351,83 +330,4 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             call(callee, arguments, *required_contract, false, sites);
         }
     }
-}
-
-/// Whether the machine holds a data value anywhere: a record or sum formal,
-/// result, local or expression, or a local declared without an initializer.
-/// Storage across a jump back needs structural block parameters and a write
-/// log that follows them, which a later slice of the loops lane serves.
-fn uses_storage(body: &Body, signature: &Signature) -> bool {
-    fn stored(value: &Expression) -> bool {
-        if matches!(value.result, Some(ValueType::Record(_, _, _))) {
-            return true;
-        }
-        match &value.kind {
-            ExpressionKind::SavedSubject(_)
-            | ExpressionKind::Integer(_)
-            | ExpressionKind::ByteLiteral(_)
-            | ExpressionKind::MachineValue { .. }
-            | ExpressionKind::Boolean(_)
-            | ExpressionKind::Slot(_) => false,
-            ExpressionKind::Array { .. }
-            | ExpressionKind::Index { .. }
-            | ExpressionKind::Record { .. }
-            | ExpressionKind::Field { .. }
-            | ExpressionKind::ByteElement { .. }
-            | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::ByteSubslice { .. }
-            | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::Case { .. }
-            | ExpressionKind::Payload { .. }
-            | ExpressionKind::IsCase { .. }
-            | ExpressionKind::Borrow { .. } => true,
-            // Over a sum the dispatch observes storage; over a scalar it
-            // compares values, and only its operands can hold data.
-            ExpressionKind::Match {
-                subject,
-                arms,
-                default,
-                ..
-            } => {
-                !matches!(subject.result, Some(ValueType::Scalar(..)))
-                    || stored(subject)
-                    || arms.iter().any(|(_, arm)| stored(arm))
-                    || default.as_deref().is_some_and(stored)
-            }
-            ExpressionKind::Not(operand)
-            | ExpressionKind::BitwiseNot(operand)
-            | ExpressionKind::Cast(operand)
-            | ExpressionKind::Requalify(operand)
-            | ExpressionKind::Referent(operand)
-            | ExpressionKind::Establish { operand, .. } => stored(operand),
-            ExpressionKind::Strict { left, right, .. }
-            | ExpressionKind::ShortCircuit { left, right, .. } => stored(left) || stored(right),
-            ExpressionKind::Call {
-                callee, arguments, ..
-            } => callee.operand().is_some_and(stored) || arguments.iter().any(stored),
-        }
-    }
-    fn arm(target: &Target) -> bool {
-        match target {
-            Target::Value(value) => stored(value),
-            Target::Unit | Target::Crash(_) => false,
-        }
-    }
-    let data = |value_type: &ValueType| matches!(value_type, ValueType::Record(_, _, _));
-    signature.parameters.iter().any(data)
-        || !signature.borrowed.is_empty()
-        || signature.result.as_ref().is_some_and(data)
-        || body.slots.iter().any(data)
-        || body.statements.iter().any(|statement| match statement {
-            Statement::Bind { value, .. } | Statement::Evaluate(value) => stored(value),
-            // Refused on a cycle by its own name, as an erased binding.
-            Statement::Witness { .. } => false,
-            Statement::CaptureReference { .. }
-            | Statement::Declare { .. }
-            | Statement::Store { .. }
-            | Statement::Dispatch { .. } => true,
-            Statement::Arm { guard, target, .. } => {
-                guard.as_ref().is_some_and(stored) || arm(target)
-            }
-        })
 }

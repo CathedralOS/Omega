@@ -1041,6 +1041,7 @@ pub(crate) mod machine {
                 typed::ranking::RankingExpressionCustody {
                     machine: machine.symbol,
                     subjects: ranking_subjects,
+                    view: machine.selected_ranking_view,
                     view_arguments: ranking_view_arguments,
                     rank_range: ranking_range,
                 },
@@ -1164,11 +1165,48 @@ pub(crate) mod machine {
         }
         typed_machine.termination_plan.implementation_witness =
             machine.termination_plan.implementation_witness.clone();
+        // Explicit views retain normal name resolution. Only a selected
+        // closed builtin or authenticated catalog declaration gets a view tag.
+        let explicit =
+            match machine.selected_ranking_view {
+                language_semantics::RankingViewSelection::Builtin(view) => Some(view),
+                language_semantics::RankingViewSelection::Declaration(symbol) => lowerer
+                    .source_trees
+                    .machines
+                    .iter()
+                    .find(|candidate| candidate.symbol == symbol)
+                    .filter(|candidate| {
+                        lowerer.source_trees.symbols.sealed_declaration(
+                        symbol, candidate.name.as_str(),
+                    ) == Some(language_core::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+                        language_core::sealed_intrinsics::CompilerPrimitive::NaturalRanking,
+                    ))
+                    })
+                    .map(|_| language_semantics::RankingViewId::NAT_DESCENDING),
+                _ => None,
+            };
+        if let Some(view) = explicit
+            && let Some(witness) = &mut typed_machine.termination_plan.implementation_witness
+        {
+            witness.ranking_view = view;
+        }
         crate::lowerer::progress::settle_machine_ranking_default(
             &lowerer.typed_trees,
             &lowerer.source_trees.symbols,
             typed_machine,
         );
+        if machine.ranking_view.is_empty()
+            && let Some(witness) = &typed_machine.termination_plan.implementation_witness
+            && witness.ranking_view != language_semantics::RankingViewId::NULL
+            && let Some(custody) = lowerer
+                .typed_trees
+                .ranking_expression_custody
+                .iter_mut()
+                .find(|custody| custody.machine == machine.symbol)
+        {
+            custody.view =
+                language_semantics::RankingViewSelection::CanonicalDefault(witness.ranking_view);
+        }
         typed_machine.body_status = typed::machine::MachineBodyStatus::Complete;
         Ok(())
     }
@@ -1888,6 +1926,10 @@ pub(crate) mod state {
             );
         Ok(typed::statement::TableCall {
             runtime_call: call.runtime_call,
+            unresolved_name: lowerer
+                .typed_trees
+                .expression_table
+                .unresolved_name(call_handle),
             installed_interrupt_operation: call.installed_interrupt_operation,
             authored_machine_application: call.authored_machine_application,
             receiver_root_symbol,

@@ -278,6 +278,57 @@ fn repo_root() -> &'static std::path::Path {
         .expect("compiler crate is nested four levels under the repository")
 }
 
+#[test]
+fn empty_payload_coverage_survives_the_actual_product_and_interpreter() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let product = default_product("tests/fixtures/run/calls/uninhabited_payload_coverage");
+    let module = product.artifact().semantic_module();
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .any(|block| {
+                matches!(
+                    block.terminator,
+                    terminal_psi::Terminator::EliminateEmpty { .. }
+                )
+            })
+    );
+    let bytes = terminal_codec::encode_module(module).expect("the actual product encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+            .expect("the actual product is admitted by the interpreter");
+    let status = execution
+        .resume(&mut WorkMeter::with_budget(10_000_000), &mut NoEffects)
+        .expect("both owned and borrowed Ok observations execute");
+    assert!(matches!(
+        status,
+        terminal_interpreter::TerminalExecutionStatus::Complete(_)
+    ));
+
+    let main =
+        repo_root().join("tests/fixtures/fail/calls/inhabited_payload_missing_case/main.omg");
+    let diagnostics = std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("an inhabited Err payload still needs its own arm")
+            .into_diagnostics()
+        })
+        .expect("compiler worker")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    });
+    assert!(
+        format!("{diagnostics:?}").contains("a dispatch selects no arm for a declared case"),
+        "the payload argument alone removes exclusion evidence: {diagnostics:?}",
+    );
+}
+
 /// Every source machine keeps its exact declaration and nonempty contract
 /// commitment when the actual accepted module is published. Entry selection
 /// uses those canonical identities rather than a display name.

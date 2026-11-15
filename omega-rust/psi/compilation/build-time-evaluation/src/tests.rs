@@ -478,6 +478,72 @@ fn typed_base_scoped(
 }
 
 #[test]
+fn a_proof_universe_level_is_not_an_ordinary_evaluation_request() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    use typed_trees::mathematical::MathematicalType;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::TypeReferenceNode;
+
+    let (_, _, base, pending) = typed_base(&[(
+        "program/main.omg",
+        "let small(value: u64): core::Strict<0> = embed(value) <= 100;
+machine holder() { let value: u32 = 0; }
+",
+    )]);
+    let mut typed = base.typed().clone();
+    crate::PreCheckEvaluation::defer_declared_requests(&mut typed).unwrap();
+    assert!(typed.deferred_refusals.is_empty());
+    assert!(pending.activate_sources(&typed).is_ok());
+
+    let [predicate] = typed.mathematical_definitions() else {
+        panic!("the written predicate");
+    };
+    let MathematicalType::Ordinary(result) = typed.mathematical_type(predicate.result) else {
+        panic!("the written sort");
+    };
+    let TypeReferenceNode::Generic { arguments, .. } =
+        typed.type_reference_table.type_reference(*result)
+    else {
+        panic!("the sort applied to its level");
+    };
+    let [level] = typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("the one universe level");
+    };
+    let level = *level;
+    assert!(matches!(
+        typed.type_reference_table.type_reference(level),
+        TypeReferenceNode::ConstExpression(_)
+    ));
+
+    assert!(
+        typed_trees::references::collect_program_references(&typed)
+            .type_references
+            .contains(&level)
+    );
+
+    // A shared type handle does not make its other occurrence a proof
+    // level. The ordinary type request still belongs to its lexical holder.
+    let holder = typed.realized_machine_named("holder").unwrap();
+    let local = typed.machine_states(holder)[0]
+        .statement_nodes
+        .handles()
+        .next()
+        .unwrap();
+    let holder = holder.symbol;
+    let StatementNode::LocalData(binding) = typed.statement_table.statement_mut(local) else {
+        panic!("the written local");
+    };
+    binding.type_reference = level;
+    assert_eq!(
+        crate::source_frontier::declared_jobs(&typed).unwrap(),
+        [(holder, DeferredRequest::TypeExpressionEvaluation)]
+    );
+}
+
+#[test]
 fn an_evaluation_request_in_a_declaration_refuses_that_declaration_only() {
     use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::statement::StatementNode;

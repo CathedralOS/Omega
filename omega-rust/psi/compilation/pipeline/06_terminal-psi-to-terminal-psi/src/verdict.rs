@@ -1101,7 +1101,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 RefusalReason::Unsupported
                 | RefusalReason::NotConserved
                 | RefusalReason::Conflict
-                | RefusalReason::Violation(_)
+                | RefusalReason::Violation
                 | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
             };
             let concerns = Construct::Obligation(consumed.opened_by);
@@ -1621,11 +1621,11 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
         }),
         // A rule the source form breaks, whoever found it: the reader of
         // the typed trees, before anything was lowered.
-        RefusalReason::Violation(site) => Ok(RouteVerdict::Rejected {
+        RefusalReason::Violation => Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
             violations: vec![RuleViolation {
                 machine: refused.machine,
-                site,
+                site: refused.source_span,
                 statement: refused.detail,
             }],
             unproved: Vec::new(),

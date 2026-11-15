@@ -15,7 +15,10 @@ has no place for them yet. A seal is therefore lost on any byte round trip and
 does not survive a stored artifact.
 */
 
-use semantic_vocabulary::{MachineId, ObligationId, OperationId, Proposition};
+use semantic_vocabulary::{
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, StructuralPlaceKind,
+    StructuralTypeId,
+};
 use terminal_psi::{
     CertificateEnvelope, CorrelatedAffineBranchWitness, PrimitiveJudgment, ProofNode, ProofRule,
 };
@@ -141,7 +144,7 @@ pub enum EvidenceSealValidationError {
         machine: MachineId,
         obligation: ObligationId,
     },
-    /// No unique proof-bearing scalar operation owns this seal's obligation.
+    /// No unique operation owns this seal's obligation.
     UnownedSeal {
         machine: MachineId,
         obligation: ObligationId,
@@ -209,90 +212,176 @@ impl EvidenceSeals {
 
 struct OperationEvidenceGoal {
     operation: OperationId,
-    /// Absent for a non-scalar obligation or malformed scalar semantics.
-    /// An attempted seal attachment to either must fail.
-    goal: Option<(ObligationId, Proposition)>,
+    obligation: ObligationId,
+    proposition: Option<Proposition>,
+}
+
+fn unique_by_id<T, Id: Ord>(rows: &[T], id: Id, key: impl Fn(&T) -> Id) -> Option<&T> {
+    let position = rows.partition_point(|row| key(row) < id);
+    let row = rows.get(position)?;
+    (key(row) == id && rows.get(position + 1).is_none_or(|next| key(next) != id)).then_some(row)
+}
+
+fn machine_place_types(
+    machine: &terminal_psi::TerminalMachine,
+) -> Vec<(PlaceId, Option<StructuralTypeId>)> {
+    let mut parameters = machine
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            (
+                parameter.place,
+                StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                },
+                Some(parameter.structural_type),
+            )
+        })
+        .collect::<Vec<_>>();
+    for block in &machine.blocks {
+        parameters.extend(block.structural_parameters.iter().enumerate().map(
+            |(position, parameter)| {
+                (
+                    parameter.place,
+                    StructuralPlaceKind::BlockParameter {
+                        block: block.id,
+                        position: parameter.position,
+                    },
+                    (usize::try_from(parameter.position).ok() == Some(position))
+                        .then_some(parameter.structural_type),
+                )
+            },
+        ));
+    }
+    parameters.sort_unstable_by_key(|(place, _, _)| *place);
+    let mut places = machine
+        .structural_places
+        .iter()
+        .map(|place| {
+            let declaration = match place.kind {
+                StructuralPlaceKind::Parameter { .. }
+                | StructuralPlaceKind::BlockParameter { .. } => {
+                    unique_by_id(&parameters, place.id, |(id, _, _)| *id)
+                        .filter(|(_, kind, _)| *kind == place.kind)
+                        .and_then(|(_, _, ty)| *ty)
+                }
+                StructuralPlaceKind::Result => machine
+                    .result
+                    .structural()
+                    .filter(|result| result.place == place.id)
+                    .map(|result| result.structural_type),
+                _ => place.kind.produced_structural_type(),
+            };
+            (place.id, declaration)
+        })
+        .collect::<Vec<_>>();
+    places.sort_unstable_by_key(|(place, _)| *place);
+    places
 }
 
 struct MachineEvidenceGoals<'module> {
     machine: &'module terminal_psi::TerminalMachine,
-    operations: Vec<OperationEvidenceGoal>,
-    owners: Vec<(ObligationId, OperationId)>,
+    operations: Vec<OperationId>,
+    goals: Vec<OperationEvidenceGoal>,
 }
 
 impl<'module> MachineEvidenceGoals<'module> {
-    fn new(machine: &'module terminal_psi::TerminalMachine) -> Self {
-        // These are the same declarations used for scalar operation meaning
-        // throughout Psi. Build the sparse value lookup once per sealed machine.
+    fn new(
+        machine: &'module terminal_psi::TerminalMachine,
+        structural_types: &'module [terminal_psi::StructuralTypeDeclaration],
+        indexed_types: &mut Option<Vec<&'module terminal_psi::StructuralTypeDeclaration>>,
+    ) -> Self {
         let declarations = machine
             .parameters
             .iter()
             .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
             .chain(
                 machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
+                    .operations()
                     .filter_map(|operation| operation.result.scalar_ref()),
             )
             .map(|declaration| (declaration.id, declaration.scalar_type))
             .collect();
         let types = terminal_semantics::SortedValueTypes::new(declarations);
-        let mut operations = machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .map(|operation| {
-                let goal = types.as_ref().and_then(|types| {
-                    terminal_semantics::operation_safety_goal(operation, types).ok()?
-                });
-                OperationEvidenceGoal {
+        let mut operations = Vec::new();
+        let mut goals = Vec::new();
+        let mut places = None;
+        for operation in machine.operations() {
+            operations.push(operation.id);
+            let Some(types) = &types else {
+                continue;
+            };
+            if let Ok(Some((obligation, proposition))) =
+                terminal_semantics::operation_safety_goal(operation, types)
+            {
+                goals.push(OperationEvidenceGoal {
                     operation: operation.id,
-                    goal,
+                    obligation,
+                    proposition: Some(proposition),
+                });
+            }
+            for projection in operation.kind.structural_projections() {
+                let mut indices = projection
+                    .path
+                    .iter()
+                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                    .peekable();
+                if indices.peek().is_none() {
+                    continue;
                 }
-            })
-            .collect::<Vec<_>>();
-        operations.sort_unstable_by_key(|row| row.operation);
-        let mut owners = operations
-            .iter()
-            .filter_map(|row| {
-                row.goal
-                    .as_ref()
-                    .map(|(obligation, _)| (*obligation, row.operation))
-            })
-            .collect::<Vec<_>>();
-        owners.sort_unstable();
+                let first = goals.len();
+                let places = places.get_or_insert_with(|| machine_place_types(machine));
+                let root = unique_by_id(places, projection.root, |(place, _)| *place)
+                    .and_then(|(_, ty)| *ty);
+                let valid = root.is_some_and(|root| {
+                    let indexed_types = indexed_types.get_or_insert_with(|| {
+                        let mut rows = structural_types.iter().collect::<Vec<_>>();
+                        rows.sort_unstable_by_key(|row| row.id);
+                        rows
+                    });
+                    terminal_semantics::visit_runtime_index_goals(
+                        structural_types.iter(),
+                        |id| unique_by_id(indexed_types, id, |row| row.id).copied(),
+                        root,
+                        projection.path,
+                        types,
+                        |obligation, proposition| {
+                            goals.push(OperationEvidenceGoal {
+                                operation: operation.id,
+                                obligation,
+                                proposition: Some(proposition),
+                            });
+                        },
+                    )
+                    .is_ok()
+                });
+                if !valid {
+                    // A malformed path cannot corroborate a seal or disappear
+                    // as a competing owner of the same obligation.
+                    goals.truncate(first);
+                    goals.extend(indices.map(|(_, obligation)| OperationEvidenceGoal {
+                        operation: operation.id,
+                        obligation,
+                        proposition: None,
+                    }));
+                }
+            }
+        }
+        operations.sort_unstable();
+        goals.sort_unstable_by_key(|row| row.obligation);
         Self {
             machine,
             operations,
-            owners,
+            goals,
         }
     }
 
-    fn operation(&self, operation: OperationId) -> Option<&OperationEvidenceGoal> {
-        let position = self
-            .operations
-            .partition_point(|row| row.operation < operation);
-        let found = self.operations.get(position)?;
-        (found.operation == operation
-            && self
-                .operations
-                .get(position + 1)
-                .is_none_or(|next| next.operation != operation))
-        .then_some(found)
+    fn names_one_operation(&self, operation: OperationId) -> bool {
+        unique_by_id(&self.operations, operation, |id| *id).is_some()
     }
 
-    fn owner(&self, obligation: ObligationId) -> Option<OperationId> {
-        let position = self
-            .owners
-            .partition_point(|(found, _)| *found < obligation);
-        let &(found, operation) = self.owners.get(position)?;
-        (found == obligation
-            && self
-                .owners
-                .get(position + 1)
-                .is_none_or(|(next, _)| *next != obligation))
-        .then_some(operation)
+    fn obligation(&self, obligation: ObligationId) -> Option<&OperationEvidenceGoal> {
+        unique_by_id(&self.goals, obligation, |row| row.obligation)
     }
 }
 
@@ -300,7 +389,7 @@ impl<'module> MachineEvidenceGoals<'module> {
 /// shared by whole-bundle projection and receiving operation-fact attachment.
 /// This checks correspondence and fingerprints, never kernel derivations.
 ///
-/// Construction indexes the scalar goals once per machine with evidence. A
+/// Construction indexes the operation goals once per machine with evidence. A
 /// receiver may validate only its consumed seals and retain its own unmatched
 /// seal refusal; projection must call `validate_all` before dropping any row.
 pub struct EvidenceSealValidator<'module, 'seals> {
@@ -324,11 +413,14 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
             .map(|&position| seals[position].machine)
             .collect::<Vec<_>>();
         selected.dedup();
+        let mut indexed_types = None;
         let mut machines = module
             .machines
             .iter()
             .filter(|machine| selected.binary_search(&machine.id).is_ok())
-            .map(MachineEvidenceGoals::new)
+            .map(|machine| {
+                MachineEvidenceGoals::new(machine, &module.structural_types, &mut indexed_types)
+            })
             .collect::<Vec<_>>();
         machines.sort_unstable_by_key(|row| row.machine.id);
         Self {
@@ -365,7 +457,8 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
         for (position, seal) in self.seals.iter().enumerate() {
             let operation = self
                 .machine(seal.machine)
-                .and_then(|machine| machine.owner(seal.obligation))
+                .and_then(|machine| machine.obligation(seal.obligation))
+                .map(|goal| goal.operation)
                 .ok_or(EvidenceSealValidationError::UnownedSeal {
                     machine: seal.machine,
                     obligation: seal.obligation,
@@ -412,14 +505,12 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
             obligation: seal.obligation,
         };
         let machine = self.machine(seal.machine).ok_or_else(mismatch)?;
-        if machine.owner(seal.obligation) != Some(operation) {
-            return Err(mismatch());
-        }
-        let goal = machine
-            .operation(operation)
-            .and_then(|row| row.goal.as_ref())
-            .ok_or_else(mismatch)?;
-        if goal.0 != seal.obligation || goal.1 != seal.goal || !seal.intact()? {
+        let goal = machine.obligation(seal.obligation).ok_or_else(mismatch)?;
+        if goal.operation != operation
+            || !machine.names_one_operation(operation)
+            || goal.proposition.as_ref() != Some(&seal.goal)
+            || !seal.intact()?
+        {
             return Err(mismatch());
         }
         Ok(seal.fingerprint)
@@ -1420,8 +1511,14 @@ mod projection_tests {
                     },
                 ),
             ];
-            let goals = MachineEvidenceGoals::new(&body);
-            let (obligation, goal) = goals.operation(operation(3)).unwrap().goal.clone().unwrap();
+            let goals = MachineEvidenceGoals::new(&body, &[], &mut None);
+            let obligation = ObligationId::new(number).unwrap();
+            let goal = goals
+                .obligation(obligation)
+                .unwrap()
+                .proposition
+                .clone()
+                .unwrap();
             // Correspondence tests borrow the exact goal as an assumption.
             // No proof search or kernel replay belongs to this API.
             seals.push(
@@ -1519,13 +1616,14 @@ mod projection_tests {
         ];
         // This API checks goal correspondence. Descriptor formation and
         // backing custody are the independent checker's separate obligations.
-        let goals = MachineEvidenceGoals::new(&body);
+        let goals = MachineEvidenceGoals::new(&body, &[], &mut None);
         let seals = (1..=2)
             .map(|raw| {
-                let (obligation, goal) = goals
-                    .operation(operation(raw))
+                let obligation = ObligationId::new(raw).unwrap();
+                let goal = goals
+                    .obligation(obligation)
                     .unwrap()
-                    .goal
+                    .proposition
                     .clone()
                     .unwrap();
                 ObligationEvidenceSeal::seal(
@@ -1562,6 +1660,181 @@ mod projection_tests {
             EvidenceSealValidator::new(&module, &seals).validate_all(),
             Err(EvidenceSealValidationError::SealMismatch { .. })
         ));
+    }
+
+    #[test]
+    fn one_operation_owns_each_nested_array_bound() {
+        use semantic_vocabulary::{PlaceId, ScalarTerm, StructuralPlaceKind, StructuralTypeId};
+        use terminal_psi::{
+            ArrayExtent, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+            StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityIndex,
+        };
+
+        let machine = machine_id(1);
+        let mut module = TerminalModule::for_entry(machine);
+        let mut body = crate::semantic_module::entry_tests::unit_machine(machine);
+        let unsigned = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let signed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let ty = |raw| StructuralTypeId::new(raw).unwrap();
+        let value = |raw| ValueId::new(raw).unwrap();
+        let obligation = |raw| ObligationId::new(raw).unwrap();
+        let root = PlaceId::new(1).unwrap();
+        let operation = OperationId::new(1).unwrap();
+        let scalar = |id, integer| ValueDeclaration {
+            id: value(id),
+            scalar_type: ScalarType::Integer(integer),
+            qualifications: Default::default(),
+        };
+        body.parameters = vec![scalar(1, unsigned), scalar(2, signed)];
+        module.structural_types = [
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(unsigned)),
+            StructuralTypeShape::FixedArray {
+                element: ty(1),
+                length: ArrayExtent::Literal(5),
+            },
+            StructuralTypeShape::FixedArray {
+                element: ty(2),
+                length: ArrayExtent::Literal(2),
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(position, shape)| StructuralTypeDeclaration {
+            id: ty(position as u64 + 1),
+            identity: TerminalIdentityIndex::ABSENT,
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            requires: vec![],
+            shape,
+        })
+        .collect();
+        body.structural_places.push(StructuralPlaceDeclaration {
+            id: root,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: body.blocks[0].id,
+                position: 0,
+            },
+        });
+        body.blocks[0]
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place: root,
+                position: 0,
+                structural_type: ty(3),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: vec![],
+                projected_qualifications: vec![],
+                additional_input_qualifications: vec![],
+            });
+        body.blocks[0].operations.push(Operation::unsuspended(
+            operation,
+            OperationResult::Scalar(scalar(3, unsigned)),
+            OperationKind::PrimitiveScalarRead {
+                source: root,
+                path: [1, 2]
+                    .into_iter()
+                    .map(|index| StructuralPathSegment::RuntimeIndex {
+                        index: value(index),
+                        obligation: obligation(index),
+                    })
+                    .collect(),
+            },
+        ));
+        module.machines.push(body);
+
+        let outer_index = ScalarTerm::value(value(1), ScalarType::Integer(unsigned));
+        let inner_index = ScalarTerm::value(value(2), ScalarType::Integer(signed));
+        let seals = [
+            Proposition::LessThan(
+                outer_index,
+                ScalarTerm::integer(unsigned, IntegerValue::Unsigned(2)).unwrap(),
+            ),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed, IntegerValue::Signed(0)).unwrap(),
+                    inner_index.clone(),
+                ),
+                Proposition::LessThan(
+                    inner_index,
+                    ScalarTerm::integer(signed, IntegerValue::Signed(5)).unwrap(),
+                ),
+            ]),
+        ]
+        .into_iter()
+        .zip(1..)
+        .map(|(goal, id)| {
+            ObligationEvidenceSeal::seal(
+                machine,
+                obligation(id),
+                goal.clone(),
+                vec![goal.clone()],
+                vec![],
+                CertificateEnvelope {
+                    identity: EvidenceIdentity::new(id).unwrap(),
+                    proof_system_marker: terminal_psi::ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: goal,
+                        rule: ProofRule::Assumption { index: 0 },
+                    },
+                },
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+        let validator = EvidenceSealValidator::new(&module, &seals);
+        assert!(validator.validate_all().is_ok());
+        for (position, seal) in seals.iter().enumerate() {
+            assert_eq!(
+                validator
+                    .fingerprint(machine, operation, seal.obligation)
+                    .unwrap(),
+                Some((position, seal.fingerprint))
+            );
+        }
+
+        let mut narrower = module.clone();
+        let StructuralTypeShape::FixedArray { length, .. } =
+            &mut narrower.structural_types[1].shape
+        else {
+            unreachable!()
+        };
+        *length = ArrayExtent::Literal(4);
+        assert!(matches!(
+            EvidenceSealValidator::new(&narrower, &seals).validate_all(),
+            Err(EvidenceSealValidationError::SealMismatch { obligation: bound, .. })
+                if bound == obligation(2)
+        ));
+
+        let mut ambiguous = module.clone();
+        let places = &mut ambiguous.machines[0].structural_places;
+        places.push(places[0]);
+        assert!(matches!(
+            EvidenceSealValidator::new(&ambiguous, &seals).validate_all(),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
+
+        for selector in [value(2), value(99)] {
+            let OperationKind::PrimitiveScalarRead { path, .. } =
+                &mut module.machines[0].blocks[0].operations[0].kind
+            else {
+                unreachable!()
+            };
+            path[1] = StructuralPathSegment::RuntimeIndex {
+                index: selector,
+                obligation: obligation(1),
+            };
+            assert!(matches!(
+                EvidenceSealValidator::new(&module, &seals[..1]).validate_all(),
+                Err(EvidenceSealValidationError::UnownedSeal { obligation: bound, .. })
+                    if bound == obligation(1)
+            ));
+        }
     }
 
     #[test]

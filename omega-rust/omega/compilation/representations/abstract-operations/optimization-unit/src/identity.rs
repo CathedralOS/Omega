@@ -1396,6 +1396,15 @@ pub(crate) mod structural_encoding {
             encode_structural_parameter,
         );
         encode_boundary_result(bytes, &declaration.result);
+        bytes.boolean(declaration.result_lifetimes.is_some());
+        if let Some(groups) = &declaration.result_lifetimes {
+            bytes.slice(groups, |bytes, group| {
+                bytes.slice(&group.inputs, encode_boundary_lifetime_dependency);
+                bytes.slice(&group.results, |bytes, path| {
+                    bytes.slice(path, encode_structural_path_segment);
+                });
+            });
+        }
         bytes.slice(&declaration.requires, encode_domain_requirement);
         bytes.slice(
             &declaration.normal_qualifications,
@@ -1410,26 +1419,7 @@ pub(crate) mod structural_encoding {
             }
             bytes.slice(&output.path, encode_structural_path_segment);
             encode_access(bytes, output.access);
-            bytes.slice(&output.dependencies, |bytes, dependency| match dependency {
-                terminal_psi::BoundaryLifetimeDependency::Referent {
-                    argument_index,
-                    access,
-                } => {
-                    bytes.u8(0);
-                    bytes.u32(*argument_index);
-                    encode_access(bytes, *access);
-                }
-                terminal_psi::BoundaryLifetimeDependency::Stored {
-                    argument_index,
-                    path,
-                    access,
-                } => {
-                    bytes.u8(1);
-                    bytes.u32(*argument_index);
-                    encode_access(bytes, *access);
-                    bytes.slice(path, encode_structural_path_segment);
-                }
-            });
+            bytes.slice(&output.dependencies, encode_boundary_lifetime_dependency);
         });
         bytes.slice(
             &declaration.program_local_root_introductions,
@@ -1446,6 +1436,32 @@ pub(crate) mod structural_encoding {
             |bytes, service| bytes.id(*service),
         );
         encode_ids(bytes, &declaration.published_service_ceiling);
+    }
+
+    fn encode_boundary_lifetime_dependency(
+        bytes: &mut CanonicalBytes,
+        dependency: &terminal_psi::BoundaryLifetimeDependency,
+    ) {
+        match dependency {
+            terminal_psi::BoundaryLifetimeDependency::Referent {
+                argument_index,
+                access,
+            } => {
+                bytes.u8(0);
+                bytes.u32(*argument_index);
+                encode_access(bytes, *access);
+            }
+            terminal_psi::BoundaryLifetimeDependency::Stored {
+                argument_index,
+                path,
+                access,
+            } => {
+                bytes.u8(1);
+                bytes.u32(*argument_index);
+                encode_access(bytes, *access);
+                bytes.slice(path, encode_structural_path_segment);
+            }
+        }
     }
 
     fn encode_boundary_content_guarantee(
@@ -2339,6 +2355,7 @@ pub(crate) mod structural_encoding {
                 scalar_requires: Vec::new(),
                 scalar_ensures: Vec::new(),
                 result_reference_regions: Vec::new(),
+                result_lifetimes: None,
                 reference_outputs: Vec::new(),
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
@@ -2403,6 +2420,17 @@ pub(crate) mod structural_encoding {
             assert_ne!(field, root);
             assert_ne!(elements, field);
             assert_ne!(elements, root);
+        }
+
+        #[test]
+        fn optimization_unit_identity_commits_boundary_result_lifetime_availability() {
+            let original = unit();
+            let mut changed = unit();
+            changed.boundary_machines[0].result_lifetimes = Some(Vec::new());
+            assert_ne!(
+                recompute_psi_optimization_unit_identity(&original),
+                recompute_psi_optimization_unit_identity(&changed)
+            );
         }
 
         #[test]
@@ -3287,6 +3315,7 @@ pub(crate) mod operation_encoding {
             | O::ReturnStructural { .. }
             | O::InvokeNoNormal { .. }
             | O::ExternalCompletion { .. }
+            | O::EliminateEmpty { .. }
             | O::Crash { .. } => control::encode(bytes, operation),
         }
     }
@@ -3904,6 +3933,16 @@ pub(crate) mod operation_encoding {
                     bytes.slice(structural_arguments, encode_structural_argument);
                     encode_ids(bytes, requirement_obligations);
                     encode_ids(bytes, frontier_lower_bound);
+                }
+                O::EliminateEmpty {
+                    psi_edge,
+                    source,
+                    path,
+                } => {
+                    bytes.u8(240);
+                    bytes.id(*psi_edge);
+                    bytes.id(*source);
+                    bytes.slice(path, encode_structural_path_segment);
                 }
                 O::Crash {
                     psi_edge,

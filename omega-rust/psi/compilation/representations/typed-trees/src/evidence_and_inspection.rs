@@ -2118,6 +2118,7 @@ pub mod evidence {
         pub struct RankingExpressionCustody {
             pub machine: symbols::SymbolHandle,
             pub subjects: Vec<ExpressionHandle>,
+            pub view: language_semantics::RankingViewSelection,
             pub view_arguments: Vec<ExpressionHandle>,
             pub rank_range: Option<ExpressionHandle>,
         }
@@ -2242,133 +2243,6 @@ pub mod evidence {
 }
 
 pub mod inspection {
-    pub mod callees {
-        use crate::TypedTrees;
-        use crate::expression::ExpressionHandle;
-        use crate::state::State;
-        use symbols::SymbolHandle;
-
-        #[derive(Default)]
-        pub struct ExplicitStateCallees {
-            visited: Vec<ExpressionHandle>,
-            called: Vec<SymbolHandle>,
-        }
-
-        impl ExplicitStateCallees {
-            pub fn collect(&mut self, typed: &TypedTrees, state: &State) -> &[SymbolHandle] {
-                self.called.clear();
-                self.visited.clear();
-                for statement in typed.statement_table.statements(state.statement_nodes) {
-                    collect_statement_callees(
-                        typed,
-                        statement,
-                        &mut self.visited,
-                        &mut self.called,
-                    );
-                }
-                &self.called
-            }
-        }
-
-        fn note_callee(called: &mut Vec<symbols::SymbolHandle>, symbol: symbols::SymbolHandle) {
-            if symbol.is_valid() && !called.contains(&symbol) {
-                called.push(symbol);
-            }
-        }
-
-        fn collect_statement_callees(
-            typed: &TypedTrees,
-            statement: &crate::statement::StatementNode,
-            visited: &mut Vec<crate::expression::ExpressionHandle>,
-            called: &mut Vec<symbols::SymbolHandle>,
-        ) {
-            use crate::statement::StatementNode;
-            match statement {
-                StatementNode::Assembly(_) => {}
-                StatementNode::Call(call) => {
-                    if let Some(binding) = call.runtime_call {
-                        collect_expression_callees(typed, binding.callee, visited, called);
-                    }
-                    note_callee(called, call.target_symbol);
-                    for argument in typed.statement_table.expression_handles(call.arguments) {
-                        collect_expression_callees(typed, *argument, visited, called);
-                    }
-                }
-                StatementNode::Assignment(assignment) => {
-                    collect_expression_callees(typed, assignment.target, visited, called);
-                    collect_expression_callees(typed, assignment.value, visited, called);
-                }
-                StatementNode::Expression(expression) => {
-                    collect_expression_callees(typed, *expression, visited, called);
-                }
-                StatementNode::LocalData(local) => {
-                    collect_expression_callees(typed, local.initial_value, visited, called);
-                }
-                StatementNode::AssemblyFact(fact) => {
-                    for expression in typed.tables.proof_fact_expression_roots(fact.fact) {
-                        collect_expression_callees(typed, expression, visited, called);
-                    }
-                }
-                StatementNode::Transition(transition) => {
-                    if let crate::statement::TransitionGuardNode::When(guard) = &transition.guard {
-                        collect_expression_callees(typed, *guard, visited, called);
-                    }
-                    for target in transition.targets() {
-                        collect_transition_target_callees(typed, target, visited, called);
-                    }
-                }
-            }
-        }
-
-        fn collect_transition_target_callees(
-            typed: &TypedTrees,
-            target: crate::statement::TransitionTargetHandle,
-            visited: &mut Vec<crate::expression::ExpressionHandle>,
-            called: &mut Vec<symbols::SymbolHandle>,
-        ) {
-            use crate::statement::TransitionTargetNode;
-            if !typed.statement_table.transition_target_is_valid(target) {
-                return;
-            }
-            match typed.statement_table.transition_target(target) {
-                TransitionTargetNode::Named {
-                    path, arguments, ..
-                } => {
-                    note_callee(called, path.symbol);
-                    for argument in typed.statement_table.expression_handles(*arguments) {
-                        collect_expression_callees(typed, *argument, visited, called);
-                    }
-                }
-                TransitionTargetNode::Value(expression) => {
-                    collect_expression_callees(typed, *expression, visited, called);
-                }
-                TransitionTargetNode::Terminal => {}
-            }
-        }
-
-        fn collect_expression_callees(
-            typed: &TypedTrees,
-            expression: crate::expression::ExpressionHandle,
-            visited: &mut Vec<crate::expression::ExpressionHandle>,
-            called: &mut Vec<symbols::SymbolHandle>,
-        ) {
-            let edges = crate::SubtreeEdges {
-                atomic_results: true,
-                pattern_dependencies: true,
-                ..crate::SubtreeEdges::VALUES
-            };
-            typed.subtree_any(expression, edges, |expression, node| {
-                if visited.contains(&expression) {
-                    return crate::SubtreeVisit::Prune;
-                }
-                visited.push(expression);
-                if let crate::expression::ExpressionNode::Call(call) = node {
-                    note_callee(called, call.target_symbol);
-                }
-                crate::SubtreeVisit::Descend
-            });
-        }
-    }
     pub mod snapshot {
         pub(crate) mod declaration_snapshots {
             use super::to_strings;
@@ -3669,6 +3543,7 @@ pub mod inspection {
                             use crate::signature::AuthoredInvocationTarget;
                             match invocation.target {
                                 AuthoredInvocationTarget::Unresolved => "unresolved".to_owned(),
+                                AuthoredInvocationTarget::Undeclared => "undeclared".to_owned(),
                                 AuthoredInvocationTarget::Parameter { ordinal, symbol } => format!(
                                     "parameter {ordinal}: {}",
                                     program.symbols.display_path(symbol, "::")

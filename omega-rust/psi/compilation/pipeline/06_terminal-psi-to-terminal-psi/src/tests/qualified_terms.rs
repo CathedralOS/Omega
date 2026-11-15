@@ -251,7 +251,10 @@ machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
     ))
     .unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unsupported);
-    assert_eq!(refused.detail, "contract domain membership");
+    assert_eq!(
+        refused.detail,
+        "contract domain membership while reading the body of `entry`"
+    );
 }
 
 #[test]
@@ -260,7 +263,8 @@ fn a_bare_qualified_comparison_does_not_become_a_builtin_comparison() {
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause"
+        "contract builtin operator on a value with a declared domain in a clause while reading the \
+         signature of `consume` while reading the body of `entry`"
     );
 }
 
@@ -276,7 +280,7 @@ machine entry() -> i64 in Classified {{ rebuild(issue(7)) }}
 "#
     ))
     .unwrap_err();
-    assert!(matches!(refused.reason, RefusalReason::Violation(_)));
+    assert!(matches!(refused.reason, RefusalReason::Violation));
     assert!(
         refused
             .detail
@@ -319,7 +323,8 @@ machine entry(handle: i64 in Classified & Other) {{
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "contract builtin operator on a value with a declared domain in a clause"
+        "contract builtin operator on a value with a declared domain in a clause while reading the \
+         signature of `consume` while reading the body of `entry`"
     );
 }
 
@@ -428,7 +433,8 @@ machine entry() {{
     assert_eq!(refused.reason, RefusalReason::Unsupported);
     assert_eq!(
         refused.detail,
-        "declaration holding a domain cast through a reference, which no pass accounts for yet"
+        "declaration holding a domain cast through a reference, which no pass accounts for yet \
+         while reading the signature of `borrow_remove` while reading the body of `entry`"
     );
 }
 
@@ -457,7 +463,8 @@ machine entry() -> i64 {{ observe(issue(7)) }}
     assert_eq!(qualified.reason, RefusalReason::Unsupported);
     assert_eq!(
         qualified.detail,
-        "contract builtin operator on a value with a declared domain in a clause"
+        "contract builtin operator on a value with a declared domain in a clause while reading the \
+         signature of `observe` while reading the body of `entry`"
     );
 
     let wrong_value = judge(invocation(&source(guarantee, "0"))).unwrap();

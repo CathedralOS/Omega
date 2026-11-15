@@ -20,13 +20,18 @@ use unbuilt_frontier::repository;
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+fn lock_fixture_compilation() -> std::sync::MutexGuard<'static, ()> {
+    // The mutex only serializes independent fixtures and holds no data to repair.
+    FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// The program line's outcome and every per-obligation line, tab-split
 /// after the fixture path: `[label, specialization, obligation, kind,
 /// outcome, detail]`.
 fn carried(fixture: &str) -> (String, Vec<Vec<String>>) {
-    let _guard = FIXTURE_COMPILATIONS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _guard = lock_fixture_compilation();
     let main = repository(fixture).join("main.omg");
     let mut lines = Vec::new();
     let outcome = generic_certificate_carry::probe(&main, &mut lines);
@@ -49,7 +54,7 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
 }
 
 fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
-    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
     let subjects = [frontier.subject];
     let calling = frontier.normalization.calling.borrow(&frontier.typed);
@@ -128,9 +133,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     use terminal_check_tables::obligations::ObligationKind;
     use terminal_psi_to_terminal_psi::RouteVerdict;
 
-    let _guard = FIXTURE_COMPILATIONS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _guard = lock_fixture_compilation();
     let original = std::fs::read_to_string(repository(
         "tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
     ))
@@ -467,9 +470,7 @@ fn the_comparison_witness_lowers_and_corresponds() {
 /// The route's verdict on each machine stage 04 generated from the machine
 /// named `template`, each as the root of its own closure.
 fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
-    let _guard = FIXTURE_COMPILATIONS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _guard = lock_fixture_compilation();
     let frontier = unbuilt_frontier::fixture_frontier(fixture);
     let typed = &frontier.typed;
     let declared = unbuilt_frontier::program_machine(typed, template)
@@ -572,7 +573,7 @@ fn the_threshold_family_lowers_per_alternative_and_corresponds() {
 /// not only the source experiment's separately selected generic closures.
 #[test]
 fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_their_bodies() {
-    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let main = repository("tests/fixtures/run/generics/nested_static_context/main.omg");
@@ -671,7 +672,7 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
 /// both complete map tuples, rather than borrowing one body's capture.
 #[test]
 fn the_default_product_publishes_generic_named_map_captures() {
-    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let main = repository("tests/fixtures/run/generics/named_map_own_telescope/main.omg");
@@ -754,7 +755,7 @@ fn the_default_product_publishes_generic_named_map_captures() {
 /// original width-polymorphic body has been judged independently.
 #[test]
 fn the_default_product_publishes_width_parameter_identity() {
-    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _guard = lock_fixture_compilation();
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let main = repository("tests/fixtures/run/generics/width_parameter_identity/main.omg");

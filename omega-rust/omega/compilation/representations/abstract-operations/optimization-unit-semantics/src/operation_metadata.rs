@@ -177,6 +177,7 @@ fn scalar_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarTy
         | O::ReleaseReference { .. }
         | O::InvokeNoNormal { .. }
         | O::ExternalCompletion { .. }
+        | O::EliminateEmpty { .. }
         | O::Crash { .. }
         | O::CallStructural {
             result:
@@ -375,6 +376,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::ReturnStructural { .. }
         | O::EstablishAccessReference { .. }
         | O::ReleaseReference { .. }
+        | O::EliminateEmpty { .. }
         | O::Crash { .. }
         | O::EstablishElementView {
             region: terminal_psi::ElementViewRegion::WholeCollection,
@@ -519,7 +521,8 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::StructuralCase { .. }
         | O::EstablishAccessReference { .. }
         | O::EstablishReference { .. }
-        | O::ReleaseReference { .. } => Vec::new(),
+        | O::ReleaseReference { .. }
+        | O::EliminateEmpty { .. } => Vec::new(),
     }
 }
 

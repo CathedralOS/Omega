@@ -112,6 +112,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: Termination::Silent,
+            ranking: None,
             reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         });

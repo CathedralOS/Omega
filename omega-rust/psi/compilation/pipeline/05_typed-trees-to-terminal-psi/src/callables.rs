@@ -114,6 +114,7 @@ impl CallableNamespace {
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let refuse = |reason: &str| Refusal {
+            source_span: None,
             reason: RefusalReason::Unsupported,
             machine: context,
             concerns: Construct::Machine,

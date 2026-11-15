@@ -390,7 +390,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct BuildSelectionInputs {
-        pub request: Handle<BuildSelectionRequest>,
+        pub request: Handle<BuildSelectionCall>,
         pub lexical_owner: SymbolHandle,
         pub phase: BuildSelectionPhase,
         pub inputs: Vec<BuildSelectionInput>,
@@ -406,17 +406,39 @@ pub mod expression {
         ) -> Result<(), compiler_storage::RecordError> {
             // Older expression tables have no exact input association. They
             // must be rebuilt rather than decoded as permission-bearing rows.
-            b"BLDINPUT1".write(output)?;
+            b"BLDINPUT2".write(output)?;
             self.0.write(output)
         }
 
         fn read<Context>(
             input: &mut compiler_storage::RecordReader<'_, Context>,
         ) -> Result<Self, compiler_storage::RecordError> {
-            if <[u8; 9]>::read(input)? != *b"BLDINPUT1" {
+            if <[u8; 9]>::read(input)? != *b"BLDINPUT2" {
                 return Err(input.error("Build input association storage has another version"));
             }
             Ok(Self(Vec::read(input)?))
+        }
+    }
+    /// What one generated call of the Build selection protocol carries:
+    /// the request the author wrote and the protocol operation typing chose
+    /// for this call. A selection is two calls (the lending `prepare` and the
+    /// committing operation), each with its own row, so a reader identifies
+    /// the operation from this row rather than from the requirement's name.
+    ///
+    /// The arena's zero row is the default request, a root binding, with the
+    /// operation that commits one.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct BuildSelectionCall {
+        pub request: BuildSelectionRequest,
+        pub operation: language_semantics::build_requests::SelectionProtocolOperation,
+    }
+
+    impl Default for BuildSelectionCall {
+        fn default() -> Self {
+            Self {
+                request: BuildSelectionRequest::default(),
+                operation: language_semantics::build_requests::SelectionProtocolOperation::Bind,
+            }
         }
     }
     use numerics::literals::IntegerLiteral;
@@ -1284,9 +1306,9 @@ pub mod expression {
         struct CopyGraph {
             expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
             subjects: Vec<(Handle<CompletedValueCapture>, Handle<CompletedValueCapture>)>,
-            build_requests: Vec<(
-                Handle<super::BuildSelectionRequest>,
-                Handle<super::BuildSelectionRequest>,
+            build_calls: Vec<(
+                Handle<super::BuildSelectionCall>,
+                Handle<super::BuildSelectionCall>,
             )>,
         }
         use symbols::SymbolHandle;
@@ -1412,17 +1434,17 @@ pub mod expression {
         }
 
         impl ExpressionTable {
-            fn copy_build_selection_request(
+            fn copy_build_selection_call(
                 &mut self,
                 source: CopySource<'_>,
-                request: Handle<super::BuildSelectionRequest>,
+                request: Handle<super::BuildSelectionCall>,
                 copies: &mut CopyGraph,
-            ) -> Handle<super::BuildSelectionRequest> {
+            ) -> Handle<super::BuildSelectionCall> {
                 if !request.is_valid() {
                     return request;
                 }
                 if let Some((_, copied)) = copies
-                    .build_requests
+                    .build_calls
                     .iter()
                     .find(|(original, _)| *original == request)
                 {
@@ -1430,11 +1452,11 @@ pub mod expression {
                 }
                 let original = source
                     .table(self)
-                    .build_selection_request(request)
-                    .expect("copied Build call keeps its exact request generation")
+                    .build_selection_call(request)
+                    .expect("copied Build call keeps its exact operation generation")
                     .clone();
-                let copied = self.insert_build_selection_request(original);
-                copies.build_requests.push((request, copied));
+                let copied = self.insert_build_selection_call(original);
+                copies.build_calls.push((request, copied));
                 copied
             }
 
@@ -1981,6 +2003,7 @@ pub mod expression {
                 }
                 let origin = source.table(self);
                 let source_span = origin.source_span(expression);
+                let unresolved_name = origin.unresolved_name(expression);
                 let component = origin
                     .direct_pattern_component(expression)
                     .expect("copied expression retains its component row");
@@ -2161,7 +2184,7 @@ pub mod expression {
                             };
                         });
                         let build_selection =
-                            self.copy_build_selection_request(source, call.build_selection, copies);
+                            self.copy_build_selection_call(source, call.build_selection, copies);
                         let authored_machine_application = self.copy_static_machine_application(
                             source,
                             call.authored_machine_application,
@@ -2308,6 +2331,7 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
+                self.set_unresolved_name(copied, unresolved_name);
                 if carrier.is_valid() {
                     self.set_constructed_value_type_reference(copied, carrier);
                 }
@@ -3317,9 +3341,10 @@ pub mod expression {
     pub struct ExpressionTable {
         build_selection_inputs: BuildSelectionInputStorage,
         expressions: Arena<ExpressionNode>,
-        build_selection_requests: Arena<BuildSelectionRequest>,
+        build_selection_requests: Arena<BuildSelectionCall>,
         expression_roots: Arena<ExpressionHandle>,
         source_spans: Vec<SourceSpan>,
+        unresolved_names: Vec<symbols::UnresolvedName>,
         pattern_components: Vec<language_core::PatternComponent>,
         /// Original checked computation of a materialized static value. This
         /// provenance edge preserves invocation custody without executing it again.
@@ -3586,32 +3611,6 @@ pub mod expression {
             Self::with_expression_capacity(0)
         }
 
-        pub fn revision(&self) -> u64 {
-            self.expressions
-                .revision()
-                .wrapping_add(self.build_selection_requests.revision())
-                .wrapping_add(self.expression_roots.revision())
-                .wrapping_add(self.authored_selection_occurrence_ids.revision())
-                .wrapping_add(self.executable_domain_test_rows.revision())
-                .wrapping_add(self.expression_handles.revision())
-                .wrapping_add(self.name_path_members.revision())
-                .wrapping_add(self.name_path_member_symbols.revision())
-                .wrapping_add(self.struct_fields.revision())
-                .wrapping_add(self.match_arms.revision())
-                .wrapping_add(self.match_fields.revision())
-                .wrapping_add(self.completed_values.revision())
-                .wrapping_add(self.match_proof_selectors.revision())
-                .wrapping_add(self.static_machine_applications.revision())
-                .wrapping_add(self.static_machine_arguments.revision())
-                .wrapping_add(self.constructed_value_types.revision())
-                .wrapping_add(self.construction_required_types.revision())
-                .wrapping_add(self.static_machine_bindings.revision())
-                .wrapping_add(self.static_machine_lifetime_bindings.revision())
-                .wrapping_add(self.source_spans.len() as u64)
-                .wrapping_add(self.authored_selection_occurrences.len() as u64)
-                .wrapping_add(self.executable_domain_tests.len() as u64)
-        }
-
         pub fn with_expression_capacity(expression_capacity: usize) -> Self {
             Self::with_expression_and_handle_capacity(expression_capacity, 0)
         }
@@ -3634,6 +3633,7 @@ pub mod expression {
                 build_selection_requests: Arena::default(),
                 expression_roots: Arena::with_capacity(capacity.expressions),
                 source_spans: Vec::with_capacity(capacity.expressions),
+                unresolved_names: Vec::with_capacity(capacity.expressions),
                 pattern_components: Vec::with_capacity(capacity.expressions),
                 materialization_sources: Vec::new(),
                 constructed_value_types: Arena::default(),
@@ -3667,6 +3667,7 @@ pub mod expression {
             self.build_selection_requests.retire_all_retain_capacity();
             self.expression_roots.retire_all_retain_capacity();
             self.source_spans.clear();
+            self.unresolved_names.clear();
             self.materialization_sources.clear();
             self.constructed_value_types.retire_all_retain_capacity();
             self.constructed_value_type_handles.clear();
@@ -3982,6 +3983,7 @@ pub mod expression {
             }
             self.expression_roots.insert(handle);
             self.source_spans.push(SourceSpan::default());
+            self.unresolved_names.push(Default::default());
             self.pattern_components.push(component);
             self.materialization_sources
                 .push(ExpressionHandle::invalid());
@@ -4025,28 +4027,51 @@ pub mod expression {
             self.source_spans.get(source_span_index(handle)).copied()
         }
 
-        pub fn insert_build_selection_request(
+        /// The source owner's scoped result, retained through copying and typing.
+        pub fn unresolved_name(&self, handle: ExpressionHandle) -> symbols::UnresolvedName {
+            if !self.expressions.is_valid(handle) {
+                return Default::default();
+            }
+            self.unresolved_names[source_span_index(handle)]
+        }
+
+        pub fn set_unresolved_name(
             &mut self,
-            request: BuildSelectionRequest,
-        ) -> Handle<BuildSelectionRequest> {
-            self.build_selection_requests.insert(request)
+            handle: ExpressionHandle,
+            outcome: symbols::UnresolvedName,
+        ) {
+            self.unresolved_names[source_span_index(handle)] = outcome;
+        }
+
+        pub fn insert_build_selection_call(
+            &mut self,
+            call: BuildSelectionCall,
+        ) -> Handle<BuildSelectionCall> {
+            self.build_selection_requests.insert(call)
+        }
+
+        pub fn build_selection_call(
+            &self,
+            call: Handle<BuildSelectionCall>,
+        ) -> Option<&BuildSelectionCall> {
+            self.build_selection_requests
+                .is_valid(call)
+                .then(|| self.build_selection_requests.get(call))
         }
 
         pub fn build_selection_request(
             &self,
-            request: Handle<BuildSelectionRequest>,
+            call: Handle<BuildSelectionCall>,
         ) -> Option<&BuildSelectionRequest> {
-            self.build_selection_requests
-                .is_valid(request)
-                .then(|| self.build_selection_requests.get(request))
+            self.build_selection_call(call).map(|call| &call.request)
         }
 
         pub(crate) fn replace_build_selection_request(
             &mut self,
-            request: Handle<BuildSelectionRequest>,
+            request: Handle<BuildSelectionCall>,
             replacement: BuildSelectionRequest,
         ) {
-            *self.build_selection_requests.get_mut(request) = replacement;
+            self.build_selection_requests.get_mut(request).request = replacement;
         }
 
         pub fn retain_build_selection_inputs(
@@ -4058,6 +4083,7 @@ pub mod expression {
             if !inputs.lexical_owner.is_valid() {
                 return Err("Build input association has no lexical source owner");
             }
+            self.require_build_selection_phase(inputs.request, inputs.phase)?;
             if inputs.phase == BuildSelectionPhase::Preparation && !inputs.inputs.is_empty() {
                 return Err("Build preparation carries designation inputs");
             }
@@ -4077,7 +4103,7 @@ pub mod expression {
         fn build_selection_call_request(
             &self,
             expression: ExpressionHandle,
-            request: Handle<BuildSelectionRequest>,
+            request: Handle<BuildSelectionCall>,
         ) -> Result<(), &'static str> {
             if !self.expressions.is_valid(expression) {
                 return Err("Build input association names a stale expression");
@@ -4087,6 +4113,20 @@ pub mod expression {
             };
             if !self.build_selection_requests.is_valid(request) || call.build_selection != request {
                 return Err("Build input association names another request or generation");
+            }
+            Ok(())
+        }
+
+        fn require_build_selection_phase(
+            &self,
+            call: Handle<BuildSelectionCall>,
+            phase: BuildSelectionPhase,
+        ) -> Result<(), &'static str> {
+            let call = self
+                .build_selection_call(call)
+                .ok_or("Build input phase names a stale operation")?;
+            if call.operation.prepares() != (phase == BuildSelectionPhase::Preparation) {
+                return Err("Build input phase differs from its actual protocol operation");
             }
             Ok(())
         }
@@ -4121,6 +4161,7 @@ pub mod expression {
                 .as_ref()
                 .ok_or("Build call has no exact input association")?;
             self.build_selection_call_request(expression, inputs.request)?;
+            self.require_build_selection_phase(inputs.request, inputs.phase)?;
             if !inputs.lexical_owner.is_valid()
                 || (inputs.phase == BuildSelectionPhase::Preparation && !inputs.inputs.is_empty())
             {
@@ -4695,7 +4736,7 @@ pub mod expression {
                     static_machine_bindings, static_machine_lifetime_bindings,
                 ],
                 vectors [
-                    source_spans, pattern_components, materialization_sources,
+                    source_spans, unresolved_names, pattern_components, materialization_sources,
                     constructed_value_type_handles, construction_required_type_handles,
                     authored_selection_occurrences,
                     executable_domain_tests,
@@ -5138,7 +5179,7 @@ pub mod expression {
         >,
         pub authored_call_binding:
             Option<language_semantics::declaration_selection::ResolvedAuthoredCallBinding>,
-        pub build_selection: Handle<BuildSelectionRequest>,
+        pub build_selection: Handle<BuildSelectionCall>,
         pub authored_machine_application: StaticMachineApplicationHandle,
         pub exact_coercion_target: crate::types::TypeReferenceHandle,
         pub requirement_application: crate::types::TypeReferenceHandle,
@@ -6239,10 +6280,11 @@ pub mod subtrees {
 #[cfg(test)]
 mod build_selection_input_tests {
     use crate::expression::{
-        BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest, ExpressionNode,
-        ExpressionTable, TableCallExpression,
+        BuildSelectionCall, BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest,
+        ExpressionNode, ExpressionTable, TableCallExpression,
     };
     use compiler_storage::{RecordLimits, decode, encode};
+    use language_semantics::build_requests::SelectionProtocolOperation as Protocol;
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelections, EnumExclusionRequest, ExclusionVocabulary,
@@ -6269,21 +6311,27 @@ mod build_selection_input_tests {
             target: ledger.get(occurrence).unwrap().target(),
         };
         let mut source = ExpressionTable::default();
-        let request = source.insert_build_selection_request(BuildSelectionRequest::Exclusion(
-            EnumExclusionRequest {
-                source_span: Default::default(),
-                vocabulary: ExclusionVocabulary::CrashCause,
-            },
-        ));
+        let declaration = BuildSelectionRequest::Exclusion(EnumExclusionRequest {
+            source_span: Default::default(),
+            vocabulary: ExclusionVocabulary::CrashCause,
+        });
+        let preparation = source.insert_build_selection_call(BuildSelectionCall {
+            request: declaration.clone(),
+            operation: Protocol::Prepare,
+        });
+        let request = source.insert_build_selection_call(BuildSelectionCall {
+            request: declaration,
+            operation: Protocol::Exclude,
+        });
         let prepared = source.insert(ExpressionNode::Call(TableCallExpression {
-            build_selection: request,
+            build_selection: preparation,
             ..Default::default()
         }));
         source
             .retain_build_selection_inputs(
                 prepared,
                 BuildSelectionInputs {
-                    request,
+                    request: preparation,
                     lexical_owner: owner,
                     phase: BuildSelectionPhase::Preparation,
                     inputs: Vec::new(),
@@ -6308,7 +6356,7 @@ mod build_selection_input_tests {
             )
             .unwrap();
         let mut destination = ExpressionTable::default();
-        destination.insert_build_selection_request(BuildSelectionRequest::default());
+        destination.insert_build_selection_call(BuildSelectionCall::default());
         destination.insert(ExpressionNode::Boolean(false));
         let copied = destination.copy_graph(Some(&source), commit).root;
         let captured = destination.build_selection_inputs(copied).unwrap().unwrap();
@@ -6323,7 +6371,25 @@ mod build_selection_input_tests {
             .build_selection_inputs(preparation)
             .unwrap()
             .unwrap();
-        assert_eq!(prepared_inputs.request, copied_request);
+        assert_ne!(prepared_inputs.request, copied_request);
+        assert_eq!(
+            destination.build_selection_request(prepared_inputs.request),
+            destination.build_selection_request(copied_request),
+        );
+        assert_eq!(
+            destination
+                .build_selection_call(prepared_inputs.request)
+                .unwrap()
+                .operation,
+            Protocol::Prepare,
+        );
+        assert_eq!(
+            destination
+                .build_selection_call(copied_request)
+                .unwrap()
+                .operation,
+            Protocol::Exclude,
+        );
         assert_eq!(prepared_inputs.phase, BuildSelectionPhase::Preparation);
         assert!(prepared_inputs.inputs.is_empty());
         let replacement = SymbolHandle::from_parts(5, 7);
@@ -6366,7 +6432,7 @@ mod build_selection_input_tests {
     #[test]
     fn build_inputs_refuse_missing_rows_wrong_requests_and_stale_occurrences() {
         let mut table = ExpressionTable::default();
-        let request = table.insert_build_selection_request(BuildSelectionRequest::default());
+        let request = table.insert_build_selection_call(BuildSelectionCall::default());
         let call = table.insert(ExpressionNode::Call(TableCallExpression {
             build_selection: request,
             ..Default::default()
@@ -6388,7 +6454,7 @@ mod build_selection_input_tests {
             call.generation().wrapping_add(1),
         );
         assert!(table.build_selection_inputs(stale).is_err());
-        let other = table.insert_build_selection_request(BuildSelectionRequest::default());
+        let other = table.insert_build_selection_call(BuildSelectionCall::default());
         let ExpressionNode::Call(current) = table.expression_mut(call) else {
             unreachable!()
         };
@@ -6400,8 +6466,7 @@ mod build_selection_input_tests {
         assert_ne!(current.generation(), call.generation());
         assert!(table.build_selection_inputs(call).is_err());
         assert_eq!(table.build_selection_inputs(current).unwrap(), None);
-        let current_request =
-            table.insert_build_selection_request(BuildSelectionRequest::default());
+        let current_request = table.insert_build_selection_call(BuildSelectionCall::default());
         assert_eq!(current_request.arena_index(), request.arena_index());
         assert_ne!(current_request.generation(), request.generation());
     }

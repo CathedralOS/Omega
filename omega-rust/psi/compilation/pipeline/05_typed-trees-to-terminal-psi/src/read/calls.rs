@@ -896,7 +896,7 @@ impl<'t> Program<'t> {
     fn designate(
         &mut self,
         id: MachineId,
-        selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+        selection: arena::Handle<typed_trees::expression::BuildSelectionCall>,
         read: &mut Expression,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
@@ -2292,7 +2292,7 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
         if formal.referent == crate::body::BorrowedReferent::Slice
-            && let Some(view) = self.array_view(id, slots, argument, expected, source)?
+            && let Some(view) = self.borrowed_byte_range(id, slots, argument, expected, source)?
         {
             return Ok((
                 Expression {
@@ -2852,21 +2852,29 @@ mod tests {
                 )
                 .is_err()
         );
-        typed.machine_specializations[0].template = foreign;
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0].template = foreign);
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
                 .is_err()
         );
-        typed.machine_specializations[0] = row.clone();
-        typed.machine_specializations[0].states = Default::default();
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0] = row.clone());
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0].states = Default::default());
         assert!(
             Program::new(&typed, false)
                 .direct_selection(id, state, None, Some(binding))
                 .is_err(),
             "a machine receipt alone does not establish its entry correspondence"
         );
-        typed.machine_specializations[0] = row.clone();
+        typed
+            .machine_specializations
+            .edit(|rows| rows[0] = row.clone());
         typed.machine_specializations.push(row);
         assert!(
             Program::new(&typed, false)

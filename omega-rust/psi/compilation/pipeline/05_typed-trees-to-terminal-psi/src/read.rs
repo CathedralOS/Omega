@@ -44,6 +44,7 @@ mod places;
 mod predicates;
 mod provider_selections;
 mod providers;
+mod rankings;
 mod references;
 mod reflection;
 mod regions;
@@ -707,26 +708,30 @@ mod tests {
         use typed_trees::deferred_refusals::DeferredRequest;
         let (mut typed, [served, holder]) = unit_machines();
         let state = typed.machine_states(typed.machine_by_symbol(holder).unwrap())[0].symbol;
-        typed.record_deferred_refusal(
-            state,
-            DeferredRequest::ReceiverCallSelection,
-            source::SourceSpan::default(),
-        );
-        let mut program = Program::new(&typed, false);
-        // The twin without a row is read; nothing demanded the holder yet.
-        program.machine(served).expect("a machine with no row");
-        let refusal = program.machine(holder).unwrap_err();
-        assert_eq!(
-            refusal.reason,
-            terminal_check_tables::RefusalReason::Unsupported
-        );
-        assert_eq!(
-            refusal.detail,
-            "declaration holding a call selected by its receiver's type, which no pass serves yet \
-             while reading the signature of `holder`"
-        );
+        let authored = source::SourceSpan::new(source::SourceId(1), source::Span::new(13, 19));
+        for source_span in [None, Some(authored)] {
+            typed.record_deferred_refusal(
+                state,
+                DeferredRequest::ReceiverCallSelection,
+                source_span.unwrap_or_default(),
+            );
+            let mut program = Program::new(&typed, false);
+            // The twin without a row is read; nothing demanded the holder yet.
+            program.machine(served).expect("a machine with no row");
+            let refusal = program.machine(holder).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            assert_eq!(refusal.source_span, source_span);
+            assert_eq!(
+                refusal.detail,
+                "declaration holding a call selected by its receiver's type, which no pass serves yet \
+                 while reading the signature of `holder`"
+            );
+            typed.deferred_refusals.clear();
+        }
         // The same declaration without the row is read like its twin.
-        typed.deferred_refusals.clear();
         Program::new(&typed, false)
             .machine(holder)
             .expect("the holder once its request is served");
@@ -1321,7 +1326,7 @@ mod tests {
                     .unwrap_err();
                 assert!(matches!(
                     refusal.reason,
-                    terminal_check_tables::RefusalReason::Violation(_)
+                    terminal_check_tables::RefusalReason::Violation
                 ));
                 assert_eq!(refusal.detail, crate::policy::QUALIFIED_OPERAND);
             };
@@ -1716,7 +1721,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             uncovered.reason,
-            terminal_check_tables::RefusalReason::Violation(_)
+            terminal_check_tables::RefusalReason::Violation
         ));
         assert!(uncovered.detail.contains("does not cover every value"));
         let record = authority::Opened::constructing(StructuralTypeId::new(1).unwrap());
@@ -2118,6 +2123,15 @@ mod tests {
                 symbol: input_symbol,
                 ..Default::default()
             }));
+        let inferred = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+        let computed = typed.expression_table.insert(ExpressionNode::Binary(
+            typed_trees::expression::TableBinaryExpression {
+                left: borrowed_name,
+                operator: typed_trees::expression::BinaryOperator::Subtract,
+                right: initial,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ));
         let borrowed = [Slot {
             symbol: input_symbol,
             value_type: ValueType::plain(ScalarType::Integer(
@@ -2147,6 +2161,32 @@ mod tests {
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let (computed_slot, statement) = program
+            .local(
+                machine(),
+                &[Slot {
+                    borrowed: None,
+                    ..borrowed[0]
+                }],
+                &TableLocalData {
+                    type_reference: inferred,
+                    type_is_inferred: true,
+                    initial_value: computed,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(computed_slot.value_type, slot.value_type);
+        assert!(matches!(
+            statement,
+            crate::Statement::Bind {
+                slot: 1,
+                value: crate::Expression {
+                    kind: crate::ExpressionKind::Strict { .. },
+                    ..
+                }
+            }
+        ));
         let (captured, statement) = program
             .local(
                 machine(),

@@ -18,6 +18,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 
 fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
+        source_span: None,
         reason: RefusalReason::Unsupported,
         machine,
         concerns: Construct::Machine,
@@ -109,6 +110,7 @@ impl<'t> Program<'t> {
         let contract = if let Some((id, retained_lifetimes)) = existing {
             if lifetimes.len() != retained_lifetimes.len() {
                 return Err(Refusal {
+                    source_span: None,
                     reason: RefusalReason::ForeignIdentity,
                     machine,
                     concerns: Construct::Machine,
@@ -140,6 +142,7 @@ impl<'t> Program<'t> {
             })?;
             if row.signature != signature || row.envelope != envelope {
                 return Err(Refusal {
+                    source_span: None,
                     reason: RefusalReason::ForeignIdentity,
                     machine,
                     concerns: Construct::Machine,

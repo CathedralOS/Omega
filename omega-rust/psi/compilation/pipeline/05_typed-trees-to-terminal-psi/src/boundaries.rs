@@ -70,11 +70,13 @@ impl BoundaryNamespace {
         services: &crate::reach::ServiceMap,
         qualifications: &mut crate::qualifications::Qualifications,
         module: &mut TerminalModule,
+        declarations: Option<&crate::read::Program<'_>>,
     ) -> Checked<()> {
         let refusal = |detail: &str| Refusal {
             machine: context,
             concerns: Construct::Machine,
             reason: RefusalReason::Unsupported,
+            source_span: None,
             detail: detail.to_owned(),
         };
         if !module.boundary_machines.is_empty() {
@@ -101,6 +103,13 @@ impl BoundaryNamespace {
             {
                 return Err(refusal("boundary needs retained erased actual lanes"));
             }
+            let result_lifetimes = declarations
+                .ok_or_else(|| refusal("boundary lost its prepared source lifetime context"))?
+                .declared_result_lifetimes(context, &source.signature, &module.structural_types)
+                .map_err(refusal)?
+                .ok_or_else(|| {
+                    refusal("boundary result has an unresolved declared lifetime frontier")
+                })?;
             let result = match header.result {
                 TerminalMachineResult::Unit => BoundaryMachineResult::Unit,
                 TerminalMachineResult::Scalar(result) => {
@@ -170,6 +179,7 @@ impl BoundaryNamespace {
                 structural_parameters: header.structural_parameters,
                 result,
                 result_reference_regions: Vec::new(),
+                result_lifetimes: Some(result_lifetimes),
                 requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements,

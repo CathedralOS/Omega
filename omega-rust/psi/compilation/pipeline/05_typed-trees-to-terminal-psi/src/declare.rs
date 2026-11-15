@@ -924,11 +924,7 @@ fn declaration_contract_commitment<'a>(
     // mapping, and proof certificate remain private. Changing a valid
     // witness revalidates the provider and its proof cache, not
     // caller/requirement identity". So a witness commits as its promise.
-    match signature.termination {
-        crate::Termination::Witnessed(_) => crate::Termination::Promised,
-        published => published,
-    }
-    .hash(&mut commitment);
+    signature.termination.hash(&mut commitment);
     // Open requirements and explicit empty promises must not share identity.
     (
         matches!(signature.reaches, crate::Ceiling::Authored(_)),

@@ -107,6 +107,7 @@ pub fn intern_projection(
         reason: crate::RefusalReason::ForeignIdentity,
         machine,
         concerns: crate::Construct::Place(parent),
+        source_span: None,
         detail: "place is past the end of this machine".to_owned(),
     };
     let row = places.get(parent).ok_or_else(missing)?;
@@ -141,6 +142,7 @@ pub fn record_write(
         reason: crate::RefusalReason::ForeignIdentity,
         machine,
         concerns: crate::Construct::Place(row.place),
+        source_span: None,
         detail: "place is past the end of this machine".to_owned(),
     })?;
     place.writes.push(writes.push(row));

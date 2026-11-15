@@ -186,7 +186,18 @@ impl Program<'_> {
             let parameter = match retained.get(slot) {
                 Some(region) if region.declaration.is_valid() => Some(*region),
                 _ if owner.is_valid() => {
-                    lifetime_parameter_identity(typed, owner, argument.as_str())
+                    let parameter = lifetime_parameter_identity(typed, owner, argument.as_str());
+                    // An authored tag its owner has no binder for is the
+                    // program's error, as for a reference
+                    // (`reference_lifetime_declared`).
+                    if parameter.is_none() && !argument.as_str().is_empty() {
+                        return Err(crate::reject(
+                            id,
+                            SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                            undeclared_lifetime_rule(argument.as_str()),
+                        ));
+                    }
+                    parameter
                 }
                 _ => None,
             };
@@ -1440,8 +1451,8 @@ pub(super) fn with_regions(value_type: ValueType, regions: crate::body::Regions)
 /// declaration and position, found from its tag
 /// (`typed_trees::type_identity::lifetime_parameter_identity`), so two
 /// binders with one tag would be one parameter to every lookup. A use that
-/// names an undeclared tag is refused where its type is read
-/// (`lifetime_application`).
+/// names an undeclared tag is rejected where its type is read
+/// (`lifetime_application`, `reference_lifetime_declared`).
 pub(super) fn lifetime_binders(
     id: MachineId,
     binders: &[Identifier],
@@ -1519,16 +1530,82 @@ pub(super) fn lifetime_application(
     }
     for (slot, argument) in arguments.iter().enumerate() {
         let tag = argument.as_str();
-        let declared = !tag.is_empty()
-            && match retained.get(slot) {
-                Some(RetainedLifetime::Resolved(parameter)) => *parameter == Some(tag),
-                Some(RetainedLifetime::Open) | None => declares(tag),
-            };
-        if !declared {
+        if tag.is_empty() {
             return typing("lifetime argument its owner does not declare");
+        }
+        match retained.get(slot) {
+            Some(RetainedLifetime::Resolved(parameter)) => {
+                if *parameter != Some(tag) {
+                    return typing("lifetime argument its owner does not declare");
+                }
+            }
+            // An authored tag the owner has no binder for: the program is
+            // wrong, as for a reference (`reference_lifetime_declared`).
+            Some(RetainedLifetime::Open) | None => {
+                if !declares(tag) {
+                    return Err(crate::reject(
+                        id,
+                        SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                        undeclared_lifetime_rule(tag),
+                    ));
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// `&'a T` where a type is read: the tag a reference writes must be a binder
+/// its owner declares. lifetimes.md: "Duplicate binders and undeclared tags
+/// reject." A tag no binder of the owner answers is the author's error in
+/// every program, so it is rejected here rather than left to the identity
+/// reader beneath, which would only find the region unresolved and call the
+/// reference's type unsupported.
+///
+/// `owner` is the occurrence's lifetime owner, as the readers pass it to the
+/// type identity they compute next. A lifetime the typed trees resolved for
+/// this occurrence (`operand_lifetimes`) is declared by construction; an
+/// elided lifetime or an empty tag is judged by the readers as before.
+pub(super) fn reference_lifetime_declared(
+    typed: &typed_trees::TypedTrees,
+    id: MachineId,
+    reference: typed_trees::types::TypeReferenceHandle,
+    owner: SymbolHandle,
+) -> Checked<()> {
+    let table = &typed.type_reference_table;
+    let TypeReferenceNode::Reference {
+        lifetime: Some(tag),
+        ..
+    } = table.type_reference(reference)
+    else {
+        return Ok(());
+    };
+    let resolved = table
+        .operand_lifetimes(reference)
+        .first()
+        .is_some_and(|region| region.declaration.is_valid());
+    if resolved
+        || tag.as_str().is_empty()
+        || !owner.is_valid()
+        || typed_trees::type_identity::lifetime_parameter_identity(typed, owner, tag.as_str())
+            .is_some()
+    {
+        return Ok(());
+    }
+    Err(crate::reject(
+        id,
+        SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+        undeclared_lifetime_rule(tag.as_str()),
+    ))
+}
+
+/// The rule an undeclared lifetime tag breaks, as a rejection states it.
+pub(super) fn undeclared_lifetime_rule(tag: &str) -> String {
+    format!(
+        "this type names the lifetime `'{}`, which its declaration does not declare: \
+         undeclared lifetime tags reject",
+        tag.trim_start_matches('\'')
+    )
 }
 
 // Copy permission must reach every nested value. Scalar fields alone do not
@@ -1710,8 +1787,9 @@ mod tests {
         let repeated = lifetime_binders(machine(), &tags(&["a", "b", "a"]), nowhere).unwrap_err();
         assert_eq!(
             repeated.reason,
-            terminal_check_tables::RefusalReason::Violation(None)
+            terminal_check_tables::RefusalReason::Violation
         );
+        assert_eq!(repeated.source_span, None);
         assert_eq!(
             repeated.detail,
             "this declaration states the lifetime `'a` twice: duplicate lifetime binders reject"
@@ -1726,9 +1804,9 @@ mod tests {
 
     /// `Inner<'a>` is served where the owner of its occurrence declares
     /// `'a` and `Inner` declares one lifetime. Too few or too many
-    /// arguments, and an argument the owner does not declare, are refused;
-    /// a machine is read under no owner, so there a lifetime the typed trees
-    /// did not resolve is undeclared. A lifetime they did resolve must be
+    /// arguments are refused, and an argument the owner does not declare is
+    /// rejected; a machine is read under no owner, so there a lifetime the
+    /// typed trees did not resolve is undeclared. A lifetime they did resolve must be
     /// the parameter the argument names, whatever the owner declares.
     #[test]
     fn a_lifetime_application_matches_its_declaration_and_its_owner() {
@@ -1752,8 +1830,21 @@ mod tests {
         assert_eq!(detail(1, &["a", "a"], &[], &["a"]), arity);
         assert_eq!(detail(0, &["a"], &[], &["a"]), arity);
         let undeclared = Err("typing lifetime argument its owner does not declare".into());
-        assert_eq!(detail(1, &["b"], &[], &["a"]), undeclared);
-        assert_eq!(detail(1, &["a"], &[], &[]), undeclared);
+        // An authored tag the owner does not declare is the program's error.
+        assert_eq!(
+            detail(1, &["b"], &[], &["a"]),
+            Err(undeclared_lifetime_rule("b"))
+        );
+        assert_eq!(
+            detail(1, &["a"], &[], &[]),
+            Err(undeclared_lifetime_rule("a"))
+        );
+        assert_eq!(
+            lifetime_application(machine(), 1, &tags(&["b"]), &[], |_| false)
+                .unwrap_err()
+                .reason,
+            terminal_check_tables::RefusalReason::Violation
+        );
         assert_eq!(detail(1, &[""], &[], &[""]), undeclared);
         // What the typed trees resolved decides, not the owner's tags.
         assert_eq!(detail(1, &["a"], &[Resolved(Some("a"))], &[]), Ok(()));

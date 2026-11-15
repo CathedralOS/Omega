@@ -243,6 +243,7 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
         | Terminator::ReturnStructural { edge, .. } => vec![(*edge, Destination::Return)],
         Terminator::InvokeNoNormal { edge, .. }
         | Terminator::ExternalCompletion { edge, .. }
+        | Terminator::EliminateEmpty { edge, .. }
         | Terminator::Crash { edge, .. } => vec![(*edge, Destination::NoNormal)],
     }
 }
@@ -778,7 +779,7 @@ pub(crate) fn follow_the_lowered_form(
     // comparison on each of its edges (control_flow.md: "a shared
     // well-foundedness question and comparison obligations for every
     // internal edge").
-    for (kind, point, concerns) in crate::ranking::owed(lowered) {
+    for (kind, point, concerns) in crate::rankings::owed(lowered) {
         minted.owed(kind, point, concerns)?;
     }
 

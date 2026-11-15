@@ -80,33 +80,17 @@ mod named_conformances;
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = GeneratedMachines::default();
     let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
-    let mut instances = symbols::SymbolMap::default();
-    let mut indexed = 0;
     // A generated machine is appended to the machines and read in its turn.
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
         for site in call_sites(program, position) {
-            // Rows are append-only during preparation. Index each actual
-            // association once; duplicate instance rows remain unserved.
-            for (index, row) in program
-                .machine_specializations
-                .iter()
-                .enumerate()
-                .skip(indexed)
-            {
-                instances
-                    .entry(row.instance)
-                    .and_modify(|known| *known = None)
-                    .or_insert(Some(index));
-            }
-            indexed = program.machine_specializations.len();
             let served = named_conformances::serve(program, site, &mut captures)
                 .and_then(|handled| {
                     if handled {
                         Ok(())
                     } else {
-                        serve(program, site, &mut generated, &instances)
+                        serve(program, site, &mut generated)
                     }
                 })
                 .and_then(|()| {
@@ -354,12 +338,7 @@ fn entered_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(Symbol
     }
 }
 
-fn serve(
-    program: &mut TypedTrees,
-    site: Site,
-    generated: &mut GeneratedMachines,
-    instances: &symbols::SymbolMap<Option<usize>>,
-) -> Served<()> {
+fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines) -> Served<()> {
     let Some(applied) = site.applied(program) else {
         return Ok(());
     };
@@ -398,7 +377,7 @@ fn serve(
         .map_err(Stop::Defect)?
         .is_some()
     {
-        return enter_generated(program, site, &applied, callee, &arguments, instances);
+        return enter_generated(program, site, &applied, callee, &arguments);
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
         if program
@@ -481,12 +460,15 @@ fn enter_generated(
     applied: &Applied,
     callee: SymbolHandle,
     arguments: &[StaticMachineArgument],
-    instances: &symbols::SymbolMap<Option<usize>>,
 ) -> Served<()> {
-    let Some(Some(index)) = instances.get(&callee) else {
-        return Err(Stop::Unserved(None));
+    // The receipt table indexes instances; a duplicate receipt stays unserved.
+    let row = {
+        let mut receipts = program.machine_specializations.for_instance(callee);
+        match (receipts.next(), receipts.next()) {
+            (Some(row), None) => row,
+            _ => return Err(Stop::Unserved(None)),
+        }
     };
-    let row = &program.machine_specializations[*index];
     let Some(template) = program.machine_by_symbol(row.template) else {
         return Err(Stop::Unserved(None));
     };

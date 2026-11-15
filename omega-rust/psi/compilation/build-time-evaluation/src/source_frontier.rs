@@ -152,7 +152,7 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
-    let references = typed_trees::references::collect_program_references(typed);
+    let references = typed_trees::references::collect_source_evaluation_references(typed);
     let mut expressions = Vec::new();
     for expression in &references.expressions {
         if typed
@@ -199,7 +199,7 @@ pub(crate) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Di
     }
     // A request is its declaration's to carry. One that no declaration owns
     // has no reader that could raise it, so it still refuses the program.
-    let owners = typed_trees::references::collect_program_operand_owners(typed);
+    let owners = typed_trees::references::collect_source_evaluation_operand_owners(typed);
     for (expression, request) in expressions {
         let before = jobs.len();
         jobs.extend(

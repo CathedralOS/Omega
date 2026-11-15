@@ -293,6 +293,10 @@ pub(crate) struct Prover<'a> {
     /// their selected arithmetic meaning, each citing its prepared fact.
     equations: Vec<usize>,
     definitions: IdTable<ValueId, Option<usize>>,
+    /// `equations` extended by arrivals' compound equalities, which only
+    /// `by_transport` cites after `equations` alone fails (`Known`).
+    arrival_equations: Vec<usize>,
+    arrival_definitions: IdTable<ValueId, Option<usize>>,
     transport: crate::known::TransportInputs,
     /// `[upper, lower]` in the exact declared value namespace. A contract
     /// witness may begin at any real formal ID, not only at value one.
@@ -423,6 +427,8 @@ impl<'a> Prover<'a> {
             facts,
             equations,
             definitions,
+            arrival_equations,
+            arrival_definitions,
         } = crate::known::Known::new(context, assumptions, axioms, values);
         let transport = crate::known::TransportInputs::new(equations.len());
         Self {
@@ -434,6 +440,8 @@ impl<'a> Prover<'a> {
             facts,
             equations,
             definitions,
+            arrival_equations,
+            arrival_definitions,
             transport,
             bounds: values.map(|_, _| [Slot::Unknown, Slot::Unknown]),
             case_split: true,
@@ -444,13 +452,51 @@ impl<'a> Prover<'a> {
 
     /// `goal` by `ValueEqualityTransport`: under the definitions the prover
     /// holds, its denotation is `Truth`, or is the denotation of a fact. The
-    /// kernel recomputes both denotations from the same definitions.
+    /// kernel recomputes both denotations from the same definitions. Only
+    /// when those definitions do not decide it, an arrival's compound
+    /// equality may define its otherwise undefined value too: a match arm
+    /// that read `window.len` crosses as `length == count - 0`, which the
+    /// window's later measurement `count - start` with `start == 0` meets
+    /// only by transport.
     fn by_transport(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        if self.equations.is_empty() {
+        self.transport_through(goal, false)
+            .or_else(|| self.transport_through(goal, true))
+    }
+
+    fn transport_through(&mut self, goal: &Proposition, arrivals: bool) -> Option<ProofNode> {
+        if arrivals && self.arrival_equations.is_empty() {
             return None;
         }
-        let target = self.transported_goal(goal)?;
-        let inputs = &self.transport.selected;
+        let (equations, definitions) = if arrivals {
+            (&self.arrival_equations, &self.arrival_definitions)
+        } else {
+            (&self.equations, &self.definitions)
+        };
+        if equations.is_empty() {
+            return None;
+        }
+        crate::known::Known::transport_inputs(
+            &self.facts,
+            equations,
+            goal,
+            definitions,
+            &mut self.transport,
+        );
+        let target = check_value_equality_denotation(
+            self.context,
+            goal,
+            self.transport
+                .selected
+                .iter()
+                .map(|&index| &self.facts[equations[index]].proposition),
+        )
+        .ok()?;
+        let equalities: Vec<ProofNode> = self
+            .transport
+            .selected
+            .iter()
+            .map(|&index| self.facts[equations[index]].proof(&self.facts))
+            .collect();
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
         } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
@@ -473,10 +519,7 @@ impl<'a> Prover<'a> {
             goal.clone(),
             ProofRule::ValueEqualityTransport {
                 premise: Box::new(premise),
-                equalities: inputs
-                    .iter()
-                    .map(|&index| self.facts[self.equations[index]].proof(&self.facts))
-                    .collect(),
+                equalities,
             },
         ))
     }

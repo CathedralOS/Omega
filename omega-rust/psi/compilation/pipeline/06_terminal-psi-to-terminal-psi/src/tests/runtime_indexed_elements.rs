@@ -26,6 +26,12 @@ fn verdict(build: &str) -> String {
         Err(crate::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
         Ok(RouteVerdict::Accepted(accepted)) => {
+            terminal_codec::EvidenceSealValidator::new(
+                &accepted.elaboration.module,
+                &accepted.seals,
+            )
+            .validate_all()
+            .expect("each checked array bound belongs to an operation in the published module");
             accepted.publish_invocation().unwrap();
             "accepted".to_owned()
         }

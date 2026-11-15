@@ -60,6 +60,13 @@ impl SourceOrigin {
             Self::Unpositioned(Unpositioned::SpanAbsent)
         }
     }
+
+    pub fn authored_span(self) -> Option<source::SourceSpan> {
+        match self {
+            Self::Authored(span) => Some(span),
+            Self::Unpositioned(_) => None,
+        }
+    }
 }
 
 /// One machine's source correspondence: one row per lowered identity, indexed

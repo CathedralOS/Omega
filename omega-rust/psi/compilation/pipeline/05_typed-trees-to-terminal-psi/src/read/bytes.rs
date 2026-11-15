@@ -108,6 +108,7 @@ pub(super) fn source_byte_view(
         retained if retained.is_valid() => retained,
         _ => lexical_owner,
     };
+    super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
     // The carrier's identity: a view with domains stores the same
     // descriptor as the view without them, so both are one row and the
     // domains are the value's qualification (`view_type`).
@@ -420,8 +421,20 @@ impl Program<'_> {
         measure: typed_trees::expression::CollectionMeasure,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        use typed_trees::expression::CollectionMeasure;
         let base = self.expression(machine, slots, receiver, None)?;
+        self.measured_collection(machine, base, measure, source)
+    }
+
+    /// Every length consumer uses the same readable collection formation.
+    /// A ranking clause does not make a scalar or write-only view readable.
+    pub(super) fn measured_collection(
+        &mut self,
+        machine: MachineId,
+        base: Expression,
+        measure: typed_trees::expression::CollectionMeasure,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use typed_trees::expression::CollectionMeasure;
         let Some(record) = self
             .opened(machine, base.result, super::authority::Access::Read)?
             .map(super::authority::Opened::record)

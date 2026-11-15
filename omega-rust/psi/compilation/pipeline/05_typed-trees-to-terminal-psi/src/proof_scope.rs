@@ -271,6 +271,7 @@ pub(crate) fn declare(
         let custody =
             crate::selection_questions::declaration_custody(typed, symbol).map_err(|reason| {
                 terminal_check_tables::Refusal {
+                    source_span: None,
                     reason: terminal_check_tables::RefusalReason::Unsupported,
                     machine: machine.id,
                     concerns: Construct::Machine,

@@ -83,6 +83,137 @@ const DOMAIN: &str = "module units; public domain u32::Distance;";
 const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }";
 
 #[test]
+fn unresolved_names_keep_their_occurrences_scope_instead_of_a_global_leaf() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    let refusal = |program: &typed_trees::TypedTrees| {
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .unwrap();
+        program
+            .deferred_refusal(caller.symbol)
+            .map(|row| row.request)
+    };
+    for extra in [
+        "",
+        "machine unrelated(ghost: u32) {}",
+        "data Other { ghost: u32; }",
+    ] {
+        let text = format!("machine caller() {{ ghost(); }} {extra}");
+        assert_eq!(
+            refusal(&typed(&[("client.omg", &text)])),
+            Some(DeferredRequest::UndeclaredCallName),
+            "{text}"
+        );
+        let text = format!("machine caller() -> u32 {{ ghost }} {extra}");
+        assert_eq!(
+            refusal(&typed(&[("client.omg", &text)])),
+            Some(DeferredRequest::UndeclaredValueName),
+            "{text}"
+        );
+    }
+    let program = typed(&[
+        ("client.omg", "machine caller() { ghost(); }"),
+        ("other.omg", "module elsewhere; public machine ghost() {}"),
+    ]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+    let program = typed(&[
+        (
+            "client.omg",
+            "use elsewhere; machine caller() { elsewhere::ghost(); }",
+        ),
+        ("other.omg", "module elsewhere; public machine ghost() {}"),
+    ]);
+    assert_eq!(refusal(&program), None);
+    let program = typed(&[(
+        "client.omg",
+        "machine caller() requires false { ghost(); } machine unrelated(ghost: u32) {}",
+    )]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+    let program = typed(&[(
+        "client.omg",
+        "machine caller() requires ghost() {} machine unrelated(ghost: u32) {}",
+    )]);
+    assert_eq!(refusal(&program), Some(DeferredRequest::UndeclaredCallName));
+}
+
+#[test]
+fn qualified_unknown_names_keep_dependency_and_visibility_scope() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    for spelling in ["ghost", "foreign::ghost"] {
+        let text = format!("machine caller() {{ {spelling}(); }}");
+        let program = packages(
+            &[
+                (31, "client.omg", &text),
+                (
+                    41,
+                    "foreign.omg",
+                    "module foreign; public machine ghost() {}",
+                ),
+            ],
+            &[],
+            &[],
+        )
+        .unwrap();
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .unwrap();
+        assert_eq!(
+            program
+                .deferred_refusal(caller.symbol)
+                .map(|row| row.request),
+            Some(DeferredRequest::UndeclaredCallName),
+            "{spelling}"
+        );
+    }
+}
+
+/// modules.md, "Resolution": case members are not a bare-name resolution
+/// step, so a bare case spelling is an ordinary unknown name of its own
+/// holder. Whether some carrier anywhere in the forest, visible or not,
+/// declares that case does not turn the deferred row into a resolver failure.
+#[test]
+fn a_bare_case_spelling_stays_an_unknown_name_of_its_holder() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    let client = "machine main() {} machine unused() -> u64 { Missing }";
+    let carrier = "public data Choice { case Missing; }";
+    let same_source = format!("{client} {carrier}");
+    for units in [
+        vec![(31, "client.omg", client)],
+        vec![
+            (31, "client.omg", client),
+            (
+                41,
+                "choice.omg",
+                "module choice; public data Choice { case Missing; }",
+            ),
+        ],
+        vec![(31, "client.omg", same_source.as_str())],
+    ] {
+        let program = packages(&units, &[], &[]).unwrap();
+        let refusal = |name: &str| {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == name)
+                .unwrap();
+            program
+                .deferred_refusal(machine.symbol)
+                .map(|row| row.request)
+        };
+        assert_eq!(refusal("main"), None, "{units:?}");
+        assert_eq!(
+            refusal("unused"),
+            Some(DeferredRequest::UndeclaredValueName),
+            "{units:?}"
+        );
+    }
+}
+
+#[test]
 fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,

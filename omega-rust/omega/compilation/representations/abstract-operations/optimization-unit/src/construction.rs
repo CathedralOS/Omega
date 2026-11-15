@@ -472,6 +472,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
         | O::InvokeNoNormal { psi_edge, .. }
         | O::ExternalCompletion { psi_edge, .. }
+        | O::EliminateEmpty { psi_edge, .. }
         | O::Crash { psi_edge, .. } => PsiProvenance::Edge(*psi_edge),
         O::ReturnStructural {
             psi_edge,
@@ -625,6 +626,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::ReleaseReference { .. }
         | O::InvokeNoNormal { .. }
         | O::ExternalCompletion { .. }
+        | O::EliminateEmpty { .. }
         | O::Crash { .. }
         | O::CallStructural {
             result:
@@ -805,6 +807,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::ReturnStructural { .. }
         | O::EstablishAccessReference { .. }
         | O::ReleaseReference { .. }
+        | O::EliminateEmpty { .. }
         | O::Crash { .. }
         | O::EstablishElementView {
             region: terminal_psi::ElementViewRegion::WholeCollection,
@@ -816,6 +819,9 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
+        O::EliminateEmpty { source, .. } => {
+            places.insert(*source);
+        }
         O::EstablishByteSequenceConcatenation {
             result,
             left,
@@ -1197,6 +1203,7 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::StructuralCase { .. }
         | O::EstablishAccessReference { .. }
         | O::EstablishReference { .. }
-        | O::ReleaseReference { .. } => Vec::new(),
+        | O::ReleaseReference { .. }
+        | O::EliminateEmpty { .. } => Vec::new(),
     }
 }

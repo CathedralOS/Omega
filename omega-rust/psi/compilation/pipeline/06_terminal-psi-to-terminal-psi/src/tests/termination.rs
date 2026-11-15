@@ -32,27 +32,31 @@ fn count_down(measure: &str, next: &str) -> String {
 }
 
 fn accepted(text: &str) -> Box<crate::AcceptedClosure> {
-    match super::entryless::judged(text, false) {
+    match judged(text) {
         RouteVerdict::Accepted(accepted) => accepted,
         verdict => panic!("the program must be accepted: {verdict:?}\n{text}"),
     }
 }
 
 fn unproved(text: &str) -> Vec<UnprovedObligation> {
-    match super::entryless::judged(text, false) {
+    match judged(text) {
         RouteVerdict::Rejected { unproved, .. } => unproved,
         verdict => panic!("the program must be rejected: {verdict:?}\n{text}"),
     }
 }
 
 fn refused(text: &str) -> String {
-    match super::entryless::judged(text, false) {
+    match judged(text) {
         RouteVerdict::FallBack(refusal) => {
             assert_eq!(refusal.reason, RefusalReason::Unsupported);
             refusal.detail
         }
         verdict => panic!("the program must be refused: {verdict:?}\n{text}"),
     }
+}
+
+fn judged(text: &str) -> RouteVerdict {
+    super::entryless::judged_typed(&super::rankings::typed_with_ranking_catalog(text), false)
 }
 
 #[test]
@@ -62,10 +66,18 @@ fn a_measure_that_decreases_on_the_recursive_call_is_accepted() {
     // guard `remaining > 0` the subtraction is safe and its result is
     // strictly below `remaining`.
     let accepted = accepted(&count_down("remaining", "remaining - 1"));
-    let lowered = &accepted.elaboration.module.machines[0];
+    let lowered = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| machine.ranked_scc.is_some())
+        .expect("the subject retains its ranked machine");
+    // The witness supplies local progress evidence. It does not replace the
+    // published promise retained from the header or selected requirement.
     assert_eq!(
         lowered.contract.termination,
-        semantic_vocabulary::Termination::Terminates
+        semantic_vocabulary::Termination::NoGuarantee
     );
     let Some(TerminalRankedScc::Natural(cycles)) = &lowered.ranked_scc else {
         panic!("the loop keeps its ranking");
@@ -79,7 +91,7 @@ fn a_measure_that_decreases_on_the_recursive_call_is_accepted() {
 }
 
 #[test]
-fn every_rank_obligation_of_an_accepted_loop_has_a_kernel_checked_certificate() {
+fn every_rank_obligation_of_an_accepted_loop_has_checked_evidence() {
     // machine countdown(remaining: u32) -> u32 terminates by remaining
     //   { remaining > 0 -> countdown(remaining - 1); 0 }
     let mut elaboration = lower_ranked(less_one(), witnessed(0));
@@ -89,7 +101,26 @@ fn every_rank_obligation_of_an_accepted_loop_has_a_kernel_checked_certificate() 
     // the cycle's two edges: the edge beneath the head and the jump back.
     assert_eq!(rows.len(), 3);
     for (obligation, verdict) in rows {
-        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+        match verdict {
+            Ok(Discharged::FiniteIntegerRanking(relation)) => {
+                assert_eq!(
+                    relation.carriers,
+                    vec![
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            32,
+                        )
+                        .unwrap()
+                    ]
+                );
+                assert!(matches!(elaboration.tables.machines.get(id(1)).unwrap()
+                    .obligations.get(obligation).unwrap().kind,
+                    ObligationKind::WellFoundedness { component } if component == relation.component));
+            }
+            _ => {
+                assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+            }
+        }
     }
     assert!(matches!(
         judge(Ok(lower_ranked(less_one(), witnessed(0)))).unwrap(),
@@ -97,8 +128,8 @@ fn every_rank_obligation_of_an_accepted_loop_has_a_kernel_checked_certificate() 
     ));
 }
 
-fn witnessed(subject: u32) -> Termination {
-    Termination::Witnessed(typed_trees_to_terminal_psi::Ranking { subject })
+fn witnessed(subject: u32) -> Option<Vec<Expression>> {
+    Some(vec![slot(subject as usize, u32_type())])
 }
 
 fn less_one() -> Expression {
@@ -109,7 +140,7 @@ fn less_one() -> Expression {
 ///  { remaining > 0 -> countdown(<next>, spare); 0 }`
 fn lower_ranked(
     next: Expression,
-    termination: Termination,
+    ranking: Option<Vec<Expression>>,
 ) -> typed_trees_to_terminal_psi::Elaboration {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
@@ -145,7 +176,12 @@ fn lower_ranked(
         reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
-        termination,
+        termination: if ranking.is_some() {
+            Termination::Promised
+        } else {
+            Termination::Silent
+        },
+        ranking,
     });
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
         .unwrap()
@@ -170,12 +206,27 @@ fn assert_no_descent(unproved: &[UnprovedObligation]) {
     );
 }
 
+fn assert_unchanged_measure_refuses(text: &str) {
+    let typed = super::rankings::typed_with_ranking_catalog(text);
+    match super::entryless::judged_typed_result(&typed, false) {
+        Ok(RouteVerdict::Rejected { unproved, .. }) => assert_no_descent(&unproved),
+        Err(crate::CompilationRefusal::Elaboration(refusal)) => {
+            assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
+            assert_eq!(
+                refusal.detail,
+                "removing strict rank edges leaves a control cycle"
+            );
+        }
+        result => panic!("the unchanged measure must fail its progress check: {result:?}"),
+    }
+}
+
 #[test]
 fn a_recursive_call_that_keeps_the_measure_is_rejected() {
     // The twin differs in the recursive argument alone: `remaining` is
     // passed on unchanged, so `remaining < remaining` is owed and has no
     // derivation.
-    assert_no_descent(&unproved(&count_down("remaining", "remaining")));
+    assert_unchanged_measure_refuses(&count_down("remaining", "remaining"));
 }
 
 #[test]
@@ -183,7 +234,7 @@ fn a_measure_the_recursive_call_does_not_decrease_is_rejected() {
     // The twin differs in the measure alone: `spare` is passed on
     // unchanged by the same call that decreases `remaining`.
     accepted(&count_down("remaining", "remaining - 1"));
-    assert_no_descent(&unproved(&count_down("spare", "remaining - 1")));
+    assert_unchanged_measure_refuses(&count_down("spare", "remaining - 1"));
 }
 
 #[test]
@@ -244,15 +295,19 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
         // A rank range: its lower bound would be the floor.
         (
             "remaining -> Nat::Descending in 0..=16",
-            "contract rank range on a ranking witness",
+            "contract ranking view arguments and bounded ranges",
         ),
-        // Two subjects select the bounded-distance view.
+        // The selected natural view takes one subject.
         (
             "(remaining, limit)",
-            "contract ranking view other than Nat::Descending",
+            "contract ranking view has no normalized integer relation",
         ),
     ] {
-        assert_eq!(refused(&looping(scalars, measure)), detail, "{measure}");
+        assert_eq!(
+            refused(&looping(scalars, measure)),
+            format!("{detail} while reading the body of `spend`"),
+            "{measure}"
+        );
     }
     // A signed subject: `Nat::Descending` is declared for unsigned values.
     assert_eq!(
@@ -266,20 +321,48 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
                  }\n\
              }\n"
         ),
-        "contract ranking subject that is not an unsigned fixed-width integer formal"
+        "contract natural ranking needs an unsigned integer subject while reading the body of `sink`"
     );
-    // Two machines that call each other: one joint ranking, whose spelling
-    // for differently shaped members the specification leaves open.
-    assert_eq!(
-        refused(
-            "machine even(n: u64) -> u64 terminates by n {\n    \
+}
+
+#[test]
+fn a_joint_measure_checks_both_members_of_a_mutual_call_cycle() {
+    let accepted = accepted(
+        "machine even(n: u64) -> u64 terminates by n {\n    \
                  transition n > 0 { true -> odd(n - 1) false -> 0 }\n\
              }\n\
              machine odd(n: u64) -> u64 terminates by n {\n    \
                  transition n > 0 { true -> even(n - 1) false -> 1 }\n\
-             }\n"
-        ),
-        "contract ranking witness on a call cycle of several machines"
+             }\n",
+    );
+    let mut relations = 0;
+    let mut comparisons = 0;
+    for (machine, tables) in accepted.elaboration.tables.machines.iter() {
+        let discharged = accepted.discharge.machines.get(machine).unwrap();
+        for (obligation, row) in tables.obligations.iter() {
+            match row.kind {
+                ObligationKind::WellFoundedness { component } => {
+                    assert!(matches!(discharged.verdicts.get(obligation),
+                        Some(Ok(Discharged::FiniteIntegerRanking(relation)))
+                        if relation.component == component && relation.carriers.len() == 1));
+                    relations += 1;
+                }
+                ObligationKind::RankComparison { .. } => {
+                    assert_kernel_checked(
+                        &accepted.elaboration,
+                        machine.get(),
+                        obligation,
+                        certificate(discharged.verdicts.get(obligation).unwrap()),
+                    );
+                    comparisons += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(
+        relations > 0 && comparisons >= 2,
+        "the joint cycle must carry its finite relation and both members' comparisons"
     );
 }
 
@@ -305,7 +388,7 @@ fn a_ranking_that_is_not_the_graphs_own_refuses_the_machine() {
     });
     assert_eq!(preserved.reason, RefusalReason::ForeignIdentity);
     assert!(
-        preserved.detail.contains("no strict descent"),
+        preserved.detail == "removing strict rank edges leaves a control cycle",
         "{preserved:?}"
     );
     // An edge claim that is missing.
@@ -338,12 +421,12 @@ fn a_terminating_machine_with_an_unranked_cycle_is_refused() {
     // has nothing that shows it ends.
     assert!(
         discharge(
-            &mut lower_ranked(less_one(), Termination::Silent),
+            &mut lower_ranked(less_one(), None),
             &mut crate::ProofSearchActivity::default()
         )
         .is_ok()
     );
-    let mut elaboration = lower_ranked(less_one(), Termination::Silent);
+    let mut elaboration = lower_ranked(less_one(), None);
     elaboration.module.machines[0].contract.termination =
         semantic_vocabulary::Termination::Terminates;
     let refusal =
