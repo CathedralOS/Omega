@@ -16,4 +16,4 @@ Session ownership, execution and publication follow the [swarm skill](../SKILL.m
 ## 2. Continue on Warm Sessions
 
 1. Dispatch each session with its capability, witness, fixed base, and instruction to follow `/advance` through verified landing. Retain the PR URL, submitted head, published commit and observed limits in its completion report.
-2. Reuse the same Devin session (keeping its warm checkout and build cache) for the next requirement of the parent capability; compact only after the parent capability's full acceptance is met and the session switches to a new outcome. Follow [recovery](recovery.md) for interrupted lanes.
+2. Reuse the same Devin session (keeping its warm checkout and build cache) for the next requirement of the parent capability; compact only after the parent capability's full acceptance is met and the session switches to a new outcome.

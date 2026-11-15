@@ -44,5 +44,4 @@ assignment's review. Admit five, then
 ten only after every outcome in the prior stage satisfies that same contract
 without user rescue. Keep independent executors' build slots independent and
 publication evidence reconciled. Simulate fault cases in tests, never by disrupting
-another worker or live publication. Follow [cloud launch](cloud-launch.md) and
-[recovery](recovery.md) for preflight, approval, backups and safe cleanup.
+another worker or live publication. Follow [cloud launch](cloud-launch.md) for preflight and approval.
