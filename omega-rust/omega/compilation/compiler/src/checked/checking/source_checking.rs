@@ -171,6 +171,38 @@ fn prepare_and_judge(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().copied());
     }
+    let mut layout_scopes = layout_scopes;
+    let subject = pass.package_inputs.map(PackageCompilationInputs::root);
+    if build.root_bindings.is_empty() {
+        // An entryless Check judges every machine its subject declares, so
+        // each one demands the layouts its signature and body name
+        // (wiki/spec/layouts/plans.md#layout-demand-and-validation). They
+        // are layout roots only: the roster still selects nothing extra.
+        // A generated machine with no source file is no subject's declaration;
+        // leaving it out can only leave a layout unrequested, which refuses.
+        let subject_machines = typed
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .filter(|&machine| {
+                typed_trees::source_subjects::contains(
+                    &typed,
+                    machine,
+                    &[subject],
+                    source::DependencyScope::Product,
+                )
+                .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        // A scope's own roots here are only its claimed native bindings.
+        for scope in &mut layout_scopes {
+            for machine in &subject_machines {
+                if !scope.entry_declarations.contains(machine) {
+                    scope.entry_declarations.push(*machine);
+                }
+            }
+        }
+    }
     selected.extend(
         claimed
             .iter()
@@ -212,7 +244,6 @@ fn prepare_and_judge(
         declarations: None,
     };
 
-    let subject = pass.package_inputs.map(PackageCompilationInputs::root);
     let inspection_root = pass
         .inspection
         .map(|name| inspection_root(&typed, subject, name))
