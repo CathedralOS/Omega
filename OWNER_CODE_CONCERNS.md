@@ -157,13 +157,6 @@ framework or a list of unimplemented features.
 - Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Add an advisory priority for managed views to mbx and set it from the pool’s existing assignment state. Respect explicit operator rules and running-command locks, and still let assigned views be reclaimed under disk pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
 
-### Psi cannot run until native lowering succeeds
-- Category: knowledge crossing a boundary
-- Where: [runtime admission](omega-rust/omega/compilation/native-compiler/src/realization.rs#L152), [borrowed-storage layout extraction](omega-rust/omega/compilation/native-compiler/src/realization/object_emission.rs#L30)
-- Saw: At `2669589de8a`, both `omega run --both` and `omega run --engine psi` refuse the unchanged console program with the same native target-lowering error. Neither executes guest code. Runtime admission calls `lower_borrowed_storage_layouts`, which lowers the whole guest program before taking its borrowed-storage descriptions. These runs do not measure that step's time.
-- Cost: A backend gap prevents Psi from running checked code. Have the layout stage supply the exact borrowed-storage descriptions directly. Preserve native binding, layout, authority and provider checks, and keep full native lowering for image production.
-- Reported: 2026-11-15, Codex, while checking the console's interpreter and native paths
-
 ### Test edits change the production compiler identity
 - Category: verifying costs more than writing
 - Where: [compiler build-input collection](omega-rust/omega/compilation/compiler/build.rs#L32), [recursive input scan](omega-rust/omega/compilation/compiler/build.rs#L98)
