@@ -19,6 +19,12 @@ use semantic_vocabulary::{MachineId, PackageKeyIdentity, ServiceId, TargetMachin
 use terminal_check_tables::edges::Callee;
 use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
 
+struct CallableInventory<'a> {
+    accepted: &'a source_compiler::AcceptedTerminalSource,
+    exact_sources: &'a [(source::SourceId, [u8; 32])],
+    service_names: Vec<(ServiceId, PackageReviewNominalIdentity)>,
+}
+
 impl PackageReviewInput<'_> {
     pub(super) fn build_callable(
         &self,
@@ -74,8 +80,17 @@ impl PackageReviewInput<'_> {
                 "a selected Build owned by the reviewed package",
             ));
         }
+        let exact_sources =
+            source::source_identity::toolchain_source_identities(source.symbols.source_files())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let service_names = service_identities(accepted, &exact_sources)?;
+        validate_body_effect_inventory(accepted.module())?;
         self.callable(
-            accepted,
+            &CallableInventory {
+                accepted,
+                exact_sources: &exact_sources,
+                service_names,
+            },
             *original,
             identity,
             PackagePolicyCallableRole::Build,
@@ -91,6 +106,18 @@ impl PackageReviewInput<'_> {
     ) -> Result<Vec<PackagePolicyCallable>, Vec<Diagnostic>> {
         let mut rows: Vec<_> = self.build_callable(package)?.into_iter().collect();
         let accepted = self.compilation().terminal_publication().accepted()?;
+        let exact_sources = self.compilation().sources().exact_toolchain_sources();
+        let mut inventory = None;
+        let mut effects_validated = false;
+        let mut bodies: Vec<_> = accepted
+            .closure()
+            .elaboration
+            .machines
+            .iter()
+            .map(|(entry, original)| (*original, entry))
+            .collect();
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        bodies.sort_unstable_by_key(|(original, _)| key(*original));
         for declaration in self.typed().machines() {
             if !self.owns(declaration.symbol, package)?
                 || (!declaration.is_public && declaration.supplies_checked_body())
@@ -113,24 +140,31 @@ impl PackageReviewInput<'_> {
                 _ => return Err(unavailable("this callable's supply and authority contract")),
             };
             let body = if declaration.supplies_checked_body() {
-                let mut matching = accepted
-                    .closure()
-                    .elaboration
-                    .machines
-                    .iter()
-                    .filter(|(_, original)| **original == declaration.symbol);
-                let (entry, _) = matching
-                    .next()
-                    .ok_or_else(|| unavailable("the public callable's accepted body"))?;
-                if matching.next().is_some() {
+                let first = bodies
+                    .partition_point(|(original, _)| key(*original) < key(declaration.symbol));
+                let end = bodies
+                    .partition_point(|(original, _)| key(*original) <= key(declaration.symbol));
+                let [(original, entry)] = &bodies[first..end] else {
                     return Err(unavailable("an unambiguous public callable application"));
-                }
-                Some(entry)
+                };
+                debug_assert_eq!(*original, declaration.symbol);
+                Some(*entry)
             } else {
                 None
             };
+            if inventory.is_none() {
+                inventory = Some(CallableInventory {
+                    accepted,
+                    exact_sources,
+                    service_names: service_identities(accepted, exact_sources)?,
+                });
+            }
+            if body.is_some() && !effects_validated {
+                validate_body_effect_inventory(accepted.module())?;
+                effects_validated = true;
+            }
             rows.push(self.callable(
-                accepted,
+                inventory.as_ref().expect("prepared callable inventory"),
                 declaration.symbol,
                 self.nominal(declaration.symbol)?,
                 role,
@@ -144,13 +178,16 @@ impl PackageReviewInput<'_> {
 
     fn callable(
         &self,
-        accepted: &source_compiler::AcceptedTerminalSource,
+        inventory: &CallableInventory<'_>,
         original: symbols::SymbolHandle,
         identity: PackageReviewNominalIdentity,
         role: PackagePolicyCallableRole,
         supply: PackageReviewCallableSupply,
         body: Option<MachineId>,
     ) -> Result<PackagePolicyCallable, Vec<Diagnostic>> {
+        let accepted = inventory.accepted;
+        let exact_sources = inventory.exact_sources;
+        let service_names = &inventory.service_names;
         let source = accepted.source();
         let declaration = source
             .machine(original)
@@ -227,17 +264,6 @@ impl PackageReviewInput<'_> {
         } else {
             self.callable_contracts(declaration, state)?
         };
-        // Product already retained this exact roster at its source boundary.
-        // Only Build has a distinct source owner to prepare here.
-        let build_sources;
-        let exact_sources = if role == PackagePolicyCallableRole::Build {
-            build_sources =
-                source::source_identity::toolchain_source_identities(source.symbols.source_files())
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            build_sources.as_slice()
-        } else {
-            self.compilation().sources().exact_toolchain_sources()
-        };
         let type_identity = |reference| {
             if role != PackagePolicyCallableRole::Build {
                 return self.type_identity(reference);
@@ -268,26 +294,25 @@ impl PackageReviewInput<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let service_names = service_identities(accepted, exact_sources)?;
         let ([reach, entries], [checked_may_suspend, checked_may_block]) = match body {
             Some(entry) => body_effects(accepted, entry)?,
             None => ([Vec::new(), Vec::new()], [false; 2]),
         };
-        let realized_reach = reviewed_services(&service_names, &reach)?;
-        let realized_entries = reviewed_services(&service_names, &entries)?
+        let realized_reach = reviewed_services(service_names, &reach)?;
+        let realized_entries = reviewed_services(service_names, &entries)?
             .into_iter()
             .map(PackageReviewSynchronousInvocation::Service)
             .collect();
         let declared_service_reach = header
             .declared_service_reach
             .as_deref()
-            .map(|row| reviewed_services(&service_names, row))
+            .map(|row| reviewed_services(service_names, row))
             .transpose()?;
         let declared_synchronous_invocations = header
             .declared_synchronous_entries
             .as_deref()
             .map(|row| {
-                reviewed_services(&service_names, row).map(|row| {
+                reviewed_services(service_names, row).map(|row| {
                     row.into_iter()
                         .map(PackageReviewSynchronousInvocation::Service)
                         .collect()
@@ -337,7 +362,7 @@ impl PackageReviewInput<'_> {
                 concrete: if body.is_some() {
                     realized_reach.clone()
                 } else {
-                    reviewed_services(&service_names, &header.published_service_ceiling)?
+                    reviewed_services(service_names, &header.published_service_ceiling)?
                 },
                 parameters: Vec::new(),
             },
@@ -354,7 +379,7 @@ impl PackageReviewInput<'_> {
                 declared_synchronous_invocations
             } else {
                 Some(
-                    reviewed_services(&service_names, &header.published_synchronous_entries)?
+                    reviewed_services(service_names, &header.published_synchronous_entries)?
                         .into_iter()
                         .map(PackageReviewSynchronousInvocation::Service)
                         .collect(),
@@ -563,11 +588,9 @@ fn reviewed_services(
     Ok(projected)
 }
 
-fn body_effects(
-    accepted: &source_compiler::AcceptedTerminalSource,
-    machine: MachineId,
-) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
-    let module = accepted.module();
+// These authority inventories belong to the accepted module, so inspect them
+// once before projecting its checked bodies rather than once per public helper.
+fn validate_body_effect_inventory(module: &TerminalModule) -> Result<(), Vec<Diagnostic>> {
     if !module
         .root_service_reach
         .installation_dependencies
@@ -579,12 +602,6 @@ fn body_effects(
             "Build's unresolved installation or dynamic effects",
         ));
     }
-    let body = module
-        .machine(machine)
-        .ok_or_else(|| unavailable("Build's effect body"))?;
-    let original = module
-        .unoptimized_machine_behavior(machine)
-        .ok_or_else(|| unavailable("Build's original checked behavior inventory"))?;
     if module
         .unoptimized_behavior
         .iter()
@@ -608,6 +625,20 @@ fn body_effects(
     {
         return Err(unavailable("Build's instruction authority"));
     }
+    Ok(())
+}
+
+fn body_effects(
+    accepted: &source_compiler::AcceptedTerminalSource,
+    machine: MachineId,
+) -> Result<([Vec<ServiceId>; 2], [bool; 2]), Vec<Diagnostic>> {
+    let module = accepted.module();
+    let body = module
+        .machine(machine)
+        .ok_or_else(|| unavailable("Build's effect body"))?;
+    let original = module
+        .unoptimized_machine_behavior(machine)
+        .ok_or_else(|| unavailable("Build's original checked behavior inventory"))?;
     let tables = accepted
         .closure()
         .elaboration
