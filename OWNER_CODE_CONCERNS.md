@@ -80,13 +80,6 @@ framework or a list of unimplemented features.
 - Cost: The private catalog advertises incomplete access summaries that cannot support preservation claims. Retire the unused analysis or derive its results from the existing owner-aware descriptor effect solver; appending recursive call paths would introduce an unbounded path fixed point.
 - Reported: 2026-11-15, Codex, while reviewing ordinary owned cleanup call composition.
 
-### The private-operator twin in `lowered_route_qualified` expects wording typing no longer prints
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/compiler/tests/support/qualified_operator_homes.rs:133`
-- Saw: with `Distance::add` made private, typing refuses with "builtin operator `+` takes unqualified operands only, but `distance_left` has type `u32 in Distance` and no operator `+` is declared for it" (`03_symbol-resolved-trees-to-typed-trees/src/operator_calls.rs`, wording from #3541); the test accepts only "not a plain or policy-qualified scalar", "no visible operator" or "private operator", so `domain_operators_cross_package_boundaries_without_importing_their_module` fails at dc83fcb65264.
-- Cost: the lowered-form checker's area tests are red for a correct refusal; the oracle should name the refusal by what it checks, not by retired text.
-- Reported: 2026-11-15, Claude Code, while testing refusal locations (`work/compiler-refusal-location`)
-
 ### Structural equality refuses a field of a closed generic type
 - Category: knowledge crossing a boundary
 - Where: [field type preparation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs), [applied type references](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs)

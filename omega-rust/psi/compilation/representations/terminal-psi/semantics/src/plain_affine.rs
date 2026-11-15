@@ -1770,6 +1770,12 @@ impl Analysis<'_> {
             {
                 continue;
             }
+            // An intact nominal wrapper still owes its complete selected
+            // consumer. Ending one dead descriptor would create an unauthorized
+            // partial value before that ordinary owned call can receive it.
+            if !self.nominal_ancestors_partitioned(state, argument.place, &path)? {
+                continue;
+            }
             if candidate.unproved_case.is_some() {
                 return Err(Error::unsupported(
                     "last-use reference disposition needs an established active case",
@@ -2365,6 +2371,11 @@ impl Analysis<'_> {
             let path = self.canonical(subject.place, &subject.path)?;
             // Independent claims and qualifications are not a wrapper's disposition.
             // The bounded record operation serves no implicit claim settlement.
+            if !self.nominal_ancestors_partitioned(state, subject.place, &path)? {
+                return Err(Error::unsupported(
+                    "decomposition crosses an intact nominal wrapper",
+                ));
+            }
             let region = state.regions[index(subject.place.get())?]
                 .as_mut()
                 .ok_or(Error::malformed("decomposition source home has ended"))?;
@@ -2372,23 +2383,6 @@ impl Analysis<'_> {
                 return Err(Error::unsupported(
                     "decomposition source is not a complete live value",
                 ));
-            }
-            // A projected wrapper cannot bypass an intact enclosing wrapper.
-            for depth in 0..path.len() {
-                if crate::canonical_structural_path_tip(
-                    self.types.iter(),
-                    root.structural_type,
-                    &path[..depth],
-                )
-                .is_some_and(|declaration| declaration.nominal_cleanup.is_some())
-                    && !region
-                        .selected(&path[..depth])
-                        .is_some_and(|region| region.mode == Mode::Components)
-                {
-                    return Err(Error::unsupported(
-                        "decomposition crosses an intact nominal wrapper",
-                    ));
-                }
             }
             region.partition(&path);
             return Ok(());
@@ -2489,6 +2483,11 @@ impl Analysis<'_> {
                 {
                     return Err(Error::malformed(
                         "a borrowed move changes its selected type",
+                    ));
+                }
+                if !self.nominal_ancestors_partitioned(state, source, &selected)? {
+                    return Err(Error::unsupported(
+                        "projected owned transfer crosses an intact nominal wrapper",
                     ));
                 }
                 self.read(state, source, &selected, site)?;
@@ -2620,6 +2619,11 @@ impl Analysis<'_> {
                 }
                 let region = self.canonical(*source, path)?;
                 self.read(state, *source, &region, site)?;
+                if !self.nominal_ancestors_partitioned(state, *source, &region)? {
+                    return Err(Error::unsupported(
+                        "reference release crosses an intact nominal wrapper",
+                    ));
+                }
                 self.restore_reference_leaves(state, *source, path, site)?;
                 self.vacate(state, *source, &region)?;
             }
@@ -3200,6 +3204,68 @@ impl Analysis<'_> {
         )
     }
 
+    /// Projected consumption can enter a nominal wrapper only after an
+    /// authorized decomposition has ended its disposition. Follow the type
+    /// and exact region together so nested wrappers use the same rule.
+    fn nominal_ancestors_partitioned(
+        &self,
+        state: &State,
+        place: PlaceId,
+        mut path: &[Segment],
+    ) -> Result<bool, Error> {
+        let root = self
+            .root(place)?
+            .ok_or(Error::malformed("nominal projection has no affine root"))?;
+        let mut declaration = self
+            .types
+            .get(index(root.structural_type.get())?)
+            .filter(|declaration| declaration.id == root.structural_type)
+            .ok_or(Error::malformed("nominal projection has no root type"))?;
+        let mut region = state
+            .regions
+            .get(index(place.get())?)
+            .ok_or(Error::malformed("nominal projection has no storage row"))?
+            .as_ref();
+        while !path.is_empty() {
+            if declaration.nominal_cleanup.is_some()
+                && !region.is_some_and(|region| region.mode == Mode::Components)
+            {
+                return Ok(false);
+            }
+            // A case names a payload roster, not a value type of its own.
+            // Its field completes one typed step while both region segments
+            // retain their exact identity.
+            let count = match path {
+                [Segment::Case(_), Segment::Field(_), ..] => 2,
+                [Segment::Case(_), ..] => {
+                    return Err(Error::malformed("nominal projection ends at a case roster"));
+                }
+                _ => 1,
+            };
+            let (step, remaining) = path.split_at(count);
+            // Callers have already authenticated the complete canonical path.
+            // Only strict ancestors need a declaration here; a terminal scalar
+            // field need not have a separately materialized structural type.
+            if remaining.is_empty() {
+                return Ok(true);
+            }
+            declaration =
+                crate::canonical_structural_path_tip(self.types.iter(), declaration.id, step)
+                    .ok_or(Error::malformed("nominal projection has an untyped child"))?;
+            for segment in step {
+                region = region.and_then(|region| {
+                    region
+                        .children
+                        .binary_search_by_key(segment, |(child, _)| *child)
+                        .ok()
+                        .map(|index| &region.children[index].1)
+                });
+            }
+            path = remaining;
+        }
+        Ok(true)
+    }
+
     /// The region an observation of `path` under `root` depends on, and
     /// whether that region is exactly the projected place.
     ///
@@ -3316,26 +3382,10 @@ impl Analysis<'_> {
                     "a decomposed nominal wrapper is unavailable whole",
                 ));
             }
-            let region = state.regions[index(argument.place.get())?].as_ref();
-            for depth in 0..path.len() {
-                if crate::canonical_structural_path_tip(
-                    self.types.iter(),
-                    self.root(argument.place)?
-                        .ok_or(Error::malformed("owned projection has no root"))?
-                        .structural_type,
-                    &path[..depth],
-                )
-                .is_some_and(|declaration| declaration.nominal_cleanup.is_some())
-                    && region.is_none_or(|region| {
-                        !region
-                            .selected(&path[..depth])
-                            .is_some_and(|selected| selected.mode == Mode::Components)
-                    })
-                {
-                    return Err(Error::unsupported(
-                        "projected owned transfer crosses an intact nominal wrapper",
-                    ));
-                }
+            if !self.nominal_ancestors_partitioned(state, argument.place, &path)? {
+                return Err(Error::unsupported(
+                    "projected owned transfer crosses an intact nominal wrapper",
+                ));
             }
             // ownership.md, "Borrowed-storage invariant windows": "An owned
             // move out of a place reached through `&mut` may temporarily
@@ -4227,6 +4277,84 @@ mod tests {
             })
         ));
         assert_eq!(borrowed_state, before);
+    }
+
+    #[test]
+    fn nominal_reference_components_end_only_after_the_wrapper_is_decomposed() {
+        use terminal_psi::{Operation, OperationKind, OperationResult, TerminalIdentityIndex};
+
+        let mut types = reconvergence_types();
+        types[0].nominal_cleanup = Some(terminal_psi::NominalCleanupSelection {
+            declaration: terminal_psi::NominalDeclarationIdentity::new(types[0].identity),
+            cleanup_machine: id(9),
+        });
+        types[1].shape = StructuralTypeShape::Reference {
+            referent: id(3),
+            access: StructuralAccess::MutableBorrow,
+        };
+        let place = id(1);
+        let at = (id(1), 0);
+        let release = Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::ReleaseReference {
+                source: place,
+                path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(1))],
+            },
+        );
+        let candidates = crate::reference_ends::Candidates::from([(
+            at,
+            vec![crate::reference_ends::Candidate {
+                argument: StructuralArgument {
+                    place,
+                    path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(1))],
+                    access: StructuralAccess::Owned,
+                },
+                unproved_case: None,
+            }],
+        )]);
+        let mut analysis = owned_analysis(&types);
+        analysis.reference_candidates = Some(&candidates);
+        let mut state = State {
+            regions: vec![Some(Region::new(true))],
+            active: vec![place],
+        };
+        let before = state.clone();
+        analysis
+            .end_references(&mut state, at, Site::Operation(release.id))
+            .unwrap();
+        assert_eq!(
+            state, before,
+            "automatic release must retain the intact wrapper"
+        );
+        assert!(analysis.reference_ends.is_empty());
+        assert!(matches!(
+            analysis.operation(&mut state, &release, true),
+            Err(Error::Unsupported {
+                detail: "reference release crosses an intact nominal wrapper",
+                ..
+            })
+        ));
+        assert_eq!(
+            state, before,
+            "forged explicit release must not vacate a field"
+        );
+
+        // The validated decomposition transition leaves the component values
+        // at this same home; their ordinary reference closure then applies.
+        state.regions[0].as_mut().unwrap().partition(&[]);
+        let mut automatic = state.clone();
+        analysis
+            .end_references(&mut automatic, at, Site::Operation(release.id))
+            .unwrap();
+        assert_eq!(analysis.reference_ends.len(), 1);
+        analysis.operation(&mut state, &release, true).unwrap();
+        assert_eq!(state, automatic);
+        let region = state.regions[0].as_ref().unwrap();
+        assert_eq!(region.mode, Mode::Components);
+        assert!(!region.available(&[field(1)]));
+        assert!(region.available(&[field(2)]));
+        assert!(!region.available(&[]));
     }
 
     #[test]

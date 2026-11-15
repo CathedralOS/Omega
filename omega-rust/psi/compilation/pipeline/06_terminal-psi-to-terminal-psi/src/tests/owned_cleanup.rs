@@ -13,8 +13,11 @@ requires resource.valid == 1u64
 requires resource.value <= 30u64
 {effects}
 {{ {body} }}
-machine caller(counter: &mut Counter) {{
+machine caller(counter: &mut Counter) -> u64
+ensures result <= 50u64
+{{
     let resource: Resource = Resource {{ dropped: counter, valid: {valid}u64, value: 30u64 }};
+    resource.value
 }}
 "#
     )
@@ -47,6 +50,30 @@ fn accepted() -> terminal_check_tables::program::Elaboration {
 #[test]
 fn owned_cleanup_requires_are_proved_at_the_exact_action() {
     let elaboration = accepted();
+    for machine in &elaboration.module.machines {
+        for (_, actions) in machine
+            .blocks
+            .iter()
+            .flat_map(|block| block.terminator.cleanup_rosters())
+        {
+            for action in actions {
+                if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
+                    assert!(
+                        cleanup.subject.path.is_empty(),
+                        "the whole Resource must reach its consumer"
+                    );
+                    assert!(
+                        !machine.operations().any(|operation| matches!(
+                            &operation.kind,
+                            terminal_psi::OperationKind::ReleaseReference { source, path }
+                                if *source == cleanup.subject.place && !path.is_empty()
+                        )),
+                        "an intact nominal wrapper must keep its reference components"
+                    );
+                }
+            }
+        }
+    }
     let mut found = 0;
     for (id, tables) in elaboration.tables.machines.iter() {
         for (invocation, call) in tables.invocations.iter() {
