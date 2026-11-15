@@ -294,6 +294,9 @@ pub enum TargetUnitOperation {
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,
         value: PlaceId,
+        /// Declared type of the owned value written into the field. Selection
+        /// derives the store's shape from it through the shared type catalog.
+        value_type: semantic_vocabulary::StructuralTypeId,
         byte_offset: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },

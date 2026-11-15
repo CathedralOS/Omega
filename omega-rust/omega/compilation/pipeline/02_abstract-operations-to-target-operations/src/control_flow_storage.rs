@@ -918,6 +918,7 @@ pub(crate) mod borrowed_windows {
             path: path.clone(),
             field: *field,
             value: value.place,
+            value_type,
             byte_offset,
             indices,
         });
