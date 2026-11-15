@@ -60,6 +60,8 @@ machine build_entry() { let calibration: Calibration; use(calibration.magnitude)
 machine use(value: f32) { }",
         "machine build_entry() { let narrow: f32; let wide: f64; use(narrow, wide); }
 machine use(narrow: f32, wide: f64) { }",
+        "machine build_entry(narrow: f32, wide: f64) { use(narrow as f32, wide as f64); }
+machine use(narrow: f32, wide: f64) { }",
     ] {
         assert_eq!(verdict(program), "accepted", "{program}");
     }
@@ -119,7 +121,7 @@ machine check(less: bool) { }",
         (
             "machine build_entry(value: f32) { use(value as f64); }
 machine use(value: f64) { }",
-            "expression cast between carriers that are not integers \
+            "expression exact carrier conversion has no canonical declaration \
              while reading the body of `build_entry`",
         ),
         (
