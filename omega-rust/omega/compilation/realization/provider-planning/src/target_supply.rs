@@ -673,9 +673,10 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
     .collect()
 }
 
-/// A reached requirement is plannable as a provider slot only when the
-/// module declares it as an ordinary provider-executed requirement that
-/// returns normally.
+/// A provider-executed requirement needs supply regardless of whether its
+/// checked declaration returns normally or completes externally. The slot
+/// schema retains that completion; choosing a provider grants no outcome
+/// authority and creates no normal result.
 fn unplanned_boundary(
     module: &TerminalModule,
     requirement: &ReachedBoundaryRequirement,
@@ -688,9 +689,6 @@ fn unplanned_boundary(
     }
     if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable {
         return Err("the contract-evidence boundary");
-    }
-    if declaration.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
-        return Err("the externally completed boundary");
     }
     if declaration.declaration.as_ref().is_some_and(|callable| {
         callable.execution != terminal_psi::CheckedBoundaryExecution::Provider

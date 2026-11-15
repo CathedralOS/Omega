@@ -6,6 +6,9 @@
 //! settled supply on into the selected execution a product reads and check
 //! the produced program's target-local conditions against it.
 
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
+
 use build_time_evaluation::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
@@ -436,6 +439,48 @@ fn prepare_for_target(
         target,
     })
     .map_err(first)
+}
+
+/// ProcessExit's checked external completion still needs a selected provider.
+/// Preparing its real declaration must retain that demand, while settlement
+/// without any supply must refuse rather than invent a returning realization.
+#[test]
+fn process_exit_retains_its_external_demand_and_requires_supply() {
+    let frontier = unbuilt_frontier::bound_fixture_frontier(
+        "tests/fixtures/run/calls/published_process_exit",
+        Some("entry_start"),
+        &[],
+    );
+    let roster = products::ProductRoster {
+        entries: frontier.entries,
+        subject: frontier.subject,
+        selected: frontier.selected,
+        bindings: frontier.bindings,
+        ..Default::default()
+    };
+    let accepted = roster
+        .judge(Arc::new(frontier.typed))
+        .expect("the actual ProcessExit program is accepted");
+    let supply =
+        prepare(&accepted, &[], &[]).expect("external completion is an ordinary provider demand");
+    let [requirement] = supply.requirements() else {
+        panic!("exactly the reached ProcessExit requirement: {supply:?}");
+    };
+    let boundary = accepted
+        .module()
+        .boundary_machine(requirement.reached.boundary)
+        .expect("the demand keeps its exact checked declaration");
+    assert_eq!(
+        boundary.completion,
+        semantic_vocabulary::BoundaryCompletion::External(
+            semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+        )
+    );
+    assert!(requirement.supplies.is_empty());
+    let missing = supply.settle().expect_err("no provider was selected");
+    assert_eq!(missing.len(), 1);
+    assert!(missing[0].message.contains("ProcessExit::exit_process"));
+    assert!(missing[0].message.contains("has no provider on target"));
 }
 
 fn settle(supplied: &str, program: &str) -> Result<SettledTargetSupply, String> {
