@@ -73,12 +73,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Standalone Psi reports its exits as terminal
+### Top-level help hides the standalone Psi work budget
 - Category: the documents disagree
-- Where: [public naming](wiki/README.md#public-names), [Psi exit reporting](omega-rust/omega/application/src/commands/run.rs#L177), [execution test](omega-rust/omega/application/tests/psi_runtime_admission.rs#L45)
-- Saw: On macOS arm64 at `1bf1f6299d2`, `omega run --engine psi --target macos_arm64` executes the unchanged fixed-layout field sample successfully and prints `terminal exit 0`. The flag and help call the engine Psi, but the success report and existing tests use an internal stage label.
-- Cost: The flag and status use different names for the same engine. Bring the public report and its test expectations into the Psi naming contract together.
-- Reported: 2026-11-15, Codex, while verifying the target exception in run help.
+- Where: [top-level help](omega-rust/omega/application/src/arguments/compile.rs#L28), [run help](omega-rust/omega/application/src/arguments/run.rs#L23), [standalone budget argument control](omega-rust/omega/application/src/arguments/run.rs#L403)
+- Saw: The macOS arm64 compiler built from `0deefd85076` prints `--psi-work-budget` inside the `--both` alternative in `omega --help`. The same build's `omega run --help` lists it separately, and the committed parser test accepts it with `--engine psi`.
+- Cost: A standalone Psi user reading the top-level help can miss the command's runtime work limit. Make both help screens reflect the accepted options and keep the budget limited to Psi execution and host comparisons.
+- Reported: 2026-11-15, Codex, while tracing standalone Psi work-budget reporting.
 
 ### A last-use ownership refusal drops its source site
 - Category: knowledge crossing a boundary
