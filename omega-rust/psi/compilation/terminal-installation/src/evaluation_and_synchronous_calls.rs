@@ -26,8 +26,7 @@ pub(crate) mod compiler_evaluation {
             root: ProofDeclarationId,
         ) -> Result<(), String> {
             let scope = &module.scalar_applications.proof_scope;
-            let header = super::header(scope, root)?;
-            let facts = header.compiler_evaluation.as_ref().map_err(Clone::clone)?;
+            let facts = super::evaluation_declaration(scope, root)?;
             let mut bodies =
                 scope
                     .callables
@@ -545,7 +544,7 @@ pub(crate) mod compiler_evaluation {
                         local_terminates: true,
                         entry_requires: false,
                         linear_carrier: None,
-                        static_application: None,
+                        invocation_refusal: None,
                         selections: Ok(Vec::new()),
                     }),
                     ..ProofCallableHeader::default()
@@ -919,7 +918,7 @@ pub(crate) mod compiler_evaluation {
             None => scope.plan.callable_without_target(root),
         }
         .ok_or("compiler-evaluation declaration has no body in the requested target scope")?;
-        let root_facts = declaration(scope, root)?;
+        let root_facts = evaluation_declaration(scope, root)?;
         if root_facts.entry_requires {
             return Err(format!(
                 "machine `{}` has an authored `requires` premise; no checked invocation proof for that premise",
@@ -962,7 +961,7 @@ pub(crate) mod compiler_evaluation {
         )
         .err();
         for &machine in &closure.machines {
-            let facts = declaration(scope, machine)?;
+            let facts = evaluation_declaration(scope, machine)?;
             for service in &facts.effects.services {
                 if !effects.services.contains(service) {
                     effects.services.push(service.clone());
@@ -971,10 +970,7 @@ pub(crate) mod compiler_evaluation {
             effects.may_suspend |= facts.effects.may_suspend;
             effects.may_block |= facts.effects.may_block;
             if closure_violation.is_none() {
-                closure_violation = facts
-                    .static_application
-                    .clone()
-                    .or_else(|| facts.linear_carrier.clone());
+                closure_violation = facts.linear_carrier.clone();
             }
             if !facts.local_terminates
                 && !selected
@@ -1334,7 +1330,7 @@ pub(crate) mod compiler_evaluation {
             local_terminates: false,
             entry_requires: false,
             linear_carrier: None,
-            static_application: None,
+            invocation_refusal: None,
             selections: Ok(Vec::new()),
         };
         let closure = ProofApplicationReachability {
@@ -1344,7 +1340,7 @@ pub(crate) mod compiler_evaluation {
         };
         // This model has no invocation edges: it checks root custody and
         // source requests. Actual call associations use the source control.
-        let check = |facts: Result<CompilerEvaluationDeclaration, String>| {
+        let scope_for = |facts: Result<CompilerEvaluationDeclaration, String>| {
             let mut scope = ProofApplicationScope::default();
             scope
                 .callable_headers
@@ -1353,8 +1349,11 @@ pub(crate) mod compiler_evaluation {
                     compiler_evaluation: facts,
                     ..Default::default()
                 });
+            scope
+        };
+        let check = |facts| {
             require_scope_selections(
-                &scope,
+                &scope_for(facts),
                 &closure,
                 root,
                 DeclarationCustody::Package(package),
@@ -1363,6 +1362,14 @@ pub(crate) mod compiler_evaluation {
             )
         };
         assert!(check(Ok(facts.clone())).is_ok());
+        let mut host_call = facts.clone();
+        let reason = "proof scope needs the actual selected boundary correspondence";
+        host_call.invocation_refusal = Some(reason.into());
+        assert!(check(Ok(host_call.clone())).is_ok());
+        assert_eq!(
+            evaluation_declaration(&scope_for(Ok(host_call)), root).unwrap_err(),
+            reason,
+        );
         let mut foreign = facts.clone();
         foreign.selections = Ok(vec![DeclarationAuthorityRequest {
             requester: package,
@@ -1488,6 +1495,19 @@ pub(crate) mod compiler_evaluation {
             .compiler_evaluation
             .as_ref()
             .map_err(Clone::clone)
+    }
+
+    // Build checks source selection after its own provider admission.
+    // Pure evaluation must also carry an eligible executable closure.
+    fn evaluation_declaration(
+        scope: &ProofApplicationScope,
+        declaration_id: ProofDeclarationId,
+    ) -> Result<&CompilerEvaluationDeclaration, String> {
+        let facts = declaration(scope, declaration_id)?;
+        if let Some(reason) = &facts.invocation_refusal {
+            return Err(reason.clone());
+        }
+        Ok(facts)
     }
 
     fn require_invocation_selection(
