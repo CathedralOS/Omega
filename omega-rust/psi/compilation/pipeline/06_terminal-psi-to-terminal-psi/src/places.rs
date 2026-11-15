@@ -325,10 +325,11 @@ enum Reached {
     Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
     Case(StructuralCaseId),
-    /// Every path supplies what a call returned: contents with no value
-    /// identity that arrived as part of a whole value its callee
-    /// established.
-    Returned,
+    /// Every path supplies part of an established value without naming one
+    /// scalar identity. The depth counts ancestors the leaf still shares
+    /// with that value. A transfer can retain the field's own type evidence
+    /// without lending it to a record that now encloses it.
+    Established(usize),
     /// Every path supplies contents, but not one same named value or case.
     Unknown,
     /// Some path supplies nothing: no store reaches the use along it and the
@@ -340,6 +341,15 @@ enum Reached {
     /// Asked of a window: every path closed it, or never passed its opening
     /// write.
     Closed,
+}
+
+impl Reached {
+    fn within(self, depth: usize) -> Self {
+        match self {
+            Self::Established(established) => Self::Established(established.min(depth)),
+            reached => reached,
+        }
+    }
 }
 
 /// A read supplies a value snapshot without writing or restoring storage.
@@ -2072,9 +2082,8 @@ impl<'a> Storage<'a> {
                 {
                     Reached::Extent(row.operation)
                 }
-                (Stored::Established, Asked::Contents(leaf)) => self
-                    .interned(tables, leaf, concerns)?
-                    .and_then(|place| {
+                (Stored::Established, Asked::Contents(leaf)) => {
+                    let named = self.interned(tables, leaf, concerns)?.and_then(|place| {
                         self.returned_contents
                             .get(index(row.operation.get()))
                             .and_then(|values| {
@@ -2083,8 +2092,24 @@ impl<'a> Storage<'a> {
                                     .ok()
                                     .map(|found| values[found].1)
                             })
-                    })
-                    .map_or(Reached::Returned, Reached::Value),
+                    });
+                    if let Some(named) = named {
+                        Reached::Value(named)
+                    } else if row.lineage.segments.is_empty()
+                        && matches!(self.root_kind(leaf.root, concerns)?,
+                            StructuralPlaceKind::OperationResult { producer, .. }
+                                if producer == row.operation)
+                        && self
+                            .operation(row.operation, concerns)?
+                            .kind
+                            .declared_invocation()
+                            .is_some()
+                    {
+                        Reached::Established(beneath.len())
+                    } else {
+                        Reached::Unknown
+                    }
+                }
                 (Stored::Established, Asked::Case(_)) => Reached::Unknown,
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
@@ -2104,6 +2129,7 @@ impl<'a> Storage<'a> {
                     };
                     // The source as it was just before the store.
                     self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
+                        .within(beneath.len())
                 }
             };
             return Ok(
@@ -2276,7 +2302,8 @@ impl<'a> Storage<'a> {
         budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
-        let resolved = self.backing(asked.place(), block, up_to, concerns)?;
+        let original = asked.place();
+        let resolved = self.backing(original, block, up_to, concerns)?;
         let asked = asked.at(&resolved);
         let key = match asked {
             Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
@@ -2328,20 +2355,22 @@ impl<'a> Storage<'a> {
                 (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
                     Reached::Case(known)
                 }
-                (Some(Reached::Returned), Reached::Returned) => Reached::Returned,
+                (Some(Reached::Established(first)), Reached::Established(second)) => {
+                    Reached::Established(first.min(second))
+                }
                 (
                     Some(
                         Reached::Value(_)
                         | Reached::Extent(_)
                         | Reached::Case(_)
-                        | Reached::Returned
+                        | Reached::Established(_)
                         | Reached::Unknown
                         | Reached::Closed,
                     ),
                     Reached::Value(_)
                     | Reached::Extent(_)
                     | Reached::Case(_)
-                    | Reached::Returned
+                    | Reached::Established(_)
                     | Reached::Unknown
                     | Reached::Closed,
                 ) => Reached::Unknown,
@@ -2460,20 +2489,24 @@ impl<'a> Storage<'a> {
                                 "a structural edge argument has another type",
                             ));
                         }
-                        source.segments.extend_from_slice(&asked.place().segments);
+                        let beneath = &asked.place().segments;
+                        source.segments.extend_from_slice(beneath);
                         let asked = match asked {
                             Asked::Contents(_) => Asked::Contents(&source),
                             Asked::Case(_) => Asked::Case(&source),
                             Asked::Window { .. } => unreachable!("windows close at the binding"),
                         };
-                        supply(self.reaching(
-                            tables,
-                            asked,
-                            predecessor,
-                            usize::MAX,
-                            budget,
-                            concerns,
-                        )?);
+                        supply(
+                            self.reaching(
+                                tables,
+                                asked,
+                                predecessor,
+                                usize::MAX,
+                                budget,
+                                concerns,
+                            )?
+                            .within(beneath.len()),
+                        );
                     }
                 }
                 if !found {
@@ -2486,15 +2519,16 @@ impl<'a> Storage<'a> {
                     match (asked, self.root_kind(asked_root(asked), concerns)?) {
                         // A path that never passed the opening write.
                         (Asked::Window { .. }, _) => Reached::Closed,
-                        // A formal is initialized storage at entry. Its content
-                        // has a value identity when elaboration minted one.
+                        // A formal arrives with its declared type established.
+                        // A selected field need not name one entry value,
+                        // especially when its index changes in a ranked loop.
                         (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
                             .interned(tables, leaf, concerns)?
                             .and_then(|place| {
                                 self.initial_contents.get(index(place.get())).copied()
                             })
                             .flatten()
-                            .map_or(Reached::Unknown, Reached::Value),
+                            .map_or(Reached::Established(leaf.segments.len()), Reached::Value),
                         // Which case a formal holds at entry is not known, and
                         // other storage holds nothing there; that it holds
                         // nothing is the contents question's answer to give.
@@ -2561,7 +2595,13 @@ impl<'a> Storage<'a> {
                 return Ok(Reached::Unknown);
             }
         }
-        Ok(reached)
+        // Backing substitution can replace the enclosing types. Only named
+        // value identities can cross that substitution without its type path.
+        Ok(if original == &resolved {
+            reached
+        } else {
+            reached.within(0)
+        })
     }
 
     fn budget(&self) -> Reaching {
@@ -2711,11 +2751,10 @@ impl<'a> Storage<'a> {
     ) -> Checked<Vec<Proposition>> {
         let (block, before) = at;
         let (observed, scalar_type) = observed;
-        // Where the leaf's content arrived: the leaf of a formal whose
-        // entry content it still is, or this same leaf when its root is
-        // what a call returned. The types that lend a clause are the ones
-        // on that path, inside the value that arrived; a type this machine
-        // built around it (a literal holding a formal) lends nothing.
+        // Follow the storage to the value that was established. Named
+        // contents retain their original path. With no single name, the
+        // trace retains only the part of the current path established on
+        // every arrival, inside the value supplied by another machine.
         let mut budget = self.budget();
         let arrived = match self.reaching(
             tables,
@@ -2725,22 +2764,11 @@ impl<'a> Storage<'a> {
             &mut budget,
             concerns,
         )? {
-            Reached::Returned => match self.root_kind(leaf.root, concerns)? {
-                // Every path supplies what a call returned, and nothing but
-                // the operation that produced the root ever stored into the
-                // leaf or a place around it: the root is that call's result
-                // and the leaf still lies in the value the callee
-                // established.
-                StructuralPlaceKind::OperationResult { producer, .. }
-                    if self.log.iter().all(|row| {
-                        !overlap(&row.lineage, leaf)
-                            || (row.lineage.segments.is_empty() && row.operation == producer)
-                    }) =>
-                {
-                    Some((leaf.clone(), 0))
-                }
-                _ => None,
-            },
+            Reached::Established(depth) => leaf
+                .segments
+                .len()
+                .checked_sub(depth)
+                .map(|start| (leaf.clone(), start)),
             Reached::Value(held) => {
                 match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
                     .origin
@@ -4613,7 +4641,7 @@ impl crate::Bindings for Held<'_, '_> {
             Reached::Case(held) => Ok(held == case),
             Reached::Value(_)
             | Reached::Extent(_)
-            | Reached::Returned
+            | Reached::Established(_)
             | Reached::Unknown
             | Reached::Unestablished
             | Reached::Cycle

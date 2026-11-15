@@ -73,6 +73,27 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The C layout field walk omits ranks on five recursive helpers
+- Category: a verdict with nothing behind it
+- Where: [C ABI field walk](source/library/core/c_layout.omg#L36), [scalar C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1202)
+- Saw: On macOS arm64 at `01ee33b7779`, the existing scalar `Record` on `linux_x86_64` fails with `contract termination promise over a call cycle`. `c_abi_fields` decreases `remaining_steps` before calling `place`. The cycle passes through `represented`, `checked`, `extent`, and `append` before returning to `c_abi_fields`. Those five helpers omit that measure. Adding it exposes the value match in `represented`, where the compiler rejects the recursive call as nonterminal. An equivalent terminal test of the two accepted tags gets through lowering and uncovers failures in the arrivals, field alignment reads, and padding guarantee.
+- Cost: The compiler refuses the unchanged layout before checking size 24, alignment 8, and offsets `[0, 8, 16]`. The scalar and nested-representation samples use this field walk at all nine placements. Preserve the same rank, field order, bounds, and invalid-layout controls through the existing terminal proof mechanisms.
+- Reported: 2026-11-15, Codex, after the Build-time reflection and field lifetime repairs
+
+### A ranked arrival loses the conjuncts of its own guard
+- Category: knowledge crossing a boundary
+- Where: [short-circuit lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/control.rs#L877), [join predicate scope](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L143)
+- Saw: At `01ee33b7779`, a two-machine scalar cycle starts with `index <= 32` and `1 <= remaining <= 33`. Its `index < 32 && remaining > 1` arm forwards `index` and `remaining - 1` to the other ranked member, which requires `index < 32` and `1 <= remaining <= 32`. Stage 06 refuses the arrival because it cannot prove that requirement. The acyclic control with the same guard and requirement passes, as does a ranked cycle with a single remaining-step guard. The lowered guard's Boolean join cannot state its relationship to the earlier ranked head's parameters in its current predicate scope.
+- Cost: A loop can check the exact conditions required for its next iteration and still be refused at that edge. Preserve the guard facts through the existing conditional and arrival proof route.
+- Reported: 2026-11-15, Codex, while restoring the C ABI field walk
+
+### The padding value match loses its strict result bound
+- Category: knowledge crossing a boundary
+- Where: [padding contract](source/library/core/c_layout.omg#L25), [inferred join predicates](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L226)
+- Saw: At `01ee33b7779`, the scalar padding body by itself computes `r = offset % alignment` and returns zero if `r == 0`, or `alignment - r` otherwise. With `1 <= alignment <= 16`, Stage 06 refuses its published `result < alignment` after the value match. Returning the remainder directly proves `result < alignment`, and returning the subtraction directly with `0 < r < alignment` proves the same bound. A terminal branch that selects subtraction for `r > 0` and zero otherwise also proves the original guarantee.
+- Cost: A checked arithmetic bound is lost when the padding branches produce a joined value. Keep the result relation through the existing join and arithmetic proofs.
+- Reported: 2026-11-15, Codex, while restoring the C ABI field walk
+
 ### Build-time record arguments refuse folded and named const indices
 - Category: a verdict with nothing behind it
 - Where: [type-expression inventory](omega-rust/psi/compilation/build-time-evaluation/src/source_frontier.rs#L187), [record argument construction](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/invocation.rs#L270)
