@@ -8,18 +8,17 @@ has length 7, then traps if either check fails.
 
 The [Build file](build.omg) selects an entry for all four hosted targets.
 
-The lowered-form checker, which checks proofs and ownership after lowering,
-does not yet support this program's fixed-array ASCII predicates and their
-qualified copy/view contracts. The retained source also needs explicit literal
-qualification under the current [domain rules](../../../../wiki/spec/language/domains.md#literals-and-expected-types).
-[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only)
-tracks that remaining work. The source and its oracle remain in place; no
-successful check or native/Psi execution is claimed. Psi is the portable program
-form and its interpreter.
+The source still calls undeclared `ascii_only`. It needs an ordinary checked
+ASCII predicate, explicit qualification under the current
+[domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains),
+and checker support for its fixed-array and qualified copy/view contracts.
+[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only) tracks that
+remaining work. The source and its oracle remain in place; no successful check
+or native/Psi execution is claimed.
 
 Reproduce the outstanding check and execution requirements with:
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/bounded_concat/main.omg
-mbx run -p omega -- run --both samples/cli/probes/bounded_concat/main.omg
+mbx run -p omega -- --check samples/cli/probes/bounded_concat/main.omg < /dev/null
+mbx run -p omega -- run --both samples/cli/probes/bounded_concat/main.omg < /dev/null
 ```
