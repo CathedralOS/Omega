@@ -1054,6 +1054,7 @@ pub(crate) mod component_memberships {
                 },
             });
             module.structural_domains.push(StructuralDomainDeclaration {
+                access_policy: None,
                 required_memberships: Some(Vec::new()),
                 complete_predicate_theory: true,
                 predicate: Some(StructuralDomainPredicate {

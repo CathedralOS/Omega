@@ -1397,6 +1397,7 @@ pub(crate) mod membership_presentations {
                 || source.content_projection != destination.content_projection
                 || source.byte_predicate != destination.byte_predicate
                 || source.establishment_routes != destination.establishment_routes
+                || source.access_policy != destination.access_policy
             {
                 return false;
             }
@@ -7699,6 +7700,7 @@ pub mod descriptor_results {
                     scalar_restriction: None,
                 }];
                 let domain = StructuralDomainDeclaration {
+                    access_policy: None,
                     required_memberships: Some(Vec::new()),
                     complete_predicate_theory: true,
                     predicate: Some(StructuralDomainPredicate {

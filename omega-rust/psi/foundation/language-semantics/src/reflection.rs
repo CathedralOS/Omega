@@ -561,7 +561,7 @@ pub(crate) mod schema_nodes {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SchemaNode {
         Invalid,
         Declaration(DeclarationDescription),
@@ -570,7 +570,7 @@ pub(crate) mod schema_nodes {
         NominalReference(NominalReferenceDescription),
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct DeclarationDescription {
         pub owner_identity: String,
         pub identity_is_hermetic: bool,
@@ -586,7 +586,7 @@ pub(crate) mod schema_nodes {
         pub retired_identities: Vec<u64>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TypeParameterDescription {
         pub name: String,
         pub kind: &'static str,
@@ -594,7 +594,7 @@ pub(crate) mod schema_nodes {
         pub bounds: String,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct FieldDescription {
         pub member_identity: String,
         pub name: String,
@@ -606,7 +606,7 @@ pub(crate) mod schema_nodes {
         pub owner_case: SchemaNodeHandle,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CaseDescription {
         pub member_identity: String,
         pub name: String,
@@ -616,7 +616,7 @@ pub(crate) mod schema_nodes {
         pub retired_payload_identities: Vec<u64>,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct NominalReferenceDescription {
         pub owner_identity: String,
         pub owner_kind: String,
@@ -624,7 +624,7 @@ pub(crate) mod schema_nodes {
         pub application_identity: String,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SchemaShape {
         Empty,
         Record,
@@ -632,7 +632,7 @@ pub(crate) mod schema_nodes {
         Mixed,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum SchemaQueryAuthority {
         OwningScope { requester_identity: String },
         ForeignScope { requester_identity: String },
@@ -644,7 +644,7 @@ pub use schema_nodes::{
     SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, TypeParameterDescription,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SemanticSchemaGraph {
     nodes: Vec<SchemaNode>,
     root: SchemaNodeHandle,

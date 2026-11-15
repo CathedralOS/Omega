@@ -578,6 +578,7 @@ mod external_completion_tests {
         let requirement = terminal_psi::TerminalIdentityIndex(1);
         let owner = terminal_psi::TerminalIdentityIndex(2);
         let domain = terminal_psi::StructuralDomainDeclaration {
+            access_policy: None,
             id: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: terminal_psi::TerminalIdentityIndex(3),

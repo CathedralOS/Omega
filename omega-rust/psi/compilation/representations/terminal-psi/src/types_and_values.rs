@@ -246,6 +246,21 @@ pub mod types {
             DomainSemanticId, StructuralDomainId, StructuralTypeId,
         };
 
+        /// The same policy data with its semantic regions and callers bound
+        /// to this module. A region keeps its original schema coordinate;
+        /// erased fields have no runtime path. Caller descriptions retain
+        /// their full source application alongside the canonical declaration.
+        pub type StructuralDomainAccessPlan = access_plans::AccessPlan<
+            (
+                language_semantics::reflection::SchemaNodeHandle,
+                Option<Vec<StructuralPathSegment>>,
+            ),
+            (
+                language_semantics::reflection::CallableDescription,
+                StructuralEstablishmentRoute,
+            ),
+        >;
+
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct StructuralDomainDeclaration {
             pub required_memberships: Option<Vec<DomainSemanticId>>,
@@ -260,6 +275,9 @@ pub mod types {
             /// None adds no issuer restriction; Some(empty) permits nobody.
             /// This is separate from predicate truth and backing authority.
             pub establishment_routes: Option<Vec<StructuralEstablishmentRoute>>,
+            /// Returned rules are independent of predicates and issuance.
+            /// They require exact field/caller checks and backing supply.
+            pub access_policy: Option<StructuralDomainAccessPlan>,
         }
 
         #[cfg(test)]
@@ -271,6 +289,7 @@ pub mod types {
             #[test]
             fn explicit_empty_issuance_is_not_an_unrestricted_predicate() {
                 let mut domain = StructuralDomainDeclaration {
+                    access_policy: None,
                     required_memberships: Some(Vec::new()),
                     complete_predicate_theory: true,
                     predicate: None,
@@ -301,6 +320,13 @@ pub mod types {
                     && self.has_no_required_memberships()
                     && self.establishment_routes.is_none()
                     && self.content_projection.is_none()
+                    && self.access_policy.as_ref().is_none_or(|plan| {
+                        plan.issuance.is_none()
+                            && plan.readers.is_empty()
+                            && plan.writers.is_empty()
+                            && plan.observations.is_empty()
+                            && plan.reach.services().len() == 0
+                    })
             }
 
             pub fn authorizes_boundary_requirement(
@@ -1590,9 +1616,9 @@ pub mod types {
     }
 
     pub use qualifications::{
-        ResultQualificationEstablishment, StructuralContentProjection, StructuralDomainDeclaration,
-        StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralPathQualification,
-        StructuralQualificationChange,
+        ResultQualificationEstablishment, StructuralContentProjection, StructuralDomainAccessPlan,
+        StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
+        StructuralPathQualification, StructuralQualificationChange,
     };
     pub use scalar_qualifications::{
         ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarDomainPredicate,

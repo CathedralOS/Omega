@@ -410,6 +410,145 @@ impl Program<'_> {
         Ok(())
     }
 
+    /// A rule's field coordinate comes from the same source row that minted
+    /// this record's fields. Matching names or positions alone would allow
+    /// another record application to lend it permission.
+    pub(crate) fn access_plan_regions(
+        &self,
+        machine: MachineId,
+        record: StructuralTypeId,
+        subject: TypeReferenceHandle,
+        schema: &language_semantics::reflection::SemanticSchemaGraph,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    ) -> Checked<
+        Vec<(
+            language_semantics::reflection::SchemaNodeHandle,
+            Option<Vec<terminal_psi::StructuralPathSegment>>,
+        )>,
+    > {
+        use language_semantics::reflection::SchemaNode;
+        use terminal_psi::StructuralPathSegment;
+        let source =
+            terminal_check_tables::row(&self.record_sources, record, machine, Construct::Machine)?;
+        let declared = self.data_type(machine, record)?;
+        let semantic = semantic_reference(self.typed, subject, machine)?;
+        let data = self.typed.closed_data_definition(semantic).ok_or_else(|| {
+            malformed(
+                machine,
+                "access plan subject has no closed data declaration",
+            )
+        })?;
+        let actual = source_application(self.typed, data, subject, machine)?;
+        let same = match &source.application {
+            Some(retained) => same_application(self.typed, retained, &actual),
+            None => {
+                actual.substitutions.is_empty()
+                    && self
+                        .typed
+                        .type_identity_text(self.typed.normalized_type_identity(semantic))
+                        .as_deref()
+                        == Some(declared.identity.as_str())
+            }
+        };
+        if data.symbol != source.declaration || !same {
+            return Err(malformed(
+                machine,
+                "access plan subject differs from its record application",
+            ));
+        }
+        let (owner, _) =
+            typed_trees::reflection::construction::exact_symbol_identity(self.typed, data.symbol)
+                .map_err(|_| malformed(machine, "access schema lost its subject identity"))?;
+        let application = typed_trees::reflection::construction::schema_type_identity(
+            self.typed,
+            subject,
+            data.symbol,
+        )
+        .map_err(|_| malformed(machine, "access schema lost its complete type application"))?;
+        if schema.declaration().owner_identity != owner
+            || schema.declaration().application_identity.as_deref() != Some(application.as_str())
+        {
+            return Err(malformed(
+                machine,
+                "access schema describes another subject application",
+            ));
+        }
+        if !member_rosters_match(declared, source) {
+            return Err(malformed(machine, "record/source member rosters differ"));
+        }
+        let mut fields = Vec::new();
+        let mut append = |symbols: &[SymbolHandle],
+                          declared: &[crate::body::RecordField],
+                          case: Option<(semantic_vocabulary::StructuralCaseId, &str)>|
+         -> Checked<()> {
+            for (symbol, field) in symbols.iter().zip(declared) {
+                let (identity, _) = typed_trees::reflection::construction::exact_symbol_identity(
+                    self.typed, *symbol,
+                )
+                .map_err(|_| {
+                    malformed(machine, "access field lost its source declaration identity")
+                })?;
+                let mut path = Vec::with_capacity(if case.is_some() { 2 } else { 1 });
+                if let Some((case, _)) = case {
+                    path.push(StructuralPathSegment::Case(case));
+                }
+                path.push(StructuralPathSegment::Field(
+                    identities.intern(&field.identity),
+                ));
+                fields.push((
+                    identity,
+                    path,
+                    case.map(|(_, identity)| identity.to_owned()),
+                ));
+            }
+            Ok(())
+        };
+        append(&source.fields, declared.fields(), None)?;
+        for ((symbol, symbols), case) in source.cases.iter().zip(declared.cases()) {
+            let (identity, _) =
+                typed_trees::reflection::construction::exact_symbol_identity(self.typed, *symbol)
+                    .map_err(|_| {
+                    malformed(machine, "access case lost its source declaration identity")
+                })?;
+            append(symbols, &case.fields, Some((case.id, &identity)))?;
+        }
+        fields.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        if fields.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(malformed(
+                machine,
+                "access fields repeat a source declaration",
+            ));
+        }
+        let governed = schema.governed_fields().map_err(|_| {
+            malformed(
+                machine,
+                "access schema has no complete subject field roster",
+            )
+        })?;
+        let mut regions = Vec::with_capacity(governed.len() + 1);
+        regions.push((schema.root(), Some(Vec::new())));
+        for (node, field) in governed {
+            let index = fields
+                .binary_search_by(|candidate| candidate.0.cmp(&field.member_identity))
+                .map_err(|_| malformed(machine, "access schema field belongs to another record"))?;
+            let (_, path, case_identity) = &fields[index];
+            match (case_identity, schema.node(field.owner_case)) {
+                (Some(identity), SchemaNode::Case(case))
+                    if field.owner_case.is_valid() && identity == &case.member_identity => {}
+                (None, _) if !field.owner_case.is_valid() => {}
+                _ => {
+                    return Err(malformed(
+                        machine,
+                        "access schema field belongs to another case declaration",
+                    ));
+                }
+            }
+            regions.push((node, (!field.erased).then(|| path.clone())));
+        }
+        regions.sort_unstable_by_key(|(node, _)| *node);
+        Ok(regions)
+    }
+
     pub(crate) fn source_record_correspondence(
         &self,
         machine: MachineId,
@@ -658,6 +797,16 @@ fn malformed(machine: MachineId, detail: &'static str) -> Refusal {
     }
 }
 
+fn member_rosters_match(declaration: &RecordType, source: &RecordSource) -> bool {
+    source.fields.len() == declaration.fields().len()
+        && source.cases.len() == declaration.cases().len()
+        && source
+            .cases
+            .iter()
+            .zip(declaration.cases())
+            .all(|((_, fields), case)| fields.len() == case.fields.len())
+}
+
 fn correspondence(
     record: StructuralTypeId,
     declaration: &RecordType,
@@ -669,14 +818,7 @@ fn correspondence(
     // one only for a declaration with no type parameter that is no generic
     // instance, so the declaration alone identifies the record.
     let application = source.application.clone();
-    if source.fields.len() != declaration.fields().len()
-        || source.cases.len() != declaration.cases().len()
-        || source
-            .cases
-            .iter()
-            .zip(declaration.cases())
-            .any(|((_, fields), case)| fields.len() != case.fields.len())
-    {
+    if !member_rosters_match(declaration, source) {
         return Err(malformed(machine, "record/source member rosters differ"));
     }
     let mut fields = Vec::new();

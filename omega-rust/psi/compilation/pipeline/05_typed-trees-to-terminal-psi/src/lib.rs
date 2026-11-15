@@ -837,6 +837,7 @@ fn finish_reading_into<'source>(
                 Unserved::Declaration(reason),
             )
         })?;
+    qualifications::publish_access_plans(diagnostic, &program, &mut elaboration.module)?;
     source.records = program.source_record_correspondence(diagnostic)?;
     source.readiness = program.publish_readiness(diagnostic, &mut elaboration.module)?;
     for selected in &mut program.selections {

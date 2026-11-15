@@ -7,25 +7,22 @@ use layout_plans::LayoutPlanReport;
 
 /// Rules describe who may use a value. Layout and storage are checked
 /// separately; these descriptions alone grant no access permission.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccessPlan {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AccessPlan<
+    Region = language_semantics::reflection::SchemaNodeHandle,
+    Caller = language_semantics::reflection::CallableDescription,
+> {
     pub schema: language_semantics::reflection::SemanticSchemaGraph,
     /// None adds no restriction; Some(empty) explicitly admits nobody.
-    pub issuance: Option<Vec<language_semantics::reflection::CallableDescription>>,
+    pub issuance: Option<Vec<Caller>>,
     /// Rows intersect and their coordinates belong to `schema`. An absent
     /// row adds no restriction; an empty caller list denies that region.
-    pub readers: Vec<(
-        language_semantics::reflection::SchemaNodeHandle,
-        Vec<language_semantics::reflection::CallableDescription>,
-    )>,
-    pub writers: Vec<(
-        language_semantics::reflection::SchemaNodeHandle,
-        Vec<language_semantics::reflection::CallableDescription>,
-    )>,
+    pub readers: Vec<(Region, Vec<Caller>)>,
+    pub writers: Vec<(Region, Vec<Caller>)>,
     /// Only authored demands appear here. Missing rows do not manufacture
     /// Inaccessible, Stable, External or Atomic supply.
     pub observations: Vec<(
-        language_semantics::reflection::SchemaNodeHandle,
+        Region,
         Option<(
             crate::ObservationModel,
             crate::AccessPermissions,
@@ -33,6 +30,45 @@ pub struct AccessPlan {
         )>,
     )>,
     pub reach: BoundaryReach,
+}
+
+impl<Region, Caller> AccessPlan<Region, Caller> {
+    /// Bind all coordinates together before publishing a plan. Repeated rows
+    /// stay separate: binding a field or caller must not turn intersection
+    /// into a last-row override or discard an independent policy axis.
+    pub fn try_bind<BoundRegion, BoundCaller, Error>(
+        self,
+        mut region: impl FnMut(Region) -> Result<BoundRegion, Error>,
+        mut caller: impl FnMut(Caller) -> Result<BoundCaller, Error>,
+    ) -> Result<AccessPlan<BoundRegion, BoundCaller>, Error> {
+        let mut callers = |values: Vec<Caller>| {
+            values
+                .into_iter()
+                .map(&mut caller)
+                .collect::<Result<Vec<_>, Error>>()
+        };
+        let issuance = self.issuance.map(&mut callers).transpose()?;
+        let mut rules = |rows: Vec<(Region, Vec<Caller>)>| {
+            rows.into_iter()
+                .map(|(coordinate, allowed)| Ok((region(coordinate)?, callers(allowed)?)))
+                .collect::<Result<Vec<_>, Error>>()
+        };
+        let readers = rules(self.readers)?;
+        let writers = rules(self.writers)?;
+        let observations = self
+            .observations
+            .into_iter()
+            .map(|(coordinate, observation)| Ok((region(coordinate)?, observation)))
+            .collect::<Result<Vec<_>, Error>>()?;
+        Ok(AccessPlan {
+            schema: self.schema,
+            issuance,
+            readers,
+            writers,
+            observations,
+            reach: self.reach,
+        })
+    }
 }
 
 // A restored compiler snapshot crosses a byte-input boundary. Reapply the
