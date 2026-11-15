@@ -26,12 +26,12 @@ data Main {
 // Newline-separated windows, each 1..32 ASCII digits, at most 16 windows.
 // EOF closes a final unterminated record. Empty records and CR reject.
 machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
-    main.length = 0;
-    main.frame = 0;
-    main.previous = 0;
-    main.uncertain_start = -1;
-    main.minimum = 9;
-    main.maximum = 0;
+    main.length = 0 as +Wrapping;
+    main.frame = 0 as +Wrapping;
+    main.previous = 0 as +Wrapping;
+    main.uncertain_start = (-1) as +Wrapping;
+    main.minimum = 9 as +Wrapping;
+    main.maximum = 0 as +Wrapping;
     main.eof = false;
     transition { _ -> block read(main) }
     machine read(main: &mut Main) {
@@ -74,12 +74,12 @@ machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     machine begin_frame(main: &mut Main) {
         Console::write("FRAME "); number(main.frame);
         Console::write(" "); number(main.length); Console::write_line("");
-        main.best_lag = 0;
-        main.status = 3;
-        main.lag = 2;
-        main.best_sum = 10000;
-        main.best_pairs = 1;
-        main.ties = 0;
+        main.best_lag = 0 as +Wrapping;
+        main.status = 3 as +Wrapping;
+        main.lag = 2 as +Wrapping;
+        main.best_sum = 10000 as +Wrapping;
+        main.best_pairs = 1 as +Wrapping;
+        main.ties = 0 as +Wrapping;
         transition main.length >= 12 { true -> block score(main) _ -> block track(main) }
     }
     machine score(main: &mut Main) {
@@ -103,7 +103,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
         main.best_lag = main.lag;
         main.best_sum = main.sum;
         main.best_pairs = main.pairs;
-        main.ties = 1;
+        main.ties = 1 as +Wrapping;
         transition { _ -> block next_lag(main) }
     }
     machine tie(main: &mut Main) {
@@ -116,13 +116,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     }
     machine classify(main: &mut Main) {
         main.status = match main.minimum == main.maximum {
-            true -> 0
+            true -> 0 as +Wrapping
             _ -> match main.best_sum > main.best_pairs {
-                true -> 4
-                _ -> match main.ties > 1 { true -> 2 _ -> 1 }
+                true -> 4 as +Wrapping
+                _ -> match main.ties > 1 { true -> 2 as +Wrapping _ -> 1 as +Wrapping }
             }
         };
-        main.best_lag = match main.status == 0 || main.status == 4 { true -> 0 _ -> main.best_lag };
+        main.best_lag = match main.status == 0 || main.status == 4 { true -> 0 as +Wrapping _ -> main.best_lag };
         transition { _ -> block track(main) }
     }
     machine track(main: &mut Main) {
@@ -136,7 +136,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
         transition { _ -> status(main) }
     }
     machine no_pitch(main: &mut Main) {
-        number(0);
+        number(0 as +Wrapping);
         transition { _ -> status(main) }
     }
     machine status(main: &mut Main) {
@@ -162,15 +162,15 @@ machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     machine segment(main: &mut Main) {
         Console::write("SEGMENT "); number(main.uncertain_start);
         Console::write(" "); number(main.frame); Console::write_line("");
-        main.uncertain_start = -1;
+        main.uncertain_start = (-1) as +Wrapping;
         transition { _ -> remember(main) }
     }
     machine remember(main: &mut Main) {
         main.uncertain_start = match main.status != 1 && main.uncertain_start < 0 { true -> main.frame _ -> main.uncertain_start };
         main.frame = main.frame + 1;
-        main.length = 0;
-        main.minimum = 9;
-        main.maximum = 0;
+        main.length = 0 as +Wrapping;
+        main.minimum = 9 as +Wrapping;
+        main.maximum = 0 as +Wrapping;
         transition main.eof { true -> end(main) _ -> block read(main) }
     }
     machine end(main: &mut Main) {

@@ -2,7 +2,7 @@ use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }
-machine make(value: u64 in Wrapping) -> Fraction { Fraction { numerator: value, denominator: 3 } }
+machine make(value: u64 in Wrapping) -> Fraction { Fraction { numerator: value, denominator: 3 as +Wrapping } }
 machine calculate(flag: bool, value: u64 in Wrapping) -> u64 in Wrapping {
     let fraction: Fraction = make(value);
     transition flag {
@@ -17,7 +17,7 @@ data Main { }
 machine main(context: &mut Main) reaches ProcessExit + Console {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
-        ByteRead::Eof -> finish(context, 7)
+        ByteRead::Eof -> finish(context, 7 as +Wrapping)
         ByteRead::Byte { value } -> finish(context, value as u64 in Wrapping)
     }
     machine finish(context: &mut Main, value: u64 in Wrapping) {

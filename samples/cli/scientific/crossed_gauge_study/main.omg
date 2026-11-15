@@ -59,7 +59,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine header_byte(main: &mut Main, value: i32) {
         transition value {
-            50 -> block read(main, 0)
+            50 -> block read(main, 0 as +Wrapping)
             49 -> insufficient(main)
             32 -> block header(main)
             10 -> block header(main)
@@ -94,7 +94,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
     machine store(main: &mut Main, index: i32 in Wrapping, value: i32) {
         main.study.values[index] = (value as i32 in Wrapping) - 48;
-        main.study.present[index] = 1;
+        main.study.present[index] = 1 as +Wrapping;
         transition { _ -> block read(main, index + 1) }
     }
     machine missing(main: &mut Main, index: i32 in Wrapping, value: i32) {
@@ -104,8 +104,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
     machine absent(main: &mut Main, index: i32 in Wrapping) {
-        main.study.values[index] = 0;
-        main.study.present[index] = 0;
+        main.study.values[index] = 0 as +Wrapping;
+        main.study.present[index] = 0 as +Wrapping;
         transition { _ -> block read(main, index + 1) }
     }
     machine finish(main: &mut Main, index: i32 in Wrapping) {

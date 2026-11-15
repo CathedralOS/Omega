@@ -5,8 +5,8 @@ use omega_language_std::Console;
 domain i32::Nonnegative requires self >= 0;
 data Main { }
 machine main(main: &mut Main) reaches ProcessExit + Console {
-    let corrected: i32 in Nonnegative = 0 - 1;
-    ProcessExit::exit_process(corrected);
+    let corrected: i32 in Nonnegative = (0 - 1) as +Nonnegative;
+    ProcessExit::exit_process(corrected as -Nonnegative);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
