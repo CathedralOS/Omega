@@ -803,19 +803,27 @@ impl Program<'_> {
             .typed
             .expression_table
             .match_fields(local.pattern_fields);
-        if roster
-            .iter()
-            .any(|row| !row.field_symbol.is_valid() || !source.fields.contains(&row.field_symbol))
-        {
-            return Err(refused(Unserved::Spelling(
-                "record pattern field without a symbol",
-            )));
-        }
-        if source
+        let declared = source
             .fields
             .iter()
-            .any(|field| !roster.iter().any(|row| row.field_symbol == *field))
-        {
+            .map(|field| (field.arena_index(), field.generation()))
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut used = std::collections::BTreeSet::new();
+        for row in roster {
+            let field = (
+                row.field_symbol.arena_index(),
+                row.field_symbol.generation(),
+            );
+            if !row.field_symbol.is_valid() || !declared.contains(&field) {
+                return Err(refused(Unserved::Spelling(
+                    "record pattern field without a symbol",
+                )));
+            }
+            if !used.insert(field) {
+                return Err(refused(Unserved::Typing("record pattern repeats a field")));
+            }
+        }
+        if used.len() != declared.len() {
             return Err(refused(Unserved::Statement(
                 "record pattern that omits a field",
             )));

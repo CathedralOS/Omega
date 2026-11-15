@@ -5131,6 +5131,7 @@ pub(crate) mod engine {
                 machine,
                 (before, before),
                 definitions,
+                consumed,
                 derivations,
                 transfer,
                 case_storage,
@@ -5141,6 +5142,7 @@ pub(crate) mod engine {
             machine: &DescriptorMachine,
             states: (&State, &State),
             definitions: &[DescriptorLocation],
+            consumed: &[DescriptorLocation],
             derivations: impl Clone
             + Iterator<
                 Item = (

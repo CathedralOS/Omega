@@ -2121,6 +2121,11 @@ mod tests {
             |rows: Vec<TableMatchField>| typed.expression_table.insert_match_fields(rows);
         let full = roster(vec![row(b, "b", false), row(a, "a", true)]);
         let partial = roster(vec![row(a, "a", true)]);
+        let duplicate = roster(vec![
+            row(a, "a", true),
+            row(a, "a", false),
+            row(b, "b", false),
+        ]);
         let spelled = roster(vec![
             row(a, "a", true),
             row(SymbolHandle::invalid(), "b", true),
@@ -2170,6 +2175,10 @@ mod tests {
         assert_eq!(
             detail(point, partial, subject),
             "statement record pattern that omits a field"
+        );
+        assert_eq!(
+            detail(point, duplicate, subject),
+            "typing record pattern repeats a field"
         );
         assert_eq!(
             detail(point, spelled, subject),

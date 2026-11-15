@@ -1189,7 +1189,7 @@ impl<'a> Lowering<'a> {
     /// A complete pattern ends the wrapper at its captured place. It neither
     /// acquires another home nor copies or moves any component's contents.
     pub(super) fn decompose(&mut self, subject: &Expression) -> Evaluation<()> {
-        let (root, steps, _, _) = continuing!(self.capture_place(subject, None));
+        let (root, steps, _, _) = continuing!(self.capture_place(subject));
         let operation = self.operation_identity(subject.source);
         let path =
             self.storage_path(&steps, ExecutionSite::Operation(operation), subject.source)?;
