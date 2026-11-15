@@ -280,6 +280,94 @@ fn trapping_primitives_run_and_overflow_at_their_own_site() {
 }
 
 #[test]
+fn closed_domain_applications_keep_carriers_and_indices_through_checking() {
+    {
+        let _compilation = COMPILATIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut frontier =
+            unbuilt_frontier::fixture_frontier("tests/fixtures/run/domains/applied_carriers");
+        let found = judge(&frontier);
+        assert!(
+            matches!(found.as_slice(), [Ok(RouteVerdict::Accepted(_))]),
+            "{found:?}"
+        );
+        let mut typed = frontier.typed.clone().into_inner();
+        let symbol = unbuilt_frontier::program_machine(&typed, "Distance::add_signed").unwrap();
+        let binding = typed
+            .tables
+            .operators
+            .iter()
+            .find(|(_, row)| row.symbol == symbol)
+            .unwrap()
+            .0;
+        let unit = typed
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Unit);
+        typed.tables.operators.get_mut(binding).return_type = unit;
+        frontier.typed = typed.into();
+        let found = judge(&frontier);
+        let [Ok(RouteVerdict::FallBack(refusal))] = found.as_slice() else {
+            panic!("the subject's altered operator view must be refused");
+        };
+        assert_eq!(
+            refusal.detail,
+            "declaration operator binding does not describe its named machine"
+        );
+    }
+    for (name, returned, expected) in [
+        ("matching_domain_index", "World", "accepted"),
+        ("different_domain_index", "Screen", "rejected"),
+    ] {
+        let source = format!(
+            "data World {{ }}\ndata Screen {{ }}\n\
+             domain<T, Frame> T::Indexed<Frame>;\n\
+             machine keep(value: u32 in Indexed<World>) -> u32 in Indexed<{returned}> {{ value }}\n\
+             machine main() {{ }}"
+        );
+        let found = judged(name, &source);
+        assert!(
+            matches!(found.as_slice(), [Ok(RouteVerdict::Accepted(_))]) && expected == "accepted"
+                || matches!(found.as_slice(), [Ok(RouteVerdict::Rejected { .. })])
+                    && expected == "rejected",
+            "{name}: {found:?}"
+        );
+        if expected == "rejected" {
+            let [Ok(RouteVerdict::Rejected { violations, .. })] = found.as_slice() else {
+                panic!("the different index must break the receiving type");
+            };
+            let [violation] = violations.as_slice() else {
+                panic!("one receiving-type violation: {violations:?}");
+            };
+            assert!(
+                violation.statement.contains("World")
+                    && violation.statement.contains("Screen")
+                    && violation.statement.contains("the machine's result")
+                    && violation
+                        .statement
+                        .contains("a type gains or loses a domain only through a cast"),
+                "{violation:?}"
+            );
+            let site = violation.site.expect("the returned value is authored");
+            assert_eq!(&source[site.span.start..site.span.end], "value");
+        }
+    }
+    // Keeping an exact application is not a const-evaluation receipt. This
+    // original const-index control still waits for the source evaluator.
+    let found = judged(
+        "domain_const_index_still_needs_evaluation",
+        "domain<T, const N: u64> T::Indexed<N>;\n\
+         machine keep(value: u32 in Indexed<1u64>) -> u32 in Indexed<1u64> { value }\n\
+         machine main() { }",
+    );
+    assert!(
+        matches!(found.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
+        if refusal.detail.contains("type written as an expression")),
+        "{found:?}"
+    );
+}
+
+#[test]
 fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
     for carrier in ["i32", "u32"] {
         let source = format!(
@@ -399,12 +487,13 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
             non_expression_facts > 0 && applied_type_arguments > 0,
             "membership facts ({non_expression_facts}) and applied family requirements ({applied_type_arguments}) survive copying"
         );
-        // This checkpoint prepares the real call; domain application lowering is
-        // still required before either carrier reaches a compilation verdict.
+        // The exact closed domain applications now reach contract reading.
+        // Applied type-classification clauses still need their ordinary
+        // contract-value formation; no domain application grants that proof.
         let found = judge(&frontier);
         assert!(
             matches!(found.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
-            if refusal.detail.starts_with("type constrained by a generic or indexed domain family")),
+            if refusal.detail.starts_with("contract clause that is not a comparison or conjunction")),
             "{found:?}"
         );
     }

@@ -30,8 +30,6 @@ Additional private-arrival opposites preserve the core operation:
 - [Unknown root arrival](private_arrivals/unknown-root-arrival/main.omg).
 - [Earlier overlapping replacement](private_arrivals/earlier-write/main.omg).
 
-The nine pairs and three additional refusals are mirrored under `tests/omega/{pass,fail}/facts/`.
-
 The implementation follows the existing owners:
 
 - **Establishment:** construction establishes Present/payload 7; declared contracts or checked all-arrival substitution establish the reader's actual completed operand. A goal never establishes its own classifier.

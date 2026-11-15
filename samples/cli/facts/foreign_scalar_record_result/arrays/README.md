@@ -31,10 +31,8 @@ operation is not a constant initializer.
 
 Every place and the root has a twin at `../invalid_arrays/main.omg`. It removes only the
 outer `Division`'s `[copy]`; `Word` and its byte array stay copyable. The repeated
-whole-value use in `receive` must reject with `holds no value`. Exact nine-place
-pairs are pinned under
-`tests/omega/{pass,fail}/facts/foreign_owned_array_record_through_*`.
-All positives declare `Expected exit: 0` and bind all four hosted entries.
+whole-value use in `receive` must reject with `holds no value`. All positives declare
+`Expected exit: 0` and bind all four hosted entries.
 
 ## Portable C provider
 
@@ -110,19 +108,11 @@ expansion. This does not establish bounded whole-pipeline empty-array storage:
 legacy codec preparation and nested empty-byte-array materialization can still
 scale with outer dimensions and remain unqualified performance acceptance.
 
-The original [run record](qualification.json) credits macOS ARM64 only.
-The [matching-host record](hosted_qualification.json) now establishes this same
-root and nine-place row on all four hosted targets: optimized producer
-`33901569f34af6ba272ab5994871921aa6a6072e` on Windows x86-64 and both Linux
-hosts, and `e8927c1e8e2d76304342c9cd995646d3f8c3691c` on macOS ARM64.
-Each host records ten public native/Terminal zero agreements, ten canonical
-reloads, nine pinned corpus agreements and nine intended copy-removal rejects.
 The root also passes two inputs through one compilation, retaining its exact
 canonical artifact and native identity before publication. Existing observations
 retain their original producers and describe the original `via` sources; they
-are not runs of the Build-bound sources above.
-Raw profiles, frozen inputs, exact C resources, engine outputs, canonical
-artifacts and qualification are retained in `build/owned-array-evidence` and
-`build/owned-host-evidence`.
+are not runs of the Build-bound sources above. Raw profiles, frozen inputs,
+exact C resources, engine outputs, canonical artifacts and qualification are
+retained in `build/owned-array-evidence` and `build/owned-host-evidence`.
 Variants, reference arrays and independently qualified descendants remain open
 outside this row.

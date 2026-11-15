@@ -90,14 +90,15 @@ pub fn prepare_compilation(
             Ok(witness)
         })
         .collect();
-    let (mut closure, source, signatures) =
+    let (mut closure, source, signatures, prepared_applications) =
         match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
             Ok(prepared) => (
                 Ok(prepared.program),
                 prepared.source,
                 prepared.selected_calls,
+                prepared.prepared_applications,
             ),
-            Err(refusal) => (Err(refusal), Default::default(), Vec::new()),
+            Err(refusal) => (Err(refusal), Default::default(), Vec::new(), Vec::new()),
         };
     let mut templates = Vec::new();
     let mut rows: Vec<WitnessRow<'_>> = Vec::new();
@@ -186,6 +187,20 @@ pub fn prepare_compilation(
         closure = Err(reason);
     }
     let forms = prepare_generic_forms(typed, compilation.purpose, templates, &captures);
+    closure = closure.and_then(|mut elaboration| {
+        crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
+            .map_err(|(owner, reason)| {
+                crate::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                )
+            })?;
+        // Proof scope retains the completed callable headers for later
+        // admission. Capture commitments are part of those headers.
+        crate::proof_scope::declare(typed, &mut elaboration, &signatures)?;
+        Ok(elaboration)
+    });
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {

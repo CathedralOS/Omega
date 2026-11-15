@@ -140,7 +140,7 @@ pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Ex
 }
 
 pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
-    Statement::Evaluate(Expression {
+    Statement::discard(Expression {
         call_context: None,
         kind: ExpressionKind::Call {
             required_contract: None,
@@ -525,7 +525,7 @@ fn an_exclusive_loan_changes_only_the_lent_field() {
                         false,
                     )],
                 ),
-                Statement::Evaluate(strict(
+                Statement::discard(strict(
                     Strict::Add,
                     field(named(0, pair()), read),
                     unsigned(1),
@@ -680,7 +680,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                     }),
                     source: nowhere(),
                 },
-                Statement::Evaluate(strict(
+                Statement::discard(strict(
                     Strict::Add,
                     named(1, u32_type().into()),
                     unsigned(1),
@@ -738,9 +738,8 @@ machine entry() crashes none {
         )
         .program
     };
-    // The product closure is accepted and runs. Its generic check form of
-    // `relay` is not judged yet (OWNER_CODE_CONCERNS.md, "A rigid
-    // requirement call cannot return a reference").
+    // The product closure is accepted and runs. Its generic check form is
+    // `a_rigid_requirement_call_borrows_its_declared_input_region`.
     let RouteVerdict::Accepted(accepted) = crate::judge_compilation(prepare()).remove(0).unwrap()
     else {
         panic!("the selected call must read its public requirement contract");
@@ -809,22 +808,16 @@ machine entry() crashes none {
     assert!(
         terminal_semantics::selected_reference_result(module, caller, callee, required).is_ok()
     );
-    let mut erased = 0;
-    for method in module
-        .closed_conformance_applications
+    let header = module
+        .declaration_contracts
         .iter_mut()
-        .flat_map(|application| &mut application.static_applications)
-        .filter(|method| {
-            method.callable == semantic_vocabulary::TargetMachineCallable::Machine(callee)
-        })
-    {
-        erased += usize::from(method.result_lifetimes.take().is_some());
-    }
-    assert_eq!(
-        erased, 1,
-        "erase only the selected method's lifetime groups"
+        .find(|contract| contract.id == required)
+        .expect("the selected call has its public header");
+    assert!(
+        header.result_lifetimes.take().is_some(),
+        "erase only the selected public header's lifetime groups"
     );
-    let reason = "selected reference result has an unresolved declared lifetime frontier";
+    let reason = "public reference result has an unresolved declared lifetime frontier";
     assert_eq!(
         terminal_semantics::selected_reference_result(module, caller, callee, required).err(),
         Some(reason),
@@ -1372,11 +1365,14 @@ machine pair_left(left: u32) {{ }}"
     );
     // The exclusive loan overlaps another loan of its storage.
     for call in ["both(&mut pair, &pair)", "both(&pair, &mut pair)"] {
-        assert_eq!(
-            verdict(&program("mut pair", call)),
-            "call exclusive loan for a shared formal beside another loan of its storage while \
-             reading the body of `build_entry`",
-            "{call}"
+        let judged = judge_build(&program("mut pair", call));
+        assert!(
+            matches!(&judged,
+                Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
+                    conflict.conflict == LoanConflict::ExclusiveAndShared
+                        && conflict.message().contains("conflicting loans"))
+            ),
+            "the actual exclusive formation must conflict: {call}: {judged:?}"
         );
     }
     // The other direction has no row: observation does not become mutation.
@@ -1384,5 +1380,302 @@ machine pair_left(left: u32) {{ }}"
         verdict(&program("mut pair", "relay(&pair)")).contains("lends only immutable access"),
         "{}",
         verdict(&program("mut pair", "relay(&pair)"))
+    );
+}
+
+/// `&mut item` written for a `&Item` formal is an exclusive formation that
+/// lends shared access (loans.md, "Reborrow lineage and access"). `cohort`
+/// places the shared reference `view`'s uses around that call.
+fn exclusive_formation_beside(cohort: &str) -> String {
+    format!(
+        "data Item {{ value: u32; }}
+machine observe(value: &Item) {{ }}
+machine build_entry() {{
+    let mut item: Item = Item {{ value: 3 }};
+    let view: &Item = &item;
+{cohort}
+}}"
+    )
+}
+
+#[test]
+fn an_exclusive_formation_for_a_shared_formal_excludes_a_live_shared_cohort() {
+    let verdict = super::build_purpose::judge_build(&exclusive_formation_beside(
+        "    observe(&mut item);\n    observe(view);",
+    ))
+    .unwrap();
+    let RouteVerdict::Rejected { conflicts, .. } = verdict else {
+        panic!("the written exclusive loan overlaps the live shared view: {verdict:?}");
+    };
+    assert!(
+        !conflicts.is_empty(),
+        "the exclusive formation must conflict with the shared cohort"
+    );
+}
+
+#[test]
+fn an_exclusive_formation_for_a_shared_formal_follows_an_ended_cohort() {
+    for cohort in [
+        // The view's last use precedes the exclusive formation.
+        "    observe(view);\n    observe(&mut item);",
+        // An ordinary shared loan joins the live cohort.
+        "    observe(&item);\n    observe(view);",
+    ] {
+        let verdict =
+            super::build_purpose::judge_build(&exclusive_formation_beside(cohort)).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{cohort}: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn a_shared_reference_formed_from_an_exclusive_loan_holds_it_exclusively() {
+    let source = |uses: &str| {
+        format!(
+            "data Item {{ value: u32; }}
+machine observe(value: &Item) {{ }}
+machine build_entry() {{
+    let mut item: Item = Item {{ value: 3 }};
+    let view: &Item = &mut item;
+{uses}
+}}"
+        )
+    };
+    for uses in [
+        "observe(&item); observe(view);",
+        "let child: &Item = &view; observe(&item); observe(child);",
+        "let child: &Item = &view; let leaf: &Item = &child; observe(&item); observe(leaf);",
+    ] {
+        let rejected = super::build_purpose::judge_build(&source(uses)).unwrap();
+        assert!(
+            matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. }
+                if conflicts.iter().any(|row| matches!(row.conflict,
+                    LoanConflict::ExclusiveAndShared | LoanConflict::ObserveWhileExclusive))),
+            "a shared loan overlaps the live exclusive ancestor: {uses}: {rejected:?}"
+        );
+    }
+    for uses in [
+        "observe(view); observe(&item);",
+        "let child: &Item = &view; observe(child); observe(&item);",
+        "let child: &Item = &view; let leaf: &Item = &child; observe(leaf); observe(&item);",
+    ] {
+        let accepted = super::build_purpose::judge_build(&source(uses)).unwrap();
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{uses}: {accepted:?}"
+        );
+    }
+}
+
+const HANDOFF: &str = "
+trait Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none;
+}
+Direct satisfies Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none { source }
+}
+";
+
+/// The generic check form of `relay`, whose `Chosen::hand` call reaches the
+/// bodiless requirement, judged against that requirement alone. `edit` may
+/// change the elaborated form before it is judged.
+fn rigid_relay_with(
+    relay: &str,
+    edit: impl FnOnce(&mut typed_trees_to_terminal_psi::Elaboration),
+) -> (
+    typed_trees_to_terminal_psi::Elaboration,
+    Result<crate::Discharge, String>,
+) {
+    let typed = super::boundary_calls::typed(&format!("{HANDOFF}{relay}"));
+    let symbol = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "relay")
+        .unwrap()
+        .symbol;
+    let mut form = typed_trees_to_terminal_psi::elaborate_generic(&typed, symbol).unwrap();
+    edit(&mut form);
+    let discharged = crate::discharge(&mut form).map_err(|refusal| format!("{refusal:?}"));
+    (form, discharged)
+}
+
+fn rigid_relay(relay: &str) -> (typed_trees_to_terminal_psi::Elaboration, crate::Discharge) {
+    let (form, discharged) = rigid_relay_with(relay, |_| {});
+    (form, discharged.unwrap())
+}
+
+fn within_source(form: &typed_trees_to_terminal_psi::Elaboration, machine: usize) -> bool {
+    let machine = &form.module.machines[machine];
+    let source = machine.structural_parameters[0].place;
+    machine.result.structural().unwrap().reference_sources
+        == vec![terminal_psi::StructuralReferenceResultSource {
+            path: Vec::new(),
+            sources: vec![terminal_psi::StructuralReferenceOrigin::Parameter(
+                terminal_psi::ReferenceOriginSource {
+                    place: source,
+                    path: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                    access: terminal_psi::StructuralAccess::MutableBorrow,
+                },
+            )],
+        }]
+}
+
+#[test]
+fn a_rigid_requirement_call_borrows_its_declared_input_region() {
+    // lifetimes.md, "Returned views": `hand` elides its lifetimes, so the
+    // result may be anywhere `source` lends. The requirement has no body;
+    // its contract carries that declared lifetime, the same account a
+    // selected call reads from its public header, and no body-origin row.
+    // `relay`'s generic form keeps `source` exclusively lent while `child`
+    // is live.
+    const ASSIGN: &str = "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
+    let child: &mut i64 = Chosen::hand(source);
+    child = 41;
+}";
+    let (form, discharged) = rigid_relay(ASSIGN);
+    assert_eq!(form.requirements, vec![id(2)]);
+    let requirement = &form.module.machines[1];
+    assert!(requirement.blocks.is_empty());
+    assert!(
+        requirement
+            .result
+            .structural()
+            .unwrap()
+            .reference_sources
+            .is_empty()
+    );
+    assert_eq!(
+        requirement.result_lifetimes,
+        Some(vec![terminal_psi::DeclaredResultLifetime {
+            inputs: vec![terminal_psi::BoundaryLifetimeDependency::Referent {
+                argument_index: 0,
+                access: terminal_psi::StructuralAccess::MutableBorrow,
+            }],
+            results: vec![Vec::new()],
+        }]),
+    );
+    let relay = discharged.machines.get(id(1)).unwrap();
+    assert!(relay.conflicts.is_empty(), "{:?}", relay.conflicts);
+    assert!(
+        relay.verdicts.values().all(Result::is_ok),
+        "{:?}",
+        relay.verdicts
+    );
+
+    // The negative twin writes the lent input while `child` is still used.
+    let (_, discharged) = rigid_relay(
+        "machine relay<Chosen satisfies Handoff>(source: &mut i64) crashes none {
+    let child: &mut i64 = Chosen::hand(source);
+    source = 5;
+    child = 41;
+}",
+    );
+    assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
+
+    // Without its declared account the rigid call has no origins at all; it
+    // is refused rather than read as an unborrowed result.
+    let (_, discharged) = rigid_relay_with(ASSIGN, |form| {
+        form.module.machines[1].contract.result_lifetimes = None;
+    });
+    let refusal = discharged.expect_err("a rigid call without its account is refused");
+    assert!(
+        refusal.contains("public reference result has an unresolved declared lifetime frontier"),
+        "{refusal}"
+    );
+}
+
+#[test]
+fn a_returned_requirement_result_publishes_its_input_region() {
+    // Returning the rigid call's result returns storage known only within
+    // `source`'s region. The generic form publishes that region rather than
+    // inventing an exact projection.
+    let (form, discharged) = rigid_relay(
+        "machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64 crashes none {
+    Chosen::hand(source)
+}",
+    );
+    assert!(
+        within_source(&form, 0),
+        "{:?}",
+        form.module.machines[0].result
+    );
+    let relay = discharged.machines.get(id(1)).unwrap();
+    assert!(relay.conflicts.is_empty(), "{:?}", relay.conflicts);
+    assert!(
+        relay.verdicts.values().all(Result::is_ok),
+        "{:?}",
+        relay.verdicts
+    );
+}
+
+/// The product closure of `entry`, with `relay<Direct>` returning the
+/// selected call's result.
+fn returned_relay(entry: &str) -> crate::RouteVerdict {
+    let text = format!(
+        "{HANDOFF}machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64 crashes none {{
+    Chosen::hand(source)
+}}
+{entry}"
+    );
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(&text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::boundary_calls::entry(&typed);
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .program;
+    crate::judge_compilation(prepared).remove(0).unwrap()
+}
+
+#[test]
+fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
+    use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
+    let RouteVerdict::Accepted(accepted) = returned_relay(
+        "machine entry() crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = relay<Direct>(&mut backing);
+    child = 41;
+}",
+    ) else {
+        panic!("a returned selected result keeps its declared input region");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+
+    // The negative twin writes `backing` while the returned `child` is live.
+    let verdict = returned_relay(
+        "machine entry() crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = relay<Direct>(&mut backing);
+    backing = 5;
+    child = 41;
+}",
+    );
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected { conflicts, .. } if !conflicts.is_empty()),
+        "{verdict:?}"
     );
 }

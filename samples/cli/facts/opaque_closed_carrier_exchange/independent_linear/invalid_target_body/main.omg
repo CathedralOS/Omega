@@ -14,7 +14,7 @@ machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches
 }
 
 boundary trait ExchangeObservation {
-    machine observe() -> bool reaches AddressParts, AddressBridge;
+    machine observe() -> bool reaches AddressParts, AddressBridge crashes none;
 }
 ExchangeObservationCode satisfies ExchangeObservation {
     machine observe() -> bool reaches AddressParts, AddressBridge {

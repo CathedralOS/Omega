@@ -76,30 +76,6 @@ omega --check samples/cli/facts/thirtytwo_arg_stack_calling_plan/<place>/invalid
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `may overflow \`u64\`` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `may overflow \`u64\`` |
 
-### Pinned Fixtures
-
-All nine positive places and nine reject twins are pinned as canonical corpus fixtures:
-- **Pass fixtures** (`tests/omega/pass/facts/`):
-  - `thirtytwo_arg_stack_calling_plan_through_local_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_field_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_parameter_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_call_result_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_match_join_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_const_name_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_other_state_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_other_machine_exit/`
-  - `thirtytwo_arg_stack_calling_plan_through_target_body_exit/`
-- **Fail fixtures** (`tests/omega/fail/facts/`):
-  - `thirtytwo_arg_stack_calling_plan_through_local_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_field_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_parameter_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_call_result_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_match_join_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_const_name_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_other_state_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_other_machine_rejected/`
-  - `thirtytwo_arg_stack_calling_plan_through_target_body_rejected/`
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `NORMALIZED-ABI-LOWERING` ([TASKS.md](../../../../TASKS.md)) — register/stack argument placement under the [calling-plan contract](../../../../wiki/spec/build/calling_plans.md).
@@ -118,12 +94,6 @@ All nine positive places and nine reject twins are pinned as canonical corpus fi
 
 ### Verification Evidence
 
-Measured on macOS arm64 at base `9b001b8f6af` with the shared generation producer
-`gen-9b001b8f6af` (omega sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`,
-corpus_runner sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`); every
-fixture is a byte-for-byte copy of its place, and every golden row is stamped `@9b001b8f6afa+wt`:
-
-- Check leg (`python3 tools/corpus_gate.py --runner gen-9b001b8f6af/corpus_runner --filter thirtytwo_arg_stack_calling_plan,thirtytwo_variant_enum_payload_bound --record`): 18 `checked ... check-target:macos_arm64` rows (nine places + nine places of the sibling row) and 18 `rejected ... expected` rows carrying their own decision-17 diagnostics; 0 timeout rows.
 - Native leg (`--native`): 18 `built ... exit:0` rows.
 - Both leg (`--both`): 18 `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
 - The nine reject twins exit 1 at checking with the exact-arithmetic decision-17 diagnostic (`may overflow \`u64\``); `git diff` positive vs twin shows only the construct's own bound moved (`a32 <= 80u64` to `a32 <= 81u64`, or `C32: u64 = 60` to `81` at `const_name`).

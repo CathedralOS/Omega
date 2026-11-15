@@ -57,12 +57,6 @@ Each place has an `invalid/` reject twin (and corresponding `controls/read_desti
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `write-only` / `never observation` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `write-only` / `never observation` |
 
-## Pinned Fixtures
-
-- Positive passes: `tests/omega/pass/facts/returned_write_destination_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
-- Negative controls: `tests/omega/fail/facts/returned_write_destination_through_<place>_rejected` (all 9 places pinned, rejecting with write-only observation).
-- Related borrow controls: `tests/omega/fail/borrow/returned_write_destination_read`, `returned_write_destination_argument_read`, `returned_write_destination_backing_conflict`, `returned_write_destination_carrier_conflict`, and `returned_write_destination_readable_access`.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).

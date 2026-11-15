@@ -15,8 +15,8 @@ and a row in the crate README. It never adds a table or a key form.
 
 use language_core::{Multiplicity, ReferenceAccess};
 use semantic_vocabulary::{
-    BlockId, ClaimId, CrashCause, CycleComponentId, DomainSemanticId, EdgeId, ObligationId,
-    OperationId, ValueId,
+    ClaimId, CrashCause, CycleComponentId, DomainSemanticId, EdgeId, ObligationId, OperationId,
+    ValueId,
 };
 
 use crate::{ExactPlaceId, InvocationId, ProgramPoint};
@@ -152,13 +152,7 @@ pub enum ObligationKind {
     },
 }
 
-/// The instruction or terminator whose execution consumes an obligation.
-/// A terminator is identified by its block; an operation has its own identity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecutionSite {
-    Block(BlockId),
-    Operation(OperationId),
-}
+pub use terminal_psi::ExecutionSite;
 
 /// Crash coverage uses the same instruction and terminator coordinates.
 pub type CrashSite = ExecutionSite;

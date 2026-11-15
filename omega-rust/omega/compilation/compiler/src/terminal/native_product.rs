@@ -1,11 +1,13 @@
 // Assemble the native request from the accepted program and its selected
 // supplies. Native bindings retain their Build receipts; checked providers
-// retain the bodies and schemas already joined to the published artifact.
+// retain their installed bodies. Core primitives use their canonical leaves
+// and exact host permissions.
 
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
 use native_compiler::{
     BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
+    current_terminal_authority_policy,
 };
 use optimization_core::OptimizationSelections;
 use source_compiler::ProducedTerminalApplication;
@@ -74,9 +76,14 @@ pub(crate) fn prepare(
 > {
     let failure = |reason| vec![Diagnostic::error(reason)];
     let build = &checked.build().config;
+    // Build retains authenticated bindings from dependency packages, including
+    // unused requirements and foreign targets. Declaration is not demand:
+    // target supply has already settled the actual executable closure. Below,
+    // every selected row still needs its canonical execution producer. The
+    // inventory itself supplies neither execution nor physical permission.
     if !checked.execution().plans().assumed_bindings().is_empty() {
         return Err(failure(
-            "no product route yet: executable assumed bindings need their admitted contracts",
+            "no product route yet: executable assumed bindings need their reviewed installation",
         ));
     }
     if !checked
@@ -129,23 +136,54 @@ pub(crate) fn prepare(
             .map(Diagnostic::error)
             .collect::<Vec<_>>()
     })?;
-    if selected
-        .plans
-        .iter()
-        .flat_map(|plan| &plan.rows)
-        .any(|row| {
-            !matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-            )
-        })
-    {
+    if selected.plans != checked.execution().plans().plans() {
         return Err(failure(
-            "no product route yet: opaque provider rows need their authenticated execution evidence",
+            "native proposal changed the settled provider plans",
         ));
     }
-    let permissions = accepted_package_permissions(checked.sources().accepted_semantic_bindings())?;
     let profile = entry.source().target_slot().owner;
+    let schemas = provider_planning::hosted_primitive_schemas(module)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let leaves =
+        provider_planning::direct_hosted_primitive_leaves(module, &schemas, profile.target_name())?;
+    let policy = current_terminal_authority_policy();
+    let mut permission_identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    let mut permission_rows = Vec::new();
+    let package_permissions =
+        accepted_package_permissions(checked.sources().accepted_semantic_bindings())?;
+    for permission in package_permissions.rows() {
+        let requirement = package_permissions
+            .identities()
+            .text(permission.requirement_identity())
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| {
+                failure("accepted package permission lost its exact requirement identity")
+            })?;
+        let mut permission = permission.clone();
+        permission.rekey_requirement_identity(permission_identities.intern(requirement));
+        permission_rows.push(permission);
+    }
+    for leaf in &leaves {
+        let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
+        else {
+            return Err(failure("core primitive lost its exact native execution"));
+        };
+        let permitted = policy
+            .classify(execution)
+            .map_err(|_| failure("core primitive has no physical authority classification"))?;
+        for row in &leaf.plan.rows {
+            let requirement = leaf.plan.identities.text(row.declared_requirement_identity);
+            permission_rows.push(effects::ServiceTerminalAuthorityPermission::new(
+                leaf.plan.schema_identity_digest(),
+                permission_identities.intern(requirement),
+                permitted.clone(),
+            ));
+        }
+    }
+    // Keep accepted package grants and exact core primitive grants in the
+    // same identity table. Unrelated requirements gain no permission.
+    let permissions =
+        native_compiler::admit_package_permissions(permission_rows, permission_identities.build())?;
     let semantic = entry
         .semantic_calling_application()
         .ok_or_else(|| failure("native entry lost its semantic calling application"))?;
@@ -205,8 +243,9 @@ pub(crate) fn prepare(
             calling_applications.push(application);
         }
     }
-    // These plans contain checked bodies only. They have no compiler-intrinsic
-    // execution identity; the proposal independently rejoins their candidates.
+    // No row carries a separate host or device review. Checked rows execute
+    // their installed machine; intrinsic rows must realize their canonical
+    // declared meaning or be refused by boundary settlement.
     let row_executions = plans
         .iter()
         .map(|plan| vec![None; plan.rows.len()])
@@ -226,7 +265,7 @@ pub(crate) fn prepare(
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: &module.identities,
         native_bindings: &native_bindings,
-        direct_boundary_leaves: Vec::new(),
+        direct_boundary_leaves: leaves.iter().collect(),
         target_profile: Some(profile),
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: checked.execution().plans(),

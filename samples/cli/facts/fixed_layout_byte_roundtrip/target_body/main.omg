@@ -36,8 +36,8 @@ machine copy_bytes(source: &[u8; 40], destination: &mut [u8; 40]) {
     destination = source;
 }
 boundary trait SelectedDecode {
-    machine decode<'backing>(backing: &'backing mut [u64; 7]) -> Optional<Decoded<'backing>> reaches terminates;
-    machine marker() -> u64 reaches terminates;
+    machine decode<'backing>(backing: &'backing mut [u64; 7]) -> Optional<Decoded<'backing>> reaches terminates crashes none;
+    machine marker() -> u64 reaches terminates crashes none;
 }
 X86Decode satisfies SelectedDecode {
     machine decode<'backing>(backing: &'backing mut [u64; 7]) -> Optional<Decoded<'backing>> reaches terminates {

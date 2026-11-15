@@ -63,17 +63,9 @@ comparison constant — selects the state.
 - **Parent outcome:** `LAYOUT-PLANS` / `COUNT-ADDRESS-GEOMETRY` / `TERMINAL-LAYOUT-WIRE-EVALUATION` ([TASKS.md](../../../../TASKS.md)).
 - **Requirement established:** Tagged `case` discriminant plus payload layout geometry proof and realization (`Psi 06–08` / `Omega 00–09`), verifying that querying compile-time layout geometry (`size_of<Packet>() == 16u64`, `align_of<Packet>() == 8u64`) on a multi-variant sum type (`case Packet { Empty, Payload(u64) }`) establishes exact layout geometry and proves non-negativity for exact subtraction `size - (align * 2u64) == 0u64` across all nine standard places.
 
-Pinned fixtures: the nine positives are
-[`tests/omega/pass/facts/case_payload_layout_geometry_through_<place>_exit`](../../../../tests/omega/pass/facts)
-and the nine reject twins are
-[`tests/omega/fail/facts/case_payload_layout_geometry_unproved_<place>`](../../../../tests/omega/fail/facts),
-for `<place>` in `local`, `field`, `parameter`, `call_result`, `match_join`,
-`const_name`, `other_state`, `other_machine`, `target_body`. Each positive
-carries its own `expected_native_exit.txt` (`0`); each twin authors both
-`expected.txt` and `invalid`-style `sample.json` `rejection_contains`.
 `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the payload
-variant — `Payload(value: u64)` against payloadless `Other` — never in a caller
-guard.
+variant — `Payload(value: u64)` against payloadless `Other` — never in a
+caller guard.
 
 ### Pin re-verification (`9ff26a870215`, 2026-10-22)
 
@@ -84,7 +76,7 @@ macOS arm64. Commands and numbers:
 | --- | --- |
 | `omega run --both` on root and all nine places (10 projects) | 10/10 `native exit 0` with `interp exit: 0` |
 | `omega --check <place>/invalid/main.omg` (9 twins) | 9/9 reject, exit 1, `bounds [-4, -4] lie outside [0, 18446744073709551615]` |
-| `omega --check tests/omega/fail/facts/case_payload_layout_geometry_unproved_<place>/main.omg` (9 fixture twins) | 9/9 reject, exit 1, same fragment |
+|  | 9/9 reject, exit 1, same fragment |
 
 Each of the nine pinned positives and nine pinned twins shares its program body
 with its sample-side source (`<place>/main.omg`) or invalid twin

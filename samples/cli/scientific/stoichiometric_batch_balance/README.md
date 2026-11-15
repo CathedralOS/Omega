@@ -55,11 +55,9 @@ balance side is at most 256, product proposals at most 9*INT32_MAX, and elementa
 inventory totals at most 64*INT32_MAX. No floating values or numerical tolerances
 are involved. Exact integer and output-byte tolerances are zero.
 
-The frozen Python oracle in `validation/reference.py` enumerates positive
-compositions in increasing total using arbitrary precision, rather than the
-Omega radix enumeration. `validation/frozen_oracle.json` authenticates each
-fixture input/output. Those expectations were authored before Omega execution.
-Validation verifies their hashes and never updates them to match a result.
+`validation/frozen_oracle.json` authenticates each fixture input/output. Those
+expectations were authored before Omega execution. Validation verifies their
+hashes and never updates them to match a result.
 
 From the repository root, after the ordinary documented package review:
 
@@ -70,8 +68,6 @@ omega packages update --resume --project samples/cli/independent/stoichiometric_
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg
 omega run --both --keep samples/cli/independent/stoichiometric_batch_balance/main.omg < samples/cli/independent/stoichiometric_batch_balance/data/water_first.stdin
 omega --target linux_x86_64 --build-dir samples/cli/independent/stoichiometric_batch_balance/build/native samples/cli/independent/stoichiometric_batch_balance/main.omg
-python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode native --executable /absolute/path/to/produced/application
-python3 samples/cli/independent/stoichiometric_batch_balance/validation/verify.py --omega /absolute/path/to/omega --mode both
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/controls/intended_invalid/main.omg
 ```
 
@@ -97,15 +93,13 @@ local package files. The review handoff records the exact binary, base, commands
 source hashes, outcomes and any remaining package-review blockers.
 
 The application exposed a current-main arithmetic checking gap: an indexed
-coefficient's positive `requires` fact did not reach division definedness.
-The bounded repair retains the collection and selector as a private ordered
-operand, checks their exact state scope when admitting requirements, and
-invalidates their facts on either write. A scalar local copies the live
-literal bounds and exclusions of its evaluated observation before destination
-invalidation, preserving nonzero facts through dynamic-index hoisting. The application retains its original
-preconditions and divisions. Feature-shaped controls under
-`tests/omega/{pass,fail}/arithmetic/indexed_divisor_*` pin valid contracts,
-state forwarding, storage mutation, selector mutation and different collections.
-The generic CLI comparison verifies Terminal exits only; native stdout is checked
-byte for byte against the frozen fixtures. Terminal stdout comparison is not
-exposed by this CLI route and is not claimed.
+coefficient's positive `requires` fact did not reach division definedness. The
+bounded repair retains the collection and selector as a private ordered operand,
+checks their exact state scope when admitting requirements, and invalidates their
+facts on either write. A scalar local copies the live literal bounds and
+exclusions of its evaluated observation before destination invalidation,
+preserving nonzero facts through dynamic-index hoisting. The application retains
+its original preconditions and divisions. The generic CLI comparison verifies
+Terminal exits only; native stdout is checked byte for byte against the frozen
+fixtures. Terminal stdout comparison is not exposed by this CLI route and is not
+claimed.

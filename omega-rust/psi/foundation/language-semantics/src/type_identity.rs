@@ -6,6 +6,128 @@ lifetime partitions (`lifetime_partition`), and type vocabulary descriptors
 (`vocabulary`).
 */
 
+/// Canonical identity framing shared by source producers and receiving checks.
+/// Moving an identity between owners must preserve these exact escaped bytes.
+pub mod encoding {
+    use super::vocabulary::Spelled;
+
+    #[derive(Clone, Copy)]
+    pub enum CoordinateTag {
+        NamedCallable,
+        SpecializedCallable,
+        CapturedCallable,
+        NestedMachine,
+        ClosedRequirement,
+        LocalTraitApplication,
+        LocalTraitContract,
+        Refinements,
+        TraitApplication,
+        Parameter,
+        Path,
+        Parameters,
+        ResultDispatch,
+        Owner,
+        Name,
+        Template,
+        Declaration,
+        Arguments,
+        LocalArguments,
+        RuntimeValueCarrier,
+        Lifetimes,
+        Mutable,
+        Const,
+    }
+
+    impl Spelled for CoordinateTag {
+        fn spelling(self) -> &'static str {
+            match self {
+                Self::NamedCallable => "named-callable",
+                Self::SpecializedCallable => "specialized-callable",
+                Self::CapturedCallable => "captured-callable",
+                Self::NestedMachine => "nested-machine",
+                Self::ClosedRequirement => "closed-requirement",
+                Self::LocalTraitApplication => "local-trait-application",
+                Self::LocalTraitContract => "local-trait-contract",
+                Self::Refinements => "refinements",
+                Self::TraitApplication => "trait-application",
+                Self::Parameter => "parameter",
+                Self::Path => "path",
+                Self::Parameters => "parameters",
+                Self::ResultDispatch => "result-dispatch",
+                Self::Owner => "owner",
+                Self::Name => "name",
+                Self::Template => "template",
+                Self::Declaration => "declaration",
+                Self::Arguments => "arguments",
+                Self::LocalArguments => "local-arguments",
+                Self::RuntimeValueCarrier => "runtime-value-carrier",
+                Self::Lifetimes => "lifetimes",
+                Self::Mutable => "mutable",
+                Self::Const => "const",
+            }
+        }
+    }
+
+    pub fn bare(tag: impl Spelled) -> String {
+        tag.spelling().to_owned()
+    }
+
+    pub fn atom(tag: impl Spelled, value: &str) -> String {
+        let tag = tag.spelling();
+        let mut output = String::with_capacity(tag.len() + value.len() + 2);
+        output.push_str(tag);
+        output.push('(');
+        if value
+            .bytes()
+            .any(|byte| matches!(byte, b'\\' | b'(' | b')' | b','))
+        {
+            for character in value.chars() {
+                if matches!(character, '\\' | '(' | ')' | ',') {
+                    output.push('\\');
+                }
+                output.push(character);
+            }
+        } else {
+            output.push_str(value);
+        }
+        output.push(')');
+        output
+    }
+
+    pub fn byte_atom(tag: impl Spelled, value: &[u8]) -> String {
+        let tag = tag.spelling();
+        let mut output = String::with_capacity(tag.len() + value.len().saturating_mul(2) + 24);
+        output.push_str(tag);
+        output.push('(');
+        output.push_str(&value.len().to_string());
+        output.push(':');
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        for &byte in value {
+            output.push(char::from(HEX[usize::from(byte >> 4)]));
+            output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+        }
+        output.push(')');
+        output
+    }
+
+    pub fn compound(tag: impl Spelled, parts: impl IntoIterator<Item = String>) -> String {
+        let tag = tag.spelling();
+        let parts = parts.into_iter().collect::<Vec<_>>();
+        let mut output =
+            String::with_capacity(tag.len() + parts.iter().map(String::len).sum::<usize>() + 2);
+        output.push_str(tag);
+        output.push('(');
+        for (index, part) in parts.into_iter().enumerate() {
+            if index > 0 {
+                output.push(',');
+            }
+            output.push_str(&part);
+        }
+        output.push(')');
+        output
+    }
+}
+
 mod callable_display {
     use std::borrow::Cow;
 
@@ -419,8 +541,8 @@ mod grammar {
 
     // Schema regions describe a declaration's binder, never a live value's
     // lifetime. Ordinary identity consumers still refuse them through the
-    // default visitor; the signature reader must explicitly request them.
-    fn declared_region(
+    // default visitor; a declaration reader must explicitly request them.
+    pub(super) fn declared_region(
         reader: &mut Reader<'_>,
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
@@ -935,7 +1057,10 @@ mod index {
         visitor: &mut dyn TypeIdentityPackageOwnerVisitor,
     ) -> Result {
         if reader.peek::<RegionForm>().is_some() {
-            return grammar::region(reader);
+            return match reader.peek::<RegionForm>() {
+                Some(RegionForm::Region) => grammar::declared_region(reader, visitor),
+                _ => grammar::region(reader),
+            };
         }
         if reader.peek::<IndexForm>() == Some(IndexForm::StaticApplication) {
             reader.production::<IndexForm>()?;

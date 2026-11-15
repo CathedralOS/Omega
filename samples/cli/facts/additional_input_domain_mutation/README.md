@@ -28,13 +28,12 @@ and [write-only authority](../../../../wiki/spec/terminal-psi/structural_access.
 
 Each twin changes only `overwrite`'s contract by adding `ensures cell in Before`.
 It must reject that promise after writing 73, rather than fail parsing, entry
-admission, carrier matching or ordinary borrowing. The extra
-[false-entry control](invalid_entry/main.omg) changes only initial value 0 to 1
-and must reject `overwrite`'s input requirement. Corresponding fixtures live in
-`tests/omega/{pass,fail}/facts/additional_input_domain_mutation_*`.
-The separate `fail/domains/write_only_declared_field_domain_requires_restoration`
-fixture protects a stored `Holder.cell: Cell in Before`: that default still
-requires restoration on normal return.
+admission, carrier matching or ordinary borrowing. The extra [false-entry
+control](invalid_entry/main.omg) changes only initial value 0 to 1 and must
+reject `overwrite`'s input requirement. The separate
+`fail/domains/write_only_declared_field_domain_requires_restoration` fixture
+protects a stored `Holder.cell: Cell in Before`: that default still requires
+restoration on normal return.
 
 Acceptance for each positive is `omega run --both <place>/main.omg`, exit 0.
 Build binds all four hosted targets; native observations are host-specific.
@@ -52,24 +51,23 @@ The [PR 1880 validation records](https://github.com/CathedralOS/Omega/pull/1880)
 link those host runs and the separate source controls. The earlier observations
 below retain their original producer identities and additional control scope.
 
-Initial optimized producer
-`ec7f75640e2e0eed5d6558889ef487ca7f4e2d1f` refused the local source's qualified
-record projection and its otherwise-provable write-only input admission. A
-geometry-only repair exposed the mistaken implicit root handback promise.
-Fixed optimized producer `4bbcf73a381bcf10ca6cd24754f4ff161c8b20f8`
-(SHA-256 `ed4bf655031c68033e26e11f075794c61253d77ac5ab5c613928a780297f463a`,
-opt-level 1) observes native 0 and Terminal Psi 0 in all nine places on macOS
-ARM64. Nine explicit-postcondition twins reject `ensures`; initial value 1
-rejects `requires`. Declared-field corruption, including a bare-helper route,
-still rejects restoration; invalid stored-reference qualification rejects
-construction, and qualified write-only field observation remains forbidden.
-Retained native images and Terminal artifacts are hashed with the producer-bound
-qualification records. The 153-fixture comparison against clean baseline
+Initial optimized producer `ec7f75640e2e0eed5d6558889ef487ca7f4e2d1f` refused the
+local source's qualified record projection and its otherwise-provable write-only
+input admission. A geometry-only repair exposed the mistaken implicit root
+handback promise. Fixed optimized producer
+`4bbcf73a381bcf10ca6cd24754f4ff161c8b20f8` (SHA-256
+`ed4bf655031c68033e26e11f075794c61253d77ac5ab5c613928a780297f463a`, opt-level 1)
+observes native 0 and Terminal Psi 0 in all nine places on macOS ARM64. Nine
+explicit-postcondition twins reject `ensures`; initial value 1 rejects
+`requires`. Declared-field corruption, including a bare-helper route, still
+rejects restoration; invalid stored-reference qualification rejects construction,
+and qualified write-only field observation remains forbidden. Retained native
+images and Terminal artifacts are hashed with the producer-bound qualification
+records. The 153-fixture comparison against clean baseline
 `7276fbb60b5cf17423e4978f299e22fdd5ba68ba` lost no outcomes; after integration,
-155 relevant fixtures produced 70 checked and 85 expected rejections with no
-lost success or wrong rejection reason. Raw execution records retain their
-actual producer provenance. Current changed source records are retained in
-`tests/omega/corpus_outcomes.txt`; the fresh host runs keep their own identities.
+155 relevant fixtures produced 70 checked and 85 expected rejections with no lost
+success or wrong rejection reason. Raw execution records retain their actual
+producer provenance.
 
 - Establishment: the actual source's zero field proves `Before` at the exact
   call, not the formal annotation. Initial value 1 fails that admission.

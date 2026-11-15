@@ -248,7 +248,7 @@ impl<'b> Walk<'b> {
                             if !(changed && cyclic) {
                                 continue;
                             }
-                            for &caller in components.callers(this) {
+                            for caller in components.callers(this) {
                                 if components.same_component(caller, this)
                                     && !refused[caller]
                                     && !std::mem::replace(&mut stale[caller], true)
@@ -426,7 +426,7 @@ impl<'b> Walk<'b> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression) => {
+                Statement::Evaluate { expression, .. } => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }
@@ -487,8 +487,22 @@ impl<'b> Walk<'b> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
+            ExpressionKind::Atomic {
+                place, operands, ..
+            } => {
+                if !self.expression(machine, place)? {
+                    return Ok(false);
+                }
+                for operand in operands {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => Ok(true),

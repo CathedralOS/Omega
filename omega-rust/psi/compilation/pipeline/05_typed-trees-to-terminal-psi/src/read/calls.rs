@@ -9,6 +9,7 @@ use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
+use terminal_psi::StructuralAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableCall;
@@ -41,6 +42,79 @@ impl<'t> Program<'t> {
             return Ok(boundary);
         }
         let unserved = |detail| refuse(diagnostic, Construct::Machine, Unserved::Call(detail));
+        if self.typed.symbols.sealed_intrinsic(target)
+            == Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(
+                    language_core::sealed_intrinsics::HostedOperation::ProcessExit,
+                ),
+            )
+        {
+            // Custody nominates this declaration only. Its actual closed contract
+            // must equal the independently read canonical requirement contract.
+            let (primitive, declared) = self
+                .typed
+                .bodyless_declaration(target)
+                .map_err(unserved)?
+                .ok_or_else(|| unserved("hosted primitive has no bodyless declaration"))?;
+            let machine = self
+                .typed
+                .machine_by_symbol(primitive)
+                .ok_or_else(|| unserved("hosted primitive lost its machine"))?;
+            if machine.target.is_some()
+                || machine.authored_target.is_some()
+                || machine.target_family_interface
+                || !machine.type_parameters.is_empty()
+                || !machine.lifetime_parameters.is_empty()
+                || !machine.conformance_bounds.is_empty()
+            {
+                return Err(unserved(
+                    "hosted primitive needs its exact target-neutral declaration",
+                ));
+            }
+            let mut requirements = self
+                .typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .filter_map(|edge| {
+                    typed_trees::machine::resolve_satisfied_declaration(self.typed, machine, edge)
+                });
+            let requirement = requirements
+                .next()
+                .ok_or_else(|| unserved("hosted primitive has no canonical requirement"))?
+                .symbol();
+            if requirements.next().is_some()
+                || typed_trees::boundary_completions::boundary_requirement_completion(self.typed, requirement)
+                    != semantic_vocabulary::BoundaryCompletion::External(semantic_vocabulary::ExternalCompletionKind::ProcessExit)
+                || self.typed.trait_machine_signature(requirement).is_none_or(|(owner, _)|
+                    self.typed.symbols.sealed_member_intrinsic(owner.symbol, "exit_process")
+                    != Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedRequirement(language_core::sealed_intrinsics::HostedOperation::ProcessExit)))
+            {
+                return Err(unserved("hosted primitive does not satisfy the exact Core ProcessExit requirement"));
+            }
+            let canonical = self.boundary_declaration(diagnostic, requirement)?;
+            let (signature, _) = self.declared_requirement_signature(diagnostic, &declared, &[])?;
+            if self.boundary_signatures.get(canonical) != Some(&signature) {
+                return Err(unserved(
+                    "hosted primitive contract differs from its canonical requirement",
+                ));
+            }
+            let service = *self
+                .boundary_services
+                .get(canonical)
+                .ok_or_else(|| unserved("hosted primitive requirement lost its service"))?;
+            let completion = *self
+                .boundary_completions
+                .get(canonical)
+                .ok_or_else(|| unserved("hosted primitive requirement lost its completion"))?;
+            let boundary = self.boundary_symbols.push(target);
+            if self.boundary_signatures.push(signature) != boundary
+                || self.boundary_services.push(service) != boundary
+                || self.boundary_completions.push(completion) != boundary
+            {
+                return Err(unserved("hosted primitive lost its boundary coordinate"));
+            }
+            return Ok(boundary);
+        }
         let (owner, requirement) = self
             .typed
             .trait_machine_signature(target)
@@ -650,6 +724,10 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         // Taken before anything nested is read, so no argument sees it.
         let expected = self.expected.take();
+        // A layout query names no declaration; typing kept its operand.
+        if let Some(query) = &call.layout_query {
+            return self.layout_query(id, call, query, source);
+        }
         self.bound_target(id, call.target_symbol)?;
         // The integer carrier query is answered only through its fields in a
         // static condition (`carriers`); its own body is no answer to run.
@@ -766,6 +844,55 @@ impl<'t> Program<'t> {
     /// Its closed result belongs to the actual application, never to the
     /// type a caller hopes to receive. Other interpretations still need
     /// their evaluated policy, content, profile and resident correspondence.
+    /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
+    /// take data types"). The operand is read as an ordinary value type, so
+    /// `CLayout<R>` and `R` name the record rows placement and ABI use, and
+    /// the observation measures exactly that row. Only a record row has a
+    /// storage geometry this reader can name; a scalar, a rigid type
+    /// parameter and the value form `align_of(view)` stay refused here
+    /// rather than receive a fabricated measurement.
+    fn layout_query(
+        &mut self,
+        id: MachineId,
+        call: &TableCallExpression,
+        query: &typed_trees::expression::DataLayoutQueryRequest,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::data_layout_queries::DataLayoutQueryKind;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if query.nonempty_view.is_valid()
+            || !query.operand.type_reference.is_valid()
+            || !call.arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || call.receiver.is_valid()
+        {
+            return unserved("layout query without exactly one type operand");
+        }
+        let ValueType::Record(subject, _, _) = self.value_type(id, query.operand.type_reference)?
+        else {
+            return unserved("layout query of a carrier with no record row");
+        };
+        let measurement = match query.kind {
+            DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
+            DataLayoutQueryKind::Alignment => terminal_psi::LayoutMeasurement::Alignment,
+        };
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::LayoutObservation {
+                subject,
+                measurement,
+            },
+            result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
+            ))),
+            source,
+        })
+    }
+
     fn borrow_factory_call(
         &mut self,
         id: MachineId,
@@ -1744,8 +1871,21 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
-        if self.typed.trait_machine_signature(target).is_some() {
-            self.visible_to(id, target)?;
+        // A free-machine call can name its implicit entry state. Resolve that
+        // existing entry relation before checking custody on the authored
+        // declaration; the generated state itself has no sealed source span.
+        let (target, boundary_call) = if self.typed.trait_machine_signature(target).is_some() {
+            (target, true)
+        } else {
+            let machine = self.call_target_symbol(id, target)?;
+            let boundary = matches!(
+                self.typed.symbols.sealed_intrinsic(machine),
+                Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(_))
+            );
+            (machine, boundary)
+        };
+        self.visible_to(id, target)?;
+        if boundary_call {
             let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
                 id,
@@ -1759,11 +1899,9 @@ impl<'t> Program<'t> {
                 expected,
             );
         }
-        let machine = self.call_target_symbol(id, target)?;
-        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(machine)?;
+        let callee = self.machine(target)?;
         self.call_of(
             id,
             slots,
@@ -1980,7 +2118,9 @@ impl<'t> Program<'t> {
             read.push(if *erased {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
-                let (lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
+                let (mut lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
+                lent.result =
+                    self.borrowed_argument_type(id, lent.result, *formal, borrowed.access)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -2011,41 +2151,6 @@ impl<'t> Program<'t> {
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
             place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
-        // An exclusive loan written for a shared formal is lowered as the
-        // shared loan the callee receives (`lent`). ownership.md, "Borrows
-        // and aliases": "exclusive loans must not overlap incompatibly", so
-        // the root it lends is lent by no other argument of this call; the
-        // lowered shared loans alone would not show that overlap.
-        for (position, (argument, (_, _, borrowed))) in arguments.iter().zip(&formals).enumerate() {
-            let exclusive_for_shared = borrowed
-                .as_ref()
-                .is_some_and(|formal| formal.access == ReferenceAccess::Shared)
-                && matches!(self.node(id, *argument)?,
-                    ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable);
-            let Some(Expression {
-                kind: ExpressionKind::Borrow { place, .. },
-                ..
-            }) = read.get(position).filter(|_| exclusive_for_shared)
-            else {
-                continue;
-            };
-            let root = root_slot(id, place, &self.captures)?;
-            for (other, lent) in read.iter().enumerate() {
-                if other != position
-                    && let ExpressionKind::Borrow { place, .. } = &lent.kind
-                    && root.is_some()
-                    && root_slot(id, place, &self.captures)? == root
-                {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call(
-                            "exclusive loan for a shared formal beside another loan of its storage",
-                        ),
-                    ));
-                }
-            }
-        }
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -2312,11 +2417,13 @@ impl<'t> Program<'t> {
         // parameter is the exclusive loan the program wrote, lent on for
         // observation: the place must admit that exclusive loan (every
         // check below is made at the written access), and the callee
-        // receives the formal's access. No other difference has a row.
+        // receives a shared child of that formation. Both loans remain in
+        // the lowered form, so the checker judges the actual formation and
+        // its complete descendant lifetime against existing cohorts.
         let attenuated = explicit
             && access == ReferenceAccess::Mutable
             && formal.access == ReferenceAccess::Shared;
-        if access != formal.access && !attenuated {
+        if !access.forms(formal.access) {
             return unserved("borrow whose access differs from its formal's");
         }
         // An existing view already carries its backing; an owned array still
@@ -2386,7 +2493,7 @@ impl<'t> Program<'t> {
         if place.result.and_then(ValueType::policy).is_some() {
             return unserved("loan of a policy-qualified integer");
         }
-        let home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
+        let mut home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
             (ExpressionKind::Slot(_), Some(lender))
                 if matches!(lender.value_type, ValueType::Scalar(_, Qualification::NONE))
                     && !lender.homed =>
@@ -2429,6 +2536,46 @@ impl<'t> Program<'t> {
             }
             _ => None,
         };
+        if attenuated {
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return unserved("exclusive formation without its retained reference type");
+            }
+            let formed = self.local_type(id, reference)?;
+            let Some((referent, StructuralAccess::MutableBorrow)) =
+                self.reference_referent(id, formed)?
+            else {
+                return unserved("exclusive formation without its actual reference type");
+            };
+            if !self.same_type(place.result, referent) {
+                return unserved("exclusive formation changes its captured referent type");
+            }
+            let result = place.result;
+            let value = Expression {
+                call_context: None,
+                result,
+                kind: ExpressionKind::Borrow {
+                    access,
+                    place: Box::new(place),
+                    home: home.take(),
+                },
+                source,
+            };
+            let parent = self.finish_reference_value(id, slots, value, formed, source)?;
+            place = Expression {
+                call_context: None,
+                result,
+                kind: ExpressionKind::Referent(Box::new(parent)),
+                source,
+            };
+        }
         Ok((
             Expression {
                 call_context: None,
@@ -2442,6 +2589,47 @@ impl<'t> Program<'t> {
             },
             lender_text,
         ))
+    }
+
+    /// A shared lend observes an existing mutable descriptor's backing. Its
+    /// argument type may present shared access, while the captured place and
+    /// its producer retain their actual type and exclusive loan. Owned values
+    /// and different descriptor geometry still require exact correspondence.
+    fn borrowed_argument_type(
+        &mut self,
+        machine: MachineId,
+        actual: Option<ValueType>,
+        expected: ValueType,
+        access: ReferenceAccess,
+    ) -> Checked<Option<ValueType>> {
+        use crate::StorageShape;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+        let (
+            Some(ValueType::Record(actual_row, qualification, regions)),
+            ValueType::Record(expected_row, _, _),
+        ) = (actual, expected)
+        else {
+            return Ok(actual);
+        };
+        if access != ReferenceAccess::Shared
+            || self.data_type(machine, actual_row)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+            || self.data_type(machine, expected_row)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                })
+        {
+            return Ok(actual);
+        }
+        let presented = ValueType::Record(expected_row, qualification, regions);
+        Ok(if self.same_type(Some(presented), expected) {
+            Some(presented)
+        } else {
+            actual
+        })
     }
 }
 
@@ -2537,11 +2725,25 @@ fn mentions<'a>(
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            if mentions(id, place, slots, captures)? {
+                return Ok(true);
+            }
+            for operand in operands {
+                if mentions(id, operand, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
         ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
         ExpressionKind::SavedSubject(_) => {
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
         }
         ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => Ok(false),
         ExpressionKind::Referent(operand)

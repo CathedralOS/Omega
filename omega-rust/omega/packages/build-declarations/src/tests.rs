@@ -339,12 +339,11 @@ fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
 }
 
 /// The boundary requirements of `source` that do not write `crashes none`,
-/// as `Trait::requirement`. effects.md: "Every boundary-trait machine
-/// requirement must declare that ceiling, using `reaches none` when it permits
-/// no services, and must likewise write `crashes`". The parser already
-/// rejects a boundary requirement with no `reaches`; nothing before the
-/// checker asks for the crash clause.
-fn requirements_with_no_crash_ceiling(source: &str) -> Vec<String> {
+/// as `Trait::requirement`. The parser refuses a boundary requirement that
+/// writes no `crashes` clause at all (effects.md: it "must likewise write
+/// `crashes`"); this reading asks the stronger question the Build host needs,
+/// that each operation publishes no crash route.
+fn requirements_with_crash_routes(source: &str) -> Vec<String> {
     let parsed = source_compiler::parse_text(source).unwrap_or_else(|_| panic!("source parses"));
     let syntax = &parsed.syntax;
     let mut open = Vec::new();
@@ -375,19 +374,19 @@ fn requirements_with_no_crash_ceiling(source: &str) -> Vec<String> {
 #[test]
 fn every_build_host_operation_writes_its_crash_ceiling() {
     assert_eq!(
-        requirements_with_no_crash_ceiling(&crate::build_prelude().declarations),
+        requirements_with_crash_routes(&crate::build_prelude().declarations),
         Vec::<String>::new()
     );
-    // The same reading reports a requirement that leaves the clause out.
+    // The same reading reports a requirement that publishes a crash route.
     assert_eq!(
-        requirements_with_no_crash_ceiling(
+        requirements_with_crash_routes(
             "boundary trait Host {
              machine closed(value: u64) reaches none crashes none;
-             machine no_crash_clause(value: u64) reaches none;
+             machine trapping(value: u64) reaches none crashes Trap;
              }
 "
         ),
-        ["Host::no_crash_clause"]
+        ["Host::trapping"]
     );
 }
 

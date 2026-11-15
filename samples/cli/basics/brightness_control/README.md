@@ -6,9 +6,6 @@ SetLevel command produces 65 and the two console lines in `main.omg`.
 
 ```sh
 omega run --both samples/cli/basics/brightness_control/main.omg
-python3 tools/sample_native_gate.py --filter basics/brightness_control
-python3 tools/corpus_gate.py --both --filter dependent/zero_case_predicate_entry_exit,dependent/where_field_shadows_module_const_exit
-python3 tools/corpus_gate.py --filter arithmetic/construction_payload_out_of_range,dependent/case_where_zero_payload_requires_establishment,dependent/case_where_zero_wide_arithmetic_not_saturated
 ```
 
 The public command uses ordinary package and entry review. No acceptance

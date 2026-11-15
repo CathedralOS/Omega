@@ -137,6 +137,16 @@ impl SourcePreparationRequest<'_> {
                 self.compilation.purpose,
                 &mut accounting,
             )?;
+            // `domain D access Policy;` leaves who may issue `as +D` to the
+            // policy's plan. Each demanded domain's plan runs once here, so
+            // Psi 05 reads its issuers from the checked result.
+            build_time_evaluation::evaluate_domain_access_plans(
+                &mut program,
+                self.compilation,
+                self.admission.layout_selection_authority.clone(),
+                self.admission.invocation_sources.clone(),
+                &mut accounting,
+            )?;
             // `Buffer<capacity()>`: a const argument written as a call gets
             // its value first, because a constant below may be computed
             // through a type that is applied at one.

@@ -28,8 +28,7 @@ reach exact declaring-type membership, not fail for an incomplete pattern
 matrix. The precise refusal identifies a pattern outside its subject's exact
 carrier, selecting `Other::Value` against `Choice<u64>`. The target twin keeps
 only its original Windows body invalid, so another host cannot skip that body
-during Source checking. Positive and negative counterparts live under
-`tests/omega/{pass,fail}/facts/generic_case_subject_through_*`.
+during Source checking.
 
 The additional `generics/generic_case_subject_sibling_bounds_*` fixture pair
 uses identical `u64` payload layouts with different const-argument bounds.

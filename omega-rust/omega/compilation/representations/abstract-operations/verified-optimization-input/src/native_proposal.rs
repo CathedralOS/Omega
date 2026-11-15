@@ -382,48 +382,13 @@ mod proposal {
     ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
         let mut bound = Vec::new();
         for candidate in candidates {
-            let mut declarations = module.boundary_machines.iter().filter(|boundary| {
-                boundary.declaration.as_ref().is_some_and(|declaration| {
-                    module
-                        .identities
-                        .text(declaration.source.semantic_declaration)
-                        == Some(candidate.declaration_identity.as_str())
-                        && module.identities.text(declaration.source.callable)
-                            == Some(candidate.callable_identity.as_str())
-                })
-            });
-            let Some(boundary) = declarations.next() else {
-                continue;
-            };
-            if declarations.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "direct boundary leaf has multiple exact Terminal declarations",
-                )]);
-            }
-            let identity = module
-                .identities
-                .text(boundary.identity)
-                .filter(|text| !text.is_empty())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "direct boundary leaf has no Terminal boundary identity",
-                    )]
-                })?;
             let mut leaf = (*candidate).clone();
-            let declaration = std::sync::Arc::make_mut(&mut leaf.plan.schema.declaration);
-            let terminal_requirement = declaration.identities.intern(identity);
-            declaration.trait_name = terminal_requirement;
-            leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
-            leaf.plan.rows[0].declared_requirement_identity =
-                leaf.plan.rows[0].requirement_identity;
-            declaration.methods[0].requirement_identity = terminal_requirement;
-            if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut leaf.execution
+            if !leaf
+                .bind_to_terminal(module)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
-                binding.trait_name = identity.to_owned();
-                binding.requirement_identity = identity.to_owned();
+                continue;
             }
-            leaf.validate_bound_calling_custody(module)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
             bound.push(leaf);
         }
         Ok(bound)

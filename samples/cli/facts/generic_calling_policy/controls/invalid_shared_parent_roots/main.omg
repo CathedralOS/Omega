@@ -16,7 +16,7 @@ use omega_language_std::Preemption;
 use omega_language_std::ValueLocation;
 public data Box<Element> { value: Element; }
 boundary trait ValuePlan {
-    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult reaches;
+    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult reaches crashes none;
 }
 SysVValuePlan satisfies ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
@@ -40,7 +40,7 @@ public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
     }
 }
 public const PolicyWidth: u64 = 4;
-public boundary trait ParentEntry { machine value() -> u64 reaches; }
+public boundary trait ParentEntry { machine value() -> u64 reaches crashes none; }
 public boundary trait LocalEntry: ParentEntry + Calling<GenericPolicy<Box<u64>, PolicyWidth>> {}
 public boundary trait UnusedEntry: ParentEntry + Calling<OtherPolicy> {}
 public OtherPolicy satisfies CallingPolicy {

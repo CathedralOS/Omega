@@ -44,10 +44,18 @@ impl std::fmt::Display for PackageReviewEncodingError {
 
 impl std::error::Error for PackageReviewEncodingError {}
 
-pub(super) fn type_identity(
+pub(crate) fn type_identity(
     encoder: &mut encoder::Encoder,
     identity: &crate::record::PackageReviewTypeIdentity,
 ) -> Result<(), crate::encoding::PackageReviewEncodingError> {
-    encoder.observe_type_identity(identity.canonical())?;
+    type_identity_in_scope(encoder, identity, None)
+}
+
+pub(in crate::encoding::encode) fn type_identity_in_scope(
+    encoder: &mut encoder::Encoder,
+    identity: &crate::record::PackageReviewTypeIdentity,
+    declared_lifetimes: Option<usize>,
+) -> Result<(), crate::encoding::PackageReviewEncodingError> {
+    encoder.observe_type_identity(identity.canonical(), declared_lifetimes)?;
     encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
 }

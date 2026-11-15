@@ -18,6 +18,250 @@ use unbuilt_frontier::{fixture_frontier, repository};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+#[test]
+fn explicit_exclusive_formations_keep_their_shared_children_through_publication() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (directory, rejected) in [("pass", false), ("fail", true)] {
+        let fixture = format!("tests/fixtures/{directory}/borrows/exclusive_formation_attenuation");
+        let frontier = fixture_frontier(&fixture);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if rejected {
+            let expected = std::fs::read_to_string(repository(&format!("{fixture}/expected.txt")))
+                .expect("pinned exclusive/shared overlap diagnostic");
+            assert!(verdicts.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { conflicts, .. }) if conflicts.iter().any(|conflict|
+                    conflict.conflict == terminal_psi_to_terminal_psi::LoanConflict::ExclusiveAndShared
+                        && conflict.message().contains(expected.trim()))
+            )), "the still-live cohort must reject exclusive formation: {verdicts:?}");
+            assert!(
+                verdicts.iter().all(|verdict| verdict.is_ok()),
+                "the invalid twin must have an ownership verdict: {verdicts:?}"
+            );
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("the entry closure is judged") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("last-use closure and disjoint siblings must accept: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        let module = &closure.elaboration.module;
+        let mut ancestry = Vec::new();
+        for machine in &module.machines {
+            let operations = || machine.blocks.iter().flat_map(|block| &block.operations);
+            for parent in operations() {
+                let terminal_psi::OperationKind::EstablishReference { source, .. } = &parent.kind
+                else {
+                    continue;
+                };
+                if source.access != terminal_psi::StructuralAccess::MutableBorrow
+                    || source.path.is_empty()
+                {
+                    continue;
+                }
+                let result = parent
+                    .result
+                    .as_structural()
+                    .expect("exclusive descriptor result");
+                let terminal_psi::StructuralTypeShape::Reference { access, .. } = module
+                    .structural_type(result.structural_type)
+                    .expect("descriptor type")
+                    .shape
+                else {
+                    panic!("the exclusive parent must be a reference descriptor")
+                };
+                assert_eq!(access, terminal_psi::StructuralAccess::MutableBorrow);
+                let (path, through_descriptor) = match source
+                    .path
+                    .strip_prefix(&[terminal_psi::StructuralPathSegment::Referent])
+                {
+                    Some(path) => (path, true),
+                    None => (source.path.as_slice(), false),
+                };
+                let [terminal_psi::StructuralPathSegment::Field(field)] = path else {
+                    panic!("the parent captures the exact selected Pair field: {source:?}")
+                };
+                let field = module.identities.text(*field).expect("captured field name");
+                let children = operations()
+                    .filter_map(|child| {
+                        let (source, persistent) =
+                            match &child.kind {
+                                terminal_psi::OperationKind::EstablishReference {
+                                    source, ..
+                                } if source.place == result.place => (source, true),
+                                _ => (
+                                    child
+                                        .kind
+                                        .structural_arguments()
+                                        .iter()
+                                        .find(|source| source.place == result.place)?,
+                                    false,
+                                ),
+                            };
+                        assert_eq!(source.access, terminal_psi::StructuralAccess::SharedBorrow);
+                        assert_eq!(
+                            source.path,
+                            [terminal_psi::StructuralPathSegment::Referent],
+                            "the shared child must name its exact immediate exclusive parent"
+                        );
+                        Some(persistent)
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    children.len(),
+                    1,
+                    "each written formation has one shared child"
+                );
+                let name = &closure
+                    .elaboration
+                    .names
+                    .get(machine.id)
+                    .expect("machine names")
+                    .machine;
+                ancestry.push((name.as_str(), field, children[0], through_descriptor));
+            }
+        }
+        ancestry.sort_unstable();
+        assert_eq!(
+            ancestry,
+            [
+                ("incoming", "first", false, false),
+                ("incoming", "second", false, false),
+                ("incoming", "second", true, false),
+                ("main", "first", false, false),
+                ("through_descriptor", "second", false, true),
+            ]
+        );
+        let unit = execute_ownership_oracle(&closure);
+        let named = |name: &str| {
+            let symbol = unbuilt_frontier::program_machine(&frontier.typed, name)
+                .expect("kept fixture declaration");
+            closure
+                .elaboration
+                .machines
+                .iter()
+                .find(|(_, declaration)| **declaration == symbol)
+                .expect("kept fixture machine")
+                .0
+        };
+        let update = named("update");
+        let incoming = named("incoming");
+        let first = module
+            .structural_types
+            .iter()
+            .find_map(|declaration| match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
+                    .iter()
+                    .find(|field| module.identities.text(field.identity) == Some("first"))
+                    .map(|field| field.identity),
+                _ => None,
+            })
+            .expect("first field identity");
+        // Native ownership must also reject a forged overlapping write.
+        // The type and callee stay fixed; only the captured sibling changes.
+        let mut overlapping_call = unit.clone();
+        let arguments = overlapping_call
+            .function_mut(incoming)
+            .expect("incoming function")
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.nodes)
+            .find_map(|node| match &mut node.operation {
+                abstract_operations::AbstractOperation::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Machine(callee),
+                    structural_arguments,
+                    ..
+                } if *callee == update => Some(structural_arguments),
+                _ => None,
+            })
+            .expect("the real mutable sibling call");
+        assert_eq!(arguments.len(), 1);
+        let [
+            terminal_psi::StructuralPathSegment::Field(selected),
+            terminal_psi::StructuralPathSegment::Field(_),
+        ] = arguments[0].path.as_mut_slice()
+        else {
+            panic!("the mutable call captures pair.second.value")
+        };
+        assert_eq!(module.identities.text(*selected), Some("second"));
+        *selected = first;
+        assert_native_loan_conflict(
+            overlapping_call,
+            "operation accesses suspended referent or treats reference carrier as owned data",
+        );
+
+        let mut overlapping_child = unit;
+        let source = overlapping_child
+            .function_mut(named("through_descriptor"))
+            .expect("stored-parent function")
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.nodes)
+            .find_map(|node| match &mut node.operation {
+                abstract_operations::AbstractOperation::EstablishReference { source, .. }
+                    if source.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && matches!(
+                            source.path.as_slice(),
+                            [
+                                terminal_psi::StructuralPathSegment::Referent,
+                                terminal_psi::StructuralPathSegment::Field(_)
+                            ]
+                        ) =>
+                {
+                    Some(source)
+                }
+                _ => None,
+            })
+            .expect("the stored parent's exclusive sibling child");
+        let terminal_psi::StructuralPathSegment::Field(selected) = &mut source.path[1] else {
+            unreachable!("the selected formation has one field after its parent crossing")
+        };
+        assert_eq!(module.identities.text(*selected), Some("second"));
+        *selected = first;
+        assert_native_loan_conflict(
+            overlapping_child,
+            "reference parent remains suspended by a live child",
+        );
+    }
+}
+
+fn assert_native_loan_conflict(mut unit: optimization_unit::PsiOptimizationUnit, expected: &str) {
+    // The old frontier describes the valid program. Reconstruct the changed
+    // operation's custody instead of reusing those original ownership facts.
+    unit.ownership_frontier_facts.clear();
+    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    let refused = optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
+        .expect_err("native ownership must refuse the overlapping projection");
+    assert!(
+        matches!(refused, optimization_unit_semantics::OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
+        reason, ..
+    } if reason == expected),
+        "native refusal must identify projected loan overlap: {refused:?}"
+    );
+}
+
 struct NoEffects;
 
 impl TerminalEffectHandler for NoEffects {
@@ -152,8 +396,10 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     );
 }
 
-fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosure) {
-    let publication = closure.publish().expect("refilled ownership publishes");
+fn execute_ownership_oracle(
+    closure: &terminal_psi_to_terminal_psi::AcceptedClosure,
+) -> optimization_unit::PsiOptimizationUnit {
+    let publication = closure.publish().expect("checked ownership publishes");
     assert!(
         publication
             .artifact
@@ -171,7 +417,7 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
-    .expect("Omega 00 carries the exact restoration")
+    .expect("Omega 00 carries checked ownership operations")
     .into_optimization_artifact()
     .into_optimization_input();
     let (_, unit) =
@@ -179,10 +425,10 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),
         )
-        .expect("Omega 01 verifies the restored owned home")
+        .expect("Omega 01 verifies checked ownership storage")
         .into_parts();
     let frontiers = optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
-        .expect("the independent current ownership walk reconstructs the restored owner");
+        .expect("the independent walk reconstructs current ownership");
     let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
         .expect("the exact reconstructed owner facts attach without substitution");
     optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
@@ -191,20 +437,21 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
     )
     .expect("the retained owner facts preserve the actual edge cleanup transitions");
     let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
-        .expect("restored module encodes");
+        .expect("checked module encodes");
     let mut execution =
         TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
-            .expect("restored module loads");
+            .expect("checked module loads");
     let status = execution
         .resume(
             &mut terminal_work::WorkMeter::with_budget(1_000_000),
             &mut NoEffects,
         )
-        .expect("the old moved value and restored owner execute independently");
+        .expect("the checked ownership program executes its value oracle");
     assert!(
         matches!(status, TerminalExecutionStatus::Complete(_)),
         "{status:?}"
     );
+    unit
 }
 
 /// Each selected arm supplies its actual owned value, through publication,
@@ -280,7 +527,7 @@ machine main() crashes Trap {
                 "{verdict:?}"
             );
         }
-        execute_refilled_owner(&closure);
+        execute_ownership_oracle(&closure);
     }
 }
 
@@ -361,7 +608,7 @@ machine main() crashes Trap {
                 "{verdict:?}"
             );
         }
-        execute_refilled_owner(&closure);
+        execute_ownership_oracle(&closure);
     }
 }
 
@@ -442,7 +689,7 @@ machine main() crashes Trap {
                 "{verdict:?}"
             );
         }
-        execute_refilled_owner(&closure);
+        execute_ownership_oracle(&closure);
     }
 }
 
@@ -540,7 +787,7 @@ machine main() crashes Trap {
                 "{verdict:?}"
             );
         }
-        execute_refilled_owner(&closure);
+        execute_ownership_oracle(&closure);
     }
 }
 
@@ -607,7 +854,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
                 slot: 0,
                 value: invoke(2, Vec::new(), Some(record)),
             },
-            Statement::Evaluate(invoke(
+            Statement::discard(invoke(
                 3,
                 vec![expression(ExpressionKind::Slot(0), Some(record))],
                 None,
@@ -910,7 +1157,7 @@ mod transferred_on_one_path {
                         slot: 1,
                         value: invoke(4, Vec::new(), boolean()),
                     },
-                    Statement::Evaluate(expression(
+                    Statement::discard(expression(
                         ExpressionKind::ShortCircuit {
                             conjunction: true,
                             left: Box::new(slot(1, boolean())),

@@ -292,6 +292,65 @@ impl Storage<'_> {
             return Ok(rows);
         }
         match &operation.kind {
+            OperationKind::AtomicAccess {
+                place,
+                path,
+                event,
+                resident_obligation,
+            } => {
+                let leaf = self.stored_at(*place, path, concerns)?;
+                let Shape::Atomic(cell) = self.shape(&leaf, concerns)? else {
+                    return Err(self.foreign(
+                        concerns,
+                        "atomic event does not name dedicated atomic storage",
+                    ));
+                };
+                if !cell.is_supported() || cell.bounds().is_some() || resident_obligation.is_some()
+                {
+                    return Err(self.unsupported(
+                        concerns,
+                        "atomic resident requires its checked establishment obligation",
+                    ));
+                }
+                if !event.ordering_is_legal() {
+                    return Err(self.foreign(concerns, "atomic event has an illegal ordering"));
+                }
+                if event
+                    .operands()
+                    .iter()
+                    .any(|operand| value_types.get(*operand) != Some(&cell.scalar_type()))
+                {
+                    return Err(
+                        self.foreign(concerns, "atomic operand differs from its resident type")
+                    );
+                }
+                match operation.result {
+                    terminal_psi::OperationResult::Scalar(result)
+                        if event.observes_resident()
+                            && result.scalar_type == cell.scalar_type() => {}
+                    terminal_psi::OperationResult::Unit if !event.observes_resident() => {}
+                    _ => return Err(self.foreign(concerns, "atomic result differs from its event")),
+                }
+                if matches!(
+                    event,
+                    terminal_psi::AtomicAccessEvent::CompareExchangeOnce { .. }
+                ) {
+                    return Err(self.unsupported(concerns, "single-attempt atomic outcome custody"));
+                }
+                if !matches!(
+                    event,
+                    terminal_psi::AtomicAccessEvent::Load { .. }
+                        | terminal_psi::AtomicAccessEvent::Store { .. }
+                ) && !matches!(cell.scalar_type(), ScalarType::Integer(_))
+                {
+                    return Err(
+                        self.foreign(concerns, "atomic update requires an integer resident")
+                    );
+                }
+                if event.modifies_resident() {
+                    rows.push((leaf, Stored::Established));
+                }
+            }
             OperationKind::EstablishStructuralLocal {} => {
                 rows.push((fresh()?, Stored::Vacated));
             }
@@ -494,9 +553,15 @@ impl Storage<'_> {
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ByteSequenceRead { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. } => {}
+            // A module scalar application (a layout observation) has no
+            // operand and no storage: its scalar result is fixed by
+            // installation under the selected target, never by a place.
+            OperationKind::ReadScalarApplication { .. } => {}
             kind if kind.declared_invocation().is_some() => {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Established));
@@ -559,6 +624,7 @@ impl Storage<'_> {
         concerns: Construct,
     ) -> Checked<()> {
         let (case, fields) = match &self.declaration(structural_type, concerns)?.shape {
+            StructuralTypeShape::AtomicCell(_) => return Ok(()),
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 found.push((at.clone(), *scalar_type));
                 return Ok(());
@@ -594,6 +660,7 @@ impl Storage<'_> {
                 StructuralFieldType::Structural(nested) => {
                     self.zero_scalars(nested, at, found, concerns)?;
                 }
+                StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {}
                 // The empty shared view has no scalar leaf.
                 ref stored if super::is_stored_view(stored) => {}
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),

@@ -13,7 +13,6 @@ use typed_trees::expression::{
 };
 
 use super::authority::Access;
-use super::storage_path::names_storage;
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Policy, Selector, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse, reject};
@@ -486,9 +485,17 @@ impl<'t> Program<'t> {
                 };
             }
             ExpressionNode::ArrayLiteral(elements) => {
-                return self.array_literal(id, slots, *elements, expected, source);
+                let declared = typed
+                    .expression_table
+                    .constructed_value_type_reference(handle);
+                let array_type = if declared.is_valid() {
+                    Some(self.value_type(id, declared)?)
+                } else {
+                    expected
+                };
+                return self.array_literal(id, slots, *elements, array_type, source);
             }
-            ExpressionNode::Atomic(_) => return unserved("atomic"),
+            ExpressionNode::Atomic(atomic) => return self.atomic_load(id, slots, atomic, source),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
@@ -612,10 +619,10 @@ impl<'t> Program<'t> {
         self.observed(id, value, expected)
     }
 
-    /// Value-position `match` over a sum with scalar arms. The subject must
-    /// name storage (a slot or a path beneath one), so observing it in the
-    /// dispatch and again in each arm's payload members evaluates nothing
-    /// twice. Each arm is a case pattern or the wildcard, which must be
+    /// A match retains one completed subject capture. Lowering evaluates a
+    /// computed subject once and keeps its owned storage through the selected
+    /// arm, just as a stored subject keeps its exact projected place. Each
+    /// arm is a case pattern or the wildcard, which must be
     /// last; an arm for a case an earlier arm selects can never run and is
     /// refused. Coverage is not decided here: lowering builds the
     /// terminator from the declaration's case table and reports a missing
@@ -633,9 +640,6 @@ impl<'t> Program<'t> {
         let Some(record) = self.opened(id, subject.result, Access::Read)? else {
             return self.scalar_match(id, slots, matched, subject, expected, source);
         };
-        if !names_storage(&subject) {
-            return Err(unserved("match on a subject that is not a place"));
-        }
         if !self
             .typed
             .expression_table
@@ -777,9 +781,9 @@ impl<'t> Program<'t> {
         Ok((arms, default, result))
     }
 
-    /// Each arm transfers one value of the destination's exact type,
-    /// including its regions. Qualification and rigid-value judgments remain
-    /// separate; a matching carrier alone does not erase those obligations.
+    /// Each returning arm transfers the destination's exact type, including
+    /// its domains and regions. Structural arrival parameters carry those
+    /// memberships into the match continuation.
     fn arm_value(
         &mut self,
         id: MachineId,
@@ -803,10 +807,9 @@ impl<'t> Program<'t> {
         }
         let value_type = match value.result {
             Some(
-                value_type @ (ValueType::Scalar(_, Qualification::NONE)
-                | ValueType::Record(_, Qualification::NONE, _)),
+                value_type @ (ValueType::Scalar(_, Qualification::NONE) | ValueType::Record(..)),
             ) => value_type,
-            Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+            Some(ValueType::Scalar(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
             Some(ValueType::Rigid(_)) => {
@@ -1279,6 +1282,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     left.result == right.result
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
+            (
+                ExpressionKind::LayoutObservation { subject: a, measurement: am },
+                ExpressionKind::LayoutObservation { subject: b, measurement: bm },
+            ) => a == b && am == bm,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
@@ -1435,8 +1442,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     }
             }
             (
-                ExpressionKind::SavedSubject(_)
+                ExpressionKind::Atomic { .. }
+                | ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
+                | ExpressionKind::LayoutObservation { .. }
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }

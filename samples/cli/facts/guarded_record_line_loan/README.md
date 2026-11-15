@@ -79,9 +79,6 @@ omega --check samples/cli/facts/guarded_record_line_loan/invalid_target_body/mai
 
 - **Parent outcome:** Multi-borrow lifetime preservation / [loans](../../../../wiki/spec/terminal-psi/loans.md) / [ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/guarded_record_line_loan_through_*`
-  - Negative controls: `tests/omega/fail/facts/guarded_record_line_loan_through_*`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** Selecting the `ReadOutcome::Complete` or `ReadOutcome::End` case edge establishes simultaneous loan availability: an exclusive mutable borrow `&mut Application` and a shared array borrow `&[u8; 64]` over disjoint backing allocations. This establishes authority for both the mutating ledger field assignment (`application.ledger.count = count`) and immutable byte index load (`line[0]`) directly without any post-hoc caller equality guard (`transition x == 100`).

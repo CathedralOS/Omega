@@ -53,6 +53,201 @@ const NOT_RESTORED: &str =
     "the place does not hold a value again where the machine returns the borrow";
 const USED_VACANT: &str = "owned storage is used after its value was transferred or consumed";
 
+#[test]
+fn a_local_owned_field_is_restored_before_its_reference_is_released() {
+    let program = |restore: &str| {
+        format!(
+            "machine take(value: Holder, next: Inner) -> Inner {{\n\
+         let mut owner: Holder = value;\n\
+         let local: &mut Holder = &mut owner;\n\
+         let taken: Inner = move local.inner;\n\
+         {restore}\n\
+         taken\n}}\n"
+        )
+    };
+    accepted(&program("local.inner = next;"));
+    // No later observation of owner can stand in for the loan's repair debt:
+    // discarding its incomplete owned complement must still reject.
+    rejected(&program(""), NOT_RESTORED);
+    rejected(&program("local.tag = 2;"), NOT_RESTORED);
+}
+
+#[test]
+fn an_ordinary_owned_partial_move_owes_no_borrowed_storage_repair() {
+    accepted(
+        "machine take(value: Holder) -> Inner {\n\
+         let mut owner: Holder = value;\n\
+         let taken: Inner = move owner.inner;\n\
+         taken\n}\n",
+    );
+}
+
+#[test]
+fn a_local_window_restores_only_the_storage_its_reference_captured() {
+    let program = |restore: &str| {
+        format!(
+            "data Separate {{ lent: Holder; other: Inner; }}\n\
+         machine take(value: Separate, next: Inner) -> Inner {{\n\
+         let mut owner: Separate = value;\n\
+         let local: &mut Holder = &mut owner.lent;\n\
+         let taken: Inner = move local.inner;\n\
+         let detached: Inner = move owner.other;\n\
+         {restore}\n\
+         taken\n}}\n"
+        )
+    };
+    accepted(&program("local.inner = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+#[test]
+fn a_dead_shared_reference_is_released_before_parent_write_on_a_crashing_path() {
+    let program = |before: &str, after: &str| {
+        format!(
+            "machine observe(value: &u32) {{ }}\n\
+         machine stop(owner: &mut Inner) crashes Trap {{\n\
+         let held: &u32 = &owner.value;\n\
+         {before}\n\
+         owner.value = 7;\n\
+         {after}\n\
+         crash Trap;\n}}\n"
+        )
+    };
+    accepted(&program("observe(held);", ""));
+    rejected(&program("", "observe(held);"), "conflict:");
+}
+
+#[test]
+fn an_unselected_sum_payload_is_never_released_as_a_live_reference() {
+    let program = format!(
+        "{DATA}data Either<'storage> {{\n\
+         case Left(item: &'storage Inner);\n\
+         case Right(item: &'storage Inner);\n\
+         }}\n\
+         machine idle(value: Either, flag: bool) -> bool {{ !flag }}\n"
+    );
+    let outcome = super::entryless::judged(&program, true);
+    let RouteVerdict::Accepted(accepted) = outcome else {
+        panic!("an arbitrary incoming case must keep guarded cleanup: {outcome:?}");
+    };
+    assert!(
+        accepted.elaboration.module.machines[0]
+            .operations()
+            .all(|operation| { !matches!(operation.kind, OperationKind::ReleaseReference { .. }) })
+    );
+}
+
+#[test]
+fn an_owned_field_window_keeps_its_loan_after_the_carrier_moves() {
+    let program = |restore: &str| {
+        format!(
+            "machine take(value: Holder, next: Inner) -> Inner {{\n\
+         let mut owner: Holder = value;\n\
+         let local: &mut Holder = &mut owner;\n\
+         let taken: Inner = move local.inner;\n\
+         let repair: &mut Holder = move local;\n\
+         {restore}\n\
+         taken\n}}\n"
+        )
+    };
+    accepted(&program("repair.inner = next;"));
+    rejected(&program(""), NOT_RESTORED);
+}
+
+/// A replacement is evaluated before the overwritten field gives up its
+/// permission. Disposing a dead carrier earlier would make this second
+/// exclusive borrow appear valid while the first still occupies the field.
+#[test]
+fn a_field_replacement_keeps_the_old_loan_during_rhs_evaluation() {
+    rejected(
+        "data Held<'storage> { item: &'storage mut Inner; }\n\
+         machine replace(owner: &mut Inner) {\n\
+             let mut held: Held = Held { item: &mut owner };\n\
+             held.item = &mut owner;\n\
+         }\n",
+        "TwiceExclusive",
+    );
+}
+
+#[test]
+fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
+    let source = format!(
+        "{DATA}machine read(value: Holder, next: Inner) -> u32 {{\n\
+         let mut owner: Holder = value;\n\
+         let local: &mut Holder = &mut owner;\n\
+         let taken: Inner = move local.inner;\n\
+         local.inner = next;\n\
+         owner.tag\n}}\n"
+    );
+    assert!(
+        matches!(
+            super::entryless::judged(&source, false),
+            RouteVerdict::Accepted(_)
+        ),
+        "the original restored source must be accepted"
+    );
+    // Re-lower the source so receiving analysis owns fresh knowledge rows;
+    // its accepted output is not an unjudged input to the same stage.
+    let typed = super::boundary_calls::typed(&source);
+    let mut elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
+    let block = elaboration.module.machines[0]
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block
+                .operations
+                .iter()
+                .any(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
+        })
+        .expect("the source contains an actual release");
+    let observation = block
+        .operations
+        .iter()
+        .rposition(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::ScalarStructuralField { .. }
+                    | OperationKind::PrimitiveScalarRead { .. }
+            )
+        })
+        .expect("the source observes its parent's scalar field");
+    let release = block.operations[..observation]
+        .iter()
+        .rposition(|operation| matches!(operation.kind, OperationKind::ReleaseReference { .. }))
+        .expect("the parent observation follows its final reference release");
+    // Keep the same operations, custody and final cleanup, but move the
+    // release after the parent observation. Future-use liveness is identical
+    // at that observation; actual permission custody is not.
+    let delayed = block.operations.remove(release);
+    block.operations.insert(observation, delayed);
+    elaboration.module.unoptimized_behavior = elaboration
+        .module
+        .machines
+        .iter()
+        .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+        .collect();
+    let outcome = judge(Ok(elaboration)).unwrap();
+    assert!(
+        matches!(outcome, RouteVerdict::Rejected { ref conflicts, .. }
+            if conflicts.iter().any(|conflict|
+                matches!(conflict.conflict, crate::LoanConflict::ObserveWhileExclusive))),
+        "{outcome:?}"
+    );
+}
+
 /// The window is opened by the move and closed by the store into the same
 /// field; the twin never stores, so the caller would get its `Holder` back
 /// with nothing in `inner`.
@@ -228,6 +423,14 @@ fn execute_restoration(source: &str) {
 #[test]
 fn a_whole_borrowed_window_publishes_and_executes_the_original_storage() {
     execute_restoration(ROOT_RESTORATION);
+}
+
+#[test]
+fn an_owned_field_window_publishes_and_executes_the_original_local_storage() {
+    execute_restoration(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/ownership/owned_borrowed_field_restoration/main.omg"
+    )));
 }
 
 #[test]

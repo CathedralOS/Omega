@@ -67,14 +67,10 @@ Check a twin with `omega --check samples/cli/facts/call_result_bound_discharge/<
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/call_result_bound_discharge`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract` or `structurally false`).
 - The exit oracle discriminates: corrupting the observed result in the `local` place (`transition r == 4` to `transition r == 5`) makes the project trap under both engines (`crash Trap`), producing exit code 255 against the authored 0.
 - Remaining open on `ONE-INTEGER-BOUNDS-ENGINE`: this row establishes the call-result discharge of a bounded integer obligation only. It does not establish bounds carried as borrowed projections, floating-point ranges, or generic instantiations.
 
 ## Pinned fixtures
-
-- Positives: `tests/omega/pass/facts/call_result_bound_discharge_through_<place>_exit`, each binding `Main::main` for the four hosted targets and carrying `expected_native_exit.txt` = 0.
-- Twins: `tests/omega/fail/facts/call_result_bound_discharge_through_<place>_rejected`, each carrying its authored fragment in `expected.txt`.
 
 Both sets are byte-identical to the corresponding sample place and twin, so the fixture tree pins the same programs the row runs.
 

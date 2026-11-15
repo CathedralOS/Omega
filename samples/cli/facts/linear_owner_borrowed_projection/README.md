@@ -28,9 +28,8 @@ The nine positive witnesses and their single-fact reject twins are paired here:
 | Other machine | [program](other_machine/main.omg) | [live caller read](invalid_other_machine/main.omg) |
 | Selected implementation | [program](target_body/main.omg) | [live caller read](invalid_target_body/main.omg) |
 
-The [unissued control](controls/unissued/main.omg) separately rejects an
-unminted `Cell::Issued` claim. Authored corpus copies pin the same sources and
-runtime oracles under `tests/omega/{pass,fail}/facts/linear_owner_borrowed_projection_*`.
+The [unissued control](controls/unissued/main.omg) separately rejects an unminted
+`Cell::Issued` claim.
 
 | Requirement layer | Evidence and limit |
 | --- | --- |

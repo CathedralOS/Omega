@@ -35,7 +35,6 @@ omega run --both samples/cli/facts/signed_division_quotient/const_name/main.omg
 omega run --both samples/cli/facts/signed_division_quotient/other_state/main.omg
 omega run --both samples/cli/facts/signed_division_quotient/other_machine/main.omg
 omega run --both samples/cli/facts/signed_division_quotient/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/signed_division_quotient
 ```
 
 ### The oracle discriminates
@@ -58,23 +57,11 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `may overflow \`u64\`` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `may overflow \`u64\`` |
 
-## Pinned Fixtures
-
-The row is pinned by `tests/omega/pass/facts/signed_division_quotient_through_*_exit` and
-`tests/omega/fail/facts/signed_division_quotient_through_*_rejected` fixtures; every positive
-records native exit 0 and Terminal Psi execution agreement.
-
 ## Rounding discrimination
 
-The nine places divide `-300i64` by `-3i64`, whose quotient `+100i64` is exact and
-integral. It is therefore **identical under truncation toward zero and under
-floor**, so the positive places alone cannot detect a compiler that rounds
-negative quotients the wrong way. The rounding half of the fact is pinned
-separately by the run-tier canary
-`tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps`,
-which asserts the floor result `(-7i64) / (2i64) == -4i64` and must trap,
-because [numeric values](wiki/spec/language/numeric_values.md#integer-quotient-and-remainder)
-fixes quotient truncation toward zero with `r = 0 or sign(r) = sign(a)`.
+The nine places divide `-300i64` by `-3i64`, whose quotient `+100i64` is exact and integral.
+It is therefore **identical under truncation toward zero and under floor**, so the positive
+places alone cannot detect a compiler that rounds negative quotients the wrong way.
 
 Measured on `macos_arm64` at `fca093f90f6d`, both engines independently agree:
 

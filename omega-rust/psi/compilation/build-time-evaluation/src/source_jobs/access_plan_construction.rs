@@ -115,19 +115,27 @@ fn assert_zero_tail(plan: &BuildTimeValue) {
     );
 }
 
-#[test]
-fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails() {
+fn typed_source(source: &str) -> typed_trees::TypedTrees {
     let library =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
-    let typed = customer_source::actual_library_source(
+    customer_source::actual_library_source(
         &library,
-        SOURCE,
+        source,
         semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32])
             .expect("retained test package"),
     )
-    .expect("type actual candidate core and alloc with matching compiler catalog");
+    .expect("type actual candidate core and alloc with matching compiler catalog")
+}
+
+fn reflected_schema(
+    typed: &typed_trees::TypedTrees,
+    prepared: &PreparedBuildMachineProgram,
+    requester_name: &str,
+    invocation_target: InvocationTarget<'_>,
+    accounting: &mut SourceCompletionAccounting,
+) -> crate::MeasuredEvaluation<BuildTimeValue> {
     let requester = typed
-        .realized_machine_named("describe_cell")
+        .realized_machine_named(requester_name)
         .expect("actual source query author")
         .symbol;
     let mut calls = typed
@@ -138,7 +146,7 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
                 return None;
             };
             (typed_trees::references::StaticArgumentCall::Expression(expression, call)
-                .lexical_owner(&typed)
+                .lexical_owner(typed)
                 == requester)
                 .then_some(expression)
         });
@@ -162,18 +170,31 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
         )),
         "candidate library bytes must match the compiler's exact core catalog",
     );
-    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).expect("retain source");
-    let facts = facts();
-    let mut accounting = SourceCompletionAccounting::default();
     let schema = prepared
         .entry_call(requester, expression, &[])
         .expect("same lexical request")
-        .invoke_recorded(target(&facts), &mut accounting)
+        .invoke_recorded(invocation_target, accounting)
         .expect("genuine complete TypeSchema");
     let BuildTimeValue::Text(bytes) = field(schema.value(), "storage") else {
         panic!("actual graph bytes")
     };
     assert!(!bytes.is_empty(), "no empty schema approximation");
+    schema
+}
+
+#[test]
+fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails() {
+    let typed = typed_source(SOURCE);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).expect("retain source");
+    let facts = facts();
+    let mut accounting = SourceCompletionAccounting::default();
+    let schema = reflected_schema(
+        &typed,
+        &prepared,
+        "describe_cell",
+        target(&facts),
+        &mut accounting,
+    );
     let roundtrip = typed
         .realized_machine_named("return_plan")
         .expect("actual source transport declaration")
@@ -242,4 +263,154 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
     accounting
         .validate_charges()
         .expect("same invocation work/result accounting");
+}
+
+#[test]
+fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
+    use typed_trees::domain::DomainIssuance;
+    use typed_trees::reflection::construction::{
+        declaration_source_revision, exact_symbol_identity,
+    };
+
+    const SOURCE: &str = include_str!("selected_access_plan_family.omg");
+    let empty = SOURCE.replace("routes: [reflect::callable(stamp)]", "routes: []");
+    let facts = facts();
+    for (source, route_count) in [(empty.as_str(), 0), (SOURCE, 1)] {
+        let typed = typed_source(source);
+        let prepared = PreparedBuildMachineProgram::prepare(&typed, None).expect("retain source");
+        let mut accounting = SourceCompletionAccounting::default();
+        let schema = reflected_schema(
+            &typed,
+            &prepared,
+            "describe_ticket",
+            target(&facts),
+            &mut accounting,
+        );
+        let arguments = std::slice::from_ref(schema.value());
+        let domain = typed
+            .domain_definitions
+            .iter()
+            .map(|(_, row)| row)
+            .find(|row| row.name.as_str() == "Ticket::Stamped")
+            .expect("the authored governed domain");
+        let DomainIssuance::Planned(policy) = domain.issuance() else {
+            panic!("the authored domain retains its actual plan selection");
+        };
+        let conformance = typed
+            .conformance_by_symbol(policy.implementation())
+            .expect("the selected source policy");
+        let [row] = conformance.rows.as_slice() else {
+            panic!("one exact plan requirement");
+        };
+        let selected = prepared
+            .entry_selected(
+                domain.symbol,
+                domain.symbol,
+                &policy.selection,
+                row.requirement,
+                arguments,
+            )
+            .expect("prepare the domain's selected call")
+            .invoke_recorded(target(&facts), &mut accounting)
+            .expect("the selected plan publishes and executes with the declared lifetime family");
+        let ordinary = typed
+            .realized_machine_named("construct_direct_plan")
+            .expect("the ordinary constructor control")
+            .symbol;
+        let direct = prepared
+            .entry(ordinary, ordinary, arguments)
+            .expect("prepare the ordinary call")
+            .invoke_recorded(target(&facts), &mut accounting)
+            .expect("the ordinary plan executes");
+        assert_eq!(selected.value(), direct.value());
+        assert_eq!(field(selected.value(), "schema"), schema.value());
+        assert_zero_tail(selected.value());
+
+        let [(name, routes)] = empty_case(field(selected.value(), "issuance"), "Only") else {
+            panic!("the selected plan returns the complete Only payload");
+        };
+        assert_eq!(name, "routes");
+        assert_eq!(array(routes).len(), route_count);
+        if let [route] = array(routes) {
+            let issuer = typed
+                .realized_machine_named("stamp")
+                .expect("the reflected issuer")
+                .symbol;
+            let (identity, hermetic) =
+                exact_symbol_identity(&typed, issuer).expect("issuer identity");
+            assert!(hermetic);
+            let revision = declaration_source_revision(&typed, issuer).expect("issuer source");
+            let description = empty_case(route, "Machine");
+            assert_eq!(description.len(), 3);
+            for (name, value) in description {
+                let BuildTimeValue::Text(bytes) = value else {
+                    panic!("the reflected issuer has immutable identity bytes");
+                };
+                match name.as_str() {
+                    "declaration_identity" => assert_eq!(bytes, identity.as_bytes()),
+                    "source_revision" => assert_eq!(bytes, &revision),
+                    "callable_identity" => assert!(!bytes.is_empty()),
+                    _ => panic!("unexpected reflected issuer field {name}"),
+                }
+            }
+        }
+        assert!(accounting.has_complete_usage());
+        accounting
+            .validate_charges()
+            .expect("complete invocation usage");
+    }
+}
+
+#[test]
+fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
+    let source = r#"
+        use omega::language::core::reflect;
+        data Cell { value: u32; }
+        machine describe() -> reflect::TypeSchema { reflect::schema<Cell>() }
+        machine carry<'text>(schema: reflect::TypeSchema<'text>) -> reflect::TypeSchema<'text> { schema }
+        machine local_escape<'text>() -> &'text [u8] {
+            let bytes: [u8; 1] = [7u8];
+            let view: &[u8] = &bytes[..];
+            view
+        }
+    "#;
+    let typed = typed_source(source);
+    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
+    let facts = facts();
+    let mut accounting = SourceCompletionAccounting::default();
+    let schema = reflected_schema(
+        &typed,
+        &prepared,
+        "describe",
+        target(&facts),
+        &mut accounting,
+    );
+    let carry = typed.realized_machine_named("carry").unwrap().symbol;
+    let returned = prepared
+        .entry(carry, carry, &[schema.value().clone()])
+        .unwrap()
+        .invoke_recorded(target(&facts), &mut accounting)
+        .unwrap();
+    assert_eq!(
+        returned.value(),
+        schema.value(),
+        "the real query image survives the ordinary lifetime-bound call"
+    );
+    let local_escape = typed.realized_machine_named("local_escape").unwrap().symbol;
+    let before = accounting.receipts().len();
+    let error = prepared
+        .entry(local_escape, local_escape, &[])
+        .err()
+        .expect("a fresh call lifetime cannot retain this callee's local array");
+    assert!(error.contains("lifetime"), "{error}");
+    assert!(
+        !error.contains("not supported yet"),
+        "the actual local-storage contract must reject: {error}"
+    );
+    assert_eq!(
+        accounting.receipts().len(),
+        before,
+        "no evaluation of the escaping local borrow"
+    );
+    accounting.validate_charges().unwrap();
 }

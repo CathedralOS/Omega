@@ -38,19 +38,14 @@ the maximum concentration with a separate decimal scale, so a mathematically
 finite mass beyond the floating carrier's exponent range remains reportable.
 Derived nonfinite numerical output exits 65 or 70 rather than claiming success.
 
-`reference.py` freezes an independent analytic binomial convolution using
-80-digit decimal arithmetic and exact binomial coefficients; it does not read
-application source or execution output. `data/freeze.sha256` pins the generator,
-full oracle and stdin matrix before execution. Tests include both velocity signs,
-constants, impulses, sinusoids, CFL=1 exact shifts, zero velocity, zero steps,
-endpoint dimensions/step count, scale extremes and intended invalid controls.
-`validate.py` checks every field to 1e-9 absolute/relative, mass to 1e-10 of its
-natural scale, positivity, no new extrema and numerical reports. It consumes
-actual native processes or captured Terminal stdout, stderr and completion.
-`--omega` uses the public CLI to compile once and execute all 48 frozen stdin
-cases in both engines, checking each engine's actual numerical output and exit.
-`controls/stencil_bound` must fail source checking: `index<=64` cannot justify
-indexing 64 cells. Exit parity is never a numerical oracle.
+`data/freeze.sha256` pins the generator, full oracle and stdin matrix before
+execution. Tests include both velocity signs, constants, impulses, sinusoids,
+CFL=1 exact shifts, zero velocity, zero steps, endpoint dimensions/step count,
+scale extremes and intended invalid controls. `--omega` uses the public CLI to
+compile once and execute all 48 frozen stdin cases in both engines, checking each
+engine's actual numerical output and exit. `controls/stencil_bound` must fail
+source checking: `index<=64` cannot justify indexing 64 cells. Exit parity is
+never a numerical oracle.
 
 From the repository root, using a compiler built from a recorded revision:
 
@@ -58,10 +53,7 @@ From the repository root, using a compiler built from a recorded revision:
 omega packages update --project samples/cli/independent/conservative_advection --target linux_x86_64
 # Inspect the exact proposal, then accept/resume only the scoped normal decisions.
 omega run --keep samples/cli/independent/conservative_advection/main.omg < samples/cli/independent/conservative_advection/input.txt
-python3 samples/cli/independent/conservative_advection/validate.py --native-binary /absolute/path/to/retained/executable
-python3 samples/cli/independent/conservative_advection/validate.py --omega /absolute/path/to/omega --output /absolute/batch/capture/directory
 CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release -p advection-terminal-validation -- /absolute/sample/directory/main.omg /absolute/capture/directory
-python3 samples/cli/independent/conservative_advection/validate.py --captured /absolute/capture/directory
 omega --check samples/cli/independent/conservative_advection/controls/stencil_bound/main.omg < /dev/null
 ```
 

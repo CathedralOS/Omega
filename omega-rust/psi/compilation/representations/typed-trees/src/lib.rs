@@ -472,7 +472,106 @@ pub(crate) mod canonical_values {
         ))
     }
 
+    fn matches_materialized(
+        program: &TypedTrees,
+        carrier: TypeReferenceHandle,
+        expression: crate::expression::ExpressionHandle,
+        value: &DecodedCanonicalConstValue,
+    ) -> bool {
+        if !program.expression_table.expression_is_valid(expression) {
+            return false;
+        }
+        match (program.expression_table.expression(expression), value) {
+            (ExpressionNode::Boolean(actual), DecodedCanonicalConstValue::Boolean(expected)) => {
+                actual == expected
+            }
+            (
+                ExpressionNode::Integer(actual),
+                DecodedCanonicalConstValue::Integer {
+                    integer_type,
+                    value,
+                },
+            ) => {
+                actual.landing()
+                    == Some(IntegerLanding {
+                        landed_type: *integer_type,
+                        domain: program.type_reference_table.arithmetic_domain(carrier),
+                    })
+                    && actual.value_bignum().as_ref() == Some(value)
+            }
+            (
+                ExpressionNode::ArrayLiteral(actual),
+                DecodedCanonicalConstValue::Array { type_name, values },
+            ) => {
+                let Some(underlying) = program.unwrapped_type_reference(carrier) else {
+                    return false;
+                };
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                } = program.type_reference_node(underlying)
+                else {
+                    return false;
+                };
+                let expressions = program.expression_table.expression_handles(*actual);
+                *type_name == program.display_type_reference(carrier)
+                    && *length == values.len()
+                    && expressions.len() == values.len()
+                    && expressions.iter().zip(values).all(|(expression, value)| {
+                        matches_materialized(program, *element_type, *expression, value)
+                    })
+            }
+            (
+                ExpressionNode::StructLiteral(actual),
+                DecodedCanonicalConstValue::Record { type_name, fields },
+            ) => {
+                let Some(underlying) = program.unwrapped_type_reference(carrier) else {
+                    return false;
+                };
+                let Some(symbol) = program.type_reference_node(underlying).as_named_symbol() else {
+                    return false;
+                };
+                let Some(record) = program.data_definition_by_symbol(symbol) else {
+                    return false;
+                };
+                let members = program.data_members(record);
+                let expressions = program.expression_table.struct_fields(actual.fields);
+                actual.type_symbol == symbol
+                    && actual.case_symbol.is_none()
+                    && actual.case_name.is_none()
+                    && type_name == record.name.as_str()
+                    && members.len() == fields.len()
+                    && expressions.len() == fields.len()
+                    && members.iter().zip(expressions).zip(fields).all(
+                        |((member, expression), (name, value))| {
+                            member.as_field().is_some_and(|field| {
+                                field.symbol == expression.field_symbol
+                                    && field.name == expression.name
+                                    && field.name.as_str() == name
+                                    && matches_materialized(
+                                        program,
+                                        field.type_reference,
+                                        expression.value,
+                                        value,
+                                    )
+                            })
+                        },
+                    )
+            }
+            _ => false,
+        }
+    }
+
     impl TypedTrees {
+        pub fn canonical_const_materialization_matches(
+            &self,
+            carrier: TypeReferenceHandle,
+            expression: crate::expression::ExpressionHandle,
+            value: &DecodedCanonicalConstValue,
+        ) -> bool {
+            matches_materialized(self, carrier, expression, value)
+        }
+
         pub fn materialize_canonical_const_value(
             &mut self,
             carrier: TypeReferenceHandle,
@@ -484,7 +583,8 @@ pub(crate) mod canonical_values {
 }
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, CallableContractScope, CallableSubstitution,
-    ClosedRequirementApplication, NamedConformanceCaptureIndex, RequirementLocalArgument,
+    ClosedRequirementApplication, MachineInstantiation, NamedConformanceCaptureIndex,
+    RequirementLocalArgument,
 };
 pub(crate) mod frozen {
     use super::TypedTrees;
@@ -1057,7 +1157,7 @@ pub struct TypedTrees {
     pub service_reach_rows: language_semantics::ServiceReachRowTable,
     pub authored_service_reach_rows: Vec<signature::AuthoredServiceReachRow>,
     pub semantic_domains: language_semantics::SemanticDomainTable,
-    pub applied_domain_applications: Vec<domain::AppliedDomainApplication>,
+    pub applied_domain_applications: domain::AppliedDomainApplications,
     pub applied_data_cleanup_selections: Vec<domain::AppliedDataCleanupSelection>,
     pub external_bindings: language_semantics::ExternalBindingTable,
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
@@ -1322,7 +1422,7 @@ impl TypedTrees {
             service_reach_rows: language_semantics::ServiceReachRowTable::default(),
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
-            applied_domain_applications: Vec::new(),
+            applied_domain_applications: Default::default(),
             applied_data_cleanup_selections: Vec::new(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),

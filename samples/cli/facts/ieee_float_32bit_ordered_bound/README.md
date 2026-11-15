@@ -20,13 +20,6 @@ Claim Ticket: `b5becca237e84675af8d8e357421e5a9`
 | `other_machine` | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | A forwarding machine (`deliver`) forwards the bounded `f32` reading to `verify_f32_window` |
 | `target_body` | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Each of four target-scoped machine bodies forwards the bounded `f32` reading to `verify_f32_window` |
 
-## Pinned Fixtures
-
-Each of the nine places is pinned twice in the compiler corpus:
-
-- **Positive native-exit fixtures:** `tests/omega/pass/facts/ieee_float_32bit_ordered_bound_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`), binding `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and recorded in `tests/omega/corpus_native_windows_x86_64.txt` (`built ... exit:0`) and `tests/omega/corpus_outcomes.txt` (`checked`).
-- **Reject twin fixtures:** `tests/omega/fail/facts/ieee_float_32bit_ordered_bound_through_<place>_rejected/` (`build.omg`, `main.omg`, `expected.txt`), recorded in `tests/omega/corpus_outcomes.txt` (`rejected` with `cannot prove requires contract for call verify_f32_window`).
-
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, and carries `expected_native_exit.txt` (`0`). Run each positive program with `omega run --both`:

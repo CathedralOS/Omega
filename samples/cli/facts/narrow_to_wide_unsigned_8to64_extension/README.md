@@ -75,26 +75,7 @@ The compiler strictly fails closed at compile time:
 
 All 18 positive and reject places are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_local_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_field_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_match_join_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_state_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_exit/`
 - **Fail fixtures (`expected.txt`):**
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_local_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_field_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_parameter_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_call_result_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_match_join_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_const_name_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_other_state_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_rejected/`
-
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Caller contract precondition `narrow >= 50u8 && narrow <= 180u8` establishes a bounded 8-bit unsigned interval. Unsigned widening cast `narrow as u64` preserves the interval `[50, 180]` directly into 64-bit integer domain without loss of bounds or post-hoc caller equality guards.

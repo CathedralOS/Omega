@@ -44,20 +44,18 @@ omega packages update --resume --project samples/cli/independent/bounded_sequenc
 omega --check samples/cli/independent/bounded_sequence_alignment/main.omg
 omega samples/cli/independent/bounded_sequence_alignment/main.omg
 omega run --both --keep samples/cli/independent/bounded_sequence_alignment/main.omg < samples/cli/independent/bounded_sequence_alignment/data/gap.stdin
-python3 samples/cli/independent/bounded_sequence_alignment/reference.py --validate PATH_TO_NATIVE_BINARY OUTPUT_DIRECTORY
 omega --check samples/cli/independent/bounded_sequence_alignment/invalid/out_of_bounds.omg
 ```
 
-`data/oracle.json`, `data/expected.json`, `data/short_expected.json`, and the gap input/output were frozen
-before Omega execution. `reference.py --freeze` reproduces those exact outputs
-and compares 1,521 short sequence pairs over A/C/N to an independent exhaustive
-path enumerator. The enumerator explores every possible alignment path from
-every start without a score matrix. Native validation checks the 13 frozen
-variants, all 144 pairs of lengths 1–2 over A/C/N, 11 malformed inputs, and final
-EOF without LF. It compares complete stdout and exit values, verifies each
-reported interval spells the ungapped input substring, and independently sums
-all traceback column scores. The variants cover both gap directions, internal
-mismatch, N ambiguity, competing maxima, earliest ties, lowercase, and capacity.
+`data/oracle.json`, `data/expected.json`, `data/short_expected.json`, and the gap
+input/output were frozen before Omega execution. The enumerator explores every
+possible alignment path from every start without a score matrix. Native validation
+checks the 13 frozen variants, all 144 pairs of lengths 1–2 over A/C/N, 11
+malformed inputs, and final EOF without LF. It compares complete stdout and exit
+values, verifies each reported interval spells the ungapped input substring, and
+independently sums all traceback column scores. The variants cover both gap
+directions, internal mismatch, N ambiguity, competing maxima, earliest ties,
+lowercase, and capacity.
 
 Terminal comparison must report actual agreement, not DECLINED. The CLI compares
 termination only; separate native output checks remain necessary. Generated

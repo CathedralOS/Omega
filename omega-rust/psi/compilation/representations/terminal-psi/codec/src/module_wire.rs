@@ -2436,8 +2436,9 @@ pub(crate) mod access_view_wire {
 pub(crate) mod closed_conformance_wire {
 
     use super::super::wire_fields::{
-        Bytes, Commitment, Digest, Id, Index, LifetimeDependency, List, Nominal, Optional, Path,
-        ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum, wire_record,
+        Bytes, Commitment, DECLARED_LIFETIME_FAMILY, DeclaredLifetimeDependency, Digest, Id, Index,
+        List, Nominal, Optional, Path, ReachArgument, Scalar, Strings, Text, U32, U64, wire_enum,
+        wire_record,
     };
     use super::callable_wire::Callable;
     use terminal_psi::{
@@ -2487,11 +2488,10 @@ pub(crate) mod closed_conformance_wire {
             callable: Callable,
             application_commitment: Optional<Digest>,
             method_arguments: List<ReachArgument>,
-            result_lifetimes: Optional<List<ResultLifetime>>,
         }
         ResultLifetime: DeclaredResultLifetime {
-            inputs: List<LifetimeDependency>,
-            results: List<Path>,
+            inputs: List<DeclaredLifetimeDependency>,
+            results: List<Path<DECLARED_LIFETIME_FAMILY>>,
         }
         Row: ClosedConformanceRow {
             requirement_declaration: Nominal,
@@ -5025,6 +5025,7 @@ wire_record! {
         structural_types: List<StructuralType>,
         structural_referents: List<Referent>,
         structural_domains: List<declaration_wire::Domain>,
+        structural_qualification_changes: List<super::structural_result_wire::QualificationChange>,
         services: List<declaration_wire::Service>,
         root_service_reach: RootServiceReach,
         access_view_plans: List<AccessViewPlan>,

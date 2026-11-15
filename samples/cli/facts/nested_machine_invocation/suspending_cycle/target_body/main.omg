@@ -2,7 +2,7 @@
 // Place: target body. A Build-selected named implementation runs the cycle; each implementation adds its own tag.
 // Expected exit: 0
 public boundary trait Scheduler {
-    machine advance(value: u64) -> u64 reaches suspends;
+    machine advance(value: u64) -> u64 reaches suspends crashes none;
 }
 InlineScheduler satisfies Scheduler {
     machine advance(value: u64) -> u64 { (value as u64 in Wrapping * 3) as u64 }
@@ -26,7 +26,7 @@ machine sum(total: u64, remaining: u64) -> u64 reaches Scheduler suspends termin
     }
 }
 boundary trait SelectedCycle {
-    machine run(rounds: u64) -> u64 reaches Scheduler invokes Scheduler suspends;
+    machine run(rounds: u64) -> u64 reaches Scheduler invokes Scheduler suspends crashes none;
 }
 X86Cycle satisfies SelectedCycle {
     machine run(rounds: u64) -> u64 reaches Scheduler invokes Scheduler suspends {

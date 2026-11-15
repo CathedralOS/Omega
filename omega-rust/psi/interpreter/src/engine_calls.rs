@@ -390,7 +390,7 @@ pub(crate) mod frames {
                 let access = if parameter.access == StructuralAccess::Owned {
                     if argument.access != StructuralAccess::Owned
                         || parameter.structural_type != resolved.structural_type
-                        || view.owned_multiplicity() != Some(parameter.multiplicity)
+                        || view.owned_multiplicity(declaration) != Some(parameter.multiplicity)
                     {
                         return Err(malformed());
                     }
@@ -615,9 +615,9 @@ pub(crate) mod frames {
         ) -> Result<(), TerminalInterpretError> {
             let program = std::sync::Arc::clone(&self.program);
             let callee = program.verified_machine(callee_id)?;
-            if callee.result != TerminalMachineResult::Unit {
-                return Err(malformed());
-            }
+            // The checked provider keeps its declared result, including an
+            // empty carrier. This transfer has no receiving value; the saved
+            // external-completion continuation rejects any normal return.
             let prepared =
                 self.prepare_structural_call_arguments(callee_id, structural_arguments)?;
             self.enter_call(
@@ -1821,6 +1821,11 @@ pub(crate) mod component_contents {
             let contents = match contents.contents {
                 value @ (TerminalStorageContents::Scalar { .. }
                 | TerminalStorageContents::Bytes(_)) => value,
+                TerminalStorageContents::Elements { .. } => {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "component contents cannot manufacture immutable sequence backing",
+                    ));
+                }
                 TerminalStorageContents::Case(case) => {
                     let source = self.source_types.declaration(&source_type)?;
                     let source = terminal_psi::find_structural_case(

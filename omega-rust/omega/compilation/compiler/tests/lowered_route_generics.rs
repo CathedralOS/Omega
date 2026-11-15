@@ -688,23 +688,100 @@ fn the_default_product_publishes_generic_named_map_captures() {
                 captures[0].conformance_application.identity_encoding,
                 captures[1].conformance_application.identity_encoding
             );
-            let template = source.machine_by_symbol(captures[0].template).unwrap();
-            let commitments = accepted
-                .module()
-                .machines
-                .iter()
-                .filter_map(|machine| machine.declaration.as_ref()?.specialization.as_ref())
-                .filter(|specialization| {
-                    accepted
-                        .module()
-                        .identities
-                        .text(specialization.template_callable)
-                        == source.machine_callable_identity_text(template).as_deref()
-                })
-                .map(|specialization| specialization.commitment)
-                .collect::<Vec<_>>();
-            assert_eq!(commitments.len(), 2);
-            assert_ne!(commitments[0], commitments[1]);
+            let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(
+                &publication.artifact.to_bytes(),
+            )
+            .expect("published map captures reload independently");
+            let module = reloaded.semantic_module();
+            assert_eq!(module, accepted.module());
+            let retained = |capture: &typed_trees::CapturedMachineApplication| {
+                let machine = module
+                    .machine(accepted.machine_of(capture.instance).unwrap())
+                    .unwrap();
+                let specialization = machine
+                    .declaration
+                    .as_ref()
+                    .unwrap()
+                    .specialization
+                    .as_ref()
+                    .unwrap();
+                let application = machine.closed_reach_application.as_ref().unwrap();
+                assert!(application.parameter_kinds.is_empty());
+                assert!(application.telescope.is_empty());
+                let retained = application.capture.as_ref().unwrap();
+                assert_eq!(
+                    module.identities.text(retained.template_identity),
+                    Some(capture.normalized_template_identity.as_str()),
+                );
+                assert_eq!(retained.parameter_kinds, [0, 0]);
+                let arguments = retained
+                    .telescope
+                    .iter()
+                    .map(|parameter| match parameter {
+                        terminal_psi::ClosedReachParameter::Type { argument } => argument.as_str(),
+                        other => panic!("expected a captured type argument, got {other:?}"),
+                    })
+                    .collect::<Vec<_>>();
+                let expected = capture
+                    .conformance_application
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        source
+                            .type_identity_text(
+                                source.package_qualified_type_identity(argument.type_reference),
+                            )
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(arguments, expected);
+                let expected_capture = specialization.capture.as_ref().unwrap();
+                assert_eq!(
+                    retained.template_identity,
+                    expected_capture.template_identity
+                );
+                assert_eq!(
+                    retained.template_commitment,
+                    expected_capture.template_commitment
+                );
+                assert_eq!(
+                    retained.specialization_commitment,
+                    expected_capture.specialization_commitment
+                );
+                assert_eq!(
+                    retained.specialization_commitment,
+                    specialization.commitment
+                );
+                (machine.id, retained)
+            };
+            let (first_owner, first_capture) = retained(captures[0]);
+            let (_, second_capture) = retained(captures[1]);
+            assert_ne!(
+                first_capture.specialization_commitment,
+                second_capture.specialization_commitment
+            );
+            // The declaration's capture is independent of the retained
+            // application. Dropping the application capture or transplanting
+            // the other real one must fail the same reader check.
+            for replacement in [None, Some(second_capture.clone())] {
+                let mut changed = module.clone();
+                changed
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == first_owner)
+                    .unwrap()
+                    .closed_reach_application
+                    .as_mut()
+                    .unwrap()
+                    .capture = replacement;
+                let bytes = terminal_codec::encode_module(&changed).unwrap();
+                assert_eq!(
+                    terminal_codec::decode_module(&bytes).unwrap_err(),
+                    terminal_codec::CodecError::MalformedStructuralFoundation(
+                        "closed reach capture differs from its independent checked declaration"
+                    )
+                );
+            }
             let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
             assert_eq!(
                 application

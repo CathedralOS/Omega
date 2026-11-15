@@ -3,7 +3,7 @@
 
 boundary trait SelectedOrdered {
     machine ordered(input: u32) -> u32
-    requires input == 37 ensures result == 37 reaches;
+    requires input == 37 ensures result == 37 reaches crashes none;
 }
 
 X86Ordered satisfies SelectedOrdered {

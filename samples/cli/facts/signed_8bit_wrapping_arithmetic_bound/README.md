@@ -19,31 +19,15 @@
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_8bit_wrapping_arithmetic_bound_through_<place>_exit`
-and `tests/omega/fail/facts/signed_8bit_wrapping_arithmetic_bound_through_<place>_rejected` for the nine
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
-`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
-of its place twin's `main.omg`/`build.omg`/`expected.txt` (the place's own `cannot prove requires
-contract ...` / `cannot prove ensures contract ...` fragment). Positive versus twin `git diff` changes
-only the `lhs` operand bound (`lhs <= 80i8` to `lhs <= 81i8`, or constants `60i8`/`15i8` to
-`81i8`/`20i8`), which is the fact's own domain.
-
-Measured on macOS arm64 with the factsr1 shared generation producer `gen-317bacd12b0` (omega sha256
-`ecbd667e4dbae1b559f1f08f30dc10e3dbc369b8c8630327560227d06058a805`, corpus_runner sha256
-`6065879534a8320403e0dd3918e86f77d1f025ff4e233f6740644b44460daa9c`):
+Positive versus twin `git diff` changes only the `lhs` operand bound (`lhs <= 80i8` to `lhs <=
+81i8`, or constants `60i8`/`15i8` to `81i8`/`20i8`), which is the fact's own domain.
 
 - `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
 - `omega --check` over the nine twins: 9/9 refuse with their authored `cannot prove requires contract` /
   `cannot prove ensures contract` fragment.
-- The three corpus legs were recorded with the fixture and golden changes staged at published main
-  `b9f31a0e74de`, so every row is stamped `@b9f31a0e74de+wt`: `tests/omega/corpus_outcomes.txt` gained
-  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with 28 diagnostic
-  continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
-  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
-  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); all three legs exited 0
-  with 0 unimplemented rows and 0 rows recording a lost success (the native leg's 2 `regressed-from`
-  rows are the pre-existing memory-canary pins).
+- Every golden diff is a pure addition (0 deletions); all three legs exited 0 with 0 unimplemented
+  rows and 0 rows recording a lost success (the native leg's 2 `regressed-from` rows are the
+  pre-existing memory-canary pins).
 
 ## Requirements and Evidence
 

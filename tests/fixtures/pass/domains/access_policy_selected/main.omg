@@ -1,5 +1,5 @@
 // A domain selects the policy that governs it by name. `Controlled` names
-// the implementation `CellAccess`; its plan is not run to read this program.
+// the implementation `CellAccess`, whose plan permits no issuer.
 
 use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;

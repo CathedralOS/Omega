@@ -163,6 +163,11 @@ impl Lowering<'_> {
             None => None,
         };
         match &expression.kind {
+            ExpressionKind::Atomic {
+                place,
+                event,
+                operands,
+            } => self.atomic_access(place, *event, operands, result, source),
             ExpressionKind::Integer(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(
@@ -213,6 +218,23 @@ impl Lowering<'_> {
             }
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
+            }
+            ExpressionKind::LayoutObservation {
+                subject,
+                measurement,
+            } => {
+                let scalar_type = self.result_type(expression)?;
+                let application = self
+                    .qualifications
+                    .layout_observation(*subject, *measurement, scalar_type)
+                    .map_err(|detail| self.internal(detail))?;
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    Some(scalar_type),
+                    OperationKind::ReadScalarApplication { application },
+                )
+                .map(Reached::Value)
             }
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)

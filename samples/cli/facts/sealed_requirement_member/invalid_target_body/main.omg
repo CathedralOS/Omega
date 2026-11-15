@@ -43,7 +43,7 @@ boundary trait CombineProbe {
     requires 0 <= a && a <= 50
     ensures 0 <= result && result <= 100
     reaches
-    blocks;
+    blocks crashes none;
 }
 
 HostedProbe satisfies CombineProbe {

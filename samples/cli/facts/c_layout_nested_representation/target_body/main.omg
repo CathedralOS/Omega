@@ -32,8 +32,8 @@ machine make() -> CLayout<Record> {
     record
 }
 boundary trait RecordDelivery {
-    machine value() -> CLayout<Record> reaches terminates;
-    machine marker() -> u64 reaches terminates;
+    machine value() -> CLayout<Record> reaches terminates crashes none;
+    machine marker() -> u64 reaches terminates crashes none;
 }
 FirstDelivery satisfies RecordDelivery {
     machine value() -> CLayout<Record> { make() }

@@ -36,6 +36,7 @@ pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
     pub source: SourceCorrespondence,
     pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
+    pub prepared_applications: Vec<(MachineId, crate::declare::PreparedApplication)>,
 }
 
 /// The designated operands of one Build selection.

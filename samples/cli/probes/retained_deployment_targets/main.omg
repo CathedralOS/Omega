@@ -5,7 +5,7 @@
 data Helper { seed: u32; }
 trait Value<T> { machine unrealized(helper: &T) -> u32; }
 boundary trait Unused {
-    machine read(helper: &Helper) -> u32 reaches;
+    machine read(helper: &Helper) -> u32 reaches crashes none;
 }
 
 uefi_x86_64 machine Helper::internal(helper: &Helper) -> u32 { helper.seed }

@@ -27,15 +27,4 @@ impl<'a> ProductCodeSource<'a> {
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])
         })
     }
-
-    pub(crate) fn inspect(
-        &self,
-        _name: &str,
-        _selections: &OptimizationSelections,
-        _observer: &mut impl PsiCompilationObserver,
-    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
-        Err(vec![Diagnostic::error(
-            "no product route yet: named inspection requires its own accepted source selection",
-        )])
-    }
 }

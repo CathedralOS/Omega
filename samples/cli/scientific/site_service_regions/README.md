@@ -29,15 +29,9 @@ half units. Quantization affects presentation only.
 ## Independent expected results
 
 `data/expected.json` was frozen before the first Omega execution, SHA-256
-`d7f9565bd692122304bbb18814334fccbe560ba1e019047daa78b03eda82e6b2`.
-`reference.py` independently enumerates feasible pairwise line intersections with
-exact rational arithmetic, orders their hull, and computes rational shoelace
-areas. It does not implement the application's clipping algorithm.
-`validate.py` verifies that identity, fixture hashes, vertex sets, signed areas,
-exact adjacency, symmetry, vertex/edge-midpoint/centroid distance comparisons,
-boundary containment and total partition area. The frozen output tolerances are
-2e-6 coordinates, 4e-6 cell areas, 2e-5 squared distances and 2e-5 partition area.
-Do not regenerate the frozen oracle in a validation run.
+`d7f9565bd692122304bbb18814334fccbe560ba1e019047daa78b03eda82e6b2`. The frozen
+output tolerances are 2e-6 coordinates, 4e-6 cell areas, 2e-5 squared distances
+and 2e-5 partition area. Do not regenerate the frozen oracle in a validation run.
 
 Eight variants include the exact vertical bisector (two 50-unit cells), diagonal
 bisector (two 50-unit triangles), four quadrants (four 25-unit cells with only
@@ -65,8 +59,6 @@ omega --check samples/cli/independent/site_service_regions/invalid/negative_quot
 ```
 
 Only resume after reviewing and accepting the precise pending package decisions.
-`PYTHONDONTWRITEBYTECODE=1 python3 exercise.py --omega /absolute/compiler/path` owns the sequential checks,
-retained native output, all valid/invalid runtime fixtures and Terminal comparison.
 Generated binaries, outputs, diagnostic logs and run receipts go in ignored
 `build/`. Terminal `interp exit: <expected status>` must be observed explicitly; a
 `DECLINED` is reported as an unsupported comparison. The public CLI compares

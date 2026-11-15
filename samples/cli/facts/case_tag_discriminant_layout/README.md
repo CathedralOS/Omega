@@ -22,12 +22,6 @@ Claim Ticket: `c4a52019b8e2444391e6dc698f2b3a10`
 
 ## Pinned fixtures
 
-The nine positive places and their nine reject twins are pinned as host-pinned
-golden rows:
-
-- `tests/omega/pass/facts/case_tag_discriminant_layout_through_<place>_exit`
-- `tests/omega/fail/facts/case_tag_discriminant_layout_through_<place>_rejected`
-
 Each pass fixture carries `build.omg` binding `ProgramEntry` for all four
 hosted targets and its own `expected_native_exit.txt` (`0`). Each fail twin
 carries `sample.json` with `rejection_contains` for the decision-17 refusal.
@@ -169,8 +163,6 @@ exact arithmetic in machine ... return value may overflow `u64`: the operands ar
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning joins target-specific layout plans (`size_of` = 16, `align_of` = 8) with the compiler-owned conventional tag-prefixed representation: a 4-byte discriminant tag at offset 0 with tag alignment 4, over an 8-byte payload aligned to 8, across all four hosted ABI calling plans. The measured tag geometry above is this layer's evidence.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation emits target ISA instructions (`sub`, conditional branches, and discriminant checks), allocating register homes and activation stack slots without live-variable spilling corrupting variant discriminants.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct PE/ELF/Mach-O image generation resolves entry symbols, basic block branches, and image relocations, producing native binaries that agree with Terminal Psi on exit 0 across all hosted targets.
-- **Remaining Open**: None for this fact row; all 9 places and 9 reject twins are pinned under `tests/omega/{pass,fail}/facts/`, run green on both native and interpreter gates with authored exit 0, and the 9 twins reject with their authored decision-17 fragment. The `corpus_native_macos_arm64.txt` golden carries nine real `built ... exit:0` rows and `corpus_outcomes.txt` carries the nine `checked` and nine `rejected` rows.
-
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

@@ -29,13 +29,11 @@ sentence above. The root witness does too.
 | another machine | [source](other_machine/main.omg) | [cleared carry bit](invalid_other_machine/main.omg) |
 | another target body | [source](target_body/main.omg) | [subtraction image demanded](invalid_target_body/main.omg) |
 
-Each positive is pinned under `tests/omega/pass/facts/checked_asm_add_carry*`.
-Each reject twin is pinned under `tests/omega/fail/facts/checked_asm_add_carry*`.
 The [root](main.omg) and its [false-image twin](invalid/main.omg) are pinned as
 `checked_asm_add_carry` and `checked_asm_add_carry_false_image`. A twin changes
 only the carried image: it demands 149, the subtraction image of `0 - 1`, or
-clears carry with `^ 1u64`. The addition itself stays `mov eax, 4294967295;
-add eax, 1`.
+clears carry with `^ 1u64`. The addition itself stays `mov eax, 4294967295; add
+eax, 1`.
 
 Build entries bind Linux and Windows x86-64 `ProgramEntry` only. `add` is
 catalogued `AsmTargetApplicability::X86_64`, so an arm64 entry is other

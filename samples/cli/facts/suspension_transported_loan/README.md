@@ -60,9 +60,7 @@ both arms (73 and 11). The target-body place selects `X86Transport` or
 `ArmTransport` through Build; each checks its own tag.
 
 Run each positive with `omega run --both <place>/main.omg` and each twin with
-`omega --check <place>/invalid/main.omg`. Pinned fixtures are
-`tests/omega/pass/facts/suspension_transported_loan_through_<place>_exit` and
-`tests/omega/fail/facts/suspension_transported_loan_through_<place>_rejected`.
+`omega --check <place>/invalid/main.omg`.
 
 ## Requirements
 

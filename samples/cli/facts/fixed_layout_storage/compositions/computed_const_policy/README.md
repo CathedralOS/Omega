@@ -10,16 +10,10 @@ and checks that its value byte is 7. The [control](../invalid_computed_const_pol
 the bound from the requirement and its implementation. It must reject for
 unproved arithmetic even though the executable caller supplies 7.
 
-The focused alias composition under
-[tests/omega/pass/layouts/fixed_layout_computed_alias_policy_exit](../../../../../../tests/omega/pass/layouts/fixed_layout_computed_alias_policy_exit/)
-passes the same argument through a transparent `PolicyStorage` alias. Its
-[control](../../../../../../tests/omega/fail/layouts/fixed_layout_computed_alias_policy_rejected/)
-removes the same bound. The original program, Build and oracles stay unchanged.
+The original program, Build and oracles stay unchanged.
 
-The [runtime-input control](../../../../../../tests/omega/fail/layouts/fixed_layout_runtime_alias_policy_rejected/)
-keeps the arithmetic bound but supplies the value as an ordinary runtime
-parameter. A safe addition does not make that input a const argument; it must
-still reject even though the executable caller supplies 7.
+A safe addition does not make that input a const argument; it must still
+reject even though the executable caller supplies 7.
 
 On Linux x86_64, the compiler at `6d8ad13849e1` runs this original program and
 its alias variation through ordinary CLI admission and native/Terminal exit-zero

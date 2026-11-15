@@ -100,10 +100,8 @@ control. It has no package dependency and is checked separately.
 
 ## Commands
 
-Run from the repository root. Use the verified `omega` binary recorded in
-`validation/EVIDENCE.md`, or build one with `mbx build --locked -p omega --release
--j 4` (`cargo` if mbx is unavailable). Do not run simultaneous compiler or Rust
-build processes on one executor.
+Run from the repository root. Do not run simultaneous compiler or Rust build
+processes on one executor.
 
 ```sh
 sample=samples/cli/independent/nonlinear_diode_sweep
@@ -117,14 +115,11 @@ omega --check "$sample/controls/intended_invalid/main.omg"
 ```
 
 Package acceptance is a distinct review operation. A denied acceptance is
-recorded without retry or bypass. See `validation/EVIDENCE.md` for the actual
-commands, routes, exits, binary/base identities, and artifacts from this run.
+recorded without retry or bypass.
 
-`validation/run.py` executes the routes serially, captures stdout/stderr and
-return codes under local `build/validation`, and invokes the frozen output checker.
-It does not accept packages. The same Python 3 entrypoint works on Linux, macOS,
-and Windows with the corresponding available target. The application binds four
-host targets; validation of this candidate is limited to the actual recorded host.
+The same Python 3 entrypoint works on Linux, macOS, and Windows with the
+corresponding available target. The application binds four host targets; validation
+of this candidate is limited to the actual recorded host.
 
 The CLI `--both` route reports exit agreement and exposes native stdout. For full
 Terminal CSV validation on Linux, the private `validation/terminal-driver` uses
@@ -141,7 +136,6 @@ observer="$sample/validation/terminal-driver/target/debug/new031-terminal-valida
 # If the ordinary proposal requires decisions, review them before this command:
 "$observer" --resume-review "$sample"
 "$observer" "$sample" "$sample/build/validation/terminal-api"
-PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/check_terminal.py"
 ```
 
 ## Existing sample comparison

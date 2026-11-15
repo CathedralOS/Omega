@@ -18,7 +18,16 @@ proof/native validation, intended ordinary-call refusals and clean corpus
 recording remain required. Historical observations below belong to their
 recorded source revisions and do not qualify the migrated source.
 
-The [root](main.omg) and [existing customer](../../../../tests/omega/pass/core/content_retained_custody_round_trip/main.omg) carry the same body, contracts, Count1 bound, and exit-zero oracle. Their ordinary entries own Main storage. Nested machines declare their own contracts; the failed allocation path has no normal result. All positive projects bind all four hosted targets. Their owning Build supplies `NativeBytes::allocate` and `NativeBytes::release` directly using the original eight target/member locator associations, with inferred byte lengths. These exact member rows supply native backing, not a named `NativeBytes` conformance; the empty legacy `HostedBytes` carrier and its selections are removed. The existing nine-profile `InitialSupplyProvider` and `WriterProvider` selections remain. Only the four originally backed hosted targets have native rows.
+The [root](main.omg) carries the body, contracts, Count1 bound, and exit-zero
+oracle. Its ordinary entry owns Main storage. Nested machines declare their own
+contracts; the failed allocation path has no normal result. All positive projects bind all four hosted targets. Their owning
+Build supplies `NativeBytes::allocate` and `NativeBytes::release` directly using
+the original eight target/member locator associations, with inferred byte
+lengths. These exact member rows supply native backing, not a named
+`NativeBytes` conformance; the empty legacy `HostedBytes` carrier and its
+selections are removed. The existing nine-profile `InitialSupplyProvider` and
+`WriterProvider` selections remain. Only the four originally backed hosted
+targets have native rows.
 
 | Place | Positive | Fact-sensitive reject twin |
 | --- | --- | --- |
@@ -32,7 +41,11 @@ The [root](main.omg) and [existing customer](../../../../tests/omega/pass/core/c
 | another machine | [main.omg](other_machine/main.omg) | [ordinary supply](invalid_other_machine/main.omg) |
 | target body | [main.omg](target_body/main.omg) | [ordinary supply](invalid_target_body/main.omg) |
 
-Each twin changes only the selected supply call into `InitialSupplyProvider::acquire`, plus its diagnostic header. The match twin changes both supply alternatives. It retains the same provider bodies, quantity, backing contracts, and consumers. Existing positive mirrors under `tests/omega/pass/facts/selected_provider_issuance_through_<place>_exit/` copy their sample sources and Build declarations. No ordinary-call fail mirrors exist at this checkpoint; the nine sample twins remain required rejection controls.
+Each twin changes only the selected supply call into
+`InitialSupplyProvider::acquire`, plus its diagnostic header. The match twin
+changes both supply alternatives. It retains the same provider bodies, quantity,
+backing contracts, and consumers. No ordinary-call fail mirrors exist at this
+checkpoint; the nine sample twins remain required rejection controls.
 
 ## Requirements and evidence
 

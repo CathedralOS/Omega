@@ -1647,6 +1647,11 @@ fn adapt(
                 graph.payload_invalidations.insert(position, payload_writes);
             }
             match operation {
+                O::ReleaseReference { source, path, .. } => {
+                    let source = location(*source, path, None)?;
+                    step.inputs = vec![source.clone()];
+                    step.definitions.push(source);
+                }
                 O::ByteSequenceLength { source, .. } | O::ElementViewLength { source, .. } => {
                     let query = kernel::descriptor_contents_query(
                         types,
@@ -2446,6 +2451,7 @@ fn adapt(
                 source,
                 path,
                 cases,
+                ..
             } = operation
             {
                 let subject = location(*source, path, None)?;
@@ -2468,7 +2474,16 @@ fn adapt(
                     .collect::<Option<Vec<_>>>()?;
                 graph.case_successors.insert(position, predicates);
             }
-            step.authority_derivations = step.derivations.clone();
+            // Capturing a descriptor's slot forms a child loan; it does not
+            // transport the permission already stored in that slot.
+            if !matches!(
+                operation,
+                O::EstablishAccessReference { .. }
+                    | O::EstablishElementView { .. }
+                    | O::EstablishReference { .. }
+            ) {
+                step.authority_derivations = step.derivations.clone();
+            }
             if graph.normal_exits.contains(&position) {
                 for parameter in &function.structural_parameters {
                     if matches!(
@@ -2486,6 +2501,7 @@ fn adapt(
             if node.successors.is_empty() {
                 if index + 1 < block.nodes.len() {
                     step.successors.push(DescriptorFlowEdge {
+                        definitions: Vec::new(),
                         target: (block.id, position.1 + 1),
                         parameters: Vec::new(),
                         bindings: Vec::new(),
@@ -2572,6 +2588,7 @@ fn adapt(
                         .map(|parameter| DescriptorLocation::whole(parameter.place))
                         .collect::<Vec<_>>();
                     let mut bindings = Vec::new();
+                    let mut definitions = Vec::new();
                     for parameter in &target.structural_parameters {
                         let mut matching = edge
                             .structural_bindings
@@ -2600,6 +2617,12 @@ fn adapt(
                             )
                         };
                         step.inputs.push(source.observation());
+                        if parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity
+                                != terminal_psi::StructuralMultiplicity::Unrestricted
+                        {
+                            definitions.push(source.observation());
+                        }
                         bindings.push(DescriptorFlowBinding::new(
                             source,
                             DescriptorLocation::whole(parameter.place),
@@ -2608,6 +2631,7 @@ fn adapt(
                         )?);
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        definitions,
                         target: (edge.target, 0),
                         parameters,
                         bindings,

@@ -41,13 +41,10 @@ compile-only runs do not establish runtime acceptance. The row exercises owned
 scalar transport with temporary shared views, not mutable loan restoration or
 foreign calling conventions.
 
-The nine places and their reject twins are pinned under
-[`tests/omega/pass/facts`](../../../../tests/omega/pass/facts) and
-[`tests/omega/fail/facts`](../../../../tests/omega/fail/facts), using the
-`core_float_representation_through_<place>_{exit,rejected}` names. All nine
-positives executed with exit 0 in both engines on macOS arm64, and all nine
-twins rejected for their own representation obligation, in the final focused
-capture using producer `f2892370f2faec7ee660c842611de41a12209a27`.
+All nine positives executed with exit 0 in both engines on macOS arm64, and
+all nine twins rejected for their own representation obligation, in the
+final focused capture using producer
+`f2892370f2faec7ee660c842611de41a12209a27`.
 
 The [format vectors](vectors/main.omg) cover both permanent formats without
 duplicating this row. They exercise finite endpoints, subnormal boundaries,

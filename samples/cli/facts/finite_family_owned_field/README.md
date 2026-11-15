@@ -30,7 +30,8 @@ The governing rules are [dynamic call and claim paths](../../../../wiki/spec/ter
 
 Construction, the declared field domain and the exact content projection establish the fact. Identity requires the selected method to read each original value. Composition requires the public result bound to justify subtraction without relying on a private guarantee. Checking must preserve ownership and cleanup while rejecting the weakened-domain twin. The match expects a different field value from each arm and exercises both values at both widths. Constant evaluation performs the whole read and cleanup within the admitted invocation; no constant holds a linear token or storage authority. Terminal execution, layouts, call argument positions and native execution must retain that behavior.
 
-All nine pairs are pinned under `tests/omega/{pass,fail}/facts/finite_family_owned_field/`. Each measured host checks the nine positives, rejects all nine twins with `cannot prove ensures contract`, and runs the nine positive fixtures at exit 0 in both Terminal Psi and native code. The eighteen public sample projects have the same nine executions and nine intended rejections.
+The eighteen public sample projects have the same nine executions and nine
+intended rejections.
 
 | Host | Run | Actual optimized compiler | Program source | Result |
 | --- | --- | --- | --- | --- |

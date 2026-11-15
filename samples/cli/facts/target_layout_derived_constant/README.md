@@ -55,9 +55,6 @@ route 23 is written, and performs both exact subtractions before observing eithe
 result. The value, geometry and subtraction comparisons remain separate runtime
 falsifiers. Marker mutations must trap without changing the value contract.
 
-The nine fixture pairs are
-`tests/omega/{pass,fail}/facts/target_layout_derived_constant_through_*`.
-Each `invalid/main.omg` changes only Small's and Large's provider result to 3.
 The unchanged subtraction then rejects with target bounds `[-1, -1]` outside
 `u64`. The root has the same reject twin. No caller equality guard establishes
 the subtraction fact.

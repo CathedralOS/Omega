@@ -47,7 +47,7 @@ Each place has an `invalid/` twin that supplies `NoKept` instead of `YesKept` â€
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/static_evidence_premise_through_*` fixtures â€” nine pass fixtures (each a byte-identical copy of its place program plus the `0` exit oracles) and nine fail fixtures (each a byte-identical copy of its place twin plus the pinned `expected.txt` fragments). The sample and the fixtures cannot drift apart.
+The sample and the fixtures cannot drift apart.
 
 ## Requirements and Evidence
 

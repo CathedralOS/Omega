@@ -325,10 +325,11 @@ enum Reached {
     Extent(OperationId),
     /// Asked of a sum: the one case every path establishes it as.
     Case(StructuralCaseId),
-    /// Every path supplies what a call returned: contents with no value
-    /// identity that arrived as part of a whole value its callee
-    /// established.
-    Returned,
+    /// Every path supplies part of an established value without naming one
+    /// scalar identity. The depth counts ancestors the leaf still shares
+    /// with that value. A transfer can retain the field's own type evidence
+    /// without lending it to a record that now encloses it.
+    Established(usize),
     /// Every path supplies contents, but not one same named value or case.
     Unknown,
     /// Some path supplies nothing: no store reaches the use along it and the
@@ -340,6 +341,15 @@ enum Reached {
     /// Asked of a window: every path closed it, or never passed its opening
     /// write.
     Closed,
+}
+
+impl Reached {
+    fn within(self, depth: usize) -> Self {
+        match self {
+            Self::Established(established) => Self::Established(established.min(depth)),
+            reached => reached,
+        }
+    }
 }
 
 /// A read supplies a value snapshot without writing or restoring storage.
@@ -367,6 +377,7 @@ struct Reaching {
 /// What a place is, by the lowered form's own declarations.
 enum Shape<'a> {
     Scalar(ScalarType),
+    Atomic(semantic_vocabulary::AtomicCellType),
     Typed(StructuralTypeId),
     /// A shared byte view stored in a field: the descriptor is the field's
     /// own contents, with no structural type of its own (structural_access.md,
@@ -823,6 +834,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         let fields = match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => return Ok(()),
+            StructuralTypeShape::AtomicCell(cell) if cell.bounds().is_none() => return Ok(()),
             shape if is_shared_view(shape) => return Ok(()),
             StructuralTypeShape::FixedArray {
                 element,
@@ -853,7 +865,7 @@ impl<'a> Storage<'a> {
         }
         for field in fields.1 {
             match field.field_type {
-                StructuralFieldType::Scalar(_) => {}
+                StructuralFieldType::Scalar(_) | StructuralFieldType::Atomic(_) => {}
                 StructuralFieldType::Structural(nested) => {
                     at.segments.push(Segment::Field(field.id));
                     self.zero_typed(nested, at, found, concerns)?;
@@ -956,7 +968,7 @@ impl<'a> Storage<'a> {
                 // A case's payload namespace is no value of its own; the
                 // sum above it is.
                 Shape::Payload(_) => {}
-                Shape::Scalar(_) | Shape::View => {
+                Shape::Scalar(_) | Shape::Atomic(_) | Shape::View => {
                     return Err(self.foreign(concerns, "a store path crosses a leaf field"));
                 }
             }
@@ -1434,6 +1446,9 @@ impl<'a> Storage<'a> {
             .find(|declared| declared.id == field)
             .ok_or_else(|| self.foreign(concerns, "a field is not of the type it projects"))?;
         match declared.field_type {
+            ref field if field.atomic_cell_type().is_some() => Ok(Shape::Atomic(
+                field.atomic_cell_type().expect("checked atomic field"),
+            )),
             StructuralFieldType::Scalar(scalar_type) => Ok(Shape::Scalar(scalar_type)),
             StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
             ref stored if is_stored_view(stored) => Ok(Shape::View),
@@ -1449,6 +1464,7 @@ impl<'a> Storage<'a> {
         // formal) is itself a scalar leaf.
         let root = self.root_type(place.root, concerns)?;
         let mut at = match &self.declaration(root, concerns)?.shape {
+            StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(*cell),
             StructuralTypeShape::PrimitiveScalar(scalar_type) => Shape::Scalar(*scalar_type),
             _ => Shape::Typed(root),
         };
@@ -1473,6 +1489,7 @@ impl<'a> Storage<'a> {
                         )
                     })?;
                     match view.shape {
+                        StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
                         _ => Shape::Typed(view.id),
                     }
@@ -1481,6 +1498,9 @@ impl<'a> Storage<'a> {
                     return Err(
                         self.foreign(concerns, "a storage view is applied to a case namespace")
                     );
+                }
+                (Shape::Atomic(_), _) => {
+                    return Err(self.foreign(concerns, "a place lies beneath an atomic cell"));
                 }
                 (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
@@ -1505,6 +1525,7 @@ impl<'a> Storage<'a> {
                         ));
                     };
                     match self.declaration(referent, concerns)?.shape {
+                        StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
                         _ => Shape::Typed(referent),
                     }
@@ -1585,6 +1606,7 @@ impl<'a> Storage<'a> {
                         );
                     }
                     match self.declaration(element, concerns)?.shape {
+                        StructuralTypeShape::AtomicCell(cell) => Shape::Atomic(cell),
                         StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
                         _ => Shape::Typed(element),
                     }
@@ -1603,7 +1625,7 @@ impl<'a> Storage<'a> {
         let mut found = Vec::new();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Scalar(_) | Shape::View => found.push(at),
+            Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
             Shape::Typed(structural_type) => {
                 self.leaves_of(structural_type, &mut at, &mut found, concerns)?;
             }
@@ -1624,7 +1646,9 @@ impl<'a> Storage<'a> {
         for field in fields {
             at.segments.push(Segment::Field(field.id));
             match field.field_type {
-                StructuralFieldType::Scalar(_) => found.push(at.clone()),
+                StructuralFieldType::Atomic(_)
+                | StructuralFieldType::AtomicBoundedInteger(_)
+                | StructuralFieldType::Scalar(_) => found.push(at.clone()),
                 StructuralFieldType::Structural(nested) => {
                     self.leaves_of(nested, at, found, concerns)?;
                 }
@@ -1646,7 +1670,8 @@ impl<'a> Storage<'a> {
         match &self.declaration(structural_type, concerns)?.shape {
             // References and opaque values each occupy one established
             // place. Neither grants owned access to hidden backing storage.
-            StructuralTypeShape::Opaque
+            StructuralTypeShape::AtomicCell(_)
+            | StructuralTypeShape::Opaque
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::Reference { .. } => {
                 found.push(at.clone());
@@ -1765,39 +1790,22 @@ impl<'a> Storage<'a> {
     /// operation.
     fn read_leaf(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
+        let leaf = match &operation.kind {
+            OperationKind::ByteSequenceLength { source } => Some(self.argument(source, concerns)?),
+            OperationKind::StructuralByteSequenceFieldLength {
+                source,
+                path,
+                field,
+            } => Some(self.argument(
+                &self.byte_field_argument(*source, path, *field, concerns)?,
+                concerns,
+            )?),
+            _ => None,
+        };
+        if let Some(leaf) = leaf {
+            return self.byte_length_leaf(operation, leaf).map(Some);
+        }
         match &operation.kind {
-            OperationKind::ByteSequenceLength { source } => {
-                let mut leaf = self.argument(source, concerns)?;
-                let descriptor = match self.shape(&leaf, concerns)? {
-                    Shape::View => true,
-                    Shape::Typed(owner) => self
-                        .declaration(owner, concerns)?
-                        .shape
-                        .is_borrowed_byte_view(),
-                    _ => false,
-                };
-                if !descriptor {
-                    return Err(self.foreign(
-                        concerns,
-                        "a byte length operation requires a byte descriptor",
-                    ));
-                }
-                leaf.segments.push(Segment::Extent);
-                let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
-                    return Err(self.foreign(concerns, "an extent has no scalar carrier"));
-                };
-                if operation
-                    .result
-                    .scalar_ref()
-                    .is_none_or(|result| result.scalar_type != scalar_type)
-                {
-                    return Err(self.foreign(
-                        concerns,
-                        "a length result has another scalar carrier than its descriptor extent",
-                    ));
-                }
-                Ok(Some(leaf))
-            }
             OperationKind::ScalarStructuralField {
                 source,
                 path,
@@ -1853,6 +1861,41 @@ impl<'a> Storage<'a> {
         Ok(Some(at))
     }
 
+    /// Whole and stored descriptors expose the same extent leaf. Keeping
+    /// one observation rule lets guards and later indexed reads agree on it.
+    fn byte_length_leaf(&self, operation: &Operation, mut leaf: Lineage) -> Checked<Lineage> {
+        let concerns = Construct::Operation(operation.id);
+        let descriptor = match self.shape(&leaf, concerns)? {
+            Shape::View => true,
+            Shape::Typed(owner) => self
+                .declaration(owner, concerns)?
+                .shape
+                .is_borrowed_byte_view(),
+            _ => false,
+        };
+        if !descriptor {
+            return Err(self.foreign(
+                concerns,
+                "a byte length operation requires a byte descriptor",
+            ));
+        }
+        leaf.segments.push(Segment::Extent);
+        let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
+            return Err(self.foreign(concerns, "an extent has no scalar carrier"));
+        };
+        if operation
+            .result
+            .scalar_ref()
+            .is_none_or(|result| result.scalar_type != scalar_type)
+        {
+            return Err(self.foreign(
+                concerns,
+                "a length result has another scalar carrier than its descriptor extent",
+            ));
+        }
+        Ok(leaf)
+    }
+
     fn operation(&self, id: OperationId, concerns: Construct) -> Checked<&'a Operation> {
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(id))?;
         self.lowered
@@ -1900,6 +1943,9 @@ impl<'a> Storage<'a> {
                     obligation: owned, ..
                 }
                 | OperationKind::ByteSequenceWrite {
+                    obligation: owned, ..
+                }
+                | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
                 } = &operation.kind
                 {
@@ -1986,13 +2032,37 @@ impl<'a> Storage<'a> {
                 length,
                 ..
             } => {
-                self.readable_byte_view(operation, *source)?;
+                self.readable_byte_view(operation, *source, &[])?;
                 if operation.result.scalar_ref().is_none_or(|result| {
                     result.scalar_type != byte || result.qualifications != Default::default()
                 }) {
                     return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
                 }
-                (*source, *index, *length)
+                (
+                    StructuralArgument::whole(
+                        *source,
+                        terminal_psi::StructuralAccess::SharedBorrow,
+                    ),
+                    *index,
+                    *length,
+                )
+            }
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                index,
+                length,
+                ..
+            } => {
+                let source = self.byte_field_argument(*source, path, *field, concerns)?;
+                self.readable_byte_view(operation, source.place, &source.path)?;
+                if operation.result.scalar_ref().is_none_or(|result| {
+                    result.scalar_type != byte || result.qualifications != Default::default()
+                }) {
+                    return Err(self.foreign(concerns, "a byte read must produce a plain u8"));
+                }
+                (source, *index, *length)
             }
             OperationKind::ByteSequenceWrite {
                 destination,
@@ -2009,24 +2079,36 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "a byte store requires a u8 value and Unit result")
                     );
                 }
-                (*destination, *index, *length)
+                (
+                    StructuralArgument::whole(
+                        *destination,
+                        terminal_psi::StructuralAccess::MutableBorrow,
+                    ),
+                    *index,
+                    *length,
+                )
             }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
         let (block, after) = self
             .graph
             .locate(ProgramPoint::AfterOperation(operation.id))?;
-        let measured = after
+        let mut expected = self.argument(&source, concerns)?;
+        expected.segments.push(Segment::Extent);
+        let operations = &self.block(block)?.operations;
+        let measurement = after
             .checked_sub(2)
-            .and_then(|position| self.block(block).ok()?.operations.get(position))
-            .is_some_and(|measurement| {
-                matches!(&measurement.kind, OperationKind::ByteSequenceLength { source: measured }
-                    if measured.place == source && measured.path.is_empty())
+            .and_then(|position| operations.get(position));
+        let measured = match measurement {
+            Some(measurement) => {
+                self.read_leaf(measurement)?.as_ref() == Some(&expected)
                     && measurement
                         .result
                         .scalar_ref()
                         .is_some_and(|result| result.id == length)
-            });
+            }
+            None => false,
+        };
         if !measured {
             return Err(self.unsupported(
                 concerns,
@@ -2143,9 +2225,8 @@ impl<'a> Storage<'a> {
                 {
                     Reached::Extent(row.operation)
                 }
-                (Stored::Established, Asked::Contents(leaf)) => self
-                    .interned(tables, leaf, concerns)?
-                    .and_then(|place| {
+                (Stored::Established, Asked::Contents(leaf)) => {
+                    let named = self.interned(tables, leaf, concerns)?.and_then(|place| {
                         self.returned_contents
                             .get(index(row.operation.get()))
                             .and_then(|values| {
@@ -2154,8 +2235,24 @@ impl<'a> Storage<'a> {
                                     .ok()
                                     .map(|found| values[found].1)
                             })
-                    })
-                    .map_or(Reached::Returned, Reached::Value),
+                    });
+                    if let Some(named) = named {
+                        Reached::Value(named)
+                    } else if row.lineage.segments.is_empty()
+                        && matches!(self.root_kind(leaf.root, concerns)?,
+                            StructuralPlaceKind::OperationResult { producer, .. }
+                                if producer == row.operation)
+                        && self
+                            .operation(row.operation, concerns)?
+                            .kind
+                            .declared_invocation()
+                            .is_some()
+                    {
+                        Reached::Established(beneath.len())
+                    } else {
+                        Reached::Unknown
+                    }
+                }
                 (Stored::Established, Asked::Case(_)) => Reached::Unknown,
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
@@ -2175,6 +2272,7 @@ impl<'a> Storage<'a> {
                     };
                     // The source as it was just before the store.
                     self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
+                        .within(beneath.len())
                 }
             };
             return Ok(
@@ -2347,292 +2445,322 @@ impl<'a> Storage<'a> {
         budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
-        let resolved = self.backing(asked.place(), block, up_to, concerns)?;
-        let asked = asked.at(&resolved);
-        let key = match asked {
-            Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
-            Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
-            Asked::Window { .. } => None,
-        };
-        if let Some(key) = &key
-            && !budget.active.insert(key.clone())
-        {
-            return Ok(Reached::Cycle);
-        }
-        // Repeated copy equations are handled above. The remaining limit
-        // refuses chains whose projected source keeps growing.
-        budget.remaining = budget
-            .remaining
-            .checked_sub(1)
-            .ok_or_else(|| self.unsupported(concerns, "a chain of copies does not end"))?;
-        if budget.used.is_none() {
-            let operations = &self.block(block)?.operations;
-            let count = up_to.min(operations.len());
-            budget.used = Some(if count == 0 {
-                ProgramPoint::BlockEntry(block)
-            } else {
-                ProgramPoint::AfterOperation(operations[count - 1].id)
-            });
-        }
-        let mut merged: Option<Reached> = None;
-        let mut supply = |reached: Reached| {
-            // Identity-copy cycles contribute no extra initial value. Walk
-            // every other arrival before claiming what the cycle carries.
-            if reached == Reached::Cycle {
-                return;
+        // Each alternative arrival has its own copy chain. Restore the depth
+        // on return so a sibling starts with the same bound. Active equations
+        // and crossed-entry history remain shared: every path is checked, and
+        // a partial cyclic result cannot be treated as established contents.
+        let remaining = budget.remaining;
+        let reached = (|| {
+            let original = asked.place();
+            let resolved = self.backing(original, block, up_to, concerns)?;
+            let asked = asked.at(&resolved);
+            let key = match asked {
+                Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
+                Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
+                Asked::Window { .. } => None,
+            };
+            if let Some(key) = &key
+                && !budget.active.insert(key.clone())
+            {
+                return Ok(Reached::Cycle);
             }
-            merged = Some(match (merged, reached) {
-                (None, reached) => reached,
-                (Some(Reached::Cycle), _) | (_, Reached::Cycle) => Reached::Cycle,
-                (Some(Reached::Unestablished), _) | (Some(_), Reached::Unestablished) => {
-                    Reached::Unestablished
+            // Repeated copy equations are handled above. The remaining limit
+            // refuses chains whose projected source keeps growing.
+            budget.remaining = budget
+                .remaining
+                .checked_sub(1)
+                .ok_or_else(|| self.unsupported(concerns, "a chain of copies does not end"))?;
+            if budget.used.is_none() {
+                let operations = &self.block(block)?.operations;
+                let count = up_to.min(operations.len());
+                budget.used = Some(if count == 0 {
+                    ProgramPoint::BlockEntry(block)
+                } else {
+                    ProgramPoint::AfterOperation(operations[count - 1].id)
+                });
+            }
+            let mut merged: Option<Reached> = None;
+            let mut supply = |reached: Reached| {
+                // Identity-copy cycles contribute no extra initial value. Walk
+                // every other arrival before claiming what the cycle carries.
+                if reached == Reached::Cycle {
+                    return;
                 }
-                // A window open on one arrival is open at the join.
-                (Some(Reached::Open), _) | (Some(_), Reached::Open) => Reached::Open,
-                (Some(Reached::Closed), Reached::Closed) => Reached::Closed,
-                (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
-                    Reached::Value(known)
-                }
-                (Some(Reached::Extent(known)), Reached::Extent(value)) if known == value => {
-                    Reached::Extent(known)
-                }
-                (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
-                    Reached::Case(known)
-                }
-                (Some(Reached::Returned), Reached::Returned) => Reached::Returned,
-                (
-                    Some(
+                merged = Some(match (merged, reached) {
+                    (None, reached) => reached,
+                    (Some(Reached::Cycle), _) | (_, Reached::Cycle) => Reached::Cycle,
+                    (Some(Reached::Unestablished), _) | (Some(_), Reached::Unestablished) => {
+                        Reached::Unestablished
+                    }
+                    // A window open on one arrival is open at the join.
+                    (Some(Reached::Open), _) | (Some(_), Reached::Open) => Reached::Open,
+                    (Some(Reached::Closed), Reached::Closed) => Reached::Closed,
+                    (Some(Reached::Value(known)), Reached::Value(value)) if known == value => {
+                        Reached::Value(known)
+                    }
+                    (Some(Reached::Extent(known)), Reached::Extent(value)) if known == value => {
+                        Reached::Extent(known)
+                    }
+                    (Some(Reached::Case(known)), Reached::Case(case)) if known == case => {
+                        Reached::Case(known)
+                    }
+                    (Some(Reached::Established(first)), Reached::Established(second)) => {
+                        Reached::Established(first.min(second))
+                    }
+                    (
+                        Some(
+                            Reached::Value(_)
+                            | Reached::Extent(_)
+                            | Reached::Case(_)
+                            | Reached::Established(_)
+                            | Reached::Unknown
+                            | Reached::Closed,
+                        ),
                         Reached::Value(_)
                         | Reached::Extent(_)
                         | Reached::Case(_)
-                        | Reached::Returned
+                        | Reached::Established(_)
                         | Reached::Unknown
                         | Reached::Closed,
-                    ),
-                    Reached::Value(_)
-                    | Reached::Extent(_)
-                    | Reached::Case(_)
-                    | Reached::Returned
-                    | Reached::Unknown
-                    | Reached::Closed,
-                ) => Reached::Unknown,
-            });
-        };
-        // Each block is walked whole at most once, so a cycle ends the walk.
-        let mut walked = vec![false; self.graph.block_count()];
-        let mut pending = vec![(block, up_to)];
-        while let Some((block, up_to)) = pending.pop() {
-            // The last row in this block, at or before the point, that ends
-            // the path: the latest position, and in one position the later
-            // log entry.
-            let mut last: Option<(usize, &Logged)> = None;
-            for (index, row) in self.log.iter().enumerate() {
-                if row.block != block
-                    || row.position > up_to
-                    || !asked.ended_by(row)
-                    || self.call_preserves_extent(asked, row, concerns)?
+                    ) => Reached::Unknown,
+                });
+            };
+            // Each block is walked whole at most once, so a cycle ends the walk.
+            let mut walked = vec![false; self.graph.block_count()];
+            let mut pending = vec![(block, up_to)];
+            while let Some((block, up_to)) = pending.pop() {
+                // The last row in this block, at or before the point, that ends
+                // the path: the latest position, and in one position the later
+                // log entry.
+                let mut last: Option<(usize, &Logged)> = None;
+                for (index, row) in self.log.iter().enumerate() {
+                    if row.block != block
+                        || row.position > up_to
+                        || !asked.ended_by(row)
+                        || self.call_preserves_extent(asked, row, concerns)?
+                    {
+                        continue;
+                    }
+                    if last.is_none_or(|(_, previous)| previous.position <= row.position) {
+                        last = Some((index, row));
+                    }
+                }
+                if let Asked::Contents(leaf) = asked
+                    && let Some(observations) = self.observations[index(block.get())].get(leaf)
                 {
+                    let end =
+                        observations.partition_point(|observation| observation.position <= up_to);
+                    if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
+                        && last.is_none_or(|(_, row)| row.position < observation.position)
+                        && !budget.crossed_entries[index(block.get())]
+                        && self.graph.dominates(
+                            ProgramPoint::AfterOperation(observation.operation),
+                            budget.used.ok_or_else(|| {
+                                self.foreign(concerns, "a storage trace has no use point")
+                            })?,
+                        )?
+                    {
+                        supply(Reached::Value(observation.value));
+                        continue;
+                    }
+                }
+                if let Some((index, _)) = last {
+                    supply(self.supplied(tables, index, asked, budget, concerns)?);
                     continue;
                 }
-                if last.is_none_or(|(_, previous)| previous.position <= row.position) {
-                    last = Some((index, row));
-                }
-            }
-            if let Asked::Contents(leaf) = asked
-                && let Some(observations) = self.observations[index(block.get())].get(leaf)
-            {
-                let end = observations.partition_point(|observation| observation.position <= up_to);
-                if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
-                    && last.is_none_or(|(_, row)| row.position < observation.position)
-                    && !budget.crossed_entries[index(block.get())]
-                    && self.graph.dominates(
-                        ProgramPoint::AfterOperation(observation.operation),
-                        budget.used.ok_or_else(|| {
-                            self.foreign(concerns, "a storage trace has no use point")
-                        })?,
-                    )?
+                // A block formal is a new owner of the selected edge's actual
+                // value. Follow that exact region before the edge consumes it;
+                // do not invent initial contents or pick one predecessor's value.
+                if let StructuralPlaceKind::BlockParameter {
+                    block: owner,
+                    position,
+                } = self.root_kind(asked_root(asked), concerns)?
+                    && owner == block
                 {
-                    supply(Reached::Value(observation.value));
-                    continue;
-                }
-            }
-            if let Some((index, _)) = last {
-                supply(self.supplied(tables, index, asked, budget, concerns)?);
-                continue;
-            }
-            // A block formal is a new owner of the selected edge's actual
-            // value. Follow that exact region before the edge consumes it;
-            // do not invent initial contents or pick one predecessor's value.
-            if let StructuralPlaceKind::BlockParameter {
-                block: owner,
-                position,
-            } = self.root_kind(asked_root(asked), concerns)?
-                && owner == block
-            {
-                let target = self.block(block)?;
-                let position = usize::try_from(position)
-                    .map_err(|_| self.foreign(concerns, "a block formal position exceeds usize"))?;
-                let parameter = target.structural_parameters.get(position).ok_or_else(|| {
-                    self.foreign(concerns, "a block formal is outside its telescope")
-                })?;
-                if parameter.place != asked_root(asked)
-                    || usize::try_from(parameter.position).ok() != Some(position)
-                {
-                    return Err(self.foreign(concerns, "a block formal has another owner"));
-                }
-                // A transfer establishes a whole value, as a whole store
-                // closes any window on the destination. A window on its
-                // source is owed at the edge's ordinary consumption point.
-                if matches!(asked, Asked::Window { .. }) {
-                    supply(Reached::Closed);
-                    continue;
-                }
-                budget.crossed_entries[index(block.get())] = true;
-                let mut predecessors = self.graph.predecessors(block)?.to_vec();
-                predecessors.sort_unstable();
-                predecessors.dedup();
-                let mut found = false;
-                for predecessor in predecessors {
-                    let terminator = &self.block(predecessor)?.terminator;
-                    let successors = terminator.successor_edges();
-                    let bindings = terminator.successor_block_arguments();
-                    if successors.len() != bindings.len() {
+                    let target = self.block(block)?;
+                    let position = usize::try_from(position).map_err(|_| {
+                        self.foreign(concerns, "a block formal position exceeds usize")
+                    })?;
+                    let parameter =
+                        target.structural_parameters.get(position).ok_or_else(|| {
+                            self.foreign(concerns, "a block formal is outside its telescope")
+                        })?;
+                    if parameter.place != asked_root(asked)
+                        || usize::try_from(parameter.position).ok() != Some(position)
+                    {
+                        return Err(self.foreign(concerns, "a block formal has another owner"));
+                    }
+                    // A transfer establishes a whole value, as a whole store
+                    // closes any window on the destination. A window on its
+                    // source is owed at the edge's ordinary consumption point.
+                    if matches!(asked, Asked::Window { .. }) {
+                        supply(Reached::Closed);
+                        continue;
+                    }
+                    budget.crossed_entries[index(block.get())] = true;
+                    let mut predecessors = self.graph.predecessors(block)?.to_vec();
+                    predecessors.sort_unstable();
+                    predecessors.dedup();
+                    let mut found = false;
+                    for predecessor in predecessors {
+                        let terminator = &self.block(predecessor)?.terminator;
+                        let successors = terminator.successor_edges();
+                        let bindings = terminator.successor_block_arguments();
+                        if successors.len() != bindings.len() {
+                            return Err(
+                                self.foreign(concerns, "an edge has no complete binding roster")
+                            );
+                        }
+                        for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
+                            if into != block {
+                                continue;
+                            }
+                            found = true;
+                            if arguments.len() != target.structural_parameters.len() {
+                                return Err(self.foreign(
+                                    Construct::Edge(edge),
+                                    "structural edge arguments differ from the target telescope",
+                                ));
+                            }
+                            let argument = &arguments[position];
+                            if !terminal_psi::structural_access_covers(
+                                argument.access,
+                                parameter.access,
+                            ) {
+                                return Err(self.foreign(
+                                    Construct::Edge(edge),
+                                    "a structural edge argument has insufficient access",
+                                ));
+                            }
+                            let mut source = self.argument(argument, Construct::Edge(edge))?;
+                            if !matches!(self.shape(&source, Construct::Edge(edge))?,
+                            Shape::Typed(actual) if actual == parameter.structural_type)
+                            {
+                                return Err(self.foreign(
+                                    Construct::Edge(edge),
+                                    "a structural edge argument has another type",
+                                ));
+                            }
+                            let beneath = &asked.place().segments;
+                            source.segments.extend_from_slice(beneath);
+                            let asked = match asked {
+                                Asked::Contents(_) => Asked::Contents(&source),
+                                Asked::Case(_) => Asked::Case(&source),
+                                Asked::Window { .. } => {
+                                    unreachable!("windows close at the binding")
+                                }
+                            };
+                            supply(
+                                self.reaching(
+                                    tables,
+                                    asked,
+                                    predecessor,
+                                    usize::MAX,
+                                    budget,
+                                    concerns,
+                                )?
+                                .within(beneath.len()),
+                            );
+                        }
+                    }
+                    if !found {
                         return Err(
-                            self.foreign(concerns, "an edge has no complete binding roster")
+                            self.foreign(concerns, "a block formal has no incoming binding")
                         );
                     }
-                    for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
-                        if into != block {
-                            continue;
-                        }
-                        found = true;
-                        if arguments.len() != target.structural_parameters.len() {
-                            return Err(self.foreign(
-                                Construct::Edge(edge),
-                                "structural edge arguments differ from the target telescope",
-                            ));
-                        }
-                        let argument = &arguments[position];
-                        if !terminal_psi::structural_access_covers(
-                            argument.access,
-                            parameter.access,
-                        ) {
-                            return Err(self.foreign(
-                                Construct::Edge(edge),
-                                "a structural edge argument has insufficient access",
-                            ));
-                        }
-                        let mut source = self.argument(argument, Construct::Edge(edge))?;
-                        if !matches!(self.shape(&source, Construct::Edge(edge))?,
-                            Shape::Typed(actual) if actual == parameter.structural_type)
-                        {
-                            return Err(self.foreign(
-                                Construct::Edge(edge),
-                                "a structural edge argument has another type",
-                            ));
-                        }
-                        source.segments.extend_from_slice(&asked.place().segments);
-                        let asked = match asked {
-                            Asked::Contents(_) => Asked::Contents(&source),
-                            Asked::Case(_) => Asked::Case(&source),
-                            Asked::Window { .. } => unreachable!("windows close at the binding"),
-                        };
-                        supply(self.reaching(
-                            tables,
-                            asked,
-                            predecessor,
-                            usize::MAX,
-                            budget,
-                            concerns,
-                        )?);
+                    continue;
+                }
+                if block == self.graph.entry() {
+                    supply(
+                        match (asked, self.root_kind(asked_root(asked), concerns)?) {
+                            // A path that never passed the opening write.
+                            (Asked::Window { .. }, _) => Reached::Closed,
+                            // A formal arrives with its declared type established.
+                            // A selected field need not name one entry value,
+                            // especially when its index changes in a ranked loop.
+                            (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
+                                .interned(tables, leaf, concerns)?
+                                .and_then(|place| {
+                                    self.initial_contents.get(index(place.get())).copied()
+                                })
+                                .flatten()
+                                .map_or(Reached::Established(leaf.segments.len()), Reached::Value),
+                            // Which case a formal holds at entry is not known, and
+                            // other storage holds nothing there; that it holds
+                            // nothing is the contents question's answer to give.
+                            (Asked::Case(_), _) => Reached::Unknown,
+                            (
+                                Asked::Contents(_),
+                                StructuralPlaceKind::BlockParameter { .. }
+                                | StructuralPlaceKind::Result
+                                | StructuralPlaceKind::OperationResult { .. }
+                                | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                                | StructuralPlaceKind::ProviderAttachment { .. }
+                                | StructuralPlaceKind::TrivialAffineLocal { .. },
+                            ) => Reached::Unestablished,
+                        },
+                    );
+                }
+                budget.crossed_entries[index(block.get())] = true;
+                let mut asked_of: Vec<BlockId> = Vec::new();
+                for predecessor in self.graph.predecessors(block)? {
+                    // A block that enters by two edges is listed twice.
+                    if asked_of.contains(predecessor) {
+                        continue;
+                    }
+                    asked_of.push(*predecessor);
+                    if let Asked::Case(sum) = asked
+                        && let Some(selected) =
+                            self.edge_selects(tables, sum, *predecessor, block, concerns)?
+                    {
+                        supply(selected);
+                        continue;
+                    }
+                    let slot = walked.get_mut(index(predecessor.get())).ok_or_else(|| {
+                        self.foreign(
+                            Construct::Block(*predecessor),
+                            "an edge leaves a block past the end",
+                        )
+                    })?;
+                    if !std::mem::replace(slot, true) {
+                        pending.push((*predecessor, usize::MAX));
                     }
                 }
-                if !found {
-                    return Err(self.foreign(concerns, "a block formal has no incoming binding"));
-                }
-                continue;
             }
-            if block == self.graph.entry() {
-                supply(
-                    match (asked, self.root_kind(asked_root(asked), concerns)?) {
-                        // A path that never passed the opening write.
-                        (Asked::Window { .. }, _) => Reached::Closed,
-                        // A formal is initialized storage at entry. Its content
-                        // has a value identity when elaboration minted one.
-                        (Asked::Contents(leaf), StructuralPlaceKind::Parameter { .. }) => self
-                            .interned(tables, leaf, concerns)?
-                            .and_then(|place| {
-                                self.initial_contents.get(index(place.get())).copied()
-                            })
-                            .flatten()
-                            .map_or(Reached::Unknown, Reached::Value),
-                        // Which case a formal holds at entry is not known, and
-                        // other storage holds nothing there; that it holds
-                        // nothing is the contents question's answer to give.
-                        (Asked::Case(_), _) => Reached::Unknown,
-                        (
-                            Asked::Contents(_),
-                            StructuralPlaceKind::BlockParameter { .. }
-                            | StructuralPlaceKind::Result
-                            | StructuralPlaceKind::OperationResult { .. }
-                            | StructuralPlaceKind::ByteSequenceLiteral { .. }
-                            | StructuralPlaceKind::ProviderAttachment { .. }
-                            | StructuralPlaceKind::TrivialAffineLocal { .. },
-                        ) => Reached::Unestablished,
-                    },
-                );
-            }
-            budget.crossed_entries[index(block.get())] = true;
-            let mut asked_of: Vec<BlockId> = Vec::new();
-            for predecessor in self.graph.predecessors(block)? {
-                // A block that enters by two edges is listed twice.
-                if asked_of.contains(predecessor) {
-                    continue;
-                }
-                asked_of.push(*predecessor);
-                if let Asked::Case(sum) = asked
-                    && let Some(selected) =
-                        self.edge_selects(tables, sum, *predecessor, block, concerns)?
-                {
-                    supply(selected);
-                    continue;
-                }
-                let slot = walked.get_mut(index(predecessor.get())).ok_or_else(|| {
-                    self.foreign(
-                        Construct::Block(*predecessor),
-                        "an edge leaves a block past the end",
-                    )
-                })?;
-                if !std::mem::replace(slot, true) {
-                    pending.push((*predecessor, usize::MAX));
+            // No path reaches the point at all: nothing is claimed about it.
+            let mut reached = merged.unwrap_or(if key.is_some() {
+                Reached::Cycle
+            } else {
+                Reached::Unknown
+            });
+            if let Some(key) = key {
+                budget.active.remove(&key);
+                if budget.active.is_empty() && reached == Reached::Cycle {
+                    reached = Reached::Unestablished;
                 }
             }
-        }
-        // No path reaches the point at all: nothing is claimed about it.
-        let mut reached = merged.unwrap_or(if key.is_some() {
-            Reached::Cycle
-        } else {
-            Reached::Unknown
-        });
-        if let Some(key) = key {
-            budget.active.remove(&key);
-            if budget.active.is_empty() && reached == Reached::Cycle {
-                reached = Reached::Unestablished;
+            if let Reached::Value(value) = reached
+                && let Some(ValueOrigin::Operation(operation)) =
+                    tables.values.get(value).map(|row| row.origin)
+                && self
+                    .read_leaf(self.operation(operation, concerns)?)?
+                    .is_some()
+            {
+                let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+                if budget.crossed_entries[index(owner.get())] {
+                    return Ok(Reached::Unknown);
+                }
             }
-        }
-        if let Reached::Value(value) = reached
-            && let Some(ValueOrigin::Operation(operation)) =
-                tables.values.get(value).map(|row| row.origin)
-            && self
-                .read_leaf(self.operation(operation, concerns)?)?
-                .is_some()
-        {
-            let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-            if budget.crossed_entries[index(owner.get())] {
-                return Ok(Reached::Unknown);
-            }
-        }
-        Ok(reached)
+            // Backing substitution can replace the enclosing types. Only named
+            // value identities can cross that substitution without its type path.
+            Ok(if original == &resolved {
+                reached
+            } else {
+                reached.within(0)
+            })
+        })();
+        budget.remaining = remaining;
+        reached
     }
 
     fn budget(&self) -> Reaching {
@@ -2782,11 +2910,10 @@ impl<'a> Storage<'a> {
     ) -> Checked<Vec<Proposition>> {
         let (block, before) = at;
         let (observed, scalar_type) = observed;
-        // Where the leaf's content arrived: the leaf of a formal whose
-        // entry content it still is, or this same leaf when its root is
-        // what a call returned. The types that lend a clause are the ones
-        // on that path, inside the value that arrived; a type this machine
-        // built around it (a literal holding a formal) lends nothing.
+        // Follow the storage to the value that was established. Named
+        // contents retain their original path. With no single name, the
+        // trace retains only the part of the current path established on
+        // every arrival, inside the value supplied by another machine.
         let mut budget = self.budget();
         let arrived = match self.reaching(
             tables,
@@ -2796,22 +2923,11 @@ impl<'a> Storage<'a> {
             &mut budget,
             concerns,
         )? {
-            Reached::Returned => match self.root_kind(leaf.root, concerns)? {
-                // Every path supplies what a call returned, and nothing but
-                // the operation that produced the root ever stored into the
-                // leaf or a place around it: the root is that call's result
-                // and the leaf still lies in the value the callee
-                // established.
-                StructuralPlaceKind::OperationResult { producer, .. }
-                    if self.log.iter().all(|row| {
-                        !overlap(&row.lineage, leaf)
-                            || (row.lineage.segments.is_empty() && row.operation == producer)
-                    }) =>
-                {
-                    Some((leaf.clone(), 0))
-                }
-                _ => None,
-            },
+            Reached::Established(depth) => leaf
+                .segments
+                .len()
+                .checked_sub(depth)
+                .map(|start| (leaf.clone(), start)),
             Reached::Value(held) => {
                 match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
                     .origin
@@ -3017,6 +3133,9 @@ impl<'a> Storage<'a> {
             return Ok(vec![source]);
         }
         match &operation.kind {
+            OperationKind::AtomicAccess { place, path, .. } => {
+                Ok(vec![self.stored_at(*place, path, concerns)?])
+            }
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
@@ -3049,6 +3168,15 @@ impl<'a> Storage<'a> {
                 destination: source,
                 ..
             } => Ok(vec![self.stored_at(*source, &[], concerns)?]),
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                ..
+            } => Ok(vec![self.argument(
+                &self.byte_field_argument(*source, path, *field, concerns)?,
+                concerns,
+            )?]),
             // Each compared view is read whole through its own descriptor.
             OperationKind::ByteSequenceEqual { left, right } => [left, right]
                 .into_iter()
@@ -3219,7 +3347,11 @@ impl<'a> Storage<'a> {
 
     fn operation_read_effects(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
         let payloads = self.call_payload_arguments(operation, false)?;
-        let indexed = matches!(operation.kind, OperationKind::ByteSequenceRead { .. });
+        let indexed = matches!(
+            operation.kind,
+            OperationKind::ByteSequenceRead { .. }
+                | OperationKind::StructuralByteSequenceFieldRead { .. }
+        );
         Ok(self
             .operation_uses(operation)?
             .into_iter()
@@ -4823,7 +4955,7 @@ impl crate::Bindings for Held<'_, '_> {
             Reached::Case(held) => Ok(held == case),
             Reached::Value(_)
             | Reached::Extent(_)
-            | Reached::Returned
+            | Reached::Established(_)
             | Reached::Unknown
             | Reached::Unestablished
             | Reached::Cycle

@@ -52,7 +52,6 @@ target/debug/omega run --both samples/cli/facts/projection_call_premise/const_na
 target/debug/omega run --both samples/cli/facts/projection_call_premise/other_state/main.omg
 target/debug/omega run --both samples/cli/facts/projection_call_premise/other_machine/main.omg
 target/debug/omega run --both samples/cli/facts/projection_call_premise/target_body/main.omg
-python3 tools/corpus_gate.py --filter facts/projection_call_premise
 ```
 
 ### The oracle discriminates
@@ -87,12 +86,9 @@ own transport). Proof checking fails closed during compile-time verification:
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/projection_call_premise_through_*`
-fixtures: nine pass fixtures (checked, and built with `exit:0` plus Terminal
-agreement on this host) and nine reject twins (rejected with their authored
-fragments). The nine pass fixtures are byte-identical copies of their place
-programs, and the nine fail fixtures are byte-identical copies of their twins,
-so sample and fixture cannot drift apart.
+The nine pass fixtures are byte-identical copies of their place programs, and the nine
+fail fixtures are byte-identical copies of their twins, so sample and fixture cannot
+drift apart.
 
 ## Requirements and Evidence
 

@@ -1116,42 +1116,43 @@ Older markers are rejected before their payload is read.
 | 9 | structural types | counted structural type declarations |
 | 10 | structural referent identities | counted identity-only pointer targets |
 | 11 | structural domains | counted structural domain declarations |
-| 12 | services | counted service declarations |
-| 13 | root service reach | counted concrete service ids, then counted installation reach dependencies |
-| 14 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
-| 15 | access lifecycle plans | counted whole-value access demand rows, below |
-| 16 | access-view inputs | counted access-view input rows |
-| 17 | reborrow restored call uses | counted restored-use rows |
-| 18 | boundary machines | counted boundary machine declarations |
-| 19 | calling signatures | counted boundary-to-declaration ABI associations |
-| 20 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
-| 21 | calling policy requests | counted ordered explicit policy applications, below |
-| 22 | opaque representations | counted exact selected carrier applications, below |
-| 23 | unoptimized behavior | counted pre-optimization behavior rows |
-| 24 | external providers | counted external provider conformances |
-| 25 | provider candidates | counted provider candidate rows |
-| 26 | provider instance requirements | counted required provider-instance rows |
-| 27 | legacy dynamic dispatch | counted interfaces and implementation tables |
-| 28 | float-meaning projections | counted projection rows |
-| 29 | float-meaning equalities | counted equality rows |
-| 30 | proposition declarations | counted proposition declaration rows |
-| 31 | proposition applications | counted proposition application rows |
-| 32 | evidence terms | counted evidence term rows |
-| 33 | evidence contract lanes | counted evidence lane rows |
-| 34 | proof-output invocations | counted proof-output call rows |
-| 35 | proof recursive components | counted recursive component rows |
-| 36 | closed conformance applications | counted conformance application rows |
-| 37 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 38 | scalar block invariants | the counted invariant rows above |
-| 39 | operation crash contracts | counted operation crash contract rows |
-| 40 | machines | counted machine rows |
-| 41 | target layout applications | counted complete checked policy alternatives |
-| 42 | native layout catalog | counted nominal records and complete native reports, below |
-| 43 | boundary application demands | counted exact requirement/application rows |
-| 44 | callback applications | counted checked registrar occurrences |
-| 45 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
-| 46 | boundary application candidates | counted checked bodies for closed applications |
-| 47 | task activation demands | counted task activation demand rows |
+| 12 | structural qualification changes | counted explicit structural casts, below |
+| 13 | services | counted service declarations |
+| 14 | root service reach | counted concrete service ids, then counted installation reach dependencies |
+| 15 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
+| 16 | access lifecycle plans | counted whole-value access demand rows, below |
+| 17 | access-view inputs | counted access-view input rows |
+| 18 | reborrow restored call uses | counted restored-use rows |
+| 19 | boundary machines | counted boundary machine declarations |
+| 20 | calling signatures | counted boundary-to-declaration ABI associations |
+| 21 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
+| 22 | calling policy requests | counted ordered explicit policy applications, below |
+| 23 | opaque representations | counted exact selected carrier applications, below |
+| 24 | unoptimized behavior | counted pre-optimization behavior rows |
+| 25 | external providers | counted external provider conformances |
+| 26 | provider candidates | counted provider candidate rows |
+| 27 | provider instance requirements | counted required provider-instance rows |
+| 28 | legacy dynamic dispatch | counted interfaces and implementation tables |
+| 29 | float-meaning projections | counted projection rows |
+| 30 | float-meaning equalities | counted equality rows |
+| 31 | proposition declarations | counted proposition declaration rows |
+| 32 | proposition applications | counted proposition application rows |
+| 33 | evidence terms | counted evidence term rows |
+| 34 | evidence contract lanes | counted evidence lane rows |
+| 35 | proof-output invocations | counted proof-output call rows |
+| 36 | proof recursive components | counted recursive component rows |
+| 37 | closed conformance applications | counted conformance application rows |
+| 38 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 39 | scalar block invariants | the counted invariant rows above |
+| 40 | operation crash contracts | counted operation crash contract rows |
+| 41 | machines | counted machine rows |
+| 42 | target layout applications | counted complete checked policy alternatives |
+| 43 | native layout catalog | counted nominal records and complete native reports, below |
+| 44 | boundary application demands | counted exact requirement/application rows |
+| 45 | callback applications | counted checked registrar occurrences |
+| 46 | installed interrupt registrations | counted exact installation, registrar and callback rows, below |
+| 47 | boundary application candidates | counted checked bodies for closed applications |
+| 48 | task activation demands | counted task activation demand rows |
 
 Marker 238 requires the explicit prerequisite/result role byte after the
 subject of every integer-range and predicate condition, together with complete
@@ -1406,8 +1407,19 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
+Semantic format marker 274 adds tag 10, HostedPrimitive, followed by a `u8`
+operation (`0` ProcessExit; other operations reject), then the canonical public requirement's `u64` boundary
+id. The primitive is a Machine boundary with its own checked source declaration
+and callable identity; the linked requirement remains a distinct Trait boundary.
+Receiving authenticates the exact compiler-owned core declarations and their
+complete signature, reach, crash and progress correspondence, and independently
+proves that the actual result type is empty. The link preserves the canonical
+terminal observation without supplying target realization or execution authority.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Vocabulary marker 133 and the artifact transport envelope remain unchanged.
+decoded. Marker 274 retains the structural qualification rows and marker 273's
+machine-contract account of public result lifetimes. Formats 271, 272 and 273
+are refused before payload interpretation. Vocabulary marker 134 and the
+artifact transport envelope remain unchanged.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -1422,9 +1434,20 @@ an optional declaration immediately after its machine id; synthetic bodies may
 omit it. A callback body must retain it, and native admission compares it to the
 caller's selected body.
 
+An ordinary machine's parameter and result type identities retain their declared
+lifetime relation in one signature context. Its own lifetime binders use
+`region(owner(schema),ordinal(...))`; elided inputs mint distinct binders and an
+elided result uses the signature's unambiguous relation under
+[returned-view elision](../language/lifetimes.md#returned-views). Captured
+lifetimes retain their portable declaration owner instead of becoming invocation
+binders. Binder names do not affect these identities. The contract commitment
+uses these same complete type identities, so an input-related result promise
+cannot compare equal to a caller-chosen promise merely because the executable
+types have the same layout. These signature descriptions establish no runtime
+region, backing or loan authority.
+
 A boundary's optional checked callable adds its counted closed method arguments
-and a `u8` execution owner: `0` provider, `1` compiler access initialization,
-`2` compiler access extraction. Other tags reject. Each compiler access
+and the checked boundary execution encoding above. Each compiler access
 declaration requires exactly one matching lifecycle obligation row; deleting
 that row cannot change the declaration into a provider-supplied boundary.
 
@@ -1436,6 +1459,15 @@ Optional fields use a presence Boolean.
 Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
+
+Semantic format marker 273 moves a public requirement's declared result lifetime
+groups from each static method application onto the machine contract, encoded
+as an optional list immediately after the contract's result. A selected call
+reads them from its public header contract and a rigid call from the bodiless
+requirement's own contract, so both routes bind their caller's loans from one
+account. A body's contract leaves the list absent; its actual return origins
+stay in the result's reference-source column. A 272 artifact rejects at the
+header.
 
 Semantic format marker 271 retains a boundary's optional declared result lifetime
 groups separately from its spatial result-reference regions. Each group uses the
@@ -1753,9 +1785,19 @@ producer state and rederives every ordering rule.
 | structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection + counted establishment routes |
 | optional content projection | `u8` 0 absent; `u8` 1 + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression |
 | structural establishment route | `u8` tag per the establishment-route table |
+| structural qualification change | machine id + edge id + `u32` structural argument ordinal + source place id + destination place id + counted qualification establishments (domain id + `u64` route index) |
 | service declaration | service id + identity string + counted parent service ids |
 | concrete root service reach | counted service ids |
 | installation reach dependency | requirement identity string + counted service-id upper bound |
+
+Semantic format marker 272 adds the structural qualification change table
+after the structural domains. Each row is one explicit `value as +D` or
+`value as -D` on a structural value: the successor edge and structural argument
+ordinal that carry it, the source place, and the fresh destination block
+parameter whose declared whole-value domains differ from the source's. Rows are
+strictly ordered by machine, edge and ordinal; each row's establishments are
+strictly ordered by domain and name only domains the change adds that have
+issuer routes. A 271 artifact has no such table and rejects.
 
 Storage declarations and identity-only referents share one type-id namespace.
 Their ids and canonical identities are disjoint, and each roster is strictly
@@ -2339,8 +2381,9 @@ subject field as the new representation.
 | realization callable | source callable identity string + machine id + callable result |
 | conformance row | declaring trait identity string + public requirement identity string + counted family tuple strings + requirement identity string + realization identity string + optional realization callable identity string |
 
-From marker 268, each static method application also retains an optional list
-of declared result lifetime groups. Each group contains counted input lifetime
+From marker 273, the public header's machine contract (not the static method
+application) retains an optional list of declared result lifetime groups.
+Each group contains counted input lifetime
 dependencies (the existing referent/stored dependency encoding), followed by
 counted structural result paths. One group shares its complete input set among
 its result paths; the encoding does not expand an input-by-result matrix.
@@ -2354,14 +2397,13 @@ When present, a counted outer lifetime roster, counted complete parameter type
 identities and one complete result type identity follow. The type identities
 bind declared lifetimes to canonical `schema` ordinals; an absent type section
 cannot authorize a selected borrowed result. The receiver derives the input
-union from this original type relation and requires the application groups to
-agree, including after their application commitment is recomputed. Constraint
+union from this original type relation and requires the public header's groups
+to agree. Constraint
 and array-length type arguments do not become stored reference occurrences.
 Unresolved nominal or method-argument frontiers remain unavailable.
 
 These groups come from the original public signature and its complete method
-tuple before lifetime erasure. They are included in the conformance application
-commitment, which describes contents and cannot replace that independent
+tuple before lifetime erasure. No commitment replaces that independent
 declaration check. The implementing body's actual return origins remain separate:
 receiving checks must not replace the public input set with those narrower
 origins. Backing formation, access, source correspondence and loan completion
@@ -2693,7 +2735,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 271 | yes |
+| semantic module | `PSITERM\0` | 274 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

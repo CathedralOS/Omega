@@ -1,7 +1,7 @@
 // The selected provider makes limit() equal to 7; requires value <= limit() preserves the bound needed to prove 7 - value.
 // Expected exit: 0
 public boundary trait Endpoint {
-    machine upper() -> u64 reaches terminates;
+    machine upper() -> u64 reaches terminates crashes none;
 }
 public Actual satisfies Endpoint {
     machine upper() -> u64 { 7 }

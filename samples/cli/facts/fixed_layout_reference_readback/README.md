@@ -36,11 +36,6 @@ The [root program](main.omg) and these nine places carry the same fact:
 | Another machine | [program](other_machine/main.omg) | [control](invalid_other_machine/main.omg) |
 | Build-selected implementation | [program](target_body/main.omg) | [control](invalid_target_body/main.omg) |
 
-The [root lifetime control](../../../../tests/omega/fail/facts/fixed_layout_reference_readback_wrong_region_rejected/main.omg)
-changes only the returned carrier's lifetime from the pointer input to the
-independent storage input. It must reject because the returned view still borrows
-`pointer`. The [policy control](../../../../tests/omega/fail/facts/fixed_layout_reference_readback_wrong_policy_rejected/main.omg)
-changes only the loaded reference's destination policy to `PayloadLayout<8>`.
 Policies 7 and 8 both have size 8 and alignment 8, but the reference must retain
 its exact policy application.
 

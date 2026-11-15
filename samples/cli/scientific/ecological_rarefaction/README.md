@@ -47,9 +47,6 @@ From the repository root, using an optimized compiler of recorded provenance:
 ```sh
 omega packages update --project samples/cli/independent/ecological_rarefaction --target linux_x86_64
 omega run --both --keep samples/cli/independent/ecological_rarefaction/main.omg < samples/cli/independent/ecological_rarefaction/input.txt
-python3 samples/cli/independent/ecological_rarefaction/validate.py --omega /absolute/path/to/omega --route native
-python3 samples/cli/independent/ecological_rarefaction/validate.py --omega /absolute/path/to/omega --route terminal
-python3 samples/cli/independent/ecological_rarefaction/validate.py --omega /absolute/path/to/omega --route source-invalid
 ```
 
 Use the actual target for package preparation on macOS or Windows; Build binds
@@ -57,14 +54,13 @@ all three hosted entries. The acceptance runner's native build targets Linux,
 the qualified host. The portable `python` spelling works in PowerShell, with
 stdin piped from `Get-Content -Raw` for interactive CLI use.
 
-`reference.py` creates the frozen `data/oracle.json` and input hashes; acceptance
-never calls it or rewrites the oracle. Tiny fixtures enumerate independent
-subsets of labeled individuals. Larger distributions use inclusion/exclusion
-on species subsets. Exact inclusion probabilities and pairwise covariance
-supply a third calculation of expectation and variance. `ORACLE_SHA256` pins
-the pre-execution oracle. Fixtures cover zero/full depth, singleton communities,
-unequal abundance, absent species, permutation, repeated queries, total and
-simultaneous species/query capacity, EOF, whitespace, and line-length limits.
+Tiny fixtures enumerate independent subsets of labeled individuals. Larger
+distributions use inclusion/exclusion on species subsets. Exact inclusion
+probabilities and pairwise covariance supply a third calculation of expectation
+and variance. `ORACLE_SHA256` pins the pre-execution oracle. Fixtures cover
+zero/full depth, singleton communities, unequal abundance, absent species,
+permutation, repeated queries, total and simultaneous species/query capacity,
+EOF, whitespace, and line-length limits.
 
 The runner validates the actual native output and the Terminal reference's
 `<case>.terminal.stdout` and `<case>.terminal.stderr` against all frozen

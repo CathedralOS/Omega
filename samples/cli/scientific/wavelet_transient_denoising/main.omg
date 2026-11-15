@@ -1,5 +1,5 @@
 use omega::language::core::ProcessExit;
-// Expected exit: 0 for input.txt; numerical oracle: fixtures.json and validate.py.
+// Expected exit: 0 for input.txt; numerical oracle: fixtures.json.
 use domain::input;
 use domain::report;
 use omega::language::core::F64::from_i32;

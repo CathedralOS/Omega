@@ -52,15 +52,11 @@ checker rejects it in the generic template with ``argument `value` for state
 instantiated copies, ``expects `&i32` `` and ``expects `&u8` ``, so the open-`T`
 fragment pins the repair.
 
-On Windows x86_64, with the optimized producer built from `0402685c2f2` plus
-this change, all nine positives report native exit 0 and interpreter exit 0
-from `omega run --both`, and all nine twins reject. At the same base without the
-change all nine positives refused ``qualified call `record` has no resolved
-callable declaration`` at the statement call. Pinned fixtures:
-`tests/omega/pass/facts/generic_requirement_statement_call_through_<place>_exit`
-and `tests/omega/fail/facts/generic_requirement_statement_call_through_<place>_rejected`.
-Linux, macOS, and QEMU were not run; the other hosted targets are bound, not
-executed.
+On Windows x86_64, with the optimized producer built from `0402685c2f2` plus this change,
+all nine positives report native exit 0 and interpreter exit 0 from `omega run --both`,
+and all nine twins reject. At the same base without the change all nine positives refused
+``qualified call `record` has no resolved callable declaration`` at the statement call.
+Linux, macOS, and QEMU were not run; the other hosted targets are bound, not executed.
 
 - **Establishment:** the explicit operand `T` establishes the requirement's
   type application, and `Counting::record` establishes `hits` by storing

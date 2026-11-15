@@ -209,11 +209,60 @@ fn anonymous_publication_reloads_without_rebasing_and_copied_owner_differs() {
         checked_owner(&copied),
         "the complete captured source is an input"
     );
+    let checked = orchestration::check_source(
+        &mut CompilationSession::default(),
+        CheckedCompileRequest::new(&first.join("library.omg"), None),
+    )
+    .result
+    .unwrap_or_else(|failure| panic!("entryless check: {:?}", failure.into_diagnostics()));
+    let entryless = checked
+        .terminal_publication()
+        .published()
+        .expect("entryless Check publication")
+        .artifact();
+    let entryless = CanonicalTerminalArtifact::from_bytes(&entryless.to_bytes())
+        .expect("entryless Check artifact reload");
+    assert_eq!(entryless.semantic_module().entry, None);
     let first = artifact(&first);
     let relocated = artifact(&relocated);
     let copied = artifact(&copied);
     let reloaded = CanonicalTerminalArtifact::from_bytes(&first.to_bytes())
         .expect("canonical artifact reload");
+    let specialization = |artifact: &CanonicalTerminalArtifact| {
+        let mut specializations = artifact
+            .semantic_module()
+            .machines
+            .iter()
+            .filter(|machine| {
+                machine
+                    .declaration
+                    .as_ref()
+                    .unwrap()
+                    .specialization
+                    .is_some()
+            });
+        let specialized = specializations
+            .next()
+            .expect("the authored identity<Token> application");
+        assert!(
+            specializations.next().is_none(),
+            "one generated application"
+        );
+        let application = specialized.closed_reach_application.as_ref().unwrap();
+        assert_eq!(application.parameter_kinds, [0]);
+        let [terminal_psi::ClosedReachParameter::Type { argument }] =
+            application.telescope.as_slice()
+        else {
+            panic!("the application has its declared type argument");
+        };
+        assert!(argument.contains("library::Token"), "{argument}");
+        (
+            application.template_base_commitment,
+            application.specialization_commitment,
+            argument.clone(),
+        )
+    };
+    assert_eq!(specialization(&entryless), specialization(&reloaded));
     for same in [&relocated, &reloaded] {
         assert!(declaration(&first).same_identity_as(
             &first.semantic_module().identities,

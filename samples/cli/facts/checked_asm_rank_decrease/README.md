@@ -10,9 +10,7 @@ edge obligations. They are not this termination promise.
 Owning item: **CHECKED-ASM-LABEL-CONTRACTS**. The nine places bind
 `linux_x86_64`, `windows_x86_64`, and `macos_x86_64`. On Windows x86_64 both
 engines exit 0. Each reject twin changes only `done requires eax == 0` to
-`done requires eax == 1`. The pins are
-`tests/omega/pass/facts/checked_asm_rank_decrease_through_<place>_exit` and
-`tests/omega/fail/facts/checked_asm_rank_decrease_through_<place>_rejected`.
+`done requires eax == 1`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |

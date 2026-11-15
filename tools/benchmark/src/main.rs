@@ -26,6 +26,7 @@ mod progress;
 mod proof_preparation;
 mod records;
 mod scaling;
+mod selected_bodies;
 mod statistics;
 mod suite;
 
@@ -54,16 +55,56 @@ fn main() {
     if arguments.len() == 1 && (arguments[0] == "--help" || arguments[0] == "-h") {
         println!(
             "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
-omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record> <new-result-directory>
+omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <wpr|perf-stat|perf-record|selected-bodies> <new-result-directory>
 omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]
 omega-bench scaling --omega <release-omega> [--shape machines|citations] [--sizes 0,1000,2000] [--runs N] [--max-ratio R]
 omega-bench dominance-summary <graph-run-directory>
 omega-bench proof-plan <source|prepare|prove> <baseline> <candidate> <main.omg> <new-plan.json> [options]
-omega-bench proof-square <new-directory> [--identity-build]"
+omega-bench proof-square <new-directory> [--identity-build]
+omega-bench selected-body-inputs <baseline-omega> <new-directory>
+omega-bench selected-body-plan <profile-driver> <copied-main.omg> <target[,target]> <new-plan.json>
+omega-bench selected-body-source-plan <baseline-omega> <copied-main.omg> <target[,target]> <new-plan.json>"
         );
         return;
     }
     let command = arguments.first().and_then(|argument| argument.to_str());
+    if arguments.len() == 3 && command == Some("selected-body-inputs") {
+        if let Err(error) =
+            selected_bodies::prepare_inputs(Path::new(&arguments[1]), Path::new(&arguments[2]))
+        {
+            eprintln!("omega-bench: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if arguments.len() == 5
+        && matches!(
+            command,
+            Some("selected-body-plan" | "selected-body-source-plan")
+        )
+    {
+        let result = arguments[3]
+            .to_str()
+            .ok_or("target names must be UTF-8".to_owned())
+            .and_then(|targets| {
+                let prepare = if command == Some("selected-body-source-plan") {
+                    selected_bodies::prepare_source_plan
+                } else {
+                    selected_bodies::prepare_plan
+                };
+                prepare(
+                    Path::new(&arguments[1]),
+                    Path::new(&arguments[2]),
+                    targets,
+                    Path::new(&arguments[4]),
+                )
+            });
+        if let Err(error) = result {
+            eprintln!("omega-bench: {error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if let Some(name @ ("proof-plan" | "proof-square")) = command {
         let options: Option<Vec<String>> = arguments[1..]
             .iter()

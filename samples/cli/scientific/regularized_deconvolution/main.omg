@@ -1,5 +1,5 @@
 use omega::language::core::ProcessExit;
-// Expected exit: 0. Numerical output qualified by validate.py and frozen oracles.
+// Expected exit: 0.
 use domain::input;
 use domain::report;
 use domain::convolution;

@@ -4,7 +4,7 @@
 data Input<'input> { tag: u8; bytes: &'input [u8]; tail: u8; }
 boundary trait Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8 reaches
-    requires packet.bytes.len >= 4;
+    requires packet.bytes.len >= 4 crashes none;
 }
 X86Reader satisfies Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8

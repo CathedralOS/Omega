@@ -1,0 +1,15 @@
+// Size and alignment queries observe the C layout the selected policy laid out
+// for the target: one u8, one u64 at offset 8 and one u16 at offset 16 make a
+// 24-byte, 8-aligned record on every hosted target.
+// Expected exit: 0
+use omega::language::core::CLayout;
+data Record [copy] { first: u8; second: u64; last: u16; }
+machine main() crashes Trap {
+    let bytes: u64 = size_of<CLayout<Record>>();
+    transition bytes == 24u64 && align_of<CLayout<Record>>() == 8u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

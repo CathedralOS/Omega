@@ -4,7 +4,7 @@ boundary trait CText {
     machine length<const Count: u64>(text: &[u8; Count]) -> u64
     requires Count > 0
     requires text[Count - 1] == 0
-    reaches;
+    reaches crashes none;
 }
 data Text [copy]
 requires self.bytes[3] == 0

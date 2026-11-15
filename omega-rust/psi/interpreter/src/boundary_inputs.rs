@@ -2222,6 +2222,12 @@ pub(crate) mod contents {
         pub values: Vec<TerminalBoundaryStorageValue>,
     }
 
+    #[derive(Clone, Copy)]
+    struct ContentsOrigin {
+        argument_index: u32,
+        place: semantic_vocabulary::PlaceId,
+    }
+
     impl TerminalExecution<'_> {
         pub(crate) fn bind_structural_contents(
             &mut self,
@@ -2231,20 +2237,12 @@ pub(crate) mod contents {
                 return Ok(());
             }
             let mut staged = ConstructorStorage::new(self.account.as_ref());
+            let mut cursor = self.local_structural_identities.cursor();
             for argument in arguments {
                 let invalid = |reason| TerminalInterpretError::StructuralContentsArgumentInvalid {
                     argument_index: argument.argument_index,
                     reason,
                 };
-                if argument
-                    .values
-                    .windows(2)
-                    .any(|pair| pair[0].path >= pair[1].path)
-                {
-                    return Err(invalid(
-                        "contents must have unique paths in canonical order",
-                    ));
-                }
                 let parameter = self
                     .program
                     .machine(self.current_machine)?
@@ -2252,132 +2250,256 @@ pub(crate) mod contents {
                     .get(argument.argument_index as usize)
                     .ok_or_else(|| invalid("contents name no structural argument"))?;
                 let root = self.structural_value(parameter.place)?.clone();
-                let description = contents::describe(
-                    self,
+                self.stage_structural_contents(
+                    ContentsOrigin {
+                        argument_index: argument.argument_index,
+                        place: parameter.place,
+                    },
                     &root,
-                    terminal_psi::StructuralAccess::MutableBorrow,
-                    Some(&argument.values),
+                    &argument.values,
+                    &[],
+                    &mut staged,
+                    &mut cursor,
+                )?;
+            }
+            staged.publish(self)?;
+            self.local_structural_identities.commit_cursor(cursor);
+            Ok(())
+        }
+
+        fn stage_structural_contents(
+            &self,
+            origin: ContentsOrigin,
+            root: &crate::TerminalStructuralValue,
+            values: &[TerminalBoundaryStorageValue],
+            prefix: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+            staged: &mut ConstructorStorage,
+            cursor: &mut Option<u64>,
+        ) -> Result<(), TerminalInterpretError> {
+            let invalid = |reason| TerminalInterpretError::StructuralContentsArgumentInvalid {
+                argument_index: origin.argument_index,
+                reason,
+            };
+            if values.windows(2).any(|pair| pair[0].path >= pair[1].path) {
+                return Err(invalid(
+                    "contents must have unique paths in canonical order",
+                ));
+            }
+            let description = contents::describe_at(
+                self,
+                root,
+                terminal_psi::StructuralAccess::MutableBorrow,
+                Some(values),
+                prefix,
+            )
+            .map_err(|error| error.in_argument_preparation("describe complete entry contents"))?;
+            if description.requires_erased_establishment {
+                return Err(invalid(
+                    "scalar/case contents cannot establish erased bindings",
+                ));
+            }
+            let leaves = description.leaves;
+            let has_backing = values.iter().any(|value| {
+                matches!(
+                    &value.contents,
+                    TerminalStorageContents::Bytes(_) | TerminalStorageContents::Elements { .. }
                 )
-                .map_err(|error| {
-                    error.in_argument_preparation("describe complete entry contents")
-                })?;
-                if description.requires_erased_establishment {
-                    return Err(invalid(
-                        "scalar/case contents cannot establish erased bindings",
-                    ));
-                }
-                let leaves = description.leaves;
-                let has_bytes = argument
-                    .values
-                    .iter()
-                    .any(|value| matches!(&value.contents, TerminalStorageContents::Bytes(_)));
-                if !has_bytes
-                    && leaves.iter().any(|leaf| {
-                        matches!(
-                            leaf.kind,
-                            StorageLeafKind::Opaque { .. } | StorageLeafKind::ByteField { .. }
-                        )
-                    })
-                {
-                    return Err(invalid(
-                        "scalar/case contents cannot establish opaque or reference backing",
-                    ));
-                }
-                let mut visible = leaves
-                    .iter()
-                    .filter(|leaf| {
-                        matches!(
-                            leaf.kind,
-                            StorageLeafKind::Scalar { .. }
-                                | StorageLeafKind::Case { .. }
-                                | StorageLeafKind::ByteField { .. }
-                                | StorageLeafKind::Opaque { .. }
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let byte_arrays = leaves
-                    .iter()
-                    .filter(|leaf| matches!(leaf.kind, StorageLeafKind::ByteArray { .. }))
-                    .collect::<Vec<_>>();
-                visible.sort_unstable_by(|left, right| left.path.cmp(&right.path));
-                if visible.len() != argument.values.len() {
-                    return Err(invalid(
-                        "contents must supply every active scalar and case exactly once",
-                    ));
-                }
-                for (leaf, value) in visible.into_iter().zip(&argument.values) {
-                    if let TerminalStorageContents::Bytes(bytes) = &value.contents {
-                        if leaf.path != value.path {
-                            return Err(invalid(
-                                "byte contents do not name the complete active path",
-                            ));
-                        }
-                        self.stage_immutable_contents(&root, leaf, bytes, &mut staged)
-                            .map_err(|error| {
-                                error.in_argument_preparation("bind immutable byte contents")
-                            })?;
-                        continue;
+            });
+            if !has_backing
+                && leaves.iter().any(|leaf| {
+                    matches!(
+                        leaf.kind,
+                        StorageLeafKind::Opaque { .. } | StorageLeafKind::ByteField { .. }
+                    )
+                })
+            {
+                return Err(invalid(
+                    "scalar/case contents cannot establish opaque or reference backing",
+                ));
+            }
+            let mut visible = leaves
+                .iter()
+                .filter(|leaf| {
+                    matches!(
+                        leaf.kind,
+                        StorageLeafKind::Scalar { .. }
+                            | StorageLeafKind::Case { .. }
+                            | StorageLeafKind::ByteField { .. }
+                            | StorageLeafKind::Opaque { .. }
+                    )
+                })
+                .collect::<Vec<_>>();
+            let byte_arrays = leaves
+                .iter()
+                .filter(|leaf| matches!(leaf.kind, StorageLeafKind::ByteArray { .. }))
+                .collect::<Vec<_>>();
+            visible.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+            if visible.len() != values.len() {
+                return Err(invalid(
+                    "contents must supply every active scalar and case exactly once",
+                ));
+            }
+            for (leaf, value) in visible.into_iter().zip(values) {
+                if let TerminalStorageContents::Elements { length, values } = &value.contents {
+                    if leaf.path != value.path {
+                        return Err(invalid(
+                            "sequence contents do not name the complete active path",
+                        ));
                     }
-                    leaf.validate_value(value).map_err(invalid)?;
-                    match (&leaf.kind, value.contents.clone()) {
-                        (
-                            StorageLeafKind::Scalar { destination, .. },
-                            TerminalStorageContents::Scalar { value, .. },
-                        ) => {
-                            if !byte_arrays
-                                .iter()
-                                .any(|array| leaf.path.starts_with(&array.path))
-                            {
-                                staged.stage_scalar_endpoint(destination, value)?;
-                            }
-                        }
-                        (
-                            StorageLeafKind::Case {
-                                destination,
-                                structural_type,
-                                case,
-                            },
-                            TerminalStorageContents::Case(_),
-                        ) => {
-                            staged.stage_case(destination.clone(), *structural_type, *case)?;
-                        }
-                        _ => return Err(invalid("contents do not select a scalar or case")),
-                    }
+                    let StorageLeafKind::Opaque {
+                        destination,
+                        declaration,
+                    } = &leaf.kind
+                    else {
+                        return Err(invalid("sequence contents name no descriptor"));
+                    };
+                    let mut home = root.clone();
+                    home.path = destination.path.clone();
+                    home.structural_type = *declaration;
+                    self.stage_immutable_sequence_contents(
+                        origin, &home, *length, values, staged, cursor,
+                    )?;
+                    continue;
                 }
-                for leaf in &leaves {
-                    match &leaf.kind {
-                        StorageLeafKind::ByteArray {
+                if let TerminalStorageContents::Bytes(bytes) = &value.contents {
+                    if leaf.path != value.path {
+                        return Err(invalid(
+                            "byte contents do not name the complete active path",
+                        ));
+                    }
+                    self.stage_immutable_contents(root, leaf, bytes, staged)
+                        .map_err(|error| {
+                            error.in_argument_preparation("bind immutable byte contents")
+                        })?;
+                    continue;
+                }
+                leaf.validate_value(value).map_err(invalid)?;
+                match (&leaf.kind, value.contents.clone()) {
+                    (
+                        StorageLeafKind::Scalar { destination, .. },
+                        TerminalStorageContents::Scalar { value, .. },
+                    ) => {
+                        if !byte_arrays
+                            .iter()
+                            .any(|array| leaf.path.starts_with(&array.path))
+                        {
+                            staged.stage_scalar_endpoint(destination, value)?;
+                        }
+                    }
+                    (
+                        StorageLeafKind::Case {
                             destination,
                             structural_type,
-                            ..
-                        } => {
-                            let values = argument
-                                .values
-                                .iter()
-                                .skip(
-                                    argument
-                                        .values
-                                        .partition_point(|value| value.path < leaf.path),
-                                )
-                                .take_while(|value| value.path.starts_with(&leaf.path))
-                                .map(|value| match value.contents.clone() {
-                                    TerminalStorageContents::Scalar { value, .. } => Ok(value),
-                                    _ => Err(invalid("byte array element is not a scalar")),
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
-                            staged.stage_array(self, *structural_type, &values, destination)?;
-                        }
-                        StorageLeafKind::EmptyScalarArray {
-                            destination,
-                            structural_type,
-                        } => {
-                            staged.stage_array(self, *structural_type, &[], destination)?;
-                        }
-                        _ => {}
+                            case,
+                        },
+                        TerminalStorageContents::Case(_),
+                    ) => {
+                        staged.stage_case(destination.clone(), *structural_type, *case)?;
                     }
+                    _ => return Err(invalid("contents do not select a scalar or case")),
                 }
             }
-            staged.publish(self)
+            for leaf in &leaves {
+                match &leaf.kind {
+                    StorageLeafKind::ByteArray {
+                        destination,
+                        structural_type,
+                        ..
+                    } => {
+                        let values = values
+                            .iter()
+                            .skip(values.partition_point(|value| value.path < leaf.path))
+                            .take_while(|value| value.path.starts_with(&leaf.path))
+                            .map(|value| match value.contents.clone() {
+                                TerminalStorageContents::Scalar { value, .. } => Ok(value),
+                                _ => Err(invalid("byte array element is not a scalar")),
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        staged.stage_array(self, *structural_type, &values, destination)?;
+                    }
+                    StorageLeafKind::EmptyScalarArray {
+                        destination,
+                        structural_type,
+                    } => {
+                        staged.stage_array(self, *structural_type, &[], destination)?;
+                    }
+                    _ => {}
+                }
+            }
+            Ok(())
+        }
+
+        fn stage_immutable_sequence_contents(
+            &self,
+            origin: ContentsOrigin,
+            root: &crate::TerminalStructuralValue,
+            length: usize,
+            values: &[TerminalBoundaryStorageValue],
+            staged: &mut ConstructorStorage,
+            cursor: &mut Option<u64>,
+        ) -> Result<(), TerminalInterpretError> {
+            use crate::boundary::errors::malformed;
+            use crate::storage::element_views::{
+                ElementView, immutable_sequence::ImmutableStructuralSequence,
+            };
+            use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
+            use terminal_psi::{StructuralAccess, StructuralTypeShape};
+            let declaration = self.structural_declaration(root.structural_type)?;
+            let StructuralTypeShape::ElementView {
+                element,
+                access: None | Some(StructuralAccess::SharedBorrow),
+            } = declaration.shape
+            else {
+                return Err(malformed()
+                    .in_argument_preparation("sequence contents require immutable backing"));
+            };
+            let element_declaration = self.structural_declaration(element)?;
+            if !root.qualifications.is_empty()
+                || !root.projected_qualifications.is_empty()
+                || declaration.owns_linear_claim
+                || element_declaration.owns_linear_claim
+                || !element_declaration.no_code_affine_cleanup
+                || !element_declaration.descriptor_cleanup
+                || values.windows(2).any(|pair| pair[0].path >= pair[1].path)
+                || values.iter().any(|value| {
+                    !matches!(value.path.first(), Some(Path::FixedIndex(index))
+                    if usize::try_from(*index).is_ok_and(|index| index < length))
+                })
+            {
+                return Err(malformed().in_argument_preparation(
+                    "sequence contents have no complete immutable roster",
+                ));
+            }
+            let elements = ImmutableStructuralSequence::from_values(
+                length,
+                (0..length).map(|index| {
+                    let index = u64::try_from(index).map_err(|_| malformed())?;
+                    let prefix = [Path::FixedIndex(index)];
+                    let start =
+                        values.partition_point(|value| value.path.as_slice() < prefix.as_slice());
+                    let end = start
+                        + values[start..].partition_point(|value| value.path.starts_with(&prefix));
+                    let child = crate::TerminalStructuralValue::minted(
+                        self.local_structural_identities.allocate_staged(cursor)?,
+                        element,
+                        Vec::new(),
+                    );
+                    self.stage_structural_contents(
+                        origin,
+                        &child,
+                        &values[start..end],
+                        &prefix,
+                        staged,
+                        cursor,
+                    )?;
+                    Ok(child)
+                }),
+                self.account.as_ref(),
+            )?;
+            staged.stage_element_view(
+                crate::boundary::values::StructuralRuntimePlace::from(root),
+                ElementView::immutable_sequence(elements, root.clone(), origin.place),
+            )
         }
 
         fn stage_immutable_contents(

@@ -9,6 +9,8 @@ name = "terminal_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../../foundation/language-core" }
+source = { path = "../../../../foundation/source" }
 extents = { path = "../../../../foundation/extents" }
 layout-plans = { path = "../../../../foundation/layout-plans" }
 access-plans = { path = "../../../../foundation/access-plans" }

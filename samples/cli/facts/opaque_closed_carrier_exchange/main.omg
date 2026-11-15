@@ -10,8 +10,8 @@ public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 
 public boundary trait AddressParts {
-    machine make(network: u32, host: u32) -> InternetAddress reaches;
-    machine host(address: InternetAddress) -> u32 reaches;
+    machine make(network: u32, host: u32) -> InternetAddress reaches crashes none;
+    machine host(address: InternetAddress) -> u32 reaches crashes none;
 }
 
 public data AddressBox { value: InternetAddress; }

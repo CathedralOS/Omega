@@ -37,7 +37,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedGate {
-    machine ready() -> bool reaches ensures result == false;
+    machine ready() -> bool reaches ensures result == false crashes none;
 }
 
 X86Gate satisfies SelectedGate {

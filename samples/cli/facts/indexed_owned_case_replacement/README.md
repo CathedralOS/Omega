@@ -34,13 +34,10 @@ without adding or removing a caller guard. The field control's early diagnostic
 reports the equivalent declared interval `1..=7`; the other controls name
 `PositiveSmall` directly.
 
-The programs are mirrored under
-`tests/omega/{pass,fail}/facts/indexed_owned_case_replacement_through_*`;
-positive fixtures declare native exit 0. Run a place with:
+Run a place with:
 
 ```sh
 omega run --both samples/cli/facts/indexed_owned_case_replacement/local/main.omg
-python3 tools/sample_native_gate.py --facts --filter cli/facts/indexed_owned_case_replacement
 ```
 
 ## Requirements and evidence

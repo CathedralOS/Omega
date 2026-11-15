@@ -17,6 +17,11 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub(super) trait Observer {
     fn package(&mut self, package: PackageKeyIdentity) -> Result<(), PackagePolicyMembershipError>;
     fn type_identity(&mut self, identity: &str) -> Result<(), PackagePolicyMembershipError>;
+    fn declared_type_identity(
+        &mut self,
+        identity: &str,
+        lifetimes: usize,
+    ) -> Result<(), PackagePolicyMembershipError>;
     fn nominal_path(&mut self, path: &str) -> Result<(), PackagePolicyMembershipError>;
 }
 

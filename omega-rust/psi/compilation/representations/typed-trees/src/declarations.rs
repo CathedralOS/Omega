@@ -1,7 +1,7 @@
 /*
 We represent typed declaration records (`declarations`), including domains, data
 definitions, constants, measures, wire schemas, layout storage, visibility,
-numeric/float intrinsics, and exact boundary completion recognition.
+numeric/float intrinsics, and boundary completions in `TypedTrees`.
 */
 
 pub mod boundary_completions {
@@ -94,6 +94,7 @@ pub mod boundary_completions {
         use language_core::sealed_intrinsics::{HostedOperation, SealedIntrinsic};
         if !requirement.is_valid()
             || !definition.is_boundary
+            || !definition.is_public
             || !definition.lifetime_parameters.is_empty()
             || !program.trait_type_parameters(definition).is_empty()
             || program
@@ -120,7 +121,9 @@ pub mod boundary_completions {
                 && !signature.suspends
                 && !signature.blocks
                 && signature.declares_no_crash_route
-                && matches!(&signature.termination_guarantee, language_semantics::TerminationGuarantee::Terminates { premises } if premises.is_empty())
+                && matches!(&signature.termination_guarantee,
+                    language_semantics::TerminationGuarantee::Terminates { premises }
+                    if premises.is_empty())
                 && exact_process_exit_signature(
                     program,
                     program.state_signature_parameters(signature),
@@ -129,10 +132,34 @@ pub mod boundary_completions {
         })
     }
 
+    /// The canonical requirement names the exact bundled ordinary result
+    /// declaration. This recognizes its signature, not an emptiness proof or
+    /// a grant of process-exit authority. The lowered checker owns those
+    /// independent judgments.
     fn exact_process_exit_signature(
         program: &TypedTrees,
         parameters: &[crate::signature::StateParameter],
         return_type: crate::types::TypeReferenceHandle,
+    ) -> bool {
+        exact_process_exit_inputs(program, parameters)
+            && program
+                .type_reference_table
+                .contains_type_reference(return_type)
+            && program
+                .type_reference_table
+                .unconstrained_named_symbol(return_type)
+                .is_some_and(|symbol| {
+                    // `type_symbol` also peels references and arrays. A pointer to
+                    // Never, or an empty array of it, is not this nominal result.
+                    program.data_definition_by_symbol(symbol).is_some()
+                        && program.core_vocabulary(symbol)
+                            == Some(language_core::core_vocabulary::CoreVocabulary::Never)
+                })
+    }
+
+    fn exact_process_exit_inputs(
+        program: &TypedTrees,
+        parameters: &[crate::signature::StateParameter],
     ) -> bool {
         let [parameter] = parameters else {
             return false;
@@ -144,19 +171,137 @@ pub mod boundary_completions {
                 == Some(PrimitiveType::Integer(
                     numerics::integer_carrier::FixedInteger::signed(32),
                 ))
-            && {
-                let mut current = return_type;
-                loop {
-                    match program.type_reference_table.type_reference(current) {
-                        TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
-                        TypeReferenceNode::Named { symbol, .. } => {
-                            break program.symbols.core_vocabulary(*symbol)
-                                == Some(language_core::core_vocabulary::CoreVocabulary::Never);
-                        }
-                        _ => break false,
-                    }
-                }
+    }
+
+    #[cfg(test)]
+    mod process_exit_signature_tests {
+        use super::*;
+        use crate::data::DataDefinition;
+        use crate::signature::StateParameter;
+        use crate::types::{FixedArrayLength, TypeReferenceHandle};
+        use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+        use std::{path::PathBuf, sync::Arc};
+        use symbols::{
+            BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+        };
+
+        const NEVER_SOURCE: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../source/library/core/never.omg"
+        ));
+
+        fn fixture(
+            origin: SourceOrigin,
+            text: &str,
+        ) -> (TypedTrees, StateParameter, TypeReferenceHandle) {
+            let mut sources = SourceMap::default();
+            let source = sources
+                .add_with_metadata(
+                    PathBuf::from("core/never.omg"),
+                    text.into(),
+                    PathBuf::from("core"),
+                    None,
+                    origin,
+                )
+                .source_id;
+            let start = text.find("Never").unwrap();
+            let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let children = builder.insert_children(
+                root,
+                builtin_type_symbols().into_iter().chain([(
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(
+                        source,
+                        Span::new(start, start + "Never".len()),
+                    )),
+                )]),
+            );
+            let never = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+            let integer = children
+                .handles()
+                .nth(
+                    BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(32))
+                        .ordinal(),
+                )
+                .unwrap();
+            let mut typed = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            typed.push_data_definition(DataDefinition {
+                symbol: never,
+                name: "Never".into(),
+                ..Default::default()
+            });
+            let argument = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: integer,
+                name: "i32".into(),
+            });
+            let result = typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol: never,
+                name: "Never".into(),
+            });
+            (
+                typed,
+                StateParameter {
+                    type_reference: argument,
+                    ..Default::default()
+                },
+                result,
+            )
+        }
+
+        #[test]
+        fn canonical_result_recognizes_bundled_identity_without_granting_legacy_shapes() {
+            let (mut typed, parameter, never) = fixture(SourceOrigin::Toolchain, NEVER_SOURCE);
+            assert!(exact_process_exit_signature(
+                &typed,
+                std::slice::from_ref(&parameter),
+                never
+            ));
+            let reference = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: never,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+            let array = typed
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type: never,
+                    length: FixedArrayLength::Literal(0),
+                });
+            let unit = typed.type_reference_table.insert(TypeReferenceNode::Unit);
+            for wrong in [
+                reference,
+                array,
+                unit,
+                parameter.type_reference,
+                TypeReferenceHandle::invalid(),
+            ] {
+                assert!(!exact_process_exit_signature(
+                    &typed,
+                    std::slice::from_ref(&parameter),
+                    wrong
+                ));
             }
+            let mut wrong_input = parameter;
+            wrong_input.is_mutable = true;
+            assert!(!exact_process_exit_signature(&typed, &[wrong_input], never));
+        }
+
+        #[test]
+        fn a_same_named_user_or_edited_toolchain_type_is_not_the_canonical_result() {
+            for (origin, text) in [
+                (SourceOrigin::User, NEVER_SOURCE),
+                (SourceOrigin::Toolchain, "public data Never {}"),
+            ] {
+                let (typed, parameter, result) = fixture(origin, text);
+                assert!(!exact_process_exit_signature(&typed, &[parameter], result));
+            }
+        }
     }
 }
 
@@ -685,12 +830,61 @@ pub mod domain {
         pub selection: crate::expression::StaticMachineArgument,
         /// Where the policy is named.
         pub source_span: source::SourceSpan,
+        /// What Build-time evaluation concluded about the plan the selected
+        /// policy returns for this domain. Only a demanded domain's plan is
+        /// run.
+        pub plan: AccessPlanJudgment,
+    }
+
+    /// The Build's conclusion about one domain's access plan. Only
+    /// `Checked` shows anybody to be an issuer or judges a read or write;
+    /// the other two leave every such use refused.
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub enum AccessPlanJudgment {
+        /// Nobody has run the plan: the domain is not demanded, or its
+        /// policy application is itself unserved.
+        #[default]
+        Unevaluated,
+        Checked(CheckedDomainAccessPlan),
+        /// The Build ran the plan and could not judge it: it failed to
+        /// evaluate, described another schema, named a route no declaration
+        /// answers, or stated restrictions no consumer reads yet. The domain
+        /// still passes whole through formals, results and fields, as an
+        /// unevaluated one does.
+        Unjudged(String),
     }
 
     impl DomainAccessPolicy {
         pub fn implementation(&self) -> SymbolHandle {
             self.selection.symbol
         }
+    }
+
+    /// The judgment of one evaluated `AccessPolicy::plan` result
+    /// (`wiki/spec/resources/access.md`, "Plans and admitted supply").
+    ///
+    /// The evaluator records a plan as checked only when it can state all of
+    /// it here:
+    /// the returned schema is the domain subject's own, every route names a
+    /// declaration of this program, and the plan has no field observation
+    /// demands, no reader or writer rules and no required reach. A plan with
+    /// any of those is `AccessPlanJudgment::Unjudged` instead, so this record
+    /// is the plan's complete judgment: issuance is exactly `issuance`, and reads and
+    /// writes are unrestricted by this policy ("omission leaves that axis
+    /// unrestricted").
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct CheckedDomainAccessPlan {
+        /// The policy member whose body returned the plan.
+        pub plan_machine: SymbolHandle,
+        pub issuance: CheckedIssuance,
+    }
+
+    /// The plan's issuer choice. `Only` with no routes permits nobody; it is
+    /// never read as `Unrestricted`.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub enum CheckedIssuance {
+        Only(Vec<language_semantics::DomainEstablishmentRoute>),
+        Unrestricted,
     }
 
     /// Who may introduce a domain, as far as its declaration decides it
@@ -700,12 +894,13 @@ pub mod domain {
         /// No policy and no route list: qualification needs the predicates
         /// and nothing else.
         Unrestricted,
-        /// Exactly these origins, written on the declaration with the
-        /// retired `established by` clause.
+        /// Exactly these origins: written on the declaration with the
+        /// retired `established by` clause, or returned by the selected
+        /// policy's evaluated plan (`CheckedDomainAccessPlan`).
         Only(&'domain [language_semantics::DomainEstablishmentRoute]),
-        /// The selected policy's plan states the issuance. Nothing evaluates
-        /// a plan yet, so no origin can be shown to be authorized: a reader
-        /// treats this as admitting nobody it can name, never as
+        /// The selected policy's plan states the issuance, and no checked
+        /// plan is recorded: no origin can be shown to be authorized, so a
+        /// reader treats this as admitting nobody it can name, never as
         /// unrestricted.
         Planned(&'domain DomainAccessPolicy),
     }
@@ -739,10 +934,30 @@ pub mod domain {
         /// never both.
         pub fn issuance(&self) -> DomainIssuance<'_> {
             match &self.access_policy {
-                Some(policy) => DomainIssuance::Planned(policy),
+                Some(policy) => match &policy.plan {
+                    AccessPlanJudgment::Checked(plan) => match &plan.issuance {
+                        CheckedIssuance::Only(routes) => DomainIssuance::Only(routes),
+                        CheckedIssuance::Unrestricted => DomainIssuance::Unrestricted,
+                    },
+                    AccessPlanJudgment::Unevaluated | AccessPlanJudgment::Unjudged(_) => {
+                        DomainIssuance::Planned(policy)
+                    }
+                },
                 None if self.establishment_routes.is_empty() => DomainIssuance::Unrestricted,
                 None => DomainIssuance::Only(&self.establishment_routes),
             }
+        }
+    }
+
+    impl DomainDefinition {
+        /// Whether reads and writes of what this domain governs wait on a
+        /// plan no pass has judged. A checked plan has no reader or writer
+        /// rules (`CheckedDomainAccessPlan`), so only an unjudged one
+        /// restricts.
+        pub fn access_unjudged(&self) -> bool {
+            self.access_policy
+                .as_ref()
+                .is_some_and(|policy| !matches!(policy.plan, AccessPlanJudgment::Checked(_)))
         }
     }
 
@@ -864,10 +1079,10 @@ pub mod domain {
         if !matches!(parameter.kind, crate::data::TypeParameterKind::Type) {
             return false;
         }
-        let Named { symbol, name } = program.type_reference_node(domain.target_type) else {
+        let Named { symbol, .. } = program.type_reference_node(domain.target_type) else {
             return false;
         };
-        *symbol == parameter.symbol || name == &parameter.name
+        symbol.is_valid() && *symbol == parameter.symbol
     }
 
     pub fn index_parameters<'program>(
@@ -880,6 +1095,21 @@ pub mod domain {
         } else {
             parameters
         }
+    }
+
+    /// Whether the family's written index list names its exact index binders
+    /// in order. Nontrivial index patterns need their own formation judgment;
+    /// applying an argument tuple must not silently erase such a pattern.
+    pub fn has_direct_index_telescope(program: &TypedTrees, domain: &DomainDefinition) -> bool {
+        let parameters = index_parameters(program, domain);
+        parameters.len() == domain.index_arguments.len()
+            && parameters
+                .iter()
+                .zip(&domain.index_arguments)
+                .all(|(parameter, argument)| {
+                    matches!(program.type_reference_table.type_reference(*argument),
+                    Named { symbol, .. } if symbol.is_valid() && *symbol == parameter.symbol)
+                })
     }
 
     pub fn domain_accepts_carrier(
@@ -1132,12 +1362,13 @@ pub mod domain {
         }
         let subject = program.symbols.get(domain.subject_symbol);
         let applied_subject = program
-            .applied_domain_applications
-            .iter()
-            .any(|application| {
-                application.declaration == domain.symbol
-                    && application.theory.semantic_id == domain.semantic_id
-                    && application.theory.subject_symbol == domain.subject_symbol
+            .domain_application(domain.symbol, domain.semantic_id)
+            .is_some_and(|application| {
+                application
+                    .theory
+                    .as_ref()
+                    .and_then(|theory| theory.as_ref().ok())
+                    .is_some_and(|theory| theory.subject_symbol == domain.subject_symbol)
                     && program
                         .domain_definition(domain.symbol)
                         .is_some_and(|declared| {
@@ -1311,8 +1542,105 @@ pub mod domain {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct AppliedDomainApplication {
         pub declaration: SymbolHandle,
+        pub identity: language_semantics::SemanticDomainId,
+        /// The declaration's whole telescope, including a generic carrier.
         pub arguments: Vec<TypeReferenceHandle>,
-        pub theory: DomainDefinition,
+        /// Whether the complete coordinate contains no remaining value/type
+        /// binders. Open applications retain meaning but still need judgment.
+        pub is_closed: bool,
+        /// Typing retains coordinates; typed preparation applies the theory.
+        /// Absence is pending work. A preparation failure stays on this exact
+        /// application; neither state is an empty predicate or proof receipt.
+        pub theory: Option<Result<DomainDefinition, String>>,
+    }
+
+    /// Rows stay in preparation order; the exact-key index is derived from
+    /// those rows and never persisted as another application authority.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct AppliedDomainApplications {
+        rows: Vec<AppliedDomainApplication>,
+        by_application:
+            std::collections::HashMap<(SymbolHandle, language_semantics::SemanticDomainId), usize>,
+    }
+
+    impl AppliedDomainApplications {
+        pub fn iter(&self) -> std::slice::Iter<'_, AppliedDomainApplication> {
+            self.rows.iter()
+        }
+
+        pub(crate) fn len(&self) -> usize {
+            self.rows.len()
+        }
+
+        pub(crate) fn get(&self, position: usize) -> Option<&AppliedDomainApplication> {
+            self.rows.get(position)
+        }
+
+        pub(crate) fn find(
+            &self,
+            declaration: SymbolHandle,
+            identity: language_semantics::SemanticDomainId,
+        ) -> Option<&AppliedDomainApplication> {
+            self.by_application
+                .get(&(declaration, identity))
+                .and_then(|position| self.rows.get(*position))
+        }
+
+        pub(crate) fn insert(&mut self, application: AppliedDomainApplication) -> bool {
+            let key = (application.declaration, application.identity);
+            let std::collections::hash_map::Entry::Vacant(entry) = self.by_application.entry(key)
+            else {
+                return false;
+            };
+            entry.insert(self.rows.len());
+            self.rows.push(application);
+            true
+        }
+
+        pub(crate) fn set_theory(
+            &mut self,
+            position: usize,
+            theory: Result<DomainDefinition, String>,
+        ) {
+            self.rows[position].theory = Some(theory);
+        }
+    }
+
+    impl compiler_storage::Record for AppliedDomainApplications {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            self.rows.write(output)
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            let rows = Vec::<AppliedDomainApplication>::read(input)?;
+            let allocation = rows
+                .len()
+                .checked_mul(std::mem::size_of::<(
+                    (SymbolHandle, language_semantics::SemanticDomainId),
+                    usize,
+                )>())
+                .ok_or_else(|| input.error("domain application index allocation overflow"))?;
+            input.allocate(allocation)?;
+            let mut result = Self {
+                by_application: std::collections::HashMap::with_capacity(rows.len()),
+                rows,
+            };
+            for (position, row) in result.rows.iter().enumerate() {
+                if result
+                    .by_application
+                    .insert((row.declaration, row.identity), position)
+                    .is_some()
+                {
+                    return Err(input.error("duplicate exact domain application"));
+                }
+            }
+            Ok(result)
+        }
     }
 
     impl TypedTrees {
@@ -1359,7 +1687,8 @@ pub mod domain {
                         .filter(|application| {
                             self.domain_definition(application.declaration).is_some()
                         })
-                        .filter_map(|application| application.theory.cleanup_selection.as_ref()),
+                        .filter_map(|application| application.theory.as_ref()?.as_ref().ok())
+                        .filter_map(|theory| theory.cleanup_selection.as_ref()),
                 )
                 .chain(
                     self.applied_data_cleanup_selections
@@ -1383,20 +1712,25 @@ pub mod domain {
                 .map(|application| &application.selection)
         }
 
+        pub fn domain_application(
+            &self,
+            symbol: SymbolHandle,
+            identity: language_semantics::SemanticDomainId,
+        ) -> Option<&AppliedDomainApplication> {
+            self.applied_domain_applications.find(symbol, identity)
+        }
+
         pub fn domain_arguments_for_instance(
             &self,
             symbol: SymbolHandle,
             identity: language_semantics::SemanticDomainId,
         ) -> Option<&[TypeReferenceHandle]> {
             let declared = self.domain_definition(symbol)?;
-            if declared.semantic_id == identity {
+            if self.domain_type_parameters(declared).is_empty() && declared.semantic_id == identity
+            {
                 return Some(&[]);
             }
-            self.applied_domain_applications
-                .iter()
-                .find(|application| {
-                    application.declaration == symbol && application.theory.semantic_id == identity
-                })
+            self.domain_application(symbol, identity)
                 .map(|application| application.arguments.as_slice())
         }
 
@@ -1406,15 +1740,12 @@ pub mod domain {
             identity: language_semantics::SemanticDomainId,
         ) -> Option<&DomainDefinition> {
             let declared = self.domain_definition(symbol)?;
-            if declared.semantic_id == identity {
+            if self.domain_type_parameters(declared).is_empty() && declared.semantic_id == identity
+            {
                 return Some(declared);
             }
-            self.applied_domain_applications
-                .iter()
-                .find(|application| {
-                    application.declaration == symbol && application.theory.semantic_id == identity
-                })
-                .map(|application| &application.theory)
+            self.domain_application(symbol, identity)
+                .and_then(|application| application.theory.as_ref()?.as_ref().ok())
         }
     }
 

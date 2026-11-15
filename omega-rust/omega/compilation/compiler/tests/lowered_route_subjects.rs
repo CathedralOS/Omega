@@ -438,42 +438,44 @@ const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
     (
         "tests/fixtures/fail/arithmetic/fractional_integer_landing",
         "value",
-        "expression fractional anonymous value",
+        "expression fractional anonymous value while reading the body of `value`",
     ),
     (
         "tests/fixtures/fail/arithmetic/fractional_integer_operand",
         "value",
-        "expression fractional anonymous value",
+        "expression fractional anonymous value while reading the body of `value`",
     ),
     (
         "tests/fixtures/fail/arithmetic/anonymous_remainder_rejected",
         "run",
-        "expression anonymous operation without an exact meaning",
+        "expression anonymous operation without an exact meaning while reading the body of `run`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "returned",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the body of `returned`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "local",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the local binding of \
+         `local::entry::value` while reading the body of `local`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "field",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the local binding of \
+         `field::entry::held` while reading the body of `field`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "argument",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the body of `argument`",
     ),
     (
         "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "half",
-        "expression anonymous value with a fractional intermediate",
+        "expression anonymous value with a fractional intermediate while reading the body of `half`",
     ),
 ];
 
@@ -843,7 +845,7 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
     let declaration = |body: &str| {
         format!(
             "public boundary trait Probe {{
-            machine probe(value: u8) -> u8 ensures result == value reaches;
+            machine probe(value: u8) -> u8 ensures result == value reaches crashes none;
          }}
          machine supplied(value: u8) -> u8 satisfies Probe::probe {{ {body} }}"
         )

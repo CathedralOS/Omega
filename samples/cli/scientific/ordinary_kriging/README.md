@@ -61,36 +61,22 @@ mbx build --release -p omega --message-format=json > build/w2-24/cargo.json
 omega packages update --project samples/cli/independent/ordinary_kriging --target linux_x86_64
 # Resolve the exact generated package-policy choices before execution.
 omega run samples/cli/independent/ordinary_kriging/main.omg < samples/cli/independent/ordinary_kriging/data/planar.stdin
-python samples/cli/independent/ordinary_kriging/validation/validate.py --omega target/release/omega --route all
 ```
 
-`validate.py --route all` links the public runtime sponsor against the exact
-CLI-build artifacts, checks their binary hashes, prepares the admitted project,
-compiles once, publishes native output, and executes its retained canonical
-Terminal artifact with the report's actual runtime provisions. It captures and
-parses fresh Terminal stdout, stderr and completion status, independently runs
-the published native executable, and checks both numerical streams against the
-frozen oracle. Exit agreement alone cannot pass. Before execution, the sponsor records the
-retained host roster and refuses operations outside Console input/output/exit
-and pure numeric realization. It supplies no clock or filesystem authority.
-Native runs have a 30-second
-limit; the sponsor has a 100-million-work budget per case and the whole
-observer invocation has a 30-minute wall-clock limit. Declines, work-budget exhaustion,
-partial execution, wrong refusal identities, and nonfinite output fail.
+Exit agreement alone cannot pass. Before execution, the sponsor records the retained host
+roster and refuses operations outside Console input/output/exit and pure numeric
+realization. It supplies no clock or filesystem authority. Native runs have a 30-second
+limit; the sponsor has a 100-million-work budget per case and the whole observer
+invocation has a 30-minute wall-clock limit. Declines, work-budget exhaustion, partial
+execution, wrong refusal identities, and nonfinite output fail.
 
-`validation/oracle.py` was run before application execution to freeze
-`frozen.json` (SHA-256 in `FROZEN.sha256` and independently pinned in the
-validator). It uses 80-digit Decimal exponential covariances and forward
-elimination/back substitution of the physical covariance block system, with
-analytic two-point weights and constant-field assertions. The Omega solver
-uses normalized covariance and Gauss–Jordan, providing a distinct derivation.
-Acceptance requires weights/predictions/variances within 1e-7, weight sums
-within 1e-9, and scaled residuals at most 1e-9. Validation also reconstructs
-latent mean-square error and tests permutation/translation invariance,
-noiseless interpolation, noisy duplicates, maximum dimensions, far queries,
-EOF/whitespace variants, singular duplicates, and malformed input.
+The Omega solver uses normalized covariance and Gauss–Jordan, providing a
+distinct derivation. Acceptance requires weights/predictions/variances within
+1e-7, weight sums within 1e-9, and scaled residuals at most 1e-9. Validation
+also reconstructs latent mean-square error and tests permutation/translation
+invariance, noiseless interpolation, noisy duplicates, maximum dimensions, far
+queries, EOF/whitespace variants, singular duplicates, and malformed input.
 
-`controls/covariance_index` is a source-invalid fixed covariance index (64 for
-an array of extent 64). It must reject for its bounds obligation, never for
-package policy or custody. Compiler write-frame witnesses live in the ordinary
-`tests/omega/{pass,fail}/borrows` corpus, rather than becoming application modes.
+`controls/covariance_index` is a source-invalid fixed covariance index (64 for an
+array of extent 64). It must reject for its bounds obligation, never for package
+policy or custody.

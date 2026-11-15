@@ -24,13 +24,16 @@ The nine places vary the observed byte storage's carrier or executing body: loca
 
 At `3ddc7d1455f182d54645df101870ea9b441b9019`, `omega run --both` of `local/main.omg` exited 200. Lowering `probe` failed with `InvalidUnitMachinePlan` reason `reference alias changes its referent carrier`. A borrowed destination was treated as an alias whenever its access was a loan, and any carrier change was refused. A shared reborrow of a mutable byte view is a different type identity with the same pointer and extent. That reborrow stays an alias when the borrowed-referent presentation is unchanged and the source access can supply the destination ceiling. Addressing inline backing, and any other carrier change, still uses the shared descriptor producer.
 
-On Windows x86-64, all nine positives then return native exit 0 and Terminal exit 0. All nine twins reject with `cannot prove requires contract for call inspect`. The reachable lane-38 control remains `tests/omega/fail/slices/lane38_saved_predicate_reachable`.
+On Windows x86-64, all nine positives then return native exit 0 and Terminal
+exit 0. All nine twins reject with `cannot prove requires contract for call
+inspect`.
 
 ## Requirements and evidence
 
 - **Establishment:** Evaluating the primitive and selecting its true result establishes the relation to that exact view's current bytes. No caller equality guard repairs a missing relation.
 - **Identity and lifetime:** Complete intervening write frames retire overlapping content relations. Disjoint buffers and fields survive. The saved Boolean is not overwritten by content invalidation. Coarse collection footprints remain conservative.
-- **Composition:** The same consuming contract and write target distinction occur in all nine places. Sources are pinned byte-identically under `tests/omega/{pass,fail}/facts/saved_byte_predicate_through_*`.
+- **Composition:** The same consuming contract and write target distinction
+  occur in all nine places.
 - **Soundness:** The selected scalar producer, source custody, access, bounds and loan checks remain required. Backing footprints grant no exact identity, access or new callable purity. Unknown origins remain opaque.
 - **Psi 06–08:** Actual `omega run --both` carries the checked Boolean, view and selected transition through Terminal emission and interpretation. The runtime result tests the observed byte.
 - **Omega 00–02:** Each hosted Build companion supplies ProgramEntry; the ordinary view/scalar calling plans and provider settlement carry `inspect` and its result.

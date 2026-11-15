@@ -338,7 +338,7 @@ impl Storage<'_> {
                     "a byte comparison of a view that is not read whole and shared",
                 ));
             }
-            self.readable_byte_view(operation, source.place)?;
+            self.readable_byte_view(operation, source.place, &source.path)?;
             let measured = after
                 .checked_sub(back)
                 .and_then(|position| operations.get(position))
@@ -405,9 +405,52 @@ impl Storage<'_> {
         Ok(true)
     }
 
-    pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
+    /// A field operation carries a local field ID beside its enclosing path.
+    /// Resolve that ID only in the selected carrier before using the ordinary
+    /// descriptor access and observation rules.
+    pub(super) fn byte_field_argument(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+        field: semantic_vocabulary::StructuralFieldId,
+        concerns: Construct,
+    ) -> Checked<StructuralArgument> {
+        let carrier = self.stored_at(root, path, concerns)?;
+        let fields = match self.shape(&carrier, concerns)? {
+            Shape::Typed(owner) => self.declaration(owner, concerns)?.shape.record_fields(),
+            Shape::Payload(case) => Some(case.fields.as_slice()),
+            _ => None,
+        }
+        .ok_or_else(|| self.foreign(concerns, "a byte field has no record or payload carrier"))?;
+        let field = fields
+            .iter()
+            .find(|candidate| candidate.id == field)
+            .ok_or_else(|| {
+                self.foreign(
+                    concerns,
+                    "a byte field is not declared by its selected carrier",
+                )
+            })?;
+        if field.field_type.byte_sequence_carrier().is_none() {
+            return Err(self.foreign(concerns, "a byte field has another carrier"));
+        }
+        let mut path = path.to_vec();
+        path.push(StructuralPathSegment::Field(field.identity));
+        Ok(StructuralArgument {
+            place: root,
+            path,
+            access: StructuralAccess::SharedBorrow,
+        })
+    }
+
+    pub(super) fn readable_byte_view(
+        &self,
+        operation: &Operation,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Checked<()> {
         let concerns = Construct::Operation(operation.id);
-        let shape = self.byte_shape(root, &[], concerns)?;
+        let shape = self.byte_shape(root, path, concerns)?;
         let readable = matches!(
             shape,
             StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -416,7 +459,7 @@ impl Storage<'_> {
             })
         );
         if !readable
-            || !self.descriptor_access(root, &[], concerns, StructuralAccess::SharedBorrow)?
+            || !self.descriptor_access(root, path, concerns, StructuralAccess::SharedBorrow)?
         {
             return Err(self.unsupported(
                 concerns,
@@ -657,77 +700,22 @@ impl Storage<'_> {
         trace: &super::Reaching,
     ) -> Checked<Option<Proposition>> {
         let concerns = Construct::Operation(measurement.id);
-        let producer = self.operation(producer, concerns)?;
-        if !self.graph.dominates(
-            ProgramPoint::AfterOperation(producer.id),
+        let Some(result) = measurement.result.scalar_ref() else {
+            return Err(self.foreign(concerns, "a length measurement has no scalar result"));
+        };
+        let Some(extent) = self.extent_contents(
+            producer,
             ProgramPoint::AfterOperation(measurement.id),
-        )? {
-            return Ok(None);
-        }
-        if matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
-            && !self.current_extent(producer.id, trace)?
-            && self.repeated_extent(producer.id)?
-        {
-            return Ok(None);
-        }
-        if matches!(
-            producer.kind,
-            OperationKind::EstablishElementView { .. }
-                | OperationKind::EstablishMutableElementView { .. }
-        ) {
-            let Some(result) = measurement.result.scalar_ref() else {
-                return Err(self.foreign(concerns, "a length measurement has no scalar result"));
-            };
-            let Some(extent) = self.extent_contents(
-                producer.id,
-                ProgramPoint::AfterOperation(measurement.id),
-                result.scalar_type,
-                trace,
-            )?
-            else {
-                return Ok(None);
-            };
-            return Ok(Some(Proposition::Equal(
-                semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
-                extent,
-            )));
-        }
-        let mut read = measurement.clone();
-        let OperationKind::ByteSequenceLength { source } = &mut read.kind else {
+            result.scalar_type,
+            trace,
+        )?
+        else {
             return Ok(None);
         };
-        source.path.clear();
-        source.place = match &producer.kind {
-            OperationKind::ByteSequenceSubslice { .. } => {
-                producer
-                    .result
-                    .as_structural()
-                    .ok_or_else(|| self.foreign(concerns, "a reaching subslice has no result"))?
-                    .place
-            }
-            OperationKind::EstablishByteSequenceLiteral { destination, .. } => *destination,
-            _ => return Ok(None),
-        };
-        let observation = terminal_semantics::structural_effect_leaf_observation(&read)
-            .map_err(crate::semantics_refusal(self.machine, measurement.id))?;
-        let Some(observation) = observation else {
-            return Ok(None);
-        };
-        match &producer.kind {
-            OperationKind::EstablishByteSequenceLiteral { .. } => {
-                terminal_semantics::literal_length_equation(&observation, producer)
-            }
-            OperationKind::ByteSequenceSubslice { .. } => {
-                let produced = terminal_semantics::structural_effect_leaf_observation(producer)
-                    .map_err(crate::semantics_refusal(self.machine, producer.id))?;
-                let Some(produced) = produced else {
-                    return Ok(None);
-                };
-                terminal_semantics::subslice_length_equation(&observation, &produced)
-            }
-            _ => unreachable!(),
-        }
-        .map_err(crate::semantics_refusal(self.machine, measurement.id))
+        Ok(Some(Proposition::Equal(
+            semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+            extent,
+        )))
     }
 
     // An endpoint SSA name in a loop may now denote a later occurrence than

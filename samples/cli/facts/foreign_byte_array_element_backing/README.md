@@ -61,7 +61,5 @@ byte array.
   frame arrays take the same path but have no witness here.
 
 Acceptance is `omega run --both <place>/main.omg` with both exits 0 on each
-matching host, plus each twin's rejection. The fixtures are pinned under
-`tests/omega/{pass,fail}/facts/foreign_byte_array_element_backing_through_*`.
-Linux x86_64 is observed; Windows, macOS ARM64 and Linux ARM64 execution remain
-unverified.
+matching host, plus each twin's rejection. Linux x86_64 is observed; Windows,
+macOS ARM64 and Linux ARM64 execution remain unverified.

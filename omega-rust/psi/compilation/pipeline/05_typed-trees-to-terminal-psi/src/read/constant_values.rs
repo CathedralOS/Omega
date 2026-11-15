@@ -22,6 +22,15 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let carrier = self.value_type(id, constant.declared_type)?;
+        if self.typed.stored_value_multiplicity(constant.declared_type)
+            != language_semantics::Multiplicity::Unrestricted
+        {
+            return Err(crate::reject(
+                id,
+                crate::SourceOrigin::of(constant.initializer_source_span),
+                "a constant's type must permit copying",
+            ));
+        }
         let qualification = match carrier {
             ValueType::Scalar(_, qualification) | ValueType::Record(_, qualification, _) => {
                 qualification

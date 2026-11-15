@@ -1,6 +1,6 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 0 with input.txt; malformed or out-of-domain stdin exits 10.
-// Numerical output oracle: fixtures.json and validate.py (both engines).
+// Numerical output oracle: fixtures.json (both engines).
 use domain::input;
 use domain::report;
 use domain::complex;

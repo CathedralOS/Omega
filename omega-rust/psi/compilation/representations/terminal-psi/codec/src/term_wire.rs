@@ -297,6 +297,7 @@ pub(crate) mod contract_wire {
             parameter_order: List<ParameterKind>,
             structural_parameters: List<super::structural_signature_wire::StructuralParameter>,
             result: MachineResult,
+            result_lifetimes: Optional<List<crate::module_wire::closed_conformance_wire::ResultLifetime>>,
             entry_claims: List<Claim>,
             declared_service_reach: Optional<Ids>,
             declared_synchronous_entries: Optional<Ids>,

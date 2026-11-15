@@ -270,6 +270,29 @@ pub(crate) fn boundary(
             )
         }
     };
+    let completion = signatures.completion(id, caller)?;
+    // The terminal identity does not make an ordinary result empty. Retain the
+    // declared Never carrier and prove its default domain before publishing;
+    // the legacy Unit adapter remains a separate, already admitted surface.
+    if matches!(
+        completion,
+        semantic_vocabulary::BoundaryCompletion::External(_)
+    ) && !match &result {
+        terminal_psi::BoundaryMachineResult::Unit => true,
+        terminal_psi::BoundaryMachineResult::Structural(result) => {
+            records.inhabitation.status(result.structural_type)
+                == terminal_semantics::inhabitation::Status::ProvedEmpty
+        }
+        terminal_psi::BoundaryMachineResult::Scalar(_) => false,
+    } {
+        return Err(unavailable(
+            "external completion has no empty declared result",
+        ));
+    }
+    let primitive = matches!(
+        metadata.1.execution,
+        terminal_psi::CheckedBoundaryExecution::HostedPrimitive { .. }
+    );
     Ok(terminal_psi::BoundaryMachineDeclaration {
         id,
         identity: metadata.1.source.callable,
@@ -277,8 +300,12 @@ pub(crate) fn boundary(
         declaration: Some(metadata.1),
         numeric_intrinsic: None,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
-        kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
-        completion: signatures.completion(id, caller)?,
+        kind: if primitive {
+            semantic_vocabulary::BoundaryRequirementKind::Machine
+        } else {
+            semantic_vocabulary::BoundaryRequirementKind::Trait
+        },
+        completion,
         unconditional_termination: signature.termination != crate::Termination::Silent,
         attachment: None,
         parameter_order: formals.order,
@@ -303,7 +330,7 @@ pub(crate) fn boundary(
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
         fixed_service_reach: reach.clone(),
-        owning_service: Some(service),
+        owning_service: (!primitive).then_some(service),
         published_service_ceiling: reach.clone(),
         published_synchronous_entries: entries.clone(),
     })
@@ -335,6 +362,7 @@ fn contract_header(
         parameter_order: formals.order,
         structural_parameters: formals.records,
         result,
+        result_lifetimes: None,
         declared_service_reach: match &signature.reaches {
             crate::Ceiling::Authored(ceiling) => Some(ceiling.clone()),
             crate::Ceiling::Inferred => None,
@@ -526,6 +554,13 @@ impl Lowering<'_> {
                 if block.is_none() && place.get() != formals.records.len() as u64 + 1 {
                     return Err(self.internal("place formals are not the first places"));
                 }
+                // The referent's domains are the formal's: a scalar referent
+                // keeps them on its primitive home type instead.
+                let (qualifications, projected_qualifications) = if scalar {
+                    (Vec::new(), Vec::new())
+                } else {
+                    self.memberships(referent, value_type.qualification())?
+                };
                 formals.records.push(StructuralParameterDeclaration {
                     place,
                     position: lane,
@@ -533,8 +568,8 @@ impl Lowering<'_> {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: places::borrowed_access(borrowed.access)
                         .ok_or_else(|| self.internal("a write-only borrowed formal"))?,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     additional_input_qualifications: Vec::new(),
                 });
                 formals.order.push(BoundaryParameterKind::Structural);
@@ -585,7 +620,7 @@ impl Lowering<'_> {
                 }
                 // A record formal is a root place the machine owns for the
                 // activation; what it holds at entry is entry content.
-                ValueType::Record(record, _, _) => {
+                ValueType::Record(record, qualification, _) => {
                     let lane = self.position(formals.records.len())?;
                     let kind =
                         block.map_or(StructuralPlaceKind::Parameter { position: lane }, |block| {
@@ -600,14 +635,16 @@ impl Lowering<'_> {
                     if block.is_none() && place.get() != formals.records.len() as u64 + 1 {
                         return Err(self.internal("place formals are not the first places"));
                     }
+                    let (qualifications, projected_qualifications) =
+                        self.memberships(record, qualification)?;
                     formals.records.push(StructuralParameterDeclaration {
                         place,
                         position: lane,
                         structural_type: record,
                         multiplicity: self.records.multiplicity(record, self.id)?,
                         access: StructuralAccess::Owned,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
+                        qualifications,
+                        projected_qualifications,
                         additional_input_qualifications: Vec::new(),
                     });
                     formals.order.push(BoundaryParameterKind::Structural);
@@ -653,14 +690,16 @@ impl Lowering<'_> {
                 self.qualify(value, value_type.qualification())?;
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
-            Some(ValueType::Record(record, _, _)) => {
+            Some(ValueType::Record(record, qualification, _)) => {
                 let (place, _) = self.root(StructuralPlaceKind::Result, record)?;
+                let (qualifications, projected_qualifications) =
+                    self.memberships(record, qualification)?;
                 TerminalMachineResult::Structural(StructuralResultDeclaration {
                     place,
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
+                    qualifications,
+                    projected_qualifications,
                     reference_sources: Vec::new(),
                 })
             }
@@ -948,7 +987,10 @@ impl<'a> Lowering<'a> {
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } => None,
-                Statement::Bind { value, .. } | Statement::Evaluate(value) => Some(value.source),
+                Statement::Bind { value, .. }
+                | Statement::Evaluate {
+                    expression: value, ..
+                } => Some(value.source),
                 Statement::Declare { source, .. }
                 | Statement::Store { source, .. }
                 | Statement::Dispatch { source, .. }
@@ -970,7 +1012,11 @@ impl<'a> Lowering<'a> {
                     self.return_unit(SourceOrigin::Unpositioned(Unpositioned::ImplicitReturn))?
                 }
                 Some(_) => {
-                    return Err(self.internal("a value machine fell off its last statement"));
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Completion("value machine can fall off its end"),
+                    ));
                 }
             }
         }

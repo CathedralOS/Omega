@@ -8,7 +8,7 @@ machine inspect(value: leaf::choices::Chosen<u64>) -> u64 {
     }
 }
 boundary trait SelectedCases {
-    machine produce(pick: bool, value: u64) -> leaf::choices::Chosen<u64> reaches;
+    machine produce(pick: bool, value: u64) -> leaf::choices::Chosen<u64> reaches crashes none;
 }
 CaseFactory satisfies SelectedCases {
     machine produce(pick: bool, value: u64) -> leaf::choices::Chosen<u64> {

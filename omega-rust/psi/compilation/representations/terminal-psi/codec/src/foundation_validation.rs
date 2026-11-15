@@ -744,6 +744,7 @@ pub(crate) mod call_foundations {
         module: &TerminalModule,
         machine: &TerminalMachine,
         block: &Block,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
         let Terminator::ExternalCompletion {
             boundary,
@@ -761,7 +762,14 @@ pub(crate) mod call_foundations {
         };
         if declaration.role != BoundaryDeclarationRole::Callable
             || declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)
-            || declaration.result != BoundaryMachineResult::Unit
+            || !match &declaration.result {
+                BoundaryMachineResult::Unit => true,
+                BoundaryMachineResult::Structural(result) => {
+                    inhabitation.status(result.structural_type)
+                        == terminal_semantics::inhabitation::Status::ProvedEmpty
+                }
+                BoundaryMachineResult::Scalar(_) => false,
+            }
             || declaration.scalar_parameters.len() != 1
             || !matches!(declaration.scalar_parameters.first(),
                 Some(semantic_vocabulary::ScalarType::Integer(integer))
@@ -3337,7 +3345,12 @@ pub(crate) mod machine_foundations {
         let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
         for block in &machine.blocks {
-            super::call_foundations::validate_external_completion(module, machine, block)?;
+            super::call_foundations::validate_external_completion(
+                module,
+                machine,
+                block,
+                inhabitation,
+            )?;
             super::call_foundations::validate_no_normal_invocation(
                 module,
                 block,
@@ -3345,6 +3358,9 @@ pub(crate) mod machine_foundations {
                 &scalar_index,
                 &return_sources,
             )?;
+            return_sources
+                .validate_whole_discards(&block.terminator, |ty| module.structural_type(ty))
+                .map_err(CodecError::MalformedStructuralFoundation)?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())

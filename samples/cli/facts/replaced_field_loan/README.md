@@ -25,9 +25,6 @@ consuming mutable store remains unchanged.
 | Another machine | [program](other_machine/main.omg) | [shared descriptor](invalid_other_machine/main.omg) |
 | Another target body | [program](target_body/main.omg) | [shared descriptor](invalid_target_body/main.omg) |
 
-The pairs are pinned in `tests/omega/{pass,fail}/facts/` as
-`replaced_field_loan_through_<place>_{exit,rejected}`.
-
 ## Requirement evidence
 
 | Requirement | What this row establishes |

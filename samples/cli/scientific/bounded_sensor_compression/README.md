@@ -31,14 +31,12 @@ alternating input expands to 53 bytes. The certificate is calculated from the
 original observations and independently decoded bytes, rather than presumed
 from the encoder. Every decoded value and output byte is emitted at runtime.
 
-`data/oracle.json`, `data/cases.json`, and the per-case binary/stdout fixtures
-were frozen by `reference.py` before the first Omega check or execution.
 `data/FROZEN.sha256` identifies the two oracle manifests. All output and exit
 checks are exact; there is no floating epsilon. Cases include exact, smooth,
 abrupt, grid endpoints, compact delta boundaries, singleton, worst size, four
 seeded variants, corresponding independent decode requests, 12 malformed
-streams and 10 invalid input requests. The intended-invalid source control
-is separate from all runtime invalid inputs.
+streams and 10 invalid input requests. The intended-invalid source control is
+separate from all runtime invalid inputs.
 
 ## Input and output
 
@@ -70,11 +68,7 @@ omega --check samples/cli/independent/bounded_sensor_compression/controls/invali
 
 The last command must reject for the exact out-of-bounds index fragment in
 `controls/invalid_bound/expected_fragment.txt`; unrelated failure is not a pass.
-`validate.py --binary <native-image>` checks all frozen cases directly.
-`validate.py --omega <compiler> --both` separately runs the public native plus
-Terminal comparison route. Terminal CLI agreement covers exit only; the
-validator independently checks native stdout. Retained compiler reports and
-route statuses are recorded in `VALIDATION.md`.
+Retained compiler reports and route statuses are recorded in `VALIDATION.md`.
 
 ## Existing sample comparison
 

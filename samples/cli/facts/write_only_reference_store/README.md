@@ -28,13 +28,11 @@ as the original 85/11/17 result, so choosing the wrong arm or skipping the
 helper cannot silently pass. The helper's explicit result lifetime relates the
 returned view to the destination input, independently of the marker.
 
-Acceptance is `omega run --both <place>/main.omg`: native execution and the
-Terminal Psi interpreter must both exit 0. Each `invalid/main.omg` must reject
-for observing write-only contents. The nine places are `local`, `field`,
-`parameter`, `call_result`, `match_join`, `const_name`, `other_state` (a nested
-machine), `other_machine`, and `target_body`. All four hosted `ProgramEntry`
-bindings are present. Matching programs and reject controls live under
-`tests/omega/{pass,fail}/facts/write_only_reference_store_through_<place>_{exit,rejected}`.
+Acceptance is `omega run --both <place>/main.omg`: native execution and the Terminal Psi
+interpreter must both exit 0. Each `invalid/main.omg` must reject for observing write-only
+contents. The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
+`const_name`, `other_state` (a nested machine), `other_machine`, and `target_body`. All
+four hosted `ProgramEntry` bindings are present.
 
 ## What the row establishes
 

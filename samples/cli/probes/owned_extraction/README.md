@@ -12,15 +12,8 @@ with an explicit backing lifetime. Linear payloads leave both a one-case carrier
 and a two-case carrier exactly once, retaining their value before destruction.
 
 The compiler must relate authored template case/field selectors to the exact
-applied carrier, through checking, custody, Terminal lowering and execution.
-That correspondence supplies no new case proof, backing lifetime or ownership.
-The matching fixture is
-`tests/omega/pass/providers/runtime_generic_case_extraction_exit`.
-Reject controls under `tests/omega/fail/generics/extraction_*` exercise a foreign
-case, a different application, an inactive or overwritten tag, escaping backing,
-and reuse of a consumed carrier. The applied-provider backing control under
-`tests/omega/fail/borrows/applied_provider_output_requires_backing` retains
-concrete descriptor obligations beside symbolic fields.
+applied carrier, through checking, custody, Terminal lowering and execution. That
+correspondence supplies no new case proof, backing lifetime or ownership.
 
 This is a prerequisite exposed by Cathedral's owned placed-memory retirement
 wrapper, not evidence that physical initialization is implemented. The remaining

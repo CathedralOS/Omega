@@ -54,7 +54,9 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 
 ## Pinned fixtures
 
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_codec_argument_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_codec_argument_through_<place>_overlapping`. The nine positives record native execution and interpreter agreement (`built ... exit:0 interpreter-exit:0 interpreter:agrees` at `94247f983231`); the nine twins record their `cannot prove` fragment.
+The nine positives record native execution and interpreter agreement (`built ...
+exit:0 interpreter-exit:0 interpreter:agrees` at `94247f983231`); the nine twins
+record their `cannot prove` fragment.
 
 ## Requirements and evidence
 

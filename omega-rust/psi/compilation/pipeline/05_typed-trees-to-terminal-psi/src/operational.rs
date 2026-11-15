@@ -45,7 +45,9 @@ pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
     for statement in &body.statements {
         match statement {
             Statement::Bind { value, .. }
-            | Statement::Evaluate(value)
+            | Statement::Evaluate {
+                expression: value, ..
+            }
             | Statement::Witness { term: value, .. } => expression(machine, value)?,
             Statement::Store {
                 destination, value, ..
@@ -91,7 +93,16 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             "a suspend-marked call must be a complete statement, simple let initializer, transition subject or terminal expression".to_owned()));
     }
     match &value.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression(machine, place)?;
+            for operand in operands {
+                expression(machine, operand)?;
+            }
+        }
         ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Slot(_)

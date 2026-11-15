@@ -293,6 +293,66 @@ fn typed_base_scoped(
 }
 
 #[test]
+fn an_unselected_applied_collection_read_does_not_stop_the_entry() {
+    let (_, _, base, pending) = constant_base(&[
+        ("main.omg", "machine entry() { }"),
+        (
+            "library.omg",
+            r#"
+data Shelf<T> { stored: [T; 2]; }
+machine unread(shelf: &Shelf<u64>, index: u64) -> u64
+requires index < 2
+{ shelf.stored[index] + 0 }
+"#,
+        ),
+    ]);
+    let mut program = base.typed().clone();
+    pending.evaluate(&mut program).unwrap();
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+    let target = || crate::InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    };
+    let entry = program.realized_machine_named("entry").unwrap().symbol;
+    let value = prepared
+        .entry(entry, entry, &[])
+        .unwrap()
+        .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+        .unwrap();
+    assert_eq!(value, crate::BuildTimeValue::Unit);
+
+    let read = program.realized_machine_named("unread").unwrap().symbol;
+    let shelf = crate::BuildTimeValue::Struct {
+        type_name: "Shelf".into(),
+        fields: vec![(
+            "stored".into(),
+            crate::BuildTimeValue::Array(vec![
+                crate::BuildTimeValue::Int(7),
+                crate::BuildTimeValue::Int(9),
+            ]),
+        )],
+    };
+    let arguments = |index| [shelf.clone(), crate::BuildTimeValue::Int(index)];
+    let value = prepared
+        .entry(read, read, &arguments(1))
+        .unwrap()
+        .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+        .unwrap();
+    assert_eq!(value, crate::BuildTimeValue::Int(9));
+
+    let error = prepared
+        .entry(read, read, &arguments(2))
+        .err()
+        .expect("the selected body still requires its index bound");
+    assert!(
+        error.contains("cannot prove requires contract for call unread") && error.contains("2 < 2"),
+        "{error}"
+    );
+}
+
+#[test]
 fn a_proof_universe_level_is_not_an_ordinary_evaluation_request() {
     use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::mathematical::MathematicalType;
@@ -670,6 +730,59 @@ fn an_activated_program_may_keep_a_constant_it_never_reads() {
 }
 
 #[test]
+fn an_owned_selected_program_is_narrowed_without_copying_its_typed_storage() {
+    // A selected-source continuation owns its typed program once its bodies
+    // are typed. Narrowing that program to the selected file reuses its
+    // storage; narrowing a base another retained source still shares copies
+    // it once and leaves the shared base whole. Both give the same program.
+    let (sources, identities, base, _) = typed_base(&[
+        (
+            "program/main.omg",
+            "data Pair { left: u64; right: u64; }\nmachine entry() { }\n",
+        ),
+        ("program/library.omg", "machine unreached() { }\n"),
+    ]);
+    let mut selected = sources.as_ref().clone();
+    selected.retain_selected_sources(|file| file.source_id == identities[0]);
+    let selected = std::sync::Arc::new(selected);
+    let members = &base.typed().tables.data_members;
+    assert!(!members.is_empty(), "the data type stores its fields");
+    let storage = members.storage_slice().as_ptr();
+
+    let retained = base.clone();
+    let copied = retained
+        .clone()
+        .activate_sources(
+            std::sync::Arc::clone(&selected),
+            std::sync::Arc::clone(&sources),
+            Vec::new(),
+        )
+        .expect("a shared base is narrowed from its copy");
+    assert_ne!(
+        copied.typed().tables.data_members.storage_slice().as_ptr(),
+        storage
+    );
+    assert_eq!(machine_names(retained.typed()), ["entry", "unreached"]);
+    drop(retained);
+
+    let narrowed = base
+        .activate_sources(selected, sources, Vec::new())
+        .expect("an owned base is narrowed in place");
+    assert_eq!(
+        narrowed
+            .typed()
+            .tables
+            .data_members
+            .storage_slice()
+            .as_ptr(),
+        storage,
+        "the owned program keeps its typed storage"
+    );
+    assert_eq!(machine_names(narrowed.typed()), ["entry"]);
+    assert_eq!(narrowed.typed(), copied.typed());
+}
+
+#[test]
 fn a_read_of_an_unevaluated_constant_is_refused_by_name() {
     // The machine reads the constant. With the value resolution recorded,
     // the read needs no evaluator. Without a recorded value the same read is
@@ -861,6 +974,68 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
         value.decode_encoding(),
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == numerics::bignum::BigInt::from(6)
     ));
+}
+
+#[test]
+fn a_computed_record_array_receipt_checks_each_named_use() {
+    use typed_trees::expression::ExpressionNode;
+
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        data Ticket [copy] { number: u32; }
+        const TICKETS: [Ticket; 2] = make();
+        machine make() -> [Ticket; 2] {
+            [Ticket { number: 3u32 }, Ticket { number: 5u32 }]
+        }
+        machine answer() -> u32 { TICKETS[1u64].number }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+
+    let declaration = &program.const_declarations()[0];
+    let crate::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+    else {
+        panic!("the constant must execute its original initializer");
+    };
+    let original = receipt.request_source();
+    let use_handle = typed_trees::references::collect_program_references(original)
+        .expressions
+        .into_iter()
+        .find(|expression| {
+            original
+                .expression_table
+                .name_path_node(*expression)
+                .and_then(|path| path.resolved_symbol())
+                == Some(declaration.symbol)
+        })
+        .expect("the invocation source retains its named use");
+    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(use_handle)
+    else {
+        panic!("the named use must carry the evaluated array");
+    };
+    let mut fields = program
+        .expression_table
+        .expression_handles(*elements)
+        .iter()
+        .map(|element| {
+            let ExpressionNode::StructLiteral(record) =
+                program.expression_table.expression(*element)
+            else {
+                panic!("the snapshot must preserve the element's record carrier");
+            };
+            program.expression_table.struct_fields(record.fields)[0].value
+        });
+    let first = fields.next().unwrap();
+    let second = fields.next().unwrap();
+    let wrong = program.expression_table.expression(first).clone();
+    *program.expression_table.expression_mut(second) = wrong;
+    assert_eq!(
+        crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap_err(),
+        "constant materialization differs from its invocation outcome"
+    );
 }
 
 #[test]
@@ -1660,4 +1835,207 @@ fn a_const_argument_call_that_cannot_be_an_argument_is_an_error_at_the_call() {
             "{diagnostic}"
         );
     }
+}
+
+#[test]
+fn equal_const_indices_keep_the_same_record_type_through_build_invocation() {
+    use crate::BuildTimeValue;
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+    for (declarations, argument, receipts) in [
+        ("", "4", 0),
+        ("", "(2 + 2)", 0),
+        ("const CAPACITY: u64 = 4u64;", "CAPACITY", 0),
+        ("", "outer()", 2),
+    ] {
+        let text = const_argument_program(declarations, "4u64", argument);
+        let (library, main) = text
+            .rsplit_once("machine main()")
+            .expect("the original main and library declarations");
+        let main = format!("machine main(){main}");
+        let (_, _, base, pending) = constant_base(&[("main.omg", &main), ("library.omg", library)]);
+        for (root, expected_receipts) in [("main", 0), ("demanded", receipts)] {
+            let mut program = base.typed().clone();
+            pending
+                .clone()
+                .evaluate_or_defer_recorded(&mut program)
+                .unwrap();
+            let entry = program.realized_machine_named(root).unwrap().symbol;
+            let request = terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            };
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            crate::evaluate_const_arguments(&mut program, request, None, None, &mut accounting)
+                .unwrap_or_else(|error| panic!("{argument}, {root}: {error:?}"));
+            crate::evaluate_constant_initializers(&mut program, request, None, &mut accounting)
+                .unwrap();
+            assert_eq!(
+                accounting.receipts().len(),
+                expected_receipts,
+                "{argument}, {root}"
+            );
+            accounting.validate_charges().unwrap();
+            let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+            let invoke = |arguments: &[BuildTimeValue]| {
+                prepared
+                    .entry(entry, entry, arguments)
+                    .and_then(|invocation| {
+                        invocation.invoke(
+                            crate::InvocationTarget {
+                                name: None,
+                                layout_target: None,
+                                carrier_layout: None,
+                                address_model: None,
+                            },
+                            &mut terminal_work::WorkMeter::unbounded(),
+                        )
+                    })
+            };
+            if root == "main" {
+                assert_eq!(invoke(&[]), Ok(BuildTimeValue::Int(0)), "{argument}");
+                continue;
+            }
+
+            let storage = program.data_definition_by_name_str("Storage").unwrap();
+            let [DataMember::Field(buffer)] = program.data_members(storage) else {
+                panic!("Storage retains its single Buffer field");
+            };
+            let TypeReferenceNode::Generic { arguments, .. } = program
+                .type_reference_table
+                .type_reference(buffer.type_reference)
+            else {
+                panic!("Storage retains its applied Buffer field");
+            };
+            let [index] = program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            else {
+                panic!("Buffer retains its single Capacity argument");
+            };
+            assert!(
+                matches!(
+                    program.type_reference_table.type_reference(*index),
+                    TypeReferenceNode::Named { symbol, name }
+                        if !symbol.is_valid() && name.as_str() == "4"
+                ),
+                "{argument}"
+            );
+            if argument == "CAPACITY" {
+                let [constant] = program.const_declarations() else {
+                    panic!("one selected const declaration");
+                };
+                let origins = program
+                    .type_reference_table
+                    .constant_origins(*index)
+                    .unwrap();
+                assert!(
+                    origins
+                        .iter()
+                        .any(|origin| origin.declaration == constant.symbol)
+                );
+            }
+            let view = program
+                .closed_data_definition(buffer.type_reference)
+                .expect("the record argument has an exact closed application");
+            let [DataMember::Field(slots)] = program.data_members(view) else {
+                panic!("Buffer retains its single array field");
+            };
+            assert!(matches!(
+                program
+                    .type_reference_table
+                    .type_reference(slots.type_reference),
+                TypeReferenceNode::FixedArray {
+                    length: FixedArrayLength::Literal(4),
+                    ..
+                }
+            ));
+
+            let input = |buffer: &str, length| BuildTimeValue::Struct {
+                type_name: "Storage".into(),
+                fields: vec![(
+                    "buffer".into(),
+                    BuildTimeValue::Struct {
+                        type_name: buffer.into(),
+                        fields: vec![(
+                            "slots".into(),
+                            BuildTimeValue::Array(vec![BuildTimeValue::Int(0); length]),
+                        )],
+                    },
+                )],
+            };
+            assert_eq!(
+                invoke(&[input("Buffer", 4)]),
+                Ok(BuildTimeValue::Int(0)),
+                "{argument}"
+            );
+            assert_eq!(
+                invoke(&[input("Buffer", 3)]).unwrap_err(),
+                "constant argument `storage`: array argument differs from its declared extent",
+                "{argument}"
+            );
+            assert_eq!(
+                invoke(&[input("OtherBuffer", 4)]).unwrap_err(),
+                "constant argument `storage`: invocation record names another declaration",
+                "{argument}"
+            );
+        }
+    }
+}
+
+#[test]
+fn deriving_numbered_record_metadata_does_not_request_wire_evaluation() {
+    let (_, _, base, pending) = constant_base(&[
+        ("main.omg", "machine entry() { }"),
+        (
+            "library.omg",
+            r#"
+data Numbered { #0 count: u64; }
+machine read() -> u64 {
+    let item: Numbered = Numbered { count: 9u64 };
+    item.count
+}
+"#,
+        ),
+    ]);
+    let mut program = base.typed().clone();
+    let [schema] = program.wire_schemas() else {
+        panic!("ordinary numbered data derives its schema");
+    };
+    assert!(schema.encoding.is_none());
+    let schema = schema.symbol;
+    pending.evaluate(&mut program).unwrap();
+    crate::PreCheckEvaluation::evaluate_extension_or_defer(Vec::new(), 0, &mut program).unwrap();
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+    let target = || crate::InvocationTarget {
+        name: None,
+        layout_target: None,
+        carrier_layout: None,
+        address_model: None,
+    };
+    for (name, expected) in [
+        ("entry", crate::BuildTimeValue::Unit),
+        ("read", crate::BuildTimeValue::Int(9)),
+    ] {
+        let machine = program.realized_machine_named(name).unwrap().symbol;
+        let actual = prepared
+            .entry(machine, machine, &[])
+            .unwrap()
+            .invoke(target(), &mut terminal_work::WorkMeter::unbounded())
+            .unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    program.record_wire_schema_plan(schema, [], [], false);
+    let error = crate::PreCheckEvaluation::defer_declared_requests(&mut program).unwrap_err();
+    assert_eq!(
+        error[0].message,
+        "no product route yet: source wire-schema evaluation"
+    );
 }

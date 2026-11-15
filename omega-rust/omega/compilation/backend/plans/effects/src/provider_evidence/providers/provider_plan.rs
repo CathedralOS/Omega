@@ -748,17 +748,10 @@ impl ProviderPlan {
                     ));
                 }
             }
-            if matches!(
-                method.completion,
-                semantic_vocabulary::BoundaryCompletion::External(_)
-            ) && method.has_result
-            {
-                errors.push(format!(
-                    "plan `{}` external completion requirement `{}` declares a normal result",
-                    self.name,
-                    self.schema.identity_text(method.requirement_identity)
-                ));
-            }
+            // Result presence describes the logical declaration, including an
+            // empty result. Canonical callable admission owns whether normal
+            // completion is possible; opaque type identity presence cannot
+            // establish that semantic judgment here.
             if method.has_result == !method.result_type_identity.is_valid() {
                 errors.push(format!(
                     "{} result presence disagrees with its exact result type identity",

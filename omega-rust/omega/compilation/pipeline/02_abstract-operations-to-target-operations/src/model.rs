@@ -15,6 +15,11 @@ pub use provider_admission::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    InstructionMetadata {
+        machine: MachineId,
+        block: semantic_vocabulary::BlockId,
+        reason: &'static str,
+    },
     FunctionContract {
         machine: MachineId,
         reason: &'static str,

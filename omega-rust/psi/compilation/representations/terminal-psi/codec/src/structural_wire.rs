@@ -469,6 +469,14 @@ pub(crate) mod structural_place_wire {
         path: &[StructuralPathSegment],
     ) -> Result<(), CodecError> {
         require_operand_path(path)?;
+        encode_projection_path(writer, label, path)
+    }
+
+    fn encode_projection_path(
+        writer: &mut Writer,
+        label: &'static str,
+        path: &[StructuralPathSegment],
+    ) -> Result<(), CodecError> {
         writer.len(label, path.len())?;
         for segment in path {
             encode_projection(writer, segment)?;
@@ -620,10 +628,7 @@ pub(crate) mod structural_place_wire {
     pub(crate) fn decode_structural_path(
         reader: &mut Reader<'_>,
     ) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        let path = decode_counted(reader, |reader| {
-            let tag = reader.u8()?;
-            decode_projection(reader, tag)
-        })?;
+        let path = decode_projection_path(reader)?;
         require_operand_path(&path)?;
         Ok(path)
     }
@@ -736,13 +741,39 @@ pub(crate) mod structural_place_wire {
         writer: &mut Writer,
         path: &[StructuralPathSegment],
     ) -> Result<(), CodecError> {
-        writer.len("qualification pattern", path.len())?;
-        for step in path {
-            encode_projection(writer, step)?;
+        encode_projection_path(writer, "qualification pattern", path)
+    }
+
+    pub(crate) fn decode_qualification_path(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
+        decode_projection_path(reader)
+    }
+
+    pub(crate) fn encode_declared_lifetime_path(
+        writer: &mut Writer,
+        path: &[StructuralPathSegment],
+    ) -> Result<(), CodecError> {
+        require_declared_lifetime_path(path)?;
+        encode_projection_path(writer, "declared lifetime path", path)
+    }
+
+    pub(crate) fn decode_declared_lifetime_path(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
+        let path = decode_projection_path(reader)?;
+        require_declared_lifetime_path(&path)?;
+        Ok(path)
+    }
+
+    fn require_declared_lifetime_path(path: &[StructuralPathSegment]) -> Result<(), CodecError> {
+        if !terminal_semantics::references::declared_lifetime_path_is_static(path) {
+            return crate::codec_error::malformed("declared lifetime path is not a static family");
         }
         Ok(())
     }
-    pub(crate) fn decode_qualification_path(
+
+    fn decode_projection_path(
         reader: &mut Reader<'_>,
     ) -> Result<Vec<StructuralPathSegment>, CodecError> {
         decode_counted(reader, |reader| {
@@ -755,6 +786,83 @@ pub(crate) mod structural_place_wire {
     mod tests {
         use super::*;
         use semantic_vocabulary::{ClaimId, MachineId, PlaceId, StructuralTypeId};
+
+        #[test]
+        fn declared_lifetime_families_round_trip_without_becoming_operand_paths() {
+            use super::super::module_wire::closed_conformance_wire::ResultLifetime;
+            use super::super::wire_fields::Field;
+            use semantic_vocabulary::StructuralCaseId;
+            use terminal_psi::{
+                BoundaryLifetimeDependency, DeclaredResultLifetime, StructuralAccess,
+            };
+
+            let path = vec![
+                StructuralPathSegment::Field(TerminalIdentityIndex(3)),
+                StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                StructuralPathSegment::Field(TerminalIdentityIndex(4)),
+                StructuralPathSegment::AllElements,
+                StructuralPathSegment::Field(TerminalIdentityIndex(5)),
+            ];
+            let lifetime = DeclaredResultLifetime {
+                inputs: vec![BoundaryLifetimeDependency::Stored {
+                    argument_index: 0,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                }],
+                results: vec![path.clone()],
+            };
+            let mut writer = Writer::default();
+            ResultLifetime::write(&mut writer, &lifetime).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(ResultLifetime::read(&mut reader).unwrap(), lifetime);
+            assert_eq!(reader.remaining(), 0);
+
+            let mut writer = Writer::default();
+            encode_declared_lifetime_path(&mut writer, &path).unwrap();
+            let family_bytes = writer.finish();
+            let concrete_refusal = CodecError::MalformedStructuralFoundation(
+                "returned-origin interpretation is not an operand or owned path",
+            );
+            assert_eq!(
+                encode_structural_path(&mut Writer::default(), "operand", &path),
+                Err(concrete_refusal.clone())
+            );
+            assert_eq!(
+                decode_structural_path(&mut Reader::new(&family_bytes)),
+                Err(concrete_refusal)
+            );
+            let backing = [terminal_psi::ReferenceOriginProjection::Exact(
+                StructuralPathSegment::AllElements,
+            )];
+            let backing_refusal = CodecError::MalformedStructuralFoundation(
+                "qualification wildcard is not a reference origin",
+            );
+            assert_eq!(
+                encode_reference_origin_path(&mut Writer::default(), "backing", &backing),
+                Err(backing_refusal.clone())
+            );
+            assert_eq!(
+                decode_reference_origin_path(&mut Reader::new(&family_bytes)),
+                Err(backing_refusal)
+            );
+
+            let dynamic = [StructuralPathSegment::FixedRange { start: 0, end: 1 }];
+            let family_refusal = CodecError::MalformedStructuralFoundation(
+                "declared lifetime path is not a static family",
+            );
+            assert_eq!(
+                encode_declared_lifetime_path(&mut Writer::default(), &dynamic),
+                Err(family_refusal.clone())
+            );
+            let mut writer = Writer::default();
+            encode_structural_path(&mut writer, "operand", &dynamic).unwrap();
+            let dynamic_bytes = writer.finish();
+            assert_eq!(
+                decode_declared_lifetime_path(&mut Reader::new(&dynamic_bytes)),
+                Err(family_refusal)
+            );
+        }
 
         #[test]
         fn origin_family_wire_is_distinct_from_an_executable_path() {
@@ -858,7 +966,7 @@ pub(crate) mod structural_result_wire {
 
     use terminal_psi::{
         ResultQualificationEstablishment, StructuralMultiplicity, StructuralOperationResult,
-        StructuralResultDeclaration,
+        StructuralQualificationChange, StructuralResultDeclaration,
     };
 
     use super::CodecError;
@@ -867,7 +975,7 @@ pub(crate) mod structural_result_wire {
     };
     use super::wire::{Reader, Writer, strictly_increasing};
     use super::wire_fields::{
-        ClaimBinding, Field, Id, Ids, List, Multiplicity, PathQualification, wire_record,
+        ClaimBinding, Field, Id, Ids, List, Multiplicity, PathQualification, U32, wire_record,
     };
     use crate::sections::semantic_module::structural_place_wire::{
         decode_reference_origin_path, decode_structural_path, encode_reference_origin_path,
@@ -1057,6 +1165,14 @@ pub(crate) mod structural_result_wire {
             claims: List<ClaimBinding>,
         }
         Establishment: ResultQualificationEstablishment { domain: Id, route: RouteIndex }
+        QualificationChange: StructuralQualificationChange {
+            machine: Id,
+            edge: Id,
+            argument_ordinal: U32,
+            source: Id,
+            destination: Id,
+            establishments: List<Establishment>,
+        }
     }
 
     struct RouteIndex;
@@ -1140,6 +1256,7 @@ pub(crate) mod structural_signature_wire {
         };
         use terminal_psi::{
             BoundaryLifetimeDependency, BoundaryReferenceDestination, BoundaryReferenceOutput,
+            StructuralPathSegment,
         };
 
         pub(crate) fn encode(
@@ -1161,7 +1278,9 @@ pub(crate) mod structural_signature_wire {
                     output.dependencies.len(),
                 )?;
                 for dependency in &output.dependencies {
-                    encode_dependency(writer, dependency)?;
+                    encode_dependency(writer, dependency, |writer, path| {
+                        encode_structural_path(writer, "boundary reference lifetime path", path)
+                    })?;
                 }
             }
             Ok(())
@@ -1177,7 +1296,9 @@ pub(crate) mod structural_signature_wire {
                 };
                 let path = decode_structural_path(reader)?;
                 let access = decode_structural_access(reader)?;
-                let dependencies = decode_counted(reader, decode_dependency)?;
+                let dependencies = decode_counted(reader, |reader| {
+                    decode_dependency(reader, decode_structural_path)
+                })?;
                 Ok(BoundaryReferenceOutput {
                     destination,
                     path,
@@ -1190,6 +1311,7 @@ pub(crate) mod structural_signature_wire {
         pub(crate) fn encode_dependency(
             writer: &mut Writer,
             dependency: &BoundaryLifetimeDependency,
+            write_path: impl FnOnce(&mut Writer, &[StructuralPathSegment]) -> Result<(), CodecError>,
         ) -> Result<(), CodecError> {
             match dependency {
                 BoundaryLifetimeDependency::Referent {
@@ -1208,7 +1330,7 @@ pub(crate) mod structural_signature_wire {
                     writer.u8(1);
                     writer.u32(*argument_index);
                     encode_structural_access(writer, *access);
-                    encode_structural_path(writer, "boundary reference lifetime path", path)?;
+                    write_path(writer, path)?;
                 }
             }
             Ok(())
@@ -1216,6 +1338,7 @@ pub(crate) mod structural_signature_wire {
 
         pub(crate) fn decode_dependency(
             reader: &mut Reader<'_>,
+            read_path: impl FnOnce(&mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, CodecError>,
         ) -> Result<BoundaryLifetimeDependency, CodecError> {
             match reader.u8()? {
                 0 => Ok(BoundaryLifetimeDependency::Referent {
@@ -1225,7 +1348,7 @@ pub(crate) mod structural_signature_wire {
                 1 => Ok(BoundaryLifetimeDependency::Stored {
                     argument_index: reader.u32()?,
                     access: decode_structural_access(reader)?,
-                    path: decode_structural_path(reader)?,
+                    path: read_path(reader)?,
                 }),
                 tag => Err(CodecError::InvalidTag("BoundaryLifetimeDependency", tag)),
             }
@@ -1331,6 +1454,29 @@ pub(crate) mod structural_signature_wire {
         QualifiedScalar: QualifiedScalarType { scalar_type: Scalar, qualifications: QualificationSet }
     }
 
+    struct HostedOperationWire;
+    impl Field<language_core::sealed_intrinsics::HostedOperation> for HostedOperationWire {
+        fn write(
+            writer: &mut Writer,
+            value: &language_core::sealed_intrinsics::HostedOperation,
+        ) -> Result<(), CodecError> {
+            use language_core::sealed_intrinsics::HostedOperation;
+            writer.u8(match value {
+                HostedOperation::ProcessExit => 0,
+                _ => return Err(CodecError::InvalidTag("hosted primitive operation", 255)),
+            });
+            Ok(())
+        }
+        fn read(
+            reader: &mut Reader<'_>,
+        ) -> Result<language_core::sealed_intrinsics::HostedOperation, CodecError> {
+            match reader.u8()? {
+                0 => Ok(language_core::sealed_intrinsics::HostedOperation::ProcessExit),
+                tag => Err(CodecError::InvalidTag("hosted primitive operation", tag)),
+            }
+        }
+    }
+
     wire_enum! {
         Execution: CheckedBoundaryExecution, "checked boundary execution" {
             0 => Provider,
@@ -1343,6 +1489,7 @@ pub(crate) mod structural_signature_wire {
             7 => StaticInterruptContext,
             8 => StaticInterruptBeginCompletion,
             9 => StaticInterruptFinishCompletion,
+            10 => HostedPrimitive { operation: HostedOperationWire, requirement: Id },
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

@@ -1,5 +1,23 @@
-// The ProcessExit requirement belongs to core. Each hosted target supplies
-// that exact requirement through its admitted native or compiler-backed row.
-// No checked wrapper calls a native conformer's name or redispatches the slot.
-// Selection does not grant the process-domain authority invocation requires.
+// Canonical process-exit provider surface exposed by the Omega standard
+// library.
+//
+// The `ProcessExit` boundary trait itself is owned by core
+// (`omega::language::core::process_exit`); this module contributes the named
+// implementation each target selects by default. Its checked body delegates
+// to the exact compiler-owned core primitive; std claims no compiler backing.
+use omega::language::core::Never;
 use omega::language::core::ProcessExit;
+use omega::language::core::ProcessExitPrimitive;
+
+// The selected implementation owns the complete ProcessExit map. Its one
+// member calls the core primitive directly. Its distinct declaration keeps
+// the canonical requirement's terminal outcome and exact i32 status; neither
+// the wrapper nor provider selection grants caller exit authority.
+public NativeProcessExit satisfies ProcessExit {
+    machine exit_process(return_code: i32) -> Never
+    reaches ProcessExit
+    crashes none
+    terminates {
+        ProcessExitPrimitive(return_code);
+    }
+}

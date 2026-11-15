@@ -2,7 +2,7 @@
 // Expected exit: 0
 public data Transform [copy] { a: f64; b: f64; c: f64; d: f64; tx: f64; ty: f64; }
 public boundary trait AffineTransforms {
-    machine make(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Transform reaches;
+    machine make(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Transform reaches crashes none;
 }
 
 machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransforms {
@@ -34,7 +34,7 @@ machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransf
 
 machine receive(value: Transform) -> bool reaches AffineTransforms { consume(value, value) == 0 }
 boundary trait AffineObservation {
-    machine observe() -> bool reaches AffineTransforms invokes AffineTransforms;
+    machine observe() -> bool reaches AffineTransforms invokes AffineTransforms crashes none;
 }
 NativeAffineObservation satisfies AffineObservation {
     machine observe() -> bool reaches AffineTransforms { receive(AffineTransforms::make(1.25, -2.5, 3.75, -4.0, 5.5, -6.25)) }

@@ -691,7 +691,7 @@ mod descriptor_storage_tests {
             program
                 .calling_abi_parameter(entry, constrained_nested)
                 .unwrap_err(),
-            "type constrained by a domain with no declaration",
+            "type domain application without its prepared theory",
         );
         let descriptor = program.calling_abi_parameter(entry, nested).unwrap();
         assert_eq!(

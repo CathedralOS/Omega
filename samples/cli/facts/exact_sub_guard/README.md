@@ -78,9 +78,6 @@ omega --check samples/cli/facts/exact_sub_guard/invalid_target_body/main.omg
 
 - **Parent outcome:** Exact integer arithmetic without underflow / [numeric values](../../../../wiki/spec/language/numeric_values.md).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/exact_sub_guard_through_<place>_exit`
-  - Negative controls: `tests/omega/fail/facts/exact_sub_guard_through_<place>_rejected`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** The entry contract `requires remaining <= 5` bounds the scalar and the transition/contract guard `remaining >= 2` establishes the exact lower bound justifying exact unsigned subtraction `remaining - 2` without underflow. Safe exact subtraction is established statically by the guard and entry contracts at the point of subtraction, without any post-hoc caller equality guard (`transition x == 100`) after the operation completes.

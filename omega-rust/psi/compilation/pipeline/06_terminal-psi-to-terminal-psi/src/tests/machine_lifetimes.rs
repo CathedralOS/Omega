@@ -27,6 +27,196 @@ fn verdict(build: &str) -> String {
     }
 }
 
+/// Compare the actual declaration promise before and after receiving its wire
+/// form. Module-local identity indices and source declaration coordinates are
+/// deliberately excluded from comparisons between separately read programs.
+fn published_label_signature(source: &str) -> (Vec<String>, String, [u8; 32]) {
+    // Portable receiving checks start from package-owned Product source.
+    // Invocation-scoped code deliberately cannot be serialized as an artifact.
+    let typed = super::build_purpose::frontier_of(source, "machine unused_build() {}");
+    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let input = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[Some(super::build_purpose::package())],
+            source::DependencyScope::Product,
+        ),
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let mut verdicts = crate::judge_compilation(input.program);
+    assert_eq!(verdicts.len(), 1);
+    let verdict = verdicts.remove(0);
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the complete declared signature must be judged: {verdict:?}");
+    };
+    let publication = accepted.publish().unwrap();
+    let signature = |module: &terminal_psi::TerminalModule| {
+        let mut declarations = module
+            .machines
+            .iter()
+            .filter_map(|machine| machine.declaration.as_ref())
+            .filter(|declaration| {
+                module
+                    .identities
+                    .text(declaration.callable)
+                    .is_some_and(|identity| identity.contains("label"))
+            });
+        let declaration = declarations.next().expect("label's published header");
+        assert!(declarations.next().is_none());
+        (
+            declaration
+                .parameter_types
+                .iter()
+                .map(|identity| module.identities.text(*identity).unwrap().to_owned())
+                .collect::<Vec<_>>(),
+            module
+                .identities
+                .text(declaration.result_type)
+                .unwrap()
+                .to_owned(),
+            declaration.contract,
+        )
+    };
+    let module = publication.artifact.view().module();
+    let original = signature(module);
+    let bytes = terminal_codec::encode_module(module).unwrap();
+    let received = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(
+        signature(&received),
+        original,
+        "receiving retains the promise"
+    );
+    original
+}
+
+/// Identical image-backed bodies can implement different public lifetime
+/// promises. A receiver must distinguish those promises after source erasure.
+#[test]
+fn an_ordinary_published_header_retains_its_declared_result_lifetime_relation() {
+    let declared_signature = |binders: &str, input: &str, result: &str| {
+        let source = format!(
+            "machine build_entry() {{\n\
+                 let output: &[u8] = label(\"input\");\n\
+                 take(output);\n\
+             }}\n\
+             machine label{binders}(value: {input}) -> {result} {{\n\
+                 \"label\"\n\
+             }}\n\
+             machine take(view: &[u8]) {{ }}"
+        );
+        published_label_signature(&source)
+    };
+    let related = declared_signature("<'input, 'other>", "&'input [u8]", "&'input [u8]");
+    let chosen = declared_signature("<'input, 'other>", "&'input [u8]", "&'other [u8]");
+    assert_eq!(related.0, chosen.0, "the input promise is unchanged");
+    assert_ne!(
+        related.1, chosen.1,
+        "the result carries its own declared relation"
+    );
+    assert_ne!(
+        related.2, chosen.2,
+        "an input-related promise must not become a caller-chosen promise through erasure"
+    );
+    assert_eq!(
+        related,
+        declared_signature("<'source, 'independent>", "&'source [u8]", "&'source [u8]"),
+        "renaming binders preserves the declared relation"
+    );
+    assert_eq!(
+        chosen,
+        declared_signature(
+            "<'source, 'independent>",
+            "&'source [u8]",
+            "&'independent [u8]"
+        ),
+        "renaming a caller-chosen binder preserves the promise"
+    );
+    assert_eq!(
+        declared_signature("<'input>", "&'input [u8]", "&'input [u8]"),
+        declared_signature("", "&[u8]", "&[u8]"),
+        "elision publishes the same unique input relation"
+    );
+}
+
+/// Omitted data lifetime arguments are signature occurrences too. They must
+/// retain the same relation and binder order as explicitly written arguments.
+#[test]
+fn an_ordinary_record_signature_retains_its_elided_lifetime_relation() {
+    let signature =
+        |binders: &str, formal: &str, result: &str, argument: &str, body: &str, consumer: &str| {
+            published_label_signature(&format!(
+                r#"
+            data View<'storage> {{ bytes: &'storage [u8]; }}
+            machine build_entry() {{
+                let value: View = View {{ bytes: "input" }};
+                take(label({argument}));
+            }}
+            machine label{binders}(value: {formal}) -> {result} {{ {body} }}
+            machine take(value: {consumer}) {{}}
+            "#
+            ))
+        };
+    let related = signature(
+        "<'input>",
+        "View<'input>",
+        "View<'input>",
+        "value",
+        "View { bytes: \"label\" }",
+        "View",
+    );
+    assert_eq!(
+        related,
+        signature(
+            "",
+            "View",
+            "View",
+            "value",
+            "View { bytes: \"label\" }",
+            "View"
+        ),
+        "a carried reference input supplies the elided result relation"
+    );
+    let chosen = signature(
+        "<'input, 'output>",
+        "View<'input>",
+        "View<'output>",
+        "value",
+        "View { bytes: \"label\" }",
+        "View",
+    );
+    assert_eq!(related.0, chosen.0);
+    assert_ne!(related.1, chosen.1);
+    assert_ne!(related.2, chosen.2);
+    assert_eq!(
+        signature(
+            "<'outer, 'inner>",
+            "&'outer View<'inner>",
+            "u32",
+            "&value",
+            "7u32",
+            "u32"
+        ),
+        signature("", "&View", "u32", "&value", "7u32", "u32"),
+        "the outer reference is numbered before its carried reference"
+    );
+    let no_input = |binders: &str, result: &str| {
+        published_label_signature(&format!(
+            r#"
+            data Pair<'left, 'right> {{ left: &'left [u8]; right: &'right [u8]; }}
+            machine build_entry() {{ take(label()); }}
+            machine label{binders}() -> {result} {{ Pair {{ left: "a", right: "b" }} }}
+            machine take(value: Pair) {{}}
+            "#
+        ))
+    };
+    assert_eq!(
+        no_input("<'output>", "Pair<'output, 'output>"),
+        no_input("", "Pair"),
+        "all no-input result elision shares its one caller-chosen lifetime"
+    );
+}
+
 /// The one statement a program judged wrong breaks.
 fn violation(build: &str) -> String {
     let verdict = judge_build(build);

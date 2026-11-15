@@ -102,6 +102,7 @@ struct NominalKey {
     formal: usize,
     fields: Vec<SymbolHandle>,
     domain: SymbolHandle,
+    application: language_semantics::SemanticDomainId,
 }
 
 impl NominalKey {
@@ -110,6 +111,7 @@ impl NominalKey {
             .cmp(&other.formal)
             .then_with(|| field_order(&self.fields, &other.fields))
             .then_with(|| symbol_order(self.domain, other.domain))
+            .then_with(|| self.application.0.cmp(&other.application.0))
     }
 }
 
@@ -719,6 +721,7 @@ impl Inputs {
             let right = &result.memberships[*right];
             path_order(member_arena, left.subject, right.subject)
                 .then_with(|| symbol_order(left.domain.symbol, right.domain.symbol))
+                .then_with(|| left.domain.semantic_id.0.cmp(&right.domain.semantic_id.0))
         });
         result.lookup = (0..result.leaves.len()).collect();
         result.lookup.sort_unstable_by(|left, right| {
@@ -818,15 +821,16 @@ impl Inputs {
                             ),
                         ));
                     }
-                    let definition = typed.domain_definition(domain.symbol).ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Contract("logical domain without its declaration"),
-                        )
-                    })?;
-                    if !domain.arguments.is_empty()
-                        || definition.alias.is_some()
+                    let definition = typed
+                        .domain_definition_for_instance(domain.symbol, domain.semantic_id)
+                        .ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Contract("logical domain without its declaration"),
+                            )
+                        })?;
+                    if definition.alias.is_some()
                         || !definition.type_parameters.is_empty()
                         || !definition.index_arguments.is_empty()
                     {
@@ -880,6 +884,7 @@ impl Inputs {
                             formal: origin,
                             fields: symbol_members(member_arena, subject).to_vec(),
                             domain: definition.symbol,
+                            application: domain.semantic_id,
                         },
                         domain: domain.clone(),
                         subject,
@@ -1062,9 +1067,16 @@ impl Inputs {
             machine,
             "logical membership subject members",
         )?;
-        if !fact.domain_arguments.is_empty() {
-            return Err(unserved("applied logical membership theory"));
-        }
+        let fact_identity = if fact.semantic_domain.is_valid() {
+            fact.semantic_domain
+        } else {
+            program
+                .typed
+                .domain_definition(fact.domain_symbol)
+                .filter(|definition| program.typed.domain_type_parameters(definition).is_empty())
+                .map(|definition| definition.semantic_id)
+                .ok_or_else(|| unserved("logical membership lost its applied domain identity"))?
+        };
         let position = self
             .membership_lookup
             .binary_search_by(|index| {
@@ -1082,6 +1094,7 @@ impl Inputs {
                             )
                     })
                     .then_with(|| symbol_order(membership.domain.symbol, fact.domain_symbol))
+                    .then_with(|| membership.domain.semantic_id.0.cmp(&fact_identity.0))
             })
             .map_err(|_| {
                 unserved("logical membership not formed by an exact input qualification")
@@ -1093,13 +1106,9 @@ impl Inputs {
             ));
         }
         let path = membership.subject;
-        // Authored unindexed memberships carry NULL in typed proof facts;
-        // generated parameter clauses carry the declared semantic ID. Both
-        // name this exact closed declaration. Arguments and open domain
-        // families were refused during input preparation, not guessed here.
-        if fact.semantic_domain != language_semantics::SemanticDomainId::NULL
-            && membership.domain.semantic_id != fact.semantic_domain
-        {
+        // Only legacy unindexed facts may omit their semantic coordinate.
+        // Every family use rejoins its complete retained application.
+        if membership.domain.semantic_id != fact_identity {
             return Err(identity(
                 machine,
                 "logical membership differs from its exact input domain",

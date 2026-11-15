@@ -70,7 +70,7 @@ MemorySupply satisfies ResourceProfileSupply<TestMemory> {
 }
 
 boundary trait NativeAllocation {
-    machine allocate(count: u64, width: u64) -> addr reaches;
+    machine allocate(count: u64, width: u64) -> addr reaches crashes none;
 }
 TestRoots satisfies ExtentRootProvider {
     machine grant(root: Extent) -> Extent { root }

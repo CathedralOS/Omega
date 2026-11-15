@@ -13,15 +13,15 @@ The nine places carry the bitwise mask range bound through each language constru
 | Place | Positive | Reject twin | Carrier / transport | Pinned pass fixture | Pinned reject fixture |
 | --- | --- | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | bitwise mask establishes bound and discharges subtraction directly | — | — |
-| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | masked value bound to a local variable | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_local_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_local_rejected` |
-| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | masked value stored in and projected from record field | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_field_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_field_rejected` |
-| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | masked value passed as an explicit machine parameter | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_parameter_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_parameter_rejected` |
-| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | masked value returned across machine call boundary | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_call_result_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_call_result_rejected` |
-| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | masked value preserved across match convergence join | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_match_join_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_match_join_rejected` |
-| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | masked value constrained against named constant | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_const_name_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_const_name_rejected` |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | masked value passed as an argument across state machine transition | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_other_state_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_other_state_rejected` |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | masked value forwarded through another machine | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_other_machine_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_other_machine_rejected` |
-| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | masked value consumed across target-scoped machine bodies | `tests/omega/pass/facts/wrapping_integer_arithmetic_through_target_body_exit` | `tests/omega/fail/facts/wrapping_integer_arithmetic_through_target_body_rejected` |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | masked value bound to a local variable |  |  |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | masked value stored in and projected from record field |  |  |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | masked value passed as an explicit machine parameter |  |  |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | masked value returned across machine call boundary |  |  |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | masked value preserved across match convergence join |  |  |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | masked value constrained against named constant |  |  |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | masked value passed as an argument across state machine transition |  |  |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | masked value forwarded through another machine |  |  |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | masked value consumed across target-scoped machine bodies |  |  |
 
 Each positive place and root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, and passes `omega run --both`.
 
@@ -64,13 +64,7 @@ All nine twins exit 1 at checking with their authored `exact arithmetic` and `ma
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/wrapping_integer_arithmetic_through_<place>_exit` and `tests/omega/fail/facts/wrapping_integer_arithmetic_through_<place>_rejected` for the nine places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its place's `main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy of its place twin's `main.omg`/`build.omg`/`expected.txt` (fragments `exact arithmetic` and `may overflow \`u64\``). All 108 copied files compare identical to their sample sources.
-
-Golden rows were recorded on macOS arm64 at `jobs=3` with the same generation producer (`corpus_runner` sha256 `c25372101a8cd22676fc23b3b80b2387a58609a988353552f158251c65650b96`), stamped `@5648483032b7+wt`:
-
-- `tests/omega/corpus_outcomes.txt`: 18 `checked` rows carrying `check-target:macos_arm64` and 18 `rejected` rows carrying their diagnostics with the authored fragments satisfied (`+60` lines with the 24 diagnostic continuation lines, `-0`);
-- `tests/omega/corpus_native_macos_arm64.txt`: 18 `built` rows with `exit:0` (`+18`/`-0`);
-- `tests/omega/corpus_both_macos_arm64.txt`: 18 `built` rows with `exit:0 interpreter-exit:0 interpreter:agrees` (`+18`/`-0`).
+All 108 copied files compare identical to their sample sources.
 
 ## Requirements and Evidence
 

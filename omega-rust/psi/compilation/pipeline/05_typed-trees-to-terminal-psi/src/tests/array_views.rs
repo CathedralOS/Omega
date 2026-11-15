@@ -27,6 +27,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
         true,
         crate::StorageShape::FixedArray {
             element: id(1),
+            qualification: Qualification::NONE,
             length: ArrayExtent::Literal(3),
         },
     );
@@ -76,7 +77,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
             view,
         );
         let mut statements = statements;
-        statements.push(Statement::Evaluate(call(2, vec![argument], None)));
+        statements.push(Statement::discard(call(2, vec![argument], None)));
         statements.push(Statement::Arm {
             guard: None,
             target: Target::Unit,

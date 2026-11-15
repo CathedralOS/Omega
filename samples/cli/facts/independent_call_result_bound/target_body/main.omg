@@ -1,7 +1,7 @@
 // An independent completed call guarantees value == 7, so exact value - 7 is safe.
 // Expected exit: 0
 boundary trait IndependentSource {
-    machine source(input: u64) -> u64 reaches ensures result == 7;
+    machine source(input: u64) -> u64 reaches ensures result == 7 crashes none;
 }
 WindowsSource satisfies IndependentSource {
     machine source(input: u64) -> u64 reaches ensures result == 7 {
@@ -30,7 +30,7 @@ ReservedSource satisfies IndependentSource {
 }
 machine forwarded(input: u64) -> u64 ensures result == 7 { IndependentSource::source(input) }
 boundary trait Evaluation {
-    machine evaluate() -> u64 reaches IndependentSource;
+    machine evaluate() -> u64 reaches IndependentSource crashes none;
 }
 WindowsEvaluation satisfies Evaluation {
     machine evaluate() -> u64 reaches IndependentSource { forwarded(3) - 7 }

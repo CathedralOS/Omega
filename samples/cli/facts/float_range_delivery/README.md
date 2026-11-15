@@ -70,7 +70,6 @@ asymmetric joins, an unknown arm, write-only storage, and gated native entry.
 
 - **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and IEEE `f64` range delivery. The narrower inclusive IEEE `f64` interval premise (`value >= 0.0 && value <= 0.25`) satisfies the wider `requires` interval (`value >= 0.0 && value <= 0.5`) at `admit(value)` across all nine program places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), with exact agreement between Terminal Psi and native execution across hosted targets.
-- **Pinned fixtures:** positive places and reject twins under `tests/omega/{pass,fail}/facts/float_range_delivery_*`.
 - **Authority:** `wiki/spec/language/numeric_values.md` (bounds as propositions, same-format delivery, IEEE comparison), `dependent_values.md` (construction and exact contract substitution), `evaluation.md` (canonical atom eligibility), `expressions.md` (once-only evaluation and mutation), and `state_contracts.md` (all-predecessor joins and fact lifetime).
 
 Full 8-layer specification and lowering evidence:

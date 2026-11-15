@@ -49,8 +49,6 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
   destinations and rejects the stale bound.
 - [Live loan](controls/unselected_live_loan/main.omg) rejects reusing the other
   input while the result's common lifetime still holds its exclusive loan.
-- The existing [view read before a store](../../../../tests/omega/fail/borrows/view_local_read_before_store/main.omg)
-  rejects observation of a borrowed view whose descriptor has not been established.
 - [Declared reference](controls/reference_local_exit/main.omg), its
   [overlapping-write twin](controls/reference_local_overlapping/main.omg), and
   [use before the first store](controls/reference_local_before_store/main.omg)
@@ -60,10 +58,8 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 
 ## Pinned fixtures
 
-Positive places match `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`.
-Reject twins match `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`.
-Their `main.omg` and `build.omg` files are identical. Older macOS native records
-are historical evidence; the fresh results below identify their own source and host.
+Older macOS native records are historical evidence; the fresh results below identify their own
+source and host.
 
 ## Requirements and evidence
 

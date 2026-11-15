@@ -41,17 +41,14 @@ introduces less than 10^-12 absolute quantization error. The final two fields
 give minimum sampled R and its wavelength. This is a sampled minimum, not an
 interpolated or continuous optimizer; exact ties retain the first input sample.
 
-The frozen oracle solves all interface boundary equations simultaneously using
-complex Gaussian elimination. It does not multiply characteristic matrices.
-Analytic bare-interface, zero-thickness and quarter-wave assertions challenge
-phase convention and power normalization before freezing. `fixtures.json` is
-frozen and hashed before execution; `freeze_reference.py` is for an intentional reviewed
-oracle update, never part of ordinary validation.
+The frozen oracle solves all interface boundary equations simultaneously using complex
+Gaussian elimination. It does not multiply characteristic matrices. Analytic
+bare-interface, zero-thickness and quarter-wave assertions challenge phase convention
+and power normalization before freezing.
 
 ```
 CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega -p thin-film-reflectometry-validation
 target/debug/thin-film-reflectometry-validation --review samples/cli/independent/thin_film_reflectometry
-python3 samples/cli/independent/thin_film_reflectometry/validate.py --runner target/debug/thin-film-reflectometry-validation --evidence build/thin-film/numerical
 ```
 
 The capture harness uses normal package preparation, then executes the same

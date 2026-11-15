@@ -1,5 +1,5 @@
 use omega::language::core::ProcessExit;
-// Expected exit: 0 (valid input); numerical oracle: validate.py.
+// Expected exit: 0 (valid input).
 use domain::input;
 use domain::report;
 use omega::language::core::F64::from_i32;

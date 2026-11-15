@@ -16,12 +16,11 @@ remain distinct from the physical byte transferred by its atomic instruction.
 
 The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
 `const_name`, `other_state`, `other_machine`, and `target_body`. Each place has
-`main.omg`, a four-host entry declaration, and `invalid/main.omg`. Its reject
-twin changes only the store ordering from `Publish` to `Receive`, which must
-report `atomic store cannot use Receive ordering` (with source backticks).
-The same inputs are pinned under `tests/omega/{pass,fail}/facts/atomic_boolean_store`.
-`other_state` retains the existing nested-state transport spelling during the
-repository's separate nested-machine source migration.
+`main.omg`, a four-host entry declaration, and `invalid/main.omg`. Its reject twin
+changes only the store ordering from `Publish` to `Receive`, which must report `atomic
+store cannot use Receive ordering` (with source backticks). `other_state` retains the
+existing nested-state transport spelling during the repository's separate
+nested-machine source migration.
 
 Run each positive with `omega packages update --project <place> --target linux_x86_64`,
 then `omega run --both <place>/main.omg`; both engines must exit 0. Check each
@@ -53,13 +52,12 @@ The applicable requirements are:
 <summary>Earlier Linux qualification</summary>
 
 On Linux x86-64, the optimized producer at
-`666e562d988fc2e8f0f32620192e7f56ec469e42` passes all nine places,
-their nine ordering reject twins, the root and composition, and seven additional
-source authority/type controls: 39 CLI observations including the profile check.
-Every executable observation reports native exit 0 and Terminal exit 0.
-The pinned placed-accessor controls independently admit permitted load/store and
-reject the same operation with its exact placement permission removed.
-See [validation](validation.json) for producer identity and observation commands.
+`666e562d988fc2e8f0f32620192e7f56ec469e42` passes all nine places, their nine
+ordering reject twins, the root and composition, and seven additional source
+authority/type controls: 39 CLI observations including the profile check. Every
+executable observation reports native exit 0 and Terminal exit 0. The pinned
+placed-accessor controls independently admit permitted load/store and reject the
+same operation with its exact placement permission removed.
 </details>
 
 The current qualification at source `1ee74504bebfd3a945fc250a58abdfeb474f4a5a` executes all

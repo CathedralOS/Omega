@@ -293,9 +293,46 @@ impl<'t> Program<'t> {
             let [reach, entries] = rows
                 .each_ref()
                 .map(|row: &Vec<String>| row.iter().map(String::as_str).collect::<Vec<&str>>());
+            let execution = if let Some(
+                language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(operation),
+            ) = self.typed.symbols.sealed_intrinsic(*symbol)
+            {
+                let machine = self
+                    .typed
+                    .machine_by_symbol(*symbol)
+                    .ok_or_else(|| unavailable("hosted primitive lost its source machine"))?;
+                let mut declarations = self
+                    .typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .filter_map(|edge| {
+                        typed_trees::machine::resolve_satisfied_declaration(
+                            self.typed, machine, edge,
+                        )
+                    });
+                let requirement = declarations
+                    .next()
+                    .ok_or_else(|| unavailable("hosted primitive lost its requirement"))?
+                    .symbol();
+                if declarations.next().is_some() {
+                    return Err(unavailable("hosted primitive has multiple requirements"));
+                }
+                let requirement = self
+                    .boundary_symbols
+                    .iter()
+                    .find_map(|(id, symbol)| (*symbol == requirement).then_some(id))
+                    .ok_or_else(|| unavailable("hosted primitive requirement was not published"))?;
+                terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
+                    operation,
+                    requirement,
+                }
+            } else {
+                terminal_psi::CheckedBoundaryExecution::Provider
+            };
             let metadata = crate::declare::boundary(
                 self.typed,
                 *symbol,
+                execution,
                 signature,
                 crate::declare::Published {
                     operational: signature.operational.published([false; 2]),

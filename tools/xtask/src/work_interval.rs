@@ -235,6 +235,40 @@ fn adopt(root: &Path, directory: &Path) -> Result<WorkInterval, String> {
                 source: entry.source.clone(),
                 started_epoch: entry.epoch,
             });
+        } else if entry.message.starts_with("cherry-pick:") {
+            // A helper checkpoint appends to the same owned work just as a
+            // local commit does. The reflog label alone is not evidence: its
+            // new commit must have exactly the previous source as its parent.
+            let lineage = git(
+                root,
+                &["rev-list", "--parents", "-n", "1", &entry.source, "--"],
+            )?;
+            if !lineage
+                .split_whitespace()
+                .eq([entry.source.as_str(), entry.old.as_str()])
+            {
+                return Err(format!(
+                    "unverifiable cherry-pick checkpoint `{}`; use `worktree begin` for a new outcome",
+                    entry.message
+                ));
+            }
+        } else if entry.message.starts_with("merge ") || entry.message.starts_with("merge:") {
+            // An integration continues the owned source only when that exact
+            // source is its first parent. A merge label cannot prove lineage.
+            let lineage = git(
+                root,
+                &["rev-list", "--parents", "-n", "1", &entry.source, "--"],
+            )?;
+            let mut lineage = lineage.split_whitespace();
+            if lineage.next() != Some(entry.source.as_str())
+                || lineage.next() != Some(entry.old.as_str())
+                || lineage.next().is_none()
+            {
+                return Err(format!(
+                    "unverifiable merge checkpoint `{}`; use `worktree begin` for a new outcome",
+                    entry.message
+                ));
+            }
         } else if !entry.message.starts_with("commit")
             && !entry.message.starts_with("rebase")
             // A cherry-pick continues this work only when the new commit's

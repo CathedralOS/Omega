@@ -57,18 +57,14 @@ omega --check samples/cli/facts/bounded_products/<place>/invalid/main.omg
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/bounded_products --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `macos_arm64`).
 - 9/9 intended-invalid controls match their authored rejection.
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/pass/facts/bounded_products_through_<place>_exit` and `tests/omega/fail/facts/bounded_products_through_<place>_rejected` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The positive fixtures bind `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record
+native exit 0.
 
 ## Requirements and Evidence
 

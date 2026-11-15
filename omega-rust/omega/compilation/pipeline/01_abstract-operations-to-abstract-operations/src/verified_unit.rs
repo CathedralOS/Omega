@@ -33,7 +33,7 @@ mod error {
         /// the sealed goal.
         EvidenceSealMismatch {
             machine: MachineId,
-            site: terminal_codec::EvidenceSite,
+            site: terminal_psi::ExecutionSite,
             obligation: ObligationId,
         },
         /// An evidence seal names no accepted operation obligation of the unit.
@@ -272,7 +272,7 @@ fn source_checked_obligation_facts(
                     &validator,
                     &mut attached,
                     function.machine,
-                    terminal_codec::EvidenceSite::Operation(*support),
+                    terminal_psi::ExecutionSite::Operation(*support),
                     *obligation,
                 )?;
                 let fact = AcceptedObligationFact::new(
@@ -353,11 +353,17 @@ fn source_checked_obligation_facts(
         // edge: the edge owns the fact and carries the block's seal. Cleanup
         // rosters are not terminator storage uses and carry no seal.
         for block in &function.blocks {
-            let site = terminal_codec::EvidenceSite::Terminator(block.id);
             for node in &block.nodes {
+                let checked_block = match &node.operation {
+                    abstract_operations::AbstractOperation::StructuralCase {
+                        psi_block, ..
+                    } => *psi_block,
+                    _ => block.id,
+                };
+                let site = terminal_psi::ExecutionSite::Block(checked_block);
                 let shared = node.operation.terminator_read_path().map(|path| {
                     (
-                        optimization_unit::AcceptedObligationOwner::Terminator(block.id),
+                        optimization_unit::AcceptedObligationOwner::Terminator(checked_block),
                         path,
                         true,
                     )
@@ -441,7 +447,7 @@ fn sealed_fingerprint(
     validator: &terminal_codec::EvidenceSealValidator<'_, '_>,
     attached: &mut [bool],
     machine: semantic_vocabulary::MachineId,
-    site: terminal_codec::EvidenceSite,
+    site: terminal_psi::ExecutionSite,
     obligation: semantic_vocabulary::ObligationId,
 ) -> Result<[u8; 32], VerifiedPsiOptimizationUnitBuildError> {
     let found = validator

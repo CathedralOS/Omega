@@ -1,0 +1,27 @@
+// The twin of `run/domains/access_plan_issuer`: the plan lists `unrelated` as
+// the only issuer, so the cast `ticket as +Stamped` in `stamp` is refused.
+
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::reflect;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::Issuance;
+use omega::language::core::access;
+
+StampAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        access::new_plan(&schema, Issuance::Only { routes: [reflect::callable(unrelated)] })
+    }
+}
+
+data Ticket { number: i32; }
+domain Ticket::Stamped access StampAccess;
+machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
+machine unrelated(ticket: Ticket) -> Ticket { ticket }
+machine number(ticket: Ticket in Stamped) -> i32 { ticket.number }
+machine complete() { }
+machine fail() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let observed: i32 = number(stamp(unrelated(Ticket { number: 4 })));
+    transition observed == 4 { true -> complete() _ -> fail() }
+}

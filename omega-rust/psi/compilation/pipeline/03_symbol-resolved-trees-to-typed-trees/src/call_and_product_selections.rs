@@ -3102,7 +3102,6 @@ pub(crate) mod qualification_casts {
     };
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
-    use typed_trees::domain::indexed_domain_instance_name;
     use typed_trees::expression::ExpressionNode;
     use typed_trees::types::{
         DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -3264,13 +3263,8 @@ pub(crate) mod qualification_casts {
                     arguments.len(),
                 )));
             }
-            let instance_name =
-                indexed_domain_instance_name(program, domain, index_parameters, &arguments)?;
-            let semantic_id = if arguments.is_empty() {
-                domain.semantic_id
-            } else {
-                program.semantic_domains.intern(&instance_name)
-            };
+            let semantic_id =
+                program.retain_domain_application(domain.symbol, carrier, &arguments)?;
             updates.push((handle, authored_occurrence, domain.symbol, semantic_id));
         }
 

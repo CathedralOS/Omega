@@ -77,10 +77,6 @@ Restoring the operand bounds restores clean compilation and zero exit.
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`)
 - **Requirement established:** Exact 64-bit signed left shift of a bounded input (`val >= 25i64 && val <= 25i64`) by `2` bits statically establishes `shifted >= 100i64 && shifted <= 100i64`, so the consuming exact subtraction `shifted - 100i64` is proved overflow-free and evaluates to `0i64` across all nine places, without any post-hoc caller equality guard, with Terminal Psi and native execution agreeing (`omega run --both`: root plus nine places, `native exit 0`, `interp exit: 0`).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/signed_shift_left_bound_through_<place>_exit/` (nine, with `build.omg` binding `ProgramEntry` for all four hosted targets and `expected_native_exit.txt` `0`)
-  - Negative controls: `tests/omega/fail/facts/signed_shift_left_bound_through_<place>_rejected/` (nine, each carrying `expected.txt` `may overflow \`i64\``)
-  - Goldens: nine `checked` + nine `rejected` rows in `tests/omega/corpus_outcomes.txt`; nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `tests/omega/corpus_both_macos_arm64.txt`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** Establishing interval precondition `val >= 25i64 && val <= 25i64` and applying constant shift count `2` statically proves the post-shift interval `result >= 100i64 && result <= 100i64` directly from arithmetic intervals without any post-hoc caller equality guard (`transition x == 100`).

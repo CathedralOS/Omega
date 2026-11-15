@@ -520,7 +520,12 @@ impl Program<'_> {
                 }
                 continue;
             }
-            if let crate::StorageShape::ElementView { element, access } = declaration.shape {
+            if let crate::StorageShape::ElementView {
+                element,
+                qualification,
+                access,
+            } = declaration.shape
+            {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(machine, "sequence storage has no retained source type")
                 })?;
@@ -537,6 +542,13 @@ impl Program<'_> {
                         "sequence storage has no exact source view declaration",
                     ));
                 };
+                let element_storage = if qualification.is_none() {
+                    element_type
+                } else {
+                    self.typed
+                        .type_reference_table
+                        .unconstrained_type_reference(element_type)
+                };
                 if source_access != access
                     || identity != declaration.identity
                     || source.declaration.is_valid()
@@ -545,7 +557,9 @@ impl Program<'_> {
                     || !application.substitutions.is_empty()
                     || !self.records.get(element).is_some_and(|row| {
                         self.typed
-                            .type_identity_text(self.typed.normalized_type_identity(element_type))
+                            .type_identity_text(
+                                self.typed.normalized_type_identity(element_storage),
+                            )
                             .as_ref()
                             == Some(&row.identity)
                     })

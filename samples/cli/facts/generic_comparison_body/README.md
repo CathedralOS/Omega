@@ -47,8 +47,6 @@ Psi interpreter and native execution agreement:
 ```sh
 target/debug/omega run --both samples/cli/facts/generic_comparison_body/<place>/main.omg < /dev/null
 target/debug/omega run --both samples/cli/facts/generic_comparison_body/<place>/invalid/main.omg < /dev/null
-python3 tools/sample_native_gate.py --facts --filter cli/facts/generic_comparison_body
-python3 tools/corpus_gate.py --filter facts/generic_comparison_body
 ```
 
 Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
@@ -62,20 +60,8 @@ Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
   `main` state `entry` (local, field, parameter, call result, match join,
   const name, another machine), `main` state `check` (a nested machine), and
   `observe` state `entry` for each of the four target bodies.
-- `python3 tools/sample_native_gate.py --cli <producer> --facts --filter
-  cli/facts/generic_comparison_body` reports 9/9 samples meeting their
-  documented oracle on `macos_arm64` with 0 unscored, and 9/9 intended-invalid
-  controls matching their authored rejection.
-
-Main advanced to `8d202634513` before landing; the row was rebased onto it and
-re-measured with an opt-level 1 CLI and corpus runner built from that tree:
-18 of 18 engine runs exit 0, nine of nine twins reject with the same
-fragments, `sample_native_gate.py` again reports 9/9 documented oracles and
-9/9 matched intended-invalid controls, and the corpus re-diff is clean over
-the 36 fixtures (18 `checked`, 18 `rejected`, 0 rejected without their
-expected fragment; the direct `--both` records carry `interpreter-exit:0` and
-`interpreter:agrees` for all 18 positives). The recorded golden rows were
-unchanged and keep their `@c1c6bc8cb8ec+wt` stamp.
+The recorded golden rows were unchanged and keep their `@c1c6bc8cb8ec+wt`
+stamp.
 
 ### The oracle discriminates
 
@@ -107,26 +93,6 @@ twin, only `same`'s body changes from `false` to `true` (one line; verified by
 | a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | same fragment, `from main`, state `check` |
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | same fragment, `from main`, state `entry` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | same fragment per target body, `from observe` |
-
-## Pinned Fixtures
-
-The row is pinned by eighteen fixtures:
-`tests/omega/pass/facts/generic_comparison_body_through_<place>_exit` (nine
-positives, byte-identical copies of their place `main.omg`, each with a
-`build.omg` binding the four hosted targets and `expected_native_exit.txt` of
-`0`) and
-`tests/omega/fail/facts/generic_comparison_body_through_<place>_rejected` (nine
-twins, byte-identical copies of their twin `main.omg`, each with an
-`expected.txt` carrying `cannot prove requires contract for call hold` and
-`direct == false`).
-
-Their golden rows were recorded by filtered splice at `c1c6bc8cb8ec+wt`:
-+30 lines in `corpus_outcomes.txt` (nine `checked` rows with
-`check-target:macos_arm64`, nine `rejected` rows with 12 diagnostic
-continuation lines), +9 in `corpus_native_macos_arm64.txt` (nine `built` rows
-with `exit:0`) and +9 in `corpus_both_macos_arm64.txt` (nine `built` `exit:0`
-rows with `interpreter-exit:0` and `interpreter:agrees`); no other row moved
-and no fixture key or diagnostic continuation line was lost.
 
 ## Requirements and Evidence
 

@@ -38,9 +38,8 @@ No forwarding native declarations or counted locator helpers remain in this row.
 
 Every positive binds ProgramEntry on all four hosted targets. The match place
 executes both alternatives with distinct route tags. Const names seed ordinary
-values; the array and Pending are runtime occurrences. Each twin adds exactly
-one read while Pending retains the exclusive loan. Matching corpus sources and
-oracles live under `tests/omega/{pass,fail}/facts/foreign_borrowed_array_view_*`.
+values; the array and Pending are runtime occurrences. Each twin adds exactly one
+read while Pending retains the exclusive loan.
 
 The [missing-mint control](controls/unissued/main.omg) rejects absent original
 issuer provenance. The [missing field predicate control](controls/missing_leaf_predicate/main.omg)

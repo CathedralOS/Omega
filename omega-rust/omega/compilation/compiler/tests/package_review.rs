@@ -1420,8 +1420,27 @@ fn captured_review_compilation(
         false,
     )
     .unwrap();
-    let project = workspace.path().join("project");
-    std::fs::create_dir(&project).unwrap();
+    let (session, checked) = captured_review_compilation_at(
+        &workspace.path().join("project"),
+        &workspace.path().join("session"),
+        main_source,
+        build_source,
+    );
+    (workspace, session, checked)
+}
+
+// Each revision gets a fresh accepted Product while its package keeps the
+// same project identity. Reusing a judgment would hide declaration changes.
+fn captured_review_compilation_at(
+    project: &std::path::Path,
+    session_path: &std::path::Path,
+    main_source: &str,
+    build_source: &str,
+) -> (
+    orchestration::BuildSession,
+    Result<products::CheckedCompilation, Vec<diagnostics::Diagnostic>>,
+) {
+    std::fs::create_dir_all(project).unwrap();
     std::fs::write(project.join("main.omg"), main_source).unwrap();
     std::fs::write(project.join("build.omg"), build_source).unwrap();
     let target = target::TargetProfile::host_if_supported().expect("host Product target");
@@ -1432,8 +1451,7 @@ fn captured_review_compilation(
     )
     .unwrap()
     .expect("ordinary captured project");
-    let mut session =
-        orchestration::BuildSession::create(&workspace.path().join("session")).unwrap();
+    let mut session = orchestration::BuildSession::create(session_path).unwrap();
     let resolved = orchestration::resolve_project_sources(
         &mut session,
         orchestration::ProjectSourceRequest {
@@ -1469,7 +1487,83 @@ fn captured_review_compilation(
                 .collect::<Vec<_>>()
         );
     }
-    (workspace, session, checked)
+    (session, checked)
+}
+
+/// Review keeps which lifetime backs each public field. Renaming binders
+/// preserves that relation; tying both fields to one input changes the API.
+#[test]
+fn accepted_package_review_keeps_public_data_lifetime_bindings() {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "public-data-lifetime-review",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    let original = r#"
+public data Text<'view> [copy] { bytes: &'view [u8]; }
+public data Message<'first, 'second> [copy] {
+    left: Text<'first>; right: &'second [u8];
+}
+machine main() {}
+"#;
+    let renamed = original
+        .replace("'first", "'alpha")
+        .replace("'second", "'beta");
+    let rebound = renamed.replace("right: &'beta", "right: &'alpha");
+    let mut package = None;
+    let mut shapes = Vec::new();
+    for (ordinal, source) in [original, renamed.as_str(), rebound.as_str()]
+        .into_iter()
+        .enumerate()
+    {
+        let (_session, checked) = captured_review_compilation_at(
+            &project,
+            &workspace.path().join(format!("session-{ordinal}")),
+            source,
+            REVIEW_BUILD_SOURCE,
+        );
+        let checked =
+            checked.unwrap_or_else(|diagnostics| panic!("Product judgment: {diagnostics:?}"));
+        let identity = checked.sources().package_identity().unwrap();
+        if let Some(prior) = package {
+            assert_eq!(
+                prior, identity,
+                "source revisions must keep the actual project identity"
+            );
+        } else {
+            package = Some(identity);
+        }
+        let target = checked.execution().target_profile().unwrap();
+        let reviewed =
+            review_evidence::project_package_review(&checked, identity, target, usize::MAX)
+                .unwrap_or_else(|error| panic!("public lifetime data review: {error:?}"));
+        reviewed
+            .policy
+            .validate_package_membership(
+                |package| package == identity,
+                review_evidence::encoding::PackagePolicyMembershipLimits::default(),
+            )
+            .expect("declared field lifetimes must survive normal lock membership");
+        assert_eq!(reviewed.policy.public_data().len(), 2);
+        let shape = reviewed
+            .policy
+            .public_data()
+            .iter()
+            .find(|shape| shape.lifetime_parameter_count() == 2)
+            .expect("the actual two-binder Message declaration must be retained");
+        assert_eq!(shape.lifetime_parameter_count(), 2);
+        assert_eq!(shape.members().len(), 2);
+        shapes.push(shape.clone());
+    }
+    assert_eq!(
+        shapes[0], shapes[1],
+        "binder spelling must not change the data API"
+    );
+    assert_ne!(
+        shapes[1], shapes[2],
+        "field lifetime correspondence must remain visible"
+    );
 }
 
 #[test]
@@ -1656,6 +1750,94 @@ machine main() {}
         diagnostics::join_messages(&refusal)
             .contains("retained declaration is absent or changed in the admitted source context"),
         "{refusal:?}"
+    );
+    session.close().unwrap();
+}
+
+#[test]
+fn accepted_package_review_keeps_public_contracts_without_reopening_source() {
+    use review_evidence::record::PackagePolicyBaseline;
+    use review_evidence::{PackageReviewInput, project_package_review};
+    // Public helpers must retain their guarantees even when the entry never
+    // calls them. Review borrows the complete accepted package, not its entry's
+    // reachable implementation alone.
+    const SOURCE: &str = r#"
+public machine identity(value: u64) -> u64
+ensures result == value
+{ value }
+public machine quiet() {}
+public data Pair { changed: u64; untouched: u64; }
+public machine update(marker: u64, value: &mut Pair) { value.changed = marker; }
+machine main() {}
+"#;
+    let (workspace, mut session, checked) =
+        captured_review_compilation(SOURCE, REVIEW_BUILD_SOURCE);
+    let checked = checked.unwrap_or_else(|errors| panic!("public judgment: {errors:?}"));
+    let package = checked.sources().package_identity().unwrap();
+    let target = checked.execution().target_profile().unwrap();
+    let input = PackageReviewInput::supplied(&checked, &checked).unwrap();
+    assert!(std::ptr::eq(
+        input.module().unwrap(),
+        checked.terminal_publication().accepted().unwrap().module()
+    ));
+    std::fs::remove_file(workspace.path().join("project/main.omg")).unwrap();
+    std::fs::remove_file(workspace.path().join("project/build.omg")).unwrap();
+    let reviewed = project_package_review(&checked, package, target, usize::MAX)
+        .unwrap_or_else(|error| panic!("public review: {error:?}"));
+    let publics: Vec<_> = reviewed
+        .policy
+        .callables()
+        .callables()
+        .iter()
+        .filter(|row| format!("{:?}", row.role()) == "Public")
+        .collect();
+    assert_eq!(publics.len(), 3);
+    let identity = publics
+        .iter()
+        .find(|row| row.identity().path().ends_with("identity"))
+        .unwrap();
+    assert_eq!(format!("{:?}", identity.supply()), "CheckedBody");
+    assert_eq!(identity.parameters().len(), 1);
+    assert_eq!(identity.contracts().len(), 1);
+    assert_eq!(format!("{:?}", identity.contracts()[0].kind()), "Ensures");
+    assert_eq!(
+        identity.checked_service_reach().realized(),
+        Some([].as_slice())
+    );
+    assert_eq!(
+        identity.declared_synchronous_invocations(),
+        Some([].as_slice())
+    );
+    assert_eq!(identity.declared_may_suspend(), Some(false));
+    assert_eq!(identity.declared_may_block(), Some(false));
+    let update = publics
+        .iter()
+        .find(|row| row.identity().path().ends_with("update"))
+        .unwrap();
+    let frame = format!("{:?}", update.mutation());
+    assert!(frame.contains("parameter1:1"), "{frame}");
+    assert!(
+        frame.contains("changed") && !frame.contains("untouched"),
+        "{frame}"
+    );
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    assert_eq!(
+        PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap(),
+        reviewed.policy
+    );
+    session.close().unwrap();
+
+    let wrong = SOURCE.replace("{ value }", "{ 37u64 }");
+    let (_workspace, mut session, checked) =
+        captured_review_compilation(&wrong, REVIEW_BUILD_SOURCE);
+    let errors = match checked {
+        Ok(_) => panic!("a false public guarantee cannot reach review"),
+        Err(errors) => errors,
+    };
+    let messages = diagnostics::join_messages(&errors);
+    assert!(
+        messages.contains("ensures") || messages.contains("guarantee"),
+        "{messages}"
     );
     session.close().unwrap();
 }

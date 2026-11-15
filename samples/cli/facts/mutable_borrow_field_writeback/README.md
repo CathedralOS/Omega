@@ -69,24 +69,6 @@ and the nine twins refuse on the exact-arithmetic obligation. The overlapping
 borrow refusal above is the compiler correctly rejecting a sibling's twin shape
 (two loans of the same field), reported here as static rather than runtime.
 
-## Fixtures
-
-Nine pass fixtures and nine reject twins are pinned under
-[tests/omega/pass/facts](../../../../tests/omega/pass/facts) and
-[tests/omega/fail/facts](../../../../tests/omega/fail/facts) as
-`mutable_borrow_field_writeback_through_<place>_exit` and
-`mutable_borrow_field_writeback_through_<place>_unproved`. Each pass fixture
-binds `ProgramEntry` for the four hosted targets and carries its own
-`expected_native_exit.txt`; each twin breaks only the construct's own bound
-(`used <= 81u64` and writing `81u64`) and authors its diagnostic in
-`expected.txt`.
-
-`python3 tools/corpus_gate.py --native --filter facts/mutable_borrow_field_writeback`
-reports nine `built … exit:0` rows in
-[tests/omega/corpus_native_macos_arm64.txt](../../../../tests/omega/corpus_native_macos_arm64.txt);
-the checked leg reports nine `checked` and nine `rejected` rows, 0 rejected
-without its expected fragment and 0 fail fixtures that did not reject.
-
 ## Places
 
 The nine places carry the post-writeback record bound through each language construct,

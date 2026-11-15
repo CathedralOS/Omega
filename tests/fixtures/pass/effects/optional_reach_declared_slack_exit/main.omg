@@ -1,6 +1,6 @@
 // A checked call publishes its complete Mark reach, so an empty ceiling cannot hide it.
 // Expected exit: 0
-public boundary trait Mark { machine read() -> u64 reaches Mark; }
+public boundary trait Mark { machine read() -> u64 reaches Mark crashes none; }
 public boundary trait Unused {}
 MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
 public machine read_mark() -> u64 reaches Mark + Unused invokes Mark { Mark::read() }

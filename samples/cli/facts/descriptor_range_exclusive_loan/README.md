@@ -60,16 +60,15 @@ omega run --both samples/cli/facts/descriptor_range_exclusive_loan/const_name/ma
 omega run --both samples/cli/facts/descriptor_range_exclusive_loan/other_state/main.omg
 omega run --both samples/cli/facts/descriptor_range_exclusive_loan/other_machine/main.omg
 omega run --both samples/cli/facts/descriptor_range_exclusive_loan/target_body/main.omg
-python tools/sample_native_gate.py --facts --filter cli/facts/descriptor_range_exclusive_loan
 ```
 
 ## Reject Twins
 
 Each place has an `invalid/` reject twin with an authored
 [`sample.json`](invalid_local/sample.json) intended-invalid identity
-(`"role": "intended-invalid"`, `"rejection_contains": [...]`) and a pinned
-`tests/omega/fail/facts/descriptor_range_exclusive_loan_through_<place>_rejected` fixture. The twin changes only the
-construct's own input or selection, and checking fails closed during compile-time verification:
+(`"role": "intended-invalid"`, `"rejection_contains": [...]`). The twin changes
+only the construct's own input or selection, and checking fails closed during
+compile-time verification:
 
 | Place | Twin | What it changes | Pinned Diagnostic Fragment |
 | --- | --- | --- | --- |
@@ -85,10 +84,7 @@ construct's own input or selection, and checking fails closed during compile-tim
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/descriptor_range_exclusive_loan_through_*` fixtures — nine pass
-fixtures (each a byte-identical copy of its place program plus `expected_native_exit.txt` `0`)
-and nine fail fixtures (each a byte-identical copy of its place twin plus the pinned
-`expected.txt` fragment). The sample and the fixtures cannot drift apart.
+The sample and the fixtures cannot drift apart.
 
 ## Requirements and Evidence
 
@@ -157,13 +153,8 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. It now also lowers in the declaration's own telescope, as a tag
-observation of the parameter referent
-(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
-`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
-payload-free case and still rejects at the caller). Observed on macOS x86-64:
-the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree) and its twin rejects for the live loan. The other hosted targets keep
-their authored rows, unexecuted here.
+has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
+run --both` (native and Terminal Psi agree) and its twin rejects for the live
+loan. The other hosted targets keep their authored rows, unexecuted here.
 
 The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

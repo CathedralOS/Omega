@@ -140,6 +140,47 @@ fn landed_type(
     }
 }
 
+impl<'t> Program<'t> {
+    /// An application carries its prepared theory, not permission to replace
+    /// an unavailable one with the family's unapplied predicate.
+    pub(crate) fn domain_theory(
+        &self,
+        id: MachineId,
+        domain: crate::body::DomainInstance,
+    ) -> Checked<&'t typed_trees::domain::DomainDefinition> {
+        if self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
+            .is_some_and(|application| !application.is_closed)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain family application with an open carrier or index"),
+            ));
+        }
+        if let Some(definition) = self
+            .typed
+            .domain_definition_for_instance(domain.declaration, domain.identity)
+        {
+            return Ok(definition);
+        }
+        let mut refusal = refuse(
+            id,
+            Construct::Machine,
+            Unserved::Type("domain application without its prepared theory"),
+        );
+        if let Some(application) = self
+            .typed
+            .domain_application(domain.declaration, domain.identity)
+            && let Some(Err(reason)) = &application.theory
+        {
+            refusal.detail = format!("domain application preparation: {reason}");
+        }
+        Err(refusal)
+    }
+}
+
 impl Program<'_> {
     /// Whether the existing value-type reader will declare a value identity.
     /// This preflight does not allocate records, regions or qualifications.
@@ -567,6 +608,9 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if let Some(atomic) = self.atomic_type(id, handle)? {
+            return Ok(atomic);
+        }
         if handle.is_valid()
             && let Some(view) = self.view_type(id, handle)?
         {
@@ -757,10 +801,12 @@ impl Program<'_> {
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
                     self.named_domain(id, domain)?;
-                    if !domain.arguments.is_empty() {
-                        return unserved("constrained by a domain applied at arguments");
-                    }
-                    let Some(domains) = qualification.domains.with(domain.symbol) else {
+                    let instance = crate::body::DomainInstance {
+                        declaration: domain.symbol,
+                        identity: domain.semantic_id,
+                    };
+                    self.domain_theory(id, instance)?;
+                    let Some(domains) = qualification.domains.with(instance) else {
                         return unserved(
                             "constrained by one domain twice or by more than four declared domains",
                         );
@@ -887,15 +933,27 @@ impl Program<'_> {
     pub(super) fn declared_domain(
         &mut self,
         id: MachineId,
-        domain: symbols::SymbolHandle,
+        domain: crate::body::DomainInstance,
         carrier: ValueType,
     ) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
         let typed = self.typed;
-        let Some(definition) = typed.domain_definition(domain) else {
-            return unserved("constrained by a domain with no declaration");
-        };
-        self.served(id, domain)?;
+        let definition = self.domain_theory(id, domain)?;
+        self.served(id, domain.declaration)?;
+        let declaration = typed.domain_definition(domain.declaration).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain application lost its declaring family"),
+            )
+        })?;
+        if typed
+            .domain_type_parameters(declaration)
+            .iter()
+            .any(|parameter| parameter.bounds != typed_trees::data::DataProperties::default())
+        {
+            return unserved("domain application needs its declared type bounds");
+        }
         if definition.alias.is_some() {
             return unserved("constrained by a domain alias");
         }
@@ -907,9 +965,10 @@ impl Program<'_> {
         if definition.cleanup_selection.is_some() {
             return unserved("constrained by a domain that selects a cleanup machine");
         }
-        if typed_trees::domain::subject_membership_facts(typed, definition)
-            .any(|membership| membership.domain_symbol != domain)
-        {
+        if typed_trees::domain::subject_membership_facts(typed, definition).any(|membership| {
+            membership.domain_symbol != domain.declaration
+                || membership.semantic_domain != domain.identity
+        }) {
             return unserved("constrained by a domain that refines another domain");
         }
         let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
@@ -921,7 +980,7 @@ impl Program<'_> {
         // Primitive byte domains already retain their predicate on the byte
         // storage descriptor. Ordinary scalar/record domains need their own
         // generic declaration alongside the instantiated use-site clauses.
-        if !super::bytes::primitive_byte_domain(typed, definition, id)
+        if typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition).is_none()
             && !self
                 .declared_domains
                 .iter()

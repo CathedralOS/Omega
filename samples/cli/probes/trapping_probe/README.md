@@ -22,11 +22,6 @@ overflows are expected. On Unix, the CLI reports `native signal 5` or
 check the native signal, not just a nonzero status.
 
 The sample gate currently reports this program as `no-oracle` after building
-and running it because it only scores ordinary exit/output annotations. The
-matching language regression has an explicit `trap` oracle:
-
-```sh
-python3 tools/corpus_gate.py --native --filter arithmetic/runtime_trapping_overflow_traps
-```
+and running it because it only scores ordinary exit/output annotations.
 
 Use `python` in PowerShell when that is the Python 3 executable.

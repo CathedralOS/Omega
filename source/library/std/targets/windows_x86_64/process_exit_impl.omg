@@ -1,3 +1,0 @@
-// Windows supplies the canonical ProcessExit requirement through the std
-// Build's exact kernel32 ExitProcess binding. No forwarding machine or
-// source-level locator declaration grants its terminal behavior or authority.

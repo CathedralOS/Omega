@@ -387,7 +387,11 @@ fn declared_projection_type(
                                 member.selection.field_symbol(),
                             )?
                         }
-                        ExpressionNode::Indexed(_) => collection_element_type(program, reference)?,
+                        ExpressionNode::Indexed(indexed)
+                            if table.range_node(indexed.index).is_none() =>
+                        {
+                            collection_element_type(program, reference)?
+                        }
                         _ => {
                             return Err(crate::unavailable_judgment("assignment storage selector"));
                         }
@@ -700,6 +704,14 @@ pub(crate) fn defer_unbound_calls(
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
+            // `size_of<T>()` and `align_of<T>()` name no declaration by
+            // construction: typing recognized the compiler-known query and
+            // retained its operand, and Terminal Psi production reads that
+            // request as a layout observation. It is not a call awaiting a
+            // target.
+            if call.layout_query.is_some() {
+                continue;
+            }
             let receiver = if !call.receiver.is_valid() {
                 CallReceiver::Absent
             } else if let ExpressionNode::Name(path) =
@@ -807,14 +819,29 @@ pub(crate) fn defer_unbound_calls(
             let owners = typed_trees::references::collect_program_operand_owners(program);
             for (handle, request, bare) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
-                let before = in_declarations.len();
-                in_declarations.extend(
-                    owners
-                        .expression_owners(handle)
-                        .filter(|owner| owner.is_valid())
-                        .map(|owner| (owner, request, source_span, bare)),
-                );
-                if in_declarations.len() == before {
+                let mut owned = false;
+                for owner in owners
+                    .expression_owners(handle)
+                    .filter(|owner| owner.is_valid())
+                {
+                    owned = true;
+                    // This exact fact selects the byte predicate even though
+                    // lexical lookup found no ordinary callable for its name.
+                    if bare == symbols::UnresolvedName::NoVisibleDeclaration
+                        && program
+                            .domain_definition(owner)
+                            .and_then(|domain| {
+                                typed_trees::byte_predicates::byte_slice_domain_predicate(
+                                    program, domain,
+                                )
+                            })
+                            .is_some_and(|(predicate, _)| predicate == handle)
+                    {
+                        continue;
+                    }
+                    in_declarations.push((owner, request, source_span, bare));
+                }
+                if !owned {
                     return Err(Diagnostic::error(format!(
                         "no product route yet: an expression outside every declaration is one {}",
                         request.construct()
@@ -1675,6 +1702,27 @@ mod tests {
             panic!("call expression")
         };
         node.target = typed_trees::name::Identifier::generated("address_of");
+        assert_eq!(
+            deferred(&program).unwrap(),
+            vec![(holder, DeferredRequest::UndeclaredCallName)]
+        );
+        // A layout query typing recognized is served by the compiler and
+        // records no row; the same spelling without that recognition is
+        // still a name that resolves to nothing.
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.target = typed_trees::name::Identifier::generated("size_of");
+        node.layout_query = Some(typed_trees::expression::DataLayoutQueryRequest {
+            kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
+            operand: Default::default(),
+            nonempty_view: ExpressionHandle::invalid(),
+        });
+        assert_eq!(deferred(&program).unwrap(), Vec::new());
+        let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {
+            panic!("call expression")
+        };
+        node.layout_query = None;
         assert_eq!(
             deferred(&program).unwrap(),
             vec![(holder, DeferredRequest::UndeclaredCallName)]

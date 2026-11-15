@@ -3,7 +3,7 @@
 // Expected exit: 0
 public data Cell { value: u64; before: u64; after: u64; }
 public boundary trait Memory {
- machine fill<'source>(value: &'source Cell, byte: i32, count: u64) -> &'source mut Cell reaches requires count == 8;
+ machine fill<'source>(value: &'source Cell, byte: i32, count: u64) -> &'source mut Cell reaches requires count == 8 crashes none;
 }
 machine apply(cell: &mut Cell) -> bool {
  let filled: bool = cell.value == 2676586395008836901;

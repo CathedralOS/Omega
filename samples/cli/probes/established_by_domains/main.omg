@@ -29,7 +29,7 @@ public boundary trait Filesystem {
     ensures
         result in File::Writable
     reaches
-        Filesystem;
+        Filesystem crashes none;
 }
 
 public domain Folder::Writable
@@ -40,7 +40,7 @@ public boundary trait Desktop {
     ensures
         result in Folder::Writable
     reaches
-        Desktop;
+        Desktop crashes none;
 }
 
 data DesktopProvider {

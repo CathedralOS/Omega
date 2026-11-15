@@ -58,20 +58,16 @@ The recovered geometric program lives beside it in `clearance_route_planner`.
 ## Frozen validation
 
 The independent Python oracle searches the per-span allowed ranges by forward
-product scan, then takes the minimum travel cost, counts tied profiles, and
-selects their lexicographic minimum. This differs from Omega's 10,000-word
-filter. The oracle and 22 fixtures were frozen before any Omega
-run. Absolute/relative tolerances are both zero. Inputs cover flat corridors,
-forced dips and rises, step-limited ascents and descents, tied optima, narrow
-bounds, exact/infeasible ends, EOF, and malformed records.
-`validate.py` checks fixture hashes, exact stdout, stderr and exit codes and writes
-actual stdout/stderr under ignored `build/validation-{native,both}`.
-It never accepts packages or regenerates expected data. `--route both`
-compiles once with `omega run --both --inputs data` and compares each case's
-real native and Terminal stdout, stderr and exit, not only termination.
-Program stderr must be empty. When executing through `omega run`, the native
-route also requires the CLI's exact native exit report; unexpected stderr fails
-validation.
+product scan, then takes the minimum travel cost, counts tied profiles, and selects
+their lexicographic minimum. This differs from Omega's 10,000-word filter. The
+oracle and 22 fixtures were frozen before any Omega run. Absolute/relative
+tolerances are both zero. Inputs cover flat corridors, forced dips and rises,
+step-limited ascents and descents, tied optima, narrow bounds, exact/infeasible
+ends, EOF, and malformed records. `--route both` compiles once with `omega run
+--both --inputs data` and compares each case's real native and Terminal stdout,
+stderr and exit, not only termination. Program stderr must be empty. When executing
+through `omega run`, the native route also requires the CLI's exact native exit
+report; unexpected stderr fails validation.
 
 The separate [intended-invalid source](controls/intended_invalid/main.omg)
 is a complete dependency-free package source that writes index four of a
@@ -94,10 +90,7 @@ sample=samples/cli/independent/bounded_hoist_planner
 # Resume only an accepted review, and never retry a denied acceptance.
 "$omega_binary" update --resume --project "$sample"
 "$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/check" "$sample/main.omg"
-python3 "$sample/validate.py" --omega "$omega_binary" --route native
 # Or compile once and pass the exact artifact path from the compiler report:
-# python3 "$sample/validate.py" --executable "$reported_artifact" --route native
-python3 "$sample/validate.py" --omega "$omega_binary" --route both
 "$omega_binary" --check --target linux_x86_64 --build-dir "$sample/build/invalid" "$sample/controls/intended_invalid/main.omg"
 ```
 

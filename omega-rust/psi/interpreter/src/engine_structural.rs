@@ -1969,21 +1969,15 @@ impl TerminalExecution<'_> {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
             })
         {
-            let root = self.structural_value(source)?;
-            let descriptor = if StructuralRuntimePlace::from(root)
-                == StructuralRuntimePlace::from(&leaf)
-                && root.structural_type == leaf.structural_type
-            {
-                let descriptor = self.element_view_values.require(&source)?;
-                if !descriptor.matches_descriptor_home(root) {
-                    return Err(malformed());
-                }
-                descriptor
-            } else {
-                self.structural_element_view_fields
-                    .get(&StructuralRuntimePlace::from(&leaf))
-                    .ok_or(malformed())?
+            // Host-backed roots and projected fields keep their descriptor at
+            // the same authenticated runtime home. Use the shared resolver
+            // rather than assuming a whole source must have a frame binding.
+            let argument = StructuralArgument {
+                place: source,
+                path: copy_path.clone(),
+                access: StructuralAccess::SharedBorrow,
             };
+            let descriptor = self.element_view_argument(&argument, &leaf)?;
             if descriptor.access() != StructuralAccess::SharedBorrow {
                 return Err(malformed());
             }

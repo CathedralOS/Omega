@@ -70,8 +70,8 @@ syntax; a `.ps1` is not itself macOS support. Do not globally change Git config.
    contention evidence, start one expensive build at a time; this is a conservative
    baseline, not a measured optimum. Other slots continue useful work on their
    assigned outcomes. Do not invent filler audits to keep slots occupied.
-3. Include coordinator, Rust compilation, native linking, corpus execution and
-   other resident processes in the CPU/memory envelope. Build admission applies
+3. Include coordinator, Rust compilation, native linking, test and program
+   execution and other resident processes in the CPU/memory envelope. Build admission applies
    across agents, not just within one Cargo invocation. Use an existing scheduler
    only after verifying what it coordinates across processes.
 4. If overlap is justified, compare one versus a small higher build width on the
@@ -128,10 +128,10 @@ waits with 25-45 waiters. Batch them instead:
    revision + sha256 of the artifact) and a `READY` marker. With a warm MBX
    action cache it compiles in ~1-2 minutes; the pool queue dominates the
    wall time.
-3. Every slot uses the published binary instead of building: place/twin runs via
+3. Every slot uses the published binary instead of building: program runs via
    `<gen>/omega run --both ...`.
-4. Validity: a generation is valid for a worktree whose base B is psi-identical —
-   `git diff G..B -- omega-rust` empty. Basing the sub-batch at G makes this
+4. Validity: a generation is valid for a worktree whose base B has the same
+   compiler source as G, that is, `git diff G..B -- omega-rust` is empty. Basing the sub-batch at G makes this
    true by construction. After psi landings, re-roll the generation for the next
    sub-batch: one build per batch, not per slot. Re-point the generation
    worktree (`git reset --hard G`) rather than creating a new one.
@@ -209,8 +209,8 @@ Dispatch outcome, acceptance, exact worktree/base, model controls, retained
 receipts, next action, dependencies, build-admission plan and publication
 authority. Coalesce redundant baseline qualification, not checks for unique edits.
 
-Required behavior is native execution agreeing with Terminal Psi plus relevant
-invalid controls. Test-injected admission does not qualify the public CLI.
+Required behavior is native/Psi agreement plus the relevant programs that must
+be refused. Test-injected admission does not qualify the public CLI.
 Never rewrite fixtures, copy stale locks or blanket-accept package authority.
 Affected target/ABI/runtime changes need affected-host validation; local agents
 on one VM cannot establish other OSes' native parity. Batch frozen-revision

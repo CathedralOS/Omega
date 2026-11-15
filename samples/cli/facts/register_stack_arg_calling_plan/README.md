@@ -18,17 +18,17 @@ Every place performs the same operation: invoke a seven-argument scalar function
 
 Pinned fixture twins, one pair per place:
 
-| Place | Pinned Positive | Pinned Reject Twin |
-| --- | --- | --- |
-| local | [`..._through_local_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_local_exit/main.omg) | [`..._through_local_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_local_rejected/main.omg) |
-| field | [`..._through_field_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_field_exit/main.omg) | [`..._through_field_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_field_rejected/main.omg) |
-| parameter | [`..._through_parameter_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_parameter_exit/main.omg) | [`..._through_parameter_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_parameter_rejected/main.omg) |
-| call result | [`..._through_call_result_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_call_result_exit/main.omg) | [`..._through_call_result_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_call_result_rejected/main.omg) |
-| match join | [`..._through_match_join_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_match_join_exit/main.omg) | [`..._through_match_join_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_match_join_rejected/main.omg) |
-| const name | [`..._through_const_name_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_const_name_exit/main.omg) | [`..._through_const_name_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_const_name_rejected/main.omg) |
-| a nested machine | [`..._through_other_state_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_other_state_exit/main.omg) | [`..._through_other_state_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_other_state_rejected/main.omg) |
-| another machine | [`..._through_other_machine_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_other_machine_exit/main.omg) | [`..._through_other_machine_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_other_machine_rejected/main.omg) |
-| another target body | [`..._through_target_body_exit`](../../../../tests/omega/pass/facts/register_stack_arg_calling_plan_through_target_body_exit/main.omg) | [`..._through_target_body_rejected`](../../../../tests/omega/fail/facts/register_stack_arg_calling_plan_through_target_body_rejected/main.omg) |
+| Place |
+| --- |
+| local |
+| field |
+| parameter |
+| call result |
+| match join |
+| const name |
+| a nested machine |
+| another machine |
+| another target body |
 
 ## Execution
 
@@ -120,25 +120,8 @@ Arguments 1–6 reach the callee in `rdi, rsi, rdx, rcx, r8, r9`; argument 7
 travels through memory. On `macos_arm64` all seven occupy `x0..x6`, so this
 row's boundary evidence is strongest on the x86_64 catalogued targets.
 
-### Pinned Fixtures
-
-Nine positive places are pinned as
-`tests/omega/pass/facts/register_stack_arg_calling_plan_through_<place>_exit`,
-each carrying an authored `expected_native_exit.txt` of `0`. Nine reject twins
-are pinned as `tests/omega/fail/facts/register_stack_arg_calling_plan_through_<place>_rejected`,
-each carrying `expected.txt` with the fragment ``may overflow `u64` ``.
-
 ### Verification Evidence
 
-- `python3 tools/corpus_gate.py --native --filter facts/register_stack_arg_calling_plan`
-  reports `clean — 9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0': 9})`,
-  with 0 fail fixtures that did not reject. This is the golden row that measures
-  the fact: nine real `built ... exit:0` rows in
-  `tests/omega/corpus_native_macos_arm64.txt`.
-- `python3 tools/sample_native_gate.py --filter cli/facts/register_stack_arg_calling_plan`:
-  10/10 samples meet their documented oracle on `macos_arm64` (root + 9 places
-  run with exit 0 under both engines); 9/9 intended-invalid controls match their
-  authored rejection; 0 reported `rejection-failed`.
 - `omega run --both` on each of the root and nine places reports `native exit 0`
   and `interp exit: 0`.
 - **Discrimination.** The oracle is not an unconstrained default. Changing the

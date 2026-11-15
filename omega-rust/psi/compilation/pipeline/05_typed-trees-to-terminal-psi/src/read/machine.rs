@@ -736,17 +736,24 @@ impl<'t> Program<'t> {
             return false;
         };
         if !membership.domain_symbol.is_valid()
-            || !membership.domain_arguments.is_empty()
             || !typed.expression_table.expression_is_valid(membership.value)
-            || typed
+        {
+            return false;
+        }
+        let identity = if membership.semantic_domain.is_valid() {
+            membership.semantic_domain
+        } else {
+            let Some(declaration) = typed
                 .domain_definition(membership.domain_symbol)
-                .is_none_or(|domain| {
-                    // An unapplied authored membership keeps its selected
-                    // symbol even when it has no interned instance ID. An
-                    // instance ID that is present must agree with that symbol.
-                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
-                        && domain.semantic_id != membership.semantic_domain
-                })
+                .filter(|declaration| typed.domain_type_parameters(declaration).is_empty())
+            else {
+                return false;
+            };
+            declaration.semantic_id
+        };
+        if typed
+            .domain_arguments_for_instance(membership.domain_symbol, identity)
+            .is_none()
         {
             return false;
         }
@@ -782,7 +789,7 @@ impl<'t> Program<'t> {
                             matches!(constraint, TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && domain.symbol == membership.domain_symbol
-                                && domain.arguments.is_empty())
+                                && domain.semantic_id == identity)
                         })
                     {
                         return true;
@@ -1824,7 +1831,7 @@ impl<'t> Program<'t> {
     pub(super) fn requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
@@ -1838,7 +1845,7 @@ impl<'t> Program<'t> {
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         self.applied_requirement_signature(id, requirement, RequirementValues::Bound(arguments))
@@ -1847,7 +1854,7 @@ impl<'t> Program<'t> {
     fn applied_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         // These are the declaration's parameters, not a new family whenever
@@ -1885,7 +1892,7 @@ impl<'t> Program<'t> {
     fn read_requirement_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
@@ -2837,10 +2844,10 @@ impl<'t> Program<'t> {
                                 )
                             })?),
                     )?;
-                    if !call.discards_result {
-                        self.undiscarded(id, &called)?;
+                    Statement::Evaluate {
+                        expression: called,
+                        discards_result: call.discards_result,
                     }
-                    Statement::Evaluate(called)
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
@@ -2872,10 +2879,10 @@ impl<'t> Program<'t> {
                                 target: Target::Value(expression),
                             }
                         }
-                        (false, _) | (true, None) => {
-                            self.undiscarded(id, &expression)?;
-                            Statement::Evaluate(expression)
-                        }
+                        (false, _) | (true, None) => Statement::Evaluate {
+                            expression,
+                            discards_result: false,
+                        },
                     }
                 }
                 StatementNode::LocalData(local)
@@ -2886,6 +2893,16 @@ impl<'t> Program<'t> {
                     self.record_pattern(id, &slots, local)?;
                     position += 1;
                     continue;
+                }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
+                {
+                    let (slot, statement) =
+                        self.atomic_binding(id, &slots, local, statements.get(position + 1))?;
+                    slots.push(slot);
+                    slot_names.push(local.name.as_str().to_owned());
+                    position += 1;
+                    statement
                 }
                 StatementNode::LocalData(local) => {
                     let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
@@ -2939,13 +2956,6 @@ impl<'t> Program<'t> {
             };
             body.push(read);
             position += 1;
-        }
-        if !completed && signature.result.is_some() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Completion("value machine can fall off its end"),
-            ));
         }
         if let Some(names) = self.names.get_mut(id) {
             for statement in &body {
@@ -3148,7 +3158,7 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
         | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
-        | Statement::Evaluate(_) => {}
+        | Statement::Evaluate { .. } => {}
     }
 }
 
@@ -3168,7 +3178,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
-        | Statement::Evaluate(_) => Vec::new(),
+        | Statement::Evaluate { .. } => Vec::new(),
     };
     for (target, arm) in arms {
         let (Target::Value(value), SourceOrigin::Authored(arm)) = (target, arm) else {
@@ -3198,8 +3208,17 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            spans(place, binder, out);
+            for operand in operands {
+                spans(operand, binder, out);
+            }
+        }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
@@ -3352,7 +3371,9 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
             expression_slot_uses(destination, uses);
             expression_slot_uses(value, uses);
         }
-        Statement::Evaluate(value) => expression_slot_uses(value, uses),
+        Statement::Evaluate {
+            expression: value, ..
+        } => expression_slot_uses(value, uses),
         // Counted although nothing evaluates it: a type parameter's value is
         // never an erased term, so counting it can only refuse more.
         Statement::Witness { term, .. } => expression_slot_uses(term, uses),
@@ -3379,6 +3400,14 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
 
 fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
     match &expression.kind {
+        ExpressionKind::Atomic {
+            place, operands, ..
+        } => {
+            expression_slot_uses(place, uses);
+            for operand in operands {
+                expression_slot_uses(operand, uses);
+            }
+        }
         ExpressionKind::Slot(slot) => {
             if let Some(count) = uses.get_mut(*slot) {
                 *count += 1;
@@ -3386,6 +3415,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => {}
         ExpressionKind::Array { elements } => {
@@ -3450,24 +3480,5 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(argument, uses);
             }
         }
-    }
-}
-
-impl Program<'_> {
-    /// A statement evaluated for effect leaves no value behind. A proved-empty
-    /// declared result cannot produce a value to discard; the actual expression
-    /// still reaches ordinary no-normal lowering and all its call obligations.
-    /// Every other non-Unit result needs the explicit `_ = call();` discard.
-    fn undiscarded(&mut self, id: MachineId, statement: &Expression) -> Checked<()> {
-        if let Some(result) = statement.result
-            && !self.type_excludes_values(result)
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Statement("expression statement that discards its value"),
-            ));
-        }
-        Ok(())
     }
 }

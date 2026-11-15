@@ -1,6 +1,6 @@
 use omega::language::core::ProcessExit;
 // Expected exit: 64 (empty stdin is a missing configuration).
-// A complete stream application; fixtures/validate.py supplies valid trajectories.
+// A complete stream application.
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
 use omega::language::core::F64::is_finite;

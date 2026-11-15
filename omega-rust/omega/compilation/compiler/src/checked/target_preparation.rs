@@ -59,10 +59,36 @@ pub struct ProductSupplySource<'a> {
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
     pub native_bindings: &'a [provider_planning::native_bindings::NativeBuildSupply],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
+    /// Defaults whose layouts the source lays out only for a target that
+    /// chooses them: the provider selections of the Build's dependencies.
+    pub layout_deferred: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
+    /// The deferred defaults the source was laid out for, by target.
+    pub layout_prepared: &'a [ChosenDefaultLayout],
 }
 
 /// The existing authenticated publication, extended by every chosen supply.
 pub type SuppliedProduct = std::sync::Arc<products::ProductTerminalPublication>;
+
+/// A dependency's default that one target chose, so the source must lay out
+/// the default's storage for that target
+/// (wiki/spec/layouts/plans.md#layout-demand-and-validation).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChosenDefaultLayout {
+    pub target: target::TargetProfile,
+    pub selection: build_time_evaluation::provider_declarations::ProviderSelection,
+}
+
+/// What judging the chosen supplies concluded.
+#[derive(Debug)]
+pub enum SupplyJudgment {
+    /// Every provider a target chose is judged in the returned publication.
+    Supplied(SuppliedProduct),
+    /// A target chose a deferred default whose layouts the source was not
+    /// prepared for. The source owner prepares the source again for every
+    /// default listed here, those it was already prepared for included, and
+    /// judges again. Nothing was judged with the unprepared default.
+    PrepareLayouts(Vec<ChosenDefaultLayout>),
+}
 
 /// What the demand walk of any target reads from one accepted module.
 struct ModuleDemand {
@@ -163,15 +189,23 @@ impl ModuleDemand {
 /// (`prepare_supplied_target`). A chosen provider the checker does not
 /// accept stops the Product on every target, because its source is part of
 /// the one module.
+///
+/// A dependency's default is laid out only for the targets that choose it,
+/// and choosing happens here, after the source was prepared. When a target
+/// chooses a deferred default the source was not laid out for, the loop
+/// stops before judging it and asks the source owner to prepare the source
+/// again (`SupplyJudgment::PrepareLayouts`); the walk itself reads no layout,
+/// so the second preparation chooses the same defaults.
 pub fn judge_supplied_product(
     source: ProductSupplySource<'_>,
-) -> Result<SuppliedProduct, Vec<Diagnostic>> {
+) -> Result<SupplyJudgment, Vec<Diagnostic>> {
     let mut publication = source.publication;
     loop {
         let accepted = publication.accepted()?;
         let mut roster = publication.roster()?.clone();
         let demand = ModuleDemand::read(accepted, &roster)?;
-        let before = (roster.supplies.len(), roster.declaration_metadata.len());
+        let before = roster.supplies.len();
+        let mut unprepared = Vec::new();
         for profile in target::TargetProfile::ALL {
             let Ok(supply) = demand.prepare(
                 accepted,
@@ -182,26 +216,38 @@ pub fn judge_supplied_product(
             ) else {
                 continue;
             };
-            for requirement in supply.requirements() {
-                let Some(chosen) = requirement.chosen() else {
+            for supply in supply
+                .requirements()
+                .iter()
+                .filter_map(|requirement| requirement.chosen())
+            {
+                // Native bindings add no checked body or deferred layout.
+                let SupplySelection::Checked(selection) = &supply.selection else {
                     continue;
                 };
-                match &chosen.selection {
-                    SupplySelection::Checked(selection) => {
-                        for chosen in selected_supplies(selection) {
-                            if !roster.supplies.contains(&chosen) {
-                                roster.supplies.push(chosen);
-                            }
-                        }
+                if source.layout_deferred.contains(selection) {
+                    let layout = ChosenDefaultLayout {
+                        target: profile,
+                        selection: selection.clone(),
+                    };
+                    if !source.layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
+                        unprepared.push(layout);
                     }
-                    // The shared declaration publisher retains every boundary's
-                    // ABI. A native leaf adds neither a body nor a sibling demand.
-                    SupplySelection::Native(_) => {}
+                }
+                for chosen in selected_supplies(selection) {
+                    if !roster.supplies.contains(&chosen) {
+                        roster.supplies.push(chosen);
+                    }
                 }
             }
         }
-        if (roster.supplies.len(), roster.declaration_metadata.len()) == before {
-            return Ok(publication);
+        if !unprepared.is_empty() {
+            let mut layouts = source.layout_prepared.to_vec();
+            layouts.append(&mut unprepared);
+            return Ok(SupplyJudgment::PrepareLayouts(layouts));
+        }
+        if roster.supplies.len() == before {
+            return Ok(SupplyJudgment::Supplied(publication));
         }
         publication = std::sync::Arc::new(products::ProductTerminalPublication::judge(
             std::sync::Arc::clone(accepted.source()),

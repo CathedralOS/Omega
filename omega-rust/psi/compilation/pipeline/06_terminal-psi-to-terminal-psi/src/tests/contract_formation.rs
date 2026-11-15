@@ -174,6 +174,55 @@ fn rejected_source(text: &str) {
 }
 
 #[test]
+fn source_contract_alternatives_keep_both_inputs_and_refuse_a_third() {
+    const SOURCE: &str = r#"
+machine choose(flags: u32) -> u32
+requires flags == 34603008 || flags == 36700160
+ensures result == flags && result <= 36700160
+{ flags }
+machine build_entry() {
+    let first: u32 = choose(34603008);
+    let second: u32 = choose(36700160);
+}
+"#;
+    let pruned = SOURCE.replace(
+        "requires flags == 34603008",
+        "requires (u16 == u8 && flags == 0) || flags == 34603008",
+    );
+    for positive in [SOURCE, pruned.as_str()] {
+        executed_source(positive);
+        let invalid = positive.replace("choose(34603008)", "choose(0)");
+        let verdict = source_result(&invalid);
+        assert!(
+            matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+            "{verdict:?}",
+        );
+    }
+}
+
+#[test]
+fn source_true_alternative_does_not_erase_unformed_subtraction() {
+    let verdict = source_result(
+        r#"
+machine choose(flags: u32) -> u32
+requires true || flags - 1 <= 4294967295u32
+{ flags }
+machine build_entry() { let selected: u32 = choose(0); }
+"#,
+    );
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("the alternative cannot form its own subtraction: {verdict:?}");
+    };
+    assert!(
+        violations.iter().any(|row| row
+            .statement
+            .contains("contract arithmetic is not proved total before its condition")),
+        "{violations:?}",
+    );
+}
+
+#[test]
 fn source_maximum_subtraction_forms_but_the_caller_still_owes_the_bound() {
     const SOURCE: &str = r#"
 machine append(offset: u64, size: u64) -> u64
@@ -212,6 +261,121 @@ machine build_entry() { let value: u8 = packed(9, 9); }
             violation
                 .statement
                 .contains("contract arithmetic is not proved total before its condition"),
+            "{violation:?}"
+        );
+    }
+}
+
+#[test]
+fn a_record_domain_uses_its_carrier_default_but_not_another_named_domain() {
+    const SOURCE: &str = r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::First requires self.number >= 1, self.number - 1 <= 4294967295u32;
+domain Reading::Second requires self.number - 1 <= 4294967295u32;
+machine build_entry() { let reading: Reading = Reading { number: 1 }; }
+"#;
+    executed_source(SOURCE);
+
+    let verdict = source_result(&SOURCE.replace(" requires number >= 1", ""));
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("an unrelated named domain supplied the lower bound: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected a single formation violation: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .contains("data domain: contract arithmetic is not proved total before its condition"),
+        "{violation:?}"
+    );
+}
+
+#[test]
+fn a_record_domains_subject_uses_the_same_carrier_observations() {
+    let mut accepted = accepted_source(
+        r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;
+machine build_entry() {}
+"#,
+    );
+    let module = &mut accepted.elaboration.module;
+    let predicate = module.structural_domains[0].predicate.as_mut().unwrap();
+    let number_field = ScalarTerm::integer_field_path(
+        id(7),
+        vec![CanonicalStructuralPathSegment::Field(id(1))],
+        integer_type(IntegerSign::Unsigned),
+    );
+    predicate.subject = id(7);
+    predicate.proposition =
+        Proposition::LessOrEqual(subtract(number_field, number(1)), number(u32::MAX.into()));
+    crate::formation::module(module).unwrap();
+
+    module.structural_domains[0]
+        .predicate
+        .as_mut()
+        .unwrap()
+        .subject = id(8);
+    let refusal = crate::formation::module(module).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("contract field has no declared root")
+    );
+}
+
+#[test]
+fn a_projected_domain_uses_its_field_carriers_default() {
+    const SOURCE: &str = r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;
+data Carry { item: Reading in Nonzero; }
+machine build_entry() {}
+"#;
+    executed_source(SOURCE);
+}
+
+#[test]
+fn deeply_projected_defaults_form_before_their_enclosing_defaults() {
+    let source = r#"
+data Reading requires number >= 1 { number: u32; }
+data Envelope requires reading.number - 1 <= 4294967295u32 { reading: Reading; }
+domain Envelope::Checked requires self.reading.number - 1 <= 4294967294u32;
+data Carry { item: Envelope in Checked; }
+machine build_entry() {}
+"#;
+    executed_source(source);
+}
+
+#[test]
+fn a_field_carriers_default_cannot_form_arithmetic_on_its_sibling_or_root() {
+    const SOURCE: &str = r#"
+data Reading requires number >= 1 { number: u32; }
+domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;
+data Bare { number: u32; }
+data Carry requires item.number - 1 <= 4294967294u32 {
+    item: Reading in Nonzero;
+    backup: Bare;
+    number: u32;
+}
+machine build_entry() {}
+"#;
+    executed_source(SOURCE);
+
+    for path in ["backup.number", "number"] {
+        let verdict = source_result(&SOURCE.replace("item.number - 1", &format!("{path} - 1")));
+        let RouteVerdict::Rejected { violations, .. } = verdict else {
+            panic!("the bound on item.number escaped its projection: {verdict:?}");
+        };
+        let [violation] = violations.as_slice() else {
+            panic!("expected a single formation violation: {violations:?}");
+        };
+        assert!(
+            violation.statement.contains(
+                "data domain: contract arithmetic is not proved total before its condition"
+            ),
             "{violation:?}"
         );
     }
@@ -306,4 +470,26 @@ machine build_entry() {{ let value: u32 = divide(31, 3); }}
         executed_source(&source);
         rejected_source(&source.replace("requires right > 0", "requires true"));
     }
+}
+
+/// Nested computations retain their policy and every inner formation question,
+/// including when an outer multiplication cannot change the final value.
+#[test]
+fn nested_summary_arithmetic_keeps_each_inner_formation_obligation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    executed_source(&source);
+
+    let guarded = r#"
+machine nested(value: u8) -> u8
+requires value <= 254
+ensures result == (value + 1u8) * 0u8
+{ 0u8 }
+machine build_entry() { let value: u8 = nested(0u8); }
+"#;
+    executed_source(guarded);
+    rejected_source(&guarded.replace("requires value <= 254", "requires true"));
 }

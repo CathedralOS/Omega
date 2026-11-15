@@ -1531,6 +1531,7 @@ pub(crate) mod address_joins {
                             successors: targets
                                 .into_iter()
                                 .map(|target| DescriptorFlowEdge {
+                                    definitions: Vec::new(),
                                     target,
                                     parameters: vec![],
                                     bindings: vec![],
@@ -3192,9 +3193,9 @@ mod cleanup {
         Ok(remaining)
     }
 
-    /// Copyable values owe no disposal, but an explicit cleanup still needs
-    /// their actual owned source and no-code declaration. Foundation validation
-    /// checks that each cleanup use follows its dominating producer.
+    /// A copyable value's home can retire when its actual owner and no-code
+    /// declaration permit it. Foundation validation checks that each
+    /// retirement follows its dominating producer.
     pub(crate) fn unrestricted_owned_cleanup_roots(
         function: &PsiOptimizationFunction,
         types: &(impl crate::StructuralTypes + ?Sized),
@@ -3478,7 +3479,7 @@ mod cleanup {
         };
         if unrestricted.binary_search(&place).is_ok() {
             if !matches!(actions,
-                [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
+                [TerminalAffineCleanupAction::RetireHome(root)] if *root == place)
                 || frontier.owned_places.contains_key(&place)
                 || frontier.partial_custody_paths.contains_key(&place)
                 || frontier
@@ -3965,9 +3966,8 @@ pub(crate) mod references {
     use crate::unit_validation::references::{
         LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceOriginIdentity,
         ReferenceParent, access_path_type, access_reference_source_compatible,
-        access_referent_tail, contains_reference, formal_origin, is_reference_projection,
-        leaf_access_within, leaf_paths, leaf_referent, leaf_type, reference_access,
-        reference_source_type, storage_projection,
+        access_referent_tail, contains_reference, formal_origin, leaf_access_within, leaf_paths,
+        leaf_referent, leaf_type, reference_access, reference_source_type, storage_projection,
     };
     use abstract_operations::AbstractOperation as O;
     use abstract_operations::AbstractStructuralCallResult;
@@ -3993,7 +3993,8 @@ pub(crate) mod references {
             PsiOptimizationFunction, ReferenceIdentity, ReferenceOrigin, ReferenceParent,
             StructuralAccess, StructuralArgument, StructuralTypeDeclaration, StructuralTypeId,
             access_path_type, access_referent_tail, invalid, leaf_type, origin_place,
-            origins_overlap, shared_source_compatible, structural_source_contract,
+            origins_overlap, projected_origin, shared_source_compatible,
+            structural_source_contract,
         };
         use std::collections::BTreeMap;
         use terminal_psi::StructuralPathSegment;
@@ -4001,6 +4002,9 @@ pub(crate) mod references {
         pub(super) struct AccessReferenceCustody {
             pub(super) origins: Vec<ReferenceOrigin>,
             pub(super) dependencies: Vec<ReferenceOrigin>,
+            /// Call comparisons retain this checked projection after the
+            /// final permission crossing instead of widening to its parent.
+            pub(super) referent_tail: usize,
         }
 
         pub(super) fn access_reference_custody(
@@ -4035,7 +4039,8 @@ pub(crate) mod references {
                     "reference access crossing has no exact stored lineage",
                 )
             };
-            access_referent_tail(function, structural_types, argument).ok_or_else(invalid_path)?;
+            let (_, referent_tail) = access_referent_tail(function, structural_types, argument)
+                .ok_or_else(invalid_path)?;
             let mut current = structural_source_contract(function, argument.place)
                 .ok_or_else(|| {
                     invalid(
@@ -4069,8 +4074,12 @@ pub(crate) mod references {
                         _ => None,
                     })
                     .ok_or_else(invalid_path)?;
-                let further_crossing =
-                    argument.path[position + 1..].contains(&StructuralPathSegment::Referent);
+                let suffix = &argument.path[position + 1..];
+                let next_crossing = suffix
+                    .iter()
+                    .position(|segment| *segment == StructuralPathSegment::Referent);
+                let further_crossing = next_crossing.is_some();
+                let projection = next_crossing.map_or(suffix, |crossing| &suffix[..crossing]);
                 let mut origins = Vec::new();
                 let mut next_cursors = Vec::new();
                 for (place, mut selected_path, ancestors) in cursors {
@@ -4110,10 +4119,12 @@ pub(crate) mod references {
                             reference.carrier == place && reference.carrier_path == path
                         });
                         let carrier = matching.next().ok_or_else(invalid_live)?;
+                        let requested_origin = projected_origin(&carrier.root, projection);
                         if matching.next().is_some()
                             || live.iter().any(|child| {
                                 matches!(&child.parent,
                         ReferenceParent::Reference(parent) if parent == &carrier.identity)
+                                    && origins_overlap(&child.root, &requested_origin)
                                     && !shared_source_compatible(
                                         function,
                                         structural_types,
@@ -4174,6 +4185,7 @@ pub(crate) mod references {
                     return Ok(AccessReferenceCustody {
                         origins,
                         dependencies,
+                        referent_tail,
                     });
                 }
                 cursors = next_cursors;
@@ -5863,17 +5875,16 @@ pub(crate) mod references {
             if let Some(parent) = live.iter().find(|reference| {
                 reference.carrier == source.place && reference.carrier_path == carrier_path
             }) {
+                let root = projected_origin(&parent.root, suffix);
                 if live
                 .iter()
                 .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity)
+                    && origins_overlap(&reference.root, &root)
                     && !shared_source_compatible(function, structural_types, reference, source.access))
             {
                 return Err(fail("reference parent remains suspended by a live child"));
             }
-                return Ok((
-                    projected_origin(&parent.root, suffix),
-                    ReferenceParent::Reference(parent.identity.clone()),
-                ));
+                return Ok((root, ReferenceParent::Reference(parent.identity.clone())));
             }
             let leaf = structural_source_contract(function, source.place)
                 .and_then(|contract| {
@@ -6663,7 +6674,13 @@ pub(crate) mod references {
                     ));
                 }
                 normalized_arguments.push((
-                    custody.origins,
+                    custody
+                        .origins
+                        .iter()
+                        .map(|origin| {
+                            projected_origin(origin, &argument.path[custody.referent_tail..])
+                        })
+                        .collect(),
                     argument.access,
                     CallRegion::Referent,
                     custody.dependencies,
@@ -6772,18 +6789,39 @@ pub(crate) mod references {
                 }
                 continue;
             }
-            let carrier_or_suspended = structural_source_contract(function, argument.place)
-                .is_some_and(|source| contains_reference(structural_types, source.structural_type))
-                || live
-                    .iter()
-                    .any(|reference| origin_place(&reference.root) == argument.place);
-            if carrier_or_suspended || borrowed_sources.contains_key(&argument.place) {
-                if carrier_or_suspended
-                    && !is_reference_projection(function, structural_types, argument)
+            let borrowed_root = live
+                .iter()
+                .any(|reference| origin_place(&reference.root) == argument.place);
+            if borrowed_root || borrowed_sources.contains_key(&argument.place) {
+                // A loan suspends its captured projection, not disjoint sibling
+                // storage or compatible shared observations. Normalize that exact
+                // source below; extracting owned storage through a borrowed root
+                // still needs its explicit ownership-window operation.
+                if argument.access == StructuralAccess::Owned
+                    && structural_source_contract(function, argument.place)
+                        .is_none_or(|source| source.access != StructuralAccess::Owned)
                 {
                     return Err(refusal(
                         "call cannot access a suspended root or move its referent",
                     ));
+                }
+                if borrowed_root {
+                    check_region_access_with(
+                        function,
+                        block,
+                        node,
+                        live,
+                        argument.place,
+                        &argument.path,
+                        |reference| {
+                            shared_source_compatible(
+                                function,
+                                structural_types,
+                                reference,
+                                argument.access,
+                            )
+                        },
+                    )?;
                 }
                 let (root, _) = normalized_source(
                     function,
@@ -8914,6 +8952,7 @@ mod replay {
                     source,
                     path,
                     cases,
+                    ..
                 } = &block
                     .nodes
                     .last()
@@ -8950,6 +8989,7 @@ mod replay {
                         source: observed,
                         path: observed_path,
                         cases,
+                        ..
                     } = terminator
                         && *observed == source
                         && observed_path == path
@@ -10283,30 +10323,46 @@ mod value_custody {
                 partial_custody_paths: BTreeMap::new(),
                 live_references: Vec::new(),
             };
-            for action in [Action::RetireHome(id(1)), Action::DiscardRoot(id(1))] {
-                let mut frontier = empty();
-                cleanup(&function, &types, &mut frontier, &[action]).unwrap();
-                assert_eq!(
-                    frontier,
-                    empty(),
-                    "a copy has no finite obligation to invent"
-                );
-            }
+            let (affine_function, affine_types, _) = context();
+            let mut affine_frontier = current(Vec::new());
+            cleanup(
+                &affine_function,
+                &affine_types,
+                &mut affine_frontier,
+                &[Action::DiscardRoot(id(1))],
+            )
+            .unwrap();
+            assert_eq!(affine_frontier, empty());
+
+            let mut frontier = empty();
+            cleanup(
+                &function,
+                &types,
+                &mut frontier,
+                &[Action::RetireHome(id(1))],
+            )
+            .unwrap();
+            assert_eq!(frontier, empty());
+            assert!(matches!(
+                cleanup(
+                    &function,
+                    &types,
+                    &mut frontier,
+                    &[Action::DiscardRoot(id(1))]
+                ),
+                Err(OptimizationUnitValidationError::CurrentCleanupMismatch { machine, block })
+                    if machine == function.machine && block == id(1)
+            ));
+            assert_eq!(frontier, empty());
             for borrowed in [
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::MutableBorrow,
             ] {
                 let mut borrowed_function = function.clone();
                 borrowed_function.structural_parameters[0].access = borrowed;
-                assert!(
-                    cleanup(
-                        &borrowed_function,
-                        &types,
-                        &mut empty(),
-                        &[Action::RetireHome(id(1))]
-                    )
-                    .is_err()
-                );
+                for action in [Action::RetireHome(id(1)), Action::DiscardRoot(id(1))] {
+                    assert!(cleanup(&borrowed_function, &types, &mut empty(), &[action]).is_err());
+                }
             }
             for changed in 0..4 {
                 let mut declarations = types.clone();

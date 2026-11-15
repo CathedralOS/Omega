@@ -33,10 +33,8 @@ structurally identical substitute.
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) |
 
-Every positive project declares an exit-0 oracle and ordinary Build bindings
-for `linux_x86_64`, `linux_arm64`, `macos_arm64` and `windows_x86_64`.
-Identical source and Build files are pinned under
-`tests/omega/{pass,fail}/facts/nominal_record_representation_through_<place>_*`.
+Every positive project declares an exit-0 oracle and ordinary Build bindings for
+`linux_x86_64`, `linux_arm64`, `macos_arm64` and `windows_x86_64`.
 
 Run a witness with `omega run --both <place>/main.omg`; run its twin with
 `omega --check <place>/invalid/main.omg`. Foreign bindings are authored coverage,

@@ -44,18 +44,14 @@ From repository root, using the documented environment setup:
 omega packages update --project samples/cli/independent/wavelet_transient_denoising --target linux_x86_64
 omega run samples/cli/independent/wavelet_transient_denoising/main.omg < samples/cli/independent/wavelet_transient_denoising/input.txt
 CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p wavelet-transient-validation
-python3 samples/cli/independent/wavelet_transient_denoising/validate.py --runner /absolute/path/to/wavelet-transient-validation --evidence /absolute/path/to/evidence
 ```
 
-`fixtures.json` is frozen before program execution. `validate.py` recomputes
-that independent oracle, checks actual native and captured Terminal values within
-1e-8, checks zero-threshold roundtrips, approximation preservation and pre-shrink
-Parseval within 1e-9 of max(1,input energy). It also checks numerical removed
-energy and exact refusal output. `validation/` prepares the normal project and
-captures both products of the same retained Terminal artifact without bypassing
-package or root authority. Its isolated containing-domain exit delegation is the
-normal CLI policy. The separate `controls/detail_bound/main.omg` must reject
-at source checking for its statically invalid detail access.
+`fixtures.json` is frozen before program execution. `validation/` prepares the
+normal project and captures both products of the same retained Terminal artifact
+without bypassing package or root authority. Its isolated containing-domain exit
+delegation is the normal CLI policy. The separate
+`controls/detail_bound/main.omg` must reject at source checking for its
+statically invalid detail access.
 
 Build binds explicit Linux x86-64, Windows x86-64 and macOS ARM64 entries.
 Execution qualification records the actual host in VALIDATION.md.

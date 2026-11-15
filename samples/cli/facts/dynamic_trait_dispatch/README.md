@@ -63,10 +63,6 @@ positives and twins. Its caller proves the same exact left-operand requirement
 from an independently representable bounded addition. Its existing distinct
 markers, both match choices and field neighbors remain unchanged. The complete
 selection is 46 sample projects and 45 corpus fixtures, including every control.
-Sample Main and Build files match their pins under
-`tests/omega/{pass,fail}/facts/dynamic_trait_dispatch_through_*`,
-`dynamic_trait_input_arithmetic_through_*`, and
-`uninitialized_dyn_selection_through_*`.
 
 ## Selection by Build
 

@@ -220,7 +220,19 @@ pub(crate) fn declare(
                 .as_ref()
                 .is_some_and(|reach| !reach.is_empty())
                 || !machine.published_service_ceiling.is_empty()
-                || machine.closed_reach_application.is_some()
+                || machine
+                    .closed_reach_application
+                    .as_ref()
+                    .is_some_and(|application| {
+                        !application.dependencies.is_empty()
+                            || !application.calls.is_empty()
+                            || !application.suspension_dependency.parameters.is_empty()
+                            || !application.blocking_dependency.parameters.is_empty()
+                            || !application.conditional_carry.is_empty()
+                            || application.parameters().any(|parameter| {
+                                matches!(parameter, terminal_psi::ClosedReachParameter::Machine(_))
+                            })
+                    })
             {
                 return Err("proof scope needs the complete service reach correspondence".into());
             }

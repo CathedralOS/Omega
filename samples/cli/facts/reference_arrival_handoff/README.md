@@ -31,14 +31,7 @@ loan is live; it must reject at the pinned borrow-active obligation.
 
 ## Pinned Fixtures
 
-The row is pinned by `tests/omega/{pass,fail}/facts/reference_arrival_handoff_through_*`.
-Each of the nine positive places has a
-`tests/omega/pass/facts/reference_arrival_handoff_through_<place>_exit` pin — the
-place program with its `build.omg` and authored native exit 0 — and each reject
-twin is pinned at
-`tests/omega/fail/facts/reference_arrival_handoff_through_<place>_rejected` with
-that twin's borrow-active fragment in `expected.txt`. The `cleanup_receiver`
-variations keep their own pinned rows beside them.
+The `cleanup_receiver` variations keep their own pinned rows beside them.
 
 This row covers **MATCH-SELECTIVE-LOWERING** in [TASKS.md](../../../../TASKS.md):
 transport the exact exclusive loan through an arrival, then write through that
@@ -104,14 +97,6 @@ reads the original Counter backing before the jump while the local candidate
 and selected loans remain active. This pins the projected-argument normal-edge
 witness required by CML4, without claiming its broader cleanup acceptance.
 
-The [owned-parameter replacement control](../../../../tests/omega/pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit/main.omg)
-keeps the same 41 writeback and `ABMCBMCA` order when another parameter supplies
-the replacement. Its [code40 twin](../../../../tests/omega/fail/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_prerequisite/main.omg)
-still rejects the captured cleanup prerequisite. The
-[nested construction control](../../../../tests/omega/pass/drops/runtime_selected_transfer_nested_construction_exit/main.omg)
-keeps completed nested values in declaration order while the existing incomplete
-construction control keeps abandoned prefixes in establishment order.
-
 These programs establish the exercised loan identity, selected writeback and
 normal receiver cleanup. They do not establish arbitrary projected or runtime-sized
 selection, write-only joins, every hook-order interaction, foreign-host execution,
@@ -137,11 +122,9 @@ The descriptor case the guard protects is already refused above the symbol
 route: `stored_loan_parts` is `Some` exactly when the root type is a stored
 reference carrier, and that branch returns first. A root that reaches the
 symbol route is neither a descriptor nor a state parameter, so an absent
-occurrence can only mean the local was declared before the operation prefix —
-the same caller-owned conclusion the producer search below draws when it finds
-no producer for its root. `tests/omega/pass/facts/`<br>
-`reference_arrival_handoff_through_other_state_exit` pins this: it records
-`incomplete` against a compiler without the repair and `built exit:0` with it.
+occurrence can only mean the local was declared before the operation prefix
+— the same caller-owned conclusion the producer search below draws when it
+finds no producer for its root.
 
 ## Requirements and Evidence
 
@@ -167,7 +150,6 @@ no producer for its root. `tests/omega/pass/facts/`<br>
   8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements for the borrowed local backing resolve into concrete machine-code offsets. Function-relative basic blocks, state transitions, and match edges lay out with branch relaxation and offset reflow. Transitive machine-state footprint evidence is validated, and direct PE, ELF, and Mach-O executable images are emitted. Native binaries execute and agree completely with Terminal Psi (`omega run --both` exit 0) across host targets.
 
 - **What remains open:** Arbitrary multi-level projected or runtime-sized loan selection, write-only join unifications, unconstrained hook-order reordering across divergent cleanup paths, and foreign non-hosted targets.
-
 
 ## Build-owned target-body migration
 

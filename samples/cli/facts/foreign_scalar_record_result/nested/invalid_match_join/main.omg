@@ -3,8 +3,8 @@
 public data Word [copy] { value: i64; }
 public data Division { quotient: Word; remainder: Word; }
 public boundary trait IntegerDivision {
- machine divide(numerator: i64, denominator: i64) -> Division reaches;
- machine verify(first: Division, copied: Division) -> bool reaches;
+ machine divide(numerator: i64, denominator: i64) -> Division reaches crashes none;
+ machine verify(first: Division, copied: Division) -> bool reaches crashes none crashes none;
 }
 
 machine consume(first: Division, copied: Division) -> bool reaches IntegerDivision {

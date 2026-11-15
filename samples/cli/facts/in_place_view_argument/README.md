@@ -1,9 +1,8 @@
 # In-place view argument
 
 Owner: `RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY` in [TASKS.md](../../../../TASKS.md),
-the requirement to lower the call argument `Input { bytes: &main.packet }` that
-[`traits/runtime_dyn_stored_byte_input`](../../../../tests/omega/pass/traits/runtime_dyn_stored_byte_input/main.omg)
-builds in place.
+the requirement to lower the call argument `Input { bytes: &main.packet }` built
+in place.
 
 Fact: a shared byte view formed inside a constructed call argument borrows the
 caller's exact backing array for that invocation, so the callee proves its
@@ -71,8 +70,7 @@ local owns a statement loan.
 - **Psi 06–08 / Omega 00–09:** each positive executes through Terminal Psi and
   the Linux x86-64 native image with exit 0 (`omega run --both`).
 
-All four hosted `ProgramEntry` rows are authored; executions were observed on
-Linux x86-64 only. A mutable `&mut [u8]` field formed in place
-(`fill(Output { bytes: &mut packet })`) and a view nested two records deep were
-checked by probes but are not pinned rows. Copies and oracles are pinned under
-`tests/omega/{pass,fail}/facts/in_place_view_argument_through_<place>_{exit,rejected}`.
+All four hosted `ProgramEntry` rows are authored; executions were observed on Linux
+x86-64 only. A mutable `&mut [u8]` field formed in place (`fill(Output { bytes: &mut
+packet })`) and a view nested two records deep were checked by probes but are not
+pinned rows.

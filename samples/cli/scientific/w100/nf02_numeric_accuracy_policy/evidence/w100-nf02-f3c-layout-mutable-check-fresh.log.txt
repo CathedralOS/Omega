@@ -1,1 +1,0 @@
-compiled 26 source file(s) from /workspace/Omega/.codex/worktrees/nf01/samples/cli/scientific/w100/nf01_shape_layout_contract/mutable_consumer/main.omg; wrote_output=false

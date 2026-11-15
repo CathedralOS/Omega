@@ -723,6 +723,7 @@ dependencies = [
  "machine-emission",
  "object-file",
  "optimization-core",
+ "optimization-unit",
  "optimization-unit-semantics",
  "program-entry-plan",
  "provider-admission",
@@ -2297,6 +2298,7 @@ dependencies = [
  "function-identity",
  "installation-evidence",
  "language-core",
+ "optimization-unit",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -2432,6 +2434,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-terminal-psi",
+ "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-terminal-psi",
@@ -2558,12 +2561,14 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "extents",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "numerics",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
+ "source",
  "terminal-psi",
 ]
 

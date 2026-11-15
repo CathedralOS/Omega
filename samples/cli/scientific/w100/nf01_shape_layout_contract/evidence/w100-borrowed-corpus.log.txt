@@ -1,7 +1,0 @@
-corpus_runner: 3341 prior timings loaded
-corpus_runner: 9/9 done, 0 compile(s) in flight
-corpus_gate: clean — 9 fixtures ({'checked': 4, 'rejected': 5}), 0 rejected without their expected fragment, 0 fail fixtures did not reject
-corpus_gate: golden provenance: 9 rows stamped, 0 legacy (unstamped), oldest stamped row 32208 commits behind HEAD (@2d8ed253669f)
-corpus_gate: 30 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (6 carry regressed-from)
-corpus_gate:   list them with --list-pinned-regressions
-corpus_gate: wrote 0 moved fixture(s) to /tmp/w100-borrowed-corpus-moves.json

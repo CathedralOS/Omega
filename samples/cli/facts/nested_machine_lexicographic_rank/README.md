@@ -36,9 +36,7 @@ both engines and its native image exits0 under a256KiB stack limit; it is a
 physical stack check, not a separate fact row.
 
 Every zero-step twin changes only the inner decrement from1to0. A strict edge
-elsewhere cannot excuse that preserving cycle. Pins are
-`nested_machine_lexicographic_rank_<place>_{exit,rejected}` under
-`tests/omega/{pass,fail}/facts/`.
+elsewhere cannot excuse that preserving cycle.
 
 The focused controls challenge the operation rather than its spelling:
 

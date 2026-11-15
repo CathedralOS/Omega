@@ -18,7 +18,10 @@ The same sentence, bounds and consuming operation appear in every place. The rea
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [index512](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [index512](invalid_target_body/main.omg) |
 
-[Root](main.omg) and [ordinary zero initialization](zeroed_source/main.omg) exercise both construction routes. Every positive declares all four hosted `ProgramEntry` bindings and exit 0. The ten reject twins change only the final index 511 to 512, reaching “cannot prove index `512` is within length512”. The nine places and extra producer are pinned under `tests/omega/{pass,fail}/facts/nested_zero_leaf_array_storage_*`.
+[Root](main.omg) and [ordinary zero initialization](zeroed_source/main.omg)
+exercise both construction routes. Every positive declares all four hosted
+`ProgramEntry` bindings and exit 0. The ten reject twins change only the final
+index 511 to 512, reaching “cannot prove index `512` is within length512”.
 
 Requirements and evidence:
 
@@ -31,9 +34,18 @@ Requirements and evidence:
 - **Omega 03–06:** native execution preserves sentinels, copying and projected borrows. Zero-byte owned copies, completed calls, observed parameters and state arrivals use funded private address anchors, retaining zero-byte ABI payloads and performing no payload loads or stores.
 - **Omega 07–09:** actual Mach-O execution agrees with Terminal Psi. Retained native identities and canonical products are checked for all 13 public programs, including the distinct nonzero byte-row control; the separate matching-host qualification also verifies PE and both ELF targets.
 
-On baseline `70f2db5eccd`, the unchanged root already exits0 in both engines but peaks at1,603,846,144 bytes. Actual optimized producer `843cfd786cc` runs the root at 356,089,856 bytes; all 13 public observations stay at or below 362,184,704 bytes against the frozen 512 MiB limit. The scoped corpus records23 authored runtime agreements and11 intended rejections. Formatting and scoped Clippy pass. [The observation record](qualification_macos_arm64.json) retains original producer identities and evidence hashes; later fixture, golden and documentation commits do not relabel that compiler.
+On baseline `70f2db5eccd`, the unchanged root already exits0 in both engines but
+peaks at1,603,846,144 bytes. Actual optimized producer `843cfd786cc` runs the
+root at 356,089,856 bytes; all 13 public observations stay at or below
+362,184,704 bytes against the frozen 512 MiB limit. The scoped corpus records23
+authored runtime agreements and11 intended rejections. Formatting and scoped
+Clippy pass.
 
-The [four-host record](hosted_qualification.json) uses actual optimized source `84e39b1c4f5` on every host: 11 public BOTH passes, 10 corpus agreements, 10 intended bounds rejects, 12 canonical reloads and two batch cases per host. Compiler, C-provider, source/oracle, lock, native image and canonical hashes are retained. The three foreign-host archives omit only 12 temporary deletion markers each; no semantic product is missing. Linux x86-64 reported two source-checking timing slowdowns against shared pins; all functional oracles passed. No fresh memory claim is made.
+Compiler, C-provider, source/oracle, lock, native image and canonical hashes are
+retained. The three foreign-host archives omit only 12 temporary deletion
+markers each; no semantic product is missing. Linux x86-64 reported two
+source-checking timing slowdowns against shared pins; all functional oracles
+passed. No fresh memory claim is made.
 
 Remaining: the parent task's qualified/view-backed carriers and retained-provider custody, and ordinary nested array literal results containing live borrowed-array subvalues. An auxiliary `snapshot_rows(rows: &[[u8;0];2]) -> [[u8;0];2] { [rows[0],rows[1]] }` refused before execution on both baseline70f and the first candidate (`returned scalar array`); that separate construction operation is not claimed repaired here.
 

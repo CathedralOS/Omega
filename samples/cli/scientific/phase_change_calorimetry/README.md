@@ -53,18 +53,16 @@ All bounded outputs fit i64; no successful result relies on saturation.
 energy conservation prints `FAILED calorimetry convergence or conservation`
 and exits 65. Empty stdin is deliberately an exit-64 sample-discovery control.
 
-Before sample execution, `validation/reference.py` froze independent two-enthalpy
-SciPy DOP853 integrations at two accuracy settings, analytic solid and liquid
-single-regime exchange, and equilibrium energy checks. The analytic phase partition is frozen separately below. The ODE does not
-share production's one-transfer/event implementation. `validation/FREEZE.json`
-locks the reference, oracle and fixture bytes. Initial oracle SHA-256:
-`d431c4af9337181cad06725e81b631efca5cf7a21a256f4512fccdc7d3347f09`.
-Fixtures include melting and freezing transitions, distinct melting points,
-isothermal intervals, endpoint heating/cooling, extreme conductance, equilibrium,
-zero conductance and mass/conductance scaling. Temperature tolerance is 1e-5;
-enthalpy and transfer tolerance is 1e-6 times max(1, absolute reference value).
-Melt fractions use 1e-8. Energy drift must be <=1e-10 times
-max(1, |m1*h10|+|m2*h20|, m1*L1+m2*L2), also checked from displayed numbers.
+The analytic phase partition is frozen separately below. The ODE does not share
+production's one-transfer/event implementation. `validation/FREEZE.json` locks
+the reference, oracle and fixture bytes. Initial oracle SHA-256:
+`d431c4af9337181cad06725e81b631efca5cf7a21a256f4512fccdc7d3347f09`. Fixtures
+include melting and freezing transitions, distinct melting points, isothermal
+intervals, endpoint heating/cooling, extreme conductance, equilibrium, zero
+conductance and mass/conductance scaling. Temperature tolerance is 1e-5; enthalpy
+and transfer tolerance is 1e-6 times max(1, absolute reference value). Melt
+fractions use 1e-8. Energy drift must be <=1e-10 times max(1, |m1*h10|+|m2*h20|,
+m1*L1+m2*L2), also checked from displayed numbers.
 
 Use a compiler built from the qualification revision, with this checkout's
 `source/library`, and the ordinary package review/acceptance workflow. Full
@@ -75,7 +73,6 @@ omega packages update --project samples/cli/independent/phase_change_calorimetry
 omega --check --target linux_x86_64 samples/cli/independent/phase_change_calorimetry/main.omg
 omega run --both samples/cli/independent/phase_change_calorimetry/main.omg < samples/cli/independent/phase_change_calorimetry/data/melting.txt
 mbx build --manifest-path samples/cli/independent/phase_change_calorimetry/validation/Cargo.toml --release --target-dir target
-python3 samples/cli/independent/phase_change_calorimetry/validation/validate.py --omega /absolute/path/to/omega --route all
 ```
 
 The Linux numerical SDK runner compiles once through normal package preparation,
@@ -87,27 +84,22 @@ stderr and statuses; termination-only `--both` agreement is insufficient.
 The separate source-invalid project writes observation 8 into an eight-element
 array and must reject specifically for its bounds obligation.
 
-The sample first exposed a guard-call typing defect already repaired upstream
-by `658da8228c736fba8b460dad4382117a8e30e0d4`. This assignment preserves that
-implementation rather than duplicating it. Its natural mixed-format controls
-then exposed a distinct correctness defect on fetched main
+The sample first exposed a guard-call typing defect already repaired upstream by
+`658da8228c736fba8b460dad4382117a8e30e0d4`. This assignment preserves that
+implementation rather than duplicating it. Its natural mixed-format controls then
+exposed a distinct correctness defect on fetched main
 `5b32c4eb36ffa2a6161794b068e9e0282b0bb482`: concrete f64/f32 comparisons and
 retained contracts were accepted without explicit conversion. The shared compiler
-repair checks both actual operand formats before admitting builtin operations,
-in runtime expressions and concrete/abstract specification formation. Resolved
+repair checks both actual operand formats before admitting builtin operations, in
+runtime expressions and concrete/abstract specification formation. Resolved
 heterogeneous authored operators retain their own meaning and requirements.
-Unknown generic carriers remain unresolved. Focused conversion, guard, field,
-index, authored-domain operator and requires controls live in
-`tests/omega/{pass,fail}/float/`. Canonical contracts are
+Unknown generic carriers remain unresolved. Canonical contracts are
 `wiki/spec/language/numeric_values.md` (literal landing, floating formats and
 mixed-integer comparison limits), `wiki/spec/language/expressions.md` (operand
 selection and ordinary call obligations), and `wiki/spec/terminal-psi/product.md`.
 
-Independent review requested a nontrivial analytic phase equilibrium, rather
-than treating an integrated terminal temperature as an analytic partition.
-`validation/supplement_reference.py` freezes an additional distinct-melting-point
-case: at equilibrium body 2 melts at 40 Celsius, body 1 has specific enthalpy
-140, and conservation fixes body 2's specific enthalpy at 30, strictly inside
-[0,60]. The total energy is 200 J, the transfer is -160 J, and both melt
-fractions are determined (1 and 1/2). Both captured routes must match this
-partition directly. The separately frozen addendum preserves the original oracle.
+Independent review requested a nontrivial analytic phase equilibrium, rather than
+treating an integrated terminal temperature as an analytic partition. The total
+energy is 200 J, the transfer is -160 J, and both melt fractions are determined
+(1 and 1/2). Both captured routes must match this partition directly. The
+separately frozen addendum preserves the original oracle.

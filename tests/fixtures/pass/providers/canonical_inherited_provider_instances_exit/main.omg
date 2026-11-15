@@ -4,10 +4,10 @@
 boundary trait Parent<Value> {
     machine echo<const Count: u64>(value: Value, ready: bool) -> Value reaches
         requires Count == 4 || Count == 8 || Count == 12
-        requires ready == true;
-    machine spare() -> i32 reaches;
+        requires ready == true crashes none;
+    machine spare() -> i32 reaches crashes none;
 }
-boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
+boundary trait Child: Parent<i32> { machine choose() -> i32 reaches crashes none; }
 
 Selected satisfies Child {
     machine echo<const Count: u64>(value: i32, ready: bool) -> i32 {

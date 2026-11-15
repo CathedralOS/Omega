@@ -26,11 +26,8 @@ close either parent outcome.
 The root [main.omg](main.omg) is a runnable representative. Every positive and
 the root bind `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
 `macos_arm64` and `linux_arm64`, declare `Expected exit: 0`, and retain an
-`expected_native_exit.txt` of zero. The nine places are pinned under
-`tests/omega/pass/facts/dependent_subtract_through_<place>_exit/`; their
-check-only reject bodies are pinned under
-`tests/omega/fail/facts/dependent_subtract_through_<place>_rejected/`.
-Sample and fixture main sources match byte for byte for each place.
+`expected_native_exit.txt` of zero. Sample and fixture main sources match byte
+for byte for each place.
 
 The reject twins retain their original consuming operations. They remove the
 relevant relational premise, not the transport construct: the call-result twin

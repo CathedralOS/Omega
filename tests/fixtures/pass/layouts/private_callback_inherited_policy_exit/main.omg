@@ -152,7 +152,7 @@ machine CallbackPolicy::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
 }
 
 public boundary trait Callback {
-    machine call(value: u64) -> u64 reaches;
+    machine call(value: u64) -> u64 reaches crashes none;
 }
 public boundary trait TimerCallback: Callback + Calling<DescriptorCalling> {}
 public boundary trait UnusedTimerCallback: Callback + Calling<UnusedDescriptorCalling> {}
@@ -160,7 +160,7 @@ public boundary trait UnusedTimerCallback: Callback + Calling<UnusedDescriptorCa
 public boundary trait Registrar: Calling<DescriptorCalling> {
     machine register<machine Handler>(gate: &LayoutStorage<TimerGate, TimerGateLayout>) -> u64
     requires machine Handler satisfies TimerCallback::call;
-    reaches invokes Callback;
+    reaches invokes Callback crashes none;
 }
 public data TimerGate {
     selector: u16;
