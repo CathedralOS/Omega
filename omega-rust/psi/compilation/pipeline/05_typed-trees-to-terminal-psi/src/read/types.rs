@@ -995,6 +995,7 @@ impl Program<'_> {
                 instance: domain,
                 carrier: plain,
                 predicate: None,
+                byte_predicate: None,
             });
         }
         Ok(())

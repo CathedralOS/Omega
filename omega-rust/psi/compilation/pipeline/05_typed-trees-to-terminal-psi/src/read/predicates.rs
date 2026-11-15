@@ -281,12 +281,14 @@ impl Program<'_> {
             let carrier = domain.carrier;
             // The primitive byte condition has its own canonical declaration.
             // Generic propositions are prepared here with the selected target.
-            if typed_trees::byte_predicates::byte_slice_domain_predicate(
+            let byte_predicate = typed_trees::byte_predicates::byte_slice_domain_predicate(
                 self.typed,
                 self.domain_theory(id, instance)?,
             )
-            .is_some()
-            {
+            .map(|(_, predicate)| predicate);
+            self.declared_domains[slot].byte_predicate = byte_predicate;
+            if byte_predicate.is_some() {
+                self.declared_domains[slot].predicate = None;
                 slot += 1;
                 continue;
             }

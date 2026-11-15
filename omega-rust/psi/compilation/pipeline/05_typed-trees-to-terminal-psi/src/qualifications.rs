@@ -254,15 +254,8 @@ impl Qualifications {
             let symbol = declared.instance;
             let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
-                ValueType::Record(carrier, _, _) => {
-                    result.declare_structural(
-                        diagnostic,
-                        source,
-                        &sources,
-                        symbol,
-                        carrier,
-                        declared.predicate.clone(),
-                    )?;
+                ValueType::Record(..) => {
+                    result.declare_structural(diagnostic, source, &sources, declared)?;
                     continue;
                 }
                 ValueType::Rigid(_) => {
@@ -481,17 +474,16 @@ impl Qualifications {
         Ok(())
     }
 
-    /// Retain the generic predicate over the domain's own carrier for
-    /// declaration formation. Field sites separately prove the same clauses
-    /// at their declared storage paths (`RecordType::requires`).
+    /// Publish the condition already prepared for the domain's carrier.
+    /// Generic propositions retain their selected-target observations; byte
+    /// conditions retain their primitive form. Field sites prove the same
+    /// condition at their declared storage paths (`RecordType::requires`).
     fn declare_structural(
         &mut self,
         diagnostic: MachineId,
         source: &crate::read::Program<'_>,
         sources: &[(source::SourceId, [u8; 32])],
-        symbol: DomainInstance,
-        carrier: StructuralTypeId,
-        proposition: Option<semantic_vocabulary::Proposition>,
+        declared: &crate::read::DeclaredDomain,
     ) -> Checked<()> {
         let typed = source.typed();
         let unavailable = |detail| {
@@ -501,11 +493,15 @@ impl Qualifications {
                 Unserved::Declaration(detail),
             )
         };
+        let symbol = declared.instance;
+        let ValueType::Record(carrier, _, _) = declared.carrier else {
+            return Err(unavailable("record domain retains another carrier kind"));
+        };
         let definition = source.domain_theory(diagnostic, symbol)?;
-        let byte_predicate =
-            typed_trees::byte_predicates::byte_slice_domain_predicate(typed, definition)
-                .map(|(_, predicate)| predicate);
-        let predicate = proposition
+        let byte_predicate = declared.byte_predicate;
+        let predicate = declared
+            .predicate
+            .clone()
             .map(|proposition| {
                 Ok::<_, terminal_check_tables::Refusal>(StructuralDomainPredicate {
                     subject: crate::body::self_place()

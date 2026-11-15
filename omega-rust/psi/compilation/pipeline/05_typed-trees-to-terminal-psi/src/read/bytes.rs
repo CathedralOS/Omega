@@ -705,6 +705,7 @@ impl Program<'_> {
                     instance: domain,
                     carrier: ValueType::record(row),
                     predicate: None,
+                    byte_predicate: None,
                 });
             }
         }

@@ -83,6 +83,7 @@ pub(crate) struct DeclaredDomain {
     pub instance: crate::body::DomainInstance,
     pub carrier: ValueType,
     pub predicate: Option<semantic_vocabulary::Proposition>,
+    pub byte_predicate: Option<semantic_vocabulary::ByteSequencePredicate>,
 }
 
 pub(crate) struct Program<'t> {
@@ -800,6 +801,7 @@ mod tests {
                 },
                 carrier: ValueType::record(carrier),
                 predicate: None,
+                byte_predicate: None,
             }));
         let bodies = semantic_vocabulary::IdTable::default();
         let components = crate::components::components(&bodies, &mut program.signatures).unwrap();
