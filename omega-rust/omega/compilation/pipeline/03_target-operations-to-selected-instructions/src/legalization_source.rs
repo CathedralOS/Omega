@@ -29,7 +29,7 @@ pub(crate) mod custody {
         Ok(())
     }
 }
-pub(crate) mod ordinary_roster {
+pub(crate) mod audit_roster {
     use super::TargetOperationPlan;
     use crate::LegalizationError as Error;
     use crate::LegalizationError;
@@ -1918,7 +1918,10 @@ pub(crate) mod scalar_graph {
             home.layout.sum().cloned().ok_or(Error::custody())
         }
 
-        pub(crate) fn project<'a>(
+        pub(crate) use crate::legalization_instruction::project;
+
+        /// Reconstruct the expected execution only for the independent audit.
+        pub(crate) fn audit_project<'a>(
             node: &optimization_unit::OptimizationNode,
             optimized: &optimization_unit::PsiOptimizationFunction,
             native: &'a TargetOperationPlan,
@@ -3444,7 +3447,7 @@ pub(crate) mod scalar_graph {
                 let mut instructions = Vec::with_capacity(body.len());
                 for (node, row) in body.iter().zip(rows) {
                     *current_operation = row.source.as_ref().map(|source| source.operation);
-                    instructions.push(instruction::project(
+                    instructions.push(instruction::audit_project(
                         node, optimized, native, plan, unit, row,
                     )?);
                 }
@@ -3527,8 +3530,105 @@ pub(crate) fn derive_source_function_rosters(
     let mut rosters = SourceFunctionRosters {
         scalar_functions: Vec::new(),
     };
-    ordinary_roster::derive_remaining(&mut rosters, target, abstract_plan, unit)?;
+    audit_roster::derive_remaining(&mut rosters, target, abstract_plan, unit)?;
 
     Ok(rosters)
 }
 pub(crate) use custody::validate_source_custody;
+
+/// Ordinary legalization consumes only target execution and immutable judgments.
+pub(crate) fn derive_target_function_rosters(
+    target: &TargetOperationPlan,
+    evidence: crate::TargetSelectionEvidence<'_>,
+) -> Result<SourceFunctionRosters, LegalizationError> {
+    let geometries = crate::native_geometry::NativeGeometries::new(
+        target
+            .functions
+            .iter()
+            .map(|function| function.graph.structural_types.as_ref()),
+    )
+    .map_err(|_| LegalizationError::custody())?;
+    let mut scalar_functions = Vec::with_capacity(target.functions.len());
+    for function in &target.functions {
+        let geometry = geometries
+            .get(&function.graph.structural_types)
+            .ok_or_else(LegalizationError::custody)?;
+        let mut blocks = Vec::with_capacity(function.graph.blocks.len());
+        for block in &function.graph.blocks {
+            let mut instructions = Vec::with_capacity(block.operations.len());
+            for row in &block.operations {
+                if matches!(
+                    row.kind,
+                    target_operations::TargetUnitOperation::CleanupCall { .. }
+                ) {
+                    continue;
+                }
+                instructions.push(
+                    scalar_graph::instruction::project(
+                        function.machine,
+                        evidence.accepted_obligation_facts,
+                        target,
+                        geometry,
+                        row,
+                    )
+                    .map_err(|error| {
+                        error.attributed(
+                            function.machine,
+                            row.source.as_ref().map(|source| source.operation),
+                        )
+                    })?,
+                );
+            }
+            let parameters = block
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(position, parameter)| {
+                    Ok(optimization_unit::ValueDefinition {
+                        value: parameter.value,
+                        scalar_type: parameter.scalar_type,
+                        site: optimization_unit::ValueDefinitionSite::BlockParameter {
+                            block: block.block,
+                            position: u32::try_from(position)
+                                .map_err(|_| LegalizationError::custody())?,
+                        },
+                    })
+                })
+                .collect::<Result<_, LegalizationError>>()?;
+            blocks.push(legalized_operations::LegalizedScalarBlock {
+                id: block.block,
+                parameters,
+                structural_parameters: block.structural_parameters.clone(),
+                instructions,
+                terminator: crate::legalization_control::project(
+                    function.machine,
+                    block,
+                    function
+                        .structural_contract
+                        .as_ref()
+                        .map(|contract| contract.parameters.as_slice())
+                        .unwrap_or(&[]),
+                    evidence.accepted_obligation_facts,
+                )?,
+            });
+        }
+        scalar_functions.push(legalized_operations::LegalizedScalarFunction {
+            machine: function.machine,
+            attachment: function.attachment,
+            nominal_cleanup_subject: function.nominal_cleanup_subject,
+            provenance: function.provenance.clone(),
+            call_plan: function.graph.call_plan.clone(),
+            parameters: scalar_graph::parameters(function)?,
+            structural: crate::legalization::scalar_graph_input::structural_contract(function)?,
+            entry_block: function.graph.entry,
+            blocks,
+            ownership_frontier_facts: evidence
+                .ownership_frontier_facts
+                .iter()
+                .filter(|fact| fact.machine == function.machine)
+                .cloned()
+                .collect(),
+        });
+    }
+    Ok(SourceFunctionRosters { scalar_functions })
+}

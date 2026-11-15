@@ -5531,6 +5531,7 @@ pub(crate) mod unit {
                     operation,
                     token,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5603,6 +5604,7 @@ pub(crate) mod unit {
                     boundary,
                     operands,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5704,6 +5706,7 @@ pub(crate) mod unit {
                     location,
                     operand,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5815,6 +5818,7 @@ pub(crate) mod unit {
                     selector,
                     scratch,
                     result_home,
+                    ..
                 },
                 AbstractOperation::ActivateTaskRegister {
                     psi_operation: expected_operation,
@@ -5882,6 +5886,7 @@ pub(crate) mod unit {
                     selector,
                     scratch,
                     result_home,
+                    ..
                 },
                 AbstractOperation::ReloadSegmentDescriptors {
                     psi_operation: expected_operation,
@@ -6599,6 +6604,7 @@ pub(crate) mod unit {
                     service,
                     operation,
                     source,
+                    ..
                 },
                 AbstractOperation::GlobalDescriptorTable {
                     psi_operation: expected_operation,
