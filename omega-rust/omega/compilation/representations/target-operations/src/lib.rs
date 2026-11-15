@@ -61,7 +61,7 @@ pub use control_flow::{
     TargetCasePointerSlot, TargetControlBlock, TargetControlCasePayload,
     TargetControlCaseSuccessor, TargetControlGraph, TargetControlSuccessor,
     TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
-    TargetStructuralCaseSource, TargetStructuralReturnSource,
+    TargetStructuralCaseSource, TargetStructuralContract, TargetStructuralReturnSource,
 };
 pub mod provenance;
 pub use provenance::{

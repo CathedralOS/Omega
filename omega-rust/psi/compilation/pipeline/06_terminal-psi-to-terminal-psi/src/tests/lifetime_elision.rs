@@ -128,6 +128,36 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
     accepted.publish_invocation().unwrap();
 }
 
+/// A field states the lifetime of the view it stores. lifetimes.md:
+/// "Borrow-carrying data declares the lifetimes of its views." Read without
+/// one, every declaration eliding it would share one region, so a view stored
+/// in one record would be a value of any other record's field. The same
+/// record declaring `'name` is accepted.
+#[test]
+fn a_field_that_elides_its_views_lifetime_is_refused_by_name() {
+    let label = |binders: &str, view: &str, result: &str| {
+        format!(
+            "data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}\n\
+             data Label{binders} {{ name: {view}; }}\n\
+             machine label<'storage>(session: &Session<'storage>) -> {result} {{ Label {{ name: session.name }} }}\n\
+             machine build_entry(session: &mut Session) {{\n    \
+             let made: Label = label(session);\n    \
+             session.ready = true;\n}}\n"
+        )
+    };
+    assert_eq!(
+        refusal(&label("", "&[u8]", "Label")),
+        "typing data field that elides a view's lifetime while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Label\\)\\)))` \
+         while reading the signature of `label`"
+    );
+    let verdict = judge_build(&label("<'name>", "&'name [u8]", "Label<'storage>")).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
 /// Eliding a lifetime relates nothing but an elided result to its one input
 /// (`an_elided_result_is_at_the_region_of_the_one_input`). lifetimes.md: "A signature does not
 /// authorize returning unrelated storage merely because its type has the same

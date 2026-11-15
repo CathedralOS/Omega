@@ -1288,9 +1288,6 @@ pub(crate) mod lowerer {
         pub(crate) structural_type_equations_pending: bool,
         pub(crate) constant_selection: Option<ConstantSelection<'static>>,
         pub(crate) namespace_declarations: crate::symbols::NamespaceDeclarations,
-        pub(crate) pending_static_module_calls: Vec<(ExpressionHandle, Vec<DiagnosticName>)>,
-        pub(crate) pending_static_module_statement_calls:
-            Vec<(source::SourceSpan, Vec<DiagnosticName>)>,
         pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
         /*
             Origin rows before this frontier already own exact declaration symbols.
@@ -1479,8 +1476,6 @@ pub(crate) mod lowerer {
                 structural_type_equations_pending: true,
                 constant_selection: None,
                 namespace_declarations: crate::symbols::NamespaceDeclarations::default(),
-                pending_static_module_calls: Vec::new(),
-                pending_static_module_statement_calls: Vec::new(),
                 symbol_resolved_trees: SymbolResolvedTrees::default(),
                 bound_generic_application_origins: 0,
                 pending_machine_service_reaches: Vec::new(),

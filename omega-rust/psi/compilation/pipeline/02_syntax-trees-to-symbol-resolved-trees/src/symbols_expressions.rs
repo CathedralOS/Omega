@@ -145,16 +145,24 @@ mod references {
             stamp_receiver_path_symbols_in_table(expression_table, receiver, head_symbol, symbol);
         }
 
-        let mut target_symbol = resolve_expression_table_call_target_symbol(
-            machine,
-            parameters,
-            state_symbol,
-            call,
-            expression_table,
-            child_type_references,
+        let normalized = super::super::targets::normalize_expression_module_call(
             symbols,
+            expression_table,
+            expression,
         );
-        if !target_symbol.is_valid()
+        let mut target_symbol = normalized.unwrap_or_else(|| {
+            resolve_expression_table_call_target_symbol(
+                machine,
+                parameters,
+                state_symbol,
+                call,
+                expression_table,
+                child_type_references,
+                symbols,
+            )
+        });
+        if normalized.is_none()
+            && !target_symbol.is_valid()
             && !needs_declared_projection(expression_table, receiver)
             && let Some(receiver_chain) = spelled_receiver_chain(expression_table, receiver)
         {

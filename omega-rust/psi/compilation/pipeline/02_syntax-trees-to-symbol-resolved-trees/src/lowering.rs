@@ -1177,24 +1177,6 @@ pub(crate) mod expression {
             )?
         };
         expression_table(lowerer).set_source_span(lowered, source_span);
-        if let syntax::expression::ExpressionNode::Call(call) =
-            syntax_trees.expressions.expression(expression)
-            && call.target_is_static
-            && call.receiver.is_valid()
-            && let syntax::expression::ExpressionNode::Name {
-                members: receiver,
-                application: receiver_application,
-            } = syntax_trees.expressions.expression(call.receiver)
-            && receiver_application.is_none()
-        {
-            let mut path = syntax_expressions(syntax_trees)
-                .identifier_path_members(receiver.to_owned())
-                .iter()
-                .map(|value| lower_name(syntax_trees, value))
-                .collect::<Vec<_>>();
-            path.push(lower_name(syntax_trees, &call.target));
-            lowerer.pending_static_module_calls.push((lowered, path));
-        }
         if let Some(exposure) = lowerer.current_authored_expression_exposure {
             expression_table(lowerer).set_authored_expression_exposure(lowered, exposure);
             lowerer.pending_authored_expressions.push(
@@ -1430,6 +1412,7 @@ pub(crate) mod expression {
                     .into_boxed_slice();
                 Ok(
                     expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
+                        target_is_static: call.target_is_static,
                         authored_call_binding: None,
                         receiver,
                         target_symbol: SymbolHandle::invalid(),

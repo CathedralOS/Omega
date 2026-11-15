@@ -2,7 +2,7 @@
 // Place: field.
 // Expected exit: 0
 
-data Pair { chosen: &i64; spare: &i64; }
+data Pair<'view> { chosen: &'view i64; spare: &'view i64; }
 
 machine choose() -> bool
 ensures result == true

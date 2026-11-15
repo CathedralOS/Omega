@@ -918,13 +918,14 @@ impl Program<'_> {
         if self.value_type(id, definition.target_type)? != plain {
             return unserved("constrained by a domain declared on another carrier");
         }
-        // A domain's predicates are judged where the place declared in it
-        // has a contract to join (`predicates`); each place without one
-        // refuses them there by name.
-        if !self
-            .declared_domains
-            .iter()
-            .any(|(symbol, _)| *symbol == domain)
+        // Primitive byte domains already retain their predicate on the byte
+        // storage descriptor. Ordinary scalar/record domains need their own
+        // generic declaration alongside the instantiated use-site clauses.
+        if !super::bytes::primitive_byte_domain(typed, definition, id)
+            && !self
+                .declared_domains
+                .iter()
+                .any(|(symbol, _)| *symbol == domain)
         {
             self.declared_domains.push((domain, plain));
         }

@@ -41,10 +41,19 @@ pub(crate) mod ordinary_roster {
         abstract_plan: &crate::native_geometry::NativePlan<'_>,
         unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
-        for target_function in &target.functions {
+        if target.functions.len() != unit.functions.len() {
+            return Err(Error::custody());
+        }
+        // Both stages retain the admitted function order. Join once instead of
+        // scanning two whole-program body rosters for every function.
+        for (target_function, optimized) in target.functions.iter().zip(&unit.functions) {
+            if target_function.machine != optimized.machine {
+                return Err(Error::custody());
+            }
             let mut current_operation = None;
-            let function = derive_one(
+            let function = super::scalar_graph::derive(
                 target_function,
+                optimized,
                 target,
                 abstract_plan,
                 unit,
@@ -54,39 +63,6 @@ pub(crate) mod ordinary_roster {
             rosters.scalar_functions.push(function);
         }
         Ok(())
-    }
-
-    fn derive_one<'a>(
-        target_function: &target_operations::TargetFunction,
-        target: &'a TargetOperationPlan,
-        abstract_plan: &'a crate::native_geometry::NativePlan<'a>,
-        unit: &'a crate::native_geometry::NativeUnit<'a>,
-        current_operation: &mut Option<semantic_vocabulary::OperationId>,
-    ) -> Result<legalized_operations::LegalizedScalarFunction, LegalizationError> {
-        let abstract_matches = abstract_plan
-            .functions
-            .iter()
-            .filter(|candidate| candidate.machine == target_function.machine)
-            .collect::<Vec<_>>();
-        let optimized_matches = unit
-            .functions
-            .iter()
-            .filter(|candidate| candidate.machine == target_function.machine)
-            .collect::<Vec<_>>();
-        let ([abstracted], [optimized]) =
-            (abstract_matches.as_slice(), optimized_matches.as_slice())
-        else {
-            return Err(Error::custody());
-        };
-        super::scalar_graph::derive(
-            target_function,
-            abstracted,
-            optimized,
-            target,
-            abstract_plan,
-            unit,
-            current_operation,
-        )
     }
 }
 pub(crate) mod scalar_graph {
@@ -119,9 +95,9 @@ pub(crate) mod scalar_graph {
             use scalar_graph_input::normalized_foreign::native_callbacks_at;
             use semantic_vocabulary::OperationId;
 
-            pub(crate) fn project_call<'a>(
-                optimized: &optimization_unit::PsiOptimizationFunction,
-                unit: &'a crate::native_geometry::NativeUnit<'a>,
+            pub(crate) fn project_call(
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
                 targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
                 let target_operations::TargetUnitOperation::Call {
@@ -149,13 +125,11 @@ pub(crate) mod scalar_graph {
                     .collect::<Vec<_>>();
                 for argument in arguments {
                     lowered.push(LegalizedScalarArgument::Structural {
-                        indices: crate::legalization::runtime_indices::projection(
-                            optimized,
-                            unit,
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            facts,
+                            machine,
                             *psi_operation,
-                            argument.root_structural_type,
-                            &argument.path,
-                            unit.geometry(),
+                            &argument.indices,
                         )?,
                         semantic: terminal_psi::StructuralArgument {
                             place: argument.place,
@@ -253,7 +227,6 @@ pub(crate) mod scalar_graph {
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
                 native: &TargetOperationPlan,
-                plan: &crate::native_geometry::NativePlan<'_>,
                 unit: &crate::native_geometry::NativeUnit<'_>,
                 operation: OperationId,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
@@ -294,13 +267,11 @@ pub(crate) mod scalar_graph {
                         structural_indices: structural_arguments
                             .iter()
                             .map(|argument| {
-                                crate::legalization::runtime_indices::projection(
-                                    optimized,
-                                    unit,
+                                crate::legalization::runtime_indices::retained_operands(
+                                    &unit.accepted_obligation_facts,
+                                    optimized.machine,
                                     operation,
-                                    argument.root_structural_type,
-                                    &argument.path,
-                                    plan.geometry(),
+                                    &argument.indices,
                                 )
                             })
                             .collect::<Result<Vec<_>, _>>()?,
@@ -1569,7 +1540,11 @@ pub(crate) mod scalar_graph {
                 targeted,
                 target_operations::TargetUnitOperation::Call { .. }
             ) {
-                call_instructions::project_call(optimized, unit, targeted)?
+                call_instructions::project_call(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    targeted,
+                )?
             } else if matches!(
                 targeted,
                 target_operations::TargetUnitOperation::StructuralLeafCopy { .. }
@@ -2202,7 +2177,7 @@ pub(crate) mod scalar_graph {
                         .is_some() =>
                     {
                         call_instructions::project_normalized_foreign_call(
-                            node, optimized, native, plan, unit, operation,
+                            node, optimized, native, unit, operation,
                         )?
                     }
                     AbstractOperation::BoundaryCall {
@@ -2794,13 +2769,11 @@ pub(crate) mod scalar_graph {
                         .collect::<Vec<_>>();
                     for (argument, semantic) in structural.iter().zip(structural_arguments) {
                         actuals.push(legalized_operations::LegalizedScalarArgument::Structural {
-                            indices: crate::legalization::runtime_indices::projection(
-                                function,
-                                unit,
+                            indices: crate::legalization::runtime_indices::retained_operands(
+                                &unit.accepted_obligation_facts,
+                                function.machine,
                                 optimization_unit::PsiProvenance::Edge(*psi_edge),
-                                argument.root_structural_type,
-                                &argument.path,
-                                unit.geometry(),
+                                &argument.indices,
                             )?,
                             semantic: semantic.clone(),
                             target: argument.clone(),
@@ -3062,9 +3035,30 @@ pub(crate) mod scalar_graph {
         }
     }
 
+    /// Parameter sites are ordinal in the retained function ABI, not body-derived.
+    pub(crate) fn parameters(
+        target: &target_operations::TargetFunction,
+    ) -> Result<Vec<LegalizedScalarParameter>, LegalizationError> {
+        target
+            .graph
+            .scalar_parameters
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                Ok(LegalizedScalarParameter {
+                    value: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                    definition_site: optimization_unit::ValueDefinitionSite::FunctionParameter(
+                        u32::try_from(position).map_err(|_| Error::custody())?,
+                    ),
+                    placement: parameter.placement.clone(),
+                })
+            })
+            .collect()
+    }
+
     pub(crate) fn derive<'a>(
         target: &target_operations::TargetFunction,
-        abstracted: &abstract_operations::AbstractFunction,
         optimized: &optimization_unit::PsiOptimizationFunction,
         native: &'a TargetOperationPlan,
         plan: &'a crate::native_geometry::NativePlan<'a>,
@@ -3072,19 +3066,7 @@ pub(crate) mod scalar_graph {
         current_operation: &mut Option<semantic_vocabulary::OperationId>,
     ) -> Result<LegalizedScalarFunction, LegalizationError> {
         let call_plan = target.graph.call_plan.clone();
-        let parameters = optimized
-            .parameters
-            .iter()
-            .zip(&call_plan.parameters)
-            .map(|(parameter, placement)| {
-                Ok(LegalizedScalarParameter {
-                    value: parameter.value,
-                    scalar_type: parameter.scalar_type,
-                    definition_site: parameter.site,
-                    placement: placement.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>, LegalizationError>>()?;
+        let parameters = parameters(target)?;
         if optimized.blocks.len() != target.graph.blocks.len() {
             return Err(Error::custody());
         }
@@ -3146,10 +3128,8 @@ pub(crate) mod scalar_graph {
             provenance: target.provenance.clone(),
             call_plan,
             parameters,
-            structural: scalar_graph_input::structural_contract(
-                target, abstracted, optimized, plan,
-            ),
-            entry_block: optimized.entry,
+            structural: scalar_graph_input::structural_contract(target)?,
+            entry_block: target.graph.entry,
             blocks,
             ownership_frontier_facts: unit
                 .ownership_frontier_facts

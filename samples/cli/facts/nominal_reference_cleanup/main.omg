@@ -2,7 +2,7 @@
 // Expected exit: 0.
 data Seed [copy] { code: u64; }
 data Counter { value: u64; }
-data Keeper dropped by drop_keeper { output: &mut Counter; code: u64; }
+data Keeper<'view> dropped by drop_keeper { output: &'view mut Counter; code: u64; }
 machine drop_keeper(keeper: &mut Keeper) requires keeper.code == 7 {
     keeper.output.value = keeper.code;
 }

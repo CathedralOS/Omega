@@ -18,16 +18,7 @@ pub(crate) fn exact_declared_field(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&DataField> {
-    if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Field {
-        return None;
-    }
-    let mut fields = program
-        .data_definitions()
-        .iter()
-        .flat_map(|data| program.data_member_fields(program.data_members(data)))
-        .filter(|field| field.symbol == symbol);
-    let field = fields.next()?;
-    fields.next().is_none().then_some(field)
+    program.unique_declared_field_by_symbol(symbol)
 }
 
 /// The parameters a call of `target` passes its arguments to, or `None` when
@@ -986,6 +977,13 @@ impl DeclaredExpressionTypes {
         if !table.expression_is_valid(expression) {
             return None;
         }
+        let retained = table.constructed_value_type_reference(expression);
+        if program
+            .type_reference_table
+            .contains_type_reference(retained)
+        {
+            return Some(retained);
+        }
         if let ExpressionNode::Call(call) = table.expression(expression)
             && call.selects_only_nominal_route()
             && !call.receiver.is_valid()
@@ -1070,9 +1068,10 @@ impl DeclaredExpressionTypes {
                     )
                     .ok()
                     .flatten()
+                    && target.arguments.is_empty()
                 {
                     return program
-                        .machine_by_symbol(target)
+                        .machine_by_symbol(target.target)
                         .and_then(|machine| program.machine_states(machine).first())
                         .map(|state| state.return_type)
                         .filter(|reference| {
@@ -1091,7 +1090,13 @@ impl DeclaredExpressionTypes {
                     else {
                         return None;
                     };
-                    if program.symbols.get(*symbol).kind != SymbolKind::BuiltinType
+                    let kind = program.symbols.get(*symbol).kind;
+                    // A suffixed primitive fixes its result to the operand
+                    // carrier even before a generic carrier is applied. This
+                    // type query does not establish that its arithmetic is valid.
+                    if !(kind == SymbolKind::BuiltinType
+                        || (binary.policy != ArithmeticDomain::Exact
+                            && kind == SymbolKind::TypeParameter))
                         || result.is_some_and(|earlier| earlier != *symbol)
                     {
                         return None;
@@ -1107,6 +1112,106 @@ impl DeclaredExpressionTypes {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exact_constructor_fields_keep_case_and_constructor_owners() {
+        use symbols::{SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Choice"));
+        let foreign = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Foreign"));
+        let cases = symbols.insert_children(
+            owner,
+            [
+                (SymbolKind::Variant, SymbolNameRef::Static("First")),
+                (SymbolKind::Variant, SymbolNameRef::Static("Second")),
+            ],
+        );
+        let field = symbols
+            .insert_children(
+                cases.start(),
+                [(SymbolKind::Field, SymbolNameRef::Static("value"))],
+            )
+            .start();
+        let foreign_field = symbols
+            .insert_children(
+                foreign,
+                [(SymbolKind::Field, SymbolNameRef::Static("value"))],
+            )
+            .start();
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let payload = program.data_payload_fields.insert_many([DataField {
+            symbol: field,
+            type_reference: reference,
+            ..Default::default()
+        }]);
+        let members = program.data_members.insert_many([
+            DataMember::Variant(DataVariant {
+                symbol: cases.start(),
+                payload,
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                symbol: cases.handle_at(1),
+                ..Default::default()
+            }),
+        ]);
+        program.push_data_definition(DataDefinition {
+            symbol: owner,
+            members,
+            ..Default::default()
+        });
+        let members = program
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                symbol: foreign_field,
+                type_reference: reference,
+                ..Default::default()
+            })]);
+        program.push_data_definition(DataDefinition {
+            symbol: foreign,
+            members,
+            ..Default::default()
+        });
+        let mut literal = TableStructLiteral {
+            type_symbol: owner,
+            case_symbol: Some(cases.start()),
+            ..Default::default()
+        };
+        let expression = program
+            .expression_table
+            .insert(ExpressionNode::StructLiteral(literal.clone()));
+        assert_eq!(
+            selected_construction_field_type(&program, expression, &literal, field).unwrap(),
+            reference
+        );
+        assert!(
+            selected_construction_field_type(&program, expression, &literal, foreign_field)
+                .unwrap_err()
+                .message
+                .contains("constructor field owner")
+        );
+        literal.case_symbol = Some(cases.handle_at(1));
+        assert!(
+            selected_construction_field_type(&program, expression, &literal, field)
+                .unwrap_err()
+                .message
+                .contains("constructor case identity")
+        );
+        literal.case_symbol = Some(cases.start());
+        let snapshot = program.clone();
+        program.data_payload_fields.get_mut(payload.start()).symbol = foreign_field;
+        assert!(exact_declared_field(&program, field).is_none());
+        assert!(exact_declared_field(&program, foreign_field).is_none());
+        assert_eq!(
+            selected_construction_field_type(&snapshot, expression, &literal, field).unwrap(),
+            reference
+        );
+    }
+
     #[test]
     fn assignment_places_keep_applied_fields_and_refuse_foreign_or_duplicate_binders() {
         use symbols::{SymbolNameRef, SymbolTableBuilder};

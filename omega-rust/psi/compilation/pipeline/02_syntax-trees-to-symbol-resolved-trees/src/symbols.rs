@@ -423,6 +423,7 @@ mod contracts {
                     crate::symbols::type_references::reassign_type_reference_symbols(
                         symbols,
                         child_type_references,
+                        machine.type_constraints,
                         machine.type_parameters,
                         handle,
                     );
@@ -1686,28 +1687,11 @@ mod lookup {
     */
     pub(super) fn lexical_declaration_lookup(
         symbols: &SymbolTable,
-        mut scope: SymbolHandle,
+        scope: SymbolHandle,
         name: &str,
         kinds: &[SymbolKind],
     ) -> SymbolLookup {
-        while symbols.get(scope).kind == SymbolKind::Machine {
-            let mut declarations =
-                symbols
-                    .child_handles(scope)
-                    .into_iter()
-                    .flatten()
-                    .filter(|child| {
-                        kinds.contains(&symbols.get(*child).kind) && symbols.name(*child) == name
-                    });
-            if let Some(first) = declarations.next() {
-                return match declarations.next() {
-                    Some(second) => SymbolLookup::Ambiguous { first, second },
-                    None => SymbolLookup::Unique(first),
-                };
-            }
-            scope = symbols.get(scope).parent;
-        }
-        SymbolLookup::NotFound
+        symbols.lexical_declaration_lookup(scope, name, kinds)
     }
 
     pub(super) fn diagnostic_path_source_span(members: &[DiagnosticName]) -> source::SourceSpan {
@@ -2330,7 +2314,7 @@ mod mathematical {
     use symbols::SymbolTable;
 
     use super::propositions::assign_expression_symbols;
-    use super::type_references::assign_type_reference_symbol_with_locals;
+    use super::type_references::assign_type_reference_symbol_with_locals_and_constraints;
 
     pub(super) fn assign_mathematical_expression_symbols(
         program: &mut symbol_resolved_trees::SymbolResolvedTrees,
@@ -2340,6 +2324,7 @@ mod mathematical {
         let mathematical_parameters = &program.tables.declarations.mathematical_parameters;
         let mathematical_types = &mut program.tables.declarations.mathematical_types;
         let child_type_references = &mut program.tables.declarations.child_type_references;
+        let type_constraints = &program.tables.types.constraints;
         let expressions = &mut program.tables.bodies.expressions;
         let definitions = &program.roots.mathematical_definitions;
 
@@ -2354,9 +2339,10 @@ mod mathematical {
                     | TypeParameterKind::Value { type_reference } => type_reference,
                     _ => continue,
                 };
-                assign_type_reference_symbol_with_locals(
+                assign_type_reference_symbol_with_locals_and_constraints(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     &local_type_parameters,
                     type_reference,
                 );
@@ -2370,9 +2356,10 @@ mod mathematical {
                 let mut node = mathematical_types.get(handle).clone();
                 match &mut node {
                     MathematicalType::Ordinary(reference) => {
-                        assign_type_reference_symbol_with_locals(
+                        assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,
                             child_type_references,
+                            type_constraints,
                             &local_type_parameters,
                             reference,
                         );
@@ -2389,6 +2376,7 @@ mod mathematical {
                             assign_expression_symbols(
                                 expressions,
                                 child_type_references,
+                                type_constraints,
                                 symbols,
                                 definition.symbol,
                                 &local_type_parameters,
@@ -2406,6 +2394,7 @@ mod mathematical {
             assign_expression_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 definition.symbol,
                 &local_type_parameters,
@@ -2673,7 +2662,7 @@ mod propositions {
         ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern,
     };
     use symbol_resolved_trees::proposition::PropositionBody;
-    use symbol_resolved_trees::types::TypeReference;
+    use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
     use symbols::{FixedCoreDeclaration, JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
     use super::expressions::{NameRole, assign_struct_literal_symbols};
@@ -2689,6 +2678,7 @@ mod propositions {
     ) {
         let proposition_binders = &program.tables.declarations.proposition_binders;
         let child_type_references = &mut program.tables.declarations.child_type_references;
+        let type_constraints = &program.tables.types.constraints;
         let expressions = &mut program.tables.bodies.expressions;
         let propositions = &program.roots.propositions;
         for proposition in propositions {
@@ -2708,6 +2698,7 @@ mod propositions {
             assign_expression_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 proposition.symbol,
                 &local_type_parameters,
@@ -2719,6 +2710,7 @@ mod propositions {
     fn assign_expression_span_symbols(
         expressions: &mut ExpressionTable,
         child_type_references: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
         local_type_parameters: &[TypeParameter],
@@ -2729,6 +2721,7 @@ mod propositions {
             assign_expression_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 owner_symbol,
                 local_type_parameters,
@@ -2749,6 +2742,7 @@ mod propositions {
     pub(super) fn assign_expression_symbols(
         expressions: &mut ExpressionTable,
         child_type_references: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
         local_type_parameters: &[TypeParameter],
@@ -2757,28 +2751,29 @@ mod propositions {
         assign_expression_symbols_in_role(
             expressions,
             child_type_references,
+            type_constraints,
             symbols,
             owner_symbol,
             local_type_parameters,
-            expression,
-            NameRole::Value,
+            (expression, NameRole::Value),
         );
     }
 
     fn assign_expression_symbols_in_role(
         expressions: &mut ExpressionTable,
         child_type_references: &mut Arena<TypeReference>,
+        type_constraints: &Arena<TypeConstraint>,
         symbols: &SymbolTable,
         owner_symbol: SymbolHandle,
         local_type_parameters: &[TypeParameter],
-        expression: ExpressionHandle,
-        role: NameRole,
+        (expression, role): (ExpressionHandle, NameRole),
     ) {
         macro_rules! recurse {
             ($expression:expr) => {
                 assign_expression_symbols(
                     expressions,
                     child_type_references,
+                    type_constraints,
                     symbols,
                     owner_symbol,
                     local_type_parameters,
@@ -2802,15 +2797,18 @@ mod propositions {
                         assign_expression_symbols_in_role(
                             expressions,
                             child_type_references,
+                            type_constraints,
                             symbols,
                             owner_symbol,
                             local_type_parameters,
-                            pattern,
-                            if pattern == head {
-                                NameRole::PatternHead
-                            } else {
-                                NameRole::Value
-                            },
+                            (
+                                pattern,
+                                if pattern == head {
+                                    NameRole::PatternHead
+                                } else {
+                                    NameRole::Value
+                                },
+                            ),
                         );
                     }
                     recurse!(arm.value);
@@ -2820,6 +2818,7 @@ mod propositions {
             ExpressionNode::ArrayLiteral(values) => assign_expression_span_symbols(
                 expressions,
                 child_type_references,
+                type_constraints,
                 symbols,
                 owner_symbol,
                 local_type_parameters,
@@ -2840,6 +2839,7 @@ mod propositions {
                 crate::symbols::type_references::reassign_type_reference_symbols(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     local_type_parameters,
                     cast.target_type,
                 );
@@ -2847,6 +2847,7 @@ mod propositions {
                     crate::symbols::type_references::reassign_type_reference_symbols(
                         symbols,
                         child_type_references,
+                        type_constraints,
                         local_type_parameters,
                         handle,
                     );
@@ -2859,6 +2860,7 @@ mod propositions {
                 assign_expression_span_symbols(
                     expressions,
                     child_type_references,
+                    type_constraints,
                     symbols,
                     owner_symbol,
                     local_type_parameters,
@@ -3008,6 +3010,7 @@ mod propositions {
                 crate::symbols::type_references::reassign_type_reference_symbols(
                     symbols,
                     child_type_references,
+                    type_constraints,
                     local_type_parameters,
                     type_reference,
                 );
@@ -4709,13 +4712,57 @@ mod scoped_paths {
             } else {
                 resolve_path_head(symbols, machine_symbol, state_symbol, members)
             };
+        resolve_member_suffix(
+            symbols,
+            head,
+            &members[prefix_length..],
+            indexed_last_member,
+        )
+    }
+
+    /// Resolve a receiver only against bindings preceding this occurrence.
+    /// State arenas also contain later locals; those are not lexical candidates.
+    pub(super) fn resolve_lexical_members(
+        symbols: &SymbolTable,
+        machine: &super::scope::MachineScope<'_>,
+        parameters: &[symbol_resolved_trees::signature::StateParameter],
+        members: &[symbol_resolved_trees::name::DiagnosticName],
+    ) -> (SymbolHandle, SymbolHandle) {
+        let Some((first, suffix)) = members.split_first() else {
+            return invalid_symbol_pair();
+        };
+        let head = super::expressions::lexical_value_head(
+            machine,
+            parameters,
+            first.as_str(),
+            !suffix.is_empty(),
+        );
+        if head.is_valid() {
+            return resolve_member_suffix(symbols, head, suffix, None);
+        }
+        // Parameters were considered from the actual header above. Do not
+        // reopen the whole state's local roster while trying a declaration.
+        resolve_state_scoped_members(
+            symbols,
+            machine.symbol,
+            SymbolHandle::invalid(),
+            members,
+            None,
+        )
+    }
+
+    fn resolve_member_suffix(
+        symbols: &SymbolTable,
+        head: SymbolHandle,
+        suffix: &[symbol_resolved_trees::name::DiagnosticName],
+        indexed_last_member: Option<i64>,
+    ) -> (SymbolHandle, SymbolHandle) {
         if !head.is_valid() {
             return invalid_symbol_pair();
         }
         let mut current = head;
-
-        for (offset, member) in members[prefix_length..].iter().enumerate() {
-            let is_last = offset + prefix_length + 1 == members.len();
+        for (offset, member) in suffix.iter().enumerate() {
+            let is_last = offset + 1 == suffix.len();
             current = if let Some(last_index) = indexed_last_member.filter(|_| is_last) {
                 child_indexed_symbol_by_kinds(
                     symbols,
@@ -4736,7 +4783,6 @@ mod scoped_paths {
                 return (head, SymbolHandle::invalid());
             }
         }
-
         (head, current)
     }
 
@@ -5622,8 +5668,6 @@ use domain_facts::assign_domain_fact_symbols;
 use statements::{assign_machine_signature_reference_symbols, assign_statement_reference_symbols};
 use top_level::assign_top_level_symbols;
 
-pub(crate) use targets::normalize_static_module_calls;
-
 // The named entry takes precedence over the parser's implicit entry. Both the
 // symbol table and the provisional conformance catalog use this selection rule.
 pub(crate) fn select_machine_entry<T>(
@@ -6075,11 +6119,6 @@ pub(crate) fn assign_declarations(
         .types
         .generic_application_origins
         .len();
-    normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,
@@ -6116,11 +6155,6 @@ pub(crate) fn assign_body_symbols(
         selected_machines,
     )?;
     assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols)?;
-    normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
     contracts::finalize_outcome_specific_contract_symbols(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_outcome_specific_contracts,
@@ -6155,11 +6189,6 @@ pub(crate) fn assign_lexical_inputs(
         &symbols,
         &mut inputs,
     )?;
-    normalize_static_module_calls(
-        &mut lowerer.symbol_resolved_trees,
-        &lowerer.pending_static_module_calls,
-        &lowerer.pending_static_module_statement_calls,
-    );
     let mut calls = Vec::new();
     for input in &mut inputs {
         for (_, expression) in input.calls.drain(..) {

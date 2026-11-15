@@ -32,8 +32,6 @@ pub(crate) mod proof_bearing_scalar {
 
         use crate::{OperationSemanticError, ScalarLeafGoalShape};
 
-        use super::ProofBearingScalarLeafSchema;
-        use crate::semantic_rows::OperationSemanticTag;
         use std::cmp::Ordering;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +68,85 @@ pub(crate) mod proof_bearing_scalar {
         }
 
         impl CanonicalScalarGoal {
+            /// A computed term owes the same safety condition wherever it is
+            /// used. Inspect this node after its operands have been formed;
+            /// callers must also discharge every nested term's condition.
+            /// This describes a question, without assuming or proving it.
+            pub fn for_term(term: &ScalarTerm) -> Result<Option<Self>, OperationSemanticError> {
+                term.validate_after_operands()
+                    .map_err(OperationSemanticError::InvalidProposition)?;
+                Ok(Some(match term {
+                    ScalarTerm::IntegerExactCast {
+                        source_type,
+                        target_type,
+                        operand,
+                    } => Self::ExactCastRepresentable {
+                        source_type: *source_type,
+                        target_type: *target_type,
+                        operand: operand.as_ref().clone(),
+                    },
+                    ScalarTerm::ExactIntegerShiftRight {
+                        value_type,
+                        count_type,
+                        count,
+                        ..
+                    } => Self::ExactShiftCount {
+                        value_type: *value_type,
+                        count_type: *count_type,
+                        count: count.as_ref().clone(),
+                    },
+                    ScalarTerm::ExactIntegerShiftLeft {
+                        value_type,
+                        count_type,
+                        value,
+                        count,
+                    } => Self::ExactShiftLeftRepresentable {
+                        value_type: *value_type,
+                        count_type: *count_type,
+                        value: value.as_ref().clone(),
+                        count: count.as_ref().clone(),
+                    },
+                    ScalarTerm::ExactIntegerAdd { scalar_type, .. }
+                    | ScalarTerm::ExactIntegerSubtract { scalar_type, .. }
+                    | ScalarTerm::ExactIntegerMultiply { scalar_type, .. } => {
+                        Self::ExactArithmeticRepresentable {
+                            integer_type: *scalar_type,
+                            expression: term.clone(),
+                        }
+                    }
+                    ScalarTerm::ExactIntegerDivide {
+                        scalar_type,
+                        left,
+                        right,
+                    }
+                    | ScalarTerm::ExactIntegerRemainder {
+                        scalar_type,
+                        left,
+                        right,
+                    } => Self::ExactDivisionDefined {
+                        integer_type: *scalar_type,
+                        left: left.as_ref().clone(),
+                        right: right.as_ref().clone(),
+                    },
+                    ScalarTerm::WrappingIntegerDivide {
+                        scalar_type, right, ..
+                    }
+                    | ScalarTerm::WrappingIntegerRemainder {
+                        scalar_type, right, ..
+                    }
+                    | ScalarTerm::SaturatingIntegerDivide {
+                        scalar_type, right, ..
+                    }
+                    | ScalarTerm::SaturatingIntegerRemainder {
+                        scalar_type, right, ..
+                    } => Self::NonzeroDivisor {
+                        integer_type: *scalar_type,
+                        divisor: right.as_ref().clone(),
+                    },
+                    _ => return Ok(None),
+                }))
+            }
+
             pub const fn shape(&self) -> ScalarLeafGoalShape {
                 match self {
                     Self::ExactCastRepresentable { .. } => {
@@ -814,67 +891,11 @@ pub(crate) mod proof_bearing_scalar {
                 minus_one_case,
             ]))
         }
-
-        pub(crate) fn canonical_goal(
-            tag: OperationSemanticTag,
-            schema: ProofBearingScalarLeafSchema,
-            result_type: IntegerType,
-            auxiliary_type: Option<IntegerType>,
-            inputs: &[ScalarTerm],
-            denotation: ScalarTerm,
-        ) -> Result<CanonicalScalarGoal, OperationSemanticError> {
-            let invalid = || OperationSemanticError::ProofBearingScalarSchemaMismatch(tag);
-            match (schema.goal, inputs) {
-                (ScalarLeafGoalShape::ExactCastRepresentable, [operand]) => {
-                    Ok(CanonicalScalarGoal::ExactCastRepresentable {
-                        source_type: auxiliary_type.ok_or_else(invalid)?,
-                        target_type: result_type,
-                        operand: operand.clone(),
-                    })
-                }
-                (ScalarLeafGoalShape::ExactShiftCount, [_, count]) => {
-                    Ok(CanonicalScalarGoal::ExactShiftCount {
-                        value_type: result_type,
-                        count_type: auxiliary_type.ok_or_else(invalid)?,
-                        count: count.clone(),
-                    })
-                }
-                (ScalarLeafGoalShape::ExactShiftLeftRepresentable, [value, count]) => {
-                    Ok(CanonicalScalarGoal::ExactShiftLeftRepresentable {
-                        value_type: result_type,
-                        count_type: auxiliary_type.ok_or_else(invalid)?,
-                        value: value.clone(),
-                        count: count.clone(),
-                    })
-                }
-                (ScalarLeafGoalShape::ExactArithmeticRepresentable, [_, _]) => {
-                    Ok(CanonicalScalarGoal::ExactArithmeticRepresentable {
-                        integer_type: result_type,
-                        expression: denotation,
-                    })
-                }
-                (ScalarLeafGoalShape::ExactDivisionDefined, [left, right]) => {
-                    Ok(CanonicalScalarGoal::ExactDivisionDefined {
-                        integer_type: result_type,
-                        left: left.clone(),
-                        right: right.clone(),
-                    })
-                }
-                (ScalarLeafGoalShape::NonzeroDivisor, [_, divisor]) => {
-                    Ok(CanonicalScalarGoal::NonzeroDivisor {
-                        integer_type: result_type,
-                        divisor: divisor.clone(),
-                    })
-                }
-                _ => Err(invalid()),
-            }
-        }
     }
     use crate::scalars::scalar_leaf_semantics::integer_type;
     use crate::scalars::scalar_leaf_semantics::value_term;
     use crate::semantic_rows::OperationSemanticTag;
     pub use canonical_goal::CanonicalScalarGoal;
-    use canonical_goal::canonical_goal;
 
     pub type ProofBearingScalarLeafSchema = ScalarLeafSchema;
 
@@ -1232,7 +1253,7 @@ pub(crate) mod proof_bearing_scalar {
         inputs: ProofBearingInputs,
         result_type: IntegerType,
         value_types: &dyn ValueTypes,
-    ) -> Result<(ScalarTerm, Option<IntegerType>, Vec<ScalarTerm>), OperationSemanticError> {
+    ) -> Result<ScalarTerm, OperationSemanticError> {
         let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
         let built = match (schema.operands, schema.denotation, inputs) {
             (
@@ -1242,10 +1263,8 @@ pub(crate) mod proof_bearing_scalar {
             ) => {
                 let operand = value_term(operand, value_types)?;
                 let source_type = integer_type(&operand).ok_or_else(invalid)?;
-                let denotation =
-                    ScalarTerm::integer_exact_cast(source_type, result_type, operand.clone())
-                        .map_err(OperationSemanticError::InvalidProposition)?;
-                (denotation, Some(source_type), vec![operand])
+                ScalarTerm::integer_exact_cast(source_type, result_type, operand)
+                    .map_err(OperationSemanticError::InvalidProposition)?
             }
             (
                 ScalarLeafOperandShape::IntegerShift,
@@ -1263,27 +1282,16 @@ pub(crate) mod proof_bearing_scalar {
                     return Err(OperationSemanticError::OperandShapeMismatch(tag));
                 }
                 let count_type = integer_type(&count).ok_or_else(invalid)?;
-                let denotation = match schema.denotation {
+                match schema.denotation {
                     ScalarLeafDenotation::ExactIntegerShiftLeft => {
-                        ScalarTerm::exact_integer_shift_left(
-                            result_type,
-                            count_type,
-                            value.clone(),
-                            count.clone(),
-                        )
+                        ScalarTerm::exact_integer_shift_left(result_type, count_type, value, count)
                     }
                     ScalarLeafDenotation::ExactIntegerShiftRight => {
-                        ScalarTerm::exact_integer_shift_right(
-                            result_type,
-                            count_type,
-                            value.clone(),
-                            count.clone(),
-                        )
+                        ScalarTerm::exact_integer_shift_right(result_type, count_type, value, count)
                     }
                     _ => unreachable!("matched exact-shift denotation"),
                 }
-                .map_err(OperationSemanticError::InvalidProposition)?;
-                (denotation, Some(count_type), vec![value, count])
+                .map_err(OperationSemanticError::InvalidProposition)?
             }
             (
                 ScalarLeafOperandShape::BinaryInteger,
@@ -1331,9 +1339,8 @@ pub(crate) mod proof_bearing_scalar {
                     }
                     _ => return Err(invalid()),
                 };
-                let built = constructor(result_type, left.clone(), right.clone())
-                    .map_err(OperationSemanticError::InvalidProposition)?;
-                (built, None, vec![left, right])
+                constructor(result_type, left, right)
+                    .map_err(OperationSemanticError::InvalidProposition)?
             }
             _ => return Err(OperationSemanticError::OperandShapeMismatch(tag)),
         };
@@ -1354,15 +1361,9 @@ pub(crate) mod proof_bearing_scalar {
         let result_type = require_integer_type(row.tag, result.scalar_type)?;
         let (inputs, obligation) = proof_bearing_inputs(&operation.kind)
             .ok_or(OperationSemanticError::OperandShapeMismatch(row.tag))?;
-        let (denotation, auxiliary_type, inputs) =
-            build_denotation(row.tag, row.schema, inputs, result_type, value_types)?;
-        let canonical_goal = canonical_goal(
-            row.tag,
-            row.schema,
-            result_type,
-            auxiliary_type,
-            &inputs,
-            denotation.clone(),
+        let denotation = build_denotation(row.tag, row.schema, inputs, result_type, value_types)?;
+        let canonical_goal = CanonicalScalarGoal::for_term(&denotation)?.ok_or(
+            OperationSemanticError::ProofBearingScalarSchemaMismatch(row.tag),
         )?;
         if canonical_goal.shape() != row.schema.goal
             || row.schema.fact != ScalarLeafFactShape::ResultEquation
@@ -1471,16 +1472,15 @@ pub(crate) mod proof_bearing_scalar {
             .scalar_ref()
             .ok_or(OperationSemanticError::MissingScalarResult(tag))?;
         let result_type = require_integer_type(tag, result.scalar_type)?;
-        let (denotation, auxiliary_type, inputs) =
-            build_denotation(exact, schema, inputs, result_type, value_types)?;
-        let completes = canonical_goal(
-            exact,
-            schema,
-            result_type,
-            auxiliary_type,
-            &inputs,
-            denotation.clone(),
+        let denotation = build_denotation(exact, schema, inputs, result_type, value_types)?;
+        let completes = CanonicalScalarGoal::for_term(&denotation)?.ok_or(
+            OperationSemanticError::ProofBearingScalarSchemaMismatch(exact),
         )?;
+        if completes.shape() != schema.goal {
+            return Err(OperationSemanticError::ProofBearingScalarSchemaMismatch(
+                exact,
+            ));
+        }
         Ok(Some(TrappingIntegerSemantics {
             completes,
             result_equation: Proposition::Equal(
@@ -1488,6 +1488,73 @@ pub(crate) mod proof_bearing_scalar {
                 denotation,
             ),
         }))
+    }
+
+    #[cfg(test)]
+    mod formation_tests {
+        use super::*;
+        use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerValue};
+
+        #[test]
+        fn terms_keep_their_own_formation_conditions() {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let literal =
+                |value| ScalarTerm::integer(integer, IntegerValue::Unsigned(value)).unwrap();
+            let offset = ValueId::new(17).unwrap();
+            let difference = ScalarTerm::exact_integer_subtract(
+                integer,
+                literal(255),
+                ScalarTerm::value(offset, ScalarType::Integer(integer)),
+            )
+            .unwrap();
+            assert_eq!(
+                CanonicalScalarGoal::for_term(&difference)
+                    .unwrap()
+                    .unwrap()
+                    .kernel_proposition()
+                    .unwrap(),
+                Proposition::IntegerMathLessOrEqual(
+                    IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
+                    IntegerMathTerm::Subtract(
+                        Box::new(IntegerMathTerm::literal(IntegerValue::Unsigned(255))),
+                        Box::new(IntegerMathTerm::MathValue {
+                            source_type: integer,
+                            value: offset,
+                        }),
+                    ),
+                )
+            );
+            let underflow =
+                ScalarTerm::exact_integer_subtract(integer, literal(0), literal(1)).unwrap();
+            assert_eq!(
+                CanonicalScalarGoal::for_term(&underflow)
+                    .unwrap()
+                    .unwrap()
+                    .kernel_proposition()
+                    .unwrap(),
+                Proposition::Falsehood,
+            );
+            let division =
+                ScalarTerm::wrapping_integer_divide(integer, literal(3), literal(0)).unwrap();
+            assert_eq!(
+                CanonicalScalarGoal::for_term(&division)
+                    .unwrap()
+                    .unwrap()
+                    .kernel_proposition()
+                    .unwrap(),
+                Proposition::LessOrEqual(literal(1), literal(0)),
+                "wrapping does not define division by zero",
+            );
+            let addition =
+                ScalarTerm::wrapping_integer_add(integer, literal(255), literal(1)).unwrap();
+            assert_eq!(CanonicalScalarGoal::for_term(&addition).unwrap(), None);
+            let malformed = ScalarTerm::ExactIntegerSubtract {
+                scalar_type: integer,
+                left: Box::new(ScalarTerm::Boolean(true)),
+                right: Box::new(literal(1)),
+            };
+            assert!(CanonicalScalarGoal::for_term(&malformed).is_err());
+        }
     }
 }
 pub(crate) mod scalar_array {

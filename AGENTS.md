@@ -203,6 +203,13 @@ beside that test.
    validation, and PR) in its own context window. After landing or
    handing off a slice, continue the next requirement of the same capability on
    the warm worktree.
+   Acquisition starts a stable model-audit interval automatically. Before a new
+   outcome on a clean warm slot, run `mbx xtask worktree begin`; it changes only
+   that slot's audit boundary, never its source, cache or pool lease. Keep one
+   interval through checkpoints and rebases. Existing active slots adopt a
+   provable checkout-local boundary once; ambiguous history refuses rather than
+   charging an unrelated outcome. `provenance --full-session` is an explicit
+   whole-session audit, not a workaround for missing interval identity.
 
 ### Requirements and evidence
 

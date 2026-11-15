@@ -7,7 +7,7 @@ Execution follows [advance](../../.agents/skills/advance/SKILL.md), and publicat
 `mbx xtask worktree acquire <lane>-<topic>` claims a slot.
 `mbx xtask worktree status` lists the checkouts.
 `mbx xtask claims status` shows live claims.
-Record a finding with `mbx xtask claims note --ticket <ticket> --text "<finding>"`.
+A claim note lasts only as long as its claim. Record a finding where it stays: the pull request, `TASKS.md` for remaining work, or `OWNER_CODE_CONCERNS.md` for a defect beyond the change.
 Release a finished claim with `mbx xtask claims release --ticket <ticket>`.
 Land a pull request by squash-merging it once `admission` passes ([landing](../docs/landing.md)).
 

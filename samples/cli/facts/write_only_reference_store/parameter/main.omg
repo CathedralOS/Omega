@@ -5,7 +5,7 @@
 // explicit machine parameters.
 // Expected exit: 0
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'view> { target: &'view Cell; stamp: i64; }
 
 machine install(slot: &write Held, incoming: &Cell) {
     slot.target = incoming;

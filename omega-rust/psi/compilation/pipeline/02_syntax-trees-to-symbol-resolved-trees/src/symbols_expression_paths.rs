@@ -527,6 +527,24 @@ mod receivers {
                     invalid_symbol_pair()
                 }
             }
+            ExpressionNode::Name(path)
+                if indexed_last_member.is_none() && !path.static_application.is_valid() =>
+            {
+                if path.head_symbol.is_valid() {
+                    (path.head_symbol, path.symbol)
+                } else {
+                    // The name's lexical visit already ruled out prior locals
+                    // and parameters. A later local cannot reopen that answer.
+                    resolve_state_scoped_table_path(
+                        symbols,
+                        machine.symbol,
+                        SymbolHandle::invalid(),
+                        expression_table,
+                        path,
+                        None,
+                    )
+                }
+            }
             ExpressionNode::Name(path) => resolve_state_scoped_table_path(
                 symbols,
                 machine.symbol,

@@ -5,7 +5,7 @@ domain Storage::Issued established by issue;
 domain Storage::Reissued established by reissue;
 machine issue(value: u32) -> Storage in Issued { Storage { left_canary: 17, value: value, right_canary: 23 } }
 machine reissue(value: u32) -> Storage in Reissued { Storage { left_canary: 17, value: value, right_canary: 23 } }
-data Envelope { view: &write Storage; }
+data Envelope<'view> { view: &'view write Storage; }
 machine write(storage: &write Storage in Issued) {
     let mut envelope: Envelope = Envelope { view: storage as &write Storage };
     envelope.view.value = 73;

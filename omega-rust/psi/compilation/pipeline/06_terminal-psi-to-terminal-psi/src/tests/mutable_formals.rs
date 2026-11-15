@@ -354,12 +354,25 @@ fn a_whole_borrowed_record_replacement_requires_mutable_access() {
         .replace("owner: &mut Item", "owner: &Item")
         .replace("replace(&mut item)", "replace(&item)");
     let verdict = super::build_purpose::judge_build(&source);
-    let Ok(RouteVerdict::FallBack(refusal)) = verdict else {
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
         panic!("shared access cannot replace the caller's root: {verdict:?}");
     };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one access violation: {violations:?}");
+    };
     assert_eq!(
-        refusal.detail,
-        "statement assignment to an immutable binding while reading the body of `replace`"
+        violation.statement,
+        "this place requires mutable source access, and the reference it is reached through grants \
+         shared access only: a reference admits no child with access it does not itself hold \
+         while reading the body of `replace`"
+    );
+    let start = source.find("owner = replacement;").unwrap();
+    assert_eq!(
+        violation.site,
+        Some(source::SourceSpan::new(
+            source::SourceId(1),
+            source::Span::new(start, start + "owner".len())
+        ))
     );
 }
 

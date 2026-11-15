@@ -11,13 +11,13 @@ requires
     valid_utf8(self);
 use omega_language_std::Console;
 
-data Item {
+data Item<'view> {
     id: i32;
-    name: &[u8] in Utf8;
+    name: &'view [u8] in Utf8;
 }
 
-data Main {
-    items: [Item; 3];
+data Main<'view> {
+    items: [Item<'view>; 3];
     pause: [u8; 256];
 }
 

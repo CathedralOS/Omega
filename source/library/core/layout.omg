@@ -271,8 +271,8 @@ public data FieldAccess {
     );
 }
 
-public data AccessFieldEntry {
-    field: FieldInfo;
+public data AccessFieldEntry<'text> {
+    field: FieldInfo<'text>;
     access: FieldAccess;
 }
 
@@ -285,37 +285,37 @@ public data BoundaryReach requires service_count <= 32 {
 
 // A policy states its issuer choice explicitly. The first case is the
 // ordinary zero value, so omitted or zeroed issuance permits nobody.
-public data Issuance {
-    case Only(routes: [CallableInfo]);
+public data Issuance<'text> {
+    case Only(routes: [CallableInfo<'text>]);
     case Unrestricted;
 }
 
 // A region describes a semantic subject or member, independently of layout.
 // The receiving validator authenticates its schema and member correspondence.
-public data AccessRegion {
-    case Subject(schema: TypeSchema);
-    case Field(field: FieldInfo);
+public data AccessRegion<'text> {
+    case Subject(schema: TypeSchema<'text>);
+    case Field(field: FieldInfo<'text>);
 }
 
-public data AccessCallerRule {
-    region: AccessRegion;
-    callers: [CallableInfo];
+public data AccessCallerRule<'text> {
+    region: AccessRegion<'text>;
+    callers: [CallableInfo<'text>];
 }
 
 // Access policies describe restrictions and observation demands. Geometry is
 // selected separately through FixedLayout; neither result supplies backing.
 // Counts bound private construction storage, not semantic identities. Active
 // rows must be validated in full; overflow is rejected, never truncated.
-public data AccessPlan
+public data AccessPlan<'text>
 requires field_count <= 32, reader_count <= 32, writer_count <= 32
 {
-    schema: TypeSchema;
-    issuance: Issuance;
-    fields: [AccessFieldEntry; 32];
+    schema: TypeSchema<'text>;
+    issuance: Issuance<'text>;
+    fields: [AccessFieldEntry<'text>; 32];
     field_count: u64;
-    readers: [AccessCallerRule; 32];
+    readers: [AccessCallerRule<'text>; 32];
     reader_count: u64;
-    writers: [AccessCallerRule; 32];
+    writers: [AccessCallerRule<'text>; 32];
     writer_count: u64;
     reach: BoundaryReach;
 }

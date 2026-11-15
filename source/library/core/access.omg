@@ -30,7 +30,7 @@ use omega::language::core::reflect::FieldInfo;
 
 // A new plan adds no reader/writer restriction, observation demand or reach.
 // Its explicit issuance choice is independent of those empty axes.
-public machine new_plan(schema: &TypeSchema, issuance: Issuance) -> AccessPlan
+public machine new_plan<'text>(schema: &TypeSchema<'text>, issuance: Issuance<'text>) -> AccessPlan<'text>
 reaches none
 crashes none
 terminates
@@ -54,7 +54,7 @@ ensures result.field_count == 0, result.reader_count == 0,
 // Each call appends an independent restriction. Empty callers deny that
 // region, while no row adds no restriction. Parent and repeated rules remain
 // separate so normalization must intersect them rather than replace a row.
-public machine allow_readers(plan: &mut AccessPlan, region: AccessRegion, callers: [CallableInfo])
+public machine allow_readers<'text>(plan: &mut AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -65,7 +65,7 @@ requires plan.reader_count < 32
     plan.reader_count = index + 1;
 }
 
-public machine allow_readers(plan: &mut AccessPlan, field: FieldInfo, callers: [CallableInfo])
+public machine allow_readers<'text>(plan: &mut AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -74,7 +74,7 @@ requires plan.reader_count < 32
     allow_readers(plan, AccessRegion::Field { field: field }, callers);
 }
 
-public machine allow_writers(plan: &mut AccessPlan, region: AccessRegion, callers: [CallableInfo])
+public machine allow_writers<'text>(plan: &mut AccessPlan<'text>, region: AccessRegion<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -85,7 +85,7 @@ requires plan.writer_count < 32
     plan.writer_count = index + 1;
 }
 
-public machine allow_writers(plan: &mut AccessPlan, field: FieldInfo, callers: [CallableInfo])
+public machine allow_writers<'text>(plan: &mut AccessPlan<'text>, field: FieldInfo<'text>, callers: [CallableInfo<'text>])
 reaches none
 crashes none
 terminates
@@ -96,7 +96,7 @@ requires plan.writer_count < 32
 
 // Appending preserves repeated demands for the same field. Normalization must
 // satisfy every row; construction does not replace an inherited restriction.
-public machine observe(plan: &mut AccessPlan, field: FieldInfo, access: FieldAccess)
+public machine observe<'text>(plan: &mut AccessPlan<'text>, field: FieldInfo<'text>, access: FieldAccess)
 reaches none
 crashes none
 terminates

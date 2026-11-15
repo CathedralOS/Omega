@@ -15,12 +15,12 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-data Blob {
-    #0 bytes: &[u8];
+data Blob<'view> {
+    #0 bytes: &'view [u8];
 }
 
-data BlobSample {
-    bytes: &[u8];
+data BlobSample<'view> {
+    bytes: &'view [u8];
 }
 
 data WireVerdict {
