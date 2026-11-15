@@ -73,6 +73,20 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The target-body reachability policy has no compiler caller
+- Category: zombie machinery
+- Where: [target_bodies.rs](omega-rust/omega/compilation/realization/provider-selection/src/bodies/target_bodies.rs#L14), [typed direct-call inventory](omega-rust/psi/compilation/representations/typed-trees/src/service_declarations.rs#L90)
+- Saw: `DirectTargetBodyAbsences` and `reject_reached_inert_calls` appear only at their definitions and reexports in the workspace. The inventory's direct-call accessors have only crate tests as customers. Current [target supply](omega-rust/omega/compilation/realization/provider-planning/src/target_supply.rs#L639) refuses a demanded target-machine family by name.
+- Cost: The exported graph and inventory tests can look like evidence that current target preparation resolves these requests. Trace the remaining direct-call projections before retiring the unused path while preserving the active refusal.
+- Reported: 2026-11-14, Codex, while tracing the surviving path from provider choice to publication
+
+### Malformed reference identity reports a different byte from its diagnostic test
+- Category: tests that pin the bug
+- Where: [language-semantics offset test](omega-rust/psi/foundation/language-semantics/src/tests.rs#L544), [package review visitor](omega-rust/omega/packages/review-evidence/src/encoding/encode/membership/visitor.rs#L73)
+- Saw: `mbx test -p language-semantics --lib malformed_identity_offset_names_the_byte_the_grammar_stopped_on` fails with the Psi sources restored to `3611237cf0188c0242fef95e612f0db584ce48c9` on macOS arm64. For `ref(compiler-type(atom(u8)),elided-region)`, the test expects byte offset 27 (the comma) and the parser reports 28 (the extra operand's first byte).
+- Cost: Package review uses this offset to locate malformed identities, and the red test obscures other failures in the language-semantics suite. Resolve where the diagnostic should point and pin that contract for the malformed operand.
+- Reported: 2026-11-14, Codex, while validating removal of the retired provider chooser
+
 ### A view returned by a call keeps no loan of the input it borrows from
 - Category: a verdict with nothing behind it
 - Where: `reference_call_lifetimes` in [terminal-psi semantics references.rs](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs), consumed by `formed` in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs)
@@ -128,13 +142,6 @@ framework or a list of features that remain unimplemented.
 - Saw: typing classifies batches of unbound value/call names with `names_nothing_has`; Psi 05 calls it again for individual unresolved domain/invocation rows. The helper walks every symbol and compares only its final name segment, regardless of namespace, visibility or declaration kind. The domain reader first strips its qualified spelling. An unrelated local or library declaration can therefore change unknown-versus-unserved classification; this observation is not evidence that the final checker accepts an invalid program.
 - Cost: Later stages repair incomplete resolution information with a weaker global query, and each Psi 05 request revisits the entire symbol table. Have resolution/typing carry the exact resolved target or a structured unresolved reason with its source, scope and authority; let the reader consume that outcome. Preserve the distinction between malformed source and a valid construct deferred until demanded. Acceptance needs same-leaf names in different namespaces and declaration kinds, inaccessible imports, qualified unknown names, and unreachable malformed uses; unrelated declarations must not change the result or trigger another whole-program search. Trace value/call, domain and invocation producers through publication rather than merely indexing the spelling search.
 - Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; source inspection, not an execution or timing result
-
-### Psi's language-semantics foundation owns Omega's target-provider choice policy
-- Category: knowledge crossing a boundary
-- Where: [shared choice engine](omega-rust/psi/foundation/language-semantics/src/declaration_selection.rs#L169), [Omega candidate adaptation and invocation](omega-rust/omega/compilation/realization/provider-selection/src/choice/selection.rs#L189)
-- Saw: `language_semantics::declaration_selection::provider_choices` implements target filtering, target-package defaults, Build overrides, receiver coverage and provider preference. Its production chooser caller is Omega's provider-selection crate, which adapts native candidates and passes the selected target name. This lives behind generic traits and a string target, so Cargo dependency direction alone does not reveal the policy crossing.
-- Cost: Native realization policy can grow inside a Psi foundation and look available to every earlier stage. Move the chooser and its policy-specific interfaces/tests under Omega's provider-selection owner, leaving genuinely target-neutral declaration records in Psi. Keep selection orchestration visible there and prevent a replacement shared helper from recreating the same direction. Acceptance preserves target filtering, override/default precedence, ambiguity and partial-coverage refusals, receiver relationships, deterministic choice/error order and emitted identities across the hosted target profiles. This is an ownership repair, not a request to duplicate the algorithm or change provider semantics.
-- Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`
 
 ### Specialization receipt queries scan every receipt per dispatched call
 - Category: re-deriving

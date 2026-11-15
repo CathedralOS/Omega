@@ -706,26 +706,10 @@ selection at their original admission points. Empty callback rosters do not
 initialize it. Clones share preparation, equality ignores only derived cache
 state, and no caller can replace the program independently of its plans.
 
-Psi's `PreparedProviderInventory` retains that same immutable checked owner
-before target selection. Its lazy demand inventory includes callable references,
-concrete and symbolic boundary applications, and implicit closed descriptor
-requirements; it is not entry reachability. Omega's source-free demand predicate
-reads those prepared coordinates, and the authored-choice predicate is shared
-with complete provider publication. Publication does not discard undemanded
-candidates. The inventory also retains authored Product target origins from the
-same typed-source query used during early Build preparation. Omega selects target
-defaults from these declarations without rescanning machine bodies. These
-process-local coordinates are not another portable boundary.
-
-That owner also retains direct-call declarations in machine/state/first-encounter
-order. Psi resolves exact machine and state aliases and records authored target,
-lexical target context, raw target membership, scope and family coordinates.
-Omega's `provider-selection/target_bodies.rs` consumes those records for candidate
-absence propagation and selected-entry/provider reach, preserving their distinct
-body-resolution rules. Neither operation walks source bodies. Rootless checks
-still impose no entry reach, and absence remains negative evidence rather than
-an execution grant. These are invocation-local declarations, not a new portable
-family schema or renewed support for retired target-prefixed syntax.
+Psi's `PreparedProviderInventory` retains the immutable typed owner and its
+service declarations for inspection. The target-supply walk instead follows
+boundary calls from the accepted Terminal module. The walk refuses a demand for
+a Build-selected target implementation until that supply has a producer.
 
 Numeric meaning and external satisfaction have one Psi declaration producer,
 shared by Terminal retention and rootless package projection. Checked-provider
@@ -804,27 +788,15 @@ or substitute a target-specific checked snapshot.
 Retained declarations do not reinstate retired standalone boundary requirements
 or source `via` bindings.
 
-The source-producing operation returns each Terminal application with its exact
-Build provider companion. It closes those proposals against the emitted demand
-catalog before returning the product: selecting against all source candidates
-would incorrectly demand unused providers. Native completion attaches the retained
-proposals without reopening source selection. Unavailable target rows remain data
-for receiving admission, not failures of shared portable production.
-Authored provider derivation retains the exact target, defaults and original
-candidate provenance before native Build supplies or compiler-minted plans enter
-the execution inventory. Early settlement and publication consume that same
-inventory; additional publication targets use its source-side producer. Publication
-does not settle defaults or derive the requested target a second time. Portable
-owner closure and actual-demand selection remain later operations, preserving
-rootless checks and deferred refusals for unused candidates and unavailable targets.
-`realization/provider-selection` owns whole-provider choice and admission over
-prepared declarations. Source Check/review adapts exact invocation identities;
-Terminal publication retains nominal declaration kind and callable overload
-without source handles. Both use the same default/override, inherited-map,
-complete-family and composition policy. Choice consumes candidates and keeps each
-selected plan beside its closure columns; publication cannot recover another
-plan from a later inventory. Source preparation retains family replay refusals,
-while artifact demand determines which complete candidates enter selection.
+Target preparation starts from the accepted Terminal module and follows the
+boundary requirements reached by its entries and chosen providers.
+`provider_planning::target_supply` applies the Build overrides and target-package
+defaults to those requirements. The compiler judges the chosen providers for
+that target and settles their plans. `SelectedExecution::provider_proposal`
+joins those exact plans to the produced Terminal artifact through
+`TerminalTargetProviderSelection::from_plans`. Native completion consumes the
+proposal and uses `realization/provider-selection` to admit the already chosen
+boundary applications and bodies.
 Completion consumes an explicit native-proposal request and the produced
 application, not a checked compilation. The application retains physical-adapter
 selection; completion still binds its exact arrival contract against the artifact.
@@ -1203,10 +1175,9 @@ accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
-owns source provider derivation, declaration preparation, and calling/component
-planning. [`provider-selection/src/choice.rs`](omega/compilation/realization/provider-selection/src/choice.rs)
-owns shared whole-provider choice and admission; its `publication.rs` selects
-canonical companions against Terminal demand without source dependencies.
+owns target supply selection and provider plan formation.
+[`provider-selection/src/boundary.rs`](omega/compilation/realization/provider-selection/src/boundary.rs)
+admits canonical boundary applications against the chosen plans.
 Psi projects checked task activation requirements, exact specialization and
 carry evidence, and the reachable frame graph into Terminal Psi. State-resident
 storage and staged arguments at each suspension crossing remain separate
