@@ -437,14 +437,27 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         error.detail,
         "machine caller describes another source declaration or revision"
     );
-    let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
-    let facts = facts();
-    let result = prepared
-        .entry(main, main, &[])
-        .unwrap()
-        .invoke_recorded(target(&facts), &mut accounting)
-        .expect("the unchanged original program executes with its genuine issuer");
-    assert_eq!(result.value(), &BuildTimeValue::Unit);
+    // This is an ordinary program with an authored Trap ceiling. Execute its
+    // accepted product; constant evaluation has a separate no-crash condition.
+    let produced = accepted
+        .produce(
+            Default::default(),
+            &mut terminal_production::UnmeasuredProduction,
+        )
+        .expect("publish the same accepted ordinary program");
+    let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation::default())
+        .expect("the original program needs no external supply");
+    let mut meter = terminal_work::WorkMeter::unbounded();
+    assert_eq!(
+        instance
+            .invoke(&mut meter)
+            .expect("execute the original main"),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit,
+        ),
+    );
     accounting.validate_charges().unwrap();
 }
 
