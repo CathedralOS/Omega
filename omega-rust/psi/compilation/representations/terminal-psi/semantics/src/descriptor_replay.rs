@@ -5319,8 +5319,11 @@ pub(crate) mod engine {
                         elements: None,
                     };
                     for origin in origins {
-                        let mut incoming =
-                            self.exported_result(machine, states, &origin, &source, depth + 1)?;
+                        let incoming = self.exported_result(machine, states, &origin, &source, depth + 1);
+                        if incoming.is_none() {
+                            eprintln!("roster-element-export: machine {:?} source {:?} origin {:?}", machine.id, source, origin);
+                        }
+                        let mut incoming = incoming?;
                         incoming.path = relative.path.clone();
                         exported.merge(incoming)?;
                     }
@@ -5536,9 +5539,14 @@ pub(crate) mod engine {
                             return None;
                         }
                         for origin in origins {
-                            slot.merge(
-                                self.exported_result(machine, &states, &origin, &location, 0)?,
-                            )?;
+                            let exported = self.exported_result(machine, &states, &origin, &location, 0);
+                            if exported.is_none() {
+                                eprintln!("roster-result-export: machine {:?} slot {:?} type {:?} origin {:?}", machine.id, location, machine.location_type(self.types, &location, None), origin);
+                                if let Origin::Storage(backing) = &origin {
+                                    eprintln!("roster-result-backing: {:?} type {:?} owned {} constructor {:?}", backing, machine.location_type(self.types, backing, None), self.owns_roster(machine, backing), machine.sequence_construction(self.types, backing.root, None).map(|(position, element, step)| (position, element, step.inputs.clone())));
+                                }
+                            }
+                            slot.merge(exported?)?;
                         }
                     }
                 }
