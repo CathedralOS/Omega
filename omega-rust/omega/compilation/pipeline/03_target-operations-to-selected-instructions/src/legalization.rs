@@ -11,7 +11,7 @@ pub(crate) mod model {
 
     pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
         OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.terminal-target-legalization-independent-replay.v57",
+            b"omega.terminal-target-legalization-independent-replay.v58",
         )
     }
 
@@ -224,11 +224,13 @@ pub(crate) mod obligations {
         owner: impl Into<optimization_unit::PsiProvenance>,
         obligation: ObligationId,
     ) -> impl Iterator<Item = &'unit optimization_unit::AcceptedObligationFact> {
-        let owner = optimization_unit::AcceptedObligationOwner::from(owner.into());
-        let machine = optimized.machine;
-        unit.accepted_obligation_facts.iter().filter(move |fact| {
-            fact.machine == machine && fact.owner == owner && fact.obligation == obligation
-        })
+        matching_fact(
+            &unit.accepted_obligation_facts,
+            optimized.machine,
+            owner.into(),
+            obligation,
+        )
+        .into_iter()
     }
 
     pub(crate) fn accepted_fact(
@@ -237,10 +239,40 @@ pub(crate) mod obligations {
         owner: impl Into<optimization_unit::PsiProvenance>,
         obligation: ObligationId,
     ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
-        facts(unit, optimized, owner, obligation)
-            .next()
+        retained_fact(
+            &unit.accepted_obligation_facts,
+            optimized.machine,
+            owner,
+            obligation,
+        )
+    }
+
+    pub(crate) fn retained_fact(
+        facts: &[optimization_unit::AcceptedObligationFact],
+        machine: semantic_vocabulary::MachineId,
+        owner: impl Into<optimization_unit::PsiProvenance>,
+        obligation: ObligationId,
+    ) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
+        matching_fact(facts, machine, owner.into(), obligation)
             .map(|fact| fact.identity)
             .ok_or_else(LegalizationError::custody)
+    }
+
+    fn matching_fact(
+        facts: &[optimization_unit::AcceptedObligationFact],
+        machine: semantic_vocabulary::MachineId,
+        owner: optimization_unit::PsiProvenance,
+        obligation: ObligationId,
+    ) -> Option<&optimization_unit::AcceptedObligationFact> {
+        let owner = optimization_unit::AcceptedObligationOwner::from(owner);
+        // Attachment sorts these exact keys and admission rejects duplicates or
+        // disorder. Borrow that index; don't scan or build another per-query one.
+        facts
+            .binary_search_by_key(&(machine, owner, obligation), |fact| {
+                (fact.machine, fact.owner, fact.obligation)
+            })
+            .ok()
+            .map(|position| &facts[position])
     }
 
     pub(crate) fn references_obligation(
@@ -266,6 +298,34 @@ pub(crate) mod runtime_indices {
     use legalized_operations::LegalizedRuntimeIndexOperand;
     use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
+
+    /// Resolve retained proof keys against the admitted catalog, without reading
+    /// an earlier function body or recomputing its structural projection.
+    pub(crate) fn retained_operands(
+        facts: &[optimization_unit::AcceptedObligationFact],
+        machine: semantic_vocabulary::MachineId,
+        owner: impl Into<optimization_unit::PsiProvenance>,
+        indices: &[target_operations::TargetStructuralRuntimeIndex],
+    ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
+        let owner = owner.into();
+        indices
+            .iter()
+            .map(|index| {
+                let accepted_fact =
+                    super::obligations::retained_fact(facts, machine, owner, index.obligation)?;
+                Ok(LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult {
+                        value: index.operand.source_value(),
+                        scalar_type: index.operand.scalar_type(),
+                    },
+                    stride: index.stride,
+                    extent: index.extent,
+                    obligation: index.obligation,
+                    accepted_fact,
+                })
+            })
+            .collect()
+    }
 
     pub(crate) fn operands(
         optimized: &PsiOptimizationFunction,
@@ -380,6 +440,88 @@ pub(crate) mod runtime_indices {
         let (_, _, elements) = collection_projection(root, path, unit.geometry())
             .ok_or(LegalizationError::custody())?;
         operands(optimized, unit, operation, &elements)
+    }
+    #[cfg(test)]
+    mod retained_tests {
+        use super::retained_operands;
+        use optimization_unit::{AcceptedObligationFact, PsiProvenance};
+        use semantic_vocabulary::{MachineId, ObligationId, OperationId, ValueId};
+        use target_operations::{TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource};
+
+        #[test]
+        fn retained_index_needs_only_target_row_and_exact_admitted_fact() {
+            let machine = MachineId::new(1).unwrap();
+            let operation = OperationId::new(2).unwrap();
+            let obligation = ObligationId::new(3).unwrap();
+            let value = ValueId::new(4).unwrap();
+            let scalar_type = target_operations::selector_carrier_type();
+            let index = TargetStructuralRuntimeIndex {
+                operand: TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: 0,
+                    source_value: value,
+                    scalar_type,
+                },
+                stride: 24,
+                extent: Some(7),
+                obligation,
+            };
+            let fact = AcceptedObligationFact::new(
+                terminal_psi::TerminalPsiIdentity {
+                    vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                    program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([5; 32]),
+                },
+                [6; 32],
+                machine,
+                PsiProvenance::Operation(operation),
+                obligation,
+                vec![7],
+            );
+            let lowered = retained_operands(
+                std::slice::from_ref(&fact),
+                machine,
+                operation,
+                std::slice::from_ref(&index),
+            )
+            .unwrap();
+            assert_eq!(
+                lowered,
+                [legalized_operations::LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult { value, scalar_type },
+                    stride: 24,
+                    extent: Some(7),
+                    obligation,
+                    accepted_fact: fact.identity,
+                }]
+            );
+            assert!(
+                retained_operands(&[], machine, operation, std::slice::from_ref(&index)).is_err()
+            );
+            for wrong in [
+                AcceptedObligationFact {
+                    machine: MachineId::new(9).unwrap(),
+                    ..fact.clone()
+                },
+                AcceptedObligationFact {
+                    owner: PsiProvenance::Operation(OperationId::new(9).unwrap()).into(),
+                    ..fact.clone()
+                },
+                AcceptedObligationFact {
+                    owner: optimization_unit::AcceptedObligationOwner::Terminator(
+                        semantic_vocabulary::BlockId::new(2).unwrap(),
+                    ),
+                    ..fact.clone()
+                },
+                AcceptedObligationFact {
+                    obligation: ObligationId::new(9).unwrap(),
+                    ..fact
+                },
+            ] {
+                assert!(
+                    retained_operands(&[wrong], machine, operation, std::slice::from_ref(&index))
+                        .is_err()
+                );
+            }
+        }
     }
 }
 pub(crate) use crate::legalization_scalar_graph as scalar_graph_input;

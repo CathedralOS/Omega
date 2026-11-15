@@ -210,7 +210,9 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
     let absent = crate::native_geometry::NativeInput::new(&absent, &geometry);
     let lowered =
         crate::legalization_source::scalar_graph::instruction::call_instructions::project_call(
-            &caller, &absent, &row,
+            caller.machine,
+            &absent.accepted_obligation_facts,
+            &row,
         )
         .expect("construction consumes target origins without source history");
     let legalized_operations::LegalizedScalarInstructionKind::Call(lowered) = lowered else {
