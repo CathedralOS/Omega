@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The diagnostic reports a feature gap for an invalid write and omits the assignment's source position. Preserve legal writes through an existing mutable reference held in an immutable binding.
 - Reported: 2026-11-14, Codex, while checking compiler subject fixture verdicts
 
-### An indexed dispatch discriminator has no canonical seal owner
-- Category: knowledge crossing a boundary
-- Where: [terminator path ownership](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L2384), [native proof provenance](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs#L20)
-- Saw: A hosted machine matching a case of `table.choices[index]` in a two-element array with `requires index < 2` reaches `UnownedSeal` on clean `8db72a0c99` and the operation-owner repair `de996b3d9aa`. Its twin changes only the contract to `index < 3` and both versions refuse at `cannot prove storage index bounds` on the match.
-- Cost: Stage 06 proves the indexed discriminator at its block terminator, before a case chooses an outgoing edge. Canonical receiving provenance names operations and edges. Preserve the existing pre-dispatch execution site through evidence attachment and realization so a chosen edge cannot stand in for the shared read.
-- Reported: 2026-11-14, Codex, while repairing ordinary indexed operation evidence on macOS arm64
-
 ### A direct partial view of a fixed byte array never reaches endpoint checking
 - Category: tests that pin the bug
 - Where: [const-length sample](samples/cli/facts/length/const_name/main.omg#L12), [target-body sample](samples/cli/facts/length/target_body/main.omg#L49), [array range reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs)

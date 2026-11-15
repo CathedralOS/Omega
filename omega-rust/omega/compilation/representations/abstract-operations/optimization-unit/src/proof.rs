@@ -102,13 +102,38 @@ pub fn validate_runtime_evidence_context(
 
 use super::{AcceptedObligationFactIdentity, ObligationId};
 use super::{MachineId, PsiProvenance, TerminalPsiIdentity};
+
+/// The execution site that consumes one accepted obligation.
+///
+/// Operations and edges are the receiving provenance a node can carry. A
+/// block terminator owns what it executes before any edge is chosen: the
+/// discriminator a dispatch on `table.choices[index]` reads once, whichever
+/// case follows. Terminal Psi states that bound at the terminator, and its
+/// evidence seal names the block (`terminal_codec::EvidenceSite`), so no
+/// chosen edge may stand in for the shared read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AcceptedObligationOwner {
+    Operation(semantic_vocabulary::OperationId),
+    Edge(semantic_vocabulary::EdgeId),
+    Terminator(semantic_vocabulary::BlockId),
+}
+
+impl From<PsiProvenance> for AcceptedObligationOwner {
+    fn from(provenance: PsiProvenance) -> Self {
+        match provenance {
+            PsiProvenance::Operation(operation) => Self::Operation(operation),
+            PsiProvenance::Edge(edge) => Self::Edge(edge),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptedObligationFact {
     pub identity: AcceptedObligationFactIdentity,
     pub psi: TerminalPsiIdentity,
     pub proof_bundle_fingerprint: [u8; 32],
     pub machine: MachineId,
-    pub owner: PsiProvenance,
+    pub owner: AcceptedObligationOwner,
     pub obligation: ObligationId,
     pub proposition: Vec<u8>,
     pub scalar_receiving: Option<SourceCheckedScalarReceiving>,
@@ -124,9 +149,10 @@ impl super::PsiOptimizationUnit {
     pub fn accepted_obligation_fact(
         &self,
         machine: MachineId,
-        owner: PsiProvenance,
+        owner: impl Into<AcceptedObligationOwner>,
         obligation: Option<ObligationId>,
     ) -> Option<&AcceptedObligationFact> {
+        let owner = owner.into();
         self.accepted_obligation_facts.iter().find(|fact| {
             fact.machine == machine && fact.owner == owner && Some(fact.obligation) == obligation
         })
@@ -138,10 +164,11 @@ impl AcceptedObligationFact {
         psi: TerminalPsiIdentity,
         proof_bundle_fingerprint: [u8; 32],
         machine: MachineId,
-        owner: PsiProvenance,
+        owner: impl Into<AcceptedObligationOwner>,
         obligation: ObligationId,
         proposition: Vec<u8>,
     ) -> Self {
+        let owner = owner.into();
         let identity = accepted_obligation_fact_identity(
             psi,
             proof_bundle_fingerprint,
@@ -195,7 +222,7 @@ pub(crate) fn accepted_obligation_fact_identity(
     psi: TerminalPsiIdentity,
     proof_bundle_fingerprint: [u8; 32],
     machine: MachineId,
-    owner: PsiProvenance,
+    owner: AcceptedObligationOwner,
     obligation: ObligationId,
     proposition: &[u8],
     scalar_receiving: Option<&SourceCheckedScalarReceiving>,
@@ -207,13 +234,17 @@ pub(crate) fn accepted_obligation_fact_identity(
     canonical.extend_from_slice(&proof_bundle_fingerprint);
     crate::codec_bytes::push_encoded(&mut canonical, machine.get().to_le_bytes());
     match owner {
-        PsiProvenance::Operation(operation) => {
+        AcceptedObligationOwner::Operation(operation) => {
             canonical.push(0);
             crate::codec_bytes::push_encoded(&mut canonical, operation.get().to_le_bytes());
         }
-        PsiProvenance::Edge(edge) => {
+        AcceptedObligationOwner::Edge(edge) => {
             canonical.push(1);
             crate::codec_bytes::push_encoded(&mut canonical, edge.get().to_le_bytes());
+        }
+        AcceptedObligationOwner::Terminator(block) => {
+            canonical.push(2);
+            crate::codec_bytes::push_encoded(&mut canonical, block.get().to_le_bytes());
         }
     }
     crate::codec_bytes::push_encoded(&mut canonical, obligation.get().to_le_bytes());

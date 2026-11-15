@@ -27,12 +27,13 @@ mod error {
         PropositionCodec(CodecError),
         FactIndex(optimization_unit::AcceptedObligationFactIndexError),
         MissingStructuralCatalogMachine(MachineId),
-        /// An evidence seal does not match the operation obligation it names:
-        /// its parts changed after sealing, the operation is not in the module,
-        /// or the module's own goal for that operation differs from the sealed goal.
+        /// An evidence seal does not match the obligation it names at this
+        /// site: its parts changed after sealing, the operation or terminator
+        /// is not in the module, or the module's own goal there differs from
+        /// the sealed goal.
         EvidenceSealMismatch {
             machine: MachineId,
-            operation: OperationId,
+            site: terminal_codec::EvidenceSite,
             obligation: ObligationId,
         },
         /// An evidence seal names no accepted operation obligation of the unit.
@@ -149,10 +150,11 @@ fn product_obligation_census(
     let mut kinds: BTreeMap<&'static str, [usize; 3]> = BTreeMap::new();
     for fact in facts {
         let kind = match fact.owner {
-            optimization_unit::PsiProvenance::Operation(operation) => owners
+            optimization_unit::AcceptedObligationOwner::Operation(operation) => owners
                 .binary_search_by_key(&(fact.machine, operation), |(key, _)| *key)
                 .map_or("unknown_operation", |found| owners[found].1),
-            optimization_unit::PsiProvenance::Edge(_) => "EdgeRuntimeIndex",
+            optimization_unit::AcceptedObligationOwner::Edge(_) => "EdgeRuntimeIndex",
+            optimization_unit::AcceptedObligationOwner::Terminator(_) => "TerminatorRuntimeIndex",
         };
         let row = kinds.entry(kind).or_default();
         row[0] += 1;
@@ -202,7 +204,7 @@ fn source_checked_obligation_facts(
             else {
                 continue;
             };
-            let owner = optimization_unit::PsiProvenance::Operation(*support);
+            let owner = optimization_unit::AcceptedObligationOwner::Operation(*support);
             if coordinates.insert((function.machine, owner, *obligation)) {
                 let representation =
                     function.block_nodes().find_map(|node| {
@@ -270,7 +272,7 @@ fn source_checked_obligation_facts(
                     &validator,
                     &mut attached,
                     function.machine,
-                    *support,
+                    terminal_codec::EvidenceSite::Operation(*support),
                     *obligation,
                 )?;
                 let fact = AcceptedObligationFact::new(
@@ -344,32 +346,65 @@ fn source_checked_obligation_facts(
                 });
             }
         }
-        for node in function.block_nodes() {
-            let paths = node
-                .successors
-                .iter()
-                .flat_map(|edge| {
-                    edge.structural_bindings
+        // A terminator proves its storage uses at the block, before an edge
+        // is chosen, and its seals name the block. The discriminator a
+        // dispatch reads is shared by every case, so the block owns its
+        // fact. A successor's own structural argument is read only on that
+        // edge: the edge owns the fact and carries the block's seal. Cleanup
+        // rosters are not terminator storage uses and carry no seal.
+        for block in &function.blocks {
+            let site = terminal_codec::EvidenceSite::Terminator(block.id);
+            for node in &block.nodes {
+                let shared = node.operation.terminator_read_path().map(|path| {
+                    (
+                        optimization_unit::AcceptedObligationOwner::Terminator(block.id),
+                        path,
+                        true,
+                    )
+                });
+                let bindings = node.successors.iter().flat_map(|edge| {
+                    edge.structural_bindings.iter().map(move |binding| {
+                        (
+                            optimization_unit::AcceptedObligationOwner::Edge(edge.psi_edge),
+                            binding.argument.path.as_slice(),
+                            true,
+                        )
+                    })
+                });
+                let cleanup = node
+                    .operation
+                    .cleanup_rosters()
+                    .flat_map(|(edge, actions)| {
+                        actions.iter().map(move |action| {
+                            (
+                                optimization_unit::AcceptedObligationOwner::Edge(edge),
+                                action.path(),
+                                false,
+                            )
+                        })
+                    });
+                for (owner, path, sealed) in shared.into_iter().chain(bindings).chain(cleanup) {
+                    for (_, obligation) in path
                         .iter()
-                        .map(move |binding| (edge.psi_edge, binding.argument.path.as_slice()))
-                })
-                .chain(
-                    node.operation
-                        .cleanup_rosters()
-                        .flat_map(|(edge, actions)| {
-                            actions.iter().map(move |action| (edge, action.path()))
-                        }),
-                );
-            for (edge, path) in paths {
-                for (_, obligation) in path
-                    .iter()
-                    .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
-                {
-                    let owner = optimization_unit::PsiProvenance::Edge(edge);
-                    if coordinates.insert((function.machine, owner, obligation)) {
+                        .filter_map(terminal_psi::StructuralPathSegment::runtime_index)
+                    {
+                        if !coordinates.insert((function.machine, owner, obligation)) {
+                            continue;
+                        }
+                        let fingerprint = if sealed {
+                            sealed_fingerprint(
+                                &validator,
+                                &mut attached,
+                                function.machine,
+                                site,
+                                obligation,
+                            )?
+                        } else {
+                            [0; 32]
+                        };
                         facts.push(AcceptedObligationFact::new(
                             unit.psi,
-                            [0; 32],
+                            fingerprint,
                             function.machine,
                             owner,
                             obligation,
@@ -392,7 +427,7 @@ fn source_checked_obligation_facts(
     Ok(facts)
 }
 
-/// The proof-bundle fingerprint of one accepted operation obligation: zero
+/// The proof-bundle fingerprint of one accepted obligation at its site: zero
 /// when no seal names it, as for every module the current pipeline produces.
 ///
 /// A seal is used only after three checks. Its fingerprint must be the
@@ -406,18 +441,18 @@ fn sealed_fingerprint(
     validator: &terminal_codec::EvidenceSealValidator<'_, '_>,
     attached: &mut [bool],
     machine: semantic_vocabulary::MachineId,
-    operation: semantic_vocabulary::OperationId,
+    site: terminal_codec::EvidenceSite,
     obligation: semantic_vocabulary::ObligationId,
 ) -> Result<[u8; 32], VerifiedPsiOptimizationUnitBuildError> {
     let found = validator
-        .fingerprint(machine, operation, obligation)
+        .fingerprint(machine, site, obligation)
         .map_err(|error| match error {
             terminal_codec::EvidenceSealValidationError::Codec(error) => {
                 VerifiedPsiOptimizationUnitBuildError::PropositionCodec(error)
             }
             _ => VerifiedPsiOptimizationUnitBuildError::EvidenceSealMismatch {
                 machine,
-                operation,
+                site,
                 obligation,
             },
         })?;

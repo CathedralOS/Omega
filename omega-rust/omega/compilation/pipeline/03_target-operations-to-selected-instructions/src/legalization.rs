@@ -224,7 +224,7 @@ pub(crate) mod obligations {
         owner: impl Into<optimization_unit::PsiProvenance>,
         obligation: ObligationId,
     ) -> impl Iterator<Item = &'unit optimization_unit::AcceptedObligationFact> {
-        let owner = owner.into();
+        let owner = optimization_unit::AcceptedObligationOwner::from(owner.into());
         let machine = optimized.machine;
         unit.accepted_obligation_facts.iter().filter(move |fact| {
             fact.machine == machine && fact.owner == owner && fact.obligation == obligation
