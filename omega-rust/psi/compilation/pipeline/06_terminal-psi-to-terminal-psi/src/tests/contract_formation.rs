@@ -186,6 +186,38 @@ machine build_entry() { let end: u64 = append(17, 23); }
 }
 
 #[test]
+fn source_packed_comparison_forms_each_exact_operation_from_independent_bounds() {
+    const SOURCE: &str = r#"
+machine packed(rest: u8, count: u8) -> u8
+requires rest <= 9, count <= 9, rest + count * 10 <= 99
+{ rest }
+machine build_entry() { let value: u8 = packed(9, 9); }
+"#;
+    executed_source(SOURCE);
+
+    // 26 * 10 can overflow the child before the sum is formed. With the
+    // child bounded to 90, 166 + 90 can still overflow the sum.
+    for invalid in [
+        SOURCE.replace("count <= 9", "count <= 26"),
+        SOURCE.replace("rest <= 9", "rest <= 166"),
+    ] {
+        let verdict = source_result(&invalid);
+        let RouteVerdict::Rejected { violations, .. } = verdict else {
+            panic!("an operation can overflow before its comparison forms: {verdict:?}");
+        };
+        let [violation] = violations.as_slice() else {
+            panic!("expected a single formation violation: {violations:?}");
+        };
+        assert!(
+            violation
+                .statement
+                .contains("contract arithmetic is not proved total before its condition"),
+            "{violation:?}"
+        );
+    }
+}
+
+#[test]
 fn a_bound_on_one_field_does_not_form_its_neighbors_subtraction() {
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }

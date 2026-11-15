@@ -73,13 +73,6 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### The comparison reader test expects carrier arithmetic to stop before formation
-- Category: tests that pin the bug
-- Where: [comparison reader test](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read.rs#L2485)
-- Saw: At clean `8b547065679` on macOS arm64, `a_comparison_of_embedded_integers_is_a_mathematical_proposition` calls `unwrap_err` expecting `contract carrier arithmetic in a clause term`. Since #3338, the same carrier clause produces `LessOrEqual(ExactIntegerAdd(... ExactIntegerMultiply(...)), 99)` for subsequent formation checks.
-- Cost: The outdated oracle fails the owning suite and prevents later mathematical division, mixed-term, and guard controls in the same test from running. Pin the retained carrier proposition and keep the separate formation safety controls.
-- Reported: 2026-11-14, Codex, while validating record application fixtures
-
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: tests that pin the bug
 - Where: [shared typed-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L253), [original borrow lookup](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L239)
