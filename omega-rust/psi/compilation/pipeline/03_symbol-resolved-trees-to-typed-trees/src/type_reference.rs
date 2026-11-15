@@ -812,7 +812,7 @@ pub(crate) mod const_arguments {
                 }));
             }
             for (declaration, arguments, owner) in applications {
-                if let Some(sort) = universe_sort(program, declaration) {
+                if let Some(sort) = program.symbols.universe_sort_for_symbol(declaration) {
                     // `core::Type<u>` and `core::Strict<u>` apply one universe
                     // level, which is not a constant argument: it has no
                     // carrier and no value to admit. Typing owns the arity;
@@ -1061,23 +1061,6 @@ pub(crate) mod const_arguments {
                 }
                 _ => Ok(None),
             }
-        }
-
-        /// The fixed sort `declaration` is, when it is one of the two that
-        /// apply a universe level. Only the compiler-installed slot counts.
-        fn universe_sort(
-            program: &TypedTrees,
-            declaration: symbols::SymbolHandle,
-        ) -> Option<symbols::FixedCoreDeclaration> {
-            program
-                .symbols
-                .fixed_core_declaration_for_symbol(declaration)
-                .filter(|sort| {
-                    matches!(
-                        sort,
-                        symbols::FixedCoreDeclaration::Type | symbols::FixedCoreDeclaration::Strict
-                    )
-                })
         }
 
         fn parameter_declarations(

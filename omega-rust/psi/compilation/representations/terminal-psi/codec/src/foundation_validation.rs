@@ -8155,7 +8155,7 @@ pub(crate) mod storage_foundations {
     mod reference_view_receiving_tests {
         use super::validate_establish_reference;
         use crate::codec_error::CodecError;
-        use crate::sections::semantic_module::target_family_tests::unit_machine;
+        use crate::semantic_module::entry_tests::unit_machine;
         use semantic_vocabulary::{
             AuthoredFieldStorage, AuthoredRecordStorage, IntegerSign, IntegerType, IntegerValue,
             MachineId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,

@@ -1172,6 +1172,9 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn type_reference(&mut self, _: TypeReferenceHandle) -> bool {
         true
     }
+    fn visit_universe_levels(&self) -> bool {
+        true
+    }
     fn type_alias_application(
         &mut self,
         _: &TypedTrees,
@@ -1209,6 +1212,7 @@ struct ReferenceCollector {
     callable_uses: HashSet<SymbolHandle>,
     descriptor_symbols: HashSet<SymbolHandle>,
     classify_static_arguments: Option<StaticArgumentClassifier>,
+    skip_universe_levels: bool,
     statements: HashSet<StatementHandle>,
     expressions: HashSet<ExpressionHandle>,
     track_new_expressions: bool,
@@ -1227,6 +1231,10 @@ impl Extend<SymbolHandle> for ReferenceCollector {
     }
 }
 impl TypedReferences for ReferenceCollector {
+    fn visit_universe_levels(&self) -> bool {
+        !self.skip_universe_levels
+    }
+
     fn type_alias_application(
         &mut self,
         program: &TypedTrees,
@@ -1237,6 +1245,7 @@ impl TypedReferences for ReferenceCollector {
         }
         let mut description = ReferenceCollector {
             describing_alias_arguments: true,
+            skip_universe_levels: self.skip_universe_levels,
             ..ReferenceCollector::default()
         };
         description.declaration_description_dependency(application.supplied_operand_owner);
@@ -1399,7 +1408,38 @@ impl ProgramOperandOwners {
 }
 
 pub fn collect_program_operand_owners(program: &TypedTrees) -> ProgramOperandOwners {
-    let mut occurrences = TypeOccurrences::default();
+    collect_operand_owners(program, TypeOccurrences::default())
+}
+
+/// Collects the operands that could request source evaluation. Universe
+/// levels are formed by the proof calculus, while any ordinary use of the
+/// same handle still belongs to the source evaluator.
+pub fn collect_source_evaluation_references(program: &TypedTrees) -> ProgramReferences {
+    collect_program_references_from(
+        program,
+        ReferenceCollector {
+            skip_universe_levels: true,
+            ..ReferenceCollector::default()
+        },
+    )
+}
+
+/// Finds owners for source-evaluation operands along the same occurrence
+/// edges as `collect_source_evaluation_references`.
+pub fn collect_source_evaluation_operand_owners(program: &TypedTrees) -> ProgramOperandOwners {
+    collect_operand_owners(
+        program,
+        TypeOccurrences {
+            skip_universe_levels: true,
+            ..TypeOccurrences::default()
+        },
+    )
+}
+
+fn collect_operand_owners(
+    program: &TypedTrees,
+    mut occurrences: TypeOccurrences,
+) -> ProgramOperandOwners {
     visit_program(program, &mut occurrences);
     ProgramOperandOwners {
         types: occurrences.seen_types,
@@ -1440,6 +1480,7 @@ pub(crate) fn collect_program_application_occurrences(
 #[derive(Default)]
 struct TypeOccurrences {
     selection: DeclarationSelection,
+    skip_universe_levels: bool,
     owner: SymbolHandle,
     outer_owners: Vec<SymbolHandle>,
     types: Vec<TypeOccurrence>,
@@ -1546,6 +1587,10 @@ impl TypedReferences for TypeOccurrences {
         if let Some(owner) = self.outer_owners.pop() {
             self.owner = owner;
         }
+    }
+
+    fn visit_universe_levels(&self) -> bool {
+        !self.skip_universe_levels
     }
 
     fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
@@ -1839,14 +1884,23 @@ pub fn collect_program_references_with_roles(
     selection: &DeclarationSelection,
     classify_static_arguments: Option<StaticArgumentClassifier>,
 ) -> ProgramReferences {
-    let mut roots = ReferenceCollector {
-        selection: selection.clone(),
-        classify_static_arguments,
-        ..ReferenceCollector::default()
-    };
+    collect_program_references_from(
+        program,
+        ReferenceCollector {
+            selection: selection.clone(),
+            classify_static_arguments,
+            ..ReferenceCollector::default()
+        },
+    )
+}
+
+fn collect_program_references_from(
+    program: &TypedTrees,
+    mut roots: ReferenceCollector,
+) -> ProgramReferences {
     visit_program(program, &mut roots);
     for argument in program.designated_static_type_arguments() {
-        if selection.contains(argument.owner) {
+        if roots.selection.contains(argument.owner) {
             visit_type_reference(program, &mut roots, argument.reference);
         }
     }
@@ -3133,10 +3187,24 @@ pub fn visit_type_reference(
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
+            lifetime_arguments,
             ..
         } => {
             visit_symbol(retained, *base_symbol);
-            for argument in program.type_reference_handles(*arguments) {
+            let arguments = program.type_reference_handles(*arguments);
+            // A universe level may use the same syntax node as a computed
+            // type. Only its edge from the exact sort makes it a level.
+            if !retained.visit_universe_levels()
+                && arguments.len() == 1
+                && lifetime_arguments.is_empty()
+                && program
+                    .symbols
+                    .universe_sort_for_symbol(*base_symbol)
+                    .is_some()
+            {
+                return;
+            }
+            for argument in arguments {
                 visit_type_reference(program, retained, *argument);
             }
         }
