@@ -1014,13 +1014,13 @@ pub(crate) mod reference_completion {
         assert!(cleanup_disposes_reference(
             &actions,
             carrier,
-            &[field.clone()]
+            std::slice::from_ref(&field)
         ));
         assert!(!cleanup_disposes_reference(&actions, carrier, &[]));
         assert!(!cleanup_disposes_reference(
             &actions,
             PlaceId::new(2).unwrap(),
-            &[field.clone()]
+            std::slice::from_ref(&field)
         ));
         assert!(!cleanup_disposes_reference(
             &actions,

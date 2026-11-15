@@ -1471,7 +1471,11 @@ pub(crate) mod completion {
             };
             let mut outgoing = CompletedReturn::plain(TerminalExecutionResult::Structural(
                 TerminalStructuralResult {
-                    value: TerminalStructuralValue::minted(42, structural_type, Vec::new()),
+                    value: crate::boundary::values::TerminalStructuralValue::minted(
+                        42,
+                        structural_type,
+                        Vec::new(),
+                    ),
                     claims: vec![claim],
                     observation_home: None,
                 },

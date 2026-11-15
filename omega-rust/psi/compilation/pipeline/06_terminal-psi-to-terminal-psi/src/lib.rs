@@ -415,7 +415,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
                     .map(|machine| machine.id)
                     .unwrap_or_else(|| MachineId::new(1).expect("one is nonzero")),
                 Construct::Machine,
-                &detail,
+                detail,
             )
         },
     )?;

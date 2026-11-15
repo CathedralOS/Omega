@@ -10336,7 +10336,9 @@ pub mod descriptor_results {
         mod tests {
             use super::*;
             use crate::descriptor_results::{
-                DescriptorCallOrigin, DescriptorPayloadTarget, terminal_borrowed_storage_graph,
+                DescriptorCallOrigin, DescriptorInvocation, DescriptorInvocationOwner,
+                DescriptorInvocationTarget, DescriptorPayloadTarget,
+                terminal_borrowed_storage_graph,
             };
             use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
             use crate::descriptors::descriptor_lifetimes::{
