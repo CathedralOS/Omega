@@ -108,20 +108,6 @@ framework or a list of features that remain unimplemented.
 - Cost: The compiler stops at obligation ownership before checking either valid value transfer or the specific invalid use. Match each generated obligation to its exact lowered arrival, operation or edge and preserve the original ownership judgments.
 - Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
 
-### Storing a shared reborrow falsely conflicts with its parent loan
-- Category: a verdict with nothing behind it
-- Where: [stored shared-reborrow fixture](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L363)
-- Saw: On clean `f5ed845ea2f` on macOS arm64, `let view: View = View { cell: exclusive };` followed by reads of the three cell fields rejects `ChangeWhileBorrowed` instead of completing with Unit. The same source passes at `59b8d53b729`. The source reborrows an exclusive parent as shared and writes only the new record descriptor.
-- Cost: The checker treats a valid shared descendant as a conflicting change to its backing. Trace the exact conflict site and retain the sibling and access-strengthening controls.
-- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
-
-### Repeated reads of an untouched formal field disagree about its entry identity
-- Category: tests that pin the bug
-- Where: [formal leaf observation test](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests.rs#L2046)
-- Saw: On clean `f5ed845ea2f` on macOS arm64, the two reads of `p.x` in the shaped `p.x - p.x` control cite `ValueId(5)` and `ValueId(2)` before any intervening write. The fixture previously observed the one entry content value on `59b8d53b729`. This assertion stops before the same-field and distinct-field proof outcomes.
-- Cost: The test can no longer verify which stable observation justifies the subtraction. Trace the retained identities and keep the two-same-leaf positive and different-leaf negative.
-- Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
-
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [call operand construction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs#L171), [runtime-index reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs#L273), [descriptor-origin reconstruction](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_scalar_graph.rs#L2219)
