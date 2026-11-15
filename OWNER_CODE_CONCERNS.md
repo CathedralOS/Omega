@@ -227,9 +227,9 @@ framework or a list of features that remain unimplemented.
 - Cost: The receiver drops the exact missing public evidence when the descriptor graph takes the query's optional result. Keep the existing failure reason and the actual call site through the receiving judgment.
 - Reported: 2026-11-14, Codex, while auditing the selected reference public contract after #3351
 
-### The worktree ownership test miscounts a checkout under a symlinked temp path
-- Category: tests that pin the bug
-- Where: [offline worktree ownership test](tools/xtask/src/worktree.rs), [worktree roster](tools/xtask/src/worktree.rs#L554)
-- Saw: On macOS arm64 the worktree ownership test expects only the retained offline checkout but counts two. Its scratch repository uses the temporary path through `/var`, while `git worktree list --porcelain` reports the primary checkout through `/private/var`. The roster removes the primary checkout by exact path, and the test passes the uncanonicalized path directly.
-- Cost: The test stops at the roster size before checking that the offline registration retains its topic and lock. Exercise the same canonical repository path as the command's normal entry point.
-- Reported: 2026-11-14, Codex, while verifying closed status pipes
+### A newly claimed worktree still appears idle in status
+- Category: one idea, several implementations
+- Where: [worktree status display](tools/xtask/src/worktree.rs), [idle slot selection](tools/xtask/src/worktree.rs)
+- Saw: In a temporary pool, `worktree acquire tools-cache-repro` claims `worker-1` while its HEAD remains at `origin/main`. `worktree status` displays `tools-cache-repro` in the topic column and `idle` in the state column. Replayed with the initial `f5ed845ea2f` command and the rebased cache fix `36f5f7a3d04`. The acquire path excludes that same slot from the idle set.
+- Cost: At the start of a task, the status table reports an assigned slot as idle until its HEAD changes. Use the retained topic when reporting the slot state.
+- Reported: 2026-11-14, Codex, while exercising worktree acquisition after cache collection
