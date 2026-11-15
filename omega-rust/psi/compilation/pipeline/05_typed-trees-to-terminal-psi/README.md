@@ -370,8 +370,9 @@ destination declares").
   Wrapping constant.
 - **Suffixed operators.** The reader selects `%`, `|` or `!` at that node,
   using only unqualified integer operands and returning the bare carrier.
-  The temporary qualification in the reader chooses the operation; it does
-  not convert an operand or change the policy of an inner expression.
+  The operation carries the selected policy separately from value
+  qualifications. Its operands and result stay plain; it does not convert
+  an operand or change the policy of an inner expression.
   A `!` form lowers to one `TrappingInteger` operation, its own `Trap`
   site. Its `CrashCoverage` obligation requires the Exact primitive's
   definedness or the machine's published same-cause route. The checker
