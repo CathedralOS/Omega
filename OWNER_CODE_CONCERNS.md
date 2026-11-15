@@ -73,6 +73,34 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Three compiler ownership test records omit authored layout
+- Category: tests that pin the bug
+- Where: [owned record](omega-rust/omega/compilation/compiler/tests/lowered_route_ownership.rs#L931), [nested records](omega-rust/omega/compilation/compiler/tests/lowered_route_ownership.rs#L1124), [record type](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/body.rs#L342)
+- Saw: Compiler all-target Clippy on `a753d442239` fails with E0063 for missing `authored_layout` on the three `RecordType` initializers at lines 931, 1124 and 1135. The test file and field definition are byte-identical on main `9a8c6d726e2`, whose fixture repair covers Stage 06.
+- Cost: The compiler ownership integration binary cannot run, and all-target compiler lint stops before completing. Migrate these fixture records with the original ordinary layout and preserve each ownership oracle.
+- Reported: 2026-11-15, Codex, while linting the audited package review changes.
+
+### Product declaration requests rescan the source roster
+- Category: re-deriving
+- Where: [Product path and author resolution](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1241), [exact source matcher](omega-rust/psi/foundation/symbols/src/table.rs#L2041), [Build declaration formations](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L589)
+- Saw: Forming each service-audit operand rebuilds its boundary candidate and token-bound machine lists, then scans them for the path. Each executed event also searches all typed machines for its authored span. The source continuation searches all collected occurrences for each formation.
+- Cost: A batch pays for the same source inventory repeatedly. Prepare the role, name and original occurrence lookups in their existing source owners. Keep the exact package alias and visibility, source stratum, qualified-path precedence, ambiguity, and lexical author checks for audit, provider and native selection.
+- Reported: 2026-11-15, Codex, while reviewing the authored service audit admission.
+
+### Package review cannot retain the audit driver's unsupplied boundary
+- Category: knowledge crossing a boundary
+- Where: [Driver's public contract](tests/fixtures/pass/effects/root_service_audit/driver/main.omg#L5), [review inventory](omega-rust/omega/packages/review-evidence/src/capture/providers.rs)
+- Saw: The unchanged `root_service_audit` project at tested `df9b4619a87` produces exit 1 from `omega packages audit --project … --details`. macOS arm64 reports that `audit_driver` cannot retain the complete boundary/service inventory. That package declares a public `Driver::drive` boundary without selecting its implementation.
+- Cost: The consumer cannot inspect the dependency's authored reach or its audit findings. Project the existing reviewed requirement as an interface without granting an installation or weakening the unrelated-boundary denial. The [archived inferred reach probe](#the-inferred-reach-review-probe-lost-its-support-package) also reaches this inventory gate after source migration.
+- Reported: 2026-11-15, Codex, while verifying authored reach slack.
+
+### The root service-audit controls refer to retired source paths
+- Category: tests that pin the bug
+- Where: [direct root example](omega-rust/omega/compilation/compiler/examples/package_batch_sources.rs#L47), [authored import](tests/fixtures/pass/effects/root_service_audit/main.omg#L1), [denial guide](tests/fixtures/pass/effects/root_service_audit/README.md#L13)
+- Saw: On `df9b4619a87`, the kept `package_batch_sources --service-audits` example refuses `audit_driver::main` at line 1, column 5 because the import selects no declaration or module. The guide's `tests/omega/fail/build/service_audit_requires_boundary` path is absent.
+- Cost: The direct check cannot prove exact delegated `MotorControl` custody, idempotence, or the absence of untaken and dependency registrations. Migrate the import and reconnect the ordinary-trait denial while retaining those exact assertions.
+- Reported: 2026-11-15, Codex, while replaying the kept audit controls.
+
 ### Three diagnostic tests still expect ordinary float literals to be refused
 - Category: tests that pin the bug
 - Where: [grouped machine diagnostics](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/every_refusal.rs) (`THREE_HELPERS`)
@@ -121,13 +149,6 @@ framework or a list of unimplemented features.
 - Saw: With the kept path on `8329cdc221e`, Psi checking refuses “machine service reach bound by an installation” for `AProvider::visit`, `BProvider::visit`, `CProvider::visit`, and `DProvider::visit`.
 - Cost: The already formulated assertion that A retains both the earlier B and later D contributions cannot run. Carry the original installation-bound declarations into selected reach and the existing review records.
 - Reported: 2026-11-15, Codex, while reconnecting the staggered package-review fixture.
-
-### Build refuses the authored reach-slack policy before review
-- Category: tests that pin the bug
-- Where: [slack fixture Build](tests/fixtures/pass/effects/optional_reach_declared_slack_exit/build.omg), [authored reach assertions](omega-rust/omega/compilation/compiler/tests/package_review.rs#L222)
-- Saw: The existing slack fixture on `8329cdc221e` reaches “no product route yet: Build product declaration admission” with the authored `Build::audit_service<Unused>` still present. The kept independent empty-reach fixture completes the same ordinary review and recovery route.
-- Cost: The probe cannot compare its two declared services with its one realized service. Admit the original audit through the existing Product policy owner so its exact slack stays observable.
-- Reported: 2026-11-15, Codex, while replaying package-review reach cases.
 
 ### Review refuses the original opaque native binding
 - Category: knowledge crossing a boundary

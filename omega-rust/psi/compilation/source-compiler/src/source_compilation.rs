@@ -457,11 +457,19 @@ mod product_policy {
                 request.declared,
                 request.executed,
             )?;
+            use language_semantics::declaration_selection::BuildOperation;
             let formations = self.product_formation_authors(request.declared, |request| {
-                request.operation
-                    == language_semantics::declaration_selection::BuildOperation::NativeBinding
+                matches!(
+                    request.operation,
+                    BuildOperation::NativeBinding | BuildOperation::ServiceAudit
+                )
             })?;
+            let mut audit_formations = Vec::new();
             for (request, author) in formations {
+                if request.operation == BuildOperation::ServiceAudit {
+                    audit_formations.push((request, author));
+                    continue;
+                }
                 let [operand] = request.operands.as_ref() else {
                     return Err(vec![Diagnostic::error(
                         "native binding lost its exact requirement operand",
@@ -488,6 +496,7 @@ mod product_policy {
                 request.activation,
                 request.declared,
                 request.executed,
+                &audit_formations,
             )?;
             let exclusions = build_time_evaluation::product_policy::collect_behavior_exclusions(
                 typed,

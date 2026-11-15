@@ -22,7 +22,7 @@ use terminal_psi::{CrashRouteGuard, MachineContract, TerminalModule};
 struct CallableInventory<'a> {
     accepted: &'a source_compiler::AcceptedTerminalSource,
     exact_sources: &'a [(source::SourceId, [u8; 32])],
-    service_names: Vec<(ServiceId, PackageReviewNominalIdentity)>,
+    service_names: &'a [(ServiceId, PackageReviewNominalIdentity)],
 }
 
 impl PackageReviewInput<'_> {
@@ -83,13 +83,17 @@ impl PackageReviewInput<'_> {
         let exact_sources =
             source::source_identity::toolchain_source_identities(source.symbols.source_files())
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let service_names = service_identities(accepted, &exact_sources)?;
+        let service_names = service_identities(
+            source,
+            &exact_sources,
+            &service_origins(accepted, source::DependencyScope::Build)?,
+        )?;
         validate_body_effect_inventory(accepted.module())?;
         self.callable(
             &CallableInventory {
                 accepted,
                 exact_sources: &exact_sources,
-                service_names,
+                service_names: &service_names,
             },
             *original,
             identity,
@@ -103,6 +107,7 @@ impl PackageReviewInput<'_> {
     pub(super) fn callables(
         &self,
         package: PackageKeyIdentity,
+        service_names: &[(ServiceId, PackageReviewNominalIdentity)],
     ) -> Result<Vec<PackagePolicyCallable>, Vec<Diagnostic>> {
         let mut rows: Vec<_> = self.build_callable(package)?.into_iter().collect();
         let accepted = self.compilation().terminal_publication().accepted()?;
@@ -156,7 +161,7 @@ impl PackageReviewInput<'_> {
                 inventory = Some(CallableInventory {
                     accepted,
                     exact_sources,
-                    service_names: service_identities(accepted, exact_sources)?,
+                    service_names,
                 });
             }
             if body.is_some() && !effects_validated {
@@ -187,7 +192,7 @@ impl PackageReviewInput<'_> {
     ) -> Result<PackagePolicyCallable, Vec<Diagnostic>> {
         let accepted = inventory.accepted;
         let exact_sources = inventory.exact_sources;
-        let service_names = &inventory.service_names;
+        let service_names = inventory.service_names;
         let source = accepted.source();
         let declaration = source
             .machine(original)
@@ -498,17 +503,33 @@ impl PackageReviewInput<'_> {
     }
 }
 
-/// A service keeps its exact source declaration through the already-retained
-/// boundary correspondence. Equal-looking names cannot replace this edge, and
-/// the shared application owner must reproduce the canonical service identity.
-fn service_identities(
+/// Join the portable identities in the accepted module to the exact source
+/// declarations. Memberless service labels may appear in reach even though
+/// there is no boundary method whose correspondence could name their owner.
+pub(super) fn service_origins(
     accepted: &source_compiler::AcceptedTerminalSource,
-    exact_sources: &[(source::SourceId, [u8; 32])],
-) -> Result<Vec<(ServiceId, PackageReviewNominalIdentity)>, Vec<Diagnostic>> {
+    purpose: source::DependencyScope,
+) -> Result<Vec<(ServiceId, symbols::SymbolHandle)>, Vec<Diagnostic>> {
     use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
     let source = accepted.source();
     let module = accepted.module();
-    let mut origins = Vec::with_capacity(module.boundary_machines.len());
+    let application = |owner| {
+        let declaration = source
+            .trait_definition_by_symbol(owner)
+            .filter(|declaration| declaration.is_boundary)?;
+        let scope = AppliedTraitScope::new(
+            source,
+            declaration,
+            TraitApplicationArguments {
+                lexical_owner: declaration.symbol,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )?;
+        source.type_identity_text(scope.portable_application_identity(source)?)
+    };
+    let mut boundaries = Vec::new();
     for boundary in &module.boundary_machines {
         let Some(service) = boundary.owning_service else {
             continue;
@@ -524,64 +545,88 @@ fn service_identities(
                 "a stale boundary declaration in the accepted module's service inventory",
             ));
         }
-        let owner = source.symbols.get(original).parent;
-        origins.push((service, owner));
+        boundaries.push((service, source.symbols.get(original).parent));
     }
-    origins.sort_by_key(|(service, _)| *service);
-    let mut identities = Vec::with_capacity(module.services.len());
-    let mut previous = None;
-    for (service, owner) in origins {
-        if let Some((known_service, known_owner)) = previous
-            && known_service == service
-        {
-            if known_owner != owner {
-                return Err(unavailable(
-                    "a service associated with two source declarations",
-                ));
-            }
-            continue;
-        }
-        previous = Some((service, owner));
-        let declaration = source
-            .trait_definition_by_symbol(owner)
-            .filter(|declaration| declaration.is_boundary)
-            .ok_or_else(|| unavailable("a service's exact boundary trait declaration"))?;
-        // This is the same declared boundary scope the reader publishes.
-        // Missing actual arguments stay unavailable, never an empty fallback.
-        let scope = AppliedTraitScope::new(
-            source,
-            declaration,
-            TraitApplicationArguments {
-                lexical_owner: declaration.symbol,
-                enclosing_data_applications: &[],
-                arguments: &[],
-                lifetimes: &[],
-            },
-        )
-        .ok_or_else(|| unavailable("a service's complete applied arguments"))?;
-        let application = scope
-            .portable_application_identity(source)
-            .and_then(|identity| source.type_identity_text(identity))
-            .ok_or_else(|| unavailable("a service's canonical applied identity"))?;
-        let position = module
+    boundaries.sort_unstable_by_key(|(service, _)| *service);
+    boundaries.dedup();
+    if boundaries.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+        return Err(unavailable(
+            "a service associated with two source declarations",
+        ));
+    }
+    if boundaries.iter().any(|(id, _)| {
+        module
             .services
-            .binary_search_by_key(&service, |row| row.id)
-            .map_err(|_| unavailable("a service absent from the accepted declaration inventory"))?;
+            .binary_search_by_key(id, |service| service.id)
+            .is_err()
+    }) {
+        return Err(unavailable(
+            "a service absent from the accepted declaration inventory",
+        ));
+    }
+    let mut memberless = Vec::new();
+    if boundaries.len() < module.services.len() {
+        memberless.extend(
+            source
+                .traits()
+                .iter()
+                .filter(|declaration| {
+                    declaration.is_boundary
+                        && source.trait_machine_signatures(declaration).is_empty()
+                        && source
+                            .symbols
+                            .symbol_is_in_dependency_scope(declaration.symbol, purpose)
+                })
+                .filter_map(|declaration| {
+                    application(declaration.symbol).map(|identity| (identity, declaration.symbol))
+                }),
+        );
+        memberless.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    }
+    let mut origins = Vec::with_capacity(module.services.len());
+    for service in &module.services {
         let actual = module
             .identities
-            .text(module.services[position].identity)
+            .text(service.identity)
             .ok_or_else(|| unavailable("an accepted service's declaration identity"))?;
-        if actual != application {
-            return Err(unavailable(
-                "a service/source application identity mismatch",
-            ));
-        }
-        identities.push((service, nominal_identity(source, exact_sources, owner)?));
+        let owner = match boundaries.binary_search_by_key(&service.id, |(service, _)| *service) {
+            Ok(index) => {
+                let owner = boundaries[index].1;
+                if application(owner).as_deref() != Some(actual) {
+                    return Err(unavailable(
+                        "a service/source application identity mismatch",
+                    ));
+                }
+                owner
+            }
+            Err(_) => {
+                let start = memberless.partition_point(|(identity, _)| identity.as_str() < actual);
+                let end = memberless.partition_point(|(identity, _)| identity.as_str() <= actual);
+                let [(_, owner)] = &memberless[start..end] else {
+                    return Err(unavailable(
+                        "a service without its original applied declaration",
+                    ));
+                };
+                *owner
+            }
+        };
+        origins.push((service.id, owner));
     }
-    Ok(identities)
+    Ok(origins)
 }
 
-fn reviewed_services(
+pub(super) fn service_identities(
+    source: &typed_trees::TypedTrees,
+    exact_sources: &[(source::SourceId, [u8; 32])],
+    origins: &[(ServiceId, symbols::SymbolHandle)],
+) -> Result<Vec<(ServiceId, PackageReviewNominalIdentity)>, Vec<Diagnostic>> {
+    origins
+        .iter()
+        .map(|&(service, owner)| Ok((service, nominal_identity(source, exact_sources, owner)?)))
+        .collect()
+}
+
+pub(super) fn reviewed_services(
     identities: &[(ServiceId, PackageReviewNominalIdentity)],
     row: &[ServiceId],
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
