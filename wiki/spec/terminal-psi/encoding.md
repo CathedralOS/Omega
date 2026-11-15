@@ -1176,8 +1176,11 @@ compatible with either standalone marker 233 or standalone marker 234.
 The compiler-evaluation facts are retained independently of executable
 signature availability. Each callable header contains either a deferred refusal
 or its declaration custody, effective service reach, suspension/blocking flags,
-body-local termination judgment, entry-premise flag, linear/static closure
-refusals and normalized package-selection requests. The proof scope also retains
+body-local termination judgment, entry-premise flag, linear-use and pure
+invocation refusals, and normalized package-selection requests. An invocation
+refusal can accompany checked custody and selection requests. Build checks
+those requests with its existing provider admission. Pure evaluation also
+requires an eligible root and reached bodies. The proof scope retains
 successful recursive components with exact member and operational-call ordinals,
 and pending target-condition owners. Calling policy instances name their exact
 proof declaration independently of their optional emitted callable.
@@ -1415,10 +1418,19 @@ Receiving authenticates the exact compiler-owned core declarations and their
 complete signature, reach, crash and progress correspondence, and independently
 proves that the actual result type is empty. The link preserves the canonical
 terminal observation without supplying target realization or execution authority.
+Semantic format marker 275 adds tag 11, NumericPrimitive, with no additional
+tag payload. The boundary's numeric-intrinsic field retains the exact portable
+operation and format. Receiving authenticates the sealed core declaration,
+callable, generated entry state, scalar signature and complete contract. For
+IEEE comparisons this includes both directions of the Boolean result's
+equivalence to the IEEE predicate. The marker supplies no target execution
+authority: settlement retains the exact target-table realization and its ISA
+and floating-control obligations, and receiving checks these against the
+authenticated boundary and canonical method schema.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Marker 274 retains the structural qualification rows and marker 273's
-machine-contract account of public result lifetimes. Formats 271, 272 and 273
-are refused before payload interpretation. Vocabulary marker 134 and the
+decoded. Marker 275 retains the structural qualification rows and marker 273's
+machine-contract account of public result lifetimes. Formats 271, 272, 273
+and 274 are refused before payload interpretation. Vocabulary marker 135 and the
 artifact transport envelope remain unchanged.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
@@ -2735,7 +2747,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 274 | yes |
+| semantic module | `PSITERM\0` | 275 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

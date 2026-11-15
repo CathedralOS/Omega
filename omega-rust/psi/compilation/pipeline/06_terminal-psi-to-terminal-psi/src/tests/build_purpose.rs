@@ -164,7 +164,10 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
 }
 
 /// The checker's verdict on the Build program `build`, rooted at its
-/// `build_entry`, beside an empty Product.
+/// `build_entry`, beside an empty Product: the verdict on its closure.
+/// Every other verdict a program without generic machines or
+/// implementations gets is a further refusal of the same reading, which the
+/// closure's refusal already refuses the compilation for.
 pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let typed = frontier_of("machine product_entry() { }", build);
     let entry = symbol(&typed, "build_entry");
@@ -176,7 +179,13 @@ pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::Compilatio
         )
         .program,
     );
-    assert_eq!(verdicts.len(), 1);
+    assert!(
+        verdicts
+            .iter()
+            .skip(1)
+            .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
     verdicts.remove(0)
 }
 

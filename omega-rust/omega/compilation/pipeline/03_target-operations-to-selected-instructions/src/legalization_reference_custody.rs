@@ -3001,7 +3001,7 @@ pub(crate) mod stored_calls {
                                 | DescriptorStoredOrigin::IncomingContents { .. }
                                 | DescriptorStoredOrigin::Literal { .. }
                                 | DescriptorStoredOrigin::AccessFormation { .. }
-                                | DescriptorStoredOrigin::Carried => return None,
+                                | DescriptorStoredOrigin::Carried { .. } => return None,
                             }
                         }
                         sources.sort();
@@ -6317,12 +6317,15 @@ pub(crate) fn apply(
             {
                 return Err(invalid());
             }
-            let key = (*source, path.clone());
-            let leaf = custody.leaves.remove(&key);
-            let Some(leaf) = leaf else {
-                return Err(invalid());
-            };
-            custody.retire(leaf, retirements::DisposalEvent::Operation(*psi_operation))?;
+            let release_view = source_contract(function, custody, *source)
+                .and_then(|root| leaf_type(types, root, path))
+                .and_then(|leaf| find_structural_type(types, leaf))
+                .is_some_and(|leaf| leaf.shape.is_view_descriptor());
+            if !release_view {
+                let key = (*source, path.clone());
+                let leaf = custody.leaves.remove(&key).ok_or_else(invalid)?;
+                custody.retire(leaf, retirements::DisposalEvent::Operation(*psi_operation))?;
+            }
         }
         AbstractOperation::MoveStructuralValue {
             psi_operation,

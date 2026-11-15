@@ -69,6 +69,7 @@ pub(crate) fn declare(
     // (`ProofApplications::membership`, which follows `provider_candidates`
     // from the requirement to the body a target installs).
     let mut boundaries = Vec::with_capacity(elaboration.module.boundary_machines.len());
+    let mut boundary_headers = Vec::new();
     for boundary in &elaboration.module.boundary_machines {
         let Some(callable) = &boundary.declaration else {
             continue;
@@ -91,6 +92,20 @@ pub(crate) fn declare(
             declaration: id,
             callable: TargetMachineCallable::Boundary(boundary.id),
         });
+        if let Some(symbol) = elaboration.boundaries.get(boundary.id).copied()
+            && typed.symbols.symbols().nodes().is_valid(symbol)
+        {
+            let header =
+                boundary_header(typed, &elaboration.module, id, boundary, callable, symbol)
+                    .map_err(|reason| {
+                        refuse(
+                            MachineId::new(1).expect("1 is nonzero"),
+                            Construct::Machine,
+                            Unserved::Declaration(reason),
+                        )
+                    })?;
+            boundary_headers.push(header);
+        }
         boundaries.push((boundary.id, id));
     }
     let boundary_for = |boundary: semantic_vocabulary::BoundaryMachineId| {
@@ -145,6 +160,7 @@ pub(crate) fn declare(
         let mut boundary_calls = Vec::new();
         let mut cleanup = Vec::new();
         let mut unavailable = None;
+        let mut invocation_refusal = None;
         for block in &machine.blocks {
             for operation in &block.operations {
                 if let Some(callee) = operation.kind.direct_callee() {
@@ -158,17 +174,20 @@ pub(crate) fn declare(
                 }
                 if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
                     match boundary_for(*boundary) {
-                        Ok(callee) => boundary_calls.push(ProofApplicationCall {
-                            callee,
-                            ..ProofApplicationCall::default()
-                        }),
+                        Ok(callee) => {
+                            boundary_calls.push(ProofApplicationCall {
+                                callee,
+                                ..ProofApplicationCall::default()
+                            });
+                            invocation_refusal = Some(
+                                "proof scope needs the actual selected boundary correspondence"
+                                    .into(),
+                            );
+                        }
                         Err(reason) => unavailable = Some(reason),
                     }
                 }
-                if matches!(
-                    operation.kind,
-                    OperationKind::CallDynamic { .. } | OperationKind::BoundaryCall { .. }
-                ) {
+                if matches!(operation.kind, OperationKind::CallDynamic { .. }) {
                     unavailable = Some(
                         "proof scope needs the actual selected boundary correspondence".into(),
                     );
@@ -234,7 +253,9 @@ pub(crate) fn declare(
                             })
                     })
             {
-                return Err("proof scope needs the complete service reach correspondence".into());
+                invocation_refusal.get_or_insert_with(|| {
+                    "proof scope needs the complete service reach correspondence".into()
+                });
             }
             let local_terminates =
                 terminal_semantics::control_graph::control_cycle_members(machine)
@@ -285,7 +306,10 @@ pub(crate) fn declare(
                 name,
                 custody,
                 effects: CompilerEvaluationEffects {
-                    services: Vec::new(),
+                    services: published_services(
+                        &elaboration.module,
+                        &machine.published_service_ceiling,
+                    )?,
                     may_suspend: saved.published_may_suspend,
                     may_block: saved.published_may_block,
                 },
@@ -293,7 +317,7 @@ pub(crate) fn declare(
                 entry_requires: !machine.contract.requires.is_empty()
                     || !machine.contract.source_checked_requires.is_empty(),
                 linear_carrier,
-                static_application: None,
+                invocation_refusal,
                 selections: selection_requests
                     .get(machine.id)
                     .ok_or("proof selection requests lost their emitted caller")?
@@ -340,6 +364,9 @@ pub(crate) fn declare(
             cleanup,
         });
     }
+    for header in boundary_headers {
+        scope.callable_headers.insert(header);
+    }
     scope.calls.index_machines();
     scope.plan.declarations = scope
         .plan
@@ -372,6 +399,74 @@ pub(crate) fn declare(
     }
     elaboration.module.scalar_applications.proof_scope = scope;
     Ok(())
+}
+
+// A checked requirement is itself a source selection. Retain its custody
+// alongside the caller's, but leave execution to the installed provider.
+fn boundary_header(
+    typed: &TypedTrees,
+    module: &terminal_psi::TerminalModule,
+    declaration: ProofDeclarationId,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    callable: &terminal_psi::CheckedBoundaryCallable,
+    symbol: symbols::SymbolHandle,
+) -> Result<ProofCallableHeader, &'static str> {
+    let type_parameter_count = typed
+        .trait_machine_signature(symbol)
+        .map(|(_, signature)| signature.type_parameters.len())
+        .or_else(|| {
+            typed
+                .machine_by_symbol(symbol)
+                .map(|machine| typed.machine_type_parameters(machine).len())
+        })
+        .ok_or("proof boundary has no exact source parameter roster")?;
+    let evaluation = (|| {
+        Ok(CompilerEvaluationDeclaration {
+            name: typed.symbols.name(symbol).to_owned(),
+            custody: declaration_custody(typed, symbol),
+            effects: CompilerEvaluationEffects {
+                services: published_services(module, &boundary.published_service_ceiling)?,
+                may_suspend: callable.source.published_may_suspend,
+                may_block: callable.source.published_may_block,
+            },
+            local_terminates: boundary.unconditional_termination,
+            entry_requires: !boundary.requires.is_empty()
+                || !boundary.scalar_requires.is_empty()
+                || !boundary.scalar_domain_requirements.is_empty(),
+            linear_carrier: None,
+            invocation_refusal: Some(
+                "a checked boundary declaration has no body to evaluate".into(),
+            ),
+            selections: Ok(Vec::new()),
+        })
+    })();
+    Ok(ProofCallableHeader {
+        declaration,
+        callable: Ok(callable.source.callable),
+        package: typed.symbols.symbol_package_identity(symbol),
+        type_parameter_count,
+        compiler_evaluation: evaluation,
+        ..ProofCallableHeader::default()
+    })
+}
+
+fn published_services(
+    module: &terminal_psi::TerminalModule,
+    reach: &[semantic_vocabulary::ServiceId],
+) -> Result<Vec<String>, String> {
+    reach
+        .iter()
+        .map(|service| {
+            module
+                .services
+                .binary_search_by_key(service, |row| row.id)
+                .ok()
+                .and_then(|position| module.identities.text(module.services[position].identity))
+                .filter(|identity| !identity.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| "proof scope lost an exact published service".into())
+        })
+        .collect()
 }
 
 fn declaration_custody(typed: &TypedTrees, symbol: symbols::SymbolHandle) -> DeclarationCustody {

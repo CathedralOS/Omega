@@ -13,6 +13,7 @@ fn array_types(access: StructuralAccess) -> IdTable<StructuralTypeId, RecordType
             identity: identity.to_owned(),
             shape,
             requires: Vec::new(),
+            authored_layout: false,
         });
     };
     add(

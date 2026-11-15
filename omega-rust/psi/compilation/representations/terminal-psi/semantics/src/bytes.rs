@@ -52,16 +52,14 @@ pub(crate) mod operation_bounds {
                 length,
                 obligation,
                 ..
+            }
+            | OperationKind::ElementViewRead {
+                index,
+                length,
+                obligation,
+                ..
             } => {
-                let tag = match operation.kind {
-                    OperationKind::ByteSequenceRead { .. } => {
-                        OperationSemanticTag::ByteSequenceRead
-                    }
-                    OperationKind::StructuralByteSequenceFieldRead { .. } => {
-                        OperationSemanticTag::StructuralByteSequenceFieldRead
-                    }
-                    _ => OperationSemanticTag::ByteSequenceWrite,
-                };
+                let tag = OperationSemanticTag::for_operation(&operation.kind);
                 (
                     *obligation,
                     Proposition::LessThan(value(*index, tag)?, value(*length, tag)?),

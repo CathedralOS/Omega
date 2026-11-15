@@ -12,3 +12,7 @@ and leaves neighboring elements unchanged.
 This isolates the Dungeon Crawler's `Level::room_mut` custody join. The returned
 borrow names the slice's referent type, while the local's produced carrier has
 a reference type. Custody follows the exact local occurrence and captured loan.
+
+The checker does not yet lend a mutable typed slice (`&mut [Cell]`), so the
+probe stops at the `cells` local in `select` before its returned-child checks
+([OWNER_CODE_CONCERNS.md](../../../../OWNER_CODE_CONCERNS.md)).

@@ -341,7 +341,7 @@ pub(crate) mod proof_kernel {
             }
 
             pub const fn get(self) -> u16 {
-                5
+                6
             }
         }
 
@@ -388,6 +388,7 @@ pub(crate) mod proof_kernel {
             ReflexiveEquality,
             ClosedIntegerRelation,
             IntegerCarrierBound,
+            ClosedIeeeFloatRelation,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -506,6 +507,9 @@ pub(crate) mod proof_kernel {
             IntegerPowerOfTwoOrder {
                 order: Box<ProofNode>,
             },
+            /// Compose nonempty positive IEEE order premises. Ordered truth
+            /// excludes NaN; unordered complements are not order premises.
+            IeeeFloatOrderChain(Vec<ProofNode>),
         }
     }
     pub(crate) mod witnesses {

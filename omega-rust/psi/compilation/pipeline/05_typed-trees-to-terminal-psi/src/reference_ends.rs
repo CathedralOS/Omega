@@ -6,14 +6,47 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use semantic_vocabulary::{CanonicalStructuralPathSegment, IdTable, MachineId};
 use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
 use terminal_check_tables::program::MachineSources;
-use terminal_check_tables::{CheckTables, Checked, Construct, ProgramPoint};
+use terminal_check_tables::{
+    CheckTables, Checked, Construct, ProgramPoint, Refusal, RefusalReason,
+};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule};
+use terminal_semantics::plain_affine::{Error, Site};
 
+fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSources>) -> Refusal {
+    let (concerns, origin) = match error.site() {
+        Some(Site::Operation(at)) => (
+            Construct::Operation(at),
+            sources.and_then(|sources| sources.operations.get(at)),
+        ),
+        Some(Site::Edge(at)) => (
+            Construct::Edge(at),
+            sources.and_then(|sources| sources.edges.get(at)),
+        ),
+        None => (Construct::Machine, None),
+    };
+    let (reason, detail) = match error {
+        Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
+        Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
+    };
+    Refusal {
+        source_span: origin.copied().and_then(SourceOrigin::authored_span),
+        reason,
+        machine,
+        concerns,
+        detail: detail.to_owned(),
+    }
+}
+
+/// A machine whose reference ends cannot be planned yet is refused on its
+/// own: the first such refusal is returned once every machine was tried,
+/// and each later one is put in `further`.
 pub(crate) fn install(
     module: &mut TerminalModule,
     tables: &mut CheckTables,
     sources: &mut IdTable<MachineId, MachineSources>,
+    further: &mut Vec<terminal_check_tables::Refusal>,
 ) -> Checked<()> {
+    let mut unsupported: Vec<terminal_check_tables::Refusal> = Vec::new();
     let candidates = terminal_semantics::reference_ends::candidates(module).map_err(|error| {
         terminal_check_tables::Refusal {
             source_span: error.operation.and_then(|operation| {
@@ -45,31 +78,15 @@ pub(crate) fn install(
             continue;
         }
         let plan = terminal_semantics::plain_affine::plan_reference_ends(module, owner, candidates)
-            .map_err(|error| {
-                let concerns = match error.site() {
-                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
-                        Construct::Operation(at)
-                    }
-                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-                    None => Construct::Machine,
-                };
-                let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                        (terminal_check_tables::RefusalReason::Unsupported, detail)
-                    }
-                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                        terminal_check_tables::RefusalReason::ForeignIdentity,
-                        detail,
-                    ),
-                };
-                terminal_check_tables::Refusal {
-                    source_span: None,
-                    reason,
-                    machine: owner,
-                    concerns,
-                    detail: detail.to_owned(),
-                }
-            })?;
+            .map_err(|error| planning_refusal(owner, error, sources.get(owner)));
+        let plan = match plan {
+            Ok(plan) => plan,
+            Err(refused) if refused.reason == terminal_check_tables::RefusalReason::Unsupported => {
+                unsupported.push(refused);
+                continue;
+            }
+            Err(refused) => return Err(refused),
+        };
         let machine = &mut module.machines[ordinal];
         let source = sources.get_mut(owner).ok_or_else(|| {
             refuse(
@@ -211,5 +228,48 @@ pub(crate) fn install(
             ));
         }
     }
+    if !unsupported.is_empty() {
+        let first = unsupported.remove(0);
+        further.append(&mut unsupported);
+        return Err(first);
+    }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn planning_refusals_use_the_exact_authored_operation_or_edge() {
+        let machine = MachineId::new(1).unwrap();
+        let source = source::SourceId(2);
+        let operation_span = source::SourceSpan::new(source, source::Span::new(10, 13));
+        let edge_span = source::SourceSpan::new(source, source::Span::new(20, 25));
+        let mut sources = MachineSources::default();
+        let operation = sources
+            .operations
+            .push(SourceOrigin::Authored(operation_span));
+        let edge = sources.edges.push(SourceOrigin::Authored(edge_span));
+        let synthetic = sources
+            .operations
+            .push(SourceOrigin::Unpositioned(Unpositioned::ReferenceLastUse));
+
+        for (site, expected) in [
+            (Some(Site::Operation(operation)), Some(operation_span)),
+            (Some(Site::Edge(edge)), Some(edge_span)),
+            (Some(Site::Operation(synthetic)), None),
+            (None, None),
+        ] {
+            let refusal = planning_refusal(
+                machine,
+                Error::Unsupported {
+                    detail: "last-use reference disposition needs an established active case",
+                    site,
+                },
+                Some(&sources),
+            );
+            assert_eq!(refusal.source_span, expected);
+        }
+    }
 }

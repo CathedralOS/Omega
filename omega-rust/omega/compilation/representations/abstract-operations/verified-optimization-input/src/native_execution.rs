@@ -303,9 +303,8 @@ impl TerminalNativeRealizationProposal {
                 &selection,
                 intrinsic_provenance.into_iter(),
                 &demands,
-                &module.boundary_machines,
-                &module.external_providers,
-                &module.identities,
+                module,
+                &self.providers().direct_boundary_leaves,
             )?;
         let demands = demands
             .into_iter()

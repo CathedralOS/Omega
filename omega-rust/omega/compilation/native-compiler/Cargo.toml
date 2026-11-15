@@ -39,3 +39,4 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 [dev-dependencies]
 arena = { path = "../../../psi/foundation/arena" }
 function-identity = { path = "../../foundation/function-identity" }
+target-operations = { path = "../representations/target-operations" }

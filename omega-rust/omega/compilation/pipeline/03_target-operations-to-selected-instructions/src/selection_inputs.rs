@@ -487,6 +487,7 @@ pub(crate) mod aggregate_result_input {
                                 | StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )
+                                | StructuralTypeShape::ElementView { access: None, .. }
                         )
                 })
         }) {
@@ -5579,6 +5580,43 @@ pub(crate) mod structural_array_input {
     use calling_conventions::ValueShape;
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use terminal_psi::{StructuralAccess, StructuralTypeShape};
+
+    /// Whether this construction builds an owned element sequence (whose 16-byte
+    /// stored-length descriptor points at its literal-pool roster) rather than an inline
+    /// fixed array. `None` when the row is not a structural array construction.
+    pub(crate) fn owned_sequence(
+        source: &crate::native_geometry::NativeFunction<'_>,
+        row: &LegalizedScalarInstruction,
+    ) -> Option<bool> {
+        let LegalizedScalarInstructionKind::EstablishStructuralArray {
+            result,
+            elements,
+            shape,
+        } = &row.kind
+        else {
+            return None;
+        };
+        let declaration = source
+            .geometry()
+            .iter()
+            .find(|entry| entry.id == result.structural_type)?;
+        let StructuralTypeShape::ElementView { access: None, .. } = declaration.shape else {
+            return Some(false);
+        };
+        let declared = crate::structural_inputs::structural_reference_input::shape(
+            result.structural_type,
+            source.geometry(),
+        )?;
+        (row.result.is_none()
+            && declared == *shape
+            && shape.byte_size == 16
+            && elements.iter().all(|argument| {
+                argument.access == StructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && argument.place != result.place
+            }))
+        .then_some(true)
+    }
 
     pub(crate) fn elements(
         source: &crate::native_geometry::NativeFunction<'_>,

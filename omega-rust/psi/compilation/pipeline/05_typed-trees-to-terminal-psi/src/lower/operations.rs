@@ -190,6 +190,15 @@ impl Lowering<'_> {
                 )
                 .map(Reached::Value)
             }
+            ExpressionKind::Float(value) => {
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    result,
+                    OperationKind::IeeeFloatConstant { value: *value },
+                )
+                .map(Reached::Value)
+            }
             ExpressionKind::Boolean(value) => {
                 let operation = self.operation_identity(source);
                 self.emit(

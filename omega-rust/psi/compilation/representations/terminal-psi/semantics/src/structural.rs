@@ -2321,6 +2321,20 @@ pub(crate) mod primitive_place {
         .is_some()
     }
 
+    /// Returns the exact declared descriptor stored at an inline path.
+    /// The storage of a borrowed view belongs to its carrier. Its elements do not.
+    pub fn inline_descriptor_type<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        if !projection_stays_in_inline_storage(declarations.clone(), root, path) {
+            return None;
+        }
+        runtime_structural_path_tip(declarations, root, path)
+            .filter(|declaration| declaration.shape.is_borrowed_descriptor())
+    }
+
     pub fn inline_backing_container(
         declarations: &[StructuralTypeDeclaration],
         root: StructuralTypeId,
@@ -3624,6 +3638,10 @@ pub(crate) mod static_path {
                     }
                     let child = match &field.field_type {
                         StructuralFieldType::Structural(child) => *child,
+                        leaf if leaf.byte_sequence_carrier().is_some() => {
+                            // The carrier row on this field identifies the stored descriptor.
+                            crate::inline_carrier_declaration(types.clone(), field)?.id
+                        }
                         leaf => {
                             leaf.canonical_leaf_type()?
                                 .leaf_declaration(types.clone())?
@@ -4968,6 +4986,24 @@ pub(crate) mod structural_effect {
         ) -> Option<ScalarType> {
             element_view_leaf(types, element, path).map(|leaf| leaf.scalar_type)
         }
+        /// A by-value read copies a statically selected scalar from its element.
+        pub fn element_view_read_scalar(
+            types: &[StructuralTypeDeclaration],
+            element: StructuralTypeId,
+            path: &[StructuralPathSegment],
+        ) -> Option<ScalarType> {
+            if !terminal_psi::find_structural_type(types, element)?.copyable
+                || !path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                    )
+                })
+            {
+                return None;
+            }
+            element_view_leaf_scalar(types, element, path)
+        }
         pub fn element_view_write_goal(
             types: &[StructuralTypeDeclaration],
             element: StructuralTypeId,
@@ -4997,7 +5033,8 @@ pub(crate) mod structural_effect {
     pub use byte_extent::{literal_length_equation, subslice_length_equation};
     pub use element_extent::{
         ElementViewLeaf, element_establishment_length_equation, element_subslice_length_equation,
-        element_view_leaf, element_view_leaf_scalar, element_view_write_goal,
+        element_view_leaf, element_view_leaf_scalar, element_view_read_scalar,
+        element_view_write_goal,
     };
 
     use crate::OperationSemanticError;

@@ -5378,6 +5378,8 @@ pub(crate) mod scalar_fields {
     }
 
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
+        // The shared scalar qualification check already compares each read
+        // with its complete field or primitive array element declaration.
         for row in &module.scalar_qualifications.fields {
             let mut matching = fields(module).filter(|field| field.id == row.field);
             let first = matching
@@ -5431,33 +5433,6 @@ pub(crate) mod scalar_fields {
                         }
                     }
                     _ => {}
-                }
-                let Some(result) = operation
-                    .result
-                    .scalar_ref()
-                    .filter(|row| !row.qualifications.is_empty())
-                else {
-                    continue;
-                };
-                let field = match &operation.kind {
-                    OperationKind::ScalarStructuralField { field, .. }
-                    | OperationKind::BooleanStructuralField { field, .. } => Some(*field),
-                    OperationKind::PrimitiveScalarRead { source, path } => {
-                        storage_field(module, machine, *source, path)?
-                    }
-                    _ => continue,
-                }
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "qualified scalar read lost its exact field declaration",
-                ))?;
-                let supplied = required(module, field)?;
-                if domains(module, result.qualifications)?
-                    .iter()
-                    .any(|domain| !supplied.contains(domain))
-                {
-                    return malformed(
-                        "scalar field read introduces membership absent from its declaration",
-                    );
                 }
             }
         }
@@ -6294,7 +6269,7 @@ pub(crate) mod storage_foundations {
             terminal_graph_from,
         };
         use terminal_semantics::{
-            collection_backing, collection_view_descriptor, element_view_leaf_scalar,
+            collection_backing, collection_view_descriptor, element_view_read_scalar,
         };
 
         fn element_view_result_place(
@@ -6527,9 +6502,11 @@ pub(crate) mod storage_foundations {
             }) else {
                 return malformed("element-view read requires an element-view source");
             };
-            let Some(expected) = element_view_leaf_scalar(&module.structural_types, element, path)
+            let Some(expected) = element_view_read_scalar(&module.structural_types, element, path)
             else {
-                return malformed("element-view read requires a scalar element leaf");
+                return malformed(
+                    "element-view read requires a static scalar leaf of a copyable element",
+                );
             };
             if operation
                 .result
@@ -8030,12 +8007,20 @@ pub(crate) mod storage_foundations {
                 )
                 .map_err(CodecError::MalformedStructuralFoundation)?
             }
-            None => reference_source_projection_compatible(
-                module.structural_types.iter(),
-                source_type,
-                source_path,
+            None => terminal_semantics::shared_direct_byte_descriptor_source(
+                module,
+                machine,
+                source,
                 result.structural_type,
-            ),
+            )
+            .unwrap_or_else(|| {
+                reference_source_projection_compatible(
+                    module.structural_types.iter(),
+                    source_type,
+                    source_path,
+                    result.structural_type,
+                )
+            }),
         };
         let ancestors_preserved = *access == StructuralAccess::SharedBorrow
             || declared_memberships(machine, source.place).is_some_and(|(whole, projected)| {
@@ -8318,11 +8303,14 @@ pub(crate) mod storage_foundations {
                 "reference release requires an owned descriptor path and Unit result",
             );
         }
-        let leaf_type = validate_structural_path(module, source_type, path)?;
-        if !module.structural_types.iter().any(|row| {
-            row.id == leaf_type && matches!(row.shape, StructuralTypeShape::Reference { .. })
-        }) {
-            return malformed("reference release requires a reference carrier");
+        if terminal_semantics::inline_descriptor_type(
+            module.structural_types.iter(),
+            source_type,
+            path,
+        )
+        .is_none()
+        {
+            return malformed("reference release requires a borrowed descriptor");
         }
         Ok(())
     }

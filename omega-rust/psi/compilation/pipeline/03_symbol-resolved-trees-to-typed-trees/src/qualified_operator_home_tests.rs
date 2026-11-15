@@ -248,17 +248,38 @@ fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
         public machine + Distance::both<T [copy]>(left: T in Distance, right: T in Distance) -> T in Distance { left }
         public machine + Distance::left<T [copy]>(left: T in Distance, right: T) -> T in Distance { left }
         public machine + Distance::right<T [copy]>(left: T, right: T in Distance) -> T in Distance { right }";
+    // domains.md, "Operands": with no declaration for its exact type, a
+    // qualified operand has no builtin operator either, so typing rejects it.
+    let unqualified_only = |value: &str, written: &str| {
+        Err(format!(
+            "builtin operator `+` takes unqualified operands only, but `left` has type \
+             `{written}` and no operator `+` is declared for it; remove the domain with a cast \
+             first, such as `(left as {value})`"
+        ))
+    };
     for (left, right, selected) in [
-        ("u32 in Distance", "u32 in Distance", Some("Distance::both")),
-        ("u32 in Distance", "u32", Some("Distance::left")),
-        ("u32", "u32 in Distance", Some("Distance::right")),
-        ("u32 in Distance & Other", "u32", None),
-        ("u32 in Distance", "u64", None),
-        ("u32", "u32", None),
+        (
+            "u32 in Distance",
+            "u32 in Distance",
+            Ok(Some("Distance::both")),
+        ),
+        ("u32 in Distance", "u32", Ok(Some("Distance::left"))),
+        ("u32", "u32 in Distance", Ok(Some("Distance::right"))),
+        (
+            "u32 in Distance & Other",
+            "u32",
+            unqualified_only("-Distance -Other", "u32 in Distance & Other"),
+        ),
+        (
+            "u32 in Distance",
+            "u64",
+            unqualified_only("-Distance", "u32 in Distance"),
+        ),
+        ("u32", "u32", Ok(None)),
     ] {
         let client =
             format!("use units; machine sum(left: {left}, right: {right}) {{ left + right; }}");
-        let program = typed(&[
+        let checked = checked(&[
             (
                 "units.omg",
                 "module units; public domain<T> T::Distance; public domain<T> T::Other;",
@@ -266,6 +287,17 @@ fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
             ("operator.omg", declarations),
             ("client.omg", &client),
         ]);
+        let selected = match (checked, selected) {
+            (Ok(program), Ok(selected)) => (program, selected),
+            (Err(error), Err(expected)) => {
+                assert_eq!(error, expected, "{left} + {right}");
+                continue;
+            }
+            (checked, expected) => {
+                panic!("{left} + {right}: {:?} against {expected:?}", checked.err())
+            }
+        };
+        let (program, selected) = selected;
         let calls = program
             .expression_table
             .iter_expressions()

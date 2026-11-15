@@ -5,8 +5,8 @@
 //! means IEEE binary32 and `f64` IEEE binary64 on every target providing
 //! them." This route carries a float wherever it carries any scalar: a
 //! field, a parameter, a result, a local, an array element, an arm's value.
-//! It computes nothing with one yet: a float literal, operator, cast and
-//! clause comparison are each refused by name, with no verdict.
+//! Literal landing rounds exact decimal values once. Operators, casts and
+//! clause comparisons outside the canonical primitive path still refuse.
 
 use super::build_purpose::judge_build;
 use super::*;
@@ -90,19 +90,12 @@ machine use(value: {received}) {{ }}"
     }
 }
 
-/// What this route does not compute with a float is refused by name. A
-/// clause comparison is among them on purpose: numeric_values.md, "Under
-/// IEEE comparison, ordered relations are false on NaN, `==` is false", so
-/// `value == value` must not be read as the mathematical equality that holds
-/// of every value.
+/// Float operations and clause comparisons without a selected declaration
+/// are refused by name. The ordinary Product source tests supply Core and
+/// check whether the selected comparison can actually be proved.
 #[test]
 fn what_is_not_computed_with_a_float_is_refused_by_name() {
     for (program, refusal) in [
-        (
-            "machine build_entry() { use(1.5); }
-machine use(value: f32) { }",
-            "expression float literal while reading the body of `build_entry`",
-        ),
         (
             "machine build_entry(value: f32) { use(value + value); }
 machine use(value: f32) { }",
@@ -127,13 +120,13 @@ machine use(value: f64) { }",
         (
             "machine need(value: f32) requires value == value { }
 machine build_entry(value: f32) { need(value); }",
-            "contract comparison of floats in a clause while reading the signature of `need`",
+            "contract IEEE comparison without its selected declaration while reading the signature of `need`",
         ),
         (
             "machine make(value: f32) -> f32 ensures result == value { value }
 machine build_entry(value: f32) { use(make(value)); }
 machine use(value: f32) { }",
-            "contract comparison of floats in a clause while reading the signature of `make`",
+            "contract IEEE comparison without its selected declaration while reading the signature of `make`",
         ),
         (
             "data Calibration { magnitude: f32; }
@@ -143,5 +136,52 @@ machine use(value: f32) { }",
         ),
     ] {
         assert_eq!(verdict(program), refusal, "{program}");
+    }
+}
+
+#[test]
+fn literal_landing_rounds_once_and_preserves_the_chosen_format() {
+    use semantic_vocabulary::IeeeFloatValue;
+    for (literal, carrier, expected) in [
+        (
+            "1.0000000596046448",
+            "f32",
+            IeeeFloatValue::Binary32(0x3f80_0001),
+        ),
+        ("-0.0", "f32", IeeeFloatValue::Binary32(0x8000_0000)),
+        (
+            "-0.0",
+            "f64",
+            IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+        ),
+        ("16777217", "f32", IeeeFloatValue::Binary32(0x4b80_0000)),
+        ("(7 / 2) * 2", "f32", IeeeFloatValue::Binary32(0x40e0_0000)),
+        (
+            "212.0f64",
+            "f64",
+            IeeeFloatValue::Binary64(212f64.to_bits()),
+        ),
+    ] {
+        let program = format!(
+            "machine build_entry() {{ use({literal}); }} machine use(value: {carrier}) {{}}"
+        );
+        let accepted = match judge_build(&program).unwrap() {
+            RouteVerdict::Accepted(accepted) => accepted,
+            other => panic!("{program}: {other:?}"),
+        };
+        assert!(accepted.elaboration.module.operations().any(|operation|
+            matches!(operation.kind, terminal_psi::OperationKind::IeeeFloatConstant { value } if value == expected)
+        ), "{program}");
+        accepted.publish_invocation().unwrap();
+    }
+    for (literal, carrier) in [("1.5f32", "f64"), ("1.5f64", "f32")] {
+        let program = format!(
+            "machine build_entry() {{ use({literal}); }} machine use(value: {carrier}) {{}}"
+        );
+        assert!(
+            verdict(&program).contains("no implicit scalar conversion"),
+            "{program}: {}",
+            verdict(&program)
+        );
     }
 }

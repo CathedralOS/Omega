@@ -10,13 +10,13 @@ data WindowsRemovalAttributes {
 }
 
 windows_x86_64 machine windows_removal_attributes(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsRemovalAttributes
-requires handle != 0
+requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches FilesystemMetadataQuery {
     let file: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(
         narrow_i64_to_u64_wrapping(handle as i64));
-    transition file != 0 { true -> block query(file) false -> failed() }
+    transition (file as -WindowsDiskFileOrAbsent) != 0 { true -> block query(file) false -> failed() }
     machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
-    requires file != 0 {
+    requires (file as -WindowsDiskFileOrAbsent) != 0 {
         let mut information: WindowsNativeFileAttributeTagInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(file, 9, &mut information, 8);
         transition succeeded != 0 {

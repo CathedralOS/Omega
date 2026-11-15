@@ -7,12 +7,14 @@ use super::declarations::unavailable;
 use crate::record::{
     PackagePolicyBaseline, PackagePolicyBoundaryApplications, PackagePolicyCallables,
     PackagePolicyPublicApi, PackagePolicyRepresentation, PackagePolicyRestrictedBuildRequest,
-    PackagePolicySelectedProviders, PackagePolicyTerminalPermissions,
+    PackagePolicySelectedProviders, PackagePolicyTerminalPermissions, PackageReviewNominalIdentity,
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
     PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };
+use build_time_evaluation::product_declarations::ServiceAuditRegistration;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use std::path::Path;
 use target::TargetProfile;
 
 pub(super) fn project(
@@ -30,22 +32,28 @@ pub(super) fn project(
         ));
     }
     let declarations = input;
-    require_supported_inventory(&declarations, package)?;
+    let accepted = checked.terminal_publication().accepted()?;
+    let source = accepted.source();
+    let origins = super::callables::service_origins(accepted, source::DependencyScope::Product)?;
+    let services = super::callables::service_identities(
+        source,
+        checked.sources().exact_toolchain_sources(),
+        &origins,
+    )?;
+    let providers = declarations.selected_providers(package, target, &origins, &services)?;
+    require_supported_inventory(&declarations, package, &providers.slots)?;
     // The owned declaration census above refuses unserved admission claims,
     // including unused private claims. The provider inventory's separate
     // root-grant census also contains unrelated imported toolchain claims;
     // it cannot substitute for this package's own review subject.
     let config = &checked.build().config;
-    if !checked.execution().plans().plans().is_empty()
-        || !checked.execution().plans().assumed_bindings().is_empty()
-        || !config.provider_selections.is_empty()
+    if !checked.execution().plans().assumed_bindings().is_empty()
         || !config.default_provider_selections.is_empty()
         || !config.assumed_bindings.is_empty()
         || !config.native_bindings.is_empty()
         || !config.opaque_representation_selections.is_empty()
         || !config.wire_compatibility_demands.is_empty()
         || !config.grants.is_empty()
-        || !config.service_audits.is_empty()
         || !config.behavior_exclusions.is_empty()
         || checked
             .sources()
@@ -58,10 +66,7 @@ pub(super) fn project(
         ));
     }
     let module = input.module()?;
-    if !module.services.is_empty()
-        || !module.boundary_machines.is_empty()
-        || !module.external_providers.is_empty()
-        || !module.provider_candidates.is_empty()
+    if !module.external_providers.is_empty()
         || !module.provider_instance_requirements.is_empty()
         || !module.boundary_application_candidates.is_empty()
         || !module.boundary_application_demands.is_empty()
@@ -91,7 +96,7 @@ pub(super) fn project(
         return Err(unavailable("register-operation authority"));
     }
     let public_api = PackagePolicyPublicApi {
-        traits: Vec::new(),
+        traits: providers.public_traits,
         conformances: Vec::new(),
         domains: declarations.public_domains(package)?,
         propositions: Vec::new(),
@@ -99,19 +104,22 @@ pub(super) fn project(
         operators: Vec::new(),
         data: declarations.public_data(package)?,
     };
-    let policy = PackagePolicyBaseline {
+    let mut callables = declarations.callables(package, &services)?;
+    callables.extend(providers.callables);
+    callables.sort_by(|left, right| left.identity.cmp(&right.identity));
+    let mut policy = PackagePolicyBaseline {
         package,
         target,
         public_api,
         callables: PackagePolicyCallables {
             package,
             target,
-            callables: declarations.callables(package)?,
+            callables,
         },
         selected_providers: PackagePolicySelectedProviders {
             package,
             target,
-            plans: Vec::new(),
+            plans: providers.plans,
             families: Vec::new(),
         },
         terminal_permissions: PackagePolicyTerminalPermissions {
@@ -146,13 +154,79 @@ pub(super) fn project(
             .collect(),
         component_assumptions: Vec::new(),
     };
+    let audits = service_audits(&declarations, &config.service_audits)?;
+    policy.apply_service_audit_policy(&audits);
     policy.validate_canonical_structure().map_err(unavailable)?;
     Ok(policy)
+}
+
+fn service_audits(
+    declarations: &PackageReviewInput<'_>,
+    registrations: &[ServiceAuditRegistration],
+) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
+    if registrations.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // An audit may name a boundary with no methods or realized reach. Index
+    // the admitted source declarations and let rejoin check exact custody
+    // within each matching source coordinate.
+    let typed = declarations.typed();
+    let mut boundaries = Vec::new();
+    for declaration in typed
+        .traits()
+        .iter()
+        .filter(|declaration| declaration.is_boundary)
+    {
+        let symbol = declaration.symbol;
+        if !typed.symbols.symbols().nodes().is_valid(symbol) {
+            return Err(unavailable(
+                "a stale boundary declaration in the audit inventory",
+            ));
+        }
+        if let Some(span) = typed.symbols.symbol_source_span(symbol)
+            && let Some(source) = typed.symbols.source_file(span)
+        {
+            boundaries.push((declaration_coordinate(source, span.span), symbol));
+        }
+    }
+    boundaries.sort_unstable_by_key(|&(coordinate, _)| coordinate);
+
+    registrations
+        .iter()
+        .map(|registration| {
+            let declaration = &registration.declaration;
+            let coordinate = declaration_coordinate(declaration.source(), declaration.span());
+            let first = boundaries.partition_point(|&(candidate, _)| candidate < coordinate);
+            let end = boundaries.partition_point(|&(candidate, _)| candidate <= coordinate);
+            let symbol = declaration
+                .rejoin(
+                    &typed.symbols,
+                    boundaries[first..end].iter().map(|&(_, symbol)| symbol),
+                )
+                .map_err(unavailable)?;
+            declarations.nominal(symbol)
+        })
+        .collect()
+}
+
+fn declaration_coordinate(
+    source: &source::SourceFile,
+    span: source::Span,
+) -> (&Path, &Path, source::DependencyScope, usize, usize) {
+    (
+        &source.path,
+        &source.package_root,
+        source.dependency_scope,
+        span.start,
+        span.end,
+    )
 }
 
 fn require_supported_inventory(
     declarations: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
+    reviewed_boundary_slots: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let typed = declarations.typed();
     let owned = |symbol| {
@@ -205,7 +279,15 @@ fn require_supported_inventory(
         }
     }
     for declaration in typed.traits() {
-        if owned(declaration.symbol)? && (declaration.is_public || declaration.is_boundary) {
+        if (declaration.is_public || declaration.is_boundary)
+            && owned(declaration.symbol)?
+            && reviewed_boundary_slots
+                .binary_search_by_key(
+                    &super::providers::symbol_key(declaration.symbol),
+                    |symbol| super::providers::symbol_key(*symbol),
+                )
+                .is_err()
+        {
             return Err(unavailable("trait and boundary declaration contracts"));
         }
     }

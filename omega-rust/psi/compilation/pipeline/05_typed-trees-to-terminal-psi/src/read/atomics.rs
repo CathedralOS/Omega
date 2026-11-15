@@ -71,6 +71,7 @@ impl Program<'_> {
             identity,
             shape: StorageShape::AtomicCell(cell),
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources
             .push(super::arrays::physical_source(reference));
@@ -197,6 +198,7 @@ impl Program<'_> {
     pub(super) fn atomic_fence(
         &self,
         id: MachineId,
+        slots: &[Slot],
         target: symbols::SymbolHandle,
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
@@ -235,19 +237,47 @@ impl Program<'_> {
             .typed
             .closed_data_definition(parameter.type_reference)
             .ok_or_else(reject_ordering)?;
-        let case_symbol = match self.node(id, *argument)? {
-            ExpressionNode::Name(path) => path.symbol,
-            ExpressionNode::StructLiteral(literal)
-                if literal.type_symbol == definition.symbol
-                    && self
+        let mut argument = *argument;
+        let mut visible = slots;
+        let case_symbol = loop {
+            match self.node(id, argument)? {
+                ExpressionNode::Name(path)
+                    if self.typed.symbols.symbols().nodes().is_valid(path.symbol)
+                        && self.typed.symbols.get(path.symbol).kind
+                            == symbols::SymbolKind::Local =>
+                {
+                    let binding = self
+                        .slot_of(id, visible, path)
+                        .map_err(|_| reject_ordering())?;
+                    if visible[binding].erased
+                        || visible[binding].borrowed.is_some()
+                        || self
+                            .typed
+                            .stored_value_multiplicity(parameter.type_reference)
+                            != language_semantics::Multiplicity::Unrestricted
+                    {
+                        return Err(reject_ordering());
+                    }
+                    argument = self
                         .typed
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .is_empty() =>
-            {
-                literal.case_symbol.ok_or_else(reject_ordering)?
+                        .immutable_local_initializer(path.symbol)
+                        .ok_or_else(reject_ordering)?;
+                    // An initializer can name only bindings that precede it.
+                    visible = &visible[..binding];
+                }
+                ExpressionNode::Name(path) => break path.symbol,
+                ExpressionNode::StructLiteral(literal)
+                    if literal.type_symbol == definition.symbol
+                        && self
+                            .typed
+                            .expression_table
+                            .struct_fields(literal.fields)
+                            .is_empty() =>
+                {
+                    break literal.case_symbol.ok_or_else(reject_ordering)?;
+                }
+                _ => return Err(reject_ordering()),
             }
-            _ => return Err(reject_ordering()),
         };
         let case = self
             .typed

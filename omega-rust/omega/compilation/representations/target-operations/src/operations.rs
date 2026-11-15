@@ -116,6 +116,7 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         arguments: [StructuralArgument; 6],
+        indices: [Vec<TargetStructuralRuntimeIndex>; 6],
         calls: [TargetInstallationCall; 2],
         result_home: TargetUnitScalarHomeRequirement,
     },
@@ -124,12 +125,14 @@ pub enum TargetUnitOperation {
         boundary: BoundaryMachineId,
         operation: language_core::static_interrupts::StaticInterruptOperation,
         token: StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
         result_home: Option<TargetStructuralHomeRequirement>,
     },
     AccessLifecycle {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         operands: abstract_operations::AccessLifecycleOperands,
+        indices: Vec<TargetStructuralRuntimeIndex>,
         result_home: TargetStructuralHomeRequirement,
     },
     EstablishActivationClaim {
@@ -176,6 +179,7 @@ pub enum TargetUnitOperation {
         boundary: BoundaryMachineId,
         realization: crate::AccessorScalarAccessRealization,
         location: StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
         operand: Option<TargetUnitScalarArgumentSource>,
         result_home: Option<TargetUnitScalarHomeRequirement>,
     },
@@ -294,6 +298,9 @@ pub enum TargetUnitOperation {
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,
         value: PlaceId,
+        /// Declared type of the owned value written into the field. Selection
+        /// derives the store's shape from it through the shared type catalog.
+        value_type: semantic_vocabulary::StructuralTypeId,
         byte_offset: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
@@ -412,6 +419,9 @@ pub enum TargetUnitOperation {
         destination_type: StructuralTypeDeclaration,
         destination_storage: crate::TargetStructuralArgumentSource,
         source: TargetUnitWriteOnlyPrimitiveStoreSource,
+        /// Offset of the leaf in the backing reached by the path.
+        byte_offset: u32,
+        byte_size: u32,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     StructuralScalarFieldStore {
@@ -529,6 +539,7 @@ pub enum TargetUnitOperation {
         task_state: StructuralArgument,
         selector: TargetUnitScalarArgumentSource,
         scratch: StructuralArgument,
+        indices: [Vec<TargetStructuralRuntimeIndex>; 3],
         result_home: TargetUnitScalarHomeRequirement,
     },
     ReloadSegmentDescriptors {
@@ -539,6 +550,7 @@ pub enum TargetUnitOperation {
         gdt: StructuralArgument,
         selector: TargetUnitScalarArgumentSource,
         scratch: StructuralArgument,
+        indices: [Vec<TargetStructuralRuntimeIndex>; 2],
         result_home: TargetUnitScalarHomeRequirement,
     },
     ReadSegmentSelector {
@@ -557,6 +569,7 @@ pub enum TargetUnitOperation {
         service: ServiceId,
         operation: terminal_psi::GlobalDescriptorTableOperation,
         source: terminal_psi::StructuralArgument,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     RegisterAccess {
         psi_operation: OperationId,

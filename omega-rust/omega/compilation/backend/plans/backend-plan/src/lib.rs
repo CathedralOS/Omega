@@ -21,6 +21,8 @@ and settlement projections to native preparation and installation admission.
 */
 
 mod callback_artifacts;
+mod canonical_schemas;
+pub use canonical_schemas::{compiler_primitive_schemas, hosted_requirement_schema};
 mod direct_boundary_leaves;
 pub mod synchronous_invocations;
 mod target_providers;
@@ -33,9 +35,9 @@ pub use callback_artifacts::{
 };
 pub use direct_boundary_leaves::{DirectBoundaryExecution, DirectBoundaryLeaf};
 pub use target_providers::{
-    SelectedCheckedInvocationRow, SelectedProviderCandidateRow, TerminalTargetProviderProposal,
-    TerminalTargetProviderSelection, admit_selected_checked_providers,
-    close_checked_provider_specializations, matching_folded_constant_dependencies,
-    selected_checked_adapter_header, selected_checked_invocation_rows,
-    selected_provider_candidate_rows,
+    SelectedCheckedInvocationCandidate, SelectedCheckedInvocationRow, SelectedProviderCandidateRow,
+    TerminalTargetProviderProposal, TerminalTargetProviderSelection,
+    admit_selected_checked_providers, close_checked_provider_specializations,
+    matching_folded_constant_dependencies, selected_checked_adapter_header,
+    selected_checked_invocation_rows, selected_provider_candidate_rows,
 };

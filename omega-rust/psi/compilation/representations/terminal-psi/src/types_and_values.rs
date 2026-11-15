@@ -860,6 +860,11 @@ pub mod types {
                 self.is_borrowed_byte_carrier() || matches!(self, Self::ElementView { .. })
             }
 
+            /// Descriptors own a carrier whose retirement ends its retained permission.
+            pub const fn is_borrowed_descriptor(&self) -> bool {
+                matches!(self, Self::Reference { .. }) || self.is_view_descriptor()
+            }
+
             pub fn is_canonical_view_descriptor(&self) -> bool {
                 matches!(
                     self,
@@ -1313,17 +1318,7 @@ pub mod types {
             structural_type_contains_by(
                 lookup,
                 root,
-                |shape| {
-                    matches!(
-                        shape,
-                        StructuralTypeShape::Reference { .. }
-                            | StructuralTypeShape::ElementView { .. }
-                            | StructuralTypeShape::ByteSequence(
-                                ByteSequenceCarrier::BorrowedView { .. }
-                                    | ByteSequenceCarrier::BoundedView { .. }
-                            )
-                    )
-                },
+                StructuralTypeShape::is_borrowed_descriptor,
                 |field| {
                     matches!(
                         field.byte_sequence_carrier(),

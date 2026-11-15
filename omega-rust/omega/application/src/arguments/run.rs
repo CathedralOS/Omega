@@ -20,7 +20,23 @@ pub(crate) struct RunArguments {
     pub(crate) main_path: std::path::PathBuf,
 }
 
-pub(super) const USAGE: &str = "usage: omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
+macro_rules! run_help {
+    (synopsis) => {
+        "omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>"
+    };
+    (work_budget) => {
+        "--psi-work-budget applies to --engine psi and to --both without --target."
+    };
+}
+pub(super) use run_help;
+
+pub(super) const USAGE: &str = concat!(
+    "usage: ",
+    run_help!(synopsis),
+    "\n",
+    run_help!(work_budget),
+    "\nWithout --target, --both runs native code and Psi on this host and compares their exits.\nWith --target, the default engine, --engine native, and --both emit artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
+);
 
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,

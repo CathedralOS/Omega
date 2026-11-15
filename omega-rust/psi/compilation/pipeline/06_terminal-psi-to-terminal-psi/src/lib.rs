@@ -1968,13 +1968,6 @@ fn stated_goal(
                 )
             };
             match row.site {
-                InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
-                    tables,
-                    &row.actuals,
-                    formals,
-                    site,
-                    concerns,
-                )?),
                 InvocationSite::Cleanup {
                     edge,
                     action_ordinal,
@@ -1986,14 +1979,13 @@ fn stated_goal(
                     action_ordinal,
                     concerns,
                 )?),
-                InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
-                    let actuals = scalar_actuals(&row.actuals);
-                    over_actuals(&mut ScalarActuals {
-                        actuals: &actuals,
-                        result: None,
-                        tables,
-                    })
-                }
+                site => over_actuals(&mut storage.at_call(
+                    tables,
+                    &row.actuals,
+                    formals,
+                    site,
+                    concerns,
+                )?),
             }
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
@@ -2067,6 +2059,23 @@ fn decide(
     unreached: &[ValueId],
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
+    // Search and the kernel first see only the facts connected to the goal
+    // (`connected`); the full set is tried only when that search fails, so
+    // the narrowing never refuses an obligation the full set proves.
+    if let Some(narrowed) = connected(&goal, &hypotheses)
+        && let Ok(certificate) = search_certificate(
+            context,
+            &tables.values,
+            id,
+            obligation,
+            &goal,
+            &narrowed.assumptions,
+            &narrowed.axioms,
+            unreached,
+        )
+    {
+        return verify(context, id, obligation, goal, narrowed, certificate);
+    }
     let certificate = search_certificate(
         context,
         &tables.values,
@@ -2078,6 +2087,107 @@ fn decide(
         unreached,
     )?;
     verify(context, id, obligation, goal, hypotheses, certificate)
+}
+
+/// The hypotheses that share a value with `goal`, directly or through a
+/// chain of other hypotheses, plus every hypothesis that names no value.
+/// `None` when that is all of them.
+///
+/// A long machine accumulates thousands of available facts (a layout plan
+/// that fills a 64-entry record array has over 5,000), and the kernel
+/// re-checks every certificate in the context of every premise it is given,
+/// so passing all of them made each obligation cost time linear in the
+/// machine's size. A fact whose values are disjoint from the goal's
+/// component can only matter by contradicting the others; the caller keeps
+/// that case by retrying with the full set. Dropping premises cannot make
+/// the kernel accept more, and the evidence records exactly the rows used.
+fn connected(goal: &Proposition, hypotheses: &Hypotheses) -> Option<Hypotheses> {
+    let premises = || hypotheses.assumptions.iter().chain(&hypotheses.axioms);
+    // Dense indices for every value named anywhere, then one union-find
+    // pass joining each premise's values.
+    let mut values = Vec::new();
+    let mut complete = Vec::with_capacity(hypotheses.assumptions.len() + hypotheses.axioms.len());
+    for premise in premises() {
+        complete.push(premise.visit_value_ids(|value| values.push(value)));
+    }
+    if !goal.visit_value_ids(|value| values.push(value)) {
+        return None;
+    }
+    values.sort_unstable();
+    values.dedup();
+    let index = |value: ValueId| values.binary_search(&value).ok();
+    let mut parent = (0..values.len()).collect::<Vec<_>>();
+    fn root(parent: &mut [usize], mut node: usize) -> usize {
+        while parent[node] != node {
+            parent[node] = parent[parent[node]];
+            node = parent[node];
+        }
+        node
+    }
+    for premise in premises() {
+        let mut first = None;
+        premise.visit_value_ids(|value| {
+            let Some(node) = index(value) else { return };
+            let node = root(&mut parent, node);
+            match first {
+                None => first = Some(node),
+                Some(other) => parent[node] = root(&mut parent, other),
+            }
+        });
+    }
+    let mut goal_roots = Vec::new();
+    goal.visit_value_ids(|value| {
+        if let Some(node) = index(value) {
+            goal_roots.push(root(&mut parent, node));
+        }
+    });
+    goal_roots.sort_unstable();
+    goal_roots.dedup();
+    // A premise is kept when it names no value, could not be enumerated, or
+    // names a value of the goal's component.
+    let mut keep = |premise: &Proposition, complete: bool| {
+        let mut named = false;
+        let mut joined = false;
+        premise.visit_value_ids(|value| {
+            named = true;
+            if let Some(node) = index(value) {
+                joined |= goal_roots.binary_search(&root(&mut parent, node)).is_ok();
+            }
+        });
+        !complete || !named || joined
+    };
+    let mut narrowed = Hypotheses {
+        assumption_rows: Vec::new(),
+        axiom_rows: Vec::new(),
+        assumptions: Vec::new(),
+        axioms: Vec::new(),
+    };
+    let (assumption_complete, axiom_complete) = complete.split_at(hypotheses.assumptions.len());
+    for ((premise, row), complete) in hypotheses
+        .assumptions
+        .iter()
+        .zip(&hypotheses.assumption_rows)
+        .zip(assumption_complete)
+    {
+        if keep(premise, *complete) {
+            narrowed.assumptions.push(premise.clone());
+            narrowed.assumption_rows.push(*row);
+        }
+    }
+    for ((premise, row), complete) in hypotheses
+        .axioms
+        .iter()
+        .zip(&hypotheses.axiom_rows)
+        .zip(axiom_complete)
+    {
+        if keep(premise, *complete) {
+            narrowed.axioms.push(premise.clone());
+            narrowed.axiom_rows.push(*row);
+        }
+    }
+    (narrowed.assumptions.len() + narrowed.axioms.len()
+        < hypotheses.assumptions.len() + hypotheses.axioms.len())
+    .then_some(narrowed)
 }
 
 /// Declaration formation and executable obligations search the same proof

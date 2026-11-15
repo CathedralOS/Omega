@@ -2493,7 +2493,7 @@ pub(crate) mod program {
             }
             self.boundary_machines().get(&slot).filter(|declaration| {
                 declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
-                    && !compiler_owns_boundary_execution(declaration)
+                    && !interpreter_owns_boundary_execution(declaration)
             })
         }
     }
@@ -2806,7 +2806,17 @@ pub(crate) mod program {
                     "external supply names contract evidence rather than a callable",
                 ));
             }
-            if compiler_owns_boundary_execution(declaration) {
+            let execution = declaration
+                .declaration
+                .as_ref()
+                .map(|callable| callable.execution);
+            // Numeric declarations remain compiler owned, but their admitted
+            // scalar adapter executes through a host-import slot. A component
+            // or checked provider may not replace that declaration.
+            if execution.is_some_and(|execution| execution.compiler_owned())
+                && !(execution == Some(terminal_psi::CheckedBoundaryExecution::NumericPrimitive)
+                    && supply == AdmittedBoundarySupply::HostImport)
+            {
                 return Err(rejected(
                     "compiler primitive cannot be replaced by an external supply",
                 ));
@@ -2836,7 +2846,7 @@ pub(crate) mod program {
                 .values()
                 .filter(move |declaration| {
                     declaration.role == terminal_psi::BoundaryDeclarationRole::Callable
-                        && !compiler_owns_boundary_execution(declaration)
+                        && !interpreter_owns_boundary_execution(declaration)
                         && !self.program.has_provider(&declaration.id)
                 })
         }
@@ -2845,11 +2855,11 @@ pub(crate) mod program {
             self.program.import_declaration(slot)
         }
 
-        pub fn is_compiler_primitive(&self, slot: BoundaryMachineId) -> bool {
+        pub fn executes_boundary_internally(&self, slot: BoundaryMachineId) -> bool {
             self.program
                 .boundary_machines()
                 .get(&slot)
-                .is_some_and(compiler_owns_boundary_execution)
+                .is_some_and(interpreter_owns_boundary_execution)
         }
 
         pub fn external_completion_requirement(
@@ -3186,11 +3196,15 @@ pub(crate) mod program {
         }
     }
 
-    pub(crate) fn compiler_owns_boundary_execution(
+    pub(crate) fn interpreter_owns_boundary_execution(
         declaration: &BoundaryMachineDeclaration,
     ) -> bool {
         declaration.declaration.as_ref().is_some_and(|callable| {
-            callable.execution != terminal_psi::CheckedBoundaryExecution::Provider
+            !matches!(
+                callable.execution,
+                terminal_psi::CheckedBoundaryExecution::Provider
+                    | terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+            )
         })
     }
 

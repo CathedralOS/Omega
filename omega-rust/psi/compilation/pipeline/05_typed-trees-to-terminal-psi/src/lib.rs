@@ -272,8 +272,10 @@ pub fn elaborate_for(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    let mut prepared =
-        elaborate_source_for(typed, compilation, publication, named_captures(typed))?;
+    // The first refusal read is the one a reading that stops there meets;
+    // `prepare_compilation` reports the rest beside it.
+    let mut prepared = elaborate_source_for(typed, compilation, publication, named_captures(typed))
+        .map_err(|mut refused| refused.swap_remove(0))?;
     proof_scope::declare(typed, &mut prepared.program, &prepared.selected_calls)?;
     Ok(prepared.program)
 }
@@ -283,18 +285,28 @@ fn elaborate_source_for<'source>(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
     captures: NamedCaptures,
-) -> Checked<PreparedProgram<'source>> {
+) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.publication = publication;
     program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
-    program.build_entry_context(first, compilation.purpose, compilation.entries)?;
+    let alone = |refused: Refusal| vec![refused];
+    program
+        .build_entry_context(first, compilation.purpose, compilation.entries)
+        .map_err(alone)?;
+    // Every claimed declaration and every body is read even after one is
+    // refused, so one compilation names every machine the checker cannot
+    // read yet (`read::Program::keep`). The first entry is the exception:
+    // it is machine 1, the frame every other refusal is reported in.
+    program.collected = Some(Vec::new());
     let entry = if let Some((entry, others)) = compilation.entries.split_first() {
-        let entry = program.machine(*entry)?;
+        let entry = program.machine(*entry).map_err(alone)?;
         program.fixed_inputs.push(entry);
         for other in others {
-            let other = program.machine(*other)?;
-            program.fixed_inputs.push(other);
+            match program.machine(*other) {
+                Ok(other) => program.fixed_inputs.push(other),
+                Err(refused) => program.keep(Err(refused)).map_err(alone)?,
+            }
         }
         Some(entry)
     } else {
@@ -303,13 +315,72 @@ fn elaborate_source_for<'source>(
         // or from whichever subject machine happens to be read first.
         None
     };
-    program.selected_declarations(first, compilation.selected)?;
-    program.supplied_slots(first, compilation.supplies)?;
-    program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
-    let mut elaboration = finish_reading(program, entry, IdTable::default())?;
+    for selected in compilation.selected {
+        let read = program.selected_declarations(first, std::slice::from_ref(selected));
+        program.keep(read).map_err(alone)?;
+    }
+    for supply in compilation.supplies {
+        let read = program.supplied_slots(first, std::slice::from_ref(supply));
+        program.keep(read).map_err(alone)?;
+    }
+    program
+        .subject_declarations(first, compilation.subjects, compilation.purpose)
+        .map_err(alone)?;
+    let bodies = read_bodies(&mut program, first).map_err(alone)?;
+    // Past reading, each step works over the whole closure, so the first
+    // refusal there ends it, except the storage plan of each machine
+    // (`finish_storage`).
+    let refused = program.collected.take().unwrap_or_default();
+    if !refused.is_empty() {
+        return Err(refused);
+    }
+    let mut further = Vec::new();
+    let mut elaboration =
+        finish_reading_into(program, entry, bodies, &mut further).map_err(|first| {
+            let mut refused = vec![first];
+            refused.append(&mut further);
+            refused
+        })?;
     elaboration.selected_calls =
-        compilation::prepare_selected_signatures(typed, &elaboration.program, &elaboration.source)?;
+        compilation::prepare_selected_signatures(typed, &elaboration.program, &elaboration.source)
+            .map_err(alone)?;
     Ok(elaboration)
+}
+
+/// Reads the body of every machine discovered so far, and of each callee
+/// those bodies discover. A refused body is recorded (`read::Program::keep`)
+/// and the next is read; the table then holds only the bodies before the
+/// first refused one, and is used only when nothing was refused.
+fn read_bodies(
+    program: &mut read::Program<'_>,
+    diagnostic: MachineId,
+) -> Checked<IdTable<MachineId, Body>> {
+    let mut bodies = IdTable::default();
+    let mut complete = true;
+    let mut position = 0;
+    // `program.body` appends callees while bodies are read, so the bound is
+    // re-read on every step.
+    while position < program.symbols.len() {
+        position += 1;
+        let next = MachineId::new(position as u64).ok_or_else(|| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Machine("identity overflow"),
+            )
+        })?;
+        match program.body(next) {
+            Ok(body) if complete => {
+                bodies.push(body);
+            }
+            Ok(_) => {}
+            Err(refused) => {
+                program.keep(Err(refused))?;
+                complete = false;
+            }
+        }
+    }
+    Ok(bodies)
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -687,9 +758,20 @@ fn elaborate_form(
 /// witness root has no source machine and remains unpublishable; no body is
 /// accepted merely by describing its header.
 fn finish_reading<'source>(
+    program: read::Program<'source>,
+    entry: Option<MachineId>,
+    bodies: IdTable<MachineId, Body>,
+) -> Checked<PreparedProgram<'source>> {
+    finish_reading_into(program, entry, bodies, &mut Vec::new())
+}
+
+/// `finish_reading`, putting each machine refused after the first one, where
+/// each machine is refused on its own, into `further`.
+fn finish_reading_into<'source>(
     mut program: read::Program<'source>,
     entry: Option<MachineId>,
     mut bodies: IdTable<MachineId, Body>,
+    further: &mut Vec<Refusal>,
 ) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
@@ -780,7 +862,7 @@ fn finish_reading<'source>(
         &program.requirements,
     )?;
     reference_results::publish(&mut elaboration, &program.selections)?;
-    finish_storage(diagnostic, &mut elaboration)?;
+    finish_storage(diagnostic, &mut elaboration, further)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
@@ -1180,80 +1262,93 @@ fn lower_generic_for<'source>(
     };
     if declarations.is_none() {
         reference_results::publish(&mut prepared.program, &[])?;
-        finish_storage(diagnostic, &mut prepared.program)?;
+        finish_storage(diagnostic, &mut prepared.program, &mut Vec::new())?;
     }
     Ok(prepared)
 }
 
-fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Checked<()> {
+/// `further` receives every machine whose storage plan is refused as not
+/// supported after the first, which is the refusal returned; the plan of
+/// each later machine is still made, so one compilation names them all.
+fn finish_storage(
+    diagnostic: MachineId,
+    elaboration: &mut Elaboration,
+    further: &mut Vec<Refusal>,
+) -> Checked<()> {
+    let mut unsupported: Vec<Refusal> = Vec::new();
     let names = &elaboration.names;
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
-    reference_ends::install(module, tables, sources)?;
+    reference_ends::install(module, tables, sources, further)?;
     for ordinal in 0..module.machines.len() {
         let machine = &module.machines[ordinal];
-        let plan =
-            terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
-                let (concerns, operation, origin) = match error.site() {
-                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
-                        Construct::Operation(at),
-                        machine
-                            .operations()
-                            .find(|operation| operation.id == at)
-                            .map(|operation| {
-                                terminal_semantics::OperationSemanticTag::for_operation(
-                                    &operation.kind,
-                                )
+        let plan = terminal_semantics::plain_affine::plan_in(module, machine.id).map_err(|error| {
+            let (concerns, operation, origin) = match error.site() {
+                Some(terminal_semantics::plain_affine::Site::Operation(at)) => (
+                    Construct::Operation(at),
+                    machine
+                        .operations()
+                        .find(|operation| operation.id == at)
+                        .map(|operation| {
+                            terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
                                 .name()
-                            }),
-                        sources
-                            .get(machine.id)
-                            .and_then(|source| source.operations.get(at))
-                            .copied(),
-                    ),
-                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
-                        Construct::Edge(at),
-                        Some("control-flow edge"),
-                        sources
-                            .get(machine.id)
-                            .and_then(|source| source.edges.get(at))
-                            .copied(),
-                    ),
-                    None => (Construct::Machine, None, None),
-                };
-                let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                        (terminal_check_tables::RefusalReason::Unsupported, detail)
-                    }
-                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
-                        terminal_check_tables::RefusalReason::ForeignIdentity,
-                        detail,
-                    ),
-                };
-                terminal_check_tables::Refusal {
-                    reason,
-                    machine: machine.id,
-                    concerns,
-                    source_span: None,
-                    detail: {
-                        let detail = match (operation, origin) {
-                            (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
-                                "while checking {operation} at source {} bytes {}..{}: {detail}",
-                                span.source_id.0, span.span.start, span.span.end,
-                            ),
-                            (Some(operation), _) => format!("while checking {operation}: {detail}"),
-                            (None, _) => detail.to_owned(),
-                        };
-                        match names.get(machine.id) {
-                            Some(name) => {
-                                format!("while checking storage in `{}`: {detail}", name.machine)
-                            }
-                            None => detail,
-                        }
-                    },
+                        }),
+                    sources
+                        .get(machine.id)
+                        .and_then(|source| source.operations.get(at))
+                        .copied(),
+                ),
+                Some(terminal_semantics::plain_affine::Site::Edge(at)) => (
+                    Construct::Edge(at),
+                    Some("control-flow edge"),
+                    sources
+                        .get(machine.id)
+                        .and_then(|source| source.edges.get(at))
+                        .copied(),
+                ),
+                None => (Construct::Machine, None, None),
+            };
+            let (reason, detail) = match error {
+                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                    (terminal_check_tables::RefusalReason::Unsupported, detail)
                 }
-            })?;
+                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => (
+                    terminal_check_tables::RefusalReason::ForeignIdentity,
+                    detail,
+                ),
+            };
+            terminal_check_tables::Refusal {
+                reason,
+                machine: machine.id,
+                concerns,
+                source_span: None,
+                detail: {
+                    let detail = match (operation, origin) {
+                        (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
+                            "while checking {operation} at source {} bytes {}..{}: {detail}",
+                            span.source_id.0, span.span.start, span.span.end,
+                        ),
+                        (Some(operation), _) => format!("while checking {operation}: {detail}"),
+                        (None, _) => detail.to_owned(),
+                    };
+                    match names.get(machine.id) {
+                        Some(name) => {
+                            format!("while checking storage in `{}`: {detail}", name.machine)
+                        }
+                        None => detail,
+                    }
+                },
+            }
+        });
+        let plan = match plan {
+            Ok(plan) => plan,
+            Err(refused) if refused.reason == RefusalReason::Unsupported => {
+                unsupported.push(refused);
+                continue;
+            }
+            Err(refused) => return Err(refused),
+        };
         let machine = &mut module.machines[ordinal];
         // Receiving storage may be intact or exactly vacated by a preceding
         // move. Install the mode reconstructed from the final ownership
@@ -1316,6 +1411,11 @@ fn finish_storage(diagnostic: MachineId, elaboration: &mut Elaboration) -> Check
                 | Terminator::ExternalCompletion { .. } => {}
             }
         }
+    }
+    if !unsupported.is_empty() {
+        let first = unsupported.remove(0);
+        further.append(&mut unsupported);
+        return Err(first);
     }
     lower::publish_write_frames(diagnostic, module, tables)?;
     // This is the emitted behavior before proving or publication. Keeping its

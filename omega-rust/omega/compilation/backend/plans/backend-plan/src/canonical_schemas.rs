@@ -55,21 +55,6 @@ pub fn hosted_requirement_schema(
     {
         return Err("hosted schema needs its complete canonical contract projection".into());
     }
-    let text = |identity| {
-        module
-            .identities
-            .text(identity)
-            .filter(|text| !text.is_empty())
-            .ok_or_else(|| "hosted schema lost a declared identity".to_owned())
-    };
-    let service_name = |id| {
-        let service = module
-            .services
-            .iter()
-            .find(|service| service.id == id)
-            .ok_or_else(|| "hosted schema lost a declared service".to_owned())?;
-        text(service.identity)
-    };
     let owner_service = boundary
         .owning_service
         .ok_or("hosted schema lost its declaring service")?;
@@ -81,9 +66,49 @@ pub fn hosted_requirement_schema(
     if !owner_declaration.parents.is_empty() {
         return Err("hosted schema needs its complete inherited service projection".into());
     }
-    let owner = service_name(owner_service)?;
+    requirement_schema(
+        module,
+        boundary,
+        text(module, owner_declaration.identity)?,
+        text(module, owner_declaration.identity)?,
+        method_name,
+    )
+}
+
+fn text(
+    module: &TerminalModule,
+    identity: terminal_psi::TerminalIdentityIndex,
+) -> Result<&str, String> {
+    module
+        .identities
+        .text(identity)
+        .filter(|text| !text.is_empty())
+        .ok_or_else(|| "primitive schema lost a declared identity".to_owned())
+}
+
+/// Hosted and numeric primitives use this function to build their callable schemas.
+fn requirement_schema(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    schema_name: &str,
+    owner: &str,
+    method_name: &str,
+) -> Result<ServiceSchema, String> {
+    let declaration = boundary
+        .declaration
+        .as_ref()
+        .ok_or("primitive schema has no checked declaration")?;
+    let text = |identity| text(module, identity);
+    let service_name = |id| {
+        let service = module
+            .services
+            .iter()
+            .find(|service| service.id == id)
+            .ok_or_else(|| "primitive schema lost a declared service".to_owned())?;
+        text(service.identity)
+    };
     let mut surface = ServiceSurface::default();
-    surface.trait_name = surface.identities.intern(owner);
+    surface.trait_name = surface.identities.intern(schema_name);
     let parameter_type_identities = declaration
         .source
         .parameter_types
@@ -94,16 +119,18 @@ pub fn hosted_requirement_schema(
         .identities
         .intern(text(declaration.source.result_type)?);
     let requirement_identity = surface.identities.intern(text(boundary.identity)?);
-    surface
-        .receiver_applications
-        .push(ServiceReceiverApplication {
-            application: surface.trait_name,
-            trait_name: surface.trait_name,
-            trait_package_identity: None,
-            argument_identities: Vec::new(),
-            lifetime_argument_identities: Vec::new(),
-            requirement_identities: vec![requirement_identity],
-        });
+    if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
+        surface
+            .receiver_applications
+            .push(ServiceReceiverApplication {
+                application: surface.trait_name,
+                trait_name: surface.trait_name,
+                trait_package_identity: None,
+                argument_identities: Vec::new(),
+                lifetime_argument_identities: Vec::new(),
+                requirement_identities: vec![requirement_identity],
+            });
+    }
     let services = |row: &[semantic_vocabulary::ServiceId]| {
         let mut names = row
             .iter()
@@ -119,6 +146,17 @@ pub fn hosted_requirement_schema(
         requirement_owner: owner.into(),
         requirement_identity,
         parameter_count: boundary.parameter_order.len(),
+        declared_type_signature: language_semantics::service_surface::declared_type_signature(
+            declaration
+                .source
+                .parameter_types
+                .iter()
+                .map(|&identity| text(identity))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter(),
+            text(declaration.source.result_type)?,
+        )
+        .map_err(|reason| format!("primitive declared type signature: {reason:?}"))?,
         parameter_type_identities,
         has_result: !boundary.result.is_unit(),
         result_type_identity,
@@ -134,25 +172,53 @@ pub fn hosted_requirement_schema(
     )))
 }
 
-pub fn hosted_primitive_schemas(module: &TerminalModule) -> Result<Vec<ServiceSchema>, String> {
+pub fn compiler_primitive_schemas(module: &TerminalModule) -> Result<Vec<ServiceSchema>, String> {
     let mut projected = Vec::new();
     let mut requirements = Vec::new();
     for boundary in &module.boundary_machines {
         let Some(declaration) = &boundary.declaration else {
             continue;
         };
-        let CheckedBoundaryExecution::HostedPrimitive {
-            operation,
-            requirement,
-        } = declaration.execution
-        else {
-            continue;
+        let requirement = match declaration.execution {
+            CheckedBoundaryExecution::HostedPrimitive { requirement, .. } => requirement,
+            CheckedBoundaryExecution::NumericPrimitive => boundary.id,
+            _ => continue,
         };
         if requirements.contains(&requirement) {
             continue;
         }
-        projected.push(hosted_requirement_schema(module, operation, requirement)?);
+        projected.push(match declaration.execution {
+            CheckedBoundaryExecution::HostedPrimitive { operation, .. } => {
+                hosted_requirement_schema(module, operation, requirement)?
+            }
+            CheckedBoundaryExecution::NumericPrimitive => {
+                numeric_requirement_schema(module, boundary)?
+            }
+            _ => unreachable!("only direct primitives reach schema projection"),
+        });
         requirements.push(requirement);
     }
     Ok(projected)
+}
+
+pub(crate) fn numeric_requirement_schema(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<ServiceSchema, String> {
+    terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+        .map_err(str::to_owned)?;
+    let Some(language_semantics::numeric_intrinsics::NumericIntrinsic::FloatBinary {
+        operation,
+        ..
+    }) = boundary.numeric_intrinsic
+    else {
+        return Err("numeric primitive has no complete top-level requirement".into());
+    };
+    requirement_schema(
+        module,
+        boundary,
+        text(module, boundary.identity)?,
+        "Float",
+        operation.name(),
+    )
 }

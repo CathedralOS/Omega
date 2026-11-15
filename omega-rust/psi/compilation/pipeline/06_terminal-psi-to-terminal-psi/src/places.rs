@@ -373,6 +373,8 @@ struct Reaching {
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
+    #[cfg(test)]
+    scanned_rows: usize,
 }
 
 /// What a place is, by the lowered form's own declarations.
@@ -1055,13 +1057,28 @@ impl<'a> Storage<'a> {
         tables: &'s MachineTables,
         actuals: &[Actual],
         callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
-        site: OperationId,
+        site: InvocationSite,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
-        let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(site))?;
-        let before = after
-            .checked_sub(1)
-            .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
+        let (block, before) = match site {
+            InvocationSite::Operation(operation) => {
+                let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+                let before = after
+                    .checked_sub(1)
+                    .ok_or_else(|| self.foreign(concerns, "a call has no point before it"))?;
+                (block, before)
+            }
+            InvocationSite::Cleanup { .. } => {
+                return Err(self.unsupported(
+                    concerns,
+                    "cleanup call requires its exact owner-prestate adapter",
+                ));
+            }
+            InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
+                let (block, _) = self.graph.locate(ProgramPoint::Edge(edge))?;
+                (block, self.block(block)?.operations.len())
+            }
+        };
         let mut places = Vec::new();
         for actual in actuals {
             if let Actual::Place(place) = actual {
@@ -1163,7 +1180,13 @@ impl<'a> Storage<'a> {
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
-        let inputs = self.at_call(tables, actuals, formals, site, concerns)?;
+        let inputs = self.at_call(
+            tables,
+            actuals,
+            formals,
+            InvocationSite::Operation(site),
+            concerns,
+        )?;
         let operation = self.operation(site, concerns)?;
         let structural = match (result, operation.result.as_structural()) {
             (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
@@ -1978,6 +2001,9 @@ impl<'a> Storage<'a> {
                 }
                 | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
+                }
+                | OperationKind::ElementViewRead {
+                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
@@ -1985,7 +2011,7 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "a byte operation owns another obligation")
                         );
                     }
-                    return self.byte_element_goal(operation, types);
+                    return self.collection_index_goal(operation, types);
                 }
                 operation.kind.structural_projections()
             }
@@ -2046,7 +2072,7 @@ impl<'a> Storage<'a> {
     /// Reads and writes prove their bound against the exact descriptor
     /// measured immediately before use. A write additionally needs exclusive
     /// backing access; neither an equal count nor another view supplies it.
-    fn byte_element_goal(
+    fn collection_index_goal(
         &self,
         operation: &Operation,
         types: &IdTable<ValueId, ScalarType>,
@@ -2056,6 +2082,7 @@ impl<'a> Storage<'a> {
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
                 .expect("u8 is valid"),
         );
+        let element_read = matches!(operation.kind, OperationKind::ElementViewRead { .. });
         let (source, index, length) = match &operation.kind {
             OperationKind::ByteSequenceRead {
                 source,
@@ -2119,6 +2146,42 @@ impl<'a> Storage<'a> {
                     *length,
                 )
             }
+            OperationKind::ElementViewRead {
+                source,
+                index,
+                length,
+                path,
+                ..
+            } => {
+                let root = self.root_type(*source, concerns)?;
+                let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
+                    self.declaration(root, concerns)?.shape
+                else {
+                    return Err(self.foreign(concerns, "an element read needs a declared view"));
+                };
+                if operation.result.scalar_ref().is_none_or(|result| {
+                    terminal_semantics::element_view_read_scalar(self.types, element, path)
+                        != Some(result.scalar_type)
+                }) {
+                    return Err(
+                        self.foreign(concerns, "an element read needs a copyable scalar leaf")
+                    );
+                }
+                let source = StructuralArgument::whole(
+                    *source,
+                    terminal_psi::StructuralAccess::SharedBorrow,
+                );
+                if terminal_semantics::structural_projection_authority(
+                    self.lowered,
+                    self.types,
+                    &source,
+                )
+                .is_none_or(|access| !access.admits_referent(source.access))
+                {
+                    return Err(self.foreign(concerns, "an element read needs a readable view"));
+                }
+                (source, *index, *length)
+            }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
         let (block, after) = self
@@ -2143,7 +2206,11 @@ impl<'a> Storage<'a> {
         if !measured {
             return Err(self.unsupported(
                 concerns,
-                "a byte operation whose length is not its view's measurement directly before it",
+                if element_read {
+                    "an element read whose length is not its view's measurement directly before it"
+                } else {
+                    "a byte operation whose length is not its view's measurement directly before it"
+                },
             ));
         }
         let count = ScalarType::Integer(
@@ -2151,7 +2218,14 @@ impl<'a> Storage<'a> {
                 .expect("u64 is valid"),
         );
         if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
-            return Err(self.foreign(concerns, "a byte operation's index or length is not a u64"));
+            return Err(self.foreign(
+                concerns,
+                if element_read {
+                    "an element read's index or length is not a u64"
+                } else {
+                    "a byte operation's index or length is not a u64"
+                },
+            ));
         }
         terminal_semantics::operation_safety_goal(operation, types)
             .map_err(crate::semantics_refusal(self.machine, operation.id))?
@@ -2198,16 +2272,14 @@ impl<'a> Storage<'a> {
                 // A constructor first establishes its whole case, then its
                 // fields at the same operation. Follow earlier stores of that
                 // operation before crossing its observation point.
-                let earlier =
-                    self.log[..row_index]
-                        .iter()
-                        .enumerate()
-                        .rev()
-                        .find(|(_, previous)| {
-                            previous.block == row.block
-                                && previous.position == row.position
-                                && asked.ended_by(previous)
-                        });
+                let earlier = self.log[..row_index]
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .take_while(|(_, previous)| {
+                        previous.block == row.block && previous.position == row.position
+                    })
+                    .find(|(_, previous)| asked.ended_by(previous));
                 if let Some((index, _)) = earlier {
                     row_index = index;
                     weakened = true;
@@ -2252,6 +2324,7 @@ impl<'a> Storage<'a> {
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
                                 | OperationKind::EstablishElementView { .. }
                                 | OperationKind::EstablishMutableElementView { .. }
+                                | OperationKind::EstablishStructuralArray { .. }
                         ) =>
                 {
                     Reached::Extent(row.operation)
@@ -2570,9 +2643,19 @@ impl<'a> Storage<'a> {
                 // the path: the latest position, and in one position the later
                 // log entry.
                 let mut last: Option<(usize, &Logged)> = None;
-                for (index, row) in self.log.iter().enumerate() {
-                    if row.block != block
-                        || row.position > up_to
+                // Search this block before following its predecessors. stores emits
+                // Graph-checked block identity order, and byte_payload_writes
+                // sorts appended effects into that order. Keep the original
+                // forward check order and row identities within the block.
+                let begin = self.log.partition_point(|row| row.block < block);
+                let end = self.log.partition_point(|row| row.block <= block);
+                for index in begin..end {
+                    let row = &self.log[index];
+                    #[cfg(test)]
+                    {
+                        budget.scanned_rows += 1;
+                    }
+                    if row.position > up_to
                         || !asked.ended_by(row)
                         || self.call_preserves_extent(asked, row, concerns)?
                     {
@@ -2810,6 +2893,8 @@ impl<'a> Storage<'a> {
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
+            #[cfg(test)]
+            scanned_rows: 0,
         }
     }
 
@@ -3381,7 +3466,7 @@ impl<'a> Storage<'a> {
             };
             if touches
                 && matches!(
-                    self.borrowed_resource(formal.structural_type),
+                    self.borrowed_resource(formal),
                     loans::BorrowedResource::ViewPayload
                 )
             {
@@ -4659,6 +4744,13 @@ impl<'a> AtCall<'_, 'a> {
             .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
             ))?;
+        extended(self.readable_actual(formal)?.clone(), path)
+    }
+
+    fn readable_actual(
+        &self,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+    ) -> Result<&Lineage, crate::Unbound> {
         if !terminal_psi::structural_access_covers(
             formal.access,
             terminal_psi::StructuralAccess::SharedBorrow,
@@ -4667,13 +4759,32 @@ impl<'a> AtCall<'_, 'a> {
                 "a clause reads a write-only input",
             ));
         }
-        let actual = usize::try_from(formal.position)
+        usize::try_from(formal.position)
             .ok()
             .and_then(|position| self.places.get(position))
             .ok_or(crate::Unbound::Unsupported(
                 "clause names storage that is no record formal of the callee",
-            ))?;
-        extended(actual.clone(), path)
+            ))
+    }
+
+    pub(crate) fn observations(&self) -> CallObservations<'_, 'a> {
+        let mut readable: Vec<_> = self
+            .callee_formals
+            .iter()
+            .enumerate()
+            .filter_map(|(position, formal)| {
+                self.readable_actual(formal)
+                    .ok()
+                    .map(|actual| (actual, position))
+            })
+            .collect();
+        readable.sort_unstable();
+        CallObservations {
+            call: self,
+            readable,
+            projections: None,
+            terms: Vec::new(),
+        }
     }
 
     fn held_at<'p>(&'p self, place: &'p Lineage) -> Held<'p, 'a> {
@@ -4687,6 +4798,112 @@ impl<'a> AtCall<'_, 'a> {
             concerns: self.concerns,
         }
     }
+}
+
+/// Inference may encounter the same value in several facts. Its binding is
+/// fixed for this call point, including observations that have no formal name.
+pub(crate) struct CallObservations<'s, 'a> {
+    call: &'s AtCall<'s, 'a>,
+    readable: Vec<(&'s Lineage, usize)>,
+    // Keep unvisited and unbound distinct. Only named fields keep a term.
+    projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
+    terms: Vec<ScalarTerm>,
+}
+
+impl CallObservations<'_, '_> {
+    pub(crate) fn formal_observation(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+        same: impl FnOnce(ScalarTerm, ScalarTerm) -> bool,
+    ) -> Option<ScalarTerm> {
+        if self.readable.is_empty() {
+            return None;
+        }
+        let row = self.call.tables.values.get(value)?;
+        let ValueOrigin::StorageContent { place, .. } = row.origin else {
+            return None;
+        };
+        if row.scalar_type != scalar_type {
+            return None;
+        }
+        let slot = self
+            .projections
+            .get_or_insert_with(|| self.call.tables.values.map(|_, _| None))
+            .get_mut(value)?;
+        let projection = *slot.get_or_insert_with(|| {
+            let call = self.call;
+            let recorded = lineage(call.storage.machine, &call.tables.places, place).ok()?;
+            let (formal, path) = formal_observation_path(&self.readable, &recorded)?;
+            let root = call.callee_formals[formal].place;
+            let held = call
+                .held_at(&recorded)
+                .observation(&recorded, scalar_type)
+                .ok()?;
+            if !same(held, ScalarTerm::value(value, scalar_type)) {
+                return None;
+            }
+            let version = semantic_vocabulary::ContentPlaceVersion::Entry;
+            let term = match scalar_type {
+                ScalarType::Boolean => ScalarTerm::BooleanField {
+                    version,
+                    root,
+                    path,
+                },
+                ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                    version,
+                    root,
+                    path,
+                    scalar_type,
+                },
+                ScalarType::IeeeFloat(format) => ScalarTerm::IeeeFloatField {
+                    version,
+                    root,
+                    path,
+                    format,
+                },
+            };
+            let index = self.terms.len();
+            self.terms.push(term);
+            Some(index)
+        });
+        projection.map(|index| self.terms[index].clone())
+    }
+}
+
+/// Only exact prefixes of this observation can name it. If several actuals
+/// match, keep the first formal in declaration order, even across prefixes.
+fn formal_observation_path(
+    readable: &[(&Lineage, usize)],
+    recorded: &Lineage,
+) -> Option<(usize, Vec<CanonicalStructuralPathSegment>)> {
+    let segment = |segment: &Segment| match segment {
+        Segment::Field(field) => Some(CanonicalStructuralPathSegment::Field(*field)),
+        Segment::Case(case) => Some(CanonicalStructuralPathSegment::Case(*case)),
+        Segment::FixedIndex(index) => Some(CanonicalStructuralPathSegment::FixedIndex(*index)),
+        Segment::Referent => Some(CanonicalStructuralPathSegment::Referent),
+        _ => None,
+    };
+    // Any segment unavailable in a contract must lie inside the actual.
+    let shortest = recorded
+        .segments
+        .iter()
+        .rposition(|step| segment(step).is_none())
+        .map_or(0, |position| position + 1);
+    let (formal, prefix) = (shortest..=recorded.segments.len())
+        .filter_map(|length| {
+            let prefix = (recorded.root, &recorded.segments[..length]);
+            let first = readable
+                .partition_point(|(actual, _)| (actual.root, actual.segments.as_slice()) < prefix);
+            let (actual, formal) = readable.get(first)?;
+            ((actual.root, actual.segments.as_slice()) == prefix).then_some((*formal, length))
+        })
+        .min()?;
+    let path = recorded.segments[prefix..]
+        .iter()
+        .map(segment)
+        .collect::<Option<Vec<_>>>()?;
+    Some((formal, path))
 }
 
 impl crate::Bindings for AtCall<'_, '_> {
@@ -5206,6 +5423,255 @@ impl crate::Bindings for Observed<'_, '_> {
 #[cfg(test)]
 mod observation_tests {
     use super::*;
+    use semantic_vocabulary::StructuralFieldId;
+
+    #[test]
+    fn call_observation_keeps_the_first_readable_formal_across_exact_prefixes() {
+        let root = PlaceId::new(1).unwrap();
+        let field = StructuralFieldId::new(2).unwrap();
+        let sibling = StructuralFieldId::new(3).unwrap();
+        let at = |root, segments| Lineage { root, segments };
+        let whole = at(root, vec![]);
+        let narrowed = at(root, vec![Segment::Field(field)]);
+        let disjoint = at(root, vec![Segment::Field(sibling)]);
+        let foreign = at(PlaceId::new(2).unwrap(), vec![]);
+        let recorded = at(root, vec![Segment::Field(field), Segment::FixedIndex(4)]);
+
+        let mut readable = [
+            (&disjoint, 0),
+            (&foreign, 1),
+            (&whole, 4),
+            (&narrowed, 3),
+            (&narrowed, 2),
+        ];
+        readable.sort_unstable();
+        assert_eq!(
+            formal_observation_path(&readable, &recorded),
+            Some((2, vec![CanonicalStructuralPathSegment::FixedIndex(4)]))
+        );
+        let readable = [(&whole, 1), (&narrowed, 2)];
+        assert_eq!(
+            formal_observation_path(&readable, &recorded),
+            Some((
+                1,
+                vec![
+                    CanonicalStructuralPathSegment::Field(field),
+                    CanonicalStructuralPathSegment::FixedIndex(4)
+                ]
+            ))
+        );
+        assert_eq!(
+            formal_observation_path(&[(&disjoint, 0), (&foreign, 1)], &recorded),
+            None
+        );
+    }
+
+    #[test]
+    fn a_runtime_index_can_name_an_actual_but_cannot_enter_a_formal_path() {
+        let root = PlaceId::new(1).unwrap();
+        let selector = ValueId::new(1).unwrap();
+        let whole = Lineage {
+            root,
+            segments: Vec::new(),
+        };
+        let actual = Lineage {
+            root,
+            segments: vec![Segment::RuntimeIndex { selector }],
+        };
+        let mut recorded = actual.clone();
+        recorded.segments.push(Segment::FixedIndex(4));
+
+        assert_eq!(formal_observation_path(&[(&whole, 0)], &recorded), None);
+        assert_eq!(
+            formal_observation_path(&[(&whole, 0), (&actual, 1)], &recorded),
+            Some((1, vec![CanonicalStructuralPathSegment::FixedIndex(4)]))
+        );
+    }
+
+    #[test]
+    fn a_copy_trace_scans_its_blocks_and_preserves_every_arrival() {
+        let mut source = String::from("data Point { x: u32; y: u32; }\n");
+        let count = 12;
+        for step in 0..count {
+            let next = step + 1;
+            source.push_str(&format!(
+                "machine hop{step}(p: Point, choose: bool) -> u32 {{\n\
+                 transition choose {{ true -> left{step}(p, choose) false -> right{step}(p, choose) }}\n\
+                 }}\n\
+                 machine left{step}(p: Point, choose: bool) -> u32 {{ hop{next}(p, choose) }}\n\
+                 machine right{step}(p: Point, choose: bool) -> u32 {{ hop{next}(p, choose) }}\n"
+            ));
+        }
+        source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x false -> hop0(p, choose) }} }}\n"));
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(&source);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "hop0")
+            .unwrap()
+            .symbol;
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+        else {
+            panic!("reconvergence must prepare");
+        };
+        let input = prepared
+            .closure
+            .unwrap_or_else(|error| panic!("{}", error.detail));
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        OperationKind::ScalarStructuralField { .. }
+                            | OperationKind::PrimitiveScalarRead { .. }
+                    )
+                })
+            })
+            .unwrap();
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let references = reference_graph(module, machine.id).unwrap();
+        let references = RefCell::new(DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &references,
+        ));
+        let mut storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &references,
+        )
+        .unwrap();
+        let operation = machine
+            .operations()
+            .find(|operation| storage.read_leaf(operation).unwrap().is_some())
+            .expect("final field read");
+        let leaf = storage.read_leaf(operation).unwrap().unwrap();
+        let (block, after) = graph
+            .locate(ProgramPoint::AfterOperation(operation.id))
+            .unwrap();
+        let mut trace = storage.budget();
+        let reached = storage
+            .reaching(
+                tables,
+                Asked::Contents(&leaf),
+                block,
+                after - 1,
+                &mut trace,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_eq!(reached, Reached::Established(1));
+        assert!(
+            trace.scanned_rows < 2_000_000,
+            "copy queries scanned unrelated blocks: {} rows",
+            trace.scanned_rows
+        );
+
+        let row_index = storage
+            .log
+            .iter()
+            .position(|row| {
+                row.block != graph.entry()
+                    && row.lineage.segments.is_empty()
+                    && matches!(&row.stored, Stored::Moved(source) if source.segments.is_empty())
+            })
+            .expect("a branch copies its formal");
+        let destination = storage.log[row_index].lineage.clone();
+        let source = match &storage.log[row_index].stored {
+            Stored::Moved(source) => source.clone(),
+            _ => unreachable!(),
+        };
+        // One arrival transfers just the leaf. Its initial contents are the
+        // same, but it carries no evidence for a newly enclosing record.
+        storage.log[row_index]
+            .lineage
+            .segments
+            .extend_from_slice(&leaf.segments);
+        if let Stored::Moved(source) = &mut storage.log[row_index].stored {
+            source.segments.extend_from_slice(&leaf.segments);
+        }
+        let mut shallower = storage.budget();
+        let reached = storage
+            .reaching(
+                tables,
+                Asked::Contents(&leaf),
+                block,
+                after - 1,
+                &mut shallower,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert_eq!(reached, Reached::Established(0));
+        storage.log[row_index].lineage = destination;
+
+        // That same arrival now supplies no contents. A valid sibling arrival
+        // cannot establish the joined value on its behalf.
+        storage.log[row_index].stored = Stored::Vacated;
+        let mut missing = storage.budget();
+        assert_eq!(
+            storage
+                .reaching(
+                    tables,
+                    Asked::Contents(&leaf),
+                    block,
+                    after - 1,
+                    &mut missing,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap(),
+            Reached::Unestablished
+        );
+        storage.log[row_index].stored = Stored::Moved(source);
+
+        // Remove the invocation's incoming edge from the equation graph.
+        // The remaining backedges can carry contents but cannot initialize them.
+        let mut unseeded = tables.clone();
+        unseeded.edges = IdTable::default();
+        for (_, edge) in tables.edges.iter() {
+            if edge.source != graph.entry() {
+                unseeded.edges.push(edge.clone());
+            }
+        }
+        let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
+        storage.graph = &cyclic_graph;
+        let mut cycle = storage.budget();
+        assert_eq!(
+            storage
+                .reaching(
+                    &unseeded,
+                    Asked::Contents(&leaf),
+                    block,
+                    after - 1,
+                    &mut cycle,
+                    Construct::Operation(operation.id)
+                )
+                .unwrap(),
+            Reached::Unestablished
+        );
+    }
 
     #[test]
     fn a_saved_slice_cannot_use_a_later_iterations_endpoints() {

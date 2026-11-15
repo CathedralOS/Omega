@@ -85,6 +85,18 @@ pub fn decide_primitive(
         (PrimitiveJudgment::ClosedIntegerRelation, relation) => {
             closed_mathematical_relation(relation)? == Some(true)
         }
+        (
+            PrimitiveJudgment::ClosedIeeeFloatRelation,
+            Proposition::Implication {
+                premise,
+                conclusion,
+            },
+        ) if **conclusion == Proposition::Falsehood => {
+            crate::ieee_float_rules::closed_relation(premise) == Some(false)
+        }
+        (PrimitiveJudgment::ClosedIeeeFloatRelation, relation) => {
+            crate::ieee_float_rules::closed_relation(relation) == Some(true)
+        }
         _ => false,
     };
     accepted

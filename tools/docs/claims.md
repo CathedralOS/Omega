@@ -2,8 +2,17 @@
 
 The claim registry shows which sessions are working on which task, so new
 sessions can choose work knowing who owns what. `cargo xtask claims`
-records that work in `refs/coordination/omega-claims/main`. A claim lasts two
-hours from when it was taken or last renewed; ended claims drop off the board.
+records that work on the branch `work/claims` (`refs/heads/work/claims`). A
+claim lasts two hours from when it was taken or last renewed; ended claims drop
+off the board.
+
+The registry is a branch because the Git proxy in front of Claude Code cloud
+sessions accepts pushes only to `refs/heads/*`; it refused every push to the
+former `refs/coordination/omega-claims/main` (measured 2026-11-15), so claims
+from those sessions never reached anyone else. The proxy also refuses forced
+updates and deletions, so the tool only ever fast-forwards the branch. Never
+force-push, delete or recreate `work/claims` by hand, and never open a pull
+request from it; it holds registry commits, not source.
 
 Claims are informational. Several sessions may claim the same item or overlapping
 paths, and they reconcile changes at rebase. Read the task and current work
@@ -18,8 +27,8 @@ mbx xtask claims status
 mbx xtask claims claim --board TASKS.md --item OUTCOME-ID --owner "Name / outcome" --path affected/subsystem --note "Acceptance; failure; next action; dependencies"
 ```
 
-`status` prints JSON with `state`, `claims`, `notes_pending`, and the registry
-`version`. It omits a claim once it has ended: two hours after its `claimed_utc`
+`status` prints JSON with `state`, `claims`, `notes_pending`, the branch
+`version` and the `legacy_version` (see [migration](#migration-from-the-coordination-ref)). It omits a claim once it has ended: two hours after its `claimed_utc`
 or latest `renewed_utc`, or earlier if its recorded `expires_utc` says so. A
 recorded expiry can shorten a claim but never lengthen it. `state` is
 `available` when no claims remain in that view, and `claimed` otherwise. This
@@ -61,6 +70,28 @@ the work finished or its owner stopped; check what is actually in flight
 before taking it over, and never release another session's claim just for
 overlap.
 
+## Migration from the coordination ref
+
+The first write while `work/claims` does not exist seeds it: the new commit's
+parent is the current `refs/coordination/omega-claims/main` commit, and its
+record starts from that record, so the history and the live claims carry over.
+The record also lists the tickets it took over (`seeded_tickets`).
+
+Agents still running an older tool keep writing the old reference. Until the
+transition ends, `status` reads both. It shows a claim from the old reference
+only when its ticket is neither on the branch nor in `seeded_tickets`, and
+marks it with `"registry": "refs/coordination/omega-claims/main"`. A write from
+this tool cannot renew, note or release such a claim; it lapses within two
+hours, or its owner releases it with the old tool. A claim on both, taken over
+at seeding and later released on the branch, stays gone. Writes never touch the
+old reference.
+
+The dual read stays until 2026-11-22 (one week after the switch) and until the
+old reference has had no new commit for one two-hour lease. TASKS.md
+`CLAIMS-LEGACY-READ-REMOVAL` then deletes `LEGACY_CLAIMS_REF`, `LegacyRead`,
+`seeded_tickets` and this section, and makes the first write on an absent
+branch start an empty registry.
+
 ## Stored history and concurrent writes
 
 The wire format is still `omega-claims-v1`. Every write publishes the whole
@@ -69,9 +100,10 @@ visible claim, so the stored record holds what status shows. A write keeps
 fields it does not understand. Pruning does not rewrite the
 reference's history: each earlier record is the message of an earlier commit,
 so a dropped note can still be read with
-`git fetch --depth=<n> origin refs/coordination/omega-claims/main` and
-`git show -s --format=%B <commit>`. The last record before pruning began is
-commit `c5e5deebd226ac4eb3b35065eed81607c06d97f1`.
+`git fetch --depth=<n> origin work/claims` and
+`git show -s --format=%B <commit>`. The branch continues the coordination
+ref's history, so older records are its ancestors. The last record before
+pruning began is commit `c5e5deebd226ac4eb3b35065eed81607c06d97f1`.
 
 Help and malformed requests are answered before workspace discovery or Git
 access. A help flag after the subcommand works too. A consumed value, as in
@@ -96,10 +128,11 @@ children. It never changes repository or global Git settings. Worktree network
 access still happens before the pool-state lock is taken.
 Direct Git commands and older xtask binaries ignore this lock.
 
-A change reads the registry, creates a new Git commit holding the updated
-record, and pushes it with a compare-and-swap lease on the reference. If a
-concurrent writer wins, the change is reapplied to the newer record, up to
-five attempts. Exit 0 reports success, exit 2 reports an invalid
+A change reads the registry, creates a new Git commit whose parent is the tip
+it read, and pushes it without force. The remote accepts the push only while
+that tip is still current; a concurrent writer turns it into a
+non-fast-forward, which Git refuses. The change is then reapplied to the newer
+record on top of the new tip, up to five attempts. Exit 0 reports success, exit 2 reports an invalid
 subcommand or a missing required claim/note/release argument, and reported clock
 or Git failures exit 1. Claims are cooperative coordination, not
 access control.
@@ -110,5 +143,6 @@ access control.
 remote registry. They check the two-hour lease and its renewal, the cap on
 recorded expiries, calendar and offset boundaries, exact expiry filtering,
 keeping claims with unreadable expiry, and pruning on write. Local temporary Git remotes
-also exercise absent, unreadable and malformed registries and concurrent
-reference updates without contacting the shared registry.
+also exercise absent, unreadable and malformed registries, concurrent
+reference updates, seeding the branch from the coordination ref, fast-forward
+writes, and the merged status read, without contacting the shared registry.

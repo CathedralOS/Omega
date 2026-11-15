@@ -100,6 +100,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
             }
         }
         ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::ByteLiteral(_)

@@ -448,7 +448,7 @@ pub(crate) mod capabilities {
                         }
                         OperationKind::BoundaryCall { boundary, .. } => {
                             let declaration = program.verified_boundary_machine(boundary)?;
-                            if crate::embedding::program::compiler_owns_boundary_execution(
+                            if crate::embedding::program::interpreter_owns_boundary_execution(
                                 declaration,
                             ) {
                                 continue;

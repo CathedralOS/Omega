@@ -1463,7 +1463,7 @@ mod stored_calls {
             DescriptorStoredOrigin::Empty => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=empty")
             }
-            DescriptorStoredOrigin::Carried => {
+            DescriptorStoredOrigin::Carried { .. } => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=carried")
             }
         }
@@ -1689,7 +1689,7 @@ mod stored_calls {
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
-                            DescriptorStoredOrigin::Carried => return Err("stored-reference carried sequence roster has no physical metadata conversion"),
+                            DescriptorStoredOrigin::Carried { .. } => return Err("stored-reference carried sequence roster has no physical metadata conversion"),
                         }
                     }
                     sources.sort();
@@ -2205,7 +2205,7 @@ pub(crate) fn release(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
 ) -> Result<(), LoweringError> {
-    let (function, _, live, operations, provenance) = site.parts();
+    let (function, types, live, operations, provenance) = site.parts();
     let AbstractOperation::ReleaseReference {
         psi_operation,
         source,
@@ -2214,9 +2214,23 @@ pub(crate) fn release(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    live.references
-        .remove(&(*source, path.clone()))
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let release_view = source_contract(function, live, *source)
+        .and_then(|root| leaf_type(types, root, path))
+        .and_then(|leaf| types.get(leaf))
+        .is_some_and(|leaf| leaf.shape.is_view_descriptor());
+    if release_view {
+        // Releasing a projected descriptor leaves its enclosing home and
+        // sibling fields in place. Whole views lose their own native home.
+        if path.is_empty() {
+            live.views.remove(source);
+            live.block_views.remove(source);
+            live.structural_homes.remove(source);
+        }
+    } else {
+        live.references
+            .remove(&(*source, path.clone()))
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    }
     operations.push(TargetUnitOperation::ReleaseReference {
         psi_operation: *psi_operation,
         source: *source,

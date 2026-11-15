@@ -8249,31 +8249,29 @@ pub(crate) mod function_structure {
                         O::ReleaseReference { source, path, .. } => {
                             let valid = structural_source_contract(function, *source).is_some_and(
                                 |signature| {
-                                    (path.is_empty()
-                                || (signature.access == StructuralAccess::Owned
-                                    && signature.multiplicity
-                                        == terminal_psi::StructuralMultiplicity::Affine
-                                    && signature.is_unqualified()
-                                    && !signature.has_result_evidence()))
-                                && path.iter().all(|segment| {
-                                    matches!(
-                                        segment,
-                                        StructuralPathSegment::Field(_)
-                                            | StructuralPathSegment::FixedIndex(_)
-                                    )
-                                })
-                                && crate::unit_validation::references::leaf_type(
-                                    structural_types,
-                                    signature.structural_type,
-                                    path,
-                                )
-                                .and_then(|selected| structural_types.get(&selected))
-                                .is_some_and(|declaration| {
-                                    matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::Reference { .. }
-                                    )
-                                })
+                                    // A view result owns its descriptor while its access
+                                    // describes the borrowed backing.
+                                    let owns_carrier = signature.access == StructuralAccess::Owned
+                                        || signature.operation_result().is_some();
+                                    owns_carrier
+                                        && (path.is_empty()
+                                            || (signature.multiplicity
+                                                == terminal_psi::StructuralMultiplicity::Affine
+                                                && signature.is_unqualified()
+                                                && !signature.has_result_evidence()))
+                                        && path.iter().all(|segment| {
+                                            matches!(
+                                                segment,
+                                                StructuralPathSegment::Field(_)
+                                                    | StructuralPathSegment::FixedIndex(_)
+                                            )
+                                        })
+                                        && terminal_semantics::inline_descriptor_type(
+                                            structural_types.values().copied(),
+                                            signature.structural_type,
+                                            path,
+                                        )
+                                        .is_some()
                                 },
                             );
                             if !valid {

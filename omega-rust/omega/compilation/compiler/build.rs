@@ -27,23 +27,45 @@ fn main() -> Result<(), Box<dyn Error>> {
         .ancestors()
         .nth(4)
         .ok_or_else(|| io::Error::other("compiler is outside the Omega workspace"))?;
-    let mut paths = Vec::new();
-    collect_inputs(root, &root.join("omega-rust"), &mut paths)?;
-    // Some intrinsic owners embed bundled Omega declarations in the Rust
-    // image. Those bytes are distinct from the library selected at runtime.
-    collect_inputs(root, &root.join("source/library"), &mut paths)?;
-    for relative in ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"] {
-        paths.push(relative.to_owned());
+    let output = PathBuf::from(
+        std::env::var_os("OUT_DIR")
+            .ok_or_else(|| io::Error::other("Cargo did not provide OUT_DIR"))?,
+    );
+    let configured_target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(|directory| root.join(directory))
+        .filter(|directory| {
+            output.starts_with(directory) && !directory.join("Cargo.toml").is_file()
+        });
+    let target_directory = configured_target.as_deref().or_else(|| {
+        output
+            .ancestors()
+            .find(|directory| directory.join("CACHEDIR.TAG").is_file())
+    });
+    let mut paths = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]
+        .map(|file| root.join(file))
+        .to_vec();
+    collect_inputs(
+        &root.join("omega-rust"),
+        target_directory,
+        InputTree::Rust,
+        &mut paths,
+    )?;
+    // The library loader keys the selected library separately. These bytes
+    // also include declarations embedded directly into the Rust executable.
+    for directory in [root.join("source/library"), root.join(".cargo")] {
+        if directory.is_dir() {
+            collect_inputs(&directory, target_directory, InputTree::Other, &mut paths)?;
+        }
     }
-    let cargo_configuration = root.join(".cargo");
-    if cargo_configuration.is_dir() {
-        collect_inputs(root, &cargo_configuration, &mut paths)?;
-    }
-    paths.sort();
+    paths.sort_unstable();
     let mut digest =
-        digest_encoder::DomainDigestEncoder::new(b"omega-rust-compiler-build-inputs-v1\0");
-    for relative in paths {
-        let path = root.join(&relative);
+        digest_encoder::DomainDigestEncoder::new(b"omega-rust-compiler-build-inputs-v2\0");
+    for path in paths {
+        let relative = path
+            .strip_prefix(root)?
+            .to_str()
+            .ok_or_else(|| io::Error::other("non-UTF-8 compiler source path"))?
+            .replace('\\', "/");
         println!("cargo:rerun-if-changed={}", path.display());
         frame(&mut digest, relative.as_bytes());
         frame(&mut digest, &fs::read(path)?);
@@ -75,11 +97,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         frame(&mut digest, name.as_bytes());
         frame(&mut digest, value.as_bytes());
     }
-    let output = PathBuf::from(
-        std::env::var_os("OUT_DIR")
-            .ok_or_else(|| io::Error::other("Cargo did not provide OUT_DIR"))?,
-    );
-    fs::write(output.join("compiler-identity.bin"), digest.finish())?;
+    let path = output.join("compiler-identity.bin");
+    let digest = digest.finish();
+    if !fs::read(&path).is_ok_and(|previous| previous == digest) {
+        fs::write(path, digest)?;
+    }
     Ok(())
 }
 
@@ -87,14 +109,31 @@ fn frame(digest: &mut digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
     digest.bytes(bytes);
 }
 
-fn collect_inputs(root: &Path, directory: &Path, paths: &mut Vec<String>) -> io::Result<()> {
-    // Watching directories includes new/deleted source files, not only edits to
-    // today's roster. Build outputs live outside the compiler source tree.
+#[derive(Clone, Copy)]
+enum InputTree {
+    Rust,
+    IntegrationTests,
+    Other,
+}
+
+fn collect_inputs(
+    directory: &Path,
+    target_directory: Option<&Path>,
+    tree: InputTree,
+    paths: &mut Vec<PathBuf>,
+) -> io::Result<()> {
+    // Watch the directories even where the identity filters files. Cargo
+    // must rerun input collection when the source roster gains or loses a file.
     println!("cargo:rerun-if-changed={}", directory.display());
+    let cargo_package = !matches!(tree, InputTree::Other) && directory.join("Cargo.toml").is_file();
+    let tree = if cargo_package { InputTree::Rust } else { tree };
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let kind = entry.file_type()?;
         let path = entry.path();
+        if entry.file_name() == ".git" || Some(path.as_path()) == target_directory {
+            continue;
+        }
         if kind.is_symlink() {
             return Err(io::Error::other(format!(
                 "compiler build input cannot be a symbolic link: {}",
@@ -102,20 +141,22 @@ fn collect_inputs(root: &Path, directory: &Path, paths: &mut Vec<String>) -> io:
             )));
         }
         if kind.is_dir() {
-            if !matches!(entry.file_name().to_str(), Some("target" | ".git")) {
-                collect_inputs(root, &path, paths)?;
-            }
-        } else if matches!(
-            path.extension().and_then(|value| value.to_str()),
-            Some("rs" | "toml" | "omg")
-        ) {
-            paths.push(
-                path.strip_prefix(root)
-                    .map_err(io::Error::other)?
-                    .to_str()
-                    .ok_or_else(|| io::Error::other("non-UTF-8 compiler source path"))?
-                    .replace('\\', "/"),
-            );
+            // Only Cargo's integration-test directory alongside a package
+            // manifest is separate. Rust under src, including unit tests,
+            // stays in the production input tree.
+            let child = if cargo_package && entry.file_name() == "tests" {
+                InputTree::IntegrationTests
+            } else {
+                tree
+            };
+            collect_inputs(&path, target_directory, child, paths)?;
+        } else if kind.is_file()
+            && !(matches!(tree, InputTree::IntegrationTests)
+                && path.extension().is_some_and(|extension| extension == "rs"))
+        {
+            // Keep raw assets as well as source and manifests. Some are
+            // embedded with include_bytes! or consumed by a build script.
+            paths.push(path);
         }
     }
     Ok(())

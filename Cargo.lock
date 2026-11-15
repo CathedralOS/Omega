@@ -68,6 +68,7 @@ dependencies = [
  "compiler-storage",
  "extents",
  "language-core",
+ "language-semantics",
  "layout-plans",
  "optimization",
  "semantic-vocabulary",
@@ -115,12 +116,15 @@ dependencies = [
  "diagnostics",
  "effects",
  "function-identity",
+ "language-core",
+ "language-semantics",
  "optimization-core",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -1186,6 +1190,7 @@ dependencies = [
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
+ "target-operations",
  "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
@@ -1796,6 +1801,8 @@ dependencies = [
 name = "review-evidence"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
+ "build-time-evaluation",
  "calling-conventions",
  "diagnostics",
  "effects",
@@ -2682,6 +2689,7 @@ name = "typed-trees-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "diagnostics",
  "language-core",
  "language-semantics",
  "numerics",

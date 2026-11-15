@@ -956,12 +956,14 @@ pub(crate) mod structural_place_wire {
 
         #[test]
         fn owned_cleanup_wire_change_rejects_previous_module_version() {
-            let mut encoded = super::super::MAGIC.to_vec();
-            crate::codec_bytes::push_encoded(&mut encoded, 274_u16.to_le_bytes());
-            assert!(matches!(
-                super::super::decode_module(&encoded),
-                Err(CodecError::UnsupportedFormatMarker(274))
-            ));
+            for previous in [274_u16, 275] {
+                let mut encoded = super::super::MAGIC.to_vec();
+                crate::codec_bytes::push_encoded(&mut encoded, previous.to_le_bytes());
+                assert!(matches!(
+                    super::super::decode_module(&encoded),
+                    Err(CodecError::UnsupportedFormatMarker(marker)) if marker == previous
+                ));
+            }
         }
     }
 }
@@ -1494,6 +1496,7 @@ pub(crate) mod structural_signature_wire {
             8 => StaticInterruptBeginCompletion,
             9 => StaticInterruptFinishCompletion,
             10 => HostedPrimitive { operation: HostedOperationWire, requirement: Id },
+            11 => NumericPrimitive,
         }
         Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
         RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

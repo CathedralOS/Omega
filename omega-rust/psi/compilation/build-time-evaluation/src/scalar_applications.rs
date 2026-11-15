@@ -1861,7 +1861,7 @@ mod tests {
                         local_terminates: true,
                         entry_requires: false,
                         linear_carrier: None,
-                        static_application: None,
+                        invocation_refusal: None,
                         selections: Ok(Vec::new()),
                     }),
                     ..ProofCallableHeader::default()

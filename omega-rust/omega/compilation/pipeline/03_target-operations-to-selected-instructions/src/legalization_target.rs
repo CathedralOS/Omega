@@ -2697,7 +2697,13 @@ pub(crate) mod expressions {
                     *source_value == resolved
                         && crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.optimized, source, self.types)
                             .is_some_and(|(geometry, carrier)| {
-                                *length_byte_offset == if matches!(carrier, terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) { 8 } else { 0 }
+                                let expected_offset = match carrier {
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 8,
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 0,
+                                    // A bounded view's length is its exact capacity.
+                                    terminal_psi::ByteSequenceCarrier::BoundedView { .. } => return false,
+                                };
+                                *length_byte_offset == expected_offset
                                 && super::unit::runtime_indices_rejoin(indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY))
                             })
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
@@ -4070,12 +4076,31 @@ pub(crate) mod unit {
                     let declaration = plan
                         .structural_type(result.structural_type)
                         .ok_or(LegalizationError::custody())?;
-                    let terminal_psi::StructuralTypeShape::FixedArray {
-                        element,
-                        length: terminal_psi::ArrayExtent::Literal(length),
-                    } = declaration.shape
-                    else {
-                        return Err(LegalizationError::custody());
+                    let (element, length) = match declaration.shape {
+                        terminal_psi::StructuralTypeShape::FixedArray {
+                            element,
+                            length: terminal_psi::ArrayExtent::Literal(length),
+                        } => (element, length),
+                        // An owned sequence is backed by its constant roster in the
+                        // read-only literal pool; target lowering admits no other form.
+                        terminal_psi::StructuralTypeShape::ElementView {
+                            element,
+                            access: None,
+                        } => {
+                            let roster = target_operations::constant_element_roster(
+                                optimized.blocks.iter().flat_map(|block| {
+                                    block.nodes.iter().map(|node| &node.operation)
+                                }),
+                                abstracted,
+                                unit.geometry(),
+                            )
+                            .ok_or(LegalizationError::custody())?;
+                            if roster.element != element {
+                                return Err(LegalizationError::custody());
+                            }
+                            (element, roster.count)
+                        }
+                        _ => return Err(LegalizationError::custody()),
                     };
                     if psi_operation != expected_operation
                         || elements != expected_elements
@@ -4288,18 +4313,23 @@ pub(crate) mod unit {
                             })
                             .ok_or(LegalizationError::custody())?
                             .as_checking();
-                            Ok::<_, LegalizationError>((element.index, scalar_type, element.stride))
+                            Ok::<_, LegalizationError>((element, scalar_type))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
+                    // Selection reads the result, selector operands, extents and
+                    // proof keys from this row alone, so each must rejoin here.
                     if psi_operation != expected_operation
                         || source != expected_source
                         || path != expected_path
                         || *byte_offset != expected_offset
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || indices.len() != expected_indices.len()
                         || indices.iter().zip(&expected_indices).any(
-                            |(index, (value, scalar_type, stride))| {
-                                index.stride != *stride
-                                    || index.operand.source_value() != *value
+                            |(index, (element, scalar_type))| {
+                                index.stride != element.stride
+                                    || index.extent != element.extent
+                                    || index.obligation != element.obligation
+                                    || index.operand.source_value() != element.index
                                     || index.operand.scalar_type() != *scalar_type
                             },
                         )
@@ -4563,6 +4593,7 @@ pub(crate) mod unit {
                         || *path != abstract_operations::StructuralCopyPath::Ordinary(extent.path)
                         || *byte_offset != extent.byte_offset
                         || !super::runtime_indices_rejoin(indices, &extent.elements, sources)
+                        || result_home.operation_result() != Some((*psi_operation, result))
                         || *result_home
                             != scalar_graph_input::aggregate_results::result_home(
                                 optimized,
@@ -4581,6 +4612,7 @@ pub(crate) mod unit {
                         path,
                         field,
                         value: retained_value,
+                        value_type,
                         byte_offset,
                         indices,
                     },
@@ -4614,8 +4646,11 @@ pub(crate) mod unit {
                     {
                         return Err(LegalizationError::custody());
                     }
+                    // Selection derives the store's shape from the retained
+                    // value type, so it must name the written field's type.
                     if owned_projected_field_source(optimized, value, plan.geometry())?
                         != extent.field_type
+                        || *value_type != extent.field_type
                     {
                         return Err(LegalizationError::custody());
                     }
@@ -5201,6 +5236,8 @@ pub(crate) mod unit {
                 destination_type,
                 destination_storage,
                 source,
+                byte_offset,
+                byte_size,
                 indices,
             } = target
             else {
@@ -5297,6 +5334,7 @@ pub(crate) mod unit {
                 || path != expected_path
                 || destination_type != declared_type
                 || !storage_matches
+                || (*byte_offset, *byte_size) != (geometry.byte_offset, geometry.byte_size)
                 || !super::runtime_indices_rejoin(indices, &geometry.elements, sources)
                 || source.source_value() != value.value
                 || source.scalar_type() != value.scalar_type
@@ -5492,6 +5530,7 @@ pub(crate) mod unit {
                     operation,
                     token,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5564,6 +5603,7 @@ pub(crate) mod unit {
                     boundary,
                     operands,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5665,6 +5705,7 @@ pub(crate) mod unit {
                     location,
                     operand,
                     result_home,
+                    ..
                 },
                 AbstractOperation::BoundaryCall {
                     psi_operation: expected_operation,
@@ -5776,6 +5817,7 @@ pub(crate) mod unit {
                     selector,
                     scratch,
                     result_home,
+                    ..
                 },
                 AbstractOperation::ActivateTaskRegister {
                     psi_operation: expected_operation,
@@ -5843,6 +5885,7 @@ pub(crate) mod unit {
                     selector,
                     scratch,
                     result_home,
+                    ..
                 },
                 AbstractOperation::ReloadSegmentDescriptors {
                     psi_operation: expected_operation,
@@ -6560,6 +6603,7 @@ pub(crate) mod unit {
                     service,
                     operation,
                     source,
+                    ..
                 },
                 AbstractOperation::GlobalDescriptorTable {
                     psi_operation: expected_operation,

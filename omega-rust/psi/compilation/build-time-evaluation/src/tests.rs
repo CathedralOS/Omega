@@ -466,6 +466,10 @@ machine served() { }
             && error[0].message.contains("computed extent"),
         "{error:?}"
     );
+    assert_eq!(
+        crate::PreCheckEvaluation::require_recorded_requests(&typed).unwrap_err(),
+        error
+    );
     // Once the request is recorded on its declaration the program goes on,
     // and only that declaration is refused.
     crate::PreCheckEvaluation::defer_declared_requests(&mut typed).unwrap();
@@ -477,6 +481,7 @@ machine served() { }
             .collect::<Vec<_>>(),
         [(holder, DeferredRequest::ArrayExtentEvaluation)]
     );
+    crate::PreCheckEvaluation::require_recorded_requests(&typed).unwrap();
     assert!(pending.activate_sources(&typed).is_ok());
 
     // Layout evaluation must leave a different unserved request in place.
@@ -913,6 +918,115 @@ fn a_machine_call_constant_retains_its_accepted_value_and_receipt() {
 }
 
 #[test]
+fn a_computed_sum_constant_keeps_its_exact_case_and_payload_in_the_receipt() {
+    use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
+
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        data Policy [copy] {
+            case Read(number: u64);
+            case Write(number: u64);
+        }
+        const selected: Policy = choose();
+        machine choose() -> Policy { Policy::Read { number: 7u64 } }
+        machine answer() -> Policy { selected }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    let handle = program.roots.const_declarations.handles().next().unwrap();
+    let symbol = program.tables.const_declarations.get(handle).symbol;
+    let value = typed_trees::canonical_const_declaration_value(&program, symbol)
+        .unwrap()
+        .decode_encoding()
+        .unwrap();
+    let DecodedCanonicalConstValue::Variant {
+        type_name,
+        case_name,
+        fields,
+    } = value
+    else {
+        panic!("the accepted result must retain its case");
+    };
+    assert_eq!(type_name, "Policy");
+    assert_eq!(case_name, "Read");
+    let [
+        (
+            field_name,
+            DecodedCanonicalConstValue::Integer {
+                integer_type,
+                value,
+            },
+        ),
+    ] = fields.as_slice()
+    else {
+        panic!("the selected case must retain its number");
+    };
+    assert_eq!(field_name, "number");
+    assert_eq!(*value, numerics::bignum::BigInt::from(7u64));
+
+    let declaration = program.tables.const_declarations.get(handle);
+    let underlying = program
+        .unwrapped_type_reference(declaration.declared_type)
+        .unwrap();
+    let carrier = program
+        .type_reference_table
+        .type_reference(underlying)
+        .as_named_symbol()
+        .unwrap();
+    let data = program.data_definition_by_symbol(carrier).unwrap();
+    let wrong_case = program
+        .data_members(data)
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .find(|case| case.name.as_str() == "Write")
+        .unwrap();
+    let mut altered = program.clone();
+    let typed_trees::expression::ExpressionNode::StructLiteral(materialized) = altered
+        .expression_table
+        .expression_mut(declaration.materialized_initializer)
+    else {
+        panic!("the named constant must materialize to a case literal");
+    };
+    materialized.case_symbol = Some(wrong_case.symbol);
+    materialized.case_name = Some(wrong_case.name.clone());
+    assert_eq!(
+        crate::validate_constant_evaluations(&altered, &recorded.accounting).unwrap_err(),
+        "constant materialization differs from its invocation outcome"
+    );
+
+    let changed_number = vec![(
+        field_name.clone(),
+        DecodedCanonicalConstValue::Integer {
+            integer_type: *integer_type,
+            value: numerics::bignum::BigInt::from(8u64),
+        },
+    )];
+    for (case_name, fields) in [("Write".to_owned(), fields), (case_name, changed_number)] {
+        let changed = DecodedCanonicalConstValue::Variant {
+            type_name: type_name.clone(),
+            case_name,
+            fields,
+        };
+        let encoding = CanonicalConstIdentity::from_declaration_value(&changed)
+            .unwrap()
+            .encoding;
+        let mut altered = program.clone();
+        altered
+            .tables
+            .const_declarations
+            .get_mut(handle)
+            .evaluated_value = Some(encoding.into());
+        assert_eq!(
+            crate::validate_constant_evaluations(&altered, &recorded.accounting).unwrap_err(),
+            "constant value differs from its accepted invocation outcome"
+        );
+    }
+}
+
+#[test]
 fn a_constant_invocation_must_establish_the_callee_requirement() {
     let (_, _, base, pending) = constant_base(&[(
         "main.omg",
@@ -1167,6 +1281,37 @@ fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes
 }
 
 #[test]
+fn constant_evaluation_keeps_the_callee_cast_location() {
+    let callee = "
+        domain u64::Delivered requires self >= 42u64 && self <= 42u64;
+        machine make() -> u64 {
+            let value: u64 in Delivered = 41u64 as +Delivered;
+            value as -Delivered
+        }
+    ";
+    let (_, ids, base, pending) = constant_base(&[
+        ("main.omg", "const SAVED: u64 = make();"),
+        ("callee.omg", callee),
+    ]);
+    let errors = pending
+        .evaluate_requested_constants(&mut base.typed().clone())
+        .err()
+        .expect("the constant initializer calls a machine with a false cast");
+    let [error] = errors.as_slice() else {
+        panic!("expected the cast refusal, got {errors:?}");
+    };
+    assert!(
+        error.message.starts_with(
+            "constant `SAVED` evaluation: cannot prove the value of this cast is in the domain it adds in machine `make` state `entry` local `value`: domain `u64::Delivered` requires `self >= 42 && self <= 42`"
+        ),
+        "{error}"
+    );
+    let cast = error.source_span.expect("the refusal retains the cast");
+    assert_eq!(cast.source_id, ids[1]);
+    assert_eq!(cast.span.start, callee.find("+Delivered").unwrap());
+}
+
+#[test]
 fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
     let (_, _, base, pending) = constant_base(&[(
         "main.omg",
@@ -1183,7 +1328,13 @@ fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
         .expect("no caller chose this target body");
     let error = diagnostics::join_messages(&errors);
     assert!(error.contains("target"), "{error}");
-    assert!(program.const_declarations()[0].evaluated_value.is_none());
+    let declaration = &program.const_declarations()[0];
+    let declaration_span = program
+        .symbols
+        .symbol_source_span(declaration.symbol)
+        .unwrap();
+    assert_eq!(errors[0].source_span, Some(declaration_span));
+    assert!(declaration.evaluated_value.is_none());
 }
 
 #[test]
@@ -1775,6 +1926,72 @@ fn a_const_argument_written_as_a_call_becomes_the_literal_of_its_value() {
     ] {
         assert!(program.deferred_refusal(holder).is_none());
     }
+}
+
+#[test]
+fn a_closed_array_extent_uses_its_checked_value_when_demanded() {
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+
+    let source = "machine extent() -> u64 { 4u64 }
+        data Packet { bytes: [u8; extent()]; }
+        machine reader(packet: &Packet) -> u64 { 0u64 }
+        machine unrelated() -> u64 { 0u64 }";
+    for (entry, expected_calls) in [("reader", 1), ("unrelated", 0)] {
+        let (program, accounting, result) = evaluate_const_arguments_of(source, entry);
+        result.unwrap();
+        assert_eq!(accounting.receipts().len(), expected_calls);
+        accounting.validate_charges().unwrap();
+        let packet = program.data_definition_by_name_str("Packet").unwrap();
+        let [DataMember::Field(bytes)] = program.data_members(packet) else {
+            panic!("the original array field");
+        };
+        let node = program
+            .type_reference_table
+            .type_reference(bytes.type_reference);
+        if expected_calls == 1 {
+            assert!(
+                matches!(
+                    node,
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Literal(4),
+                        ..
+                    }
+                ),
+                "{node:?}"
+            );
+            assert!(program.deferred_refusal(packet.symbol).is_none());
+        } else {
+            assert!(
+                matches!(
+                    node,
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Expression(_),
+                        ..
+                    }
+                ),
+                "{node:?}"
+            );
+            assert!(program.deferred_refusal(packet.symbol).is_some());
+        }
+    }
+}
+
+#[test]
+fn an_evaluated_array_extent_must_be_a_nonnegative_length() {
+    let source = "machine extent() -> i64 { 0i64 - 1i64 }
+        data Packet { bytes: [u8; extent()]; }
+        machine reader(packet: &Packet) -> u64 { 0u64 }";
+    let (_, accounting, result) = evaluate_const_arguments_of(source, "reader");
+    let errors = result.expect_err("the evaluated extent is negative");
+    assert_eq!(accounting.receipts().len(), 1);
+    assert!(
+        errors.iter().any(|error| {
+            error.message.contains("computed array extent")
+                && error.message.contains("not a closed nonnegative integer")
+        }),
+        "{errors:?}"
+    );
 }
 
 #[test]

@@ -41,10 +41,7 @@ fn assert_psi_runs(name: &str, source: &str) {
         String::from_utf8_lossy(&output.stderr),
     );
     assert!(output.status.success(), "{report}");
-    assert!(
-        report.lines().any(|line| line == "terminal exit 0"),
-        "{report}",
-    );
+    assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
 }
 
 #[test]
@@ -83,9 +80,36 @@ fn psi_runs_the_bundled_atomic_fence_in_its_module() {
 use omega::language::core::Atomic::fence;
 use omega::language::core::FenceOrdering;
 machine main() {
-    Atomic::fence(FenceOrdering::Receive);
+    let ordering: FenceOrdering = FenceOrdering::Receive;
+    let alias: FenceOrdering = ordering;
+    Atomic::fence(alias);
     fence(FenceOrdering::Publish);
     Atomic::fence(FenceOrdering::ReceivePublish);
+}
+"#,
+    );
+}
+
+#[test]
+fn psi_runs_a_named_sum_constant_with_its_case_payload() {
+    assert_psi_runs(
+        "sum-constant",
+        r#"data Policy [copy] {
+    case Read(number: u64);
+    case Write(number: u64);
+}
+const selected: Policy = Policy::Read { number: 7u64 };
+machine main() crashes Trap {
+    let result: u64 = match selected {
+        Policy::Read { number } -> number
+        _ -> 99u64
+    };
+    transition result == 7u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 "#,
     );

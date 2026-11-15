@@ -1,4 +1,5 @@
 use super::*;
+use terminal_check_tables::values::ValueOrigin;
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
     ProofNode { conclusion, rule }

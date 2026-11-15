@@ -125,15 +125,48 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    /// Borrow a byte range using the backing's shape. Existing byte views
-    /// retain that view's region and endpoint proofs through `byte_subslice`.
-    pub(super) fn borrowed_byte_range(
+    /// The element of a closed fixed array whose element storage and
+    /// qualification are exactly the typed view's. `WholeCollection`
+    /// establishment preserves identical element types directly
+    /// (byte_views.md, "Collection view establishment"); this reader admits
+    /// no layout-equal substitute, so a different element row is refused.
+    fn typed_array_element(
+        &self,
+        actual: Option<ValueType>,
+        element: StructuralTypeId,
+        qualification: Qualification,
+    ) -> Option<StructuralTypeId> {
+        let Some(ValueType::Record(actual, Qualification::NONE, _)) = actual else {
+            return None;
+        };
+        let actual = self.records.get(actual)?;
+        let StorageShape::FixedArray {
+            element: stored,
+            qualification: stored_qualification,
+            length: ArrayExtent::Literal(_),
+        } = actual.shape
+        else {
+            return None;
+        };
+        (actual.requires.is_empty() && stored == element && stored_qualification == qualification)
+            .then_some(element)
+    }
+
+    /// Borrow a range of a closed array using the backing's shape. A `u8`
+    /// destination forms a byte descriptor; an `&[T]` destination forms the
+    /// typed element view of the same backing. Both are the one
+    /// `ArrayView` formation, which Terminal Psi establishes as a
+    /// `WholeCollection` element view whose length is the array's exact
+    /// extent. Existing byte views retain that view's region and endpoint
+    /// proofs through `byte_subslice`.
+    pub(super) fn borrowed_array_range(
         &mut self,
         machine: MachineId,
         slots: &[Slot],
         argument: ExpressionHandle,
         expected: ValueType,
         source: SourceOrigin,
+        formal_access: Option<language_core::ReferenceAccess>,
     ) -> Checked<Option<Expression>> {
         use language_core::ReferenceAccess;
         use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
@@ -152,11 +185,46 @@ impl Program<'_> {
         let ValueType::Record(mut view, Qualification::NONE, _) = expected else {
             return Ok(None);
         };
-        let StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-            access: Some(access),
-        }) = self.data_type(machine, view)?.shape
-        else {
-            return Ok(None);
+        // Formation owns a stored descriptor with the written loan. Only the
+        // callee's direct formal carries its access separately from its shape.
+        if formal_access == Some(ReferenceAccess::Mutable)
+            && self.data_type(machine, view)?.shape
+                == StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None })
+        {
+            let reference = self
+                .typed
+                .expression_table
+                .constructed_value_type_reference(argument);
+            let Some(ValueType::Record(actual, Qualification::NONE, _)) =
+                self.view_type(machine, reference)?
+            else {
+                return Err(unavailable("array view without its retained source type"));
+            };
+            if self.data_type(machine, actual)?.shape
+                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+            {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
+                ));
+            }
+            view = actual;
+        }
+        // A typed view names its element row; a byte view's element is the
+        // backing's own `u8` row, checked below.
+        let (access, typed_element) = match self.data_type(machine, view)?.shape {
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(access),
+            }) => (access, None),
+            StorageShape::ElementView {
+                element,
+                qualification,
+                access: Some(access),
+            } => (access, Some((element, qualification))),
+            _ => return Ok(None),
         };
         let requested = match borrow.access {
             ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
@@ -196,6 +264,11 @@ impl Program<'_> {
                     "array view differs from its written source type",
                 ));
             }
+            if typed_element.is_some() {
+                return Err(unavailable(
+                    "typed array view whose written access differs from its destination",
+                ));
+            }
             view = actual;
         }
         let mut base = self.expression(machine, slots, indexed.collection, None)?;
@@ -214,7 +287,7 @@ impl Program<'_> {
         let Some(backing_type @ ValueType::Record(backing, _, _)) = base.result else {
             return Err(unavailable("array view without a plain closed u8 array"));
         };
-        if self.is_readable_byte_view(machine, backing)? {
+        if typed_element.is_none() && self.is_readable_byte_view(machine, backing)? {
             if requested != StructuralAccess::SharedBorrow {
                 return Err(unavailable("byte range with a mutable borrow"));
             }
@@ -235,9 +308,21 @@ impl Program<'_> {
                 "mutable partial array views need a live mutable subslice descriptor",
             ));
         }
-        let element = self
-            .byte_array_element(base.result)
-            .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?;
+        if partial && typed_element.is_some() {
+            return Err(unavailable(
+                "partial typed array views need their element-view subslice formation",
+            ));
+        }
+        let element = match typed_element {
+            None => self
+                .byte_array_element(base.result)
+                .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?,
+            Some((element, qualification)) => self
+                .typed_array_element(base.result, element, qualification)
+                .ok_or_else(|| {
+                    unavailable("typed array view without a closed array of its exact element")
+                })?,
+        };
         self.byte_range_selection(machine, borrow.target, backing)?;
         let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
@@ -263,7 +348,14 @@ impl Program<'_> {
         if borrow.access == ReferenceAccess::Mutable {
             self.written_through(machine, &base)?;
         }
-        let regions = self.storage_loan_regions(machine, slots, &base)?;
+        let mut regions = self.storage_loan_regions(machine, slots, &base)?;
+        if typed_element.is_some() {
+            // A typed view prefixes its backing loan's region to the regions
+            // its elements hold, which the array value carries (`sequence_type`).
+            let mut tuple = self.region_tuple(regions).to_vec();
+            tuple.extend_from_slice(self.region_tuple(backing_type.regions()));
+            regions = self.intern_regions(tuple);
+        }
         // The source array and its own type stay on the operand. The result
         // is a descriptor with the actual backing's lifetime, not the context's.
         let whole = Expression {
@@ -377,11 +469,19 @@ impl Program<'_> {
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
         let (element, qualification, extent) = self.array_element(machine, array)?;
-        if !matches!(extent, CollectionExtent::Fixed(_)) {
+        let stored_length = matches!(extent, CollectionExtent::StoredLength);
+        if stored_length && access != Access::Read {
             return Err(refuse(
                 machine,
                 Construct::Machine,
                 Unserved::Typing("sequence index needs its current length and bounds judgment"),
+            ));
+        }
+        if stored_length && !self.data_type(machine, element)?.copyable {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("copying a slice element requires a copyable element type"),
             ));
         }
         let regions = base
@@ -399,6 +499,21 @@ impl Program<'_> {
                 Unserved::Type("u64 index carrier"),
             )
         })?;
+        if stored_length {
+            let operands = self.collection_index_operand_types(machine, array.record());
+            if !typed_trees::operator::builtin_index_read_is_spelled(
+                self.typed,
+                self.lifetime_owner,
+                handle,
+                &operands,
+            ) {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Typing("slice index without its selected core operation"),
+                ));
+            }
+        }
         let index = self.expression(
             machine,
             slots,
@@ -414,6 +529,15 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
                 Unserved::Typing("array index is not a fixed integer"),
+            ));
+        }
+        if stored_length
+            && index.result.and_then(ValueType::scalar) != Some(ScalarType::Integer(index_type))
+        {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("slice index that is not a u64"),
             ));
         }
         Ok(Expression {
@@ -524,6 +648,7 @@ impl Program<'_> {
             identity,
             shape,
             requires: Vec::new(),
+            authored_layout: false,
         });
         let mut source = physical_source(reference);
         source.region_owner = self.lifetime_owner;
@@ -572,6 +697,7 @@ impl Program<'_> {
             identity,
             shape,
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources.push(physical_source(reference));
         // The row is the element's carrier; the regions its elements hold
@@ -644,6 +770,7 @@ impl Program<'_> {
                 policy,
             },
             requires: Vec::new(),
+            authored_layout: false,
         });
         self.record_sources.push(physical_source(reference));
         Ok(id)

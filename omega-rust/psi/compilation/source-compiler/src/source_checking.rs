@@ -162,6 +162,7 @@ impl SourcePreparationRequest<'_> {
                 build_time_evaluation::evaluate_constant_initializers_with_source_consent(
                     &mut program,
                     self.compilation,
+                    self.admission.layout_scopes,
                     self.admission.layout_selection_authority,
                     self.admission.invocation_sources,
                     &mut accounting,

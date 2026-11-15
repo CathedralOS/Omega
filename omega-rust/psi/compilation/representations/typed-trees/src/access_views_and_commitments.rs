@@ -1005,7 +1005,7 @@ pub(crate) mod access_views {
             policy_machine: symbols::SymbolHandle,
             invocations: arena::HandleSpan<source::SourceSpan>,
             target: Option<layout_plans::LayoutTargetFacts>,
-            placement: access_plans::ValidatedAccessPlan,
+            placement: access_plans::ValidatedPlacement,
             storage: AccessLifecycleStorage,
             profile_carrier: Option<TypeReferenceHandle>,
         },
@@ -1127,7 +1127,7 @@ pub(crate) mod access_views {
         pub policy_plan_machine_symbol: symbols::SymbolHandle,
         pub schema_name: String,
         pub schema_symbol: symbols::SymbolHandle,
-        pub placement: access_plans::ValidatedAccessPlan,
+        pub placement: access_plans::ValidatedPlacement,
         pub fields: Vec<AccessFieldPlan>,
     }
 

@@ -2327,11 +2327,7 @@ impl TerminalExecution<'_> {
         };
         let byte_index = count(index)?;
         let byte_length = count(length)?;
-        if self.byte_sequence_length(source)? != byte_length || byte_index >= byte_length {
-            return Err(malformed());
-        }
-        let byte_index = usize::try_from(byte_index).map_err(|_| malformed())?;
-        let byte = self.byte_sequence_read(source, byte_index)?;
+        let byte = self.byte_sequence_read(source, byte_index, byte_length)?;
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {
@@ -2364,13 +2360,7 @@ impl TerminalExecution<'_> {
             )?;
             return Ok(OperationFlow::Advance);
         }
-        self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
-        let selected = self.resolve_live_projection(
-            source.place,
-            &source.path,
-            StructuralAccess::SharedBorrow,
-        )?;
-        let binding = self.byte_descriptor_binding(source, &selected)?;
+        let (selected, binding) = self.readable_byte_descriptor(source)?;
         let length = self.byte_descriptor_length(&binding, &selected)?;
         self.values.insert(
             result.id,

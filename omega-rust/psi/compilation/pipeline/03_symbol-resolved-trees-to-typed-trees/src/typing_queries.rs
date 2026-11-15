@@ -5,7 +5,8 @@ required type is unavailable rather than reconstructed with the retired checker.
 */
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
-use symbols::{SymbolHandle, SymbolKind};
+use numerics::literals::FloatFormat;
+use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
     data::DataField,
@@ -13,6 +14,13 @@ use typed_trees::{
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
+
+pub(crate) fn float_literal_atom(format: FloatFormat) -> BuiltinTypeAtom {
+    match format {
+        FloatFormat::F32 => BuiltinTypeAtom::F32,
+        FloatFormat::F64 => BuiltinTypeAtom::F64,
+    }
+}
 
 pub(crate) fn exact_declared_field(
     program: &TypedTrees,
@@ -202,10 +210,10 @@ pub(crate) fn declared_callable_value_type(
                     landing.domain,
                 )
             }),
-            ExpressionNode::Boolean(_) => Some((
-                symbols::BuiltinTypeAtom::Bool,
-                numerics::arithmetic::ArithmeticDomain::Exact,
-            )),
+            ExpressionNode::Float(literal) => literal
+                .landing()
+                .map(|format| (float_literal_atom(format), ArithmeticDomain::Exact)),
+            ExpressionNode::Boolean(_) => Some((BuiltinTypeAtom::Bool, ArithmeticDomain::Exact)),
             _ => None,
         }
     } else {
@@ -1070,6 +1078,7 @@ impl DeclaredExpressionTypes {
         }
         match table.expression(expression) {
             ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::Member(_)

@@ -861,8 +861,11 @@ pub(crate) fn judge_owing(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
 ) -> Checked<RouteVerdict> {
-    match examine(elaborated, &[]) {
-        Ok(examined) => conclude(examined, applied),
+    // One verdict for one closure: the machines refused after the first
+    // are reported only by a whole compilation (`judge_compilation`).
+    let mut further = Vec::new();
+    match examine(elaborated, &[], &mut further) {
+        Ok(examined) => conclude(examined, applied, &mut further),
         Err(decided) => decided,
     }
 }
@@ -882,9 +885,13 @@ struct Examined {
 /// discharge refused whole. `carried` are the machines of the closure stage
 /// 04 generated from a generic machine whose check form is already
 /// discharged (`discharge_carrying`).
+///
+/// `further` receives every machine refused as not supported after the one
+/// the verdict names, in machine order.
 fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::Carried<'_>],
+    further: &mut Vec<Refusal>,
 ) -> Result<Examined, Checked<RouteVerdict>> {
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
@@ -915,6 +922,10 @@ fn examine(
     }
     crate::owned_cleanup::materialize(&mut elaboration).map_err(fall_back_or_defect)?;
     let mut affine_unestablished = Vec::new();
+    // A machine the affine check cannot judge yet is one refusal; the check
+    // goes on with the next machine, and the first such refusal becomes the
+    // verdict with the rest beside it.
+    let mut unsupported = Unsupported::default();
     let reference_ends = terminal_semantics::reference_ends::candidates(&elaboration.module)
         .map_err(|error| {
             fall_back_or_defect(refusal(
@@ -936,29 +947,36 @@ fn examine(
                 "reference disposition lost its machine",
             ))
         })?;
-        let ends = terminal_semantics::plain_affine::plan_reference_ends(
+        let ends = match terminal_semantics::plain_affine::plan_reference_ends(
             &elaboration.module,
             machine.id,
             candidates,
-        )
-        .map_err(|error| {
-            let concerns = match error.site() {
-                Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
-                    Construct::Operation(at)
+        ) {
+            Ok(ends) => ends,
+            Err(error) => {
+                let concerns = match error.site() {
+                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                        Construct::Operation(at)
+                    }
+                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
+                    None => Construct::Machine,
+                };
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
+                        (RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
+                        (RefusalReason::ForeignIdentity, detail)
+                    }
+                };
+                let refused = refusal(reason, machine.id, concerns, detail);
+                if refused.reason == RefusalReason::Unsupported {
+                    unsupported.note(machine.id, refused);
+                    continue;
                 }
-                Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
-                None => Construct::Machine,
-            };
-            let (reason, detail) = match error {
-                terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
-                    (RefusalReason::Unsupported, detail)
-                }
-                terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
-                    (RefusalReason::ForeignIdentity, detail)
-                }
-            };
-            fall_back_or_defect(refusal(reason, machine.id, concerns, detail))
-        })?;
+                return Err(fall_back_or_defect(refused));
+            }
+        };
         if !ends.reference_ends.is_empty() {
             return Err(fall_back_or_defect(refusal(
                 RefusalReason::ForeignIdentity,
@@ -988,9 +1006,12 @@ fn examine(
                             (RefusalReason::ForeignIdentity, detail)
                         }
                     };
-                    return Err(fall_back_or_defect(refusal(
-                        reason, machine.id, concerns, detail,
-                    )));
+                    let refused = refusal(reason, machine.id, concerns, detail);
+                    if refused.reason == RefusalReason::Unsupported {
+                        unsupported.note(machine.id, refused);
+                        continue;
+                    }
+                    return Err(fall_back_or_defect(refused));
                 }
             };
         let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
@@ -1024,6 +1045,9 @@ fn examine(
             });
         }
     }
+    if let Some(first) = unsupported.verdict(further) {
+        return Err(Ok(RouteVerdict::FallBack(first)));
+    }
     match crate::discharge_carrying(&mut elaboration, carried) {
         Ok(discharged) => Ok(Examined {
             elaboration,
@@ -1034,13 +1058,20 @@ fn examine(
     }
 }
 
-/// The verdict on an examined closure.
-fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdict> {
+/// The verdict on an examined closure. A machine with an obligation the
+/// checker cannot judge yet falls back; each later such machine is put in
+/// `further` (`Unsupported`).
+fn conclude(
+    examined: Examined,
+    applied: AppliedContracts,
+    further: &mut Vec<Refusal>,
+) -> Checked<RouteVerdict> {
     let Examined {
         mut elaboration,
         discharged,
         affine_unestablished,
     } = examined;
+    let mut unsupported = Unsupported::default();
     let mut unproved = Vec::new();
     let mut unestablished = affine_unestablished;
     let mut conflicts = Vec::new();
@@ -1087,6 +1118,10 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 continue;
             }
             let RefusalReason::Unproved(cause) = refused.reason else {
+                if refused.reason == RefusalReason::Unsupported {
+                    unsupported.note(machine, refused.clone());
+                    continue;
+                }
                 return fall_back_or_defect(refused.clone());
             };
             let concerns = Construct::Obligation(obligation);
@@ -1101,7 +1136,14 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                statement: describe::unproved(
+                    &elaboration,
+                    machine,
+                    tables,
+                    obligation,
+                    row.kind,
+                    site,
+                ),
                 consumed: None,
             });
         }
@@ -1123,8 +1165,11 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                     cause
                 }
                 RefusalReason::Unestablished => continue,
-                RefusalReason::Unsupported
-                | RefusalReason::NotConserved
+                RefusalReason::Unsupported => {
+                    unsupported.note(machine, refused.clone());
+                    continue;
+                }
+                RefusalReason::NotConserved
                 | RefusalReason::Conflict
                 | RefusalReason::Violation
                 | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
@@ -1149,7 +1194,14 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: describe::unproved(&elaboration, machine, tables, row.kind, site),
+                statement: describe::unproved(
+                    &elaboration,
+                    machine,
+                    tables,
+                    consumed.opened_by,
+                    row.kind,
+                    site,
+                ),
                 consumed: Some(ConsumptionSite {
                     at: consumed.at,
                     site: source_of(sources, machine, consumed.at)?,
@@ -1178,6 +1230,10 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
             let Err(refused) = &used.verdict else {
                 continue;
             };
+            if refused.reason == RefusalReason::Unsupported {
+                unsupported.note(machine, refused.clone());
+                continue;
+            }
             if refused.reason != RefusalReason::Unestablished {
                 return fall_back_or_defect(refused.clone());
             }
@@ -1203,6 +1259,9 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 declared,
             });
         }
+    }
+    if let Some(first) = unsupported.verdict(further) {
+        return Ok(RouteVerdict::FallBack(first));
     }
     let exceeded = match crate::ceilings::judge(&elaboration.module, &elaboration.tables) {
         Ok(found) => found
@@ -1315,14 +1374,15 @@ pub fn judge_compilation(
         }
         Err(refused) => return vec![judge(Err(refused)).map_err(CompilationRefusal::Elaboration)],
     }
-    let forms = examine_generic_forms(prepared.forms);
+    let mut further = Vec::new();
+    let forms = examine_generic_forms(prepared.forms, &mut further);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
     let examined_witnesses: Vec<_> = prepared
         .witnesses
         .into_iter()
-        .map(|witness| examine(witness, &[]))
+        .map(|witness| examine(witness, &[], &mut further))
         .collect();
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
@@ -1334,8 +1394,8 @@ pub fn judge_compilation(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            match examine(Ok(closure), &carried) {
-                Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+            match examine(Ok(closure), &carried, &mut further) {
+                Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
                 Err(decided) => decided,
             }
         }
@@ -1346,19 +1406,56 @@ pub fn judge_compilation(
         match form {
             GenericForm::Decided(verdict) => verdict,
             GenericForm::Examined { examined, .. } => {
-                conclude(examined, AppliedContracts::OwnCheckForms)
+                conclude(examined, AppliedContracts::OwnCheckForms, &mut further)
             }
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
     verdicts.extend(examined_witnesses.into_iter().map(|witness| {
         match witness {
-            Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+            Ok(examined) => conclude(examined, AppliedContracts::Undecided, &mut further),
             Err(decided) => decided,
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
+    // The closure's further refusals come last, in the order reading met
+    // them. Each is judged as the closure's own refusal is, so an
+    // unsupported construct falls back and a rejection rejects.
+    verdicts.extend(
+        prepared
+            .further
+            .into_iter()
+            .map(|refused| judge(Err(refused)).map_err(CompilationRefusal::Elaboration)),
+    );
+    // And every machine judging refused as not supported after the first of
+    // its part.
+    verdicts.extend(
+        further
+            .into_iter()
+            .map(|refused| Ok(RouteVerdict::FallBack(refused))),
+    );
     verdicts
+}
+
+/// The machines one judgment refuses as not supported yet, one refusal for
+/// each: the first that machine meets, in machine order. The first becomes
+/// the verdict and the rest are reported beside it.
+#[derive(Default)]
+struct Unsupported(Vec<(MachineId, Refusal)>);
+
+impl Unsupported {
+    fn note(&mut self, machine: MachineId, refused: Refusal) {
+        if self.0.iter().all(|(noted, _)| *noted != machine) {
+            self.0.push((machine, refused));
+        }
+    }
+
+    fn verdict(self, further: &mut Vec<Refusal>) -> Option<Refusal> {
+        let mut refused = self.0.into_iter().map(|(_, refused)| refused);
+        let first = refused.next()?;
+        further.extend(refused);
+        Some(first)
+    }
 }
 
 /// One check form of a generic machine, in the order its verdict is listed.
@@ -1516,6 +1613,7 @@ fn carried<'a>(
 /// left undecided, and would otherwise be accepted unjudged.
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
+    further: &mut Vec<Refusal>,
 ) -> Vec<GenericForm> {
     let cyclic: Vec<_> = (0..forms.len())
         .map(|position| reaches_itself(&forms, position))
@@ -1534,12 +1632,12 @@ fn examine_generic_forms(
             continue;
         }
         match form.forms {
-            Ok(forms) => {
-                examined.extend(forms.into_iter().map(|form| match examine(Ok(form), &[]) {
+            Ok(forms) => examined.extend(forms.into_iter().map(|form| {
+                match examine(Ok(form), &[], further) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
-                }))
-            }
+                }
+            })),
             Err(refused) => examined.push(GenericForm::Decided(judge(Err(refused)))),
         }
     }
@@ -1661,4 +1759,37 @@ fn without_restated_clauses(unproved: Vec<UnprovedObligation>) -> Vec<UnprovedOb
         .zip(keep)
         .filter_map(|(entry, keep)| keep.then_some(entry))
         .collect()
+}
+
+#[cfg(test)]
+mod unsupported_tests {
+    use super::*;
+
+    fn refused(machine: u64, detail: &str) -> Refusal {
+        refusal(
+            RefusalReason::Unsupported,
+            MachineId::new(machine).unwrap(),
+            Construct::Machine,
+            detail,
+        )
+    }
+
+    /// One refusal per machine, the first that machine meets, in the order
+    /// the machines were judged; the first is the verdict, the rest go on.
+    #[test]
+    fn each_machine_is_refused_once_and_the_first_is_the_verdict() {
+        let mut unsupported = Unsupported::default();
+        for (machine, detail) in [(2, "a"), (2, "b"), (5, "c"), (3, "d"), (5, "e")] {
+            unsupported.note(MachineId::new(machine).unwrap(), refused(machine, detail));
+        }
+        let mut further = Vec::new();
+        let first = unsupported.verdict(&mut further).unwrap();
+        assert_eq!(first.detail, "a");
+        let rest: Vec<_> = further
+            .iter()
+            .map(|refused| refused.detail.as_str())
+            .collect();
+        assert_eq!(rest, ["c", "d"]);
+        assert!(Unsupported::default().verdict(&mut further).is_none());
+    }
 }

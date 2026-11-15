@@ -245,7 +245,8 @@ machine second(value: i64 in Marked) -> i64 { value as -Marked }
     let first_state = typed.machine_states(typed.machine_by_symbol(first).unwrap())[0].clone();
     let second_state = typed.machine_by_symbol(second).unwrap().states.start();
     typed.machine_states.get_mut(second_state).statement_nodes = first_state.statement_nodes;
-    let refused = crate::expression_meanings::prepare(&resolved, &mut typed, 0, &[]).unwrap_err();
+    let refused =
+        crate::expression_meanings::prepare(&resolved, &mut typed, 0, 0, &[]).unwrap_err();
     assert!(
         refused
             .message

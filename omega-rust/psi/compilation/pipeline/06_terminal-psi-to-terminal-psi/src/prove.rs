@@ -51,6 +51,8 @@ use semantic_vocabulary::{
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
+#[path = "prove/ieee_float_order.rs"]
+mod ieee_float_order;
 #[path = "prove/ranges.rs"]
 mod ranges;
 #[path = "prove/reach.rs"]
@@ -103,6 +105,7 @@ fn covered(
     }
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::ScalarIeeeFloatComparison { .. } => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
             parts.iter().all(|part| covered(part, fixed, width))
         }
@@ -593,13 +596,17 @@ impl<'a> Prover<'a> {
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
-        decide_primitive(
-            self.context,
-            &proposition,
-            PrimitiveJudgment::ClosedIntegerRelation,
-        )
-        .ok()
-        .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
+        let judgment = if matches!(proposition, Proposition::ScalarIeeeFloatComparison { .. })
+            || matches!(&proposition, Proposition::Implication { premise, conclusion }
+                if **conclusion == Proposition::Falsehood && matches!(**premise, Proposition::ScalarIeeeFloatComparison { .. }))
+        {
+            PrimitiveJudgment::ClosedIeeeFloatRelation
+        } else {
+            PrimitiveJudgment::ClosedIntegerRelation
+        };
+        decide_primitive(self.context, &proposition, judgment)
+            .ok()
+            .map(|()| primitive(proposition, judgment))
     }
 
     fn reflexive(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -1163,11 +1170,14 @@ impl<'a> Prover<'a> {
                 .ok_or("mathematical strict order over open terms"),
             Proposition::Atom(_)
             | Proposition::IeeeFloatComparison { .. }
-            | Proposition::ScalarIeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
             | Proposition::StructuralIdentity { .. }
             | Proposition::StructuralCaseMembership { .. }
             | Proposition::ContentConservation(_) => Err("goal form outside this prover"),
+            Proposition::ScalarIeeeFloatComparison { .. } => self
+                .closed(goal.clone())
+                .or_else(|| self.ieee_float_order(goal))
+                .ok_or("the IEEE order premises do not establish this comparison"),
             Proposition::Implication {
                 premise,
                 conclusion,
@@ -1187,7 +1197,9 @@ impl<'a> Prover<'a> {
             return Err("order of non-integers");
         };
         if let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
-            && let Some(proof) = self.relation(left, right, strict)
+            && let Some(proof) = self
+                .relation(left, right, strict)
+                .or_else(|| (!strict).then(|| self.successor(left, right)).flatten())
         {
             return Ok(proof);
         }
@@ -1223,6 +1235,104 @@ impl<'a> Prover<'a> {
             proof = chain(proof, right_proof)?;
         }
         Ok(proof)
+    }
+
+    /// `left <= right` where the result equations define `left` as one more
+    /// than a value below `right`, such as a loop's `position + 1` against a
+    /// length the guard `position < length` bounded. Neither side has a
+    /// literal bound, so interval reasoning cannot see it. Integers are
+    /// discrete: `a < b` gives `a + 1 <= b` (`IntegerOrderDiscreteness`), and
+    /// the same equations carry that back onto `left`
+    /// (`ValueEqualityTransport`). The kernel recomputes the unfolded form.
+    fn successor(&mut self, left: &ScalarTerm, right: &ScalarTerm) -> Option<ProofNode> {
+        if self.equations.is_empty() {
+            return None;
+        }
+        let goal = Proposition::LessOrEqual(left.clone(), right.clone());
+        crate::known::Known::transport_inputs(
+            &self.facts,
+            &self.equations,
+            &goal,
+            &self.definitions,
+            &mut self.transport,
+        );
+        let selected: Vec<usize> = self
+            .transport
+            .selected
+            .iter()
+            .map(|&index| self.equations[index])
+            .collect();
+        // The goal with its values unfolded, such as `a +exact 1 <= b`, and
+        // that order read over the mathematical integers.
+        let unfolded = check_value_equality_denotation(
+            self.context,
+            &goal,
+            selected.iter().map(|&index| &self.facts[index].proposition),
+        )
+        .ok()?;
+        let lifted = lift_exact_integer_order(&unfolded)?;
+        let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(below, one), above) = &lifted
+        else {
+            return None;
+        };
+        let (
+            IntegerMathTerm::MathValue {
+                source_type,
+                value: below,
+            },
+            IntegerMathTerm::MathValue {
+                source_type: other,
+                value: above,
+            },
+        ) = (below.as_ref(), above)
+        else {
+            return None;
+        };
+        if source_type != other || **one != IntegerMathTerm::literal(IntegerValue::Unsigned(1)) {
+            return None;
+        }
+        let scalar_type = ScalarType::Integer(*source_type);
+        let strict = self.relation(
+            &ScalarTerm::value(*below, scalar_type),
+            &ScalarTerm::value(*above, scalar_type),
+            true,
+        )?;
+        let upper = IntegerMathTerm::MathValue {
+            source_type: *source_type,
+            value: *above,
+        };
+        let discrete = node(
+            lifted,
+            ProofRule::IntegerOrderDiscreteness {
+                relation: Box::new(strict),
+            },
+        );
+        // Substituting the bound for itself changes nothing; the rule lets
+        // the mathematical order conclude in the carrier spelling transport
+        // unfolds the goal to.
+        let unchanged = primitive(
+            Proposition::IntegerMathEqual(upper.clone(), upper),
+            PrimitiveJudgment::ReflexiveEquality,
+        );
+        let carrier = node(
+            unfolded,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(discrete),
+                equality: Box::new(unchanged),
+                endpoint: 1,
+            },
+        );
+        let equalities = selected
+            .iter()
+            .map(|&index| self.facts[index].proof(&self.facts))
+            .collect();
+        Some(node(
+            goal,
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(carrier),
+                equalities,
+            },
+        ))
     }
 
     /// `from <= to` (or `<` when `strict`) between two values through order

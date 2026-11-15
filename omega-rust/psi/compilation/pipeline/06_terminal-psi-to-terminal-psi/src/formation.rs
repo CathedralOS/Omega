@@ -195,17 +195,6 @@ impl crate::known::ProofValues for Facts {
             .and_then(|index| self.values.get(index))
             .map(|value| value.ty)
     }
-    fn is_storage_content(&self, value: ValueId) -> bool {
-        usize::try_from(value.get() - 1)
-            .ok()
-            .and_then(|index| self.values.get(index))
-            .is_some_and(|value| {
-                matches!(
-                    value.observation,
-                    Observation::Field(..) | Observation::Extent(..)
-                )
-            })
-    }
 }
 
 enum BindingError {

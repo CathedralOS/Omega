@@ -56,6 +56,54 @@ fn named_inspection_publishes_the_requested_reference_machine() {
 }
 
 #[test]
+fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
+    let scratch = TemporaryDirectory::create("named-sequence-inspection", false).unwrap();
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures");
+    for (tier, name) in [
+        ("run", "owned_record_sequence"),
+        ("pending", "runtime_record_sequence"),
+    ] {
+        let project = fixtures.join(tier).join("ownership").join(name);
+        let artifact = scratch.path().join(format!("{name}.psi"));
+        let source = inspect(&project, "main", &artifact);
+        assert!(source.status.success(), "{name}: {source:?}");
+        let loaded = omega(&project)
+            .args(["psi", "inspect", "--artifact"])
+            .arg(&artifact)
+            .output()
+            .expect("reopen the saved sequence artifact");
+        assert!(loaded.status.success(), "{name}: {loaded:?}");
+        let source = String::from_utf8(source.stdout).unwrap();
+        let loaded = String::from_utf8(loaded.stdout).unwrap();
+        assert_eq!(source.lines().last(), loaded.lines().last(), "{name}");
+    }
+}
+
+#[test]
+fn saved_console_provider_keeps_the_direct_mutable_byte_window() {
+    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+    let scratch = TemporaryDirectory::create("console-provider-inspection", false).unwrap();
+    let artifact = scratch.path().join("console.psi");
+    let published = inspect(&project, "entry_start", &artifact);
+    assert!(published.status.success(), "{published:?}");
+
+    let reopened = omega(&project)
+        .args(["psi", "inspect", "--artifact"])
+        .arg(&artifact)
+        .output()
+        .expect("reopen the saved Console artifact");
+    assert!(reopened.status.success(), "{reopened:?}");
+    let inspection = String::from_utf8(reopened.stdout).unwrap();
+    assert!(
+        inspection
+            .lines()
+            .any(|row| { row.starts_with("boundary ") && row.contains("Console::read_line") }),
+        "the original mutable requirement is retained"
+    );
+}
+
+#[test]
 fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
     let scratch = TemporaryDirectory::create("unnamed-psi-inspection", false).unwrap();
     let project = scratch.path();

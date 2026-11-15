@@ -1828,12 +1828,14 @@ pub(crate) mod scalar_leaf_schema {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ScalarLeafResultShape {
         DeclaredInteger,
+        DeclaredFloat,
         Boolean,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ScalarLeafOperandShape {
         IntegerLiteral,
+        FloatLiteral,
         BooleanLiteral,
         UnaryBoolean,
         BinaryBoolean,
@@ -1847,6 +1849,7 @@ pub(crate) mod scalar_leaf_schema {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ScalarLeafDenotation {
         IntegerConstant,
+        FloatConstant,
         BooleanConstant,
         BooleanNot,
         BooleanEqual,
@@ -1976,7 +1979,10 @@ pub(crate) mod scalar_leaf_schema {
                 (ScalarLeafResultShape::Boolean, _) => {
                     ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications
                 }
-                (ScalarLeafResultShape::DeclaredInteger, _) => ScalarLeafFactShape::ResultEquation,
+                (
+                    ScalarLeafResultShape::DeclaredInteger | ScalarLeafResultShape::DeclaredFloat,
+                    _,
+                ) => ScalarLeafFactShape::ResultEquation,
             },
             crash: ScalarLeafCrashPolicy::Never,
             work: ScalarLeafWorkPolicy::ConsumeOne,
@@ -2182,6 +2188,7 @@ pub(crate) mod scalar_leaf_semantics {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum ScalarLeafInputs {
         IntegerLiteral(IntegerValue),
+        FloatLiteral(semantic_vocabulary::IeeeFloatValue),
         BooleanLiteral(bool),
         Unary(ValueId),
         Binary(ValueId, ValueId),
@@ -2194,6 +2201,9 @@ pub(crate) mod scalar_leaf_semantics {
             }
             OperationKind::BooleanConstant { value } => {
                 Some(ScalarLeafInputs::BooleanLiteral(*value))
+            }
+            OperationKind::IeeeFloatConstant { value } => {
+                Some(ScalarLeafInputs::FloatLiteral(*value))
             }
             OperationKind::BooleanNot { operand }
             | OperationKind::IntegerBitwiseNot { operand }
@@ -2248,6 +2258,7 @@ pub(crate) mod scalar_leaf_semantics {
     ) -> Result<(), OperationSemanticError> {
         let valid = match shape {
             ScalarLeafResultShape::DeclaredInteger => matches!(actual, ScalarType::Integer(_)),
+            ScalarLeafResultShape::DeclaredFloat => matches!(actual, ScalarType::IeeeFloat(_)),
             ScalarLeafResultShape::Boolean => actual == ScalarType::Boolean,
         };
         valid
@@ -2270,6 +2281,9 @@ pub(crate) mod scalar_leaf_semantics {
         let valid = match (schema.operands, inputs) {
             (ScalarLeafOperandShape::IntegerLiteral, ScalarLeafInputs::IntegerLiteral(_))
             | (ScalarLeafOperandShape::BooleanLiteral, ScalarLeafInputs::BooleanLiteral(_)) => true,
+            (ScalarLeafOperandShape::FloatLiteral, ScalarLeafInputs::FloatLiteral(value)) => {
+                result_type == ScalarType::IeeeFloat(value.format())
+            }
             (ScalarLeafOperandShape::UnaryBoolean, ScalarLeafInputs::Unary(operand)) => {
                 type_of(operand)? == ScalarType::Boolean
             }
@@ -2330,6 +2344,9 @@ pub(crate) mod scalar_leaf_semantics {
             }
             (ScalarLeafDenotation::BooleanConstant, ScalarLeafInputs::BooleanLiteral(value)) => {
                 return Ok(ScalarTerm::boolean(value));
+            }
+            (ScalarLeafDenotation::FloatConstant, ScalarLeafInputs::FloatLiteral(value)) => {
+                return Ok(ScalarTerm::IeeeFloatLiteral(value));
             }
             (ScalarLeafDenotation::BooleanNot, ScalarLeafInputs::Unary(operand)) => {
                 ScalarTerm::boolean_not(term(operand)?)

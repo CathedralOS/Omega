@@ -39,10 +39,12 @@ mod case_payloads;
 mod ceilings;
 mod collection_members;
 mod compiler_primitive_headers;
+mod connected_facts;
 mod contract_formation;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
+mod every_refusal;
 mod floats;
 mod guard_contradiction;
 mod handoffs;
@@ -1372,6 +1374,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -1383,6 +1386,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -1636,6 +1640,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         cleanup: None,
@@ -3088,6 +3093,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
     let mut types = records();
     types.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -3245,6 +3251,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::plain(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -3256,6 +3263,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -3273,6 +3281,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -3907,6 +3916,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let record = |spelled: &str, fields, requires| RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -3937,6 +3947,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         )],
     ));
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -5470,6 +5481,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -5481,6 +5493,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -5492,6 +5505,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: true,
         cleanup: None,
@@ -6408,6 +6422,7 @@ mod generic_bodies {
         TerminalCompilation::Prepared(PreparedCompilation {
             arrivals: Vec::new(),
             closure: Ok(closure),
+            further: Vec::new(),
             forms: vec![GenericForms {
                 template,
                 name: "advance".to_owned(),

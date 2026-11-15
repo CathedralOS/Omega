@@ -43,6 +43,10 @@ pub enum CoreVocabulary {
     StaticInterruptCompletionPermit,
     /// A reflection operation or result type in core `reflect.omg`.
     Reflection(ReflectionDeclaration),
+    /// The semantic access policy requirement and its result vocabulary.
+    AccessPolicy,
+    AccessPolicyPlan,
+    AccessPlan,
     /// Core `extent.omg`'s linear `Extent` storage data.
     Extent,
     /// One of `Extent`'s declared domains in `extent.omg`.
@@ -200,6 +204,7 @@ const TASK_REGISTER: &[u8] = core_source!("task_register.omg");
 const INTERRUPT: &[u8] = core_source!("interrupt.omg");
 const STATIC_INTERRUPT: &[u8] = crate::static_interrupts::CORE_DECLARATIONS;
 const REFLECT: &[u8] = core_source!("reflect.omg");
+const LAYOUT: &[u8] = core_source!("layout.omg");
 const EXTENT: &[u8] = core_source!("extent.omg");
 const FIXED_VEC: &[u8] = core_source!("fixed_vec.omg");
 const ASSEMBLY_MODEL: &[u8] = core_source!("assembly_model.omg");
@@ -237,6 +242,24 @@ const fn selector(
 
 const ROWS: &[CoreVocabularyRow] = &[
     row("never.omg", "Never", NEVER, CoreVocabulary::Never),
+    row(
+        "layout.omg",
+        "AccessPolicy",
+        LAYOUT,
+        CoreVocabulary::AccessPolicy,
+    ),
+    row(
+        "layout.omg",
+        "AccessPolicy::plan",
+        LAYOUT,
+        CoreVocabulary::AccessPolicyPlan,
+    ),
+    row(
+        "layout.omg",
+        "AccessPlan",
+        LAYOUT,
+        CoreVocabulary::AccessPlan,
+    ),
     row(
         "assembly.omg",
         "MachineControl",

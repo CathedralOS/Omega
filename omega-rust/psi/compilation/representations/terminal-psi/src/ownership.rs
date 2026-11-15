@@ -425,7 +425,7 @@ pub(crate) mod placement {
         pub policy_identity: TerminalIdentityIndex,
         pub policy_plan_machine_identity: TerminalIdentityIndex,
         pub schema_identity: TerminalIdentityIndex,
-        pub placement: access_plans::ValidatedAccessPlan,
+        pub placement: access_plans::ValidatedPlacement,
         pub fields: Vec<TerminalAccessFieldPlan>,
     }
 
@@ -441,7 +441,7 @@ pub(crate) mod placement {
         pub policy_identity: TerminalIdentityIndex,
         pub policy_plan_machine_identity: TerminalIdentityIndex,
         pub schema_identity: TerminalIdentityIndex,
-        pub placement: access_plans::ValidatedAccessPlan,
+        pub placement: access_plans::ValidatedPlacement,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

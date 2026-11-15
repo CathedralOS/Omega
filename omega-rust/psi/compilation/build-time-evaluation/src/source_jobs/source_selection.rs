@@ -195,6 +195,7 @@ mod tests {
         crate::evaluate_constant_initializers_with_source_consent(
             &mut admitted,
             compilation,
+            &[],
             None,
             Some(Arc::new(Captured(sources))),
             &mut accounting,

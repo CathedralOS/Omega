@@ -606,7 +606,8 @@ impl TableTerm for ProofNode {
             ProofRule::PredicateDenotation { premise } => {
                 premises.push(premise);
             }
-            ProofRule::ConjunctionIntroduction(children) => {
+            ProofRule::IeeeFloatOrderChain(children)
+            | ProofRule::ConjunctionIntroduction(children) => {
                 premises.extend(children.iter());
             }
             ProofRule::ConjunctionElimination { conjunction, .. } => {
@@ -752,6 +753,7 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
                 PrimitiveJudgment::ReflexiveEquality => 1,
                 PrimitiveJudgment::ClosedIntegerRelation => 2,
                 PrimitiveJudgment::IntegerCarrierBound => 3,
+                PrimitiveJudgment::ClosedIeeeFloatRelation => 4,
             });
         }
         ProofRule::SemanticAxiom { index: cited } => {
@@ -864,6 +866,10 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
         ProofRule::IntegerPowerOfTwoOrder { .. } => {
             writer.u8(28);
         }
+        ProofRule::IeeeFloatOrderChain(premises) => {
+            writer.u8(29);
+            writer.len("certificate children", premises.len())?;
+        }
     }
     encode_proposition(writer, &node.conclusion)
 }
@@ -942,6 +948,38 @@ mod tests {
             canonical_certificate_bytes(&assumption(0)).unwrap(),
             canonical_certificate_bytes(&axiom).unwrap()
         );
+    }
+
+    #[test]
+    fn ieee_chain_fingerprint_covers_each_premise_and_the_closed_judgment() {
+        let leaf = |index| ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::Assumption { index },
+        };
+        let proof = ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::IeeeFloatOrderChain(vec![leaf(0), leaf(1)]),
+        };
+        let original = canonical_certificate_bytes(&proof).unwrap();
+        for position in 0..2 {
+            let mut changed = proof.clone();
+            let ProofRule::IeeeFloatOrderChain(children) = &mut changed.rule else {
+                unreachable!()
+            };
+            children[position].rule = ProofRule::Assumption { index: 7 };
+            assert_ne!(canonical_certificate_bytes(&changed).unwrap(), original);
+        }
+        let mut reversed = proof.clone();
+        let ProofRule::IeeeFloatOrderChain(children) = &mut reversed.rule else {
+            unreachable!()
+        };
+        children.reverse();
+        assert_ne!(canonical_certificate_bytes(&reversed).unwrap(), original);
+        let mut closed = leaf(0);
+        closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIeeeFloatRelation);
+        let encoded = canonical_certificate_bytes(&closed).unwrap();
+        closed.rule = ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation);
+        assert_ne!(canonical_certificate_bytes(&closed).unwrap(), encoded);
     }
 
     #[test]

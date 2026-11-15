@@ -311,7 +311,13 @@ impl Lowering<'_> {
                         Bound::Record(continuing!(self.bind_record(value)))
                     }
                     Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
-                        Bound::Scalar(continuing!(self.scalar(value)))
+                        let scalar = continuing!(self.scalar(value));
+                        match self.lender_homes.get(*slot).copied().flatten() {
+                            Some(home) => {
+                                Bound::Home(self.establish_home(scalar, home, value.source)?)
+                            }
+                            None => Bound::Scalar(scalar),
+                        }
                     }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
@@ -764,10 +770,7 @@ impl Lowering<'_> {
         temporary: Option<PlaceId>,
     ) -> Checked<()> {
         let source = value.source;
-        self.joining += 1;
-        let value = self.expression(value);
-        self.joining -= 1;
-        match value? {
+        match self.expression(value)? {
             Reached::Value(value) => {
                 if let Some(home) = temporary {
                     self.retire_homes(&[home], source)?;
@@ -850,10 +853,23 @@ impl Lowering<'_> {
             self.point = Some(point);
             let (scalars, structures) = match (&result, value) {
                 (Value::Scalar(_), Value::Scalar(value)) => (vec![value], Vec::new()),
-                (Value::Record(_), Value::Record(place)) => (
-                    Vec::new(),
-                    vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
-                ),
+                (Value::Record(_), Value::Record(place)) => {
+                    let ValueType::Record(record, qualification, _) = result_type else {
+                        return Err(self.internal("a record join without a record type"));
+                    };
+                    let multiplicity = self.records.multiplicity(record, self.id)?;
+                    let place = self.join_arrival(
+                        place,
+                        record,
+                        qualification,
+                        multiplicity,
+                        SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
+                    )?;
+                    (
+                        Vec::new(),
+                        vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
+                    )
+                }
                 _ => return Err(self.internal("a match arm does not supply its join's value lane")),
             };
             self.jump_with_structural(
@@ -1002,11 +1018,8 @@ impl Lowering<'_> {
             };
             self.branch(decided, when_true, when_false, decision_source)?;
             self.enter(evaluate_right);
-            self.joining += 1;
-            let evaluated = self.scalar(operand);
-            self.joining -= 1;
             // A nonreturning operand ends only its continuing path.
-            let Reached::Value(value) = evaluated? else {
+            let Reached::Value(value) = self.scalar(operand)? else {
                 break;
             };
             let Some(next) = operands.next() else {

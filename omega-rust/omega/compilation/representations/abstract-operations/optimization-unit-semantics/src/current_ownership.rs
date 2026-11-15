@@ -1149,11 +1149,16 @@ pub(crate) mod address_joins {
                 destination: &[terminal_psi::StructuralParameterDeclaration],
                 requirements: &mut Vec<DescriptorCompatibilityRequirement>,
             ) -> Option<PlaceId> {
+                let position = (block, node);
                 for loan in &self.loans {
-                    if !loan.live.contains(&(block, node)) || !loan.live.contains(&(edge.target, 0))
-                    {
+                    if !loan.live.contains(&position) || !loan.live.contains(&(edge.target, 0)) {
                         continue;
                     }
+                    let overlaps = |region: &Region| {
+                        loan.regions.iter().any(|backing| {
+                            borrowed_regions.regions_overlap_at(backing, region, position)
+                        })
+                    };
                     let disturbed = edge
                         .structural_bindings
                         .iter()
@@ -1174,12 +1179,7 @@ pub(crate) mod address_joins {
                                 Projection::new(&binding.argument.path),
                                 binding.argument.access == StructuralAccess::Owned,
                             )
-                        })
-                        .chain(
-                            edge.cleanup_actions
-                                .iter()
-                                .map(|action| (action.place(), Projection::new(&[]), true)),
-                        );
+                        });
                     for (place, projection, forced) in disturbed {
                         let location = borrowed_regions.access_location(
                             (block, node),
@@ -1192,15 +1192,7 @@ pub(crate) mod address_joins {
                             projection.at((block, node)),
                         );
                         if forced {
-                            if regions.iter().any(|region| {
-                                loan.regions.iter().any(|backing| {
-                                    borrowed_regions.regions_overlap_at(
-                                        backing,
-                                        region,
-                                        (block, node),
-                                    )
-                                })
-                            }) {
+                            if regions.iter().any(overlaps) {
                                 return Some(place);
                             }
                             continue;
@@ -1222,6 +1214,25 @@ pub(crate) mod address_joins {
                                     None => return Some(place),
                                 }
                             }
+                        }
+                    }
+                    for action in &edge.cleanup_actions {
+                        let place = action.place();
+                        let disturbed = if action.invoked_machine().is_some() {
+                            borrowed_regions
+                                .resolve_at(position, place, Projection::new(&[]).at(position))
+                                .iter()
+                                .any(overlaps)
+                        } else {
+                            // A no-code disposal touches its own home, including
+                            // the carrier of a descriptor with separate backing.
+                            overlaps(&Region {
+                                root: Some(place),
+                                projection: Projection::new(action.path()),
+                            })
+                        };
+                        if disturbed {
+                            return Some(place);
                         }
                     }
                 }
@@ -2149,8 +2160,18 @@ pub(crate) mod address_joins {
             block: BlockId,
             node: u32,
             operation: &O,
+            structural_types: &(impl crate::StructuralTypes + ?Sized),
             moved: impl IntoIterator<Item = PlaceId>,
         ) -> Result<(), OptimizationUnitValidationError> {
+            if let O::ReleaseReference { source, path, .. } = operation
+                && super::references::releases_view(function, structural_types, *source, path)
+                && self
+                    .borrowed_regions
+                    .source_origins_at((block, node), *source, path)
+                    .is_none_or(|origins| origins.is_empty())
+            {
+                return Err(pinned_root_disturbed(function, block, node, *source));
+            }
             let moved = moved.into_iter().collect::<Vec<_>>();
             if let Some(place) = self.descriptor_loans.conflicted_operation(
                 &self.borrowed_regions,
@@ -4499,7 +4520,7 @@ pub(crate) mod references {
                                         | DescriptorStoredOrigin::IncomingContents { .. }
                                         | DescriptorStoredOrigin::Provider(_)
                                         | DescriptorStoredOrigin::Empty | DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::AccessFormation { .. }
-                                        | DescriptorStoredOrigin::Carried => None,
+                                        | DescriptorStoredOrigin::Carried { .. } => None,
                                     }
                                 })
                                 .collect::<Option<Vec<_>>>()?;
@@ -5979,6 +6000,23 @@ pub(crate) mod references {
         }
     }
 
+    pub(super) fn releases_view(
+        function: &PsiOptimizationFunction,
+        types: &(impl StructuralTypes + ?Sized),
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> bool {
+        structural_source_contract(function, source)
+            .and_then(|root| {
+                terminal_semantics::inline_descriptor_type(
+                    types.declarations(),
+                    root.structural_type,
+                    path,
+                )
+            })
+            .is_some_and(|leaf| leaf.shape.is_view_descriptor())
+    }
+
     pub(super) fn release(
         function: &PsiOptimizationFunction,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -6003,6 +6041,11 @@ pub(crate) mod references {
                 node,
                 "release carrier storage remains borrowed",
             ));
+        }
+        // The descriptor-flow walk checks the view's exact live source.
+        // Ordinary reference leaves still owe their child-loan closure here.
+        if releases_view(function, structural_types, source, path) {
+            return Ok(());
         }
         let position = live
             .iter()
@@ -8201,6 +8244,7 @@ mod replay {
                     block_id,
                     node_index,
                     &node.operation,
+                    structural_types,
                     consumed_places.iter().copied().chain(
                         structural_arguments
                             .iter()

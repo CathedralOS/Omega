@@ -1,0 +1,16 @@
+// An owned record sequence keeps its elements wherever it goes: in a local, returned from the
+// machine that built it, and passed by value to another machine.
+data Ticket { kind: u8; number: u32; }
+machine issued() -> [Ticket] {
+    [Ticket { kind: 2u8, number: 11u32 }, Ticket { kind: 3u8, number: 29u32 }]
+}
+machine counted(tickets: [Ticket]) -> u64 { tickets.len }
+machine main() crashes Trap {
+    let local: [Ticket] = [Ticket { kind: 1u8, number: 11u32 }];
+    let returned: [Ticket] = issued();
+    let moved: u64 = counted(returned);
+    let kept: u64 = local.len;
+    transition moved == 2u64 && kept == 1u64 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

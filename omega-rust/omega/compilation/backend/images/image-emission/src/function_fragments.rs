@@ -1492,6 +1492,7 @@ mod byte_literals {
         ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
         StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
     };
+    use std::borrow::Cow;
     use std::collections::BTreeMap;
 
     pub(super) const POOL_SYMBOL_NAME: &str = "omega_byte_literal_pool";
@@ -1638,12 +1639,16 @@ mod byte_literals {
             .iter()
             .map(|(row, _)| literal_octets(source, row))
             .collect::<Result<Vec<_>, _>>()?;
-        let (pool, offsets) = pack_octets(&literals, text_offset)?;
+        let entries = literals
+            .iter()
+            .map(|(octets, alignment)| (octets.as_ref(), *alignment))
+            .collect::<Vec<_>>();
+        let (pool, offsets) = pack_octets(&entries, text_offset)?;
         let addresses = placed
             .iter()
             .zip(literals.iter().zip(offsets))
             .map(
-                |((row, literal), (octets, pool_offset))| ObjectByteLiteralAddress {
+                |((row, literal), ((octets, _), pool_offset))| ObjectByteLiteralAddress {
                     machine: row.machine,
                     literal: *literal,
                     fields: row.fields,
@@ -1655,16 +1660,34 @@ mod byte_literals {
         Ok(Some((pool, addresses)))
     }
 
-    fn pack_octets(literals: &[&[u8]], text_offset: usize) -> Result<(Vec<u8>, Vec<usize>), Error> {
+    /// Packs each literal at an image position aligned to its element alignment (at most the
+    /// pool's own alignment, which the text section also honors). Identical octets share an
+    /// entry when that entry is already aligned enough.
+    fn pack_octets(
+        literals: &[(&[u8], usize)],
+        text_offset: usize,
+    ) -> Result<(Vec<u8>, Vec<usize>), Error> {
         let mut pool = Vec::new();
         let mut entries = BTreeMap::<&[u8], usize>::new();
         let mut offsets = Vec::with_capacity(literals.len());
-        for octets in literals {
-            let offset = *entries.entry(*octets).or_insert_with(|| {
-                let offset = pool.len();
-                pool.extend_from_slice(octets);
-                offset
-            });
+        for (octets, alignment) in literals {
+            if !alignment.is_power_of_two() || *alignment > POOL_ALIGNMENT {
+                return Err(Error::Mismatch("literal alignment exceeds the pool's"));
+            }
+            let aligned = |offset: usize| (text_offset + offset).is_multiple_of(*alignment);
+            let offset = match entries.get(octets) {
+                Some(offset) if aligned(*offset) => *offset,
+                _ => {
+                    let offset = (text_offset + pool.len())
+                        .checked_next_multiple_of(*alignment)
+                        .ok_or(Error::Overflow)?
+                        - text_offset;
+                    pool.resize(offset, 0);
+                    pool.extend_from_slice(octets);
+                    entries.insert(octets, offset);
+                    offset
+                }
+            };
             offsets.push(offset);
         }
         let end = text_offset
@@ -1675,17 +1698,19 @@ mod byte_literals {
         Ok((pool, offsets))
     }
 
+    /// The octets a pool address names, with the alignment they need: a byte literal's own
+    /// bytes, or the encoded roster of an owned element sequence.
     fn literal_octets<'a>(
         source: &'a StagedOptimizedRelocationFreeObjectContainer,
         row: &PlacedImageAddress,
-    ) -> Result<&'a [u8], Error> {
+    ) -> Result<(Cow<'a, [u8]>, usize), Error> {
         let literal = row
             .byte_literal()
             .ok_or(Error::Mismatch("non-literal address in literal pool"))?;
         if row.operation != literal.operation {
             return Err(Error::Mismatch("literal address operation changed"));
         }
-        let (abstracted, _) = source::function(source, row.machine)?;
+        let (abstracted, targeted) = source::function(source, row.machine)?;
         let mut matches = abstracted
             .operations()
             .filter_map(|operation| match operation {
@@ -1695,12 +1720,30 @@ mod byte_literals {
                     bytes,
                     ..
                 } if *psi_operation == literal.operation && place.id == literal.place => {
-                    Some(bytes.as_slice())
+                    Some(Some((Cow::Borrowed(bytes.as_slice()), 1)))
+                }
+                AbstractOperation::EstablishStructuralArray {
+                    psi_operation,
+                    result,
+                    ..
+                } if *psi_operation == literal.operation && result.place == literal.place => {
+                    let geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+                        &targeted.graph.structural_types,
+                    )
+                    .ok()?;
+                    Some(
+                        target_operations::constant_element_roster(
+                            abstracted.blocks.iter().flat_map(|block| &block.operations),
+                            operation,
+                            &geometry,
+                        )
+                        .map(|roster| (Cow::Owned(roster.octets), usize::from(roster.alignment))),
+                    )
                 }
                 _ => None,
             });
         match (matches.next(), matches.next()) {
-            (Some(bytes), None) => Ok(bytes),
+            (Some(Some(octets)), None) => Ok(octets),
             _ => Err(Error::Mismatch(
                 "byte-literal address names no unique retained literal",
             )),
@@ -1714,7 +1757,11 @@ mod byte_literals {
         #[test]
         fn identical_octets_share_one_entry_and_the_pool_ends_aligned() {
             let (pool, offsets) = pack_octets(
-                &[b"Door".as_slice(), b"Gate".as_slice(), b"Door".as_slice()],
+                &[
+                    (b"Door".as_slice(), 1),
+                    (b"Gate".as_slice(), 1),
+                    (b"Door".as_slice(), 1),
+                ],
                 20,
             )
             .unwrap();
@@ -1726,11 +1773,22 @@ mod byte_literals {
 
         #[test]
         fn empty_literals_still_own_one_aligned_granule() {
-            let (pool, offsets) = pack_octets(&[b"".as_slice()], 32).unwrap();
+            let (pool, offsets) = pack_octets(&[(b"".as_slice(), 1)], 32).unwrap();
             assert_eq!(offsets, [0]);
             assert_eq!(pool, [0; 16]);
-            let (pool, _) = pack_octets(&[b"".as_slice()], 33).unwrap();
+            let (pool, _) = pack_octets(&[(b"".as_slice(), 1)], 33).unwrap();
             assert_eq!(pool.len(), 15);
+        }
+
+        #[test]
+        fn an_element_roster_starts_at_its_alignment_in_the_image() {
+            let roster = 11_u32.to_le_bytes();
+            let (pool, offsets) =
+                pack_octets(&[(b"Gate".as_slice(), 1), (roster.as_slice(), 4)], 21).unwrap();
+            assert_eq!(offsets, [0, 7]);
+            assert_eq!((21 + offsets[1]) % 4, 0);
+            assert_eq!(&pool[7..11], roster);
+            assert!(pack_octets(&[(roster.as_slice(), 32)], 0).is_err());
         }
     }
 }
@@ -4406,6 +4464,7 @@ mod source {
                     gdt,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4424,6 +4483,7 @@ mod source {
                     task_state,
                     selector,
                     scratch,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4438,6 +4498,7 @@ mod source {
                     service,
                     operation,
                     source,
+                    ..
                 } => (
                     *psi_operation,
                     *service,
@@ -4981,6 +5042,7 @@ mod source {
                     arguments,
                     calls,
                     result_home,
+                    ..
                 } = row
                 else {
                     continue;
@@ -9907,6 +9969,7 @@ mod source {
                         token,
                         result_home,
                         operation: kind,
+                        ..
                     } if actual == psi_operation => {
                         Some((actual_boundary, token, result_home, kind))
                     }
@@ -10315,9 +10378,11 @@ mod source {
                 AbstractOperation::EstablishStructuralArray { psi_operation, result, elements } => {
                     graph.structural_types.iter().any(|declaration|
                         declaration.id == result.structural_type
-                            && matches!(declaration.shape,
+                            && (matches!(declaration.shape,
                                 terminal_psi::StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. }
-                                    if u64::try_from(elements.len()).ok() == Some(length)))
+                                    if u64::try_from(elements.len()).ok() == Some(length))
+                                || matches!(declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ElementView { access: None, .. })))
                         && graph.operations().filter(|row| matches!(row,
                             TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }
                                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
@@ -11494,7 +11559,7 @@ mod source {
                             let mut child = query;
                             child
                                 .steps
-                                .push(DescriptorContentsStep::AnyElement { element: *element });
+                                .push(DescriptorContentsStep::any_element(*element));
                             descriptor_queries(types, *element, child, active, slots)?;
                         }
                         StructuralTypeShape::Record { fields, .. } => {
@@ -12014,6 +12079,7 @@ mod source {
                                 *position,
                                 row.callee,
                                 DescriptorActualInputs {
+                                    scalar_arguments: &[],
                                     arguments,
                                     argument_contents: contents,
                                 },
@@ -12279,6 +12345,7 @@ mod source {
                         caller.calls.insert(
                             position,
                             terminal_semantics::descriptor_results::DescriptorInvocation {
+                                scalar_arguments: Vec::new(),
                                 operation: *psi_operation,
                                 target:
                                     terminal_semantics::descriptor_results::DescriptorInvocationTarget::Machine(
@@ -20039,7 +20106,7 @@ mod source {
                     | AbstractOperation::ElementViewLength { .. }
                     | abstract_operations::element_view_read_write_pair_pattern!(..)
                     | AbstractOperation::ElementViewSubslice { .. } => {
-                        element_operation_retained(operation, targeted)
+                        element_operation_retained(operation, targeted.graph.operations())
                     }
                     AbstractOperation::Call {
                         psi_operation,
@@ -20407,16 +20474,15 @@ mod source {
             == 1
     }
 
-    fn element_operation_retained(
+    fn element_operation_retained<'operation>(
         operation: &AbstractOperation,
-        target: &target_operations::TargetFunction,
+        operations: impl IntoIterator<Item = &'operation target_operations::TargetUnitOperation>,
     ) -> bool {
         use target_operations::{
             TargetElementView, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
         };
-        let graph = &target.graph;
-        graph
-            .operations()
+        operations
+            .into_iter()
             .filter(|node| match (operation, node) {
                 (
                     AbstractOperation::EstablishElementView { psi_operation, .. },
@@ -20429,6 +20495,30 @@ mod source {
                         ..
                     },
                 ) => psi_operation == retained,
+                (
+                    AbstractOperation::ElementViewRead {
+                        psi_operation,
+                        result,
+                        ..
+                    },
+                    TargetUnitOperation::ScalarDefinition {
+                        result_home,
+                        expression:
+                            TargetScalarExpression::IeeeFloatElementViewRead {
+                                format,
+                                psi_operation: retained,
+                                source_value,
+                                ..
+                            },
+                    },
+                ) => {
+                    psi_operation == retained
+                        && result_home.defining_operation == *psi_operation
+                        && result_home.source_value == result.value
+                        && *source_value == result.value
+                        && result_home.scalar_type == result.scalar_type
+                        && result.scalar_type == semantic_vocabulary::ScalarType::IeeeFloat(*format)
+                }
                 (
                     AbstractOperation::ElementViewLength { psi_operation, .. },
                     TargetUnitOperation::ScalarDefinition {
@@ -20736,6 +20826,7 @@ mod source {
                 boundary: actual_boundary,
                 operands,
                 result_home,
+                ..
             } if actual == psi_operation => Some((actual_boundary, operands, result_home)),
             _ => None,
         });
@@ -20855,6 +20946,85 @@ mod source {
         use super::{AbstractOperation, ieee_literal_retained, requires_graph_storage_replay};
         use semantic_vocabulary::{IeeeFloatValue, OperationId, ValueId};
         use target_operations::TargetUnitOperation;
+
+        #[test]
+        fn ieee_element_read_coverage_requires_a_unique_exact_result() {
+            use semantic_vocabulary::{
+                IeeeFloatFormat, IntegerValue, ObligationId, PlaceId, ScalarType, StructuralTypeId,
+            };
+            use target_operations::{
+                TargetElementView, TargetIntegerExpression, TargetScalarExpression,
+                TargetUnitScalarHomeRequirement,
+            };
+
+            let operation = OperationId::new(1).unwrap();
+            let result = ValueId::new(3).unwrap();
+            let source = PlaceId::new(1).unwrap();
+            let index = ValueId::new(1).unwrap();
+            let length = ValueId::new(2).unwrap();
+            let obligation = ObligationId::new(1).unwrap();
+            let scalar_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+            let authored = AbstractOperation::ElementViewRead {
+                psi_operation: operation,
+                result: abstract_operations::AbstractResult {
+                    value: result,
+                    scalar_type,
+                },
+                source,
+                index,
+                length,
+                obligation,
+                path: Vec::new(),
+            };
+            let row = |identity, retained_result, format| TargetUnitOperation::ScalarDefinition {
+                result_home: TargetUnitScalarHomeRequirement {
+                    defining_operation: identity,
+                    source_value: retained_result,
+                    scalar_type,
+                    shape: calling_conventions::ValueShape::float(8),
+                },
+                expression: TargetScalarExpression::IeeeFloatElementViewRead {
+                    format,
+                    psi_operation: identity,
+                    source_value: retained_result,
+                    source,
+                    view: Box::new(TargetElementView::Result {
+                        psi_operation: OperationId::new(2).unwrap(),
+                        place: source,
+                        structural_type: StructuralTypeId::new(1).unwrap(),
+                    }),
+                    index: Box::new(TargetIntegerExpression::Immediate {
+                        source_value: index,
+                        value: IntegerValue::Unsigned(0),
+                    }),
+                    length,
+                    obligation,
+                    path: Vec::new(),
+                    element_byte_offset: 0,
+                },
+            };
+            let retained = row(operation, result, IeeeFloatFormat::Binary64);
+            let covered =
+                |rows: &[TargetUnitOperation]| super::element_operation_retained(&authored, rows);
+            assert!(covered(std::slice::from_ref(&retained)));
+            assert!(!covered(&[]));
+            assert!(!covered(&[retained.clone(), retained]));
+            assert!(!covered(&[row(
+                operation,
+                result,
+                IeeeFloatFormat::Binary32
+            )]));
+            assert!(!covered(&[row(
+                operation,
+                index,
+                IeeeFloatFormat::Binary64
+            )]));
+            assert!(!covered(&[row(
+                OperationId::new(2).unwrap(),
+                result,
+                IeeeFloatFormat::Binary64
+            )]));
+        }
 
         #[test]
         fn atomic_storage_requires_retained_graph_replay() {

@@ -1118,7 +1118,7 @@ impl<'a> HandleStorageGeometry<'a> {
         for (ordinal, step) in query.steps.iter().enumerate() {
             match step {
                 DescriptorContentsStep::Address(segment) => location.path.push(*segment),
-                DescriptorContentsStep::AnyElement { .. } => {
+                DescriptorContentsStep::Element { .. } => {
                     if query.steps[ordinal + 1..].iter().any(|step| {
                         matches!(
                             step,

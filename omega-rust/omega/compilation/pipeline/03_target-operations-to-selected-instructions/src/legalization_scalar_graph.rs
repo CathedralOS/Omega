@@ -3745,6 +3745,7 @@ pub(crate) mod interrupt_installation {
             arguments,
             calls,
             result_home,
+            ..
         } = target
         else {
             return Err(LegalizationError::custody());
@@ -5099,29 +5100,6 @@ pub(crate) mod structural_case {
             .and_then(|ordinal| u32::try_from(ordinal).ok())
             .map(|tag| (tag, byte_offset, geometry.elements))
             .ok_or(LegalizationError::custody())
-    }
-
-    /// Runtime-index operands for a case-membership test whose pointer chase
-    /// is already stored on the target row. Called only when the path contains
-    /// a runtime index, because extent and obligation are not part of that chase.
-    pub(crate) fn membership_address(
-        function: &PsiOptimizationFunction,
-        source: PlaceId,
-        path: &[terminal_psi::StructuralPathSegment],
-        plan: &crate::native_geometry::NativePlan<'_>,
-    ) -> Result<Vec<RuntimeElement>, LegalizationError> {
-        let identity = source_identity(function, source, source_result(function, source))?;
-        let geometry = reference_source_geometry(identity, path, plan.geometry())
-            .ok_or(LegalizationError::custody())?;
-        if !geometry.readable
-            || geometry
-                .pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor)
-        {
-            return Err(LegalizationError::custody());
-        }
-        Ok(geometry.elements)
     }
 
     pub(crate) fn structural_transport_layout(
@@ -7022,42 +7000,6 @@ pub(crate) mod structural_fields {
             access,
             path: path.clone(),
         })
-    }
-
-    pub(crate) fn byte_index_operands(
-        function: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: semantic_vocabulary::OperationId,
-        source: &terminal_psi::StructuralArgument,
-        field: semantic_vocabulary::StructuralFieldId,
-    ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
-    {
-        let geometry = byte_geometry(function, source, field, unit.geometry())
-            .ok_or(crate::LegalizationError::custody())?;
-        crate::legalization::runtime_indices::operands(
-            function,
-            unit,
-            operation,
-            &geometry.elements,
-        )
-    }
-
-    pub(crate) fn view_slot_index_operands(
-        function: &PsiOptimizationFunction,
-        unit: &crate::native_geometry::NativeUnit<'_>,
-        operation: semantic_vocabulary::OperationId,
-        destination: &terminal_psi::StructuralArgument,
-        field: Option<semantic_vocabulary::StructuralFieldId>,
-    ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
-    {
-        let geometry = view_slot_geometry(function, destination, field, unit.geometry())
-            .ok_or(crate::LegalizationError::custody())?;
-        crate::legalization::runtime_indices::operands(
-            function,
-            unit,
-            operation,
-            &geometry.elements,
-        )
     }
 
     pub(crate) fn view_slot_geometry(

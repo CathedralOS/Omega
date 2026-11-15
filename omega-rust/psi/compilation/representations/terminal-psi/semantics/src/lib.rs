@@ -35,6 +35,7 @@ mod descriptor_replay;
 pub mod descriptors;
 pub mod inhabitation;
 pub mod normal_completion;
+pub mod numeric_primitives;
 pub mod plain_affine;
 pub mod reference_ends;
 pub mod references;
@@ -107,7 +108,7 @@ pub use domain_preservation::{
     store_preserves_domain_content, store_preserves_qualifications,
 };
 pub use references::reference_completion::{
-    BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence,
+    BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence, RetainedCallLoan,
     borrowed_entry_reference_referent, borrowed_loan_source, cleanup_disposes_reference,
     incoming_view_occurrence, reference_call_lifetimes, reference_loan_parent,
     validate_reference_result_completion,
@@ -369,7 +370,8 @@ pub(crate) mod semantic_rows {
             goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerLiteral, Denotation::IntegerConstant)),
         BooleanConstant => ("schema:operation:boolean-constant", LeafDenotation,
             goal_free_scalar_leaf(ResultShape::Boolean, Operands::BooleanLiteral, Denotation::BooleanConstant)),
-        IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation, None),
+        IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation,
+            goal_free_scalar_leaf(ResultShape::DeclaredFloat, Operands::FloatLiteral, Denotation::FloatConstant)),
         IeeeFloatCompare => ("schema:operation:ieee-float-compare", LeafDenotation, None),
         ScalarRepresentationView => ("schema:operation:scalar-representation-view", LeafDenotation, None),
         NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),
@@ -572,7 +574,8 @@ pub use references::reference_views::{
     reference_storage_export_byte_width, reference_storage_region_source_compatible,
     reference_storage_source_compatible, reference_storage_view_is_compatible,
     representation_view_declaration, scalar_reference_view_admits, scalar_reference_view_is_total,
-    scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
+    scalar_reference_view_value, shared_byte_descriptor_storage_matches,
+    shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
 };
 pub use references::representation_geometry::{
     reference_view_compatible, reference_view_offset_is_zero, validate_reference_view_source,
@@ -608,9 +611,10 @@ pub use semantic_rows::{
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
-    borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, structural_argument_source, structural_projection_authority,
-    view_descriptor_parameter, view_descriptor_projected_qualifications,
+    borrowed_storage_reference_ceiling, borrowed_view_payload_parameter,
+    descriptor_parameter_access, projection_before_edge, root_before_edge, storage_names,
+    structural_argument_source, structural_projection_authority, view_descriptor_parameter,
+    view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,
@@ -630,11 +634,12 @@ pub use structural::primitive_place::{
     borrowed_primitive_projection_declaration, byte_carrier_geometry_matches,
     canonical_inline_region, canonical_primitive_path, canonical_primitive_read_path,
     canonical_primitive_read_type, canonical_static_projection, fixed_array_place_shape,
-    inline_backing_container, primitive_place_type, primitive_projection_declaration,
-    primitive_projection_restriction, primitive_projection_type, primitive_read_field,
-    primitive_read_projection_type, primitive_read_requirement, projection_stays_in_inline_storage,
-    projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
-    runtime_structural_path_tip, stored_descriptor_paths, visit_runtime_index_goals,
+    inline_backing_container, inline_descriptor_type, primitive_place_type,
+    primitive_projection_declaration, primitive_projection_restriction, primitive_projection_type,
+    primitive_read_field, primitive_read_projection_type, primitive_read_requirement,
+    projection_stays_in_inline_storage, projection_storage_dependencies,
+    runtime_read_projection_tip, runtime_structural_copy_type, runtime_structural_path_tip,
+    stored_descriptor_paths, visit_runtime_index_goals,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,
@@ -656,8 +661,8 @@ pub use structural::structural_effect::{
     StructuralEffectObservation, StructuralEffectResultShape, StructuralEffectSemanticRow,
     StructuralEffectWorkPolicy, byte_equal_equation, byte_predicate_equation,
     element_establishment_length_equation, element_subslice_length_equation,
-    element_view_leaf_scalar, exact_structural_effect_semantic_row_in, literal_length_equation,
-    same_descriptor_coordinate, structural_effect_leaf_observation,
+    element_view_leaf_scalar, element_view_read_scalar, exact_structural_effect_semantic_row_in,
+    literal_length_equation, same_descriptor_coordinate, structural_effect_leaf_observation,
     structural_effect_leaf_observation_in, structural_effect_semantic_row,
     subslice_length_equation, validate_structural_effect_semantic_rows,
 };

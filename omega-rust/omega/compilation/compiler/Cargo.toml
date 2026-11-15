@@ -111,6 +111,11 @@ libc = { version = "0.2.186", features = ["extra_traits"] }
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
+# Direct and stored byte views execute after independent artifact admission.
+[[test]]
+name = "byte_view_arrivals"
+path = "tests/byte_view_arrivals.rs"
+
 # A Build script cannot make, keep or take apart the compiler-owned Build value:
 # the real prelude's seal refuses each twin before the script runs.
 [[test]]
@@ -212,6 +217,15 @@ path = "tests/lowered_route_qualified.rs"
 
 # A value-position `match` on an integer or Boolean subject is judged on the
 # lowered form: each arm is checked knowing its test held.
+# Canonical float calls keep the complete IEEE contract and target realization.
+[[test]]
+name = "lowered_route_float_values"
+path = "tests/lowered_route_float_values.rs"
+
+[[test]]
+name = "lowered_route_float_contracts"
+path = "tests/lowered_route_float_contracts.rs"
+
 [[test]]
 name = "lowered_route_scalar_match"
 path = "tests/lowered_route_scalar_match.rs"

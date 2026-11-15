@@ -326,6 +326,12 @@ impl<'t> Program<'t> {
                     operation,
                     requirement,
                 }
+            } else if self.typed.symbols.sealed_intrinsic(*symbol)
+                == Some(
+                    language_core::sealed_intrinsics::SealedIntrinsic::FloatOperationRequirement,
+                )
+            {
+                terminal_psi::CheckedBoundaryExecution::NumericPrimitive
             } else {
                 terminal_psi::CheckedBoundaryExecution::Provider
             };
@@ -341,7 +347,13 @@ impl<'t> Program<'t> {
                 },
                 &mut qualifications.identities,
             )
-            .map_err(unavailable)?;
+            .map_err(|diagnostic| terminal_check_tables::Refusal {
+                reason: terminal_check_tables::RefusalReason::Unsupported,
+                machine: caller,
+                concerns: Construct::Machine,
+                source_span: diagnostic.source_span,
+                detail: format!("declaration {}", diagnostic.message),
+            })?;
             let service = *terminal_check_tables::row(
                 &self.boundary_services,
                 boundary,
@@ -356,6 +368,11 @@ impl<'t> Program<'t> {
                 records,
                 metadata,
                 service,
+                if execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
+                    self.typed.numeric_intrinsic_execution(*symbol)
+                } else {
+                    None
+                },
                 qualifications,
             )?;
             declaration.result_lifetimes = self

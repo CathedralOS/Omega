@@ -17,6 +17,7 @@ fn token() -> ValueType {
 fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable,
         cleanup: None,
@@ -25,6 +26,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable,
         cleanup: None,

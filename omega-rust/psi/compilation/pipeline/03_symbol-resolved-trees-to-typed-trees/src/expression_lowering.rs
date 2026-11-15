@@ -1610,9 +1610,16 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::UndeterminedNaN(format) => Ok(self
                             .target()
                             .insert(typed::expression::ExpressionNode::UndeterminedNaN(*format))),
-                        resolved::expression::ExpressionNode::Float(value) => Ok(self
-                            .target()
-                            .insert(typed::expression::ExpressionNode::Float(value.clone()))),
+                        resolved::expression::ExpressionNode::Float(value) => {
+                            if let Some(format) = value.landing() {
+                                self.retain_builtin_type_reference(
+                                    crate::typing_queries::float_literal_atom(format),
+                                )?;
+                            }
+                            Ok(self
+                                .target()
+                                .insert(typed::expression::ExpressionNode::Float(value.clone())))
+                        }
                         resolved::expression::ExpressionNode::Indexed(indexed) => {
                             let collection = self.lower_value(indexed.collection)?;
                             let index = self.lower_value(indexed.index)?;
@@ -2436,6 +2443,10 @@ pub(crate) mod expression {
                             program,
                             program.child_type_reference(reference.base_type),
                         );
+                    }
+                    // A transparent alias is its substituted expansion.
+                    TypeReference::AliasUse { expansion, .. } => {
+                        return resolved_data_definition_for_type(program, expansion);
                     }
                     _ => return None,
                 };

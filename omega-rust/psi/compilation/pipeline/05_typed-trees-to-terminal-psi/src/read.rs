@@ -119,7 +119,7 @@ pub(crate) struct Program<'t> {
     /// the same formal/contract reader as body-backed machine declarations.
     pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
     pub boundary_signatures: IdTable<BoundaryMachineId, Signature>,
-    boundary_services: IdTable<BoundaryMachineId, semantic_vocabulary::ServiceId>,
+    boundary_services: IdTable<BoundaryMachineId, Option<semantic_vocabulary::ServiceId>>,
     /// How each requirement's invocation ends, as the typed trees state it
     /// (`Signatures::completions`).
     pub boundary_completions: IdTable<BoundaryMachineId, semantic_vocabulary::BoundaryCompletion>,
@@ -254,6 +254,16 @@ pub(crate) struct Program<'t> {
     /// The machine each chosen provider gives each requirement it supplies,
     /// recorded by `supplied_slots`.
     pub supplied: Vec<crate::SuppliedRequirement>,
+    /// `Some` while a compilation reports every refusal it meets
+    /// (`elaborate_source_for`): a declaration or body that is refused is
+    /// recorded here and reading goes on with the next one, so one run names
+    /// every machine the checker cannot read yet. `None`, as for a direct
+    /// reading, refuses at the first.
+    pub collected: Option<Vec<terminal_check_tables::Refusal>>,
+    /// Machines whose signature was refused while `collected` is `Some`. A
+    /// later call of one is refused at once as depending on it, instead of
+    /// reading and refusing the same signature again for every caller.
+    refused_signatures: Vec<SymbolHandle>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -392,6 +402,8 @@ impl<'t> Program<'t> {
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
+            collected: None,
+            refused_signatures: Vec::new(),
         }
     }
 
@@ -644,6 +656,7 @@ mod tests {
             identity: String::from("point"),
             shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
+            authored_layout: false,
         }
     }
 

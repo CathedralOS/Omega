@@ -245,16 +245,39 @@ impl Storage<'_> {
                     producer: operation.id,
                     structural_type: result.structural_type,
                 })
-            || self.declaration(result.structural_type, concerns)?.shape
-                != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(access),
-                })
         {
             return Err(self.foreign(
                 concerns,
                 "array view changes its descriptor type, access or ownership",
             ));
         }
+        // A `u8` array forms its borrowed byte descriptor; another element
+        // type forms an `ElementView` naming that exact element declaration
+        // (byte_views.md, "Collection view establishment"). Only the shared
+        // typed view has a source formation; a mutable one stays refused.
+        let typed = match self.declaration(result.structural_type, concerns)?.shape {
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(declared),
+            }) if declared == access => false,
+            StructuralTypeShape::ElementView {
+                element: declared,
+                access: Some(declared_access),
+            } if declared == element && declared_access == access => {
+                if access != StructuralAccess::SharedBorrow {
+                    return Err(self.unsupported(
+                        concerns,
+                        "a mutable typed array view without its exclusive element-view judgment",
+                    ));
+                }
+                true
+            }
+            _ => {
+                return Err(self.foreign(
+                    concerns,
+                    "array view changes its descriptor type, access or ownership",
+                ));
+            }
+        };
         let selected = terminal_semantics::runtime_structural_path_tip(
             self.types.iter(),
             self.root_type(source.place, concerns)?,
@@ -268,13 +291,31 @@ impl Storage<'_> {
         let actual = self
             .byte_array_backing(source, 0, concerns)?
             .ok_or_else(|| self.foreign(concerns, "array view lost its source declaration"))?;
-        let window = terminal_semantics::fixed_byte_storage_window(
-            self.types.iter(),
-            actual.structural_type,
-            &source.path,
-        )
+        let window = if typed {
+            // A typed view of a byte array would hide the byte descriptor
+            // the specification requires; an erased empty array has no
+            // backing to lend.
+            if terminal_semantics::fixed_byte_extent(self.types.iter(), selected.id).is_some() {
+                return Err(self.foreign(concerns, "a byte array forms a typed element view"));
+            }
+            terminal_semantics::fixed_collection_storage_window(
+                self.types.iter(),
+                actual.structural_type,
+                &source.path,
+            )
+            .filter(|window| window.backing_length != 0)
+        } else {
+            terminal_semantics::fixed_byte_storage_window(
+                self.types.iter(),
+                actual.structural_type,
+                &source.path,
+            )
+        }
         .ok_or_else(|| {
-            self.unsupported(concerns, "array view has no closed byte storage window")
+            self.unsupported(
+                concerns,
+                "array view has no closed whole-array storage window",
+            )
         })?;
         let (whole, projected) = StructuralPathQualification::select(
             &actual.qualifications,
@@ -769,6 +810,12 @@ impl Storage<'_> {
                     self.array_view_formation(self.operation(producer, concerns)?)? as u128,
                 ),
             ),
+            // A sequence literal's descriptor holds exactly its elements. Only
+            // an element sequence has an extent leaf to ask about; a fixed
+            // array's length is its type's (`Held::extent_of`).
+            OperationKind::EstablishStructuralArray { elements } => {
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(elements.len() as u128))
+            }
             OperationKind::ByteSequenceSubslice { start, end, .. } => {
                 if !self.current_extent(producer, trace)? && self.repeated_extent(producer)? {
                     return Ok(None);

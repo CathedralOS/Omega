@@ -696,8 +696,10 @@ pub(crate) mod block_bindings {
                 }
                 let mut arrived = projected_value.unwrap_or_else(|| value.clone());
                 // An explicit structural cast (`value as +D`, `value as -D`)
-                // arrives in its destination's whole-value domains; the
-                // verified module already admitted the change and its issuer.
+                // arrives in its destination's whole-value domains, and a
+                // reference in the domains its destination displays on its
+                // referent; the verified module already admitted the change,
+                // its issuer and its proof.
                 if self
                     .program
                     .catalogs
@@ -710,6 +712,7 @@ pub(crate) mod block_bindings {
                     })
                 {
                     arrived.qualifications = parameter.qualifications.clone();
+                    arrived.projected_qualifications = parameter.projected_qualifications.clone();
                 }
                 resolved_arguments.push(arrived);
             }
@@ -1115,7 +1118,7 @@ pub(crate) mod completion {
             Ok(())
         }
 
-        fn retire_home_companions(&mut self, place: PlaceId) {
+        pub(crate) fn retire_home_companions(&mut self, place: PlaceId) {
             self.aggregate_argument_backings.remove(&place);
             self.byte_sequence_values.remove(&place);
             self.element_view_values.remove(&place);

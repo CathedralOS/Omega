@@ -36,30 +36,6 @@ fn unsupported(job: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!("no product route yet: {job}"))]
 }
 
-/// This stage consumes no evaluation job. Reject actual unresolved work,
-/// including work in type positions, before emitting a zero-work receipt.
-/// Ordinary bodies and declarations remain for the source checker to judge.
-///
-/// A request written inside a declaration is accepted here only when that
-/// declaration already carries its refusal (`defer_source_jobs` records
-/// it): the declaration is then refused wherever it is demanded, and this
-/// program, which may never reach it, goes on.
-fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    for (declaration, request) in source_jobs(typed)? {
-        if !typed
-            .deferred_refusals_of(typed.refusal_declaration(declaration))
-            .any(|row| row.request == request)
-        {
-            return Err(unsupported(&format!(
-                "declaration `{}` {}",
-                typed.symbols.name(declaration),
-                request.construct()
-            )));
-        }
-    }
-    Ok(())
-}
-
 /// Records every evaluation request written inside a declaration on that
 /// declaration (`typed_trees::deferred_refusals`). This stage sees the
 /// program with every bundled library, so a type with a layout policy in a
@@ -446,15 +422,30 @@ impl PreCheckEvaluation {
     pub fn defer_declared_requests(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         defer_source_jobs(typed)
     }
-    pub fn project(
-        &self,
-        original: &TypedTrees,
-        projection: &TypedTrees,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        require_no_source_jobs(original)?;
-        require_no_source_jobs(projection)?;
-        Ok(self.clone())
+    /// This stage consumes no evaluation job. Reject actual unresolved work,
+    /// including work in type positions, before emitting a zero-work receipt.
+    /// Ordinary bodies and declarations remain for the source checker to judge.
+    ///
+    /// A request written inside a declaration is accepted here only when that
+    /// declaration already carries its refusal (`defer_source_jobs` records
+    /// it): the declaration is then refused wherever it is demanded, and this
+    /// program, which may never reach it, goes on.
+    pub fn require_recorded_requests(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+        for (declaration, request) in source_jobs(typed)? {
+            if !typed
+                .deferred_refusals_of(typed.refusal_declaration(declaration))
+                .any(|row| row.request == request)
+            {
+                return Err(unsupported(&format!(
+                    "declaration `{}` {}",
+                    typed.symbols.name(declaration),
+                    request.construct()
+                )));
+            }
+        }
+        Ok(())
     }
+
     /// The evaluation continuation of the program `activation` narrowed out
     /// of a retained base.
     ///
@@ -463,15 +454,8 @@ impl PreCheckEvaluation {
     /// and the requests of their declarations stay with the base's own
     /// continuation; they do not stop a program that holds none of them.
     pub fn activate_sources(&self, activation: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
-        require_no_source_jobs(activation)?;
+        Self::require_recorded_requests(activation)?;
         Ok(self.clone())
-    }
-    pub fn exclude_completed_work(
-        &self,
-        original: &TypedTrees,
-        completed: &TypedTrees,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        self.project(original, completed)
     }
     pub fn evaluate_or_defer_recorded(
         self,

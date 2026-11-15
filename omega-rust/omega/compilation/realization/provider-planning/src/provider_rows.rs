@@ -132,6 +132,7 @@ impl DirectBoundaryInput {
             plan,
             satisfied_requirement_identity: requirement.to_owned(),
             execution,
+            target_realization: None,
         };
         leaf.validate_calling_custody().map_err(Diagnostic::error)?;
         Ok(leaf)
@@ -141,7 +142,7 @@ impl DirectBoundaryInput {
 /// Realize the checked core primitive at its own callable coordinate, retaining
 /// the canonical requirement's complete schema as its semantic owner.
 /// No source callback or provider-name classification supplies execution here.
-pub fn direct_hosted_primitive_leaves(
+pub fn direct_compiler_primitive_leaves(
     module: &terminal_psi::TerminalModule,
     schemas: &[effects::provider_plan::ServiceSchema],
     target: &str,
@@ -162,22 +163,49 @@ pub fn direct_hosted_primitive_leaves(
         let Some(declaration) = &boundary.declaration else {
             continue;
         };
-        let terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
-            operation,
-            requirement,
-        } = declaration.execution
-        else {
-            continue;
-        };
-        let execution = match operation {
-            language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
-                effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+        let (canonical, execution, target_realization) = match declaration.execution {
+            terminal_psi::CheckedBoundaryExecution::HostedPrimitive {
+                operation,
+                requirement,
+            } => {
+                let execution = match operation {
+                    language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
+                        effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+                    }
+                    _ => return Err(fail("hosted primitive has no native catalog projection")),
+                };
+                let canonical = module
+                    .boundary_machine(requirement)
+                    .ok_or_else(|| fail("hosted primitive lost its canonical requirement link"))?;
+                (canonical, execution, None)
             }
-            _ => return Err(fail("hosted primitive has no native catalog projection")),
+            terminal_psi::CheckedBoundaryExecution::NumericPrimitive => {
+                terminal_semantics::numeric_primitives::validate_boundary(module, boundary)
+                    .map_err(fail)?;
+                let meaning = boundary
+                    .numeric_intrinsic
+                    .ok_or_else(|| fail("numeric primitive lost its semantic meaning"))?;
+                let profile = target::TargetProfile::from_canonical_target_name(target)
+                    .map_err(|_| fail("numeric primitive has no recognized target"))?;
+                let requirement = text(boundary.identity)?;
+                let entry = profile
+                    .canonical_float_realization(requirement)
+                    .ok_or_else(|| {
+                        fail("numeric primitive has no canonical target realization entry")
+                    })?;
+                if let target::CanonicalFloatRealization::Unsupported { constraint } = entry {
+                    return Err(vec![Diagnostic::error(format!(
+                        "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"
+                    ))]);
+                }
+                (
+                    boundary,
+                    effects::CompilerIntrinsicExecutionIdentity::from(meaning),
+                    Some(entry),
+                )
+            }
+            _ => continue,
         };
-        let canonical = module
-            .boundary_machine(requirement)
-            .ok_or_else(|| fail("hosted primitive lost its canonical requirement link"))?;
         let requirement = text(canonical.identity)?;
         let mut originals = schemas.iter().flat_map(|schema| {
             schema.declaration.methods.iter().filter_map(move |method| {
@@ -224,6 +252,7 @@ pub fn direct_hosted_primitive_leaves(
                 backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)),
             )
             .map_err(|diagnostic| vec![diagnostic])?;
+        leaf.target_realization = target_realization;
         if !leaf
             .bind_to_terminal(module)
             .map_err(|reason| fail(&reason))?

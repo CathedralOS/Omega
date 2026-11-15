@@ -98,6 +98,9 @@ pub(crate) struct Records<'a> {
     /// Scalar homes retain their exact type identity and qualification. An
     /// array element of the same scalar width need not be the same home type.
     primitives: Vec<(ValueType, String, StructuralTypeId)>,
+    /// Each scalar binder whose storage a loan will capture. The row
+    /// names the existing primitive home type, in the body's slot order.
+    lender_homes: IdTable<MachineId, Vec<Option<StructuralTypeId>>>,
     /// `field_identities[record][position]`: the field's index in the
     /// module's identity table. It is written into `StructuralLeafCopy`
     /// paths, which is the form Terminal Psi gives them; nothing compares it.
@@ -388,7 +391,7 @@ pub(crate) fn declare<'a>(
     // scalar local declared without an initializer or lent to a call, and
     // the place of a borrowed scalar formal. Each needs its primitive type
     // declared once, with the text identity the typed trees gave it.
-    let mut homes: Vec<(ValueType, Option<&String>)> = Vec::new();
+    let mut homes = Vec::new();
     for signature in signatures
         .machines
         .values()
@@ -398,20 +401,34 @@ pub(crate) fn declare<'a>(
             if let Some(value_type @ ValueType::Scalar(..)) =
                 signature.parameters.get(borrowed.position).copied()
             {
-                homes.push((value_type, borrowed.home.as_ref()));
+                homes.push(ScalarHomeDemand {
+                    value_type,
+                    identity: borrowed.home.as_ref(),
+                    lender: None,
+                });
             }
         }
     }
-    for (_, body) in bodies.iter() {
+    for (machine, body) in bodies.iter() {
         for statement in &body.statements {
-            statement_homes(statement, &mut homes);
+            statement_homes(statement, &mut |value_type, identity, slot| {
+                homes.push(ScalarHomeDemand {
+                    value_type,
+                    identity: Some(identity),
+                    lender: slot.map(|slot| (machine, slot)),
+                });
+            });
             let Statement::Declare { slot, home, .. } = statement else {
                 continue;
             };
             let Some(value_type @ ValueType::Scalar(..)) = body.slots.get(*slot).copied() else {
                 continue;
             };
-            homes.push((value_type, home.as_ref()));
+            homes.push(ScalarHomeDemand {
+                value_type,
+                identity: home.as_ref(),
+                lender: None,
+            });
         }
     }
     let mut primitives: Vec<(ValueType, String, StructuralTypeId)> = types
@@ -431,8 +448,14 @@ pub(crate) fn declare<'a>(
             _ => None,
         })
         .collect();
-    for (value_type, home) in homes {
-        let Some(home) = home else {
+    let mut lender_homes = bodies.map(|_, _| Vec::new());
+    for ScalarHomeDemand {
+        value_type,
+        identity,
+        lender,
+    } in homes
+    {
+        let Some(home) = identity else {
             return Err(refuse(
                 entry,
                 Construct::Machine,
@@ -449,7 +472,7 @@ pub(crate) fn declare<'a>(
         let mut matching = primitives
             .iter()
             .filter(|(_, identity, _)| identity == home);
-        if let Some((known, _, _)) = matching.next() {
+        let home_type = if let Some((known, _, declared)) = matching.next() {
             if matching.next().is_some() || *known != value_type {
                 return Err(refuse(
                     entry,
@@ -457,11 +480,37 @@ pub(crate) fn declare<'a>(
                     Unserved::Type("a scalar home identity has conflicting declarations"),
                 ));
             }
-            continue;
+            *declared
+        } else {
+            let declared =
+                declare_scalar_type(&mut structural_types, identities.intern(home), scalar_type)
+                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Type(reason)))?;
+            primitives.push((value_type, home.clone(), declared));
+            declared
+        };
+        if let Some((machine, slot)) = lender {
+            let body = terminal_check_tables::row(bodies, machine, entry, Construct::Machine)?;
+            let invalid = || {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("a scalar lender has conflicting home types"),
+                )
+            };
+            if body.slots.get(slot) != Some(&value_type) {
+                return Err(invalid());
+            }
+            let slots = lender_homes.get_mut(machine).ok_or_else(invalid)?;
+            if slots.len() <= slot {
+                slots.resize(slot + 1, None);
+            }
+            if slots[slot]
+                .replace(home_type)
+                .is_some_and(|earlier| earlier != home_type)
+            {
+                return Err(invalid());
+            }
         }
-        let id = declare_scalar_type(&mut structural_types, identities.intern(home), scalar_type)
-            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Type(reason)))?;
-        primitives.push((value_type, home.clone(), id));
     }
     // Scalar fields name a primitive contract, not a nominal storage row.
     // Nominate the canonical existing plain declaration for that contract
@@ -518,6 +567,7 @@ pub(crate) fn declare<'a>(
                 )
             })?,
             primitives,
+            lender_homes,
             field_identities,
             payload_identities,
         },
@@ -586,9 +636,18 @@ fn append_scalar_type(
     Ok(id)
 }
 
-/// The scalar homes the loans in `statement` give SSA locals, with the text
-/// identity of each home's type (`ExpressionKind::Borrow::home`).
-fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Option<&'b String>)>) {
+struct ScalarHomeDemand<'b> {
+    value_type: ValueType,
+    identity: Option<&'b String>,
+    lender: Option<(MachineId, usize)>,
+}
+
+/// The homes required by scalar loans in the statement, including which
+/// local binding the loan captures.
+fn statement_homes<'b>(
+    statement: &'b Statement,
+    homes: &mut impl FnMut(ValueType, &'b String, Option<usize>),
+) {
     match statement {
         Statement::Bind { value, .. }
         | Statement::Decompose { subject: value }
@@ -627,7 +686,10 @@ fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Opt
     }
 }
 
-fn target_homes<'b>(target: &'b Target, homes: &mut Vec<(ValueType, Option<&'b String>)>) {
+fn target_homes<'b>(
+    target: &'b Target,
+    homes: &mut impl FnMut(ValueType, &'b String, Option<usize>),
+) {
     if let Target::Value(value) = target {
         expression_homes(value, homes);
     }
@@ -635,7 +697,7 @@ fn target_homes<'b>(target: &'b Target, homes: &mut Vec<(ValueType, Option<&'b S
 
 fn expression_homes<'b>(
     expression: &'b Expression,
-    homes: &mut Vec<(ValueType, Option<&'b String>)>,
+    homes: &mut impl FnMut(ValueType, &'b String, Option<usize>),
 ) {
     match &expression.kind {
         ExpressionKind::Atomic(operation) => {
@@ -645,13 +707,18 @@ fn expression_homes<'b>(
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::Float(_)
         | ExpressionKind::LayoutObservation { .. }
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
             if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
-                homes.push((value_type, Some(home)));
+                let slot = match place.kind {
+                    ExpressionKind::Slot(slot) => Some(slot),
+                    _ => None,
+                };
+                homes(value_type, home, slot);
             }
             expression_homes(place, homes);
         }
@@ -938,6 +1005,16 @@ impl Records<'_> {
             StructuralMultiplicity::Affine
         })
     }
+    pub(super) fn lender_homes(
+        &self,
+        member: MachineId,
+        machine: MachineId,
+    ) -> Checked<&[Option<StructuralTypeId>]> {
+        let homes =
+            terminal_check_tables::row(&self.lender_homes, member, machine, Construct::Machine)?;
+        Ok(homes)
+    }
+
     /// Resolve the exact scalar home already published for this source type.
     pub(super) fn primitive(
         &self,
@@ -1223,9 +1300,10 @@ impl<'a> Lowering<'a> {
                 if matches!(
                     data.shape,
                     StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(
-                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                        ),
+                        access: None
+                            | Some(
+                                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                            ),
                     })
                 ) {
                     let extent = self.project(place, Segment::Extent)?;
@@ -1429,24 +1507,28 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
-        let (_, _, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
-            return Err(self.internal("sequence index needs its actual current length"));
-        };
-        let fixed = match expression.kind {
-            ExpressionKind::Integer(IntegerValue::Unsigned(value)) => Some(u64::try_from(value)),
-            ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
-            _ => None,
-        };
-        let fixed = match fixed {
-            Some(Ok(index)) if index < length => Some(index),
-            Some(_) => {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Typing("array index outside its declared extent"),
-                ));
+        let (_, _, extent) = self.array_element(owner)?;
+        let fixed = if let CollectionExtent::Fixed(length) = extent {
+            let fixed = match expression.kind {
+                ExpressionKind::Integer(IntegerValue::Unsigned(value)) => {
+                    Some(u64::try_from(value))
+                }
+                ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
+                _ => None,
+            };
+            match fixed {
+                Some(Ok(index)) if index < length => Some(index),
+                Some(_) => {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Typing("array index outside its declared extent"),
+                    ));
+                }
+                None => None,
             }
-            None => None,
+        } else {
+            None
         };
         let selector = continuing!(self.scalar(expression));
         Ok(Reached::Value(Step::Index {
@@ -1462,7 +1544,26 @@ impl<'a> Lowering<'a> {
     /// (`terminal_psi::StructuralQualificationChange`). A routed domain's row
     /// names the route this machine issues it by. `as =D` keeps the type, so
     /// it is the operand itself.
-    fn requalify(&mut self, operand: &Expression, expression: &Expression) -> Evaluation<Located> {
+    ///
+    /// A reference displays its domains on its referent (domains.md,
+    /// "Mutable views"), as the memberships beneath its one `Referent` step,
+    /// and a cast changes those the same way.
+    ///
+    /// `clauses` are what `value as +D` proves for a domain with predicates
+    /// (`ExpressionKind::Establish`), each over the plain value at
+    /// `self_place()`. They become the invariant of the cast's block, stated
+    /// over its parameter, so the edge into it owes them of the operand
+    /// (control_flow.md: "Every arrival proves the predicate under
+    /// simultaneous destination-parameter to actual-argument substitution")
+    /// and everything after knows them of the result, as `prove_membership`
+    /// does for a scalar.
+    fn requalify(
+        &mut self,
+        operand: &Expression,
+        expression: &Expression,
+        clauses: &[semantic_vocabulary::Proposition],
+        stated: &str,
+    ) -> Evaluation<Located> {
         let Some(ValueType::Record(record, after, _)) = expression.result else {
             return Err(self.internal("a record cast has no record result"));
         };
@@ -1475,15 +1576,40 @@ impl<'a> Lowering<'a> {
         } else {
             self.qualifications.structural(self.id, record, before)?
         };
-        if held == whole {
+        let (shown, displayed) = if matches!(
+            self.record_type(record)?.shape,
+            StorageShape::Reference { .. }
+        ) {
+            let referent = |projected: &[terminal_psi::StructuralPathQualification]| {
+                projected
+                    .iter()
+                    .filter(|row| row.path == [StructuralPathSegment::Referent])
+                    .map(|row| row.domain)
+                    .collect::<Vec<_>>()
+            };
+            (
+                referent(&projected),
+                referent(&self.memberships(record, before)?.1),
+            )
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        if held == whole && shown == displayed {
+            if !clauses.is_empty() {
+                return Err(self.internal("a cast that proves predicates adds no domain"));
+            }
             return self.located(operand);
         }
         let added: Vec<_> = whole
             .iter()
             .filter(|domain| !held.contains(domain))
+            .chain(shown.iter().filter(|domain| !displayed.contains(domain)))
             .copied()
             .collect();
-        if !added.is_empty() && held.iter().any(|domain| !whole.contains(domain)) {
+        if !added.is_empty()
+            && (held.iter().any(|domain| !whole.contains(domain))
+                || displayed.iter().any(|domain| !shown.contains(domain)))
+        {
             return Err(refuse(
                 self.id,
                 Construct::Machine,
@@ -1506,7 +1632,7 @@ impl<'a> Lowering<'a> {
             place,
             position: 0,
             structural_type: record,
-            multiplicity: self.records.multiplicity(record, self.id)?,
+            multiplicity: self.held_multiplicity(value, record)?,
             access: StructuralAccess::Owned,
             qualifications: whole,
             projected_qualifications: projected,
@@ -1524,6 +1650,27 @@ impl<'a> Lowering<'a> {
             })?
             .structural_parameters
             .push(parameter);
+        if !clauses.is_empty() {
+            let subject = crate::body::self_place()
+                .ok_or_else(|| self.internal("cast subject place identity"))?;
+            let mut predicate = Vec::with_capacity(clauses.len());
+            for clause in clauses {
+                self.name_clause_contents(clause, &[(subject, exact)], None)?;
+                predicate.push(crate::canonical::substitute_parameters(
+                    clause,
+                    &[],
+                    &[place],
+                    id,
+                )?);
+            }
+            self.sources.memberships.push((cast, stated.to_owned()));
+            self.invariants.push(terminal_psi::ScalarBlockInvariant {
+                machine: id,
+                header: cast,
+                predicate: crate::canonical::conjunction(predicate, id)?,
+                arrivals: Vec::new(),
+            });
+        }
         let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
             .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump_with_structural(
@@ -1550,6 +1697,36 @@ impl<'a> Lowering<'a> {
             record,
             fresh: true,
         }))
+    }
+
+    /// The multiplicity the root `value` was declared with, which a cast
+    /// passes on unchanged: a freshly formed reference owns its loan and is
+    /// affine although its type permits copies
+    /// (`required_result_multiplicity`). A root this machine declared
+    /// nowhere has its type's.
+    fn held_multiplicity(
+        &self,
+        value: PlaceId,
+        record: StructuralTypeId,
+    ) -> Checked<StructuralMultiplicity> {
+        for (_, draft) in self.blocks.iter() {
+            if let Some(parameter) = draft
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == value)
+            {
+                return Ok(parameter.multiplicity);
+            }
+            if let Some(result) = draft
+                .operations
+                .iter()
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == value)
+            {
+                return Ok(result.multiplicity);
+            }
+        }
+        self.records.multiplicity(record, self.id)
     }
 
     /// A byte view or sequence: its domains are primitive byte predicates,
@@ -1614,6 +1791,70 @@ impl<'a> Lowering<'a> {
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
         Ok((place, exact))
+    }
+
+    /// The value a join parameter of `multiplicity` receives from `place`.
+    /// A fresh `EstablishReference` result is an affine loan carrier even
+    /// though its reference type is copyable, while the join of a value
+    /// `match` holds the type's unrestricted copy. Such an arrival passes a
+    /// copy, just as an arm naming a reference local does, and ordinary
+    /// affine cleanup ends the arm's own root. A view's descriptor already
+    /// crosses the join as its affine root and keeps doing so.
+    pub(super) fn join_arrival(
+        &mut self,
+        place: PlaceId,
+        record: StructuralTypeId,
+        qualification: Qualification,
+        multiplicity: StructuralMultiplicity,
+        source: SourceOrigin,
+    ) -> Checked<PlaceId> {
+        if !matches!(
+            self.record_type(record)?.shape,
+            StorageShape::Reference { .. }
+        ) {
+            return Ok(place);
+        }
+        let Some((StructuralPlaceKind::OperationResult { producer, .. }, _)) =
+            self.roots.get(place).copied()
+        else {
+            return Ok(place);
+        };
+        // A fresh formation is produced in the arm's own block, where the
+        // arrival jumps from; a value made earlier is found in its block.
+        let arm = self.current()?;
+        let produced = self
+            .blocks
+            .get(arm)
+            .into_iter()
+            .chain(self.blocks.values())
+            .flat_map(|draft| &draft.operations)
+            .find(|operation| operation.id == producer)
+            .and_then(|operation| match &operation.result {
+                OperationResult::Structural(result) if result.place == place => {
+                    Some(result.multiplicity)
+                }
+                _ => None,
+            })
+            .ok_or_else(|| self.internal("a match arrival has no producing operation"))?;
+        if produced == multiplicity || multiplicity != StructuralMultiplicity::Unrestricted {
+            return Ok(place);
+        }
+        let operation = self.operation_identity(source);
+        let (copy, exact) = self.produce_qualified(
+            operation,
+            record,
+            qualification,
+            OperationKind::StructuralLeafCopy {
+                source: place,
+                path: Vec::new(),
+            },
+        )?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(operation),
+            Content::Overwritten,
+        )?;
+        Ok(copy)
     }
 
     /// A call's record result holds values this machine cannot name.
@@ -1755,7 +1996,7 @@ impl<'a> Lowering<'a> {
                 access,
                 element,
             } => {
-                let captured = continuing!(self.capture_place(base, None));
+                let captured = continuing!(self.capture_place(base));
                 let lent = self.captured_loan(base, *access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
@@ -1993,6 +2234,7 @@ impl<'a> Lowering<'a> {
                 }))
             }
             ExpressionKind::Integer(_)
+            | ExpressionKind::Float(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::ByteElement { .. }
@@ -2009,15 +2251,13 @@ impl<'a> Lowering<'a> {
             // computed (domains.md: "removing `D` with a cast changes no bits
             // or geometry"), but the result is a distinct place of a distinct
             // type, reached through the cast's own edge.
-            ExpressionKind::Requalify(operand) => self.requalify(operand, expression),
-            ExpressionKind::Establish { .. } => {
-                Err(self.internal("a cast that proves predicates of a data value"))
-            }
-            ExpressionKind::Borrow {
-                access,
-                place,
-                home,
-            } => {
+            ExpressionKind::Requalify(operand) => self.requalify(operand, expression, &[], ""),
+            ExpressionKind::Establish {
+                operand,
+                clauses,
+                stated,
+            } => self.requalify(operand, expression, clauses, stated),
+            ExpressionKind::Borrow { access, place, .. } => {
                 let StorageShape::Reference {
                     referent,
                     access: declared,
@@ -2042,9 +2282,29 @@ impl<'a> Lowering<'a> {
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
-                let captured = continuing!(self.capture_place(place, home.as_deref()));
+                let captured = continuing!(self.capture_place(place));
+                let shared_descriptor = reinterpret
+                    && declared == StructuralAccess::SharedBorrow
+                    && captured.1.is_empty()
+                    && self.exclusive_roots.binary_search(&captured.0).is_ok()
+                    && if let ValueType::Record(actual, _, _) = captured.3 {
+                        match (
+                            &self.record_type(actual)?.shape,
+                            &self.record_type(referent)?.shape,
+                        ) {
+                            (
+                                StorageShape::ByteSequence(source),
+                                StorageShape::ByteSequence(referent),
+                            ) => terminal_semantics::shared_byte_descriptor_storage_matches(
+                                *source, *referent,
+                            ),
+                            _ => false,
+                        }
+                    } else {
+                        false
+                    };
                 let lent = self.captured_loan(place, *access, captured, None)?;
-                let storage = if reinterpret {
+                let storage = if reinterpret && !shared_descriptor {
                     let byte_offset = self.zero(
                         ScalarType::Integer(
                             semantic_vocabulary::IntegerType::new(
@@ -2113,7 +2373,7 @@ impl<'a> Lowering<'a> {
                 }))
             }
             ExpressionKind::Referent(_) => {
-                let (root, path, place, _) = continuing!(self.capture_place(expression, None));
+                let (root, path, place, _) = continuing!(self.capture_place(expression));
                 Ok(Reached::Value(Located {
                     root,
                     path,
@@ -2292,18 +2552,12 @@ impl<'a> Lowering<'a> {
     /// captures a place, not a live selector expression."
     ///
     /// Case and field steps stay on the loan, so checking still requires
-    /// the selected case to be active. A scalar local that
-    /// is an SSA value (`needs_home`) first gets a home holding its current
-    /// value, the operation the current pipeline emits for a local it lends
-    /// (structural_access.md: "`EstablishPrimitiveLocal` consumes an exactly
-    /// typed SSA initializer and establishes the referent"); the slot names
-    /// that home from then on, so the reads after the call observe what the
-    /// callee left there.
+    /// the selected case to be active. A scalar lender already has the
+    /// home established at its binding.
     pub(super) fn lend(
         &mut self,
         place: &Expression,
         access: language_core::ReferenceAccess,
-        home_identity: Option<&str>,
     ) -> Evaluation<Lent> {
         let value_type = place
             .result
@@ -2351,8 +2605,7 @@ impl<'a> Lowering<'a> {
             let temporary = at.fresh.then_some(at.root);
             (at.root, at.path, at.place, value_type, temporary)
         } else {
-            let (root, steps, exact, actual) =
-                continuing!(self.capture_place(place, home_identity));
+            let (root, steps, exact, actual) = continuing!(self.capture_place(place));
             (root, steps, exact, actual, None)
         };
         self.captured_loan(place, access, (root, steps, exact, actual), temporary)
@@ -2396,7 +2649,7 @@ impl<'a> Lowering<'a> {
         result: Option<ScalarType>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
-        let (root, steps, exact, _) = continuing!(self.capture_place(place, None));
+        let (root, steps, exact, _) = continuing!(self.capture_place(place));
         let operation = self.operation_identity(source);
         let path = self.storage_path(
             &steps,
@@ -2438,7 +2691,6 @@ impl<'a> Lowering<'a> {
     fn capture_place(
         &mut self,
         expression: &Expression,
-        home_identity: Option<&str>,
     ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
         let captured = match &expression.kind {
             ExpressionKind::Slot(slot) => {
@@ -2446,23 +2698,6 @@ impl<'a> Lowering<'a> {
                 let bound = *self.slot_mut(*slot)?;
                 let root = match bound {
                     Some(Bound::Home(root) | Bound::Record(root)) => root,
-                    Some(Bound::Scalar(_)) if home_identity.is_some() && self.joining > 0 => {
-                        return Err(refuse(
-                            self.id,
-                            self.current.map_or(Construct::Machine, Construct::Block),
-                            Unserved::Call("loan of a value local on some paths only"),
-                        ));
-                    }
-                    Some(Bound::Scalar(value)) if home_identity.is_some() => {
-                        let root = self.establish_home(
-                            value,
-                            value_type,
-                            home_identity,
-                            expression.source,
-                        )?;
-                        *self.slot_mut(*slot)? = Some(Bound::Home(root));
-                        root
-                    }
                     _ => return Err(self.internal("a captured slot holds no storage")),
                 };
                 (root, Vec::new(), self.exact_root(root)?, value_type)
@@ -2489,7 +2724,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Field { base, field } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
-                    continuing!(self.capture_place(base, None))
+                    continuing!(self.capture_place(base))
                 else {
                     return Err(self.internal("a field place crosses scalar storage"));
                 };
@@ -2504,7 +2739,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Index { base, index } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
-                    continuing!(self.capture_place(base, None))
+                    continuing!(self.capture_place(base))
                 else {
                     return Err(self.internal("an indexed place crosses scalar storage"));
                 };
@@ -2517,7 +2752,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Payload { base, case, field } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
-                    continuing!(self.capture_place(base, None))
+                    continuing!(self.capture_place(base))
                 else {
                     return Err(self.internal("a payload place crosses scalar storage"));
                 };
@@ -2551,14 +2786,12 @@ impl<'a> Lowering<'a> {
 
     /// A home for an SSA scalar holding `value`: one `EstablishPrimitiveLocal`
     /// and the row that says the home holds that value.
-    fn establish_home(
+    pub(super) fn establish_home(
         &mut self,
         value: ValueId,
-        value_type: ValueType,
-        identity: Option<&str>,
+        home: StructuralTypeId,
         source: SourceOrigin,
     ) -> Checked<PlaceId> {
-        let home = self.records.primitive(value_type, identity, self.id)?;
         let operation = self.operation_identity(source);
         let (root, exact) = self.produce(
             operation,
@@ -2622,6 +2855,9 @@ impl<'a> Lowering<'a> {
                 },
             });
         }
+        if self.record_type(record)?.authored_layout {
+            return self.establish_laid_out(record, roster, source);
+        }
         let operation = self.operation_identity(source);
         self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(
@@ -2639,6 +2875,75 @@ impl<'a> Lowering<'a> {
                 // The operand root is named by the establishment's own
                 // roster; the row says only that the field has new contents.
                 Operand::Record(_) => self.write(leaf, at, Content::Overwritten)?,
+            }
+        }
+        Ok(Reached::Value((root, exact)))
+    }
+
+    /// A literal of `LayoutStorage<T, Policy>` storage. A byte view of
+    /// that storage observes every byte of the selected plan, padding
+    /// included, and padding has no zero promise of its own (layouts/plans.md,
+    /// "Padding has no universal zero/sign-extension promise"). The literal
+    /// is therefore the zero value followed by one store per field, the same
+    /// operations as `let x: T;` and its field assignments: each byte then
+    /// has contents, and each store owes the record's clauses as an
+    /// assignment does.
+    fn establish_laid_out(
+        &mut self,
+        record: StructuralTypeId,
+        roster: Vec<(&RecordField, Operand)>,
+        source: SourceOrigin,
+    ) -> Evaluation<(PlaceId, ExactPlaceId)> {
+        let (root, exact) = self.establish_zeroed(record, source)?;
+        let owed = self.record_type(record)?.requires.len();
+        let fields = roster
+            .into_iter()
+            .map(|(field, operand)| (field.id, operand))
+            .collect::<Vec<_>>();
+        for (position, (field, operand)) in fields.into_iter().enumerate() {
+            let operation = self.operation_identity(source);
+            self.owe_domains(operation, owed, source)?;
+            let leaf = self.project(exact, Segment::Field(field))?;
+            let at = ProgramPoint::AfterOperation(operation);
+            match operand {
+                Operand::Scalar(value) => {
+                    let path =
+                        self.storage_path(&[], ExecutionSite::Operation(operation), source)?;
+                    self.emit(
+                        operation,
+                        None,
+                        OperationKind::StructuralScalarFieldStore {
+                            destination: root,
+                            path,
+                            field,
+                            value,
+                            range_obligation: None,
+                        },
+                    )?;
+                    self.write(leaf, at, Content::Value(value))?;
+                }
+                Operand::Record(child) => {
+                    let path = self.storage_path(
+                        &[Step::Field {
+                            owner: record,
+                            field: position,
+                        }],
+                        ExecutionSite::Operation(operation),
+                        source,
+                    )?;
+                    self.emit(
+                        operation,
+                        None,
+                        OperationKind::StoreStructuralField {
+                            disposition: StructuralStoreDisposition::ReplaceDiscardable,
+                            destination: root,
+                            path,
+                            field: None,
+                            value: StructuralArgument::whole(child, StructuralAccess::Owned),
+                        },
+                    )?;
+                    self.write(leaf, at, Content::Overwritten)?;
+                }
             }
         }
         Ok(Reached::Value((root, exact)))
@@ -2667,12 +2972,10 @@ impl<'a> Lowering<'a> {
                     let value = continuing!(self.scalar(element));
                     if length == CollectionExtent::StoredLength {
                         let identity = self.record_type(element_type)?.identity.as_str();
-                        Operand::Record(self.establish_home(
-                            value,
-                            value_type,
-                            Some(identity),
-                            source,
-                        )?)
+                        let home = self
+                            .records
+                            .primitive(value_type, Some(identity), self.id)?;
+                        Operand::Record(self.establish_home(value, home, source)?)
                     } else {
                         Operand::Scalar(value)
                     }
@@ -3064,6 +3367,32 @@ impl<'a> Lowering<'a> {
         scalar_type: ScalarType,
         source: SourceOrigin,
     ) -> Checked<Value> {
+        for (position, step) in steps.iter().enumerate() {
+            if let Step::Index {
+                owner, selector, ..
+            } = *step
+                && matches!(
+                    self.record_type(owner)?.shape,
+                    StorageShape::ElementView { .. }
+                )
+            {
+                if position != 0 {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression("slice read without a whole descriptor"),
+                    ));
+                }
+                let view = Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record: owner,
+                    fresh: false,
+                };
+                return self.read_element_view(&view, selector, &steps[1..], scalar_type, source);
+            }
+        }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
@@ -3079,7 +3408,7 @@ impl<'a> Lowering<'a> {
         expression: &Expression,
         scalar_type: ScalarType,
     ) -> Evaluation<Value> {
-        let (root, steps, exact, _) = continuing!(self.capture_place(expression, None));
+        let (root, steps, exact, _) = continuing!(self.capture_place(expression));
         self.read_projected_scalar(root, exact, &steps, scalar_type, expression.source)
             .map(Reached::Value)
     }
@@ -3117,6 +3446,49 @@ impl<'a> Lowering<'a> {
         steps.push(step);
         self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
             .map(Reached::Value)
+    }
+
+    fn read_element_view(
+        &mut self,
+        at: &Located,
+        index: ValueId,
+        steps: &[Step],
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        if steps.iter().any(|step| {
+            !matches!(
+                step,
+                Step::Field { .. } | Step::Index { fixed: Some(_), .. }
+            )
+        }) {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("slice element read without a static scalar projection"),
+            ));
+        }
+        let (_, _, length) = self.measured_view(at, source)?;
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            self.here()?,
+            source,
+        );
+        self.emit(
+            operation,
+            Some(scalar_type),
+            OperationKind::ElementViewRead {
+                source: at.root,
+                index,
+                length,
+                obligation,
+                path,
+            },
+        )
     }
 
     /// Measuring a view keeps the storage form chosen for its descriptor.
@@ -3187,7 +3559,8 @@ impl<'a> Lowering<'a> {
         if !matches!(
             self.record_type(at.record)?.shape,
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                access: None
+                    | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             })
         ) {
             return Err(self.internal("a byte observation has no byte descriptor"));
@@ -3352,6 +3725,37 @@ impl<'a> Lowering<'a> {
     /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
     /// scalar type is refused by the reader, so a scalar home owes no
     /// domain clause and is never gated.
+    /// The zero value of `record` in a new root: the storage of `let x: T;`.
+    /// The zero of each scalar leaf is a constant the module holds, so the
+    /// row that says what the leaf holds names a value. The constants come
+    /// first: the establishment's domain obligations are stated over them.
+    fn establish_zeroed(
+        &mut self,
+        record: StructuralTypeId,
+        source: SourceOrigin,
+    ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let mut zeros = Vec::new();
+        let mut owed = 0;
+        self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
+        let operation = self.operation_identity(source);
+        self.owe_domains(operation, owed, source)?;
+        let (root, exact) = self.produce(
+            operation,
+            record,
+            OperationKind::EstablishZeroedStructural {},
+        )?;
+        let at = ProgramPoint::AfterOperation(operation);
+        self.write(exact, at, Content::Overwritten)?;
+        for (segments, zero) in zeros {
+            let mut leaf = exact;
+            for segment in segments {
+                leaf = self.project(leaf, segment)?;
+            }
+            self.write(leaf, at, Content::Value(zero))?;
+        }
+        Ok((root, exact))
+    }
+
     pub(super) fn declare_local(
         &mut self,
         slot: usize,
@@ -3363,54 +3767,15 @@ impl<'a> Lowering<'a> {
                 return Err(self.internal("a local of a rigid type is declared"));
             }
             ValueType::Record(record, _, _) => {
-                // The zero of each scalar leaf, as a constant the module
-                // holds, so the row that says what the leaf holds names a
-                // value. The constants come first: the establishment's
-                // domain obligations are stated over them.
-                let mut zeros = Vec::new();
-                let mut owed = 0;
-                self.zero_leaves(record, &mut Vec::new(), &mut zeros, &mut owed, source)?;
-                let operation = self.operation_identity(source);
-                self.owe_domains(operation, owed, source)?;
-                let (root, exact) = self.produce(
-                    operation,
-                    record,
-                    OperationKind::EstablishZeroedStructural {},
-                )?;
-                let at = ProgramPoint::AfterOperation(operation);
-                self.write(exact, at, Content::Overwritten)?;
-                for (segments, zero) in zeros {
-                    let mut leaf = exact;
-                    for segment in segments {
-                        leaf = self.project(leaf, segment)?;
-                    }
-                    self.write(leaf, at, Content::Value(zero))?;
-                }
-                Bound::Record(root)
+                Bound::Record(self.establish_zeroed(record, source)?.0)
             }
             ValueType::Scalar(scalar_type, _) => {
                 let home = self
                     .records
                     .primitive(self.slot_type(slot)?, identity, self.id)?;
                 let value = self.zero(scalar_type, source)?;
-                let operation = self.operation_identity(source);
-                let (root, exact) = self.produce(
-                    operation,
-                    home,
-                    OperationKind::EstablishPrimitiveLocal {
-                        value,
-                        range_obligation: None,
-                    },
-                )?;
-                // The home holds the zero it was established with: a local
-                // declared without an initializer is zero-constructed, and a
-                // builtin scalar admits zero, so nothing is owed here.
-                self.write(
-                    exact,
-                    ProgramPoint::AfterOperation(operation),
-                    Content::Value(value),
-                )?;
-                Bound::Home(root)
+                // A builtin scalar admits the zero it is established with.
+                Bound::Home(self.establish_home(value, home, source)?)
             }
         };
         *self.slot_mut(slot)? = Some(bound);
@@ -3472,7 +3837,7 @@ impl<'a> Lowering<'a> {
         }
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
-        let (root, steps, place, expected) = continuing!(self.capture_place(destination, None));
+        let (root, steps, place, expected) = continuing!(self.capture_place(destination));
         if steps.is_empty()
             && matches!(expected, ValueType::Record(_, _, _))
             && !self.borrowed_roots.contains(&root)
@@ -3590,7 +3955,7 @@ impl<'a> Lowering<'a> {
         value: &Expression,
         source: SourceOrigin,
     ) -> Evaluation<()> {
-        let (root, path, exact, actual) = continuing!(self.capture_place(base, None));
+        let (root, path, exact, actual) = continuing!(self.capture_place(base));
         let ValueType::Record(record, _, _) = actual else {
             return Err(self.internal("a byte store has no descriptor type"));
         };
@@ -3601,12 +3966,16 @@ impl<'a> Lowering<'a> {
                 Unserved::Statement("byte store through a descriptor stored in a field"),
             ));
         }
-        if !matches!(
-            self.record_type(record)?.shape,
+        let writable = match self.record_type(record)?.shape {
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::MutableBorrow)
-            })
-        ) {
+                access: Some(StructuralAccess::MutableBorrow),
+            }) => true,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }) => self.exclusive_roots.binary_search(&root).is_ok(),
+            _ => false,
+        };
+        if !writable {
             return Err(self.internal("a byte store lost mutable descriptor access"));
         }
         self.name_contents(exact, actual)?;
@@ -3840,6 +4209,7 @@ mod tests {
                 policy: Some(Policy::Wrapping),
             },
             requires: Vec::new(),
+            authored_layout: false,
         });
         types.push(RecordType {
             owns_linear_claim: false,
@@ -3852,6 +4222,7 @@ mod tests {
                 length: terminal_psi::ArrayExtent::Literal(2),
             },
             requires: Vec::new(),
+            authored_layout: false,
         });
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
         let mut signatures = IdTable::default();
@@ -3973,6 +4344,10 @@ mod tests {
         let alias_id = records
             .primitive(plain, Some("plain-alias"), machine)
             .unwrap();
+        assert_eq!(
+            records.lender_homes(machine, machine).unwrap(),
+            &[None, None, None, Some(plain_id)]
+        );
         assert_ne!(plain_id, wrapping_id);
         assert_ne!(plain_id, alias_id);
         assert_eq!(

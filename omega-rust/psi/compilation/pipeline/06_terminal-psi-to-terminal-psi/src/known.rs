@@ -22,12 +22,15 @@ use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_psi::PrimitiveJudgment;
 
 /// Declaration terms have logical inputs even when they have no executable
-/// producer. The prover borrows their types and observation status from the
-/// owner that supplies the inputs.
+/// producer. The prover borrows their types from the owner supplying them.
 pub(crate) trait ProofValues {
     fn count(&self) -> usize;
     fn scalar_type(&self, value: ValueId) -> Option<ScalarType>;
-    fn is_storage_content(&self, value: ValueId) -> bool;
+
+    // Declaration-only values have no storage origin.
+    fn is_storage_content(&self, _: ValueId) -> bool {
+        false
+    }
 }
 
 impl ProofValues for IdTable<ValueId, ValueRow> {
@@ -61,6 +64,9 @@ enum Origin {
         conjunct: usize,
     },
     IntegerEquality {
+        premise: usize,
+    },
+    EqualitySymmetry {
         premise: usize,
     },
     Transport {
@@ -105,6 +111,9 @@ impl Fact {
                     }),
                 }
             }
+            Origin::EqualitySymmetry { premise } => ProofRule::EqualitySymmetry {
+                equality: Box::new(facts[*premise].proof(facts)),
+            },
             Origin::Transport {
                 premise,
                 equalities,
@@ -256,17 +265,13 @@ impl Known {
                 Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
                     match definition {
                         ScalarTerm::Boolean(_) => fact.axiom.is_some(),
-                        ScalarTerm::Integer { .. } => true,
-                        // A read with a checked initial-content equation:
-                        // the available axiom ties this exact immutable value
-                        // to its formal or producing call. Join scope is
-                        // checked separately against the owning root.
-                        ScalarTerm::Value { id, .. } => {
-                            matches!(
-                                subject.scalar_type(),
-                                ScalarType::Boolean | ScalarType::Integer(_)
-                            ) || (fact.axiom.is_some() && values.is_storage_content(*id))
-                        }
+                        ScalarTerm::Integer { .. } | ScalarTerm::IeeeFloatLiteral(_) => true,
+                        // An exact scalar copy retains its carrier and value,
+                        // including float bits. This is stored-value equality,
+                        // not an IEEE comparison or a numeric conversion. The
+                        // checked equation already names the immutable read;
+                        // join scope is checked against the owning root.
+                        ScalarTerm::Value { .. } => true,
                         // Exact operation definitions retain their selected
                         // integer meaning. A compound scalar equality learned
                         // from an arrival remains a proof premise for bounds.
@@ -288,23 +293,38 @@ impl Known {
             arrival_equations: Vec::new(),
             arrival_definitions: IdTable::default(),
         };
-        let mut defined = IdTable::default();
+        let mut defined: IdTable<ValueId, Option<usize>> = IdTable::default();
         for _ in 0..values.count() {
             defined.push(None);
         }
+        // A premise may relate an operation's result to another value. Its
+        // checked definition still names what the operation did. Equivalent
+        // copies keep the first citation so repeated facts retain their proof.
         for (index, &fact) in result.equations.iter().enumerate() {
-            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) =
-                &result.facts[fact].proposition
-                && let Some(defined) = defined.get_mut(*id)
-            {
-                defined.get_or_insert(index);
+            let fact = &result.facts[fact];
+            let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition else {
+                continue;
+            };
+            let Some(definition) = defined.get_mut(*id) else {
+                continue;
+            };
+            if let Some(previous) = *definition {
+                let previous = &result.facts[result.equations[previous]];
+                if fact.axiom.is_some()
+                    && previous.axiom.is_none()
+                    && fact.proposition != previous.proposition
+                {
+                    *definition = Some(index);
+                }
+            } else {
+                *definition = Some(index);
             }
         }
         for index in 0..result.facts.len() {
             let _ = result.add_literal(index, &mut defined);
         }
         result.integer_equalities(0, &defined);
-        result.normalize(context, &mut defined, &mut conjuncts);
+        result.normalize(context, &mut defined, &mut conjuncts, values);
         result.arrival_definitions(&defined);
         result.definitions = defined;
         result
@@ -405,6 +425,85 @@ impl Known {
         Some(*id)
     }
 
+    /// Connect the remaining operands of a transported integer equality.
+    /// They have no definitions left to unfold. Keep exact stored contents
+    /// as the root when a copied or returned value is equal to them.
+    fn add_integer_alias(
+        &mut self,
+        index: usize,
+        defined: &mut IdTable<ValueId, Option<usize>>,
+        values: &dyn ProofValues,
+    ) -> Option<ValueId> {
+        let Proposition::Equal(
+            left @ ScalarTerm::Value {
+                id: left_id,
+                scalar_type: ScalarType::Integer(_),
+            },
+            right @ ScalarTerm::Value {
+                id: right_id,
+                scalar_type: ScalarType::Integer(_),
+            },
+        ) = &self.facts[index].proposition
+        else {
+            return None;
+        };
+        if left_id == right_id
+            || defined.get(*left_id) != Some(&None)
+            || defined.get(*right_id) != Some(&None)
+        {
+            return None;
+        }
+        let order = |id| (!values.is_storage_content(id), id);
+        let (id, fact) = if order(*right_id) < order(*left_id) {
+            (*left_id, index)
+        } else {
+            let id = *right_id;
+            let fact = self.facts.len();
+            self.facts.push(Fact {
+                proposition: Proposition::Equal(right.clone(), left.clone()),
+                origin: Origin::EqualitySymmetry { premise: index },
+                axiom: None,
+            });
+            (id, fact)
+        };
+        *defined.get_mut(id)? = Some(self.equations.len());
+        self.equations.push(fact);
+        Some(id)
+    }
+
+    /// Compare a read and the contents it denotes at this program point.
+    pub(crate) fn same_denotation(
+        &self,
+        context: &PropositionContext,
+        left: ScalarTerm,
+        right: ScalarTerm,
+        transport: &mut TransportInputs,
+    ) -> bool {
+        if left == right {
+            return true;
+        }
+        let equality = Proposition::Equal(left, right);
+        Self::transport_inputs(
+            &self.facts,
+            &self.equations,
+            &equality,
+            &self.definitions,
+            transport,
+        );
+        match check_value_equality_denotation(
+            context,
+            &equality,
+            transport
+                .selected
+                .iter()
+                .map(|&index| &self.facts[self.equations[index]].proposition),
+        ) {
+            Ok(Proposition::Equal(left, right)) => left == right,
+            Ok(Proposition::Truth) => true,
+            _ => false,
+        }
+    }
+
     /// Cite the first definition of each value the predicate actually uses,
     /// following definitions transitively. Including every earlier derived
     /// equality would duplicate unrelated proof trees at every new step.
@@ -456,6 +555,7 @@ impl Known {
         context: &PropositionContext,
         defined: &mut IdTable<ValueId, Option<usize>>,
         conjuncts: &mut Vec<usize>,
+        values: &dyn ProofValues,
     ) {
         if self.equations.is_empty() {
             return;
@@ -517,7 +617,9 @@ impl Known {
             flatten(&transported, origin, None, &mut self.facts, conjuncts);
             self.integer_equalities(first, defined);
             for derived in first..self.facts.len() {
-                if let Some(value) = self.add_literal(derived, defined)
+                if let Some(value) = self
+                    .add_literal(derived, defined)
+                    .or_else(|| self.add_integer_alias(derived, defined, values))
                     && let Some(users) = users.get_mut(value)
                 {
                     for user in users.drain(..) {

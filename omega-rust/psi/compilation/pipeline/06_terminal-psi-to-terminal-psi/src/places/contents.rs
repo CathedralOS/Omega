@@ -65,7 +65,11 @@ impl Storage<'_> {
             }
             let matches_type = match self.shape(&captured, concerns)? {
                 Shape::Typed(actual_type) => {
-                    actual_type == formal.structural_type
+                    terminal_semantics::borrowed_referent_presentation(
+                        self.types.iter(),
+                        actual_type,
+                        formal.structural_type,
+                    ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged)
                         || self.byte_array_presentation(actual, formal, concerns)?
                 }
                 Shape::Scalar(actual) => {

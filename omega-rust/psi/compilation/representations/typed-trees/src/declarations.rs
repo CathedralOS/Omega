@@ -1132,11 +1132,21 @@ pub mod domain {
             .zip(arguments)
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        program.package_qualified_type_identity(carrier)
-            == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-                substitutions: &substitutions,
-                ..TypeIdentityRequest::package_qualified(domain.target_type)
-            })
+        let target = program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::package_qualified(domain.target_type)
+        });
+        // `LayoutStorage<T, L>` is T's value in L's geometry, not a wrapper
+        // around a stored T (plans.md, "Representation applications"), so
+        // its data carrier is T: `RegisterStorage in Registers::Placed`
+        // qualifies the laid `Registers`. The layout selection stays on the
+        // application; nothing else about T is erased to match.
+        program.package_qualified_type_identity(carrier) == target
+            || program
+                .layout_storage_arguments(carrier)
+                .is_some_and(|laid| {
+                    program.package_qualified_type_identity(laid.semantic_type) == target
+                })
     }
 
     pub fn domain_by_symbol(

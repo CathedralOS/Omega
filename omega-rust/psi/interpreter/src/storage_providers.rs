@@ -1680,7 +1680,7 @@ pub(crate) mod initialization {
     use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
     use crate::storage::record::storage::ConstructorStorage;
     use access_plans::{
-        InitializationResourceCompatibility, ValidatedAccessPlan, ValidatedResourceProfile,
+        InitializationResourceCompatibility, ValidatedPlacement, ValidatedResourceProfile,
         validate_initialization_resources,
     };
     use semantic_vocabulary::IntegerValue;
@@ -1706,7 +1706,7 @@ pub(crate) mod initialization {
             &mut self,
             binding: ProviderStorageBinding,
             supplied: ValidatedResourceProfile,
-            placement: &ValidatedAccessPlan,
+            placement: &ValidatedPlacement,
             image: ByteSequenceStorage,
         ) -> Result<Result<PreparedProviderImage, InitializationRejection>, TerminalInterpretError>
         {
@@ -4175,16 +4175,14 @@ pub(crate) mod view {
     use super::initialization::InitializationRejection;
     use super::{ProviderStorageBinding, RuntimeProviderStorage};
     use crate::boundary::errors::{TerminalInterpretError, malformed};
-    use access_plans::{
-        AccessResourceCompatibility, ValidatedAccessPlan, ValidatedResourceProfile,
-    };
+    use access_plans::{AccessResourceCompatibility, ValidatedPlacement, ValidatedResourceProfile};
 
     impl RuntimeProviderStorage {
         pub(crate) fn prepare_view(
             &self,
             binding: ProviderStorageBinding,
             supplied: &ValidatedResourceProfile,
-            placement: &ValidatedAccessPlan,
+            placement: &ValidatedPlacement,
         ) -> Result<
             Result<AccessResourceCompatibility, InitializationRejection>,
             TerminalInterpretError,

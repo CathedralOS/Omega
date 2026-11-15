@@ -316,6 +316,28 @@ impl AcceptedTerminalSource {
             {
                 continue;
             }
+            if declaration.declaration.as_ref().is_some_and(|checked| {
+                checked.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive
+            }) {
+                terminal_semantics::numeric_primitives::validate_boundary(
+                    &elaboration.module,
+                    declaration,
+                )
+                .map_err(|reason| {
+                    lost(&format!(
+                        "{reason}: {}",
+                        declaration
+                            .declaration
+                            .as_ref()
+                            .and_then(|checked| elaboration
+                                .module
+                                .identities
+                                .text(checked.source.semantic_declaration))
+                            .unwrap_or("missing declaration identity")
+                    ))
+                })?;
+                continue;
+            }
             let (owner, requirement) = self
                 .source
                 .trait_machine_signature(*symbol)
@@ -448,6 +470,7 @@ impl AcceptedTerminalSource {
             ),
             declaration,
         )
+        .ok()
         .map(|projected| projected.declaration)
     }
 

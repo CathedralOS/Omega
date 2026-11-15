@@ -454,6 +454,100 @@ fn execute_ownership_oracle(
     unit
 }
 
+/// Replacing a borrowed record or case builds the replacement at the
+/// referent's type. That context grants no right to write a shared borrow.
+#[test]
+fn constructor_assignments_keep_the_referent_type_and_reference_access() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Item { value: u32; }
+data Choice [copy] { case First; case Second(value: u32); }
+domain [u8]::Tagged requires valid_utf8(self);
+data Text<'text> { bytes: &'text [u8] in Tagged; }
+machine replace(item: &mut Item, choice: &mut Choice) {
+    item = Item { value: 7 };
+    choice = Choice::Second { value: 11 };
+}
+machine replace_text<'text>(text: &mut Text<'text>) {
+    text.bytes = "later" as +Tagged;
+}
+machine chosen(choice: Choice) -> bool {
+    transition choice {
+        Choice::First -> false
+        Choice::Second { value } -> (value == 11)
+    }
+}
+machine main() crashes Trap {
+    let mut item: Item = Item { value: 1 };
+    let mut choice: Choice = Choice::First {};
+    let mut text: Text = Text { bytes: "before" as +Tagged };
+    replace(&mut item, &mut choice);
+    replace_text(&mut text);
+    transition item.value == 7 && chosen(choice) && text.bytes.len == 5 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    for shared in [false, true] {
+        let source = if shared {
+            source.replace("item: &mut Item", "item: &Item")
+        } else {
+            source.to_owned()
+        };
+        let frontier = unbuilt_frontier::staged_frontier("constructor-reference-access", &source);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if shared {
+            assert!(
+                verdicts.iter().any(|verdict| matches!(verdict,
+                    Ok(RouteVerdict::Rejected { violations, .. }) if violations.iter().any(
+                        |violation| violation.statement.contains(
+                            "the reference it is reached through grants shared access only"))
+                )),
+                "constructor typing must not grant mutable access: {verdicts:?}"
+            );
+            assert!(
+                verdicts
+                    .iter()
+                    .all(|verdict| !matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+                "the bad assignment must refuse every claimed copy: {verdicts:?}"
+            );
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("the original storage must receive its replacement: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_ownership_oracle(&closure);
+    }
+}
+
 /// Each selected arm supplies its actual owned value, through publication,
 /// the independent ownership boundary and execution. Repeating one outgoing
 /// value instead of consuming the two results must still reject.
@@ -835,6 +929,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        authored_layout: false,
         owns_linear_claim: false,
         copyable: false,
         identity: "Owned".into(),
@@ -1028,6 +1123,7 @@ mod transferred_on_one_path {
         };
         let mut records = IdTable::default();
         records.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
             identity: "Inner".into(),
@@ -1039,6 +1135,7 @@ mod transferred_on_one_path {
             requires: Vec::new(),
         });
         records.push(RecordType {
+            authored_layout: false,
             owns_linear_claim: false,
             copyable: false,
             identity: "Pair".into(),

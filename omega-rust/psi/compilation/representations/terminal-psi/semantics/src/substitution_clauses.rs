@@ -127,6 +127,32 @@ pub fn substitute_clause<Error: From<&'static str>>(
             bound_mathematical(left, bindings)?,
             bound_mathematical(right, bindings)?,
         ),
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } => {
+            // A comparison keeps its IEEE predicate while names change. In
+            // particular, an ordered false result is not the opposite integer
+            // relation: either operand may be NaN.
+            let mut left = substitute_clause_term(left, bindings)?;
+            let mut right = substitute_clause_term(right, bindings)?;
+            if left.scalar_type() != ScalarType::IeeeFloat(*format)
+                || right.scalar_type() != ScalarType::IeeeFloat(*format)
+            {
+                return Err(Error::from("float clause substitution changes its format"));
+            }
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind: *kind,
+                format: *format,
+                left,
+                right,
+            }
+        }
         Proposition::StructuralCaseMembership { subject, case } => {
             bindings.case_predicate(subject.root(), subject.path(), *case)?
         }
@@ -182,12 +208,20 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
                     root,
                     path,
                 } => bindings.field(version, root, &path, ScalarType::Boolean)?,
+                ScalarTerm::IeeeFloatField {
+                    version,
+                    root,
+                    path,
+                    format,
+                } => bindings.field(version, root, &path, ScalarType::IeeeFloat(format))?,
                 ScalarTerm::ViewExtent {
                     root,
                     path,
                     scalar_type,
                 } => bindings.extent(root, &path, scalar_type)?,
-                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => term,
+                ScalarTerm::Integer { .. }
+                | ScalarTerm::Boolean(_)
+                | ScalarTerm::IeeeFloatLiteral(_) => term,
                 ScalarTerm::StructuralRead { .. } => {
                     return Err(Error::from(
                         "clause structural read is outside the scalar subset",
@@ -307,6 +341,50 @@ fn connective<Error: From<&'static str>>(
 mod tests {
     use super::*;
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
+
+    #[test]
+    fn ieee_clauses_keep_the_predicate_and_exact_actuals() {
+        use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue};
+        let format = IeeeFloatFormat::Binary32;
+        let value =
+            |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::IeeeFloat(format));
+        for kind in [
+            IeeeFloatComparisonKind::Equal,
+            IeeeFloatComparisonKind::NotEqual,
+            IeeeFloatComparisonKind::LessThan,
+            IeeeFloatComparisonKind::NotLessThan,
+            IeeeFloatComparisonKind::LessOrEqual,
+            IeeeFloatComparisonKind::NotLessOrEqual,
+        ] {
+            let original = Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left: value(1),
+                right: value(2),
+            };
+            let expected = if kind.is_symmetric() {
+                (value(1), value(2))
+            } else {
+                (value(2), value(1))
+            };
+            assert_eq!(
+                substitute_clause(&original, &mut Inputs).unwrap(),
+                Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left: expected.0,
+                    right: expected.1
+                }
+            );
+        }
+        for bits in [0x8000_0000, 0x7fc0_0042] {
+            let literal = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits));
+            assert_eq!(
+                substitute_clause_term(&literal, &mut Inputs).unwrap(),
+                literal
+            );
+        }
+    }
 
     struct Inputs;
 

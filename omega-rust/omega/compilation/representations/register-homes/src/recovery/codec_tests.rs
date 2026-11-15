@@ -5,7 +5,7 @@ Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v104
 */
 
 use abstract_operations::StructuralTypeCatalog;
-use access_plans::{AccessFields, AccessPlan, BoundaryReach, validate_access_plan};
+use access_plans::{AccessFields, BoundaryReach, validate_placement};
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use legalized_operations::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
@@ -1718,12 +1718,8 @@ fn catalog() -> StructuralTypeCatalog {
             placement: LayoutPlacementReport::At { offset: 0 },
         }],
     };
-    let placement = validate_access_plan(AccessPlan {
-        access: AccessFields::inaccessible(&layout).unwrap(),
-        layout,
-        reach: BoundaryReach::default(),
-    })
-    .unwrap();
+    let placement_fields = AccessFields::inaccessible(&layout).unwrap();
+    let placement = validate_placement(layout, placement_fields, BoundaryReach::default()).unwrap();
     let schema = StructuralTypeId::new(1).unwrap();
     let view = TerminalAccessViewPlan {
         carrier: StructuralTypeId::new(2).unwrap(),

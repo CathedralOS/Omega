@@ -1052,6 +1052,9 @@ pub mod closed_conformances {
             return Err("contract evidence cannot carry an executable boundary declaration");
         }
         hosted_primitive_requirement(module, boundary)?;
+        if checked.execution == terminal_psi::CheckedBoundaryExecution::NumericPrimitive {
+            crate::numeric_primitives::validate_boundary(module, boundary)?;
+        }
         let declaration = &checked.source;
         for coordinate in [
             declaration.machine.identity(),

@@ -1863,7 +1863,9 @@ mod source_queries {
             &self,
             symbol: SymbolHandle,
         ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-            if !symbol.is_valid() {
+            // A handle this table did not mint, or no longer holds, declares
+            // nothing here; reading its span would refuse the handle itself.
+            if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
             let file = self.source_file(self.symbol_source_span(symbol)?)?;
@@ -1878,7 +1880,9 @@ mod source_queries {
             &self,
             symbol: SymbolHandle,
         ) -> Option<language_core::core_vocabulary::CoreSource> {
-            if !symbol.is_valid() {
+            // A handle this table did not mint, or no longer holds, declares
+            // nothing here; reading its span would refuse the handle itself.
+            if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
             crate::core_source_at(self.source_file(self.symbol_source_span(symbol)?)?)
@@ -1892,7 +1896,9 @@ mod source_queries {
             &self,
             symbol: SymbolHandle,
         ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
-            if !symbol.is_valid() {
+            // A handle this table did not mint, or no longer holds, declares
+            // nothing here; reading its span would refuse the handle itself.
+            if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
             let file = self.source_file(self.symbol_source_span(symbol)?)?;
@@ -1910,7 +1916,9 @@ mod source_queries {
             symbol: SymbolHandle,
             declaration: &str,
         ) -> Option<language_core::sealed_intrinsics::SealedIntrinsic> {
-            if !symbol.is_valid() {
+            // A handle this table did not mint, or no longer holds, declares
+            // nothing here; reading its span would refuse the handle itself.
+            if !self.symbols().nodes().is_valid(symbol) {
                 return None;
             }
             let file = self.source_file(self.symbol_source_span(symbol)?)?;

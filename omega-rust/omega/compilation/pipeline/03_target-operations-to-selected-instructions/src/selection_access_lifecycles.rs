@@ -898,7 +898,7 @@ pub(crate) mod resource_profile {
     pub(crate) mod compatibility {
         use super::*;
         use access_plans::{
-            AtomicPermissions, BoundaryReach, ExternalRead, FieldAccess, ValidatedAccessPlan,
+            AtomicPermissions, BoundaryReach, ExternalRead, FieldAccess, ValidatedPlacement,
         };
 
         macro_rules! bin {
@@ -937,7 +937,7 @@ pub(crate) mod resource_profile {
                 profile: ImageHome,
                 scratch: ImageHome,
                 geometry: RunGeometry,
-                placement: &ValidatedAccessPlan,
+                placement: &ValidatedPlacement,
                 role: SupplyRole,
             ) -> Result<Compatibility, SelectedInstructionError> {
                 let layout = ProfileLayout::derive(declarations, profile_type)?;
@@ -1051,7 +1051,7 @@ pub(crate) mod resource_profile {
                 layout: &ProfileLayout,
                 builder: &mut Builder<'_>,
                 geometry: RunGeometry,
-                placement: &ValidatedAccessPlan,
+                placement: &ValidatedPlacement,
                 footprint: u64,
                 cell: VirtualRegisterId,
                 well_formed: VirtualRegisterId,
@@ -1734,7 +1734,7 @@ pub(crate) mod resource_profile {
             profile: ImageHome,
             scratch: ImageHome,
             available: VirtualRegisterId,
-            placement: &ValidatedAccessPlan,
+            placement: &ValidatedPlacement,
             operation: terminal_psi::TerminalAccessLifecycleOperation,
         ) -> Result<Compatibility, SelectedInstructionError> {
             super::super::offset(scratch.byte_offset, u64::from(COMPATIBILITY_SCRATCH_BYTES))?;
@@ -1764,7 +1764,7 @@ pub(crate) mod resource_profile {
             layout: &ProfileLayout,
             builder: &mut Builder<'_>,
             available: VirtualRegisterId,
-            placement: &ValidatedAccessPlan,
+            placement: &ValidatedPlacement,
             operation: terminal_psi::TerminalAccessLifecycleOperation,
             origin: VirtualRegisterId,
             well_formed: VirtualRegisterId,
@@ -2344,10 +2344,8 @@ pub(crate) mod resource_profile {
                 }
             }
 
-            pub(crate) fn aligned_placement() -> access_plans::ValidatedAccessPlan {
-                use access_plans::{
-                    AccessExposure, AccessFields, AccessPlan, FieldAccess, validate_access_plan,
-                };
+            pub(crate) fn aligned_placement() -> access_plans::ValidatedPlacement {
+                use access_plans::{AccessExposure, AccessFields, FieldAccess, validate_placement};
                 let mut layout = placement(
                     0,
                     FieldAccess::Stable {
@@ -2372,12 +2370,7 @@ pub(crate) mod resource_profile {
                         },
                     )
                     .unwrap();
-                validate_access_plan(AccessPlan {
-                    layout,
-                    access,
-                    reach: BoundaryReach::default(),
-                })
-                .unwrap()
+                validate_placement(layout, access, BoundaryReach::default()).unwrap()
             }
 
             #[test]
@@ -3540,8 +3533,8 @@ pub(crate) mod resource_profile {
         fn placement(
             offset: u64,
             access: access_plans::FieldAccess,
-        ) -> access_plans::ValidatedAccessPlan {
-            use access_plans::{AccessFields, AccessPlan, validate_access_plan};
+        ) -> access_plans::ValidatedPlacement {
+            use access_plans::{AccessFields, validate_placement};
             use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
             let layout = LayoutPlanReport {
                 schema_report_fingerprint: 0,
@@ -3557,13 +3550,14 @@ pub(crate) mod resource_profile {
             let mut plan = AccessFields::inaccessible(&layout).unwrap();
             let key = plan.entries()[0].key();
             plan.set(key, access).unwrap();
-            validate_access_plan(AccessPlan {
+            validate_placement(
                 layout,
-                access: plan,
-                reach: BoundaryReach::from_services([
-                    BoundaryServiceReachId::from_normalized_identity(17).unwrap(),
-                ]),
-            })
+                plan,
+                BoundaryReach::from_services([BoundaryServiceReachId::from_normalized_identity(
+                    17,
+                )
+                .unwrap()]),
+            )
             .unwrap()
         }
 
@@ -5442,7 +5436,7 @@ pub(crate) mod tests {
     }
 
     fn image_fixture() -> (Vec<StructuralTypeDeclaration>, TerminalAccessLifecyclePlan) {
-        use access_plans::{AccessFields, AccessPlan, BoundaryReach, validate_access_plan};
+        use access_plans::{AccessFields, BoundaryReach, validate_placement};
         use layout_plans::{LayoutFieldEntryReport, LayoutPlanReport};
         use semantic_vocabulary::{
             BoundaryMachineId, IntegerSign, IntegerType, ScalarType, StructuralDomainId,
@@ -5545,12 +5539,7 @@ pub(crate) mod tests {
             ],
         };
         let access = AccessFields::inaccessible(&layout).unwrap();
-        let placement = validate_access_plan(AccessPlan {
-            layout,
-            access,
-            reach: BoundaryReach::default(),
-        })
-        .unwrap();
+        let placement = validate_placement(layout, access, BoundaryReach::default()).unwrap();
         let image_fields = placement
             .access()
             .plan()

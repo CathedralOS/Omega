@@ -429,6 +429,12 @@ mod interrupt_installation {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
                 arguments: scope.arguments().clone(),
+                indices: super::scalar_sources::argument_indices(
+                    site.function,
+                    site.types,
+                    site.live,
+                    scope.arguments().each_ref(),
+                )?,
                 calls,
                 result_home,
             });
@@ -810,6 +816,7 @@ mod static_interrupts {
             boundary: *boundary,
             operation,
             token: token.clone(),
+            indices: super::scalar_sources::projection_indices(function, types, live, token)?,
             result_home,
         });
         provenance.operations.push(*psi_operation);

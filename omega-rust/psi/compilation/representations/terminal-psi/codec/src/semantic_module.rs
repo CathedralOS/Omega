@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 275`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 276`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4743,9 +4743,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 275 replaces borrowed cleanup with ordinary owned-call transfers,
+// Marker 276 replaces borrowed cleanup with ordinary owned-call transfers,
 // retains exact nominal cleanup selections, and adds consuming decomposition.
 // Earlier cleanup rows cannot acquire owned-transfer meaning; tags 3/5 retire.
+// Marker 275 changes retained compiler-evaluation invocation refusals.
 // Marker 274 adds authenticated hosted-primitive requirement links to the
 // machine contract layout retained by marker 273. A 273 artifact has no such
 // execution link and cannot be read as this declaration grammar.
@@ -4770,7 +4771,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 272 retains each structural value's explicit qualification changes
 // (`value as +D`, `value as -D`) and their issuer routes. A 271 artifact has no
 // row a qualified structural parameter could have arrived through.
-pub(crate) const FORMAT_MARKER: u16 = 275;
+pub(crate) const FORMAT_MARKER: u16 = 276;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
