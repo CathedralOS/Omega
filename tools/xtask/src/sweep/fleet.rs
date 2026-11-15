@@ -1062,7 +1062,8 @@ fn collect(args: &[String]) -> Result<(), String> {
         ));
     }
     let (header, rows) = record::merge(&parts)?;
-    let out = out.unwrap_or_else(|| local.with_extension("json"));
+    // Beside the shards, never over the run record `<id>.json`.
+    let out = out.unwrap_or_else(|| local.join("merged.json"));
     record::write_output(&out, &header, &rows, super::render_rows)?;
     print!("{}", super::summary(&rows));
     println!(
