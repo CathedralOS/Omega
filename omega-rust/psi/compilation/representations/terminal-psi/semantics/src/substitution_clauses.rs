@@ -44,6 +44,20 @@ pub trait ClauseBindings {
         path: &[CanonicalStructuralPathSegment],
         case: StructuralCaseId,
     ) -> Result<bool, Self::Error>;
+
+    /// Declaration formation cannot skip a partial term because another
+    /// branch already decides its enclosing condition. Ordinary substitution
+    /// keeps its existing case-directed projection behavior.
+    fn requires_complete_terms(&self) -> bool {
+        false
+    }
+
+    /// Resolve one computation after its operands have been resolved. Ordinary
+    /// call substitution retains the selected computation. Declaration
+    /// formation can instead register it as a pending logical computation.
+    fn computed(&mut self, term: ScalarTerm) -> Result<ScalarTerm, Self::Error> {
+        Ok(term)
+    }
 }
 
 /// States a clause over the consumer's values by
@@ -123,37 +137,78 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
     term: &ScalarTerm,
     bindings: &mut dyn ClauseBindings<Error = Error>,
 ) -> Result<ScalarTerm, Error> {
-    match term {
-        ScalarTerm::Value { id, scalar_type } => bindings.value(*id, *scalar_type),
-        ScalarTerm::IntegerField {
-            version,
-            root,
-            path,
-            scalar_type,
-        } => bindings.field(*version, *root, path, ScalarType::Integer(*scalar_type)),
-        ScalarTerm::BooleanField {
-            version,
-            root,
-            path,
-        } => bindings.field(*version, *root, path, ScalarType::Boolean),
-        ScalarTerm::ViewExtent {
-            root,
-            path,
-            scalar_type,
-        } => bindings.extent(*root, path, *scalar_type),
-        ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
-        ScalarTerm::StructuralRead { .. } => Err(Error::from(
-            "clause structural read is outside the scalar subset",
-        )),
-        _ if !term.operands().is_empty() => {
-            let mut bound_term = term.clone();
-            for operand in bound_term.operands_mut() {
-                *operand = substitute_clause_term(operand, bindings)?;
-            }
-            Ok(bound_term)
-        }
-        _ => Err(Error::from("clause term outside the scalar subset")),
+    enum Pending {
+        Visit(ScalarTerm),
+        Complete(ScalarTerm, usize),
     }
+    let mut pending = vec![Pending::Visit(term.clone())];
+    let mut completed = Vec::new();
+    while let Some(step) = pending.pop() {
+        let resolved = match step {
+            Pending::Complete(mut term, count) => {
+                if completed.len() < count {
+                    return Err(Error::from("clause computation lost a resolved operand"));
+                }
+                for operand in term.operands_mut().into_iter().rev() {
+                    *operand = completed
+                        .pop()
+                        .ok_or(Error::from("clause computation lost a resolved operand"))?;
+                }
+                bindings.computed(term)?
+            }
+            Pending::Visit(term) => match term {
+                ScalarTerm::Value { id, scalar_type } => bindings.value(id, scalar_type)?,
+                ScalarTerm::IntegerField {
+                    version,
+                    root,
+                    path,
+                    scalar_type,
+                } => bindings.field(version, root, &path, ScalarType::Integer(scalar_type))?,
+                ScalarTerm::BooleanField {
+                    version,
+                    root,
+                    path,
+                } => bindings.field(version, root, &path, ScalarType::Boolean)?,
+                ScalarTerm::ViewExtent {
+                    root,
+                    path,
+                    scalar_type,
+                } => bindings.extent(root, &path, scalar_type)?,
+                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => term,
+                ScalarTerm::StructuralRead { .. } => {
+                    return Err(Error::from(
+                        "clause structural read is outside the scalar subset",
+                    ));
+                }
+                mut term => {
+                    let first = pending.len();
+                    let operands = term.operands_mut();
+                    let count = operands.len();
+                    if count == 0 {
+                        return Err(Error::from("clause term outside the scalar subset"));
+                    }
+                    // Move each operand once. Every temporary is replaced
+                    // before its parent reaches bindings; an error discards
+                    // the unfinished tree.
+                    for operand in operands.into_iter().rev() {
+                        pending.push(Pending::Visit(std::mem::replace(
+                            operand,
+                            ScalarTerm::Boolean(false),
+                        )));
+                    }
+                    pending.insert(first, Pending::Complete(term, count));
+                    continue;
+                }
+            },
+        };
+        completed.push(resolved);
+    }
+    if completed.len() != 1 {
+        return Err(Error::from("clause substitution did not produce one term"));
+    }
+    completed
+        .pop()
+        .ok_or(Error::from("clause substitution did not produce one term"))
 }
 
 /// One mathematical-integer term of a clause under substitution. An embedded
@@ -207,9 +262,15 @@ fn connective<Error: From<&'static str>>(
     };
     let mut kept = Vec::with_capacity(parts.len());
     let mut unstated = None;
+    let mut decided = false;
     for part in parts {
         match substitute_clause(part, bindings) {
-            Ok(part) if part == deciding => return Ok(deciding),
+            Ok(part) if part == deciding => {
+                if !bindings.requires_complete_terms() {
+                    return Ok(deciding);
+                }
+                decided = true;
+            }
             Ok(part) if part == unit => {}
             Ok(part) => kept.push(part),
             Err(unbound) => unstated = unstated.or(Some(unbound)),
@@ -217,6 +278,9 @@ fn connective<Error: From<&'static str>>(
     }
     if let Some(unbound) = unstated {
         return Err(unbound);
+    }
+    if decided {
+        return Ok(deciding);
     }
     Ok(match kept.len() {
         0 => unit,
@@ -229,7 +293,7 @@ fn connective<Error: From<&'static str>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralFieldId};
 
     struct Inputs;
 
@@ -309,6 +373,104 @@ mod tests {
         assert_eq!(
             substitute_clause(&Proposition::LessThan(value(1), value(2)), &mut Inputs),
             Ok(Proposition::LessThan(value(2), value(1)))
+        );
+    }
+
+    #[test]
+    fn computed_bindings_receive_resolved_children_and_keep_their_failures() {
+        struct Computations {
+            pending: Vec<ScalarTerm>,
+            refuse_child: bool,
+        }
+
+        impl ClauseBindings for Computations {
+            type Error = &'static str;
+
+            fn value(
+                &mut self,
+                id: ValueId,
+                scalar: ScalarType,
+            ) -> Result<ScalarTerm, Self::Error> {
+                Inputs.value(id, scalar)
+            }
+
+            fn field(
+                &mut self,
+                version: ContentPlaceVersion,
+                root: PlaceId,
+                path: &[CanonicalStructuralPathSegment],
+                scalar: ScalarType,
+            ) -> Result<ScalarTerm, Self::Error> {
+                Inputs.field(version, root, path, scalar)
+            }
+
+            fn case(
+                &mut self,
+                root: PlaceId,
+                path: &[CanonicalStructuralPathSegment],
+                case: StructuralCaseId,
+            ) -> Result<bool, Self::Error> {
+                Inputs.case(root, path, case)
+            }
+
+            fn computed(&mut self, term: ScalarTerm) -> Result<ScalarTerm, Self::Error> {
+                if self.refuse_child {
+                    return Err("child formation refused");
+                }
+                assert!(
+                    term.operands()
+                        .iter()
+                        .all(|term| term.operands().is_empty())
+                );
+                let result = ScalarTerm::value(
+                    ValueId::new(10 + self.pending.len() as u64).unwrap(),
+                    term.scalar_type(),
+                );
+                self.pending.push(term);
+                Ok(result)
+            }
+        }
+
+        let integer = scalar_type().as_integer().unwrap();
+        let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar_type());
+        let one = ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).unwrap();
+        let field = ScalarTerm::IntegerField {
+            version: ContentPlaceVersion::Current,
+            root: PlaceId::new(1).unwrap(),
+            path: vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(2).unwrap(),
+            )],
+            scalar_type: integer,
+        };
+        let child = ScalarTerm::exact_integer_subtract(integer, value(1), one.clone()).unwrap();
+        let expression = ScalarTerm::exact_integer_add(integer, field, child).unwrap();
+        let mut inputs = Computations {
+            pending: Vec::new(),
+            refuse_child: false,
+        };
+        assert_eq!(
+            substitute_clause_term(&expression, &mut inputs),
+            Ok(value(11))
+        );
+        assert_eq!(
+            inputs.pending,
+            [
+                ScalarTerm::exact_integer_subtract(integer, value(2), one).unwrap(),
+                ScalarTerm::exact_integer_add(integer, value(7), value(10)).unwrap(),
+            ],
+            "the parent keeps the resolved field and exact child correspondence",
+        );
+        let mut refused = Computations {
+            pending: Vec::new(),
+            refuse_child: true,
+        };
+        assert_eq!(
+            substitute_clause_term(&expression, &mut refused),
+            Err("child formation refused"),
+        );
+        assert!(
+            refused.pending.is_empty(),
+            "the parent must never be registered"
         );
     }
 

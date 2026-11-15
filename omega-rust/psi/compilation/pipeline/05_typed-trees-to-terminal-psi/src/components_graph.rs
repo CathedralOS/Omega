@@ -163,14 +163,12 @@ impl Components {
     /// Records which components lie on or call into an unranked cycle, in
     /// reverse topological order so every callee component is judged first.
     pub(super) fn rank(&mut self, calls: &CallGraph, witnessed: &[bool]) {
+        debug_assert_eq!(witnessed.len(), self.machine_components.len());
         for component in (0..self.components.len()).rev() {
-            // A cycle of one machine that supplies its ranking is judged where
-            // it is lowered (`lower::ranking`); every other cycle is unranked.
+            // Every cyclic member must supply its own measure; lowering and
+            // checking prove the comparisons on the component's actual edges.
             let members = &self.members[self.components[component].members.clone()];
-            let ranked = matches!(
-                members,
-                [member] if witnessed.get(index(*member)).copied().unwrap_or(false)
-            );
+            let ranked = members.iter().all(|member| witnessed[index(*member)]);
             let mut reaches_cycle = self.components[component].cyclic && !ranked;
             for &member in members {
                 for site in calls.calls(index(member)) {
@@ -218,9 +216,6 @@ impl Components {
         })
     }
 
-    /// Whether `machine` lies on, or calls into, a call cycle that no
-    /// member ranks: termination.md, "Unknown progress dependencies prevent
-    /// a checked guarantee."
     pub(super) fn reaches_unranked_cycle(&self, machine: usize) -> bool {
         self.components[self.machine_components[machine]].reaches_unranked_cycle
     }
@@ -236,6 +231,10 @@ mod tests {
     use crate::components::CallSite;
 
     fn discover(adjacencies: &[Vec<usize>]) -> Components {
+        discover_with_rankings(adjacencies, &vec![false; adjacencies.len()])
+    }
+
+    fn discover_with_rankings(adjacencies: &[Vec<usize>], ranked: &[bool]) -> Components {
         let machines: Vec<_> = (1..=adjacencies.len())
             .map(|raw| MachineId::new(raw as u64).unwrap())
             .collect();
@@ -252,7 +251,7 @@ mod tests {
             calls.offsets.push(calls.sites.len());
         }
         let mut table = Components::discover(&calls, &machines);
-        table.rank(&calls, &vec![false; machines.len()]);
+        table.rank(&calls, ranked);
         table
     }
 
@@ -298,6 +297,41 @@ mod tests {
     }
 
     #[test]
+    fn missing_rankings_propagate_through_shared_callees_and_whole_components() {
+        // 0 branches through 1 and 2 into the shared self-cycle 3. A second
+        // route through 2 reaches the 4/5 cycle; 6 is an unrelated self-cycle.
+        let adjacency = [
+            vec![1, 2],
+            vec![3],
+            vec![3, 4],
+            vec![3],
+            vec![5],
+            vec![4],
+            vec![6],
+        ];
+        for (ranked, expected) in [
+            (
+                [true, true, true, false, true, true, false],
+                [true, true, true, true, false, false, true],
+            ),
+            (
+                [true, true, true, true, true, false, false],
+                [true, false, true, false, true, true, true],
+            ),
+            ([false, false, false, true, true, true, true], [false; 7]),
+        ] {
+            let actual = discover_with_rankings(&adjacency, &ranked);
+            for (machine, expected) in expected.into_iter().enumerate() {
+                assert_eq!(
+                    actual.reaches_unranked_cycle(machine),
+                    expected,
+                    "rankings {ranked:?}, machine {machine}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn sparse_chains_and_large_cycles_keep_linear_storage_and_discovery_work() {
         assert!(discover(&[]).members.is_empty());
         for count in [32, 8192] {
@@ -320,6 +354,9 @@ mod tests {
                 assert_eq!(actual.components.len(), if cyclic { 1 } else { count });
                 assert!(actual.discovery_edge_visits <= 6 * edges);
                 assert_eq!(actual.reaches_unranked_cycle(0), cyclic);
+                let ranked = discover_with_rankings(&adjacency, &vec![true; count]);
+                assert!(!ranked.reaches_unranked_cycle(0));
+                assert!(ranked.discovery_edge_visits <= 6 * edges);
                 if cyclic {
                     assert!(std::ptr::eq(
                         actual.members(MachineId::new(1).unwrap()).unwrap(),

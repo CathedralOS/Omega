@@ -656,6 +656,10 @@ mod descriptor_storage_tests {
         );
         let nested = program.calling_abi_storage(entry, envelope).unwrap();
         assert!(program.records.get(nested).unwrap().owns_linear_claim);
+        // ABI metadata must name the represented backing even when the
+        // parameter itself owns a claim or is an ordinary scalar.
+        let parameters = [address, qualified, envelope]
+            .map(|reference| program.calling_abi_parameter(entry, reference).unwrap());
         let fields = program.records.get(storage).unwrap().fields();
         assert_eq!(fields.len(), 2);
         assert_eq!(
@@ -682,6 +686,15 @@ mod descriptor_storage_tests {
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();
+        for parameter in parameters {
+            assert_eq!(parameter.callback_backing, Some(parameter.structural_type));
+            assert!(
+                declared
+                    .structural_types
+                    .iter()
+                    .any(|row| Some(row.id) == parameter.callback_backing)
+            );
+        }
         let canonical = declared
             .structural_types
             .iter()

@@ -529,6 +529,51 @@ pub(crate) mod analysis {
                     .read(machine, states.get(&position)?, location)?,
             )
         }
+
+        /// Preserve the failing stage when an operation requires an exact
+        /// origin. Optional discovery queries can still use the Option API.
+        pub fn try_symbolic_source_origins(
+            &mut self,
+            identity: MachineId,
+            position: DescriptorPosition,
+            location: &DescriptorLocation,
+        ) -> Result<Vec<DescriptorSourceOrigin>, String> {
+            let context =
+                || format!("view loan in {identity:?} at {position:?}, descriptor {location:?}");
+            self.replay.prepare_states(identity).ok_or_else(|| {
+                format!(
+                    "{}: descriptor snapshots cannot be reconstructed",
+                    context()
+                )
+            })?;
+            let machine = self
+                .replay
+                .machine(identity)
+                .ok_or_else(|| format!("{}: descriptor machine is absent", context()))?;
+            let states = self
+                .replay
+                .snapshots
+                .get(&identity)
+                .and_then(Option::as_ref)
+                .ok_or_else(|| format!("{}: descriptor snapshots are absent", context()))?;
+            let state = states
+                .get(&position)
+                .ok_or_else(|| format!("{}: the query point is unreachable", context()))?;
+            let value = self.replay.read(machine, state, location);
+            let missing_value = value.is_none();
+            if let Some(value) = value
+                && let Some(origins) = self.replay.symbolic(machine, value)
+            {
+                return Ok(origins);
+            }
+            let detail = if missing_value {
+                "the descriptor has no established value at this point"
+            } else {
+                "the descriptor's original borrow cannot be represented"
+            };
+            Err(format!("{}: {detail}", context()))
+        }
+
         pub fn substitute_call_source(
             &mut self,
             identity: MachineId,
@@ -1038,21 +1083,6 @@ pub(crate) mod analysis {
                     continue;
                 };
                 let summary = self.replay.cached_invocation_summary(call)?;
-                if summary
-                    .effects
-                    .iter()
-                    .flat_map(|effect| &effect.origins)
-                    .chain(
-                        summary
-                            .result
-                            .iter()
-                            .flatten()
-                            .flat_map(|slot| &slot.origins),
-                    )
-                    .any(|origin| matches!(origin, DescriptorStoredOrigin::Provider(_)))
-                {
-                    return None;
-                }
                 step.may_escape |= summary.invalidates_contents;
                 let mut outputs = Vec::new();
                 for effect in &summary.effects {
@@ -1176,11 +1206,28 @@ pub(crate) mod analysis {
                             step.definitions.push(location.clone());
                         }
                     }
-                    for origin in origins {
+                    // A provider's inputs constrain the result's lifetime,
+                    // not its address. Keep those loans alive without making
+                    // any input the provider view's spatial source.
+                    let mut pending = origins
+                        .iter()
+                        .map(|origin| (origin, true))
+                        .collect::<Vec<_>>();
+                    while let Some((origin, spatial)) = pending.pop() {
+                        if let DescriptorStoredOrigin::Provider(provider) = origin {
+                            pending.extend(
+                                provider
+                                    .lifetime_dependencies
+                                    .iter()
+                                    .map(|dependency| (&dependency.origin, false)),
+                            );
+                            continue;
+                        }
                         let source = match origin {
                             DescriptorStoredOrigin::Invocation { .. }
                             | DescriptorStoredOrigin::Literal { .. }
                             | DescriptorStoredOrigin::Empty
+                            | DescriptorStoredOrigin::Carried
                             | DescriptorStoredOrigin::Provider(_)
                             | DescriptorStoredOrigin::AccessFormation { .. } => {
                                 continue;
@@ -1245,7 +1292,8 @@ pub(crate) mod analysis {
                                 .canonical_storage(machine, before, &source, None)?,
                             destination.clone(),
                         );
-                        if matches!(origin, DescriptorStoredOrigin::Parameter { .. })
+                        if spatial
+                            && matches!(origin, DescriptorStoredOrigin::Parameter { .. })
                             && let Some(rules) = residence_rules.as_deref_mut()
                         {
                             let source_type = descriptor_location_type(
@@ -1260,7 +1308,8 @@ pub(crate) mod analysis {
                             }
                         }
                         step.derivations.push(pair.clone());
-                        if strong
+                        if spatial
+                            && strong
                             && match origin {
                                 DescriptorStoredOrigin::Parameter { projection, .. } => {
                                     projection.exact
@@ -4394,10 +4443,21 @@ pub(crate) mod engine {
                 };
                 if let Some(query) = query {
                     let structural_type = *machine.place_types.get(&binding.parameter.root)?;
-                    let mut captured = Slots::from([(
-                        binding.parameter.clone(),
-                        self.read_contents_with_depth(machine, before, &query, reads),
-                    )]);
+                    // A borrowed header names the actual's storage, rather
+                    // than a copied descriptor value held in that storage.
+                    // Capture before installing any destination names.
+                    let value = if binding.access != StructuralAccess::Owned
+                        && !is_descriptor(self.types.iter(), structural_type)
+                    {
+                        binding.source.exact_location().and_then(|source| {
+                            self.canonical_storage(machine, before, source, None)
+                                .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
+                        })
+                    } else {
+                        self.read_contents_with_depth(machine, before, &query, reads)
+                    };
+                    let mut captured = Slots::from([(binding.parameter.clone(), value)]);
+
                     for slot in self.slot_kind.owned_slots(
                         self.types,
                         binding.parameter.root,
@@ -4653,6 +4713,10 @@ pub(crate) mod engine {
                                 let mut origins = BTreeSet::new();
                                 let mut known = true;
                                 for origin in &slot.origins {
+                                    if matches!(origin, DescriptorStoredOrigin::Carried) {
+                                        origins.insert(Origin::Storage(destination.clone()));
+                                        continue;
+                                    }
                                     match self.substitute_result_with_depth(
                                         machine, &before, call, origin, &reads,
                                     ) {
@@ -4939,6 +5003,9 @@ pub(crate) mod engine {
                 DescriptorStoredOrigin::Empty => Some(BTreeSet::from([Origin::Backing(
                     DescriptorCallOrigin::Empty,
                 )])),
+                // Only the caller's result slot can name the moved roster;
+                // the returned-slot replay installs it before substitution.
+                DescriptorStoredOrigin::Carried => None,
                 DescriptorStoredOrigin::Literal { machine, place } => {
                     Some(BTreeSet::from([Origin::Backing(
                         DescriptorCallOrigin::Literal {
@@ -4989,6 +5056,98 @@ pub(crate) mod engine {
                 }
             }
         }
+        /// Export what backs one returned slot. A sequence this body built
+        /// owns its element roster (structural_access.md, "Complete
+        /// structural array construction"), so moving it into the result
+        /// moves that backing with it: the caller receives storage of its
+        /// own, not a loan of this body's frame. That holds only while
+        /// nothing in the roster borrows: an element holding a caller's
+        /// view keeps that loan, so such a slot exports as before and the
+        /// call is refused rather than losing the loan.
+        pub(crate) fn exported_result(
+            &self,
+            machine: &DescriptorMachine,
+            states: &States,
+            origin: &Origin,
+            slot: &DescriptorLocation,
+        ) -> Option<DescriptorStoredOrigin> {
+            if let Origin::Storage(backing) = origin
+                && self.owns_roster(machine, slot)
+                && self.roster_holds_no_loan(machine, states, backing, 0)
+            {
+                return Some(DescriptorStoredOrigin::Carried);
+            }
+            self.exported(machine, origin)
+        }
+
+        /// An owned sequence that cannot be copied, so its roster has one
+        /// holder. A copied descriptor would share the body's storage.
+        fn owns_roster(&self, machine: &DescriptorMachine, location: &DescriptorLocation) -> bool {
+            machine
+                .location_type(self.types, location, None)
+                .and_then(|ty| find_structural_type(self.types, ty))
+                .is_some_and(|declaration| {
+                    !declaration.copyable
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ElementView { access: None, .. }
+                        )
+                })
+        }
+
+        /// `backing` is a sequence this body constructed, and every element
+        /// it was built from is backed only by literals, empty views or
+        /// further such sequences, as they stood at the construction.
+        fn roster_holds_no_loan(
+            &self,
+            machine: &DescriptorMachine,
+            states: &States,
+            backing: &DescriptorLocation,
+            depth: usize,
+        ) -> bool {
+            if depth > 64
+                || !backing.path.is_empty()
+                || self.parameter(machine, backing.root).is_some()
+                || !self.owns_roster(machine, backing)
+            {
+                return false;
+            }
+            let Some((producer, _, step)) =
+                machine.sequence_construction(self.types, backing.root, None)
+            else {
+                return false;
+            };
+            let Some(state) = states.get(&producer) else {
+                return false;
+            };
+            step.inputs.iter().all(|element| {
+                let Some(slots) = machine
+                    .location_type(self.types, element, None)
+                    .and_then(|ty| self.slot_kind.owned_slots(self.types, element.root, ty))
+                else {
+                    return false;
+                };
+                slots.into_iter().all(|mut slot| {
+                    let mut path = element.path.clone();
+                    path.append(&mut slot.path);
+                    slot.path = path;
+                    self.read(machine, state, &slot).is_some_and(|origins| {
+                        !origins.is_empty()
+                            && origins.iter().all(|origin| match origin {
+                                Origin::Backing(
+                                    DescriptorCallOrigin::Literal { .. }
+                                    | DescriptorCallOrigin::Empty,
+                                ) => true,
+                                Origin::Storage(inner) => {
+                                    self.roster_holds_no_loan(machine, states, inner, depth + 1)
+                                }
+                                _ => false,
+                            })
+                    })
+                })
+            })
+        }
+
         pub(crate) fn exported(
             &self,
             machine: &DescriptorMachine,
@@ -5133,7 +5292,8 @@ pub(crate) mod engine {
                             return None;
                         }
                         for origin in origins {
-                            slot.origins.push(self.exported(machine, &origin)?);
+                            slot.origins
+                                .push(self.exported_result(machine, &states, &origin, &location)?);
                         }
                     }
                 }
@@ -6379,7 +6539,7 @@ pub(crate) mod provider {
         ) -> Option<DescriptorProviderOrigin<Mapped>> {
             Some(DescriptorProviderOrigin {
                 boundary: self.boundary,
-                output: self.output,
+                output: self.output.clone(),
                 invocations: self.invocations.clone(),
                 projection: self.projection.clone(),
                 lifetime_dependencies: self
@@ -6431,7 +6591,7 @@ pub(crate) mod provider {
             Some(BTreeSet::from([Origin::Provider(
                 DescriptorProviderOrigin {
                     boundary: provider.boundary,
-                    output: provider.output,
+                    output: provider.output.clone(),
                     invocations,
                     projection: provider.projection.clone(),
                     lifetime_dependencies: dependencies.into_iter().collect(),
@@ -6574,6 +6734,10 @@ pub enum DescriptorStoredOrigin {
         machine: MachineId,
         place: PlaceId,
     },
+    /// An owned sequence the callee built and returned: its roster moved
+    /// with the result, so the caller's result slot is its own backing.
+    /// Only a returned slot carries it; no stored effect does.
+    Carried,
 }
 impl DescriptorStoredOrigin {
     pub fn captured_entry_slot(
@@ -6683,9 +6847,9 @@ fn result_origin(
             carrier_type,
             projection,
         }),
-        DescriptorStoredOrigin::AccessFormation { .. } | DescriptorStoredOrigin::Provider(_) => {
-            None
-        }
+        DescriptorStoredOrigin::AccessFormation { .. }
+        | DescriptorStoredOrigin::Provider(_)
+        | DescriptorStoredOrigin::Carried => None,
         DescriptorStoredOrigin::Empty => Some(DescriptorResultOrigin::Empty),
         DescriptorStoredOrigin::Parameter {
             position,

@@ -1364,7 +1364,7 @@ mod stored_calls {
         ) -> Option<target_operations::TargetReferenceOrigin> {
             let (referent, access) = *self
                 .provider_outputs
-                .get(&(provider.boundary, provider.output))?;
+                .get(&(provider.boundary, provider.output.stored_output()?))?;
             if provider.invocations.is_empty()
                 || !provider.projection.exact
                 || provider.projection.indirect
@@ -1376,7 +1376,7 @@ mod stored_calls {
             Some(target_operations::TargetReferenceOrigin {
                 base: target_operations::TargetReferenceOriginBase::Provider {
                     boundary: provider.boundary,
-                    output: provider.output,
+                    output: provider.output.stored_output()?,
                     invocations: provider
                         .invocations
                         .iter()
@@ -1447,7 +1447,7 @@ mod stored_calls {
                 "CHECKSITE stored-reference-origin machine={machine:?} kind=access-formation owner={owner:?} operation={operation:?} place={place:?} carrier={carrier:?} projection={projection:?}"
             ),
             DescriptorStoredOrigin::Provider(provider) => eprintln!(
-                "CHECKSITE stored-reference-origin machine={machine:?} kind=provider boundary={:?} output={} invocations={:?} projection={:?} lifetime_dependencies={}",
+                "CHECKSITE stored-reference-origin machine={machine:?} kind=provider boundary={:?} output={:?} invocations={:?} projection={:?} lifetime_dependencies={}",
                 provider.boundary,
                 provider.output,
                 provider.invocations,
@@ -1462,6 +1462,9 @@ mod stored_calls {
             ),
             DescriptorStoredOrigin::Empty => {
                 eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=empty")
+            }
+            DescriptorStoredOrigin::Carried => {
+                eprintln!("CHECKSITE stored-reference-origin machine={machine:?} kind=carried")
             }
         }
     }
@@ -1534,7 +1537,7 @@ mod stored_calls {
                 if let AbstractOperation::BoundaryCall { psi_operation, boundary, .. } = &node.operation
                     && let Some(selected) = selected_calls.get(&(function.machine, (*psi_operation).into(), *boundary))
                 {
-                    return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions)
+                    return super::super::selected_boundary_calls::resolve(&node.operation, selected, functions.get(&selected.callee).copied())
                         .ok().map(|(operation, _)| Cow::Owned(operation));
                 }
                 Some(Cow::Borrowed(&node.operation))
@@ -1686,6 +1689,7 @@ mod stored_calls {
                             | DescriptorStoredOrigin::IncomingContents { .. } => return Err("stored-reference captured incoming contents have no physical metadata conversion"),
                             DescriptorStoredOrigin::Literal { .. } => return Err("stored-reference literal origin has no physical metadata conversion"),
                             DescriptorStoredOrigin::AccessFormation { .. } => return Err("stored-reference access formation has no physical metadata conversion"),
+                            DescriptorStoredOrigin::Carried => return Err("stored-reference carried sequence roster has no physical metadata conversion"),
                         }
                     }
                     sources.sort();

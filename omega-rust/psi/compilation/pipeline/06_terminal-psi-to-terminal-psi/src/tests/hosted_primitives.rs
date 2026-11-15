@@ -198,7 +198,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
         .unwrap();
     assert!(!actual.same_identity_as(module, moved, &absent));
 
-    for mutation in 0..6 {
+    for mutation in 0..7 {
         let mut changed = module.clone();
         if mutation == 5 {
             changed
@@ -227,6 +227,12 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
             3 => boundary.result = terminal_psi::BoundaryMachineResult::Unit,
             4 => boundary.scalar_parameters.clear(),
             5 => {}
+            6 => {
+                boundary.result_lifetimes = match canonical.result_lifetimes {
+                    None => Some(Vec::new()),
+                    Some(_) => None,
+                };
+            }
             _ => unreachable!(),
         }
         let encoded = terminal_codec::ClosedTerminalModule::new(changed).unwrap();

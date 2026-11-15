@@ -1124,9 +1124,9 @@ pub(crate) mod structural_signature_wire {
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
         Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Field, Flag, Id,
-        Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, OptionalId, PathQualification,
-        ProjectionIdentity, Proposition, QualificationPath, QualificationSet, ReachArgument,
-        Scalar, Text, U32, U64, wire_enum, wire_record,
+        Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, Optional, OptionalId,
+        PathQualification, ProjectionIdentity, Proposition, QualificationPath, QualificationSet,
+        ReachArgument, Scalar, Text, U32, U64, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
     use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
@@ -1250,6 +1250,7 @@ pub(crate) mod structural_signature_wire {
             structural_parameters: List<StructuralParameter>,
             result: CallResult,
             result_reference_regions: ReferenceRegions,
+            result_lifetimes: Optional<List<crate::module_wire::closed_conformance_wire::ResultLifetime>>,
             requires: List<DomainRequirement>,
             normal_qualifications: List<DomainRequirement>,
             scalar_domain_requirements: List<ScalarDomain>,

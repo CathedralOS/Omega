@@ -84,6 +84,7 @@ pub(super) fn source_sequence_view(
         } else {
             lexical_owner
         };
+        super::places::reference_lifetime_declared(typed, machine, reference, owner)?;
         typed_trees::type_identity::applied_type_identity_in_region_scope(
             typed,
             reference,
@@ -123,7 +124,9 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    pub(super) fn array_view(
+    /// Borrow a byte range using the backing's shape. Existing byte views
+    /// retain that view's region and endpoint proofs through `byte_subslice`.
+    pub(super) fn borrowed_byte_range(
         &mut self,
         machine: MachineId,
         slots: &[Slot],
@@ -175,11 +178,6 @@ impl Program<'_> {
                 "array view access differs from its explicit borrow",
             ));
         }
-        if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
-            return Err(unavailable(
-                "partial array views need their endpoint and window correspondence",
-            ));
-        }
         let mut base = self.expression(machine, slots, indexed.collection, None)?;
         if let Some((referent, _)) = self.reference_referent(
             machine,
@@ -193,13 +191,34 @@ impl Program<'_> {
                 result: Some(referent),
             };
         }
+        let Some(backing_type @ ValueType::Record(backing, _, _)) = base.result else {
+            return Err(unavailable("array view without a plain closed u8 array"));
+        };
+        if self.is_readable_byte_view(machine, backing)? {
+            if requested != StructuralAccess::SharedBorrow {
+                return Err(unavailable("byte range with a mutable borrow"));
+            }
+            self.authorized(machine, backing_type, Access::Read)?;
+            return self
+                .byte_subslice(machine, slots, base, range, borrow.target, source)
+                .map(Some);
+        }
+        // A partial range of fixed storage is the window of the whole-array
+        // loan: the loan keeps the backing's exact extent `N`, and the
+        // window's `start <= end <= N` legs are checked against that loan's
+        // own length like any other byte subslice (byte_views.md, "Source
+        // correspondence"). A writable window would need a live mutable
+        // subslice descriptor, which that vocabulary does not admit.
+        let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
+        if partial && requested != StructuralAccess::SharedBorrow {
+            return Err(unavailable(
+                "mutable partial array views need a live mutable subslice descriptor",
+            ));
+        }
         let element = self
             .byte_array_element(base.result)
             .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?;
-        let Some(ValueType::Record(array, _, _)) = base.result else {
-            unreachable!()
-        };
-        self.byte_range_selection(machine, borrow.target, array)?;
+        self.byte_range_selection(machine, borrow.target, backing)?;
         let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
@@ -214,7 +233,7 @@ impl Program<'_> {
         }
         self.authorized(
             machine,
-            base.result.unwrap(),
+            backing_type,
             if borrow.access == ReferenceAccess::Mutable {
                 Access::Write
             } else {
@@ -227,7 +246,7 @@ impl Program<'_> {
         let regions = self.storage_loan_regions(machine, slots, &base)?;
         // The source array and its own type stay on the operand. The result
         // is a descriptor with the actual backing's lifetime, not the context's.
-        Ok(Some(Expression {
+        let whole = Expression {
             call_context: None,
             kind: ExpressionKind::ArrayView {
                 base: Box::new(base),
@@ -236,7 +255,13 @@ impl Program<'_> {
             },
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
-        }))
+        };
+        if partial {
+            return self
+                .byte_window(machine, slots, whole, range, source)
+                .map(Some);
+        }
+        Ok(Some(whole))
     }
 
     pub(super) fn array_literal(

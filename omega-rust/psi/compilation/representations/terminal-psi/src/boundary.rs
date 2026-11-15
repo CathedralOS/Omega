@@ -865,6 +865,10 @@ pub(crate) mod declarations {
         pub structural_parameters: Vec<StructuralParameterDeclaration>,
         pub result: BoundaryMachineResult,
         pub result_reference_regions: Vec<crate::TerminalDynamicReferenceRegion>,
+        /// Declared logical lifetime membership, independent of spatial
+        /// containment in an input. `None` leaves the frontier unavailable;
+        /// an empty input group promises a caller-chosen provider result.
+        pub result_lifetimes: Option<Vec<crate::DeclaredResultLifetime>>,
         pub requires: Vec<StructuralDomainRequirement>,
         pub normal_qualifications: Vec<StructuralDomainRequirement>,
         pub scalar_domain_requirements: Vec<ScalarDomainRequirement>,

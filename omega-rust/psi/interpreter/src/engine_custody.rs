@@ -1720,6 +1720,31 @@ pub(crate) fn consume_affine_projection(
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     argument: &StructuralArgument,
 ) -> Result<(), TerminalInterpretError> {
+    if !consume_affine_projection_if_present(
+        structural_types,
+        values,
+        structural_cases,
+        frontier,
+        argument,
+    )? {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    Ok(())
+}
+
+pub(crate) fn consume_affine_projection_if_present(
+    structural_types: &crate::embedding::program::ProgramDeclarations<
+        '_,
+        StructuralTypeDeclaration,
+    >,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    argument: &StructuralArgument,
+) -> Result<bool, TerminalInterpretError> {
     let root = crate::engine::custody::verified_structural_place(values, argument.place)?;
     crate::boundary::structural_inputs::case_membership::validate_case_projection(
         structural_types,
@@ -1735,7 +1760,7 @@ pub(crate) fn consume_affine_projection(
         })
         .cloned()
     else {
-        return Err(TerminalInterpretError::AffineFrontierMismatch);
+        return Ok(false);
     };
     if containing.path.is_empty() && containing.structural_type != root.structural_type {
         return Err(TerminalInterpretError::AffineFrontierMismatch);
@@ -1755,7 +1780,8 @@ pub(crate) fn consume_affine_projection(
         containing,
         &argument.path,
         &case_membership,
-    )
+    )?;
+    Ok(true)
 }
 
 fn cleanup_field_type(

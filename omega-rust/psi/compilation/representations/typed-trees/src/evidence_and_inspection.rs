@@ -747,6 +747,7 @@ pub mod evidence {
         pub struct RankingExpressionCustody {
             pub machine: symbols::SymbolHandle,
             pub subjects: Vec<ExpressionHandle>,
+            pub view: language_semantics::RankingViewSelection,
             pub view_arguments: Vec<ExpressionHandle>,
             pub rank_range: Option<ExpressionHandle>,
         }

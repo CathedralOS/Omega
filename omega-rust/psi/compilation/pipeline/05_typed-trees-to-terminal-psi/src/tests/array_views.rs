@@ -149,3 +149,105 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
                 if *exact == captured && *loan_access == access)));
     }
 }
+
+// `&items[1..3]` over a fixed `[u8; 3]` is the window of the whole-array
+// loan: the subslice measures that exact loan and carries its own endpoint
+// obligation, rather than trusting the authored endpoints.
+#[test]
+fn direct_array_windows_check_endpoints_against_the_whole_loan() {
+    let array = ValueType::record(id(2));
+    let view = ValueType::record(id(3));
+    let count = ValueType::plain(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+    ));
+    let endpoint = |value| {
+        Box::new(of_type(
+            ExpressionKind::Integer(IntegerValue::Unsigned(value)),
+            count,
+        ))
+    };
+    let whole = of_type(
+        ExpressionKind::ArrayView {
+            base: Box::new(of_type(ExpressionKind::Slot(0), array)),
+            access: ReferenceAccess::Shared,
+            element: id(1),
+        },
+        view,
+    );
+    let window = of_type(
+        ExpressionKind::ByteSubslice {
+            base: Box::new(whole),
+            start: Some(endpoint(1)),
+            end: Some(endpoint(3)),
+        },
+        view,
+    );
+    let statements = vec![
+        bind(1, window),
+        Statement::Arm {
+            guard: None,
+            target: Target::Unit,
+            source: nowhere(),
+        },
+    ];
+    let mut signatures = IdTable::default();
+    signatures.push(shaped(vec![array], None));
+    let mut outcomes = IdTable::default();
+    outcomes.push(returns_normally());
+    let lowered = lower_records(
+        Body {
+            slots: vec![array, view],
+            statements,
+        },
+        &signatures,
+        &outcomes,
+        &array_types(StructuralAccess::SharedBorrow),
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    let operations: Vec<_> = lowered
+        .machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect();
+    let loan = operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishElementView {
+                    region: ElementViewRegion::WholeCollection,
+                    ..
+                }
+            )
+        })
+        .expect("the window borrows the whole array");
+    let loaned = produced(loan);
+    let measured = operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::ByteSequenceLength { source } => Some(source.place),
+            _ => None,
+        })
+        .expect("the window measures its loan");
+    let (source, obligation) = operations
+        .iter()
+        .find_map(|operation| match &operation.kind {
+            OperationKind::ByteSequenceSubslice {
+                source, obligation, ..
+            } => Some((source.place, *obligation)),
+            _ => None,
+        })
+        .expect("the window is a checked subslice");
+    assert_eq!(measured, loaned);
+    assert_eq!(source, loaned);
+    assert!(matches!(
+        lowered
+            .tables
+            .obligations
+            .get(obligation)
+            .map(|row| row.kind),
+        Some(ObligationKind::OperationSafety { .. })
+    ));
+}

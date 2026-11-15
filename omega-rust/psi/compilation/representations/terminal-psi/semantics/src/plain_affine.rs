@@ -85,6 +85,14 @@ pub struct Plan {
     /// replaces intact discardable contents. Sorted by operation identity.
     pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
+    pub reference_ends: Vec<ReferenceEnd>,
+}
+
+#[derive(Debug)]
+pub struct ReferenceEnd {
+    pub at: crate::descriptor_lifetimes::DescriptorPosition,
+    pub source: StructuralArgument,
+    pub structural_type: StructuralTypeId,
 }
 
 /// `base` describes children not overridden in the trie. A partially moved
@@ -284,6 +292,8 @@ struct Analysis<'a> {
     references: Option<crate::descriptor_results::DescriptorAnalysis<'a>>,
     machine: Option<semantic_vocabulary::MachineId>,
     position: Option<crate::descriptor_lifetimes::DescriptorPosition>,
+    reference_candidates: Option<&'a crate::reference_ends::Candidates>,
+    reference_ends: Vec<ReferenceEnd>,
 }
 
 fn index(raw: u64) -> Result<usize, Error> {
@@ -342,7 +352,106 @@ fn terminator_roots(terminator: &terminal_psi::Terminator) -> Vec<PlaceId> {
     }
 }
 
-fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error> {
+/// A carrier's use also keeps its original storage alive. Descriptor homes
+/// and their backing are different owners: disposing the latter just because
+/// its authored name is dead invalidates a still-live reference.
+fn reference_backing_uses(
+    types: &[StructuralTypeDeclaration],
+    graph: &crate::descriptor_results::DescriptorMachine,
+    references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    candidates: Option<&crate::reference_ends::Candidates>,
+) -> Result<
+    std::collections::BTreeMap<crate::descriptor_lifetimes::DescriptorPosition, IdSet<PlaceId>>,
+    Error,
+> {
+    use crate::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
+    use crate::descriptor_results::{DescriptorSlotKind, FlowFeasibility};
+    let mut uses = std::collections::BTreeMap::new();
+    for (at, step) in &graph.flow {
+        let mut inputs = step.inputs.clone();
+        for candidate in candidates
+            .and_then(|candidates| candidates.get(at))
+            .into_iter()
+            .flatten()
+        {
+            let argument = &candidate.argument;
+            let ty = *graph
+                .place_types
+                .get(&argument.place)
+                .ok_or(Error::malformed(
+                    "reference disposition lost its source type",
+                ))?;
+            inputs.push(
+                crate::descriptor_lifetimes::descriptor_location(
+                    types,
+                    argument.place,
+                    ty,
+                    &argument.path,
+                    None,
+                )
+                .ok_or(Error::unsupported(
+                    "reference disposition has no exact source path",
+                ))?,
+            );
+        }
+        for input in inputs {
+            let ty = *graph.place_types.get(&input.root).ok_or(Error::malformed(
+                "reference observation lost its source type",
+            ))?;
+            let slots = DescriptorSlotKind::References
+                .owned_slots(types, input.root, ty)
+                .ok_or(Error::unsupported(
+                    "reference observation has no finite owned slots",
+                ))?;
+            'slots: for mut slot in slots {
+                if !input.contains(&slot) && !slot.contains(&input) {
+                    continue;
+                }
+                for (position, segment) in slot.path.iter().enumerate() {
+                    let DescriptorPathSegment::Case(case) = segment else {
+                        continue;
+                    };
+                    let predicate = crate::descriptor_results::DescriptorCasePredicate {
+                        subject: DescriptorLocation {
+                            root: slot.root,
+                            path: slot.path[..position].to_vec(),
+                        },
+                        case: *case,
+                    };
+                    if references.case_feasibility(graph.id, *at, &predicate)
+                        == FlowFeasibility::ProvedImpossible
+                    {
+                        continue 'slots;
+                    }
+                }
+                slot.path.push(DescriptorPathSegment::Referent);
+                let source =
+                    references
+                        .location(graph.id, *at, &slot)
+                        .ok_or(Error::unsupported(
+                            "reference observation has no exact live backing",
+                        ))?;
+                if !graph.place_types.contains_key(&source.root) {
+                    return Err(Error::malformed("reference backing is outside its machine"));
+                }
+                uses.entry(*at)
+                    .or_insert_with(IdSet::new)
+                    .insert(source.root);
+            }
+        }
+    }
+    Ok(uses)
+}
+
+fn live_entries(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
+    reference_backing: &std::collections::BTreeMap<
+        crate::descriptor_lifetimes::DescriptorPosition,
+        IdSet<PlaceId>,
+    >,
+) -> Result<Vec<IdSet<PlaceId>>, Error> {
     let mut live = vec![IdSet::new(); machine.blocks.len()];
     loop {
         let mut changed = false;
@@ -364,7 +473,12 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
             for root in terminator_roots(&block.terminator) {
                 before.insert(valid(root)?);
             }
-            for operation in block.operations.iter().rev() {
+            let end = u32::try_from(block.operations.len())
+                .map_err(|_| Error::malformed("reference observation position overflows"))?;
+            if let Some(backing) = reference_backing.get(&(block.id, end)) {
+                before.union_with(backing);
+            }
+            for (position, operation) in block.operations.iter().enumerate().rev() {
                 if let Some(result) = operation.result.as_structural() {
                     before.remove(valid(result.place)?);
                 }
@@ -376,8 +490,38 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
                 {
                     before.insert(valid(used)?);
                 }
+                // A planned release is a real future use of its owned
+                // descriptor home. Keep that home until the planner can emit
+                // it; otherwise edge cleanup could close a parent while its
+                // child still runs. The final verifier reads emitted uses.
+                let position = u32::try_from(position)
+                    .map_err(|_| Error::malformed("reference end position overflows"))?;
+                if let Some(backing) = reference_backing.get(&(block.id, position)) {
+                    before.union_with(backing);
+                }
+                for candidate in reference_candidates
+                    .and_then(|candidates| candidates.get(&(block.id, position)))
+                    .into_iter()
+                    .flatten()
+                {
+                    before.insert(valid(candidate.argument.place)?);
+                }
             }
             for parameter in &block.structural_parameters {
+                if parameter.access != StructuralAccess::Owned
+                    && before.contains(parameter.place)
+                    && !crate::descriptor_results::is_descriptor(
+                        types.iter(),
+                        parameter.structural_type,
+                    )
+                {
+                    // The new name still borrows the captured home. Keep its
+                    // original owners until the last use of that name.
+                    let captures = crate::storage_names(machine, block.id, parameter.place);
+                    for root in captures.captured_roots() {
+                        before.insert(valid(root)?);
+                    }
+                }
                 before.remove(valid(parameter.place)?);
             }
             let old = live
@@ -399,7 +543,7 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
 /// Nominal hooks, conserved claims and borrowed extraction require their own
 /// contracts, rather than an empty plan.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    analyze(machine, types, false, None)
+    analyze(machine, types, false, None, None)
 }
 
 /// Resolve destructive reference paths with the same descriptor graph as
@@ -409,7 +553,25 @@ pub fn plan_in(
     identity: semantic_vocabulary::MachineId,
 ) -> Result<Plan, Error> {
     let machine = module_machine(module, identity)?;
-    analyze(machine, &module.structural_types, false, Some(module))
+    analyze(machine, &module.structural_types, false, Some(module), None)
+}
+
+/// Resolve dead descriptor candidates against the same exact ownership frontier
+/// that supplies residual cleanup. Moved or already disposed leaves are not
+/// released again, and borrowed descriptor storage never grants disposition.
+pub fn plan_reference_ends(
+    module: &terminal_psi::TerminalModule,
+    identity: semantic_vocabulary::MachineId,
+    candidates: &crate::reference_ends::Candidates,
+) -> Result<Plan, Error> {
+    let machine = module_machine(module, identity)?;
+    analyze(
+        machine,
+        &module.structural_types,
+        false,
+        Some(module),
+        Some(candidates),
+    )
 }
 
 /// Reconstructs the canonical schedule without trusting the supplied actions.
@@ -419,7 +581,7 @@ pub fn verify(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Plan, Error> {
-    verify_schedule(machine, analyze(machine, types, true, None)?)
+    verify_schedule(machine, analyze(machine, types, true, None, None)?)
 }
 
 /// The receiving checker reconstructs both the exact backing and its schedule.
@@ -430,7 +592,7 @@ pub fn verify_in(
     let machine = module_machine(module, identity)?;
     verify_schedule(
         machine,
-        analyze(machine, &module.structural_types, true, Some(module))?,
+        analyze(machine, &module.structural_types, true, Some(module), None)?,
     )
 }
 
@@ -496,6 +658,7 @@ fn analyze(
     types: &[StructuralTypeDeclaration],
     bound_output: bool,
     module: Option<&terminal_psi::TerminalModule>,
+    reference_candidates: Option<&crate::reference_ends::Candidates>,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::TerminalMachineResult;
@@ -681,12 +844,13 @@ fn analyze(
                     .ok_or(Error::malformed(
                         "block parameter place has no exact destination header",
                     ))?;
-                if parameter.access != StructuralAccess::Owned {
-                    return Err(Error::unsupported(
-                        "borrowed structural block parameter storage",
-                    ));
-                }
-                (parameter.structural_type, true, false)
+                // A block binding changes the name of the incoming storage,
+                // not its owner. Borrowed referents stay outside cleanup.
+                (
+                    parameter.structural_type,
+                    parameter.access == StructuralAccess::Owned,
+                    false,
+                )
             }
             StructuralPlaceKind::ProviderAttachment { .. } => {
                 return Err(Error::unsupported("affine provider storage"));
@@ -730,12 +894,27 @@ fn analyze(
                 ));
             }
         }
+        if contracts[roots.len()].is_none() {
+            let multiplicity = if declaration.copyable {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else if declaration.owns_linear_claim {
+                terminal_psi::StructuralMultiplicity::Linear
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            };
+            contracts[roots.len()] = Some((ty, multiplicity, StructuralAccess::Owned, None));
+        }
         // Fresh permission ownership also owes a disposition; copyability
         // only permits later copies, not forgetting this producing root.
         let tracked = !declaration.copyable
+            || terminal_psi::structural_type_contains_reference_by(
+                |id| terminal_psi::find_structural_type(types, id),
+                ty,
+            )
             || required_result.is_some_and(|multiplicity| {
                 multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             });
+
         if tracked
             && (declaration.owns_linear_claim
                 || !declaration.no_code_affine_cleanup
@@ -761,8 +940,22 @@ fn analyze(
             exclusive,
         }));
     }
-    // Copy permission does not erase an explicitly destructive window. Even
-    // an untracked carrier's window must reach its governing check or refusal.
+    // Access is independent of whether the referent has affine contents.
+    // Check every successor telescope before the copyable-storage fast path.
+    for block in &machine.blocks {
+        let successors = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        if successors.len() != arguments.len() {
+            return Err(Error::malformed(
+                "successor bindings have no complete edge roster",
+            ));
+        }
+        for ((edge, target), arguments) in successors.into_iter().zip(arguments) {
+            validate_successor(machine, types, &contracts, target, arguments)
+                .map_err(|error| error.at(Site::Edge(edge)))?;
+        }
+    }
+    // Copy permission does not erase an explicitly destructive window.
     if roots.iter().all(Option::is_none) && !has_borrowed_windows {
         return Ok(Plan {
             copyable_owned_roots,
@@ -777,7 +970,6 @@ fn analyze(
             );
         }
     }
-    let live = live_entries(machine)?;
     let regions = roots
         .iter()
         .map(|root| {
@@ -802,7 +994,12 @@ fn analyze(
     if first >= machine.blocks.len() {
         return Err(Error::malformed("entry block is outside the machine"));
     }
-    let needs_backing = machine.operations().any(|operation| {
+    let needs_backing = roots.iter().flatten().any(|root| {
+        terminal_psi::structural_type_contains_reference_by(
+            |id| types.iter().find(|declaration| declaration.id == id),
+            root.structural_type,
+        )
+    }) || machine.operations().any(|operation| {
         matches!(
             &operation.kind,
             terminal_psi::OperationKind::MoveStructuralField { path, .. }
@@ -811,13 +1008,26 @@ fn analyze(
     });
     let reference_graph = if needs_backing {
         let module = module.ok_or(Error::unsupported(
-            "a borrowed reference window requires its module's exact backing",
+            "reference storage requires its module's exact backing",
         ))?;
         crate::descriptor_results::terminal_reference_graph_from(module, [machine.id])
-            .map_err(|_| Error::unsupported("a borrowed window has no reference closure"))?
+            .map_err(|_| Error::unsupported("reference storage has no complete closure"))?
     } else {
         Vec::new()
     };
+    let mut references = needs_backing.then(|| {
+        crate::descriptor_results::DescriptorAnalysis::with_reference_slots(types, &reference_graph)
+    });
+    let backing = if let Some(references) = &mut references {
+        let graph = reference_graph
+            .iter()
+            .find(|graph| graph.id == machine.id)
+            .ok_or(Error::malformed("reference storage lost its machine graph"))?;
+        reference_backing_uses(types, graph, references, reference_candidates)?
+    } else {
+        Default::default()
+    };
+    let live = live_entries(machine, types, reference_candidates, &backing)?;
     let mut analysis = Analysis {
         types,
         roots,
@@ -825,14 +1035,11 @@ fn analyze(
         unavailable_roots: Vec::new(),
         stores: Vec::new(),
         verify_stores: bound_output,
-        references: needs_backing.then(|| {
-            crate::descriptor_results::DescriptorAnalysis::with_reference_slots(
-                types,
-                &reference_graph,
-            )
-        }),
+        references,
         machine: Some(machine.id),
         position: None,
+        reference_candidates,
+        reference_ends: Vec::new(),
     };
     // Each block is entered with the frontier every arrival agrees on
     // (ownership.md, "Paths and control flow": predecessor paths must agree
@@ -867,6 +1074,7 @@ fn analyze(
         }
     }
     analysis.unavailable.clear();
+    analysis.reference_ends.clear();
     analysis.unavailable_roots = vec![None; analysis.roots.len()];
     let mut cleanup = Vec::new();
     for block in &machine.blocks {
@@ -901,10 +1109,128 @@ fn analyze(
         cleanup,
         stores: analysis.stores,
         unavailable: analysis.unavailable,
+        reference_ends: analysis.reference_ends,
     })
 }
 
+/// A successor may attenuate an existing permission, never invent one from
+/// the destination's desired header. Custody and referent access are separate:
+/// owning a shared descriptor still grants only its retained shared access.
+fn validate_successor(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    contracts: &[Option<(
+        StructuralTypeId,
+        terminal_psi::StructuralMultiplicity,
+        StructuralAccess,
+        Option<terminal_psi::StructuralMultiplicity>,
+    )>],
+    target: semantic_vocabulary::BlockId,
+    arguments: &[StructuralArgument],
+) -> Result<(), Error> {
+    let target = machine
+        .blocks
+        .get(index(target.get())?)
+        .filter(|block| block.id == target)
+        .ok_or(Error::malformed("successor target is outside the machine"))?;
+    if target.structural_parameters.len() != arguments.len() {
+        return Err(Error::malformed(
+            "structural successor arguments differ from the target telescope",
+        ));
+    }
+    for (position, (argument, parameter)) in arguments
+        .iter()
+        .zip(&target.structural_parameters)
+        .enumerate()
+    {
+        if usize::try_from(parameter.position).ok() != Some(position)
+            || !terminal_psi::structural_access_covers(argument.access, parameter.access)
+        {
+            return Err(Error::malformed(
+                "structural successor parameter has no exact access or position",
+            ));
+        }
+        let (source, multiplicity, access, _) = contracts
+            .get(index(argument.place.get())?)
+            .copied()
+            .flatten()
+            .ok_or(Error::malformed(
+                "structural successor argument has no actual source declaration",
+            ))?;
+        if crate::runtime_structural_path_tip(types.iter(), source, &argument.path)
+            .is_none_or(|selected| selected.id != parameter.structural_type)
+        {
+            return Err(Error::malformed(
+                "structural successor argument differs from its parameter type",
+            ));
+        }
+        if parameter.access != StructuralAccess::Owned {
+            let requested = if argument.access == StructuralAccess::Owned {
+                if access != StructuralAccess::Owned {
+                    return Err(Error::malformed(
+                        "borrowed successor cannot claim ownership of its actual source",
+                    ));
+                }
+                parameter.access
+            } else {
+                argument.access
+            };
+            if !crate::reference_source_projection_accessible(
+                types.iter(),
+                source,
+                multiplicity,
+                access,
+                &argument.path,
+                requested,
+            ) {
+                return Err(Error::malformed(
+                    "borrowed successor requests access unavailable from its actual source",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Analysis<'_> {
+    fn end_references(
+        &mut self,
+        state: &mut State,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+    ) -> Result<(), Error> {
+        let Some(candidates) = self
+            .reference_candidates
+            .and_then(|candidates| candidates.get(&at))
+        else {
+            return Ok(());
+        };
+        for candidate in candidates {
+            let argument = &candidate.argument;
+            let Some(root) = self.root(argument.place)?.filter(|root| root.owned) else {
+                continue;
+            };
+            let structural_type = root.structural_type;
+            let path = self.canonical(argument.place, &argument.path)?;
+            if !state.regions[index(argument.place.get())?]
+                .as_ref()
+                .is_some_and(|region| region.available(&path))
+            {
+                continue;
+            }
+            if candidate.unproved_case.is_some() {
+                return Err(Error::unsupported(
+                    "last-use reference disposition needs an established active case",
+                ));
+            }
+            self.vacate(state, argument.place, &path)?;
+            self.reference_ends.push(ReferenceEnd {
+                at,
+                source: argument.clone(),
+                structural_type,
+            });
+        }
+        Ok(())
+    }
     /// Walks one block from `state` and returns its normal edges, each with
     /// the frontier it carries and the disposals it performs. A root the
     /// successor does not read again is disposed of on the edge. With
@@ -926,11 +1252,13 @@ impl Analysis<'_> {
             .filter(|block| block.id == block_id)
             .ok_or(Error::malformed("block is not at its identity"))?;
         for (ordinal, operation) in block.operations.iter().enumerate() {
-            self.position = Some((
+            let at = (
                 block.id,
                 u32::try_from(ordinal)
                     .map_err(|_| Error::malformed("operation position overflows"))?,
-            ));
+            );
+            self.position = Some(at);
+            self.end_references(&mut state, at)?;
             // "Suspension must retain the exclusive loan, exact hole,
             // removed-value custody, and restoration obligation without
             // exposing the incomplete owner. Its resume and cancellation
@@ -1215,36 +1543,6 @@ impl Analysis<'_> {
             .get(index(target.get())?)
             .filter(|block| block.id == target)
             .ok_or(Error::malformed("successor target is outside the machine"))?;
-        if target.structural_parameters.len() != arguments.len() {
-            return Err(Error::malformed(
-                "structural successor arguments differ from the target telescope",
-            ));
-        }
-        for (position, (argument, parameter)) in arguments
-            .iter()
-            .zip(&target.structural_parameters)
-            .enumerate()
-        {
-            if usize::try_from(parameter.position).ok() != Some(position)
-                || !terminal_psi::structural_access_covers(argument.access, parameter.access)
-            {
-                return Err(Error::malformed(
-                    "structural successor parameter has no exact access or position",
-                ));
-            }
-            let source = machine
-                .structural_place_type(argument.place)
-                .ok_or(Error::malformed(
-                    "structural successor argument has no source type",
-                ))?;
-            if crate::runtime_structural_path_tip(self.types.iter(), source, &argument.path)
-                .is_none_or(|selected| selected.id != parameter.structural_type)
-            {
-                return Err(Error::malformed(
-                    "structural successor argument differs from its parameter type",
-                ));
-            }
-        }
         for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
             self.argument(
                 state,
@@ -2205,6 +2503,147 @@ mod tests {
         );
     }
 
+    fn borrowed_backedge(access: StructuralAccess) -> TerminalMachine {
+        let mut machine = transferring(
+            &[id(3)],
+            &[id(3)],
+            vec![StructuralArgument::whole(id(1), access)],
+        );
+        for parameter in machine
+            .contract
+            .structural_parameters
+            .iter_mut()
+            .chain(&mut machine.blocks[1].structural_parameters)
+        {
+            parameter.access = access;
+            parameter.multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+        }
+        machine.blocks[1].terminator = terminal_psi::Terminator::Jump {
+            edge: id(2),
+            target: id(2),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument::whole(id(2), access)],
+            cleanup_actions: Vec::new(),
+        };
+        machine
+    }
+
+    #[test]
+    fn a_borrowed_successor_keeps_its_owned_backing_until_the_last_use() {
+        use terminal_psi::{Operation, OperationKind, OperationResult, StructuralMultiplicity};
+        let types = reconvergence_types();
+        let mut machine = transferring(
+            &[id(3)],
+            &[id(3)],
+            vec![StructuralArgument::whole(
+                id(1),
+                StructuralAccess::SharedBorrow,
+            )],
+        );
+        let target = &mut machine.blocks[1];
+        target.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        target.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+        target.operations.push(Operation::unsuspended(
+            id(1),
+            OperationResult::Unit,
+            OperationKind::CallUnit {
+                callee: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: vec![StructuralArgument::whole(
+                    id(2),
+                    StructuralAccess::SharedBorrow,
+                )],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ));
+        let checked = plan(&machine, &types).unwrap();
+        assert!(checked.unavailable.is_empty());
+        assert!(
+            !checked.cleanup.iter().any(|(edge, actions)| *edge == id(1)
+                && actions.iter().any(|action| action.place() == id(1))),
+            "the source home must survive capture and successor use"
+        );
+        assert!(
+            checked.cleanup.iter().any(|(edge, actions)| *edge == id(2)
+                && actions.iter().any(|action| action.place() == id(1))),
+            "the original owner is disposed after its last borrowed use"
+        );
+        let terminal_psi::Terminator::Jump {
+            cleanup_actions, ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(id(1)));
+        assert!(
+            verify(&machine, &types).is_err(),
+            "cleanup cannot destroy a still-borrowed source home"
+        );
+    }
+
+    #[test]
+    fn borrowed_block_storage_survives_a_backedge_without_becoming_owned() {
+        let types = reconvergence_types();
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let mut machine = borrowed_backedge(access);
+            let checked = verify(&machine, &types).unwrap();
+            assert!(checked.unavailable.is_empty());
+            assert!(
+                checked.cleanup.is_empty(),
+                "borrowed storage is never an owned cleanup obligation"
+            );
+            let terminal_psi::Terminator::Jump {
+                cleanup_actions, ..
+            } = &mut machine.blocks[1].terminator
+            else {
+                unreachable!()
+            };
+            cleanup_actions.push(TerminalAffineCleanupAction::RetireHome(id(2)));
+            assert!(
+                verify(&machine, &types).is_err(),
+                "a backedge cannot dispose its borrowed referent"
+            );
+        }
+    }
+
+    #[test]
+    fn borrowed_successors_cannot_strengthen_actual_access_even_for_copyable_storage() {
+        for copyable in [false, true] {
+            let mut types = reconvergence_types();
+            // Use one empty record so copy permission has no nested premise.
+            for declaration in &mut types {
+                declaration.copyable = copyable;
+            }
+            let original = borrowed_backedge(StructuralAccess::SharedBorrow);
+            assert!(verify(&original, &types).unwrap().unavailable.is_empty());
+            for forged in [StructuralAccess::MutableBorrow, StructuralAccess::Owned] {
+                let mut machine = original.clone();
+                let terminal_psi::Terminator::Jump {
+                    structural_arguments,
+                    ..
+                } = &mut machine.blocks[1].terminator
+                else {
+                    unreachable!()
+                };
+                structural_arguments[0].access = forged;
+                assert!(
+                    matches!(verify(&machine, &types), Err(Error::Malformed { .. })),
+                    "the destination header cannot grant {forged:?} to a shared source"
+                );
+            }
+        }
+    }
+
     #[test]
     fn a_successor_keeps_the_transferred_field_out_of_its_sources_disposal() {
         let types = reconvergence_types();
@@ -2403,6 +2842,8 @@ mod tests {
             references: None,
             machine: None,
             position: None,
+            reference_candidates: None,
+            reference_ends: Vec::new(),
         }
     }
 

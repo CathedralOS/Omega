@@ -22,8 +22,8 @@ public data Seq<T> {
 // different order does not establish different multisets. Fix the canary
 // comments or land the sorted form before
 // any rung relies on Bag inequality.
-public data BagView {
-    items: &[u64];
+public data BagView<'items> {
+    items: &'items [u64];
 }
 
 public machine Bag(items: &[u64]) -> BagView

@@ -594,6 +594,7 @@ impl LogicalScope<'_> {
                 ensures,
                 crashes: CrashCeiling::Inferred,
                 termination: Termination::Silent,
+                ranking: None,
                 reaches: crate::Ceiling::Inferred,
                 invokes: crate::Ceiling::Inferred,
             },

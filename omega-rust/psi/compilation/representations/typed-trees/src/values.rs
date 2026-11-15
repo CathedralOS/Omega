@@ -1864,6 +1864,7 @@ pub mod expression {
                 }
                 let origin = source.table(self);
                 let source_span = origin.source_span(expression);
+                let unresolved_name = origin.unresolved_name(expression);
                 let component = origin
                     .direct_pattern_component(expression)
                     .expect("copied expression retains its component row");
@@ -2167,6 +2168,7 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
+                self.set_unresolved_name(copied, unresolved_name);
                 if carrier.is_valid() {
                     self.set_constructed_value_type_reference(copied, carrier);
                 }
@@ -3159,6 +3161,7 @@ pub mod expression {
         build_selection_requests: Arena<BuildSelectionCall>,
         expression_roots: Arena<ExpressionHandle>,
         source_spans: Vec<SourceSpan>,
+        unresolved_names: Vec<symbols::UnresolvedName>,
         pattern_components: Vec<language_core::PatternComponent>,
         /// Original checked computation of a materialized static value. This
         /// provenance edge preserves invocation custody without executing it again.
@@ -3425,32 +3428,6 @@ pub mod expression {
             Self::with_expression_capacity(0)
         }
 
-        pub fn revision(&self) -> u64 {
-            self.expressions
-                .revision()
-                .wrapping_add(self.build_selection_requests.revision())
-                .wrapping_add(self.expression_roots.revision())
-                .wrapping_add(self.authored_selection_occurrence_ids.revision())
-                .wrapping_add(self.executable_domain_test_rows.revision())
-                .wrapping_add(self.expression_handles.revision())
-                .wrapping_add(self.name_path_members.revision())
-                .wrapping_add(self.name_path_member_symbols.revision())
-                .wrapping_add(self.struct_fields.revision())
-                .wrapping_add(self.match_arms.revision())
-                .wrapping_add(self.match_fields.revision())
-                .wrapping_add(self.completed_values.revision())
-                .wrapping_add(self.match_proof_selectors.revision())
-                .wrapping_add(self.static_machine_applications.revision())
-                .wrapping_add(self.static_machine_arguments.revision())
-                .wrapping_add(self.constructed_value_types.revision())
-                .wrapping_add(self.construction_required_types.revision())
-                .wrapping_add(self.static_machine_bindings.revision())
-                .wrapping_add(self.static_machine_lifetime_bindings.revision())
-                .wrapping_add(self.source_spans.len() as u64)
-                .wrapping_add(self.authored_selection_occurrences.len() as u64)
-                .wrapping_add(self.executable_domain_tests.len() as u64)
-        }
-
         pub fn with_expression_capacity(expression_capacity: usize) -> Self {
             Self::with_expression_and_handle_capacity(expression_capacity, 0)
         }
@@ -3472,6 +3449,7 @@ pub mod expression {
                 build_selection_requests: Arena::default(),
                 expression_roots: Arena::with_capacity(capacity.expressions),
                 source_spans: Vec::with_capacity(capacity.expressions),
+                unresolved_names: Vec::with_capacity(capacity.expressions),
                 pattern_components: Vec::with_capacity(capacity.expressions),
                 materialization_sources: Vec::new(),
                 constructed_value_types: Arena::default(),
@@ -3504,6 +3482,7 @@ pub mod expression {
             self.build_selection_requests.reset_retain_capacity();
             self.expression_roots.reset_retain_capacity();
             self.source_spans.clear();
+            self.unresolved_names.clear();
             self.materialization_sources.clear();
             self.constructed_value_types.reset_retain_capacity();
             self.constructed_value_type_handles.clear();
@@ -3816,6 +3795,7 @@ pub mod expression {
             }
             self.expression_roots.insert(handle);
             self.source_spans.push(SourceSpan::default());
+            self.unresolved_names.push(Default::default());
             self.pattern_components.push(component);
             self.materialization_sources
                 .push(ExpressionHandle::invalid());
@@ -3856,6 +3836,22 @@ pub mod expression {
                 return None;
             }
             self.source_spans.get(source_span_index(handle)).copied()
+        }
+
+        /// The source owner's scoped result, retained through copying and typing.
+        pub fn unresolved_name(&self, handle: ExpressionHandle) -> symbols::UnresolvedName {
+            if !self.expressions.is_valid(handle) {
+                return Default::default();
+            }
+            self.unresolved_names[source_span_index(handle)]
+        }
+
+        pub fn set_unresolved_name(
+            &mut self,
+            handle: ExpressionHandle,
+            outcome: symbols::UnresolvedName,
+        ) {
+            self.unresolved_names[source_span_index(handle)] = outcome;
         }
 
         pub fn insert_build_selection_call(
@@ -4269,6 +4265,13 @@ pub mod expression {
             self.name_path_members.span_or_empty(span)
         }
 
+        pub(crate) fn checked_name_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> Option<&[Identifier]> {
+            self.name_path_members.span(span)
+        }
+
         pub fn respell_single_member_names(&mut self, symbol: SymbolHandle, member: &Identifier) {
             let spans: Vec<HandleSpan<Identifier>> = self
                 .expressions
@@ -4442,7 +4445,7 @@ pub mod expression {
                     static_machine_bindings, static_machine_lifetime_bindings,
                 ],
                 vectors [
-                    source_spans, pattern_components, materialization_sources,
+                    source_spans, unresolved_names, pattern_components, materialization_sources,
                     constructed_value_type_handles, construction_required_type_handles,
                     authored_selection_occurrences,
                     executable_domain_tests,

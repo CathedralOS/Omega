@@ -25,13 +25,15 @@
 //!   expected decides it, it is a region variable the result's first use
 //!   decides.
 //!
-//! A region is one of two kinds. A named lifetime is the parameter it
+//! A named lifetime is the parameter it
 //! resolves to (`Region::Parameter`): the declaration that binds it and its
-//! position there, which is what substitution replaces. Every other region,
-//! an elided reference's or a byte literal's, keeps the text identity the
-//! typed trees render for it (`Region::Fixed`): it stands for one region
-//! that no substitution names, so a view of it is a value only of a place of
-//! that same region, as before regions were split from rows.
+//! position there, which is what substitution replaces. An elided reference's
+//! or a byte literal's fixed region keeps the text identity the typed trees
+//! render for it (`Region::Fixed`): it stands for one region that no substitution
+//! names, so a view of it is a value only of a place of that same region.
+//! Storage owned by this invocation instead retains its exact
+//! machine and root symbol: it cannot establish one of that machine's universal
+//! result lifetimes, even when the borrowed window is empty.
 
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
@@ -48,8 +50,14 @@ mod result_lifetimes;
 pub(crate) enum Region {
     /// A lifetime parameter of a data declaration or a machine.
     Parameter(LifetimeParameterIdentity),
-    /// Any other region, by its position in `Program::fixed_regions`.
+    /// A fixed source type region, by its position in `Program::fixed_regions`.
     Fixed(u32),
+    /// Storage held by one owned root of this machine's invocation, distinct
+    /// from the backing a reference descriptor stored there may denote.
+    Storage {
+        machine: MachineId,
+        root: SymbolHandle,
+    },
     /// A region not yet decided, by its position in
     /// `Program::region_variables` (`Elision::Variables`).
     Variable(u32),
@@ -132,7 +140,7 @@ impl Program<'_> {
                 let admitted = match self.resolved(ceiling) {
                     ceiling if ceiling == other => true,
                     Region::Variable(open) => self.decide(open, other),
-                    Region::Parameter(_) | Region::Fixed(_) => false,
+                    Region::Parameter(_) | Region::Fixed(_) | Region::Storage { .. } => false,
                 };
                 if !admitted {
                     return false;
@@ -263,7 +271,7 @@ impl Program<'_> {
                     .iter()
                     .find(|(bound, _)| bound == parameter)
                     .map_or(*region, |(_, argument)| *argument),
-                Region::Fixed(_) | Region::Variable(_) => *region,
+                Region::Fixed(_) | Region::Variable(_) | Region::Storage { .. } => *region,
             })
             .collect();
         self.intern_regions(tuple)
@@ -403,13 +411,16 @@ pub(crate) enum Elision {
     Declaration,
     /// Inside a data declaration's fields and payloads. lifetimes.md gives
     /// elision to a signature ("For an elided output, one unambiguous
-    /// reference input supplies the relation") and says of a named data
+    /// reference input supplies the relation"), says "borrow-carrying data
+    /// declares the lifetimes of its views", and says of a named data
     /// application that it must "match the declaration's lifetime arity" and
-    /// "use binders declared in the lexical owner", so a field states the
+    /// "use binders declared in the lexical owner". So a field states the
+    /// lifetime of every view it stores (`name: &'buffer [u8]`) and the
     /// lifetime arguments of every data it names, directly or behind a
     /// reference (`&'activation mut Build<'storage>`). An elided one is
-    /// refused (`elided_regions`); it never takes the named declaration's own
-    /// binders, which are not the field's owner's.
+    /// refused (`elided_region`, `elided_regions`): it never takes the named
+    /// declaration's own binders, which are not the field's owner's, nor one
+    /// region shared by every declaration that elides it.
     Members,
     /// In a machine's or requirement's inputs: each elided position is a
     /// fresh lifetime parameter of that declaration, which a call
@@ -428,10 +439,15 @@ pub(crate) enum Elision {
 impl Program<'_> {
     /// The region one elided position stands for here, or `None` where an
     /// elided lifetime keeps the region its own declaration names
-    /// (`Elision::Declaration`, and a reference's own lifetime in a field).
+    /// (`Elision::Declaration`).
     pub(crate) fn elided_region(&mut self, id: MachineId) -> Checked<Option<Region>> {
         match self.elision {
-            Elision::Declaration | Elision::Members => Ok(None),
+            Elision::Declaration => Ok(None),
+            Elision::Members => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("data field that elides a view's lifetime"),
+            )),
             Elision::Inputs(owner) => Ok(Some(self.mint_lifetime(owner))),
             Elision::Result(owner) => match self.machine_lifetimes(owner).as_slice() {
                 [only] => Ok(Some(Region::Parameter(*only))),
@@ -717,6 +733,9 @@ impl Program<'_> {
                         retained if retained.is_valid() => retained,
                         _ => lexical_owner,
                     };
+                    super::places::reference_lifetime_declared(
+                        self.typed, machine, reference, owner,
+                    )?;
                     let parameter = owner
                         .is_valid()
                         .then(|| {
@@ -739,7 +758,8 @@ impl Program<'_> {
                     Region::Parameter(parameter)
                 }
                 // Elided: a fresh lifetime of the signature, a region variable
-                // of a local, or the one identity it has anywhere else.
+                // of a local, refused in a field, or the one identity it has
+                // anywhere else.
                 _ => match self.elided_region(machine)? {
                     Some(region) => region,
                     None => self.fixed_region(identity.to_owned()),

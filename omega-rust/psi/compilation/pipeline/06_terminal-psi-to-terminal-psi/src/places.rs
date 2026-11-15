@@ -104,6 +104,7 @@ pub(crate) use loans::reference_graph;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
@@ -113,10 +114,17 @@ fn index(raw: u64) -> usize {
 /// A place as its root and the segments from the root down to it. A place
 /// the table has not interned (a leaf beneath a place used whole) has a
 /// lineage too, which is why the walk works on lineages.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Lineage {
     root: PlaceId,
     segments: Vec<Segment>,
+}
+
+/// Descriptor storage and the payload it permits access to are different
+/// places. Initializing or replacing a descriptor does not write payload bytes.
+enum StorageEffect {
+    Storage(Lineage),
+    Payload(Lineage),
 }
 
 impl Lineage {
@@ -308,6 +316,9 @@ pub(crate) fn input_content(
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
+    /// This path revisits a copy equation being solved. Other incoming paths
+    /// must supply its initial value; a cycle alone establishes nothing.
+    Cycle,
     /// The one value every path supplies.
     Value(ValueId),
     /// An extent defined by this exact reaching descriptor producer.
@@ -329,6 +340,28 @@ enum Reached {
     /// Asked of a window: every path closed it, or never passed its opening
     /// write.
     Closed,
+}
+
+/// A read supplies a value snapshot without writing or restoring storage.
+struct Observation {
+    operation: OperationId,
+    position: usize,
+    value: ValueId,
+}
+
+/// A storage trace must retain which block entries it crossed. A descriptor
+/// saved on an earlier loop iteration cannot use today's endpoint SSA values.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum QueryKind {
+    Contents,
+    Case,
+}
+
+struct Reaching {
+    active: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    remaining: usize,
+    crossed_entries: Vec<bool>,
+    used: Option<ProgramPoint>,
 }
 
 /// What a place is, by the lowered form's own declarations.
@@ -533,6 +566,7 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// Shared descriptor replay owns storage aliasing. This is local checker
     /// scratch over the same canonical machine closure, never source evidence.
     references: &'a RefCell<DescriptorAnalysis<'a>>,
@@ -581,6 +615,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             references,
             domains,
         };
@@ -614,6 +649,30 @@ impl<'a> Storage<'a> {
             }
         }
         storage.byte_payload_writes()?;
+        for block in &lowered.blocks {
+            for (before, operation) in block.operations.iter().enumerate() {
+                let Some(leaf) = storage.read_leaf(operation)? else {
+                    continue;
+                };
+                let concerns = Construct::Operation(operation.id);
+                let leaf = storage.backing(&leaf, block.id, before, concerns)?;
+                let value = operation
+                    .result
+                    .scalar_ref()
+                    .ok_or_else(|| {
+                        storage.foreign(concerns, "a storage observation has no scalar result")
+                    })?
+                    .id;
+                storage.observations[index(block.id.get())]
+                    .entry(leaf)
+                    .or_default()
+                    .push(Observation {
+                        operation: operation.id,
+                        position: before + 1,
+                        value,
+                    });
+            }
+        }
         Ok(storage)
     }
 
@@ -627,7 +686,19 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Lineage> {
-        if !place.segments.contains(&Segment::Referent) {
+        let borrowed_arrival =
+            matches!(
+                self.root_kind(place.root, concerns)?,
+                StructuralPlaceKind::BlockParameter { .. }
+            ) && terminal_semantics::structural_argument_source(self.lowered, place.root, 0)
+                .is_some_and(|parameter| {
+                    parameter.access != terminal_psi::StructuralAccess::Owned
+                        && !terminal_semantics::descriptor_results::is_descriptor(
+                            self.types.iter(),
+                            parameter.structural_type,
+                        )
+                });
+        if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             return Ok(place.clone());
         }
         let length = self
@@ -1774,53 +1845,45 @@ impl<'a> Storage<'a> {
         };
         let mut found = None;
         for projection in projections {
-            for (position, segment) in projection.path.iter().enumerate() {
-                let StructuralPathSegment::RuntimeIndex {
-                    index,
-                    obligation: owned,
-                } = segment
-                else {
-                    continue;
-                };
-                if *owned != obligation {
-                    continue;
+            if !projection.path.iter().any(|step| {
+                step.runtime_index()
+                    .is_some_and(|(_, owned)| owned == obligation)
+            }) {
+                continue;
+            }
+            let root = self.root_type(projection.root, concerns)?;
+            let mut duplicate = false;
+            terminal_semantics::visit_runtime_index_goals(
+                self.types.iter(),
+                |id| self.declaration(id, concerns).ok(),
+                root,
+                projection.path,
+                types,
+                |owned, goal| {
+                    if owned == obligation {
+                        duplicate |= found.replace(goal).is_some();
+                    }
+                },
+            )
+            .map_err(|error| {
+                use terminal_semantics::RuntimeIndexGoalError;
+                match error {
+                    RuntimeIndexGoalError::InvalidPath => {
+                        self.foreign(concerns, "an indexed path lost its actual array type")
+                    }
+                    RuntimeIndexGoalError::OpenExtent => self
+                        .unsupported(concerns, "index into storage without a closed array extent"),
+                    RuntimeIndexGoalError::MissingSelector => {
+                        self.foreign(concerns, "an array selector has no scalar type")
+                    }
+                    RuntimeIndexGoalError::UnsupportedSelector => {
+                        self.unsupported(concerns, "array selector without integer bound semantics")
+                    }
                 }
-                if found.is_some() {
-                    return Err(
-                        self.foreign(concerns, "two array projections own one index obligation")
-                    );
-                }
-                let root = self.root_type(projection.root, concerns)?;
-                let array = terminal_semantics::runtime_structural_path_tip(
-                    self.types.iter(),
-                    root,
-                    &projection.path[..position],
-                )
-                .ok_or_else(|| {
-                    self.foreign(concerns, "an indexed path lost its actual array type")
-                })?;
-                let StructuralTypeShape::FixedArray {
-                    length: terminal_psi::ArrayExtent::Literal(extent),
-                    ..
-                } = array.shape
-                else {
-                    return Err(self.unsupported(
-                        concerns,
-                        "index into storage without a closed array extent",
-                    ));
-                };
-                let scalar = types.get(*index).copied().ok_or_else(|| {
-                    self.foreign(concerns, "an array selector has no scalar type")
-                })?;
-                found = Some(
-                    terminal_semantics::runtime_index_bound(*index, scalar, extent).ok_or_else(
-                        || {
-                            self.unsupported(
-                                concerns,
-                                "array selector without integer bound semantics",
-                            )
-                        },
-                    )?,
+            })?;
+            if duplicate {
+                return Err(
+                    self.foreign(concerns, "two array projections own one index obligation")
                 );
             }
         }
@@ -1926,7 +1989,7 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         mut row_index: usize,
         asked: Asked<'_>,
-        budget: &mut usize,
+        budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
         let mut weakened = false;
@@ -1968,11 +2031,13 @@ impl<'a> Storage<'a> {
                 }
                 let previous =
                     self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
-                return Ok(if previous == Reached::Unestablished {
-                    previous
-                } else {
-                    Reached::Unknown
-                });
+                return Ok(
+                    if matches!(previous, Reached::Unestablished | Reached::Cycle) {
+                        previous
+                    } else {
+                        Reached::Unknown
+                    },
+                );
             };
             let reached = match (&row.stored, asked) {
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
@@ -2041,11 +2106,13 @@ impl<'a> Storage<'a> {
                     self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
                 }
             };
-            return Ok(if weakened && reached != Reached::Unestablished {
-                Reached::Unknown
-            } else {
-                reached
-            });
+            return Ok(
+                if weakened && !matches!(reached, Reached::Unestablished | Reached::Cycle) {
+                    Reached::Unknown
+                } else {
+                    reached
+                },
+            );
         }
     }
 
@@ -2206,21 +2273,46 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         block: BlockId,
         up_to: usize,
-        budget: &mut usize,
+        budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
         let resolved = self.backing(asked.place(), block, up_to, concerns)?;
         let asked = asked.at(&resolved);
-        // Each traced move continues strictly before its operation, so an
-        // acyclic machine ends within one step per operation; a cycle of
-        // moves is refused rather than followed for ever.
-        *budget = budget
+        let key = match asked {
+            Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
+            Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
+            Asked::Window { .. } => None,
+        };
+        if let Some(key) = &key
+            && !budget.active.insert(key.clone())
+        {
+            return Ok(Reached::Cycle);
+        }
+        // Repeated copy equations are handled above. The remaining limit
+        // refuses chains whose projected source keeps growing.
+        budget.remaining = budget
+            .remaining
             .checked_sub(1)
             .ok_or_else(|| self.unsupported(concerns, "a chain of copies does not end"))?;
+        if budget.used.is_none() {
+            let operations = &self.block(block)?.operations;
+            let count = up_to.min(operations.len());
+            budget.used = Some(if count == 0 {
+                ProgramPoint::BlockEntry(block)
+            } else {
+                ProgramPoint::AfterOperation(operations[count - 1].id)
+            });
+        }
         let mut merged: Option<Reached> = None;
         let mut supply = |reached: Reached| {
+            // Identity-copy cycles contribute no extra initial value. Walk
+            // every other arrival before claiming what the cycle carries.
+            if reached == Reached::Cycle {
+                return;
+            }
             merged = Some(match (merged, reached) {
                 (None, reached) => reached,
+                (Some(Reached::Cycle), _) | (_, Reached::Cycle) => Reached::Cycle,
                 (Some(Reached::Unestablished), _) | (Some(_), Reached::Unestablished) => {
                     Reached::Unestablished
                 }
@@ -2275,6 +2367,24 @@ impl<'a> Storage<'a> {
                     last = Some((index, row));
                 }
             }
+            if let Asked::Contents(leaf) = asked
+                && let Some(observations) = self.observations[index(block.get())].get(leaf)
+            {
+                let end = observations.partition_point(|observation| observation.position <= up_to);
+                if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
+                    && last.is_none_or(|(_, row)| row.position < observation.position)
+                    && !budget.crossed_entries[index(block.get())]
+                    && self.graph.dominates(
+                        ProgramPoint::AfterOperation(observation.operation),
+                        budget.used.ok_or_else(|| {
+                            self.foreign(concerns, "a storage trace has no use point")
+                        })?,
+                    )?
+                {
+                    supply(Reached::Value(observation.value));
+                    continue;
+                }
+            }
             if let Some((index, _)) = last {
                 supply(self.supplied(tables, index, asked, budget, concerns)?);
                 continue;
@@ -2306,6 +2416,7 @@ impl<'a> Storage<'a> {
                     supply(Reached::Closed);
                     continue;
                 }
+                budget.crossed_entries[index(block.get())] = true;
                 let mut predecessors = self.graph.predecessors(block)?.to_vec();
                 predecessors.sort_unstable();
                 predecessors.dedup();
@@ -2400,6 +2511,7 @@ impl<'a> Storage<'a> {
                     },
                 );
             }
+            budget.crossed_entries[index(block.get())] = true;
             let mut asked_of: Vec<BlockId> = Vec::new();
             for predecessor in self.graph.predecessors(block)? {
                 // A block that enters by two edges is listed twice.
@@ -2426,11 +2538,44 @@ impl<'a> Storage<'a> {
             }
         }
         // No path reaches the point at all: nothing is claimed about it.
-        Ok(merged.unwrap_or(Reached::Unknown))
+        let mut reached = merged.unwrap_or(if key.is_some() {
+            Reached::Cycle
+        } else {
+            Reached::Unknown
+        });
+        if let Some(key) = key {
+            budget.active.remove(&key);
+            if budget.active.is_empty() && reached == Reached::Cycle {
+                reached = Reached::Unestablished;
+            }
+        }
+        if let Reached::Value(value) = reached
+            && let Some(ValueOrigin::Operation(operation)) =
+                tables.values.get(value).map(|row| row.origin)
+            && self
+                .read_leaf(self.operation(operation, concerns)?)?
+                .is_some()
+        {
+            let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+            if budget.crossed_entries[index(owner.get())] {
+                return Ok(Reached::Unknown);
+            }
+        }
+        Ok(reached)
     }
 
-    fn budget(&self) -> usize {
-        self.reaching_budget
+    fn budget(&self) -> Reaching {
+        Reaching {
+            active: BTreeSet::new(),
+            remaining: self.reaching_budget,
+            crossed_entries: vec![false; self.graph.block_count()],
+            used: None,
+        }
+    }
+
+    fn current_extent(&self, producer: OperationId, trace: &Reaching) -> Checked<bool> {
+        let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
+        Ok(!trace.crossed_entries[index(owner.get())])
     }
 
     /// The equation a read establishes on its normal successor:
@@ -2473,7 +2618,7 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         if let Reached::Extent(producer) = reached {
-            return self.extent_equation(operation, producer);
+            return self.extent_equation(operation, producer, &budget);
         }
         let Reached::Value(held) = reached else {
             return Ok(None);
@@ -2621,6 +2766,7 @@ impl<'a> Storage<'a> {
             | Reached::Extent(_)
             | Reached::Unknown
             | Reached::Unestablished
+            | Reached::Cycle
             | Reached::Open
             | Reached::Closed => None,
         };
@@ -2919,18 +3065,32 @@ impl<'a> Storage<'a> {
     /// Every storage change uses the already derived write log, including
     /// call writes and scalar homes. Owned operands also relinquish their
     /// storage; a live shared loan forbids that move just as it forbids a write.
-    fn operation_changes(&self, operation: &Operation) -> Checked<Vec<Lineage>> {
+    fn operation_changes(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
         let concerns = Construct::Operation(operation.id);
+        let payloads = self.call_payload_arguments(operation, true)?;
         let mut changes: Vec<_> = self
             .log
             .iter()
             .filter(|row| row.operation == operation.id)
-            .map(|row| row.captured.clone())
+            .map(|row| {
+                if payloads.iter().any(|payload| {
+                    row.captured.root == payload.root
+                        && row.captured.segments.starts_with(&payload.segments)
+                }) {
+                    StorageEffect::Payload(row.captured.clone())
+                } else {
+                    StorageEffect::Storage(row.captured.clone())
+                }
+            })
             .collect();
         if let OperationKind::ByteSequenceWrite { destination, .. } = &operation.kind {
             // The payload changes even though the descriptor has no store
             // row. Retained loans protect that backing against this write.
-            changes.push(self.stored_at(*destination, &[], concerns)?);
+            changes.push(StorageEffect::Payload(self.stored_at(
+                *destination,
+                &[],
+                concerns,
+            )?));
         }
         for argument in operation
             .kind
@@ -2938,14 +3098,68 @@ impl<'a> Storage<'a> {
             .chain(operation.kind.structural_arguments())
             .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
         {
-            changes.push(self.argument(argument, concerns)?);
+            changes.push(StorageEffect::Storage(self.argument(argument, concerns)?));
         }
         if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
             && value.access == terminal_psi::StructuralAccess::Owned
         {
-            changes.push(self.argument(value, concerns)?);
+            changes.push(StorageEffect::Storage(self.argument(value, concerns)?));
         }
         Ok(changes)
+    }
+
+    fn call_payload_arguments(&self, operation: &Operation, writes: bool) -> Checked<Vec<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        let Some(call) = operation.declared_invocation() else {
+            return Ok(Vec::new());
+        };
+        let formals = self
+            .module
+            .invocation_structural_parameters(call.callee, call.required_contract)
+            .ok_or_else(|| self.foreign(concerns, "call effects have no exact retained formals"))?;
+        if formals.len() != call.structural_arguments.len() {
+            return Err(self.foreign(concerns, "call effects differ from their retained formals"));
+        }
+        let mut payloads = Vec::new();
+        for (argument, formal) in call.structural_arguments.iter().zip(formals) {
+            if argument.access != formal.access {
+                return Err(self.foreign(
+                    concerns,
+                    "call effect access differs from its retained formal",
+                ));
+            }
+            let touches = match argument.access {
+                terminal_psi::StructuralAccess::SharedBorrow => !writes,
+                terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow => true,
+                terminal_psi::StructuralAccess::Owned => false,
+            };
+            if touches
+                && matches!(
+                    self.borrowed_resource(formal.structural_type),
+                    loans::BorrowedResource::ViewPayload
+                )
+            {
+                payloads.push(self.argument(argument, concerns)?);
+            }
+        }
+        Ok(payloads)
+    }
+
+    fn operation_read_effects(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
+        let payloads = self.call_payload_arguments(operation, false)?;
+        let indexed = matches!(operation.kind, OperationKind::ByteSequenceRead { .. });
+        Ok(self
+            .operation_uses(operation)?
+            .into_iter()
+            .map(|place| {
+                if indexed || payloads.contains(&place) {
+                    StorageEffect::Payload(place)
+                } else {
+                    StorageEffect::Storage(place)
+                }
+            })
+            .collect())
     }
 
     /// The two structural judgments of one operation or terminator, in
@@ -3840,13 +4054,19 @@ pub(crate) trait InputPlaces: crate::Bindings<Error = crate::Unbound> {
 }
 
 impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
-    fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
-        let formal =
-            terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
-                .ok_or(crate::Unbound::Unsupported(
+    fn formal_access(
+        &self,
+        root: PlaceId,
+    ) -> Result<terminal_psi::StructuralAccess, crate::Unbound> {
+        terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
+            .map(|formal| formal.access)
+            .ok_or(crate::Unbound::Unsupported(
                 "a completion clause names storage that is no formal",
-            ))?;
-        if formal.access != terminal_psi::StructuralAccess::Owned {
+            ))
+    }
+
+    fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
+        if self.formal_access(root)? != terminal_psi::StructuralAccess::Owned {
             return Err(crate::Unbound::Unsupported(
                 "borrowed completion storage has no post-call observation",
             ));
@@ -3918,13 +4138,9 @@ impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
                 .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
             return self.held()?.field(version, subject, path, scalar_type);
         }
-        let formal =
-            terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
-                .ok_or(crate::Unbound::Unsupported(
-                "a completion clause names storage that is no formal",
-            ))?;
+        let access = self.formal_access(root)?;
         if !terminal_psi::structural_access_covers(
-            formal.access,
+            access,
             terminal_psi::StructuralAccess::SharedBorrow,
         ) {
             return Err(crate::Unbound::Unsupported(
@@ -3932,7 +4148,7 @@ impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
             ));
         }
         if version == semantic_vocabulary::ContentPlaceVersion::Entry
-            || formal.access == terminal_psi::StructuralAccess::Owned
+            || access == terminal_psi::StructuralAccess::Owned
         {
             return self.inputs.field(version, root, path, scalar_type);
         }
@@ -3961,7 +4177,11 @@ impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
                 .ok_or(crate::Unbound::Unsupported("data subject identity"))?;
             return self.held()?.extent(subject, path, scalar_type);
         }
-        self.owned_inputs(root)?.extent(root, path, scalar_type)
+        if self.formal_access(root)? == terminal_psi::StructuralAccess::Owned {
+            return self.inputs.extent(root, path, scalar_type);
+        }
+        let actual = self.inputs.input_place(root, path)?;
+        self.held_at(&actual)?.extent_of(&actual, scalar_type)
     }
     fn case(
         &mut self,
@@ -4128,7 +4348,7 @@ pub(crate) struct AtCall<'s, 'a> {
     concerns: Construct,
 }
 
-impl AtCall<'_, '_> {
+impl<'a> AtCall<'_, 'a> {
     fn actual(
         &self,
         root: PlaceId,
@@ -4160,66 +4380,15 @@ impl AtCall<'_, '_> {
         extended(actual.clone(), path)
     }
 
-    /// Fields and descriptor metadata both name the actual's reaching
-    /// content immediately before this call. An earlier observation of a
-    /// replaced descriptor cannot supply the callee's requirement.
-    fn observation(
-        &self,
-        leaf: Lineage,
-        scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::Unbound> {
-        let storage = self.storage;
-        if !matches!(
-            storage
-                .shape(&leaf, self.concerns)
-                .map_err(crate::Unbound::Refused)?,
-            Shape::Scalar(_)
-        ) {
-            return Err(crate::Unbound::Unsupported(
-                "clause names storage that is no scalar observation of the actual",
-            ));
+    fn held_at<'p>(&'p self, place: &'p Lineage) -> Held<'p, 'a> {
+        Held {
+            storage: self.storage,
+            tables: self.tables,
+            place,
+            block: self.block,
+            up_to: self.up_to,
+            concerns: self.concerns,
         }
-        let mut budget = storage.budget();
-        let reached = storage
-            .reaching(
-                self.tables,
-                Asked::Contents(&leaf),
-                self.block,
-                self.up_to,
-                &mut budget,
-                self.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?;
-        if let Reached::Extent(producer) = reached {
-            let point = if self.up_to == 0 {
-                ProgramPoint::BlockEntry(self.block)
-            } else {
-                let block = storage.block(self.block).map_err(crate::Unbound::Refused)?;
-                let previous = self.up_to.min(block.operations.len()) - 1;
-                ProgramPoint::AfterOperation(block.operations[previous].id)
-            };
-            return storage
-                .extent_contents(producer, point, scalar_type)
-                .map_err(crate::Unbound::Refused)?
-                .ok_or(crate::Unbound::Unproved(
-                    "the actual's extent has no current endpoint correspondence",
-                ));
-        }
-        let Reached::Value(held) = reached else {
-            return Err(crate::Unbound::Unproved(
-                "the actual's observation has no reaching value identity at the call",
-            ));
-        };
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
-        if held_type != scalar_type {
-            return Err(crate::Unbound::Unsupported(
-                "an actual's observation holds a value of another type than its clause term",
-            ));
-        }
-        Ok(ScalarTerm::value(held, scalar_type))
     }
 }
 
@@ -4240,7 +4409,8 @@ impl crate::Bindings for AtCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        self.observation(self.actual(root, path)?, scalar_type)
+        let actual = self.actual(root, path)?;
+        self.held_at(&actual).observation(&actual, scalar_type)
     }
 
     fn extent(
@@ -4249,13 +4419,107 @@ impl crate::Bindings for AtCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        let mut leaf = self.actual(root, path)?;
+        let actual = self.actual(root, path)?;
+        self.held_at(&actual).extent_of(&actual, scalar_type)
+    }
+
+    fn case(
+        &mut self,
+        _: PlaceId,
+        _: &[CanonicalStructuralPathSegment],
+        _: StructuralCaseId,
+    ) -> Result<bool, crate::Unbound> {
+        Err(crate::Unbound::Unsupported(
+            "a case test in an entry clause",
+        ))
+    }
+}
+
+impl InputPlaces for AtCall<'_, '_> {
+    fn input_place(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Lineage, crate::Unbound> {
+        self.actual(root, path)
+    }
+}
+
+impl Held<'_, '_> {
+    /// Scalar fields and descriptor lengths both use the contents reaching
+    /// this observation point. A descriptor producer can supply its exact
+    /// endpoint term without a new runtime measurement.
+    fn observation(
+        &self,
+        leaf: &Lineage,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let storage = self.storage;
+        if !matches!(
+            storage
+                .shape(leaf, self.concerns)
+                .map_err(crate::Unbound::Refused)?,
+            Shape::Scalar(declared) if declared == scalar_type
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a clause names storage with another scalar type",
+            ));
+        }
+        let mut budget = storage.budget();
+        let reached = storage
+            .reaching(
+                self.tables,
+                Asked::Contents(leaf),
+                self.block,
+                self.up_to,
+                &mut budget,
+                self.concerns,
+            )
+            .map_err(crate::Unbound::Refused)?;
+        if let Reached::Extent(producer) = reached {
+            let block = storage.block(self.block).map_err(crate::Unbound::Refused)?;
+            let point = self
+                .up_to
+                .min(block.operations.len())
+                .checked_sub(1)
+                .map_or(ProgramPoint::BlockEntry(self.block), |previous| {
+                    ProgramPoint::AfterOperation(block.operations[previous].id)
+                });
+            return storage
+                .extent_contents(producer, point, scalar_type, &budget)
+                .map_err(crate::Unbound::Refused)?
+                .ok_or(crate::Unbound::Unproved(
+                    "the descriptor's extent has no current endpoint correspondence",
+                ));
+        }
+        let Reached::Value(held) = reached else {
+            return Err(crate::Unbound::Unproved(
+                "the clause's observation has no reaching value identity",
+            ));
+        };
+        let held_type =
+            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
+                .map_err(crate::Unbound::Refused)?
+                .scalar_type;
+        if held_type != scalar_type {
+            return Err(crate::Unbound::Unsupported(
+                "a clause's observation holds a value of another type than its term",
+            ));
+        }
+        Ok(ScalarTerm::value(held, scalar_type))
+    }
+
+    fn extent_of(
+        &self,
+        place: &Lineage,
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
         // A fixed array lends its declared extent. This is a type fact,
         // independent of its contents; loan and initialization checks still
         // decide whether the actual may supply the view.
         if let Shape::Typed(array) = self
             .storage
-            .shape(&leaf, self.concerns)
+            .shape(place, self.concerns)
             .map_err(crate::Unbound::Refused)?
             && let StructuralTypeShape::FixedArray {
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -4288,29 +4552,9 @@ impl crate::Bindings for AtCall<'_, '_> {
                 ))
             });
         }
+        let mut leaf = place.clone();
         leaf.segments.push(Segment::Extent);
-        self.observation(leaf, ScalarType::Integer(scalar_type))
-    }
-
-    fn case(
-        &mut self,
-        _: PlaceId,
-        _: &[CanonicalStructuralPathSegment],
-        _: StructuralCaseId,
-    ) -> Result<bool, crate::Unbound> {
-        Err(crate::Unbound::Unsupported(
-            "a case test in an entry clause",
-        ))
-    }
-}
-
-impl InputPlaces for AtCall<'_, '_> {
-    fn input_place(
-        &self,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-    ) -> Result<Lineage, crate::Unbound> {
-        self.actual(root, path)
+        self.observation(&leaf, ScalarType::Integer(scalar_type))
     }
 }
 
@@ -4334,42 +4578,16 @@ impl crate::Bindings for Held<'_, '_> {
                 "a data predicate has no invocation-entry contents",
             ));
         }
-        let leaf = self.beneath(root, path)?;
-        let storage = self.storage;
-        if !matches!(
-            storage.shape(&leaf, self.concerns).map_err(crate::Unbound::Refused)?,
-            Shape::Scalar(declared) if declared == scalar_type
-        ) {
-            return Err(crate::Unbound::Unsupported(
-                "a data clause names storage with another scalar type",
-            ));
-        }
-        let mut budget = storage.budget();
-        let reached = storage
-            .reaching(
-                self.tables,
-                Asked::Contents(&leaf),
-                self.block,
-                self.up_to,
-                &mut budget,
-                self.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?;
-        let Reached::Value(held) = reached else {
-            return Err(crate::Unbound::Unproved(
-                "a field the data requires clause names holds no value identity here",
-            ));
-        };
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
-        if held_type != scalar_type {
-            return Err(crate::Unbound::Unsupported(
-                "a field holds a value of another type than its clause term",
-            ));
-        }
-        Ok(ScalarTerm::value(held, scalar_type))
+        self.observation(&self.beneath(root, path)?, scalar_type)
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        self.extent_of(&self.beneath(root, path)?, scalar_type)
     }
 
     fn case(
@@ -4398,6 +4616,7 @@ impl crate::Bindings for Held<'_, '_> {
             | Reached::Returned
             | Reached::Unknown
             | Reached::Unestablished
+            | Reached::Cycle
             | Reached::Open
             | Reached::Closed => Err(crate::Unbound::Unproved(
                 "the case the data requires clause tests is not established by structure here",
@@ -4543,5 +4762,153 @@ impl crate::Bindings for Observed<'_, '_> {
             "the clause tests a case of a value above the storage the read observes",
         ))?;
         Held { place, ..self.held }.case(root, path, case)
+    }
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::*;
+
+    #[test]
+    fn a_saved_slice_cannot_use_a_later_iterations_endpoints() {
+        let source = r#"
+machine walk<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, first: bool) {
+    let fresh: &'a [u8] = bytes[0..count];
+    transition first {
+        true -> inspect(bytes, fresh, count, fresh)
+        false -> inspect(bytes, saved, count, fresh)
+    }
+}
+machine inspect<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, fresh: &'a [u8]) {
+    let current: u64 = fresh.len;
+    let previous: u64 = saved.len;
+    transition count > 1 {
+        true -> walk(bytes, saved, count - 1, false)
+        false -> done()
+    }
+    machine done() {}
+}
+machine entry() {
+    let bytes: [u8; 3] = [11, 22, 33];
+    walk(&bytes[..], &bytes[..], 3, true);
+}
+"#;
+        let typed = crate::tests::rankings::typed_with_ranking_catalog(source);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "entry")
+            .unwrap()
+            .symbol;
+        let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program;
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+        else {
+            panic!("the saved-slice program must prepare");
+        };
+        let input = prepared
+            .closure
+            .unwrap_or_else(|refusal| panic!("saved-slice preparation: {}", refusal.detail));
+        let module = &input.module;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.operations().any(|operation| {
+                    matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. })
+                })
+            })
+            .unwrap();
+        let producer = machine
+            .operations()
+            .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. }))
+            .unwrap()
+            .id;
+        let tables = input.tables.machines.get(machine.id).unwrap();
+        let graph = Graph::new(machine.id, machine, tables).unwrap();
+        let types = tables.values.map(|_, row| row.scalar_type);
+        let references = reference_graph(module, machine.id).unwrap();
+        let references = RefCell::new(DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &references,
+        ));
+        let storage = Storage::new(
+            machine.id,
+            machine,
+            module,
+            &input.domains,
+            &graph,
+            tables,
+            &types,
+            &references,
+        )
+        .unwrap();
+        let mut current = 0;
+        let mut saved = 0;
+        for operation in machine.operations() {
+            if !matches!(operation.kind, OperationKind::ByteSequenceLength { .. }) {
+                continue;
+            }
+            let point = ProgramPoint::AfterOperation(operation.id);
+            if !graph
+                .dominates(ProgramPoint::AfterOperation(producer), point)
+                .unwrap()
+            {
+                continue;
+            }
+            let leaf = storage.read_leaf(operation).unwrap().unwrap();
+            let (block, after) = graph.locate(point).unwrap();
+            let mut trace = storage.budget();
+            let reached = storage
+                .reaching(
+                    tables,
+                    Asked::Contents(&leaf),
+                    block,
+                    after - 1,
+                    &mut trace,
+                    Construct::Operation(operation.id),
+                )
+                .unwrap();
+            let extent = storage
+                .extent_contents(
+                    producer,
+                    point,
+                    operation.result.scalar_ref().unwrap().scalar_type,
+                    &trace,
+                )
+                .unwrap();
+            if storage.current_extent(producer, &trace).unwrap()
+                && reached == Reached::Extent(producer)
+            {
+                assert!(
+                    extent.is_some(),
+                    "the current slice keeps its actual endpoints"
+                );
+                current += 1;
+            } else if !storage.current_extent(producer, &trace).unwrap() {
+                assert!(
+                    extent.is_none(),
+                    "the saved slice must not borrow today's endpoint values"
+                );
+                saved += 1;
+            }
+        }
+        assert!(current > 0, "the current descriptor must be exercised");
+        assert!(
+            saved > 0,
+            "the descriptor captured before the backedge must be exercised"
+        );
     }
 }

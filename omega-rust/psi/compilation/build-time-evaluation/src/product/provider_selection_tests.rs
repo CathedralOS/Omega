@@ -21,6 +21,9 @@ public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
 }
+public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+    builder
+}
 public data BuildTarget [copy] { case LinuxX86_64; case MacosArm64; }
 public const linux_x86_64: BuildTarget = BuildTarget::LinuxX86_64;
 public const macos_arm64: BuildTarget = BuildTarget::MacosArm64;
@@ -91,6 +94,15 @@ impl Fixture {
                 SourceOrigin::Toolchain,
                 DependencyScope::Build,
             ),
+            // Authored Build calls resolve in the toolchain code module.
+            (
+                "<build-prelude:Build>",
+                "module Build;\n",
+                "root",
+                package(7),
+                SourceOrigin::Toolchain,
+                DependencyScope::Build,
+            ),
             (
                 "root/main.omg",
                 product,
@@ -139,9 +151,10 @@ impl Fixture {
         let mut request =
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
         request.sources = Some(Arc::new(sources));
-        request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
-            ids[0], ids[1], "Build",
-        )];
+        request.top_level_bindings = vec![
+            symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+            symbols::SourceScopedTopLevelBinding::module_import(ids[0], ids[2], "Build", 0),
+        ];
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
         let typed =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
@@ -246,13 +259,22 @@ fn recorded_targets_composition_and_helper_authors_follow_event_order() {
 
 #[test]
 fn unexecuted_provider_formations_still_validate_both_operands() {
-    for (slot, provider) in [("NotSlot", "First"), ("Service", "MissingProvider")] {
+    for (slot, provider, invalid_operand) in [
+        ("NotSlot", "First", "NotSlot"),
+        ("Service", "MissingProvider", "MissingProvider"),
+    ] {
         let build = format!(
             "machine build(builder: &mut Build) {{ Build::select_provider<{slot}, {provider}>(builder, linux_x86_64); }}"
         );
         let fixture = Fixture::new(&build, PRODUCT, None);
         assert_eq!(fixture.declared.len(), 1);
-        assert!(fixture.collect(&[]).is_err(), "{slot}, {provider}");
+        let refused = fixture.collect(&[]).unwrap_err();
+        assert_eq!(
+            refused[0].message,
+            format!(
+                "cannot select provider operand `{invalid_operand}` here; it must name one visible declaration of the required kind"
+            )
+        );
     }
 }
 
@@ -281,7 +303,11 @@ fn a_product_dependency_does_not_expose_its_private_provider() {
         ),
     );
     let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
-    assert!(fixture.collect(&events).is_err());
+    let refused = fixture.collect(&events).unwrap_err();
+    assert_eq!(
+        refused[0].message,
+        "cannot select provider operand `dep::Hidden` here; it must name one visible declaration of the required kind"
+    );
 }
 
 #[test]

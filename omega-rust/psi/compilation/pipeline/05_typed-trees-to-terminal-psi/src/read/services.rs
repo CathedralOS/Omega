@@ -348,7 +348,7 @@ impl<'t> Program<'t> {
                 caller,
                 Construct::Machine,
             )?;
-            let declaration = crate::lower::boundary(
+            let mut declaration = crate::lower::boundary(
                 caller,
                 boundary,
                 signatures,
@@ -358,6 +358,14 @@ impl<'t> Program<'t> {
                 service,
                 qualifications,
             )?;
+            declaration.result_lifetimes = self
+                .declared_result_lifetimes(caller, signature, &module.structural_types)
+                .map_err(unavailable)?;
+            if declaration.result_lifetimes.is_none() {
+                return Err(unavailable(
+                    "boundary result has an unresolved declared lifetime frontier",
+                ));
+            }
             boundaries.push(declaration);
         }
         module.boundary_machines = boundaries;

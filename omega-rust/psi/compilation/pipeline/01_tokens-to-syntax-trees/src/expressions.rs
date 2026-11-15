@@ -405,7 +405,7 @@ pub(crate) mod parse_expression {
     }
 
     pub(crate) enum UnaryPrefix<'tokens, 'source> {
-        Borrow(ReferenceAccess),
+        Borrow(ReferenceAccess, source::SourceSpan),
         Operator(UnaryOperator, source::SourceSpan),
         Negate(source::SourceSpan),
         Acknowledge {
@@ -481,6 +481,7 @@ pub(crate) mod parse_expression {
             )));
         }
         if input.at_punctuation(PunctuationKind::Ampersand) {
+            let span = input.current_source_span();
             let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
             let (access, input) = if input.at_contextual("mut") {
                 (ReferenceAccess::Mutable, input.take_contextual("mut")?)
@@ -494,7 +495,7 @@ pub(crate) mod parse_expression {
             } else {
                 (ReferenceAccess::Shared, input)
             };
-            return Ok(Some((UnaryPrefix::Borrow(access), input)));
+            return Ok(Some((UnaryPrefix::Borrow(access, span), input)));
         }
         for (punctuation, operator, label) in [
             (PunctuationKind::Exclamation, UnaryOperator::LogicalNot, "!"),
@@ -525,12 +526,17 @@ pub(crate) mod parse_expression {
         prefix: UnaryPrefix<'_, '_>,
     ) -> Result<ExpressionHandle, crate::ParseError> {
         match prefix {
-            UnaryPrefix::Borrow(access) => Ok(exprs(syntax_trees).insert(ExpressionNode::Borrow(
-                syntax_trees::expression::TableBorrowExpression {
-                    target: expression,
-                    access,
-                },
-            ))),
+            UnaryPrefix::Borrow(access, span) => {
+                let borrow = exprs(syntax_trees).insert(ExpressionNode::Borrow(
+                    syntax_trees::expression::TableBorrowExpression {
+                        target: expression,
+                        access,
+                    },
+                ));
+                // A loan diagnosis can point at the operator that forms it.
+                exprs(syntax_trees).set_source_span(borrow, span);
+                Ok(borrow)
+            }
             UnaryPrefix::Operator(operator, span) => {
                 let expression =
                     exprs(syntax_trees).insert(ExpressionNode::Unary(TableUnaryExpression {

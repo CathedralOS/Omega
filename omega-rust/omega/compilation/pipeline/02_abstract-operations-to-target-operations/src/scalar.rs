@@ -1084,8 +1084,8 @@ pub(crate) mod element_views {
         StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
         StructuralTypeShape,
     };
+    use terminal_semantics::descriptor_parameter_access;
     use terminal_semantics::descriptor_results::result_access;
-    use terminal_semantics::{borrowed_storage_parameter, descriptor_parameter_access};
 
     mod establishment {
         use super::*;
@@ -1448,17 +1448,85 @@ pub(crate) mod element_views {
             function: &AbstractFunction,
             place: PlaceId,
         ) -> Option<&terminal_psi::StructuralOperationResult> {
-            let (producer, structural_type) = self.views.get(&place)?;
-            let mut results = function.operations().filter_map(|operation| {
-                operation
-                    .structural_result()
-                    .filter(|(_, result)| result.place == place)
+            let (_, _, result) = self.view_declaration(function, place).ok()?;
+            result
+        }
+
+        pub(crate) fn view_declaration(
+            self,
+            function: &AbstractFunction,
+            place: PlaceId,
+        ) -> Result<
+            (
+                StructuralTypeId,
+                StructuralMultiplicity,
+                Option<&terminal_psi::StructuralOperationResult>,
+            ),
+            &'static str,
+        > {
+            let &(producer, live_type) = self
+                .views
+                .get(&place)
+                .ok_or("the live descriptor producer is absent")?;
+            // An operation ID and a place must identify the same sole owner.
+            let mut owners = function.operations().filter(|operation| {
+                operation.psi_operation() == Some(producer)
+                    || match operation {
+                        AbstractOperation::EstablishByteSequenceLiteral {
+                            place: declaration,
+                            ..
+                        } => declaration.id == place,
+                        _ => operation
+                            .structural_result()
+                            .is_some_and(|(_, result)| result.place == place),
+                    }
             });
-            let (operation, result) = results.next()?;
-            (results.next().is_none()
-                && operation == *producer
-                && result.structural_type == *structural_type)
-                .then_some(result)
+            let operation = owners
+                .next()
+                .ok_or("the live descriptor producer is absent")?;
+            if owners.next().is_some() {
+                return Err("the live descriptor names duplicate producers");
+            }
+            if operation.psi_operation() != Some(producer) {
+                return Err("the live descriptor producer is absent");
+            }
+            let declared = if let Some((_, result)) = operation.structural_result() {
+                if result.place != place {
+                    return Err("the descriptor producer publishes another place");
+                }
+                (result.structural_type, result.multiplicity, Some(result))
+            } else if let AbstractOperation::EstablishByteSequenceLiteral {
+                place: declaration,
+                structural_type,
+                ..
+            } = operation
+            {
+                // Literal bytes already live in their static declaration.
+                // The descriptor has unrestricted custody and no result claims.
+                if declaration.id != place
+                    || !matches!(
+                        declaration.kind,
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                            structural_type: declared,
+                            ..
+                        } if declared == structural_type.id
+                    )
+                    || !structural_type.shape.is_shared_readable_byte_view()
+                {
+                    return Err("the literal does not publish this immutable byte descriptor");
+                }
+                (
+                    structural_type.id,
+                    StructuralMultiplicity::Unrestricted,
+                    None,
+                )
+            } else {
+                return Err("the live descriptor producer has no value declaration");
+            };
+            if declared.0 != live_type {
+                return Err("the descriptor producer type differs from its live declaration");
+            }
+            Ok(declared)
         }
 
         fn address(
@@ -1509,7 +1577,10 @@ pub(crate) mod element_views {
                 structural_types.values().copied(),
             )?;
             if entry.block == function.entry
-                || borrowed_storage_parameter(parameter, structural_types.values().copied())
+                || !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                    parameter,
+                    |identity| structural_types.get(identity).copied(),
+                )
                 || !source.access.admits_referent(descriptor_access)
                 || !parameter.projected_qualifications.is_empty()
             {

@@ -286,7 +286,7 @@ pub(crate) mod aggregate_results {
     use calling_conventions::terminal_layout::StructuralLayouts;
     use semantic_vocabulary::{OperationId, StructuralTypeId};
     use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-    use terminal_semantics::{canonical_static_projection, view_descriptor_parameter};
+    use terminal_semantics::canonical_static_projection;
 
     pub(crate) fn value_input(
         function: &abstract_operations::AbstractFunction,
@@ -304,69 +304,36 @@ pub(crate) mod aggregate_results {
                 "a value input must transfer or copy its descriptor, not borrow it",
             ));
         }
-        let (root, multiplicity) =
-            if let Some(home) = live.structural_homes.get(&argument.place) {
-                if home.access() != terminal_psi::StructuralAccess::Owned {
-                    return Err(invalid("the live home does not own the selected value"));
-                }
-                (home.structural_type(), home.multiplicity())
-            } else if let Some((producer, structural_type)) = live.views.get(&argument.place) {
-                let mut producers = function
-                    .operations()
-                    .filter(|operation| operation.psi_operation() == Some(*producer));
-                let operation = producers
-                    .next()
-                    .ok_or_else(|| invalid("the live descriptor producer is absent"))?;
-                if producers.next().is_some() {
-                    return Err(invalid("the live descriptor names duplicate producers"));
-                }
-                let declared = if let Some((_, result)) = operation.structural_result() {
-            if result.place != argument.place {
-                return Err(invalid("the descriptor producer publishes another place"));
+        let (root, multiplicity) = if let Some(home) = live.structural_homes.get(&argument.place) {
+            if home.access() != terminal_psi::StructuralAccess::Owned {
+                return Err(invalid("the live home does not own the selected value"));
             }
-            (result.structural_type, result.multiplicity)
-        } else if let abstract_operations::AbstractOperation::EstablishByteSequenceLiteral {
-            place,
-            structural_type,
-            ..
-        } = operation
-        {
-            if place.id != argument.place || !structural_type.shape.is_shared_readable_byte_view() {
+            (home.structural_type(), home.multiplicity())
+        } else if live.views.contains_key(&argument.place) {
+            let (structural_type, multiplicity, _) = live
+                .element_view_backings()
+                .view_declaration(function, argument.place)
+                .map_err(invalid)?;
+            (structural_type, multiplicity)
+        } else {
+            let parameter = function.arrival_parameter(argument.place).ok_or_else(|| {
+                invalid("the value has no live home, descriptor or arrival declaration")
+            })?;
+            if parameter.access != terminal_psi::StructuralAccess::Owned
+                && (!argument.path.is_empty()
+                    || !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                        parameter,
+                        |identity| types.get(identity).copied(),
+                    )
+                    || live.structural_observation_type(function, argument.place)
+                        != Some(parameter.structural_type))
+            {
                 return Err(invalid(
-                    "the literal does not publish this immutable byte descriptor",
+                    "a borrowed arrival can supply only its live whole view descriptor",
                 ));
             }
-            (
-                structural_type.id,
-                terminal_psi::StructuralMultiplicity::Unrestricted,
-            )
-        } else {
-            return Err(invalid(
-                "the live descriptor producer has no value declaration",
-            ));
+            (parameter.structural_type, parameter.multiplicity)
         };
-                if declared.0 != *structural_type {
-                    return Err(invalid(
-                        "the descriptor producer type differs from its live declaration",
-                    ));
-                }
-                declared
-            } else {
-                let parameter = function.arrival_parameter(argument.place).ok_or_else(|| {
-                    invalid("the value has no live home, descriptor or arrival declaration")
-                })?;
-                if parameter.access != terminal_psi::StructuralAccess::Owned
-                    && (!argument.path.is_empty()
-                        || !view_descriptor_parameter(parameter, types.values().copied())
-                        || live.structural_observation_type(function, argument.place)
-                            != Some(parameter.structural_type))
-                {
-                    return Err(invalid(
-                        "a borrowed arrival can supply only its live whole view descriptor",
-                    ));
-                }
-                (parameter.structural_type, parameter.multiplicity)
-            };
         let selected = canonical_static_projection(types.values().copied(), root, &argument.path)
             .map(|(_, declaration)| declaration.id)
             .ok_or_else(|| {

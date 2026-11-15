@@ -156,7 +156,7 @@ pub(crate) fn unproved(
             let strict = elaboration
                 .module
                 .machine(machine)
-                .and_then(|lowered| crate::ranking::claims_strict(lowered, edge));
+                .and_then(|lowered| crate::rankings::claims_strict(lowered, edge));
             match strict {
                 Some(false) => format!(
                     "cannot prove the `terminates by` measure does not grow in {}",

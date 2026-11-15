@@ -2477,6 +2477,10 @@ pub(crate) mod cleanup_call {
                 || target.place != semantic.place
                 || target.path != semantic.path
                 || indices.len() != target.indices.len()
+                || indices
+                    .iter()
+                    .zip(&target.indices)
+                    .any(|(selected, target)| !selected.matches_target(target))
                 || !matches!(
                     target.shape.class,
                     ValueClass::BorrowedReference | ValueClass::BorrowedScalarReference

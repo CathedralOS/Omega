@@ -26,17 +26,17 @@ static NEXT_REVISION_STAMP: AtomicU64 = AtomicU64::new(1);
 /// first query after a mutation draws the next process-wide stamp. Mutation stays a
 /// plain store through `&mut`, and only queries that follow a mutation touch the
 /// shared sequence.
-struct RevisionStamp(AtomicU64);
+pub(super) struct RevisionStamp(AtomicU64);
 
 impl RevisionStamp {
     const UNSTAMPED: u64 = 0;
 
-    const fn unstamped() -> Self {
+    pub(super) const fn unstamped() -> Self {
         Self(AtomicU64::new(Self::UNSTAMPED))
     }
 
     #[inline]
-    fn get(&self) -> u64 {
+    pub(super) fn get(&self) -> u64 {
         let current = self.0.load(Ordering::Acquire);
         if current != Self::UNSTAMPED {
             return current;
@@ -53,13 +53,34 @@ impl RevisionStamp {
     }
 
     #[inline]
-    fn invalidate(&mut self) {
+    pub(super) fn invalidate(&mut self) {
         *self.0.get_mut() = Self::UNSTAMPED;
     }
 
     /// A copy names the same contents, so it keeps the stamp it was copied at.
-    fn copy(&self) -> Self {
+    pub(super) fn copy(&self) -> Self {
         Self(AtomicU64::new(self.0.load(Ordering::Acquire)))
+    }
+}
+
+impl Clone for RevisionStamp {
+    fn clone(&self) -> Self {
+        self.copy()
+    }
+}
+
+// Freshness is derived bookkeeping, not part of an arena's logical value.
+impl PartialEq for RevisionStamp {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for RevisionStamp {}
+
+impl fmt::Debug for RevisionStamp {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("RevisionStamp")
     }
 }
 
@@ -188,6 +209,42 @@ impl<T: 'static> compiler_storage::Record for Handle<T> {
         };
         Ok(Self::from_parts(arena_index, generation))
     }
+}
+
+/*
+The infallible lookups (`get`, `get_mut`, `span_or_empty`, `span_mut_or_empty`)
+keep handle zero and the empty span as the deliberate names of absence, which
+answer with the arena's shared default or with no rows. Any other handle that
+does not resolve is stale (its slot was retired or rewound, or its page was
+dropped) or was minted for a different arena generation. Answering it with the
+default would let a consumer read a dangling reference as a missing
+declaration, and a write would change the default every absent lookup shares,
+so these lookups refuse it as a broken invariant. A consumer that can meet such
+a handle legitimately validates it first with `try_get`, `span` or `is_valid`.
+Generation checks still cannot tell apart two arenas minted with the same
+generation; that ownership stays with the arena's owning context.
+*/
+#[cold]
+#[inline(never)]
+#[track_caller]
+pub(crate) fn refuse_unresolved(operation: &str, arena_index: u32, generation: u32) -> ! {
+    panic!(
+        "arena {operation} received an unresolved handle (arena index {arena_index}, \
+         generation {generation}): a stale or foreign handle is not the zero sentinel"
+    )
+}
+
+#[cold]
+#[inline(never)]
+#[track_caller]
+pub(crate) fn refuse_unresolved_span<T>(operation: &str, span: HandleSpan<T>) -> ! {
+    panic!(
+        "arena {operation} received an unresolved span (arena index {}, generation {}, \
+         count {}): a stale or foreign span is not the empty span",
+        span.start().arena_index(),
+        span.start().generation(),
+        span.count()
+    )
 }
 
 pub struct HandleSpan<T> {
@@ -1089,9 +1146,16 @@ impl<T: Default> Arena<T> {
         )
     }
 
+    /// Resolves a live row, or the shared default for handle zero. A nonzero
+    /// handle that does not resolve here is refused; see `refuse_unresolved`.
     #[inline]
+    #[track_caller]
     pub fn get(&self, handle: Handle<T>) -> &T {
-        self.try_get(handle).unwrap_or_else(|| self.dummy())
+        match self.try_get(handle) {
+            Some(item) => item,
+            None if !handle.is_valid() => &self.dummy,
+            None => refuse_unresolved("get", handle.arena_index(), handle.generation()),
+        }
     }
 
     /// Resolves a live row without substituting the shared default. Zero,
@@ -1102,15 +1166,17 @@ impl<T: Default> Arena<T> {
         self.items.get(self.index_from_valid_handle(handle))
     }
 
+    /// Resolves a live row for writing. Every unresolved handle is refused,
+    /// handle zero included: a write through it would change the shared
+    /// default that every absent lookup of this arena answers with.
+    #[track_caller]
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
-        self.bump_rewrite_revision();
         let index = self.index_from_valid_handle(handle);
-
-        if index < self.items.len() {
-            &mut self.items[index]
-        } else {
-            &mut self.dummy
+        if index >= self.items.len() {
+            refuse_unresolved("get_mut", handle.arena_index(), handle.generation());
         }
+        self.bump_rewrite_revision();
+        &mut self.items[index]
     }
 
     pub fn free(&mut self, handle: Handle<T>) -> bool {
@@ -1185,9 +1251,15 @@ impl<T: Default> Arena<T> {
         self.items.get(range)
     }
 
+    /// Resolves a span, or no rows for an empty span. A nonempty span that does
+    /// not resolve is refused rather than read as having no members.
     #[inline]
+    #[track_caller]
     pub fn span_or_empty(&self, span: HandleSpan<T>) -> &[T] {
-        self.span(span).unwrap_or(&self.items[0..0])
+        match self.span(span) {
+            Some(items) => items,
+            None => refuse_unresolved_span("span_or_empty", span),
+        }
     }
 
     #[inline]
@@ -1203,13 +1275,16 @@ impl<T: Default> Arena<T> {
     }
 
     #[inline]
+    #[track_caller]
     pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
-        self.bump_rewrite_revision();
-        if let Some(range) = self.valid_span_range(span) {
-            &mut self.items[range]
-        } else {
-            &mut self.items[0..0]
+        if span.is_empty() {
+            return &mut [];
         }
+        let Some(range) = self.valid_span_range(span) else {
+            refuse_unresolved_span("span_mut_or_empty", span);
+        };
+        self.bump_rewrite_revision();
+        &mut self.items[range]
     }
 
     #[inline]
@@ -1716,6 +1791,7 @@ pub struct OrderedRootArena<T: Default> {
     handles: Arena<Handle<T>>,
     roots: HandleSpan<Handle<T>>,
     storage: Arena<T>,
+    revision: RevisionStamp, // Covers both the retained values and the selected root roster.
 }
 
 impl<T: Default> OrderedRootArena<T> {
@@ -1724,6 +1800,7 @@ impl<T: Default> OrderedRootArena<T> {
     }
 
     pub fn push(&mut self, value: T) -> Handle<T> {
+        self.revision.invalidate();
         let value = self.storage.append(value);
         self.handles.append_to_span(&mut self.roots, value);
 
@@ -1747,6 +1824,7 @@ impl<T: Default> OrderedRootArena<T> {
     }
 
     pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        self.revision.invalidate();
         self.storage.get_mut(handle)
     }
 
@@ -1777,11 +1855,13 @@ impl<T: Default> OrderedRootArena<T> {
             .filter(|handle| keep(self.storage.get(*handle)))
             .collect::<Vec<_>>();
         if retained.len() != self.roots.len() {
+            self.revision.invalidate();
             self.roots = self.handles.insert_many(retained);
         }
     }
 
     pub fn for_each_mut(&mut self, mut visit: impl FnMut(&mut T)) {
+        self.revision.invalidate();
         let handles = self.handles.span_or_empty(self.roots);
         let storage = &mut self.storage;
 
@@ -1791,6 +1871,7 @@ impl<T: Default> OrderedRootArena<T> {
     }
 
     pub fn find_mut(&mut self, mut matches: impl FnMut(&T) -> bool) -> Option<&mut T> {
+        self.revision.invalidate();
         let handles = self.handles.span_or_empty(self.roots);
         let storage = &mut self.storage;
 
@@ -1805,9 +1886,7 @@ impl<T: Default> OrderedRootArena<T> {
 
     #[inline]
     pub fn revision(&self) -> u64 {
-        self.storage
-            .revision()
-            .wrapping_add(self.handles.revision())
+        self.revision.get()
     }
 }
 
@@ -1817,6 +1896,7 @@ impl<T: Default> Default for OrderedRootArena<T> {
             handles: Arena::new(),
             roots: HandleSpan::empty(),
             storage: Arena::new(),
+            revision: RevisionStamp::unstamped(),
         }
     }
 }
@@ -1833,6 +1913,7 @@ impl<T: Default> Index<usize> for OrderedRootArena<T> {
 
 impl<T: Default> IndexMut<usize> for OrderedRootArena<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.revision.invalidate();
         let handle = self.handles.span_or_empty(self.roots)[index];
 
         self.storage.get_mut(handle)
@@ -1885,6 +1966,7 @@ impl<T: Default + compiler_storage::Record + 'static> compiler_storage::Record
                 handles: Arena::read(input)?,
                 roots: HandleSpan::read(input)?,
                 storage: Arena::read(input)?,
+                revision: RevisionStamp::unstamped(),
             };
             let roots = result
                 .handles
@@ -2044,10 +2126,74 @@ mod tests {
     }
 
     #[test]
+    fn infallible_lookups_keep_zero_and_empty_as_absence() {
+        let mut arena = Arena::<u32>::new();
+        arena.insert(7);
+        assert_eq!(arena.get(Handle::invalid()), &0);
+        assert_eq!(arena.span_or_empty(HandleSpan::empty()), &[] as &[u32]);
+        assert_eq!(
+            arena.span_mut_or_empty(HandleSpan::empty()),
+            &mut [] as &mut [u32]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get received an unresolved handle")]
+    fn get_refuses_a_retired_handle_instead_of_answering_the_default() {
+        let mut arena = Arena::new();
+        let retired = arena.insert(7u32);
+        assert!(arena.free(retired));
+        arena.insert(8);
+        let _ = arena.get(retired);
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get received an unresolved handle")]
+    fn get_refuses_an_out_of_range_handle() {
+        let mut arena = Arena::new();
+        let handle = arena.insert(7u32);
+        let _ = arena.get(Handle::from_parts(9, handle.generation()));
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get_mut received an unresolved handle")]
+    fn get_mut_refuses_handle_zero_so_the_shared_default_cannot_change() {
+        let mut arena = Arena::<u32>::new();
+        arena.insert(7);
+        *arena.get_mut(Handle::invalid()) = 99;
+    }
+
+    #[test]
+    #[should_panic(expected = "arena get_mut received an unresolved handle")]
+    fn get_mut_refuses_a_foreign_generation() {
+        let mut arena = Arena::<u32>::with_generation(3);
+        let handle = arena.insert(7);
+        *arena.get_mut(Handle::from_parts(handle.arena_index(), 4)) = 99;
+    }
+
+    #[test]
+    #[should_panic(expected = "arena span_or_empty received an unresolved span")]
+    fn span_or_empty_refuses_a_stale_span_instead_of_reading_no_members() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many([1u32, 2]);
+        arena.rewind_appended(0);
+        let _ = arena.span_or_empty(span);
+    }
+
+    #[test]
+    #[should_panic(expected = "arena span_mut_or_empty received an unresolved span")]
+    fn span_mut_or_empty_refuses_a_stale_span() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many([1u32, 2]);
+        assert!(arena.free(span.start()));
+        let _ = arena.span_mut_or_empty(span);
+    }
+
+    #[test]
     fn checked_lookup_does_not_substitute_dummy_for_missing_storage() {
         let mut arena = Arena::new();
         let handle = arena.insert(7u32);
-        *arena.get_mut(Handle::invalid()) = 99;
+        arena.dummy = 99;
         assert_eq!(arena.try_get(handle), Some(&7));
         assert_eq!(arena.try_get(Handle::invalid()), None);
         assert_eq!(
@@ -2074,13 +2220,13 @@ mod tests {
         assert!(arena.is_valid(first));
         assert!(arena.free(first));
         assert!(!arena.is_valid(first));
-        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.try_get(first), None);
 
         let reused = arena.insert("beta".to_owned());
 
         assert_eq!(reused.arena_index(), first.arena_index());
         assert_ne!(reused.generation(), first.generation());
-        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.try_get(first), None);
         assert_eq!(arena.get(reused).as_str(), "beta");
     }
 
@@ -2264,13 +2410,13 @@ mod tests {
 
         assert_eq!(arena.len(), 0);
         assert!(!arena.is_valid(first));
-        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.try_get(first), None);
 
         let reused = arena.insert("beta".to_owned());
 
         assert_eq!(reused.arena_index(), first.arena_index());
         assert_ne!(reused.generation(), first.generation());
-        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.try_get(first), None);
         assert_eq!(arena.get(reused).as_str(), "beta");
     }
 
@@ -2284,7 +2430,7 @@ mod tests {
         let replacement = source.insert("replacement".to_owned());
         assert_ne!(replacement.generation(), retired.generation());
         assert!(source.free(free));
-        *source.get_mut(Handle::invalid()) = "source dummy".to_owned();
+        source.dummy = "source dummy".to_owned();
 
         let mut copied = Arena::new();
         copied.insert("old".to_owned());
@@ -2294,7 +2440,7 @@ mod tests {
         assert!(!copied.is_valid(retired));
         assert!(!copied.is_valid(free));
         assert_eq!(copied.get(replacement), source.get(replacement));
-        assert_eq!(copied.get(retired), source.dummy());
+        assert_eq!(copied.try_get(retired), None);
 
         assert_eq!(
             copied.insert("reuse".to_owned()),
@@ -2321,7 +2467,7 @@ mod tests {
         source.append(vec!["short".to_owned()]);
         let free = source.append(vec!["unused".to_owned()]);
         assert!(source.free(free));
-        *source.get_mut(Handle::invalid()) = vec!["dummy".to_owned()];
+        source.dummy = vec!["dummy".to_owned()];
 
         let mut copied = Arena::with_capacity(8);
         copied.slot_metadata_mut().free_indices.reserve(8);
@@ -2330,7 +2476,7 @@ mod tests {
         }
         let retired = copied.append(vec!["retired destination payload".to_owned()]);
         assert!(copied.free(retired));
-        *copied.get_mut(Handle::invalid()) = vec!["longer destination dummy".to_owned()];
+        copied.dummy = vec!["longer destination dummy".to_owned()];
         let storage_pointers = (
             copied.items.as_ptr(),
             copied.slot_metadata().generations.as_ptr(),
@@ -2815,6 +2961,37 @@ mod tests {
         assert_eq!(roots[1], 30);
         assert!(!roots.contains(removed));
         assert!(roots.revision() > revision);
+    }
+
+    #[test]
+    fn revision_tracks_ordered_root_mutation_and_clone_routes() {
+        let mut roots = OrderedRootArena::<u64>::new();
+        let first = roots.push(10);
+        roots.push(20);
+        let initial = roots.revision();
+        let copy = roots.clone();
+        assert_eq!(copy.revision(), initial);
+        let mut previous = initial;
+        let mut changed = |roots: &OrderedRootArena<u64>| {
+            let current = roots.revision();
+            assert_ne!(current, previous);
+            assert_eq!(roots.revision(), current);
+            previous = current;
+        };
+        *roots.get_mut(first) += 1;
+        changed(&roots);
+        roots[0] += 1;
+        changed(&roots);
+        *roots.find_mut(|value| *value == 20).expect("second root") += 1;
+        changed(&roots);
+        roots.for_each_mut(|value| *value += 1);
+        changed(&roots);
+        roots.retain(|_| false);
+        changed(&roots);
+        assert!(roots.is_empty());
+        assert_eq!(copy.revision(), initial);
+        assert_eq!(copy.get(first), &10);
+        assert_eq!(roots.get(first), &13);
     }
 
     #[test]

@@ -476,6 +476,7 @@ mod settlement_roster {
 
 pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
     plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
     target: NativeTarget,
     settlement_bindings: &[BoundarySettlementBinding],
     installation: Option<&dyn ProviderInstallationEvidence>,
@@ -595,7 +596,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         &installed_by_call,
         &settlements_by_boundary,
     );
-    let target_plan = TargetOperationPlan {
+    let mut target_plan = TargetOperationPlan {
         borrowed_storage_layouts: super::borrowed_storage::capture(plan, &structural_types),
         psi: plan.psi,
         target,
@@ -654,5 +655,15 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
             })
             .collect::<Result<Vec<_>, _>>()?,
     };
+    super::function_contract::retain(plan, unit, &mut target_plan)?;
+    super::call_result_origins::retain(
+        plan,
+        unit,
+        &installed_by_call,
+        installed_by_call
+            .values()
+            .filter_map(|call| functions_by_machine.get(&call.callee).copied()),
+        &mut target_plan,
+    )?;
     Ok(target_plan)
 }

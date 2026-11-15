@@ -1095,6 +1095,8 @@ pub(crate) mod expression {
                             .set_constructed_value_type_reference(lowered, result);
                     }
                     self.target().set_source_span(lowered, source_span);
+                    let unresolved_name = self.source.unresolved_name(expression);
+                    self.target().set_unresolved_name(lowered, unresolved_name);
                     self.target().attach_authored_selection_occurrences(
                         lowered,
                         authored_selection_occurrences,
@@ -1294,7 +1296,7 @@ pub(crate) mod expression {
                             {
                                 crate::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
-                                    self.target_trees,
+                                    &mut self.target_trees.type_reference_table,
                                     target_type,
                                     Some(cast.domain),
                                 );

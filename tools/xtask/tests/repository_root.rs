@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 struct Invocation(PathBuf);
 
@@ -30,6 +30,20 @@ impl Invocation {
         }
         fs::write(directory.join("members"), "").unwrap();
         Self(directory)
+    }
+
+    fn git(&self, arguments: &[&str]) {
+        let output = Command::new("git")
+            .args(arguments)
+            .current_dir(&self.0)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     fn audit(&self, explicit: bool) -> Output {
@@ -141,4 +155,97 @@ fn claims_preflight_does_not_read_git_metadata() {
             "claims {arguments:?} read Git metadata"
         );
     }
+}
+
+#[test]
+fn status_commands_accept_a_closed_output_reader() {
+    use std::io;
+
+    let invocation = Invocation::new(true);
+    for arguments in [
+        &["init"][..],
+        &["init", "--bare", "registry.git"],
+        &["remote", "add", "origin", "registry.git"],
+    ] {
+        invocation.git(arguments);
+    }
+    for arguments in [
+        ["worktree", "status"],
+        ["worktree", "list"],
+        ["claims", "status"],
+    ] {
+        let (reader, writer) = io::pipe().unwrap();
+        drop(reader);
+        let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .args(arguments)
+            .current_dir(&invocation.0)
+            .stdin(Stdio::null())
+            .stdout(writer)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn worktree_status_shows_a_claim_before_the_first_commit() {
+    let invocation = Invocation::new(true);
+    invocation.git(&["init", "-b", "main"]);
+    invocation.git(&["add", "Cargo.toml", "tools", "omega-rust"]);
+    invocation.git(&[
+        "-c",
+        "user.name=Worktree status test",
+        "-c",
+        "user.email=worktree@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "core.hooksPath=empty-hooks",
+        "commit",
+        "-m",
+        "initial fixture",
+    ]);
+    invocation.git(&["init", "--bare", "registry.git"]);
+    invocation.git(&["remote", "add", "origin", "registry.git"]);
+    invocation.git(&["push", "origin", "main"]);
+
+    let worktree = |arguments: &[&str]| {
+        let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .arg("worktree")
+            .args(arguments)
+            .current_dir(&invocation.0)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "worktree {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let row = || {
+        worktree(&["status"])
+            .lines()
+            .find(|line| line.starts_with("worker-1 "))
+            .expect("registered worker-1 status")
+            .split_whitespace()
+            .take(4)
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    worktree(&["acquire", "tools-status-control"]);
+    let claimed = row();
+    assert_eq!(claimed[1], "tools-status-control");
+    assert_eq!(claimed[3], "assigned");
+
+    worktree(&["release", "worker-1"]);
+    let released = row();
+    assert_eq!(released[1], "-");
+    assert_eq!(released[2], claimed[2]);
+    assert_eq!(released[3], "idle");
 }

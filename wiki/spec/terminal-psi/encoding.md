@@ -1399,7 +1399,7 @@ AccessInitialize, AccessMoveOut and AccessView. Tag 4 names EmptyRunRelease,
 which consumes an empty run and returns its existing vacant backing. Tag 5 names
 AccessRelocate. Tags 6–9 name StaticInterruptInstall, StaticInterruptContext,
 StaticInterruptBeginCompletion and StaticInterruptFinishCompletion, respectively.
-Semantic format marker 271 adds tag 10, HostedPrimitive, followed by a `u8`
+Semantic format marker 272 adds tag 10, HostedPrimitive, followed by a `u8`
 operation (`0` ProcessExit; other operations reject), then the canonical public requirement's `u64` boundary
 id. The primitive is a Machine boundary with its own checked source declaration
 and callable identity; the linked requirement remains a distinct Trait boundary.
@@ -1408,7 +1408,10 @@ complete signature, reach, crash and progress correspondence, and independently
 proves that the actual result type is empty. The link preserves the canonical
 terminal observation without supplying target realization or execution authority.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Vocabulary marker 134 and the artifact transport envelope remain unchanged.
+decoded. Marker 272 also retains the logical boundary-result lifetime layout from
+main. The two incompatible predecessor layouts both used marker 271; both are
+refused before payload interpretation. Vocabulary marker 134 and the artifact
+transport envelope remain unchanged.
 
 A checked-machine declaration encodes `u32` identity-table indices for the
 exact-owner machine, initial state and semantic declaration; counted `u32`
@@ -1436,6 +1439,13 @@ Optional fields use a presence Boolean.
 Identities and commitments are nonempty; candidates are strictly ordered by
 their complete record and duplicates reject. Repeated calls share this catalog;
 target selection does not alter it.
+
+Semantic format marker 271 retains a boundary's optional declared result lifetime
+groups separately from its spatial result-reference regions. Each group uses the
+same counted input dependencies and counted canonical result paths as a selected
+public method's declared lifetime group. Absence is an unavailable frontier;
+a present group with no inputs promises a caller-chosen result. The lifetime
+anchors retain loans but do not place provider-owned backing inside an input.
 
 Semantic format marker 270 removes the legacy target-family catalog. A module's
 optional entry names one retained executable machine; a bodyless boundary cannot
@@ -2017,7 +2027,7 @@ requires a format change; display spelling does not select a provider.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling + published synchronous entries |
+| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + result-reference regions + optional declared result-lifetime groups + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling + published synchronous entries |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
@@ -2686,7 +2696,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 271 | yes |
+| semantic module | `PSITERM\0` | 272 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

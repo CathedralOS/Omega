@@ -12,7 +12,7 @@ data Reading [copy] {
 }
 data ExpectedPayload { value: u64 in PayloadValue; }
 data ExpectedPlain { value: u64; }
-data Envelope [copy] { left: u64; graph: reflect::TypeSchema; right: u64; }
+data Envelope<'view> [copy] { left: u64; graph: reflect::TypeSchema<'view>; right: u64; }
 
 machine describe_here<T>() -> reflect::TypeSchema { reflect::schema<T>() }
 
@@ -106,7 +106,7 @@ machine inspect<'graph>(graph: &'graph reflect::TypeSchema) crashes Trap {
     let invalid: reflect::SchemaNode<'graph> = reflect::schema_node(graph, 18446744073709551615u64);
     require_true(reflect::node_role(&invalid) == 0u64);
 }
-data Joined [copy] { graph: reflect::TypeSchema; selected_left: bool; }
+data Joined<'view> [copy] { graph: reflect::TypeSchema<'view>; selected_left: bool; }
 machine joined(flag: bool, graph: reflect::TypeSchema) -> Joined {
     let left: Joined = Joined { graph: graph, selected_left: true };
     let right: Joined = Joined { graph: graph, selected_left: false };

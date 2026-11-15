@@ -30,11 +30,15 @@ pub fn hosted_requirement_schema(
         HostedOperation::ProcessExit => "exit_process",
         _ => return Err("hosted operation has no complete canonical schema projection".into()),
     };
-    // The supported canonical contract has no receiver application, structural
+    // The supported canonical contract has no receiver arguments, structural
     // claim, or progress-profile parameter. Do not invent empty rows for an
     // interface whose declaration actually carries one of those obligations.
     if !boundary.structural_parameters.is_empty()
         || !boundary.result_reference_regions.is_empty()
+        || boundary
+            .result_lifetimes
+            .as_ref()
+            .is_some_and(|groups| !groups.is_empty())
         || !boundary.requires.is_empty()
         || !boundary.normal_qualifications.is_empty()
         || !boundary.scalar_domain_requirements.is_empty()

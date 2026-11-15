@@ -1,11 +1,11 @@
 // A borrowed scalar slice member encodes with its runtime element count:
 // `readings: main.source[1..4]` — record construction takes the interior
 // subslice without an `&` at the member value.
-data Telemetry {
-    #0 readings: &[i32];
+data Telemetry<'view> {
+    #0 readings: &'view [i32];
 }
-data TelemetrySample {
-    readings: &[i32];
+data TelemetrySample<'view> {
+    readings: &'view [i32];
 }
 data Main { source: [i32; 4]; buffer: [u8; 64]; written: u64; }
 machine Main::main(main: &mut Main) {

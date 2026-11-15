@@ -1638,6 +1638,8 @@ pub(crate) mod machine_instances {
     };
     use symbols::SymbolHandle;
 
+    const MISSING_EXECUTABLE_TEMPLATE: &str = "executable application lost its template machine";
+
     #[derive(Clone, Copy)]
     pub enum MachineInstantiation<'program> {
         Specialization(&'program MachineSpecialization),
@@ -1684,9 +1686,11 @@ pub(crate) mod machine_instances {
                 Self::Specialization(receipt) => receipt.states,
                 Self::Capture(receipt) => receipt.states,
             };
+            let template = self.template();
+            program.validate_executable_template_symbol(template)?;
             let source = program
-                .machine(self.template())
-                .ok_or("executable application lost its template machine")?;
+                .machine(template)
+                .ok_or(MISSING_EXECUTABLE_TEMPLATE)?;
             let instance = program
                 .machine(self.instance())
                 .ok_or("executable application lost its instance machine")?;
@@ -1714,6 +1718,20 @@ pub(crate) mod machine_instances {
         }
     }
     impl TypedTrees {
+        /// Ownership discovery can use a template before reading its entry.
+        /// Both reads require the exact retained symbol generation.
+        pub fn validate_executable_template_symbol(
+            &self,
+            template: SymbolHandle,
+        ) -> Result<(), &'static str> {
+            self.symbols
+                .symbols()
+                .nodes()
+                .is_valid(template)
+                .then_some(())
+                .ok_or(MISSING_EXECUTABLE_TEMPLATE)
+        }
+
         /// Read enclosing applications from their exact instance receipts, from
         /// the immediate caller out to the original supplying declaration.
         pub fn enclosing_invocation_frames(
@@ -8973,6 +8991,26 @@ impl TypedTrees {
             ..CallableApplication::default()
         }
         .type_reference(self, original)
+    }
+
+    /// Copies every form of callable contract fact under the same declaration
+    /// and static bindings as its entry. No fact becomes checking evidence here.
+    pub fn copy_callable_contract(
+        &mut self,
+        original: &signature::SignatureContract,
+        symbols: crate::SymbolRebinding<'_>,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        declaration: SymbolHandle,
+    ) -> Result<signature::SignatureContract, &'static str> {
+        let mut application = CallableApplication {
+            region_scope: declaration,
+            types: substitutions.to_vec(),
+            symbols: symbols.iter().copied().collect(),
+            ..CallableApplication::default()
+        };
+        let mut copied = original.clone();
+        copied.facts = application.facts(self, original.facts)?;
+        Ok(copied)
     }
 
     /// Applies one declaration's types throughout a copied entry and its clauses.

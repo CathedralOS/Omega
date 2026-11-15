@@ -569,6 +569,7 @@ mod tests {
             structural_parameters: Vec::new(),
             result: BoundaryMachineResult::Unit,
             result_reference_regions: Vec::new(),
+            result_lifetimes: None,
             requires: Vec::new(),
             normal_qualifications: Vec::new(),
             scalar_domain_requirements: Vec::new(),

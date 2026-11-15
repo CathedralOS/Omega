@@ -10,13 +10,15 @@
 //! - `cargo xtask doctor [--json <path>]`
 //! - `cargo xtask claims <status|claim|release|note> [options]`
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
-//! - `cargo xtask worktree <status|acquire|release|clean> [options]`
+//! - `cargo xtask worktree <status|acquire|begin|release|clean> [options]`
 //! - `cargo xtask managed-cache-retention [--repository <dir>]`
 //! - `cargo xtask retire-attached-machines [--write] <path>...`
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
 //! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
-//! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv>] [--jobs <n>] [--out <file>]`
+//! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep>] [--target <name>] [--shard K/N] [--out <file>]`
+//! - `cargo xtask sweep merge --out <file.json> <shard.json>...`
+//! - `cargo xtask sweep fleet <start|status|collect|restart>`
 
 mod alpha_forge;
 mod attached_machines;
@@ -36,10 +38,25 @@ mod rust_producer_omission;
 mod samples;
 mod source_closure;
 mod sweep;
+mod work_interval;
 mod worktree;
 
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
+
+/// A status consumer may stop after reading a prefix of the output.
+fn write_status(render: impl FnOnce(&mut dyn Write) -> io::Result<()>) -> Result<(), u8> {
+    let mut output = io::stdout().lock();
+    match render(&mut output).and_then(|()| output.flush()) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        Err(error) => {
+            let _ = writeln!(io::stderr(), "xtask: could not write status: {error}");
+            Err(1)
+        }
+    }
+}
 
 pub(crate) fn repo_root() -> Result<PathBuf, u8> {
     repository::current().map_err(|error| {
@@ -57,7 +74,8 @@ verification and gates:
   check-boundary            Verify native/runtime production dependency and Psi/Omega boundaries
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
-  sweep                     Run omega --check over the programs and group where each one stops
+  sweep                     Run omega --check over the programs and group where each one stops;
+                            `sweep fleet` splits one target's sweep across machines
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
 
 formatting and migration:

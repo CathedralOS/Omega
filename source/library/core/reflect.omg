@@ -6,7 +6,7 @@ use omega::language::core::AccessRegion;
 // Its bytes contain descriptive identities, never compiler pointers or access
 // authority. Copying the facade shares immutable program storage. Node views
 // borrow records inside that same graph; indices have no cross-graph meaning.
-public data TypeSchema [copy] { storage: &[u8]; }
+public data TypeSchema<'graph> [copy] { storage: &'graph [u8]; }
 public data SchemaNode<'graph> [copy] { graph: &'graph [u8]; storage: &'graph [u8]; }
 public data SchemaMembers<'graph> [copy] { graph: &'graph [u8]; handles: &'graph [u8]; role: u64; }
 
@@ -16,7 +16,7 @@ public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
 
 // A whole-subject rule retains the same immutable semantic schema. Its
 // consumer still authenticates that schema against the policy request.
-public machine TypeSchema::root(schema: &TypeSchema) -> AccessRegion
+public machine TypeSchema::root<'graph>(schema: &TypeSchema<'graph>) -> AccessRegion<'graph>
 reaches none
 crashes none
 terminates
@@ -27,9 +27,9 @@ terminates
 // These bytes describe the selected declaration and its chosen arguments.
 // They grant no right to call it or establish a domain. A policy consumer must
 // authenticate the description against its own checked source.
-public data CallableInfo [copy] {
-    case Machine(declaration_identity: &[u8], callable_identity: &[u8], source_revision: &[u8]);
-    case Requirement(declaration_identity: &[u8], callable_identity: &[u8], source_revision: &[u8]);
+public data CallableInfo<'text> [copy] {
+    case Machine(declaration_identity: &'text [u8], callable_identity: &'text [u8], source_revision: &'text [u8]);
+    case Requirement(declaration_identity: &'text [u8], callable_identity: &'text [u8], source_revision: &'text [u8]);
 }
 
 // Only this core query interprets its operand as a declaration path. Ordinary
@@ -257,18 +257,18 @@ public machine members_get<'graph>(members: &SchemaMembers<'graph>, index: u64) 
 
 // Descriptive context for one typed field invocation. Text is immutable
 // literal storage; none of these descriptions grants access to a value.
-public data FieldInfo {
-    member_identity: &[u8];
-    case_identity: &[u8];
-    owner_identity: &[u8];
-    owner_application: &[u8];
-    name: &[u8];
-    qualified_type: &[u8];
+public data FieldInfo<'text> {
+    member_identity: &'text [u8];
+    case_identity: &'text [u8];
+    owner_identity: &'text [u8];
+    owner_application: &'text [u8];
+    name: &'text [u8];
+    qualified_type: &'text [u8];
     declaration_position: u64;
     has_stable_number: bool;
     is_erased: bool;
     stable_number: u64;
-    source_revision: &[u8];
+    source_revision: &'text [u8];
 }
 
 // A checked declaration query must produce the field description. If this
@@ -305,11 +305,11 @@ requires machine Visitor<Kind>(context: &mut Context, field: &FieldInfo);
 // Sum visitation reports exactly one active case, then common fields and only
 // that case's payload. Case identity is descriptive; guards and ordinary
 // subloan checks establish permission to project a payload.
-public data CaseInfo {
-    member_identity: &[u8];
-    owner_identity: &[u8];
-    owner_application: &[u8];
-    name: &[u8];
+public data CaseInfo<'text> {
+    member_identity: &'text [u8];
+    owner_identity: &'text [u8];
+    owner_application: &'text [u8];
+    name: &'text [u8];
     declaration_position: u64;
     has_stable_number: bool;
     stable_number: u64;

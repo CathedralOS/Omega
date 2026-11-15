@@ -1,0 +1,4 @@
+module kit;
+
+machine pick(value: u32) -> u32 { 17u32 }
+machine pick(value: u64) -> u64 { 64u64 }

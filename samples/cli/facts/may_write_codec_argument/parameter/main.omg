@@ -2,8 +2,8 @@
 // Expected exit: 0
 // Place: parameter.
 
-data Blob {
-    #0 bytes: &[u8];
+data Blob<'view> {
+    #0 bytes: &'view [u8];
 }
 
 machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {

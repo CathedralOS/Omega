@@ -30,12 +30,14 @@ impl Lowering<'_> {
     pub(super) fn block(&mut self, source: SourceOrigin) -> BlockId {
         let block = self.blocks.push(Draft::default());
         self.sources.blocks.push(source);
+        self.inherit_ranking(block);
         block
     }
 
     pub(super) fn enter(&mut self, block: BlockId) {
         self.current = Some(block);
         self.point = Some(ProgramPoint::BlockEntry(block));
+        self.enter_ranking(block);
     }
 
     pub(super) fn open(&self) -> bool {
@@ -133,9 +135,9 @@ impl Lowering<'_> {
         })
     }
 
-    /// An arrival at a member's loop head: the jump with the member's scalar
-    /// formals as its arguments, and, when the head has an invariant, the
-    /// one `ArrivalInvariant` obligation this edge owes it.
+    /// Arrive at a loop head with the same scalar and storage arguments a
+    /// call would pass. Staged values are captured before their old homes
+    /// retire, and a header invariant is proved for every arrival.
     /// control_flow.md: "Every arrival proves the predicate under
     /// simultaneous destination-parameter to actual-argument substitution,
     /// before destination hypotheses become available."
@@ -143,6 +145,8 @@ impl Lowering<'_> {
         &mut self,
         member: MachineId,
         arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
         source: SourceOrigin,
         acknowledgement: Option<terminal_psi::CallAcknowledgement>,
     ) -> Checked<()> {
@@ -150,9 +154,12 @@ impl Lowering<'_> {
             return Err(self.internal("an arrival at a machine outside the call component"));
         };
         let target = head.block;
-        if head.parameters.len() != arguments.len() {
+        if head.parameters.len() != arguments.len()
+            || head.structural_parameters.len() != structural_arguments.len()
+        {
             return Err(self.internal("an arrival does not match the head's parameters"));
         }
+        self.successor_ranking(member, &arguments, &structural_arguments)?;
         let edge = self.edge(Destination::Block(target), source)?;
         if let Some(acknowledgement) = acknowledgement {
             self.call_formations.push(terminal_psi::CallFormation {
@@ -167,8 +174,8 @@ impl Lowering<'_> {
             arguments,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            cleanup_actions: Vec::new(),
+            structural_arguments,
+            cleanup_actions,
         })?;
         // The edge's `ArrivalInvariant` is minted with every other arrival's
         // (`Lowering::arrivals`), which also lists it on the head's
@@ -432,16 +439,16 @@ impl Lowering<'_> {
             // A member's arguments are scalars, evaluated left to right like
             // any call's, and the edge carries them.
             Target::Value(expression) if let Some((member, arguments)) = self.loops(expression) => {
-                let mut values = Vec::with_capacity(arguments.len());
-                for argument in arguments {
-                    match self.scalar(argument)? {
-                        Reached::Value(value) => values.push(value),
+                let (values, structural, cleanup) =
+                    match self.tail_arguments(member, arguments, expression.source)? {
+                        Reached::Value(arguments) => arguments,
                         Reached::Ended(_) => return Ok(()),
-                    }
-                }
+                    };
                 self.arrive(
                     member,
                     values,
+                    structural,
+                    cleanup,
                     expression.source,
                     Some(expression.call_context.unwrap_or_default()),
                 )

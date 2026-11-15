@@ -15,7 +15,7 @@ machine verify(storage: &Storage) crashes Trap {
         _ -> failure()
     }
 }
-data Held { cells: &write [Cell; 2]; }
+data Held<'view> { cells: &'view write [Cell; 2]; }
 machine main() crashes Trap {
     let mut storage: Storage;
     storage.cells[0].padding = 11;

@@ -1019,11 +1019,16 @@ pub(crate) mod block_bindings {
             structural_type: StructuralTypeId,
             multiplicity: StructuralMultiplicity,
         ) -> bool {
-            self.owned_block_source(place).is_some_and(|source| {
-                source.structural_type == structural_type
-                    && source.access == StructuralAccess::Owned
-                    && source.multiplicity == multiplicity
-            }) || self.owned_result_source(place, structural_type, multiplicity)
+            let Some(machine) = self.program.machines().get(&self.current_machine) else {
+                return false;
+            };
+            terminal_semantics::structural_argument_source(machine, place, 0).is_some_and(
+                |source| {
+                    source.structural_type == structural_type
+                        && source.access == StructuralAccess::Owned
+                        && source.multiplicity == multiplicity
+                },
+            )
         }
 
         fn install_presented_descriptor(
@@ -1054,62 +1059,12 @@ pub(crate) mod block_bindings {
             Ok(view)
         }
 
-        fn owned_result_source(
-            &self,
-            place: PlaceId,
-            structural_type: StructuralTypeId,
-            multiplicity: StructuralMultiplicity,
-        ) -> bool {
-            let Some(machine) = self.program.machines().get(&self.current_machine) else {
-                return false;
-            };
-            let Some(declaration) = machine.structural_place(place) else {
-                return false;
-            };
-            if let StructuralPlaceKind::TrivialAffineLocal {
-                structural_type: declared,
-                ..
-            } = declaration.kind
-            {
-                return declared == structural_type
-                    && multiplicity == StructuralMultiplicity::Affine;
-            }
-            let StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type: declared,
-            } = declaration.kind
-            else {
-                return false;
-            };
-            declared == structural_type
-                && machine.operations().any(|operation| {
-                    operation.id == producer
-                        && operation.result.structural().is_some_and(|result| {
-                            result.place == place
-                                && result.structural_type == structural_type
-                                && result.multiplicity == multiplicity
-                        })
-                })
-        }
-
         pub(crate) fn owned_block_source(
             &self,
             place: PlaceId,
         ) -> Option<&StructuralParameterDeclaration> {
             let machine = self.program.machines().get(&self.current_machine)?;
-            let declaration = machine.structural_place(place)?;
-            match declaration.kind {
-                StructuralPlaceKind::Parameter { position } => machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == place && parameter.position == position),
-                StructuralPlaceKind::BlockParameter { block, position } => machine
-                    .block(&block)?
-                    .structural_parameters
-                    .get(position as usize)
-                    .filter(|parameter| parameter.place == place && parameter.position == position),
-                _ => None,
-            }
+            terminal_semantics::arrival_parameter(machine, place)
         }
     }
 }
@@ -2076,8 +2031,7 @@ use crate::boundary::results::{
 };
 use crate::boundary::values::TerminalScalarValue;
 use crate::engine::custody::{
-    commit_cleanup_action, consume_affine_projection, consume_projected_ownership,
-    rebind_structural_result_claims,
+    commit_cleanup_action, consume_projected_ownership, rebind_structural_result_claims,
 };
 use crate::engine::execution::{
     CleanupContinuation, CompletedReturn, SuspendedCall, SuspendedCallResult, TerminalExecution,
@@ -2153,20 +2107,6 @@ impl TerminalExecution<'_> {
             structural_values.get(&discard.place)?,
             self.structural_cases.as_map(),
             &discard.path,
-        )
-    }
-
-    pub(crate) fn consume_affine_projection(
-        &self,
-        frontier: &mut std::collections::BTreeSet<StructuralAffineDiscard>,
-        argument: &StructuralArgument,
-    ) -> Result<(), TerminalInterpretError> {
-        consume_affine_projection(
-            &self.structural_types(),
-            &self.structural_values,
-            self.structural_cases.as_map(),
-            frontier,
-            argument,
         )
     }
 
