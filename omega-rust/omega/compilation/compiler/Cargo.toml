@@ -111,6 +111,11 @@ libc = { version = "0.2.186", features = ["extra_traits"] }
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
+# Direct and stored byte views execute after independent artifact admission.
+[[test]]
+name = "byte_view_arrivals"
+path = "tests/byte_view_arrivals.rs"
+
 # A Build script cannot make, keep or take apart the compiler-owned Build value:
 # the real prelude's seal refuses each twin before the script runs.
 [[test]]
