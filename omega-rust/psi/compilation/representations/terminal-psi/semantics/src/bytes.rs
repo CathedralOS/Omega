@@ -217,7 +217,6 @@ pub(crate) mod byte_sequence_concatenation {
 }
 pub(crate) mod byte_sequence_predicates {
 
-    use crate::UnchangedScalarOrigin;
     use crate::runtime_structural_path_tip;
     use semantic_vocabulary::StructuralTypeId;
     use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
@@ -1050,23 +1049,177 @@ pub(crate) mod byte_sequence_predicates {
             semantic_vocabulary::IntegerValue,
         ),
         Incoming(Vec<semantic_vocabulary::ValueId>),
+        /// One operation's typed denotation, not an expanded operand graph.
+        Computed(semantic_vocabulary::ScalarTerm),
+    }
+
+    /// Resolve each actual scalar definition once. Arithmetic belongs to the
+    /// existing typed term evaluator; this owner only follows real value IDs.
+    /// A cycle, unavailable input or exhausted search supplies no constant.
+    type KnownScalar = (
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    );
+
+    enum ScalarConstantState {
+        Active,
+        Complete(Option<KnownScalar>),
+    }
+
+    #[derive(Default)]
+    pub struct ScalarConstants {
+        values: std::collections::BTreeMap<semantic_vocabulary::ValueId, ScalarConstantState>,
+    }
+
+    impl ScalarConstants {
+        fn known(&self, value: semantic_vocabulary::ValueId) -> Option<KnownScalar> {
+            match self.values.get(&value) {
+                Some(ScalarConstantState::Complete(value)) => *value,
+                _ => None,
+            }
+        }
+
+        pub fn value(
+            &mut self,
+            value: semantic_vocabulary::ValueId,
+            mut origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
+        ) -> Option<(
+            semantic_vocabulary::ScalarType,
+            semantic_vocabulary::IntegerValue,
+        )> {
+            use semantic_vocabulary::{ScalarTerm, ValueId};
+            enum Step {
+                Visit(ValueId),
+                Complete(ValueId, ScalarConstantOrigin),
+            }
+            let mut pending = vec![Step::Visit(value)];
+            let mut active = Vec::new();
+            let mut remaining = 8192usize;
+            while let Some(step) = pending.pop() {
+                let Some(next) = remaining.checked_sub(1) else {
+                    // Do not leave active entries behind, or retry the same
+                    // failed dependency graph on every later call.
+                    for id in active {
+                        if let Some(state @ ScalarConstantState::Active) = self.values.get_mut(&id)
+                        {
+                            *state = ScalarConstantState::Complete(None);
+                        }
+                    }
+                    return None;
+                };
+                remaining = next;
+                match step {
+                    Step::Visit(id) => {
+                        if let Some(state) = self.values.get_mut(&id) {
+                            if matches!(state, ScalarConstantState::Active) {
+                                *state = ScalarConstantState::Complete(None);
+                            }
+                            continue;
+                        }
+                        self.values.insert(id, ScalarConstantState::Active);
+                        active.push(id);
+                        let Some(definition) = origin(id) else {
+                            self.values.insert(id, ScalarConstantState::Complete(None));
+                            continue;
+                        };
+                        let mut dependencies = Vec::new();
+                        match &definition {
+                            ScalarConstantOrigin::Literal(..) => {}
+                            ScalarConstantOrigin::Incoming(values) => {
+                                if values.len() > remaining {
+                                    self.values.insert(id, ScalarConstantState::Complete(None));
+                                    continue;
+                                }
+                                dependencies.extend(values.iter().copied());
+                            }
+                            ScalarConstantOrigin::Computed(term) => {
+                                term.visit_value_ids(|value| {
+                                    dependencies.push(value);
+                                    dependencies.len() <= remaining
+                                });
+                            }
+                        }
+                        if dependencies.len() > remaining {
+                            self.values.insert(id, ScalarConstantState::Complete(None));
+                            continue;
+                        }
+                        pending.push(Step::Complete(id, definition));
+                        pending.extend(dependencies.into_iter().rev().map(Step::Visit));
+                    }
+                    Step::Complete(id, definition) => {
+                        if matches!(self.values.get(&id), Some(ScalarConstantState::Complete(_))) {
+                            continue;
+                        }
+                        let known = |value| self.known(value);
+                        let result = match definition {
+                            ScalarConstantOrigin::Literal(ty, literal) => {
+                                crate::inhabitation::known_scalar_value_with(
+                                    &ScalarTerm::value(id, ty),
+                                    |value| (value == id).then_some((ty, literal)),
+                                )
+                            }
+                            ScalarConstantOrigin::Incoming(values) => {
+                                let mut values = values.into_iter();
+                                values.next().and_then(known).filter(|first| {
+                                    values.all(|value| known(value) == Some(*first))
+                                })
+                            }
+                            ScalarConstantOrigin::Computed(term) => {
+                                crate::inhabitation::known_scalar_value_with(&term, known)
+                            }
+                        };
+                        self.values
+                            .insert(id, ScalarConstantState::Complete(result));
+                    }
+                }
+            }
+            self.known(value)
+        }
     }
 
     pub fn scalar_constant_value(
         value: semantic_vocabulary::ValueId,
-        mut origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
+        origin: impl FnMut(semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin>,
     ) -> Option<(
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
     )> {
-        crate::unchanged_scalar_identity(value, |value| {
-            Some(match origin(value)? {
-                ScalarConstantOrigin::Literal(ty, value) => {
-                    UnchangedScalarOrigin::Known((ty, value))
-                }
-                ScalarConstantOrigin::Incoming(values) => UnchangedScalarOrigin::Incoming(values),
-            })
-        })
+        ScalarConstants::default().value(value, origin)
+    }
+
+    /// Borrow the canonical scalar operation meaning. Merely knowing its
+    /// result does not discharge the operation's independent safety obligation.
+    pub fn scalar_operation_origin(
+        operation: &Operation,
+        value: semantic_vocabulary::ValueId,
+        types: &dyn crate::ValueTypes,
+    ) -> Option<ScalarConstantOrigin> {
+        let result = operation.result.scalar_ref()?;
+        if result.id != value || types.value_type(value) != Some(result.scalar_type) {
+            return None;
+        }
+        if let Some((ty, literal)) = scalar_operation_literal(operation, value) {
+            return Some(ScalarConstantOrigin::Literal(ty, literal));
+        }
+        let equation = if let Some(meaning) =
+            crate::proof_bearing_scalar_leaf_semantics(operation, types).ok()?
+        {
+            meaning.result_equation().clone()
+        } else if let Some(meaning) =
+            crate::goal_free_scalar_leaf_semantics(operation, types).ok()?
+        {
+            meaning.result_equation().clone()
+        } else {
+            crate::trapping_integer_semantics(operation, types)
+                .ok()??
+                .result_equation()
+                .clone()
+        };
+        let semantic_vocabulary::Proposition::Equal(left, right) = equation else {
+            return None;
+        };
+        (left == semantic_vocabulary::ScalarTerm::value(value, result.scalar_type))
+            .then_some(ScalarConstantOrigin::Computed(right))
     }
 
     pub fn machine_scalar_constant_origin(
@@ -1243,6 +1396,23 @@ pub(crate) mod byte_sequence_predicates {
                 .map(|(_, arguments)| *arguments);
             incoming_scalar_origin(bindings, ordinal)
         }
+
+        /// A definition must have exactly one actual producer. The receiving
+        /// owner supplies this same machine's complete, checked value types.
+        pub fn computed_origin(
+            &self,
+            value: semantic_vocabulary::ValueId,
+            types: &dyn crate::ValueTypes,
+        ) -> Option<ScalarConstantOrigin> {
+            let mut definitions = self.definitions(value);
+            if let Some(operation) = definitions.next() {
+                if definitions.next().is_some() {
+                    return None;
+                }
+                return scalar_operation_origin(operation, value, types);
+            }
+            self.constant_origin(value)
+        }
     }
 
     #[cfg(test)]
@@ -1401,6 +1571,125 @@ pub(crate) mod byte_sequence_predicates {
                     machine_scalar_constant_origin(&machine, value)
                 }),
                 expected
+            );
+        }
+
+        #[test]
+        fn computed_scalars_follow_typed_operations_and_memoize_shared_inputs() {
+            let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+            let id = |raw| ValueId::new(raw).unwrap();
+            let operations = [
+                constant(
+                    1,
+                    integer,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(0),
+                    },
+                ),
+                constant(
+                    2,
+                    integer,
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(1),
+                    },
+                ),
+                constant(
+                    3,
+                    integer,
+                    OperationKind::ExactIntegerAdd {
+                        left: id(1),
+                        right: id(2),
+                        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    },
+                ),
+                constant(
+                    4,
+                    integer,
+                    OperationKind::WrappingIntegerAdd {
+                        left: id(3),
+                        right: id(3),
+                    },
+                ),
+            ];
+            let types = operations
+                .iter()
+                .map(|op| (op.result.scalar_ref().unwrap().id, integer))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let mut constants = ScalarConstants::default();
+            let mut visits = [0; 4];
+            for _ in 0..2 {
+                assert_eq!(
+                    constants.value(id(4), |value| {
+                        let index = usize::try_from(value.get() - 1).ok()?;
+                        let operation = operations.get(index)?;
+                        visits[index] += 1;
+                        scalar_operation_origin(operation, value, &types)
+                    }),
+                    Some((integer, IntegerValue::Unsigned(2)))
+                );
+            }
+            assert_eq!(
+                visits, [1; 4],
+                "shared operands and repeated actuals resolve once"
+            );
+            assert!(scalar_operation_origin(&operations[2], id(99), &types).is_none());
+            let mut wrong_types = types.clone();
+            wrong_types.insert(id(2), ScalarType::Boolean);
+            assert!(scalar_operation_origin(&operations[2], id(3), &wrong_types).is_none());
+        }
+
+        #[test]
+        fn scalar_constants_keep_arithmetic_failures_cycles_and_unknown_inputs_unknown() {
+            use semantic_vocabulary::ScalarTerm;
+            let ty = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+            let integer = ScalarType::Integer(ty);
+            let id = |raw| ValueId::new(raw).unwrap();
+            let mut constants = ScalarConstants::default();
+            let mut origin = |value: ValueId| {
+                Some(match value.get() {
+                    1 => ScalarConstantOrigin::Literal(integer, IntegerValue::Unsigned(255)),
+                    2 => ScalarConstantOrigin::Literal(integer, IntegerValue::Unsigned(1)),
+                    3 => ScalarConstantOrigin::Computed(ScalarTerm::ExactIntegerAdd {
+                        scalar_type: ty,
+                        left: Box::new(ScalarTerm::value(id(1), integer)),
+                        right: Box::new(ScalarTerm::value(id(2), integer)),
+                    }),
+                    4 => ScalarConstantOrigin::Computed(ScalarTerm::WrappingIntegerAdd {
+                        scalar_type: ty,
+                        left: Box::new(ScalarTerm::value(id(1), integer)),
+                        right: Box::new(ScalarTerm::value(id(2), integer)),
+                    }),
+                    5 => ScalarConstantOrigin::Incoming(vec![id(4), id(4)]),
+                    6 => ScalarConstantOrigin::Incoming(vec![id(5), id(2)]),
+                    7 => ScalarConstantOrigin::Computed(ScalarTerm::value(id(7), integer)),
+                    8 => ScalarConstantOrigin::Literal(integer, IntegerValue::Unsigned(256)),
+                    _ => return None,
+                })
+            };
+            assert_eq!(constants.value(id(3), &mut origin), None);
+            assert_eq!(
+                constants.value(id(4), &mut origin),
+                Some((integer, IntegerValue::Unsigned(0)))
+            );
+            assert_eq!(
+                constants.value(id(5), &mut origin),
+                Some((integer, IntegerValue::Unsigned(0)))
+            );
+            for raw in [6, 7, 8, 99] {
+                assert_eq!(constants.value(id(raw), &mut origin), None);
+            }
+            let mut budgeted = ScalarConstants::default();
+            assert_eq!(
+                budgeted.value(id(1), |value| Some(if value.get() == 5000 {
+                    ScalarConstantOrigin::Literal(integer, IntegerValue::Unsigned(1))
+                } else {
+                    ScalarConstantOrigin::Computed(ScalarTerm::value(id(value.get() + 1), integer))
+                })),
+                None
+            );
+            assert_eq!(
+                budgeted.value(id(1), |_| panic!("an exhausted root is not searched again")),
+                None
             );
         }
 

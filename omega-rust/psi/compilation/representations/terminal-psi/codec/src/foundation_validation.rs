@@ -130,6 +130,7 @@ pub(crate) mod call_foundations {
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+        constants: &mut terminal_semantics::ScalarConstants,
     ) -> Result<(), CodecError> {
         let Terminator::InvokeNoNormal {
             callee,
@@ -162,6 +163,7 @@ pub(crate) mod call_foundations {
             erased_arguments,
             scalar_index,
             sources,
+            constants,
         )? {
             return Ok(());
         }
@@ -179,11 +181,10 @@ pub(crate) mod call_foundations {
         value: ValueId,
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+        constants: &mut terminal_semantics::ScalarConstants,
     ) -> Option<(ScalarType, IntegerValue)> {
         let expected = sources.scalar_type(value)?;
-        let known = terminal_semantics::scalar_constant_value(value, |value| {
-            scalar_index.constant_origin(value)
-        })?;
+        let known = constants.value(value, |value| scalar_index.computed_origin(value, sources))?;
         (known.0 == expected).then_some(known)
     }
 
@@ -193,6 +194,7 @@ pub(crate) mod call_foundations {
         erased_arguments: &[ScalarTerm],
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+        constants: &mut terminal_semantics::ScalarConstants,
     ) -> Result<bool, CodecError> {
         use terminal_semantics::inhabitation::{
             known_scalar_value_with, predicates_are_false_with,
@@ -212,7 +214,7 @@ pub(crate) mod call_foundations {
             if sources.scalar_type(*actual) != Some(formal.scalar_type) {
                 return malformed("no-normal invocation has no exact scalar argument source");
             }
-            let known = scalar_actual(*actual, scalar_index, sources);
+            let known = scalar_actual(*actual, scalar_index, sources, constants);
             known_actuals.push((formal.id, known));
         }
         for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
@@ -220,7 +222,7 @@ pub(crate) mod call_foundations {
                 return malformed("no-normal invocation erased argument has the wrong carrier");
             }
             let known = known_scalar_value_with(actual, |value| {
-                scalar_actual(value, scalar_index, sources)
+                scalar_actual(value, scalar_index, sources, constants)
             });
             known_actuals.push((formal.id, known));
         }
@@ -1087,7 +1089,14 @@ pub(crate) mod call_foundations {
             let index = terminal_semantics::MachineScalarIndex::new(caller);
             let sources = terminal_semantics::normal_completion::ReturnSources::new(caller)
                 .map_err(CodecError::MalformedStructuralFoundation)?;
-            super::validate_no_normal_invocation(module, &caller.blocks[0], query, &index, &sources)
+            super::validate_no_normal_invocation(
+                module,
+                &caller.blocks[0],
+                query,
+                &index,
+                &sources,
+                &mut terminal_semantics::ScalarConstants::default(),
+            )
         }
 
         fn validate_no_normal_invocation(
@@ -3337,6 +3346,7 @@ pub(crate) mod machine_foundations {
         validate_operation_result_places(machine)?;
         let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
         let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
+        let mut scalar_constants = terminal_semantics::ScalarConstants::default();
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(
                 module,
@@ -3350,6 +3360,7 @@ pub(crate) mod machine_foundations {
                 inhabitation,
                 &scalar_index,
                 &return_sources,
+                &mut scalar_constants,
             )?;
             return_sources
                 .validate_whole_discards(&block.terminator, |ty| module.structural_type(ty))

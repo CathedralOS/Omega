@@ -532,17 +532,21 @@ impl Lowering<'_> {
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
     )> {
-        let row = self.tables.values.get(value)?;
-        if row.rigid.is_some() {
-            return None;
-        }
-        let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin else {
-            return None;
-        };
-        let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
-        let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
-        let known = terminal_semantics::scalar_operation_literal(operation, value)?;
-        (known.0 == row.scalar_type).then_some(known)
+        self.scalar_constants.borrow_mut().value(value, |value| {
+            let row = self.tables.values.get(value)?;
+            if row.rigid.is_some() {
+                return None;
+            }
+            // A draft join can still gain arrivals. Only already-emitted
+            // operation definitions are stable enough to memoize here.
+            let terminal_check_tables::values::ValueOrigin::Operation(operation) = row.origin
+            else {
+                return None;
+            };
+            let (block, ordinal) = self.operation_locations.get(operation)?.as_ref()?;
+            let operation = self.blocks.get(*block)?.operations.get(*ordinal)?;
+            terminal_semantics::scalar_operation_origin(operation, value, self)
+        })
     }
 
     fn call_routes(
@@ -995,5 +999,12 @@ impl Lowering<'_> {
             self.retire_homes(&homes, source)?;
         }
         Ok(Reached::Value(value))
+    }
+}
+
+impl terminal_semantics::ValueTypes for Lowering<'_> {
+    fn value_type(&self, value: ValueId) -> Option<semantic_vocabulary::ScalarType> {
+        let row = self.tables.values.get(value)?;
+        row.rigid.is_none().then_some(row.scalar_type)
     }
 }

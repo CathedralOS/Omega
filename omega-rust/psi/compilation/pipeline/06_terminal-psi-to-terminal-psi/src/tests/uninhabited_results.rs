@@ -845,6 +845,85 @@ fn an_integer_postcondition_uses_the_requirement_instead_of_the_private_member()
 }
 
 #[test]
+fn a_computed_integer_actual_uses_the_public_postcondition_and_receiving_source() {
+    let source = "trait Answer { machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0; } \
+                  Stops satisfies Answer { \
+                    machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0 { \
+                      transition fatal == 0 { true -> 7u32 false -> fail() } \
+                      machine fail() -> u32 crashes Trap { crash Trap; } \
+                    } \
+                  } \
+                  machine main() crashes Trap { Stops::answer(0u32 + 1); }";
+    let judged = accepted(source);
+    let module = &judged.elaboration.module;
+    let semantic_vocabulary::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("ordinary caller")
+    };
+    let caller = module.machine(entry).unwrap();
+    let calls = caller.module_invocations().collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1);
+    assert!(matches!(
+        calls[0].site,
+        semantic_vocabulary::InvocationSite::InvokeNoNormal(_)
+    ));
+    assert!(calls[0].inputs.required_contract.is_some());
+    assert_eq!(
+        caller
+            .operations()
+            .filter(|op| matches!(op.kind, terminal_psi::OperationKind::ExactIntegerAdd { .. }))
+            .count(),
+        1,
+        "evaluate the authored addition exactly once"
+    );
+    judged.publish_invocation().unwrap();
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
+
+    let mut forged = module.clone();
+    let caller = forged.machines.iter_mut().find(|m| m.id == entry).unwrap();
+    let right = caller
+        .operations()
+        .find_map(|op| match op.kind {
+            terminal_psi::OperationKind::ExactIntegerAdd { right, .. } => Some(right),
+            _ => None,
+        })
+        .unwrap();
+    let literal = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.operations)
+        .find(|op| {
+            op.result
+                .scalar_ref()
+                .is_some_and(|value| value.id == right)
+        })
+        .unwrap();
+    assert!(matches!(
+        literal.kind,
+        terminal_psi::OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(1)
+        }
+    ));
+    literal.kind = terminal_psi::OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Unsigned(0),
+    };
+    let encoded = terminal_codec::ClosedTerminalModule::new(forged).unwrap();
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "no-normal invocation has no published return exclusion"
+        ))
+    ));
+    for returning in [
+        source.replace("0u32 + 1", "0u32 + 0"),
+        source.replace("ensures fatal == 0;", "ensures fatal <= 1;"),
+    ] {
+        let verdicts = program(&returning);
+        assert!(verdicts.iter().any(|v| matches!(v, Ok(RouteVerdict::FallBack(refused)) if refused.detail.contains("expression statement that discards its value"))), "normal completion still has a u32 result: {verdicts:?}");
+    }
+}
+
+#[test]
 fn a_published_no_return_promise_still_owes_its_own_bodys_guarantee() {
     for text in [
         "public machine stop() -> u32 ensures false { 7u32 } machine main() {}",

@@ -21,7 +21,7 @@ public Stops satisfies Answer {
     }
 }
 public machine finish() -> Never reaches ProcessExit crashes none terminates {
-    Stops::answer(1);
+    Stops::answer(0u32 + 1);
 }
 machine entry_start() reaches ProcessExit crashes none terminates {
     let unreachable_value: u32 = finish();
