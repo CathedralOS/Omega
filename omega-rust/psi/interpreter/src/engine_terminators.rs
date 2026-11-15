@@ -685,7 +685,24 @@ pub(crate) mod block_bindings {
                     descriptor_parameters.push(parameter.clone());
                     descriptor_arguments.push(argument.clone());
                 }
-                resolved_arguments.push(projected_value.unwrap_or_else(|| value.clone()));
+                let mut arrived = projected_value.unwrap_or_else(|| value.clone());
+                // An explicit structural cast (`value as +D`, `value as -D`)
+                // arrives in its destination's whole-value domains; the
+                // verified module already admitted the change and its issuer.
+                if self
+                    .program
+                    .catalogs
+                    .structural_qualification_changes
+                    .iter()
+                    .any(|change| {
+                        change.machine == self.current_machine
+                            && change.destination == parameter.place
+                            && change.source == argument.place
+                    })
+                {
+                    arrived.qualifications = parameter.qualifications.clone();
+                }
+                resolved_arguments.push(arrived);
             }
             for parameter in &block.structural_parameters {
                 if crate::engine::custody::place_is_claimed(&self.live_claims, parameter.place)
