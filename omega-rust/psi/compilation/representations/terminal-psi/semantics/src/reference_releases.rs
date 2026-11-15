@@ -110,10 +110,6 @@ fn spelling(
     )
 }
 
-fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
-    left.root == right.root && crate::storage::place_paths::may_overlap(&left.path, &right.path)
-}
-
 fn selected_payload(
     analysis: &mut DescriptorAnalysis<'_>,
     machine: MachineId,
@@ -391,7 +387,7 @@ fn prepare(
                 && lifetime
                     .surviving
                     .get(&at)
-                    .is_some_and(|names| names.iter().any(|name| overlaps(name, &captured)))
+                    .is_some_and(|names| names.iter().any(|name| name.overlaps(&captured)))
             {
                 dependencies.push(candidate);
             }
@@ -917,7 +913,7 @@ fn closure_demand(
                 && resource.captured.as_ref().is_some_and(|captured| {
                     observations
                         .iter()
-                        .any(|observation| overlaps(captured, observation))
+                        .any(|observation| captured.overlaps(observation))
                 });
             let reenters_formation = !resource.entry
                 && !before.is_empty()
@@ -955,9 +951,26 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
         return Ok(Vec::new());
     }
     if !machine
-        .structural_places
+        .structural_parameters
         .iter()
-        .filter_map(|place| machine.structural_place_type(place.id))
+        .map(|parameter| parameter.structural_type)
+        .chain(
+            machine
+                .block_structural_parameters()
+                .map(|parameter| parameter.structural_type),
+        )
+        .chain(
+            machine
+                .result
+                .structural()
+                .map(|result| result.structural_type),
+        )
+        .chain(
+            machine
+                .structural_places
+                .iter()
+                .filter_map(|place| place.kind.produced_structural_type()),
+        )
         .any(|ty| {
             terminal_psi::structural_type_contains_reference_by(|id| module.structural_type(id), ty)
         })
@@ -1164,7 +1177,7 @@ pub fn plan(module: &TerminalModule, identity: MachineId) -> Result<Vec<Referenc
             if !resource.captured.as_ref().is_some_and(|captured| {
                 observations
                     .iter()
-                    .any(|observation| overlaps(captured, observation))
+                    .any(|observation| captured.overlaps(observation))
             }) {
                 continue;
             }

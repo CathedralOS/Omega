@@ -179,10 +179,30 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
          local.inner = next;\n\
          owner.tag\n}}\n"
     );
-    let RouteVerdict::Accepted(accepted) = super::entryless::judged(&source, false) else {
-        panic!("the original restored source must be accepted");
-    };
-    let mut elaboration = accepted.elaboration;
+    assert!(
+        matches!(
+            super::entryless::judged(&source, false),
+            RouteVerdict::Accepted(_)
+        ),
+        "the original restored source must be accepted"
+    );
+    // Re-lower the source so receiving analysis owns fresh knowledge rows;
+    // its accepted output is not an unjudged input to the same stage.
+    let typed = super::boundary_calls::typed(&source);
+    let mut elaboration = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap();
     let block = elaboration.module.machines[0]
         .blocks
         .iter_mut()

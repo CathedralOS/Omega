@@ -485,7 +485,7 @@ pub mod descriptor_lifetimes {
                 if step
                     .inputs
                     .iter()
-                    .any(|input| observes(*position, input) && overlaps(input, location))
+                    .any(|input| observes(*position, input) && input.overlaps(location))
                 {
                     observations.push(occurrence.clone());
                     if step.may_escape {
@@ -499,7 +499,7 @@ pub mod descriptor_lifetimes {
                             outputs.push(name.clone());
                         }
                         for (source, destination) in &step.derivations {
-                            if overlaps(source, location)
+                            if source.overlaps(location)
                                 && rules.captures.contains(&(
                                     *position,
                                     source.clone(),
@@ -549,7 +549,7 @@ pub mod descriptor_lifetimes {
                             match output {
                                 ResidenceName::Storage(_)
                                     if binding.access != terminal_psi::StructuralAccess::Owned
-                                        && overlaps(source, location) =>
+                                        && source.overlaps(location) =>
                                 {
                                     destinations.push(ResidenceName::Storage(destination.clone()));
                                 }
@@ -593,11 +593,6 @@ pub mod descriptor_lifetimes {
             }
             live
         }
-
-        fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
-            left.root == right.root
-                && crate::storage::place_paths::may_overlap(&left.path, &right.path)
-        }
     }
     pub use locations::{
         canonical_descriptor_location, descriptor_location, descriptor_location_type,
@@ -638,6 +633,10 @@ pub mod descriptor_lifetimes {
                 root,
                 path: Vec::new(),
             }
+        }
+        pub fn overlaps(&self, other: &Self) -> bool {
+            self.root == other.root
+                && crate::storage::place_paths::may_overlap(&self.path, &other.path)
         }
         pub fn contains(&self, other: &Self) -> bool {
             self.root == other.root && other.path.starts_with(&self.path)
