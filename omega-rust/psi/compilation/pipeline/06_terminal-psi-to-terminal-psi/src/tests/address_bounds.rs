@@ -48,7 +48,8 @@ fn a_runtime_value_in_a_mathematical_term_still_needs_embed() {
             "machine sized(limit: u64) requires embed(limit) + limit == 3 { }
 machine build_entry() { sized(1); }"
         ),
-        "contract runtime value in a mathematical term without embed"
+        "contract runtime value in a mathematical term without embed while reading the signature of \
+         `sized`"
     );
 }
 
@@ -74,10 +75,10 @@ machine build_entry(base: addr, limit: addr) {{ let seen: bool = probe(base, lim
     assert_eq!(verdict(&using("base == 64")), "accepted");
     assert_eq!(
         verdict(&using("(base + limit) == limit")),
-        "expression arithmetic on an address"
+        "expression arithmetic on an address while reading the body of `probe`"
     );
     assert_eq!(
         verdict(&using("(base as u64) == 64")),
-        "expression cast to or from an address"
+        "expression cast to or from an address while reading the body of `probe`"
     );
 }

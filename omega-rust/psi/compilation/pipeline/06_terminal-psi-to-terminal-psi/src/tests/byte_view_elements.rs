@@ -147,7 +147,7 @@ fn the_forms_not_lowered_are_refused_by_name() {
             "machine build_entry(path: &[u8], index: u8) requires path.len > 255 { use(path[index]); }
 machine use(byte: u8) { }"
         ),
-        "typing byte view index that is not a u64"
+        "typing byte view index that is not a u64 while reading the body of `build_entry`"
     );
     assert_eq!(
         verdict(
@@ -366,7 +366,7 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
             }
             machine use(extent: u64) {}"#
         ),
-        "typing argument types"
+        "typing argument types while reading the body of `build_entry`"
     );
     assert_eq!(
         verdict(
@@ -392,7 +392,8 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
         machine use(extent: u64) {}
     "#
         ),
-        "call argument for a borrowed formal that is not a borrow"
+        "call argument for a borrowed formal that is not a borrow while reading the body of \
+         `build_entry`"
     );
     assert_eq!(
         verdict(
@@ -418,7 +419,7 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
         machine use(extent: u64) {}
     "#
         ),
-        "typing argument types"
+        "typing argument types while reading the body of `build_entry`"
     );
 }
 
@@ -502,13 +503,14 @@ fn a_byte_store_needs_mutable_access_and_its_own_index_bound() {
     }
     assert_eq!(
         verdict("machine build_entry(bytes: &[u8]) requires bytes.len > 0 { bytes[0] = 42; }"),
-        "statement store through a byte view without mutable access"
+        "statement store through a byte view without mutable access while reading the body of \
+         `build_entry`"
     );
     assert_eq!(
         verdict(
             "machine build_entry(bytes: & &mut [u8]) requires bytes.len > 0 { bytes[0] = 42; }"
         ),
-        "statement store through shared descriptor storage"
+        "statement store through shared descriptor storage while reading the body of `build_entry`"
     );
 }
 
@@ -901,6 +903,7 @@ machine use(same: bool) { }"
             "machine build_entry(path: &[u8], count: u64) { use(path == count); }
 machine use(same: bool) { }"
         ),
-        "expression operator on an operand that is not a plain or policy-qualified scalar"
+        "expression operator on an operand that is not a plain or policy-qualified scalar while \
+         reading the body of `build_entry`"
     );
 }
