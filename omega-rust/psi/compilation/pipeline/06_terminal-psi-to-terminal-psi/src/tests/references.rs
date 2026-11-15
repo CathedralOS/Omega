@@ -132,6 +132,7 @@ pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Ex
     of(
         ExpressionKind::Borrow {
             access,
+            formation: access,
             place: Box::new(place),
             home: home.then(|| String::from("u32")),
         },
@@ -1384,5 +1385,81 @@ machine pair_left(left: u32) {{ }}"
         verdict(&program("mut pair", "relay(&pair)")).contains("lends only immutable access"),
         "{}",
         verdict(&program("mut pair", "relay(&pair)"))
+    );
+}
+
+/// `&mut item` written for a `&Item` formal is an exclusive formation that
+/// lends shared access (loans.md, "Reborrow lineage and access"). `cohort`
+/// places the shared reference `view`'s uses around that call.
+fn exclusive_formation_beside(cohort: &str) -> String {
+    format!(
+        "data Item {{ value: u32; }}
+machine observe(value: &Item) {{ }}
+machine build_entry() {{
+    let mut item: Item = Item {{ value: 3 }};
+    let view: &Item = &item;
+{cohort}
+}}"
+    )
+}
+
+#[test]
+fn an_exclusive_formation_for_a_shared_formal_excludes_a_live_shared_cohort() {
+    let verdict = super::build_purpose::judge_build(&exclusive_formation_beside(
+        "    observe(&mut item);\n    observe(view);",
+    ))
+    .unwrap();
+    let RouteVerdict::Rejected { conflicts, .. } = verdict else {
+        panic!("the written exclusive loan overlaps the live shared view: {verdict:?}");
+    };
+    assert!(
+        !conflicts.is_empty(),
+        "the exclusive formation must conflict with the shared cohort"
+    );
+}
+
+#[test]
+fn an_exclusive_formation_for_a_shared_formal_follows_an_ended_cohort() {
+    for cohort in [
+        // The view's last use precedes the exclusive formation.
+        "    observe(view);\n    observe(&mut item);",
+        // An ordinary shared loan joins the live cohort.
+        "    observe(&item);\n    observe(view);",
+    ] {
+        let verdict =
+            super::build_purpose::judge_build(&exclusive_formation_beside(cohort)).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_)),
+            "{cohort}: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn a_shared_reference_formed_from_an_exclusive_loan_holds_it_exclusively() {
+    let source = |uses: &str| {
+        format!(
+            "data Item {{ value: u32; }}
+machine observe(value: &Item) {{ }}
+machine build_entry() {{
+    let mut item: Item = Item {{ value: 3 }};
+    let view: &Item = &mut item;
+{uses}
+}}"
+        )
+    };
+    let rejected =
+        super::build_purpose::judge_build(&source("    observe(&item);\n    observe(view);"))
+            .unwrap();
+    assert!(
+        matches!(rejected, RouteVerdict::Rejected { ref conflicts, .. } if !conflicts.is_empty()),
+        "a shared loan overlaps the live exclusive formation: {rejected:?}"
+    );
+    let accepted =
+        super::build_purpose::judge_build(&source("    observe(view);\n    observe(&item);"))
+            .unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
     );
 }
