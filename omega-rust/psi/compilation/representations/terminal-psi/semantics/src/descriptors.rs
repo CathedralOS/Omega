@@ -12613,7 +12613,7 @@ pub mod descriptor_results {
                 }
                 let origins = vec![DescriptorStoredOrigin::Provider(DescriptorProviderOrigin {
                     boundary: declaration.id,
-                    output: u32::try_from(output_index).ok()?,
+                    output: DescriptorProviderOutput::Parameter(u32::try_from(output_index).ok()?),
                     invocations: Vec::new(),
                     projection: Projection::new(&[]),
                     lifetime_dependencies,
@@ -12633,7 +12633,72 @@ pub mod descriptor_results {
                 }
             }
             let results = if declaration.result_reference_regions.is_empty() {
-                Vec::new()
+                let mut results = Vec::new();
+                if let Some(result) = result {
+                    let terminal_psi::BoundaryMachineResult::Structural(expected) =
+                        &declaration.result
+                    else {
+                        return None;
+                    };
+                    if result.structural_type != expected.structural_type
+                        || result.multiplicity != expected.multiplicity
+                        || result.qualifications != expected.qualifications
+                        || result.projected_qualifications != expected.projected_qualifications
+                    {
+                        return None;
+                    }
+                    let dependencies = declaration
+                        .structural_parameters
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, parameter)| parameter.access != StructuralAccess::Owned)
+                        .map(|(position, parameter)| DescriptorLifetimeDebt {
+                            origin: DescriptorStoredOrigin::Parameter {
+                                position,
+                                projection: Projection::new(&[]),
+                            },
+                            access: parameter.access,
+                        })
+                        .collect::<Vec<_>>();
+                    for leaf in
+                        slot_kind.owned_slots(types, result.place, result.structural_type)?
+                    {
+                        let path = crate::descriptor_lifetimes::descriptor_path(
+                            types,
+                            result.structural_type,
+                            &leaf.path,
+                        )?;
+                        let view = crate::runtime_structural_path_tip(
+                            types.iter(),
+                            result.structural_type,
+                            &path,
+                        )
+                        .is_some_and(|tip| tip.shape.is_view_descriptor())
+                            || crate::runtime_structural_field(
+                                types.iter(),
+                                result.structural_type,
+                                &path,
+                            )
+                            .and_then(|field| field.field_type.byte_sequence_carrier())
+                            .is_some_and(|carrier| carrier.is_borrowed());
+                        if !view {
+                            continue;
+                        }
+                        results.push(DescriptorResultSlot {
+                            path: leaf.path.clone(),
+                            origins: vec![DescriptorStoredOrigin::Provider(
+                                DescriptorProviderOrigin {
+                                    boundary: declaration.id,
+                                    output: DescriptorProviderOutput::Result(leaf.path),
+                                    invocations: Vec::new(),
+                                    projection: Projection::new(&[]),
+                                    lifetime_dependencies: dependencies.clone(),
+                                },
+                            )],
+                        });
+                    }
+                }
+                results
             } else {
                 super::public_result_slots(types, slot_kind, declaration, result?.place)?
             };
@@ -14697,9 +14762,24 @@ pub mod descriptor_results {
     }
 
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    pub enum DescriptorProviderOutput {
+        Parameter(u32),
+        Result(Vec<DescriptorPathSegment>),
+    }
+
+    impl DescriptorProviderOutput {
+        pub fn parameter_index(&self) -> Option<u32> {
+            match self {
+                Self::Parameter(index) => Some(*index),
+                Self::Result(_) => None,
+            }
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
     pub struct DescriptorProviderOrigin<Dependency> {
         pub boundary: semantic_vocabulary::BoundaryMachineId,
-        pub output: u32,
+        pub output: DescriptorProviderOutput,
         pub invocations: Vec<DescriptorInvocationSite>,
         pub projection: Projection,
         pub lifetime_dependencies: Vec<DescriptorLifetimeDebt<Dependency>>,

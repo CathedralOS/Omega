@@ -699,4 +699,3 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
         );
     }
 }
-

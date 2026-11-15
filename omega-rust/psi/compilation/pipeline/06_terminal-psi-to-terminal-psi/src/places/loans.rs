@@ -16,8 +16,9 @@ caller's again when the call returns (`wiki/spec/terminal-psi/loans.md`:
 parent lifetime, and restoration obligation."). The occurrence is the call,
 the captured place is the argument's place, the access is the argument's,
 and the lineage is the root's: a borrowed formal's root reborrows the loan
-the invocation passed in (`Lender::Incoming`), any other root lends owned
-storage (`Lender::Owner`). A duration-only loan ends when the call returns,
+the invocation passed in (`Lender::Incoming`). A provider-established view
+keeps its provider permission (`Lender::Provider`); owned storage lends from
+its owner (`Lender::Owner`). A duration-only loan ends when the call returns,
 so it is live on no edge and no edge disposes of it. A loan formed
 for a call with no normal return is carried into that terminal transfer
 (`wiki/spec/language/state_contracts.md`: "A caller-local loan carried into
@@ -101,7 +102,7 @@ struct Formed {
     invocation: Option<InvocationId>,
     position: usize,
     access: ReferenceAccess,
-    lineage: super::Lineage,
+    lineage: LoanRegion,
     /// For a reborrow, the access of the formal it reborrows.
     parent: Option<ReferenceAccess>,
     lender: Lender,
@@ -116,9 +117,38 @@ struct Formed {
 }
 
 #[derive(Clone, Copy)]
-enum BorrowedResource {
+pub(super) enum BorrowedResource {
     Storage,
     ViewPayload,
+}
+
+#[derive(Debug)]
+enum LoanRegion {
+    Storage(super::Lineage),
+    /// The provider establishes permission, but no physical payload region.
+    /// It cannot prove disjointness from a write to any other region.
+    Provider,
+}
+
+impl LoanRegion {
+    fn overlaps(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Storage(left), Self::Storage(right)) => overlap(left, right),
+            _ => true,
+        }
+    }
+
+    fn respects_parent(&self, parent: &Self) -> bool {
+        match (self, parent) {
+            (Self::Storage(child), Self::Storage(parent)) => {
+                child.root == parent.root && child.segments.starts_with(&parent.segments)
+            }
+            // Exact parent identity was already checked through descriptor
+            // flow. This adds no assertion about where its bytes reside.
+            (Self::Provider, Self::Provider) => true,
+            _ => false,
+        }
+    }
 }
 
 fn reference_access(access: StructuralAccess) -> Option<ReferenceAccess> {
@@ -135,16 +165,17 @@ fn loan_lender(source: terminal_semantics::BorrowedLoanSource) -> Lender {
         terminal_semantics::BorrowedLoanSource::Owner => Lender::Owner,
         terminal_semantics::BorrowedLoanSource::Incoming => Lender::Incoming,
         terminal_semantics::BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
+        terminal_semantics::BorrowedLoanSource::Provider => Lender::Provider,
     }
 }
 
 fn competing_borrows(
     left: ReferenceAccess,
-    left_place: &super::Lineage,
+    left_place: &LoanRegion,
     right: ReferenceAccess,
-    right_place: &super::Lineage,
+    right_place: &LoanRegion,
 ) -> Option<LoanConflict> {
-    if !overlap(left_place, right_place) || !left.is_exclusive() && !right.is_exclusive() {
+    if !left_place.overlaps(right_place) || !left.is_exclusive() && !right.is_exclusive() {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
@@ -217,7 +248,10 @@ pub(crate) fn reference_graph(
 }
 
 impl Storage<'_> {
-    fn borrowed_resource(&self, ty: semantic_vocabulary::StructuralTypeId) -> BorrowedResource {
+    pub(super) fn borrowed_resource(
+        &self,
+        ty: semantic_vocabulary::StructuralTypeId,
+    ) -> BorrowedResource {
         if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty) {
             BorrowedResource::ViewPayload
         } else {
@@ -229,7 +263,7 @@ impl Storage<'_> {
         raw: &super::Lineage,
         at: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
         concerns: Construct,
-    ) -> Checked<super::Lineage> {
+    ) -> Checked<LoanRegion> {
         use terminal_semantics::descriptor_results::{
             DescriptorCallOrigin, DescriptorSourceOrigin,
         };
@@ -237,7 +271,9 @@ impl Storage<'_> {
             || matches!(self.shape(raw, concerns)?, super::Shape::Typed(ty)
                 if terminal_semantics::descriptor_results::is_descriptor(self.types.iter(), ty));
         if !is_view {
-            return self.backing(raw, at.0, at.1 as usize, concerns);
+            return self
+                .backing(raw, at.0, at.1 as usize, concerns)
+                .map(LoanRegion::Storage);
         }
         let location = raw.descriptor_location().ok_or_else(|| {
             self.unsupported(concerns, "view loan has no exact descriptor coordinate")
@@ -245,11 +281,13 @@ impl Storage<'_> {
         let origins = self
             .references
             .borrow_mut()
-            .symbolic_source_origins(self.machine, at, &location)
-            .filter(|origins| !origins.is_empty())
-            .ok_or_else(|| {
+            .try_symbolic_source_origins(self.machine, at, &location)
+            .map_err(|detail| self.unsupported(concerns, &detail))?;
+        if origins.is_empty() {
+            return Err(
                 self.unsupported(concerns, "view loan has no original payload correspondence")
-            })?;
+            );
+        }
         let mut captured = None;
         for origin in origins {
             let next = match &origin {
@@ -291,6 +329,25 @@ impl Storage<'_> {
                 DescriptorSourceOrigin::Backing(
                     DescriptorCallOrigin::Literal { .. } | DescriptorCallOrigin::Empty,
                 ) => raw.clone(),
+                DescriptorSourceOrigin::Provider(_) => {
+                    if !matches!(
+                        terminal_semantics::borrowed_loan_source(
+                            self.module,
+                            self.lowered,
+                            &mut self.references.borrow_mut(),
+                            at,
+                            &location,
+                            std::iter::empty(),
+                        )
+                        .map_err(|detail| self.unsupported(concerns, detail))?,
+                        terminal_semantics::BorrowedLoanSource::Provider
+                    ) {
+                        return Err(
+                            self.unsupported(concerns, "provider payload has no exact permission")
+                        );
+                    }
+                    return Ok(LoanRegion::Provider);
+                }
                 _ => {
                     return Err(self.unsupported(
                         concerns,
@@ -305,7 +362,9 @@ impl Storage<'_> {
             }
             captured = Some(next);
         }
-        captured.ok_or_else(|| self.foreign(concerns, "view loan has no captured payload"))
+        captured
+            .map(LoanRegion::Storage)
+            .ok_or_else(|| self.foreign(concerns, "view loan has no captured payload"))
     }
 
     /// The access a root's storage is held with here, when it is a borrowed
@@ -848,7 +907,7 @@ impl Storage<'_> {
             invocation: None,
             position: 0,
             access,
-            lineage: self.backing(&raw, at.0, at.1 as usize, concerns)?,
+            lineage: LoanRegion::Storage(self.backing(&raw, at.0, at.1 as usize, concerns)?),
             parent,
             lender,
             from,
@@ -950,34 +1009,46 @@ impl Storage<'_> {
                 if !lifetime.live.contains(&at) {
                     continue;
                 }
-                for place in self.operation_uses(operation)? {
-                    let backing = if matches!(
-                        operation.kind,
-                        terminal_psi::OperationKind::ByteSequenceRead { .. }
-                    ) || operation.declared_invocation().is_some()
-                    {
-                        self.borrow_backing(&place, at, concerns)?
-                    } else {
-                        self.backing(&place, block.id, position as usize, concerns)?
+                for effect in self.operation_read_effects(operation)? {
+                    let (place, backing) = match effect {
+                        super::StorageEffect::Payload(place) => {
+                            let backing = self.borrow_backing(&place, at, concerns)?;
+                            (place, backing)
+                        }
+                        super::StorageEffect::Storage(place) => {
+                            let backing = LoanRegion::Storage(self.backing(
+                                &place,
+                                block.id,
+                                position as usize,
+                                concerns,
+                            )?);
+                            (place, backing)
+                        }
                     };
                     if loan.access.is_exclusive()
-                        && overlap(&loan.lineage, &backing)
+                        && loan.lineage.overlaps(&backing)
                         && !self.authorized_reference(loan, &place, at, formed)?
                     {
                         return Ok(Some((concerns, LoanConflict::ObserveWhileExclusive)));
                     }
                 }
-                for place in self.operation_changes(operation)? {
-                    let backing = if matches!(
-                        operation.kind,
-                        terminal_psi::OperationKind::ByteSequenceWrite { .. }
-                    ) || operation.declared_invocation().is_some()
-                    {
-                        self.borrow_backing(&place, at, concerns)?
-                    } else {
-                        self.backing(&place, block.id, position as usize, concerns)?
+                for effect in self.operation_changes(operation)? {
+                    let (place, backing) = match effect {
+                        super::StorageEffect::Payload(place) => {
+                            let backing = self.borrow_backing(&place, at, concerns)?;
+                            (place, backing)
+                        }
+                        super::StorageEffect::Storage(place) => {
+                            let backing = LoanRegion::Storage(self.backing(
+                                &place,
+                                block.id,
+                                position as usize,
+                                concerns,
+                            )?);
+                            (place, backing)
+                        }
                     };
-                    if overlap(&loan.lineage, &backing)
+                    if loan.lineage.overlaps(&backing)
                         && (!loan.access.is_exclusive()
                             || !self.authorized_reference(loan, &place, at, formed)?)
                     {
@@ -994,7 +1065,7 @@ impl Storage<'_> {
                 for action in actions {
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
                     let backing = self.backing(&cleaned, block.id, usize::MAX, concerns)?;
-                    if overlap(&loan.lineage, &backing) {
+                    if loan.lineage.overlaps(&LoanRegion::Storage(backing)) {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
                     }
                 }
@@ -1135,7 +1206,7 @@ impl Storage<'_> {
                             .lifetime
                             .as_ref()
                             .is_some_and(|life| life.live.contains(&at))
-                            && overlap(&loan.lineage, &backing)
+                            && loan.lineage.overlaps(&backing)
                             && (loan.access.is_exclusive() || access.is_exclusive())
                             && !self.authorized_reference(loan, &raw, at, formed)?
                         {
@@ -1189,9 +1260,7 @@ impl Storage<'_> {
                             "reborrow parent has no actual formation",
                         )
                     })?;
-                if owner.lineage.root != loan.lineage.root
-                    || !loan.lineage.segments.starts_with(&owner.lineage.segments)
-                {
+                if !loan.lineage.respects_parent(&owner.lineage) {
                     return Err(self.foreign(
                         Construct::Obligation(loan.obligation),
                         &format!(
@@ -1620,7 +1689,7 @@ impl Storage<'_> {
                         identity: &loan.obligation,
                         parents: match &loan.lender {
                             Lender::Loan(parent) => vec![parent],
-                            Lender::Owner | Lender::Incoming => Vec::new(),
+                            Lender::Owner | Lender::Incoming | Lender::Provider => Vec::new(),
                         },
                         returned: is_returned,
                         in_caller_storage: false,

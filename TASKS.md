@@ -247,10 +247,10 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: [domain_carrier_identity](samples/cli/facts/domain_carrier_identity/README.md), Dungeon Crawler, [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority), `bodyless_owner_establishment` and `non_owning_reference_erasure` pass `--both`.
 
 - **TERMINATION-RANKING-CHECKS.** (covers **GENERAL-CYCLIC-EXECUTION**, **CRASH-CONTRACT**, **OUTCOME-SPECIFIC-CALL-EVIDENCE**, **UNREACHABLE-BRANCH-DIAGNOSTICS**) Complete [termination](wiki/spec/language/termination.md) (`ranking_range/calls.rs`, `value_origins.rs`), crash/outcome evidence (`operator_crashes.rs`), and [unreachable warnings](wiki/spec/language/state_contracts.md#unreachable-branches).
-  - Normalize `Nat::IncreasingTo`, `Nat::BoundedDistance`, declared measures, bounded rank ranges, and authored multi-subject rankings. Complete projected-field measures and the remaining signed, address, and width-generic subjects with their formation proofs.
-  - Complete the remaining loop storage, `ensures`, and erased-binding support. Ranked non-tail recursion needs its proof/compile-time route; runtime recursion remains tail-only.
-  - Carry the required progress promises across separately compiled packages.
-  - **Design blocked:** [termination](wiki/spec/language/termination.md#ranking) leaves the source spelling for differently shaped mutual participants undetermined; the joint-cycle semantic rule is settled.
+  - Support the remaining forms of a decreasing measure: `Nat::IncreasingTo`, `Nat::BoundedDistance`, declared measures, bounded ranges, and multiple subjects. Allow measures to read fields and handle the remaining signed, address, and width-generic inputs with the required proofs.
+  - Check loop result contracts (`ensures`), erased bindings, and the remaining storage cases. Check ranked non-tail recursion during proof or compile-time evaluation; runtime recursion remains tail-only.
+  - Preserve termination promises when a program consumes a separately compiled package.
+  - **Design blocked:** [termination](wiki/spec/language/termination.md#ranking) leaves undecided how authors write a shared measure for mutually recursive machines with different parameter shapes.
   Acceptance: `termination/,control_flow/`, `progress_selector/`, `array_max`/`dot_product`/`horner_eval`, crash rows, and unreachable warnings pass `--both`.
 
 - **DEFAULT-SYNCHRONIZATION-CHECKING.** Implement [mandatory synchronization checking](wiki/spec/language/concurrency.md#default-admission-obligation). The current effects/carry, call-dependency and activation plans do not supply the retained protocol contracts or closed-composition deadlock judgment.

@@ -179,6 +179,10 @@ pub enum Lender {
     /// direct reborrow names its immediate parent resource, exact formation
     /// event, and projection."
     Incoming,
+    /// A provider-established view permission at the captured descriptor.
+    /// This owns neither its payload nor an input's storage. The checker
+    /// reconstructs its exact provider invocation and retained dependencies.
+    Provider,
 }
 
 impl ObligationKind {

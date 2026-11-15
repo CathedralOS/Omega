@@ -329,12 +329,17 @@ fn publish_parents(
                     .iter()
                     .rposition(|step| *step == terminal_check_tables::bindings::Segment::Referent)
                 {
-                    let parent = descriptor_name(root, &segments[..crossing]).ok_or_else(|| {
-                        unavailable(
-                            machine.id,
-                            "reference parent has no exact static descriptor path",
+                    let parent =
+                        terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                            root,
+                            &segments[..crossing],
                         )
-                    })?;
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "reference parent has no exact static descriptor path",
+                            )
+                        })?;
                     *children
                         .get_mut(id)
                         .ok_or_else(|| unavailable(machine.id, "parent child row disappeared"))? =
@@ -358,12 +363,16 @@ fn publish_parents(
                     {
                         continue;
                     }
-                    let parent = descriptor_name(root, &segments).ok_or_else(|| {
-                        unavailable(
-                            machine.id,
-                            "borrowed header parent has no exact descriptor path",
+                    let parent =
+                        terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                            root, &segments,
                         )
-                    })?;
+                        .ok_or_else(|| {
+                            unavailable(
+                                machine.id,
+                                "borrowed header parent has no exact descriptor path",
+                            )
+                        })?;
                     *children
                         .get_mut(id)
                         .ok_or_else(|| unavailable(machine.id, "parent child row disappeared"))? =
@@ -411,12 +420,16 @@ fn publish_parents(
                 };
                 let (root, path) = captured_path(tables, captured)
                     .map_err(|reason| unavailable(machine.id, reason))?;
-                let descriptor = descriptor_name(root, &path).ok_or_else(|| {
-                    unavailable(
-                        machine.id,
-                        "successor payload parent has no exact descriptor",
+                let descriptor =
+                    terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+                        root, &path,
                     )
-                })?;
+                    .ok_or_else(|| {
+                        unavailable(
+                            machine.id,
+                            "successor payload parent has no exact descriptor",
+                        )
+                    })?;
                 *children.get_mut(successor.obligation).ok_or_else(|| {
                     unavailable(machine.id, "successor parent child row disappeared")
                 })? = Some((row.created_at, descriptor));
@@ -636,6 +649,7 @@ fn publish_parents(
                     terminal_semantics::BorrowedLoanSource::Owner => Lender::Owner,
                     terminal_semantics::BorrowedLoanSource::Incoming => Lender::Incoming,
                     terminal_semantics::BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
+                    terminal_semantics::BorrowedLoanSource::Provider => Lender::Provider,
                 },
             ));
         }
@@ -726,7 +740,10 @@ fn publish_payload_children(
                 continue;
             }
             let (root, path) = captured_path(tables, captured).map_err(unavailable)?;
-            if descriptor_name(root, &path).as_ref() == Some(&location) {
+            if terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(root, &path)
+                .as_ref()
+                == Some(&location)
+            {
                 found = Some(id);
                 break;
             }

@@ -145,6 +145,7 @@ pub(crate) mod reference_completion {
         Owner,
         Incoming,
         Loan(semantic_vocabulary::ObligationId),
+        Provider,
     }
 
     // Inline byte-view fields carry their type on the field itself. They need
@@ -354,6 +355,59 @@ pub(crate) mod reference_completion {
         let origins = analysis
             .symbolic_source_origins(machine.id, at, descriptor)
             .ok_or("reference descriptor has no complete original loan correspondence")?;
+        if !origins.is_empty()
+            && origins.iter().all(|origin| {
+                matches!(
+                    origin,
+                    crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                )
+            })
+        {
+            if origins.iter().any(|origin| {
+                matches!(origin,
+                crate::descriptor_results::DescriptorSourceOrigin::Provider(provider)
+                    if provider.invocations.is_empty())
+            }) {
+                return Err("provider view has no establishing invocation");
+            }
+            if origins.iter().any(|origin| {
+                let crate::descriptor_results::DescriptorSourceOrigin::Provider(provider) = origin
+                else {
+                    return false;
+                };
+                provider.projection.indirect
+                    || !provider
+                        .projection
+                        .original_descriptor_path()
+                        .is_some_and(|path| path.is_empty())
+            }) {
+                return Err("a view inside provider storage needs its own original borrow");
+            }
+            let path = machine
+                .structural_place_type(descriptor.root)
+                .and_then(|ty| {
+                    crate::descriptor_lifetimes::descriptor_path(
+                        &module.structural_types,
+                        ty,
+                        &descriptor.path,
+                    )
+                })
+                .ok_or("provider view has no exact descriptor type")?;
+            if !view
+                || crate::structural_projection_authority(
+                    machine,
+                    &module.structural_types,
+                    &terminal_psi::StructuralArgument {
+                        place: descriptor.root,
+                        path,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                ) != Some(StructuralAccess::SharedBorrow)
+            {
+                return Err("a writable provider view needs its exact payload region");
+            }
+            return Ok(BorrowedLoanSource::Provider);
+        }
         if view {
             incoming_view_occurrence(module, machine, &origins)?;
             return Ok(BorrowedLoanSource::Incoming);
@@ -417,6 +471,9 @@ pub(crate) mod reference_completion {
             BorrowedLoanSource::Incoming => Ok(None),
             BorrowedLoanSource::Owner => {
                 Err("owned view backing is not an incoming reference occurrence")
+            }
+            BorrowedLoanSource::Provider => {
+                Err("provider backing is not an incoming reference occurrence")
             }
         }
     }

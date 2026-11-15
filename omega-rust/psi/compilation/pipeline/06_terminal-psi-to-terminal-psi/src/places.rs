@@ -120,6 +120,13 @@ pub(crate) struct Lineage {
     segments: Vec<Segment>,
 }
 
+/// Descriptor storage and the payload it permits access to are different
+/// places. Initializing or replacing a descriptor does not write payload bytes.
+enum StorageEffect {
+    Storage(Lineage),
+    Payload(Lineage),
+}
+
 impl Lineage {
     fn descriptor_location(
         &self,
@@ -3061,18 +3068,32 @@ impl<'a> Storage<'a> {
     /// Every storage change uses the already derived write log, including
     /// call writes and scalar homes. Owned operands also relinquish their
     /// storage; a live shared loan forbids that move just as it forbids a write.
-    fn operation_changes(&self, operation: &Operation) -> Checked<Vec<Lineage>> {
+    fn operation_changes(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
         let concerns = Construct::Operation(operation.id);
+        let payloads = self.call_payload_arguments(operation, true)?;
         let mut changes: Vec<_> = self
             .log
             .iter()
             .filter(|row| row.operation == operation.id)
-            .map(|row| row.captured.clone())
+            .map(|row| {
+                if payloads.iter().any(|payload| {
+                    row.captured.root == payload.root
+                        && row.captured.segments.starts_with(&payload.segments)
+                }) {
+                    StorageEffect::Payload(row.captured.clone())
+                } else {
+                    StorageEffect::Storage(row.captured.clone())
+                }
+            })
             .collect();
         if let OperationKind::ByteSequenceWrite { destination, .. } = &operation.kind {
             // The payload changes even though the descriptor has no store
             // row. Retained loans protect that backing against this write.
-            changes.push(self.stored_at(*destination, &[], concerns)?);
+            changes.push(StorageEffect::Payload(self.stored_at(
+                *destination,
+                &[],
+                concerns,
+            )?));
         }
         for argument in operation
             .kind
@@ -3080,14 +3101,68 @@ impl<'a> Storage<'a> {
             .chain(operation.kind.structural_arguments())
             .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
         {
-            changes.push(self.argument(argument, concerns)?);
+            changes.push(StorageEffect::Storage(self.argument(argument, concerns)?));
         }
         if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
             && value.access == terminal_psi::StructuralAccess::Owned
         {
-            changes.push(self.argument(value, concerns)?);
+            changes.push(StorageEffect::Storage(self.argument(value, concerns)?));
         }
         Ok(changes)
+    }
+
+    fn call_payload_arguments(&self, operation: &Operation, writes: bool) -> Checked<Vec<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        let Some(call) = operation.declared_invocation() else {
+            return Ok(Vec::new());
+        };
+        let formals = self
+            .module
+            .invocation_structural_parameters(call.callee, call.required_contract)
+            .ok_or_else(|| self.foreign(concerns, "call effects have no exact retained formals"))?;
+        if formals.len() != call.structural_arguments.len() {
+            return Err(self.foreign(concerns, "call effects differ from their retained formals"));
+        }
+        let mut payloads = Vec::new();
+        for (argument, formal) in call.structural_arguments.iter().zip(formals) {
+            if argument.access != formal.access {
+                return Err(self.foreign(
+                    concerns,
+                    "call effect access differs from its retained formal",
+                ));
+            }
+            let touches = match argument.access {
+                terminal_psi::StructuralAccess::SharedBorrow => !writes,
+                terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow => true,
+                terminal_psi::StructuralAccess::Owned => false,
+            };
+            if touches
+                && matches!(
+                    self.borrowed_resource(formal.structural_type),
+                    loans::BorrowedResource::ViewPayload
+                )
+            {
+                payloads.push(self.argument(argument, concerns)?);
+            }
+        }
+        Ok(payloads)
+    }
+
+    fn operation_read_effects(&self, operation: &Operation) -> Checked<Vec<StorageEffect>> {
+        let payloads = self.call_payload_arguments(operation, false)?;
+        let indexed = matches!(operation.kind, OperationKind::ByteSequenceRead { .. });
+        Ok(self
+            .operation_uses(operation)?
+            .into_iter()
+            .map(|place| {
+                if indexed || payloads.contains(&place) {
+                    StorageEffect::Payload(place)
+                } else {
+                    StorageEffect::Storage(place)
+                }
+            })
+            .collect())
     }
 
     /// The two structural judgments of one operation or terminator, in
