@@ -73,12 +73,12 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### A saved console program cannot reopen its calling signature
+### Console reload treats a mutable byte window as a replaceable descriptor
 - Category: knowledge crossing a boundary
-- Where: [console fixture](tests/fixtures/run/providers/default_console_provider_reached/main.omg#L10), [calling signature validation](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L1528)
-- Saw: On macOS arm64, the console fixture prints `K` and exits 0 in native and Psi with the sum-constant candidate based on `b69c1d4b661`, the service-diagnostics candidate based on `e3225ca05fa`, and the fence candidate based on `0c1f2e23aec`. In all three builds, opening the same run's saved `program.oterm` with `omega psi inspect --artifact` exits 1 with “calling signature substitutes a structural carrier or access.” The native process-ID fixture executes and its saved artifact reopens with the first two binaries.
-- Cost: The running console program's accepted storage can differ from the calling signature saved to Psi. Find the exact boundary parameter and retain its carrier and access through publication. Keep the independent decoder's mismatch check.
-- Reported: 2026-11-15, Codex, while checking that service diagnostics preserve valid Console and native bindings.
+- Where: [Console requirement](source/library/std/console.omg#L36), [formal lowering](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L529), [writable descriptor slots](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs#L7341), [boundary output coverage](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L13050)
+- Saw: On macOS arm64 with the borrowed-slice ABI repair based on `dd0a0349985`, the unchanged Console program prints `K` and exits 0 in native and Psi. Independent inspection of its saved artifact reaches `boundary reference parameter contract has incomplete leaf coverage`. Two selected provider programs differing only between `&mut [u8]` and `&mut &mut [u8]` on the retained requirement and its implementation both run and reach that same refusal. Their raw structural formals both name an unrestricted mutable borrow of the same `BorrowedView { access: Some(MutableBorrow) }` shape and both have an empty reference-output roster.
+- Cost: The published structural formal loses the distinction between lending bytes and lending a stored descriptor that can be replaced. Carry the source's direct-view role through the shared formal owner using the existing canonical descriptor with access on the parameter. Preserve output coverage for the writable stored descriptor and keep provider and calling signatures aligned.
+- Reported: 2026-11-15, Codex, while repairing saved byte-view calling signatures.
 
 ### A fixed-layout record constant loses its target selection
 - Category: knowledge crossing a boundary
