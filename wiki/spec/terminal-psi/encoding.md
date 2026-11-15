@@ -1452,10 +1452,10 @@ authority: settlement retains the exact target-table realization and its ISA
 and floating-control obligations, and receiving checks these against the
 authenticated boundary and canonical method schema.
 Other tags reject. Earlier formats reject at the header, before any table is
-decoded. Marker 275 retains the structural qualification rows and marker 273's
-machine-contract account of public result lifetimes. Formats 271, 272, 273
-and 274 are refused before payload interpretation. Vocabulary marker 135 and the
-artifact transport envelope remain unchanged.
+decoded. Marker 275 retained the structural qualification rows and marker 273's
+machine-contract account of public result lifetimes. It refused formats 271,
+272, 273 and 274 before payload interpretation, using vocabulary marker 135
+and the existing artifact transport envelope.
 
 Semantic format marker 276 adds proposition tag 19 for typed float-meaning
 clauses. Basic numeric arithmetic retains its complete result-meaning equation,

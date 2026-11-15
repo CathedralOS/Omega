@@ -25,7 +25,7 @@
 5 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/src/boundary.rs
 6 omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs
-10 omega-rust/psi/compilation/representations/terminal-psi/src/proof.rs
+9 omega-rust/psi/compilation/representations/terminal-psi/src/proof.rs
 7 omega-rust/psi/compilation/representations/terminal-psi/src/types_and_values.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs
