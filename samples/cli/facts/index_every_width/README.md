@@ -61,7 +61,6 @@ Every twin rejects with `cannot prove index ... is within length 4` naming that 
 
 - **Parent outcome:** `ONE-INTEGER-BOUNDS-ENGINE` / `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
 - **Requirement established:** End-to-end nine-place fact preservation and fixed-size array/slice indexing across all integer widths (`u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, `i64`). The proved in-bounds premise `0 <= index <= 3` satisfies the index demand `0 <= index < 4` without inserting runtime bounds assertions, with exact agreement between Terminal Psi and native execution across hosted targets.
-- **Pinned fixtures:** positive places and reject twins under `tests/omega/pass/facts/index_every_width_through_*_exit` and `tests/omega/fail/facts/index_every_width_through_*_rejected`.
 - **Authority:** [Counts, indices, and addresses](../../../../wiki/spec/language/counts_and_addresses.md#bounds-and-lowering) (scalar indexing requires `0 <= index < live_length`; signed widths require nonnegativity evidence), [numeric values](../../../../wiki/spec/language/numeric_values.md) (propositions as bounds, same-width and multi-width scalar rules), and [invocation contracts](../../../../wiki/spec/language/state_contracts.md#bindings-and-arrivals) (all-predecessor joins and fact lifetime).
 
 Full 8-layer specification and lowering evidence:

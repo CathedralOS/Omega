@@ -98,17 +98,11 @@ artifacts. Package acceptance denied by the executor is recorded without retry.
 
 The exact exercised invocations and any denied routes are in the evidence record.
 
-Three complete reproductions at the recorded baseline justified bounded repairs:
-`controls/float_state_repro` for IEEE state predicates, and the complete scattering
-fixture `tests/omega/pass/float/coherent_field_energy_scattering_exit` for named
-requirements inside constructors; and
-`tests/omega/pass/float/live_division_operand_across_call_exit` for a fixed-register
-dividend that remains live across a call and a loop back-edge. Instruction
-selection gives the x86-64 saturating division its own dividend copy. Current
-main supplies generalized constructor traversal, fixed-register operand
+Instruction selection gives the x86-64 saturating division its own dividend copy.
+Current main supplies generalized constructor traversal, fixed-register operand
 isolation and the shared IEEE contract owner. This sample adds no compiler
 implementation changes. The original witnesses and regression controls remain complete.
-The application retains its authored contracts,
-ordinary providers and independent oracle across those repairs. The compiler
-regressions also exercise f32, NaN/infinity, strict comparisons, unguarded arrival
-rejection, and constructor result policies for overflow versus division by zero.
+The application retains its authored contracts, ordinary providers and independent
+oracle across those repairs. The compiler regressions also exercise f32, NaN/infinity,
+strict comparisons, unguarded arrival rejection, and constructor result policies for
+overflow versus division by zero.

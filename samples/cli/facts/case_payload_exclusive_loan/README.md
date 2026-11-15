@@ -58,9 +58,6 @@ Each place has an `invalid/` twin that breaks only the exclusive-loan obligation
 
 ## Pinned Fixtures
 
-- Positive passes: `tests/omega/pass/facts/case_payload_exclusive_loan_through_<place>_exit` (all 9 places pinned, each carrying `expected_native_exit.txt` with `0`).
-- Negative controls: `tests/omega/fail/facts/case_payload_exclusive_loan_through_<place>_rejected` (all 9 places pinned; each `expected.txt` holds that place's verbatim diagnostic above).
-
 ### Run Record
 
 Measured on base `9ff26a870215` with the shared wave producer
@@ -68,28 +65,12 @@ Measured on base `9ff26a870215` with the shared wave producer
 
 - `omega run --both` on the root `main.omg` and the nine places: 10/10 `native exit 0` with `interp exit: 0`.
 - `omega --check` on the nine `invalid/` twins: 9/9 exit 1, each with the verbatim diagnostic pinned above.
-- `python3 tools/sample_gate.py --filter cli/facts/case_payload_exclusive_loan,cli/facts/loop_branch_relaxation_ranking --cli <producer> --write-results …`: 38/38 check on Darwin arm64, 18 intended-invalid controls matched.
-
 The repair (`302bfaad6d4`) and this row's fixtures (`5457f73d3ed`) landed inside
-revision `4fba1ca3cd5a`. The landing rebases re-measured the row at every base
-main moved to; at the landed revision, `omega` and the `corpus_runner` built
-from that same revision re-ran the acceptance and recorded all three corpus
-legs there (each leg exited 0; every row is stamped `@4fba1ca3cd5a`):
+revision `4fba1ca3cd5a`.
 
 - `omega run --both` on the root `main.omg` and the nine places: 10/10
   `native exit 0` with `interp exit: 0`; `omega --check` on the nine twins:
   9/9 exit 1; the sample gate above re-ran 38/38 with 18 controls matched.
-- `python3 tools/corpus_gate.py --runner <r> --filter facts/case_payload_exclusive_loan --record`
-  — 18 rows in `tests/omega/corpus_outcomes.txt`: nine `checked` with
-  `check-target:macos_arm64` and nine `rejected ... expected` carrying the
-  per-place diagnostics above.
-- `python3 tools/corpus_gate.py --runner <r> --native --filter facts/case_payload_exclusive_loan --record`
-  — nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`
-  (`executed 9 (exit codes {'0': 9})`).
-- `python3 tools/corpus_gate.py --runner <r> --both --filter facts/case_payload_exclusive_loan --record`
-  — nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in
-  `tests/omega/corpus_both_macos_arm64.txt`.
-
 ### Repair: a state's own reference handed to a call
 
 Before the repair, the corpus native leg refused exactly one place of this row:
@@ -154,13 +135,8 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. It now also lowers in the declaration's own telescope, as a tag
-observation of the parameter referent
-(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
-`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
-payload-free case and still rejects at the caller). Observed on macOS x86-64:
-the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree) and its twin rejects for the live loan. The other hosted targets keep
-their authored rows, unexecuted here.
+has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
+run --both` (native and Terminal Psi agree) and its twin rejects for the live
+loan. The other hosted targets keep their authored rows, unexecuted here.
 
 The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

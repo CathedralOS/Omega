@@ -35,15 +35,11 @@ the wrong sealed result family. The separate
 [observing row](../atomic_compare_exchange_once/README.md) has different payload
 roles and cannot establish this requirement.
 
-The surviving [u64 control](../../../../tests/omega/pass/facts/atomic_try_exchange_once/controls/wide/main.omg)
-uses distinct values above 32 bits. The
-[discarded-result control](../../../../tests/omega/pass/facts/atomic_try_exchange_once/controls/discarded_result/main.omg)
-checks once-only evaluation of a counted proposal helper and the unchanged
-resident and neighbor. Their wrong-family twins remain pinned. Repository
-consolidation removed duplicate sample controls and the ordinary-name,
-resident/storage, failure-ordering and duplicate-consumption pins. Their
-original inputs and actual results remain in the measured source and linked
-reports; this qualification does not recreate those duplicates.
+Repository consolidation removed duplicate sample controls and the
+ordinary-name, resident/storage, failure-ordering and duplicate-consumption
+pins. Their original inputs and actual results remain in the measured
+source and linked reports; this qualification does not recreate those
+duplicates.
 
 | Requirement | Evidence established |
 | --- | --- |

@@ -46,24 +46,14 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The recorded 0 exit is discriminating:
 - At runtime, with `p == Packet::Epsilon { v: 60u64 }`, `res == 60u64`, `headroom == 80u64 - 60u64 == 20u64`, `margin == 60u64 - 40u64 == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 40 { true -> done() _ -> bad() }` exits 0. If 5-variant enum matching or exact interval calculations evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / STATUS_ILLEGAL_INSTRUCTION trap crash (exit 3221225501 / 255).
-- Measured discrimination: A 1-token perturbation changing `probe() == 40` to `probe() == 41` was tested under `sample_native_gate.py`, where execution took the `bad()` branch and immediately failed the oracle gate with `exit 3221225501 != 0` (STATUS_ILLEGAL_INSTRUCTION trap). Both execution engines fail closed on incorrect results.
 - In each invalid twin, variant `Epsilon`'s bound is widened from `80u64` to `81u64` (`case Epsilon(v: u64) where v >= 40 && v <= 81;`). Variant destructuring establishes `res in [40, 81]`, which fails the required interval `res >= 40 && res <= 80` on `verify_payload`. Proof obligation checking statically detects the violated contract, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 ### Pinned Corpus Fixtures
-
-The nine positive transport places and nine fact-sensitive reject twins are pinned under:
-- `tests/omega/pass/facts/five_variant_enum_payload_bound_through_<place>_exit/`
-- `tests/omega/fail/facts/five_variant_enum_payload_bound_through_<place>_rejected/`
 
 where `<place>` is `local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and `target_body`.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/five_variant_enum_payload_bound --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call`).
 

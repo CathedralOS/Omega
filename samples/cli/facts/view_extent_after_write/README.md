@@ -14,14 +14,10 @@ does not authorize resizing, descriptor-slot replacement, stale content facts,
 or unchecked indexing.
 
 The owning requirement is preservation of an exact completed view descriptor
-across referent writes, not preservation of the bytes it references. The
-[subslice/state fixture](../../../../tests/omega/pass/facts/subslice_state_extent_after_write_exit/main.omg)
-also constructs a clamped view before transferring it into the guarded state,
-then reads and restores the same suffix around a write. Its
-[wrong-view guard](../../../../tests/omega/fail/facts/subslice_state_extent_wrong_view_rejected/main.omg)
-must not establish that view's bound. The nine places establish transport;
-descriptor-slot replacement, contents invalidation and complete filesystem
-acceptance keep their independent obligations.
+across referent writes, not preservation of the bytes it references. The nine
+places establish transport; descriptor-slot replacement, contents
+invalidation and complete filesystem acceptance keep their independent
+obligations.
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
@@ -72,12 +68,6 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
 | another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `exact arithmetic` / `may overflow \`u64\`` |
-
-## Pinned Fixtures
-
-- Positive passes: `tests/omega/pass/facts/view_extent_after_write_through_<place>_exit` (all 9 places pinned, each recording native exit 0).
-- Negative controls: `tests/omega/fail/facts/view_extent_after_write_through_<place>_unproved` (all 9 places pinned, rejecting with `exact arithmetic`).
-- Subslice state extent: `tests/omega/pass/facts/subslice_state_extent_after_write_exit` and `tests/omega/fail/facts/subslice_state_extent_wrong_view_rejected`.
 
 ## Requirements and Evidence
 

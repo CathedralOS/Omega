@@ -92,11 +92,10 @@ omega run --both "$sample/main.omg" < "$sample/data/unique.stdin"
 omega --check --target linux_x86_64 "$sample/intended_invalid/rejected.omg"
 ```
 
-The final command must exit nonzero and identify the unproved index bound. See
-`EVIDENCE.md` for actual compiler identity, artifact paths and exact commands
-from this candidate. Native support was exercised on Linux x86_64; the build also
-binds existing Windows x86_64 and macOS arm64 Console entry contracts, without
-claiming those hosts were tested.
+The final command must exit nonzero and identify the unproved index bound. Native
+support was exercised on Linux x86_64; the build also binds existing Windows
+x86_64 and macOS arm64 Console entry contracts, without claiming those hosts were
+tested.
 
 A separately frozen wide-band fixture admits all 121 points of an 11x11
 window, testing multi-digit coordinates, residuals and counts and complete

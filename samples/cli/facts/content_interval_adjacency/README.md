@@ -69,13 +69,8 @@ omega run samples/cli/facts/content_interval_adjacency/<place>/main.omg --both
 
 ### Measured on an Intel macOS host
 
-Producer: revision `40e0f28bfbedfbcedd325586c02e288d3cf9af69`, `omega` built
-with `python3 tools/build_slot.py -- mbx build -p omega` (`--build-profile`
-reports `{"opt_level":"1"}`, binary digest
-`24cea28fa0907253ff13aadd1ffae2c16aff54cc`), host target `macos_x86_64`
-(`x86_64-apple-darwin`). This host executes only `macos_x86_64`. Every
-observation below was re-measured on that revision with that binary; the
-candidate adds no Rust. The same measurements on the earlier producers
+Every observation below was re-measured on that revision with that binary;
+the candidate adds no Rust. The same measurements on the earlier producers
 `591336bdc9e`, `94cfa03cda2`, `b558cbfd1583` and `592f6958a1c9` agreed.
 
 | Place | Terminal Psi interpreter | Host native `macos_x86_64` | linux_x86_64 image in a linux/amd64 container |
@@ -109,14 +104,11 @@ The linux leg compiles the authored sources unmodified
 published image in an `alpine` linux/amd64 container, so the authored program
 runs on a real target it binds.
 
-The three targets this host cannot execute were realized without execution,
-one image per program, every realization status 0: `windows_x86_64` PE32+
-x86-64 console executable, `linux_arm64` statically linked ELF aarch64, and
+The three targets this host cannot execute were realized without execution, one
+image per program, every realization status 0: `windows_x86_64` PE32+ x86-64
+console executable, `linux_arm64` statically linked ELF aarch64, and
 `macos_arm64` Mach-O arm64. No execution is claimed for those targets, so no
-native golden row was recorded for this row on this host. `tests/omega/corpus_both_macos_arm64.txt` carries
-`interpreter:agrees` rows for all nine place fixtures recorded on an
-Apple-silicon host at `f77f2aa2a1c2`; that evidence is retained, not re-measured
-here.
+native golden row was recorded for this row on this host.
 
 On this Intel host the authored command with no `--target` refuses at entry
 settlement, because `macos_x86_64` is not one of the four hosted targets:
@@ -257,27 +249,10 @@ discharge instead, which is a different obligation.
 
 ## Pinned Fixtures
 
-Every positive place is pinned under `tests/omega/pass/facts/` as
-`content_interval_adjacency_through_<place>_exit` (byte-identical to its place
-program, with `expected_native_exit.txt` `0`) and every reject twin under
-`tests/omega/fail/facts/` as `content_interval_adjacency_through_<place>_rejected`
-(carrying the authored `expected.txt` fragment). The families were moved on
-2026-10-22 from the original nested `content_interval_adjacency/<place>/`
-layout to these names — contents unchanged — because the corpus census
-(`tools/swarm/fact_status.sh`) matches fixture families on exact path
-components and read the row as unpinned. Re-measured on macOS arm64: root and
-nine places `omega run --both` exit 0 (`native exit 0`, `interp exit: 0`), and
-the nine twins reject at exit 1 with `cannot prove ensures contract ...` under
-the authored fragment (shared opt-level-1 producer at base `9ff26a870215`). The
-recorded goldens carry `checked check-target:macos_arm64` and
-`rejected expected` rows for all eighteen in `tests/omega/corpus_outcomes.txt`
-(records taken with the runner built from the landing-base tree `a93651a39273`,
-opt-level 1, digest `36b7269cd30c3582`; stamps `@a93651a39273+wt`), plus
-`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt` (this
-macOS arm64 host executes the host target, so the row now carries its own
-native rows as well as the retained `interpreter:agrees` evidence at
-`f77f2aa2a1c2` in `tests/omega/corpus_both_macos_arm64.txt`, re-recorded at
-`a93651a39273` in the same pass).
+Re-measured on macOS arm64: root and nine places `omega run --both` exit 0
+(`native exit 0`, `interp exit: 0`), and the nine twins reject at exit 1 with
+`cannot prove ensures contract ...` under the authored fragment (shared
+opt-level-1 producer at base `9ff26a870215`).
 
 ## Historical requirements and evidence
 
@@ -318,8 +293,7 @@ native rows as well as the retained `interpreter:agrees` evidence at
    `ensures`, proved directly from the fact carried through that place.
 4. **Soundness boundaries:** overlap-permitting twins reject at the
    separated-content obligation, so numeric adjacency is what authorizes the
-   equation — not equal sizes, and not scalar totals. Ownership controls remain
-   under `tests/omega/fail/ownership/selected_constructor_*`. Returns through a
+   equation — not equal sizes, and not scalar totals. Returns through a
    wrapper and two simultaneously live results check that caller-local
    identities do not alias callee-local births. Physical storage, Stable access
    and an actual multi-input claim transformation are not modelled here.

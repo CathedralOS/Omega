@@ -56,7 +56,6 @@ SAMPLE=samples/cli/independent/instrument_hysteresis
 "$OMEGA" --check --target linux_x86_64 "$SAMPLE/main.omg"
 "$OMEGA" run --both "$SAMPLE/main.omg" < "$SAMPLE/data/loop.stdin"
 # Build the stable corpus runner once, then use its reported executable path:
-mbx test --release -p compiler --test corpus_runner --no-run
 ```
 
 Results, commands, elapsed times, stderr and native stdout are retained under

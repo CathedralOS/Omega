@@ -33,8 +33,6 @@ Run `omega run --both <place>/main.omg` for `local`, `field`, `parameter`,
 `target_body`. Each declares exit 0 and four hosted `ProgramEntry` bindings. Its
 `invalid/main.omg` changes only the transfer body: it drops the original region
 and returns a region containing 28, failing the conservation postcondition.
-The sources and their loss twins are pinned under
-`tests/omega/{pass,fail}/facts/generic_content_transfer_through_<place>_*`.
 
 The former four target-prefixed bodies were identical. Their replacement is one
 ordinary named implementation with a real inline body and explicit member calls.

@@ -32,7 +32,6 @@ The intended-invalid projects retain exact refusal oracles:
 Run these projects through the ordinary CLI and existing sample gate:
 
 ```text
-python3 tools/sample_native_gate.py --filter cli/compilation/provider_readiness --jobs 1
 omega run --both samples/cli/compilation/provider_readiness/main.omg
 ```
 
@@ -46,10 +45,6 @@ legacy corpus source harness statically projects dependencies and cannot drive
 this scheduler; moving that harness onto executed project discovery remains
 part of the parent cleanup. No readiness-specific harness or source-shape
 recognizer substitutes for production execution.
-
-The [executed workspace journey](../../../../tests/omega/packages/executed-workspace/README.md)
-covers helpers of unselected catalog members, accepted-lock pin retention and
-offline execution separately from Product dependencies.
 
 The compiler's `terminal_effect_readiness` integration test separately exercises
 already-known applied/inherited multi-slot requirements: two type applications

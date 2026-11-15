@@ -25,10 +25,6 @@ Each twin changes only that value's declared carrier from `u32` to `u64`.
 | Other machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | two machines by terminal transfer |
 | Target body | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) | an implementation selected by Build |
 
-The pinned copies are `tests/omega/{pass,fail}/facts/atomic_operand_carrier_once_*`.
-Each recorded row lists the exact diagnostic lines, so a duplicate returns as
-a corpus move.
-
 ## Baseline
 
 Measured with the optimized producer built at `0ff9f81b393`. The three checker

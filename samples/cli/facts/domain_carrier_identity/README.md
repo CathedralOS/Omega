@@ -34,7 +34,6 @@ test whose true arm carries the fact into the call. Twins reject with
 ``domain membership `u16::Small` expects subject carrier `u16`, got `u8` ``,
 or for the local with the matching `executable domain test` wording.
 
-Focused formation controls beside the row, under `tests/omega/fail/domains/`:
 `carrier_exact_suffixed_literal`, `carrier_exact_unrelated_declaration`,
 `carrier_exact_data_predicate`, `carrier_exact_domain_predicate`,
 `carrier_exact_trait_contract`, `carrier_exact_ensures_result`,

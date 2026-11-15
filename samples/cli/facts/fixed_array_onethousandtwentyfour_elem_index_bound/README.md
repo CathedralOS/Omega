@@ -24,17 +24,6 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
-## Pinned Fixtures
-
-The row is pinned under `tests/omega/pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_<place>_exit/`
-and `tests/omega/fail/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_<place>_rejected/` for the nine places.
-Each pass fixture is a byte copy of its place program and carries the four hosted `ProgramEntry` binds and
-`expected_native_exit.txt` 0; each reject twin is a byte copy of its `<place>/invalid/main.omg`, which differs
-from the positive only in the bound contract and its comment, and carries the `cannot prove index` fragment.
-The three corpus legs recorded at `9d9ba4fb625+wt`: `corpus_outcomes.txt` 9 checked + 9 rejected
-(`check-target:macos_arm64`), `corpus_native_macos_arm64.txt` 9 built with `exit:0`, and
-`corpus_both_macos_arm64.txt` 9 built with `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` ([TASKS.md](../../../../TASKS.md)).

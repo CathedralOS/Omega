@@ -110,16 +110,6 @@ only observable when the disposition is *permitted*, which is why every positive
 makes the discarded root's disposition the thing the program depends on (`50u64 - result`
 is proved from the bound the cleanup preserves).
 
-## Fixture pins
-
-The nine places and nine reject twins are pinned under
-[`tests/omega/pass/facts`](../../../../tests/omega/pass/facts) and
-[`tests/omega/fail/facts`](../../../../tests/omega/fail/facts) as
-`affine_discard_root_cleanup[_through_<place>]_exit` and
-`affine_discard_root_cleanup_through_<place>_rejected`. Each reject twin authors both
-`sample.json` (`rejection_contains`) and `expected.txt`; `rejection_contains` takes
-precedence.
-
 ## What remains open
 
 Compound nested linear resource graphs with multiple non-trivial drop dependencies, conditional drop flags with partially moved fields, and asynchronous cancellation cleanup paths remain governed under the wider `RESOURCE-CLEANUP-MODEL` roadmap.

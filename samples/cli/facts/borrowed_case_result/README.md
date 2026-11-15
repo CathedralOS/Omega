@@ -18,12 +18,10 @@ payload observation, then retains its scalar result as an ordinary constant.
 A reference-containing case is not copy-eligible constant storage; no reference
 or temporary input escapes constant evaluation.
 
-All nine places have exact wrong-case reject twins and pins under
-`tests/omega/{pass,fail}/facts/borrowed_case_result_through_*`. Every positive
-binds all four hosted targets. Native and Terminal execution must agree at exit
-zero. Wrong content, lost length, a wrong selected branch or a wrong payload
-projection makes the positive trap. The independent local-loan escape control
-remains under `local/loan_escape`.
+Every positive binds all four hosted targets. Native and Terminal execution
+must agree at exit zero. Wrong content, lost length, a wrong selected branch or
+a wrong payload projection makes the positive trap. The independent local-loan
+escape control remains under `local/loan_escape`.
 
 The case source and borrowed pointee are separate: forming a descriptor from an
 already authenticated payload read retains that exact source-access occurrence,

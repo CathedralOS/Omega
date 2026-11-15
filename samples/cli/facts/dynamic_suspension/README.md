@@ -61,13 +61,10 @@ These are local observations; full parent acceptance remains open.
 
 The additional [Unit call](unit_call/main.omg) proves a requirement at a
 statement-position call, with its own [invalid input](unit_call/invalid/main.omg).
-A statement call evaluates the selected slot's whole operand roster and drops
-the selector prefix before binding formals, exactly like an expression call.
-`tests/omega/{pass,fail}/traits/*dyn_statement_call_operand_positions*` pin
-that each data operand binds its own formal.
-[Retained selection](retained_selector/main.omg) uses the same selector for two
-possibly-suspending calls. Missing acknowledgement and nested-suspension controls
-are pinned under `tests/omega/fail/traits/dyn_suspending_*`.
+A statement call evaluates the selected slot's whole operand roster and drops the
+selector prefix before binding formals, exactly like an expression call. [Retained
+selection](retained_selector/main.omg) uses the same selector for two
+possibly-suspending calls.
 
 [Live record](retained_record/main.omg) keeps a structural local across the
 computed call. [Retained envelope](retained_envelope/main.omg) copies a pure

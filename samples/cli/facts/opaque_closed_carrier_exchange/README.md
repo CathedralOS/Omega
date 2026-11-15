@@ -94,19 +94,19 @@ which exits 71 on a mismatch.
 | Another machine | [owned forwarding](other_machine/main.omg) | [cleanup](invalid_other_machine/main.omg) |
 | Target body | [four checked bodies](target_body/main.omg) | [cleanup](invalid_target_body/main.omg) |
 
-The const-name witness names the two construction inputs. [Constants](../../../../wiki/spec/language/constants.md)
-require recursively copyable pure values; [semantic evaluation](../../../../wiki/spec/language/evaluation.md#invocation-admission)
+The const-name witness names the two construction inputs.
+[Constants](../../../../wiki/spec/language/constants.md) require recursively
+copyable pure values; [semantic
+evaluation](../../../../wiki/spec/language/evaluation.md#invocation-admission)
 excludes runtime-only assumed bindings. Actual affine host-owned occurrences
 therefore cannot be compile-time constants. The named input establishes the same
-exact construction input at runtime, as in the existing
-[linear-claim const witness](../linear_claim_retirement/const_name/main.omg).
-This place claims named construction-input transport, not storage of an affine
-occurrence in a constant.
-All twins differ only by adding nominal cleanup to `AddressWord`; the consuming
-operation and inputs are identical. Expected diagnostics require both
-`contains independently invoked nominal cleanup` and
-`v1 carriers must be inert storage`. Positive and reject copies are pinned under
-`tests/omega/{pass,fail}/facts/opaque_closed_carrier_through_*`.
+exact construction input at runtime, as in the existing [linear-claim const
+witness](../linear_claim_retirement/const_name/main.omg). This place claims
+named construction-input transport, not storage of an affine occurrence in a
+constant. All twins differ only by adding nominal cleanup to `AddressWord`; the
+consuming operation and inputs are identical. Expected diagnostics require both
+`contains independently invoked nominal cleanup` and `v1 carriers must be inert
+storage`.
 
 The applicable [requirements and evidence](../../../../AGENTS.md#requirements-and-evidence)
 are established as follows:
@@ -187,34 +187,19 @@ content):
 ```sh
 omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
 omega --check samples/cli/facts/opaque_closed_carrier_exchange/invalid_local/main.omg
-python3 tools/corpus_gate.py --native --record --filter pass/facts/opaque_closed_carrier_through,pass/facts/opaque_independent_closed_carrier_through
-python3 tools/corpus_gate.py --both --record --filter pass/facts/opaque_closed_carrier_through,pass/facts/opaque_independent_closed_carrier_through
 ```
 
-The gate runs used a `corpus_runner` built in this worktree at `98309d77b143`
-(`mbx test --no-run -p compiler --test corpus_runner`): the native leg recorded
-18 `built ... exit:0` rows and the combined leg 18
-`built ... exit:0 interpreter-exit:0 interpreter:agrees` rows, each splice
-insertion-only (+18 lines, 0 deletions in its golden).
-
-All nine places and all nine independent places report `native exit 0` and
-`interp exit: 0`; the eighteen cleanup twins reject at checking with
-`contains independently invoked nominal cleanup` and `v1 carriers must be inert
-storage`. Each positive differs from its twin only by the added
-`drop_address_word` obligation. All eighteen fixtures carry macOS ARM64 native
-rows (`built ... exit:0`) in `tests/omega/corpus_native_macos_arm64.txt` and
-interpreter-agreement rows (`built ... exit:0 interpreter-exit:0
-interpreter:agrees`) in `tests/omega/corpus_both_macos_arm64.txt`, recorded at
-`98309d77b143`; the check-leg rows already carry `check-target:macos_arm64`
-facts. The root `main.omg` retains its Console/std
-route and needs an accepted macOS program-entry binding (`omega packages update` review)
-before it checks on a fresh host.
+All nine places and all nine independent places report `native exit 0` and `interp exit:
+0`; the eighteen cleanup twins reject at checking with `contains independently invoked
+nominal cleanup` and `v1 carriers must be inert storage`. Each positive differs from its
+twin only by the added `drop_address_word` obligation. The root `main.omg` retains its
+Console/std route and needs an accepted macOS program-entry binding (`omega packages
+update` review) before it checks on a fresh host.
 
 The parent still requires complete composition-edge rejection of provider,
 carrier, target, lifecycle, multiplicity and historical-selection drift. The
 initial independent exchange below covers closed Affine occurrences; the host
 adapter and equal layouts do not establish the remaining acceptance.
-
 
 ## Independent closed Affine exchange
 
@@ -248,16 +233,13 @@ contract or turning a description into execution authority.
 | Another machine | [owned forwarding](independent/other_machine/main.omg) | [cleanup](independent/invalid_other_machine/main.omg) |
 | Target body | [four checked bodies](independent/target_body/main.omg) | [cleanup](independent/invalid_target_body/main.omg) |
 
-Each twin changes only the producing carrier's nominal cleanup obligation in
-[the ../invalid_opaque_closed_carrier_exchange producing package](independent/producer_invalid/main.omg). Its
-consumer source is identical to the positive. The four hosted entries remain
-in every positive build. Execution observations for this exchange cover all four hosted targets,
-including Linux ARM64 in run `40220498665`. On windows_x86_64 the producer
-declares the same `omega_host.dll` binding, publication emits a PE shared
-component beside the executable, and all nine places exit 0 under
-`omega run --both`.
-The paired sources are pinned under
-`tests/omega/{pass,fail}/facts/opaque_independent_closed_carrier_through_*`.
+Each twin changes only the producing carrier's nominal cleanup obligation in [the
+../invalid_opaque_closed_carrier_exchange producing
+package](independent/producer_invalid/main.omg). Its consumer source is identical to the
+positive. The four hosted entries remain in every positive build. Execution observations for
+this exchange cover all four hosted targets, including Linux ARM64 in run `40220498665`. On
+windows_x86_64 the producer declares the same `omega_host.dll` binding, publication emits a PE
+shared component beside the executable, and all nine places exit 0 under `omega run --both`.
 
 The applicable requirement categories above extend through the component edge:
 

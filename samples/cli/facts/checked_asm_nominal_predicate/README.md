@@ -6,7 +6,15 @@ An admitted nominal length predicate fixes the selected value at seven and prove
 
 The root production in each of the nine places uses `Counted where length == 7`. The move consumes the nominal predicate at the current statement prefix. `snapshot` creates the selected value before a later argument resets the cursor from two to zero. Replaying the producer at that later cursor would yield nine. Each root reject twin changes only the label Requires from seven to nine; it retains the move, the Ensures and the runtime oracle. The constant placement is a regression control which already checked on the predecessor; parameter and another-machine placements demonstrate the repaired proof failure.
 
-The original `value_indexed/` production is complete across all nine places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`), with matching reject twins. It uses `Counted<Count: u64>` and records the exact selected runtime index rather than requiring a fixed nominal carrier. Constant carrier eligibility, monomorphization inference across constrained generic carriers, and constructor static binding resolution have been repaired so all positive places pass Terminal Psi and native execution agreement (`omega run --both`, exit 0), and all nine reject twins reject for the specific fact violation. Both variants are pinned under `tests/omega/{pass,fail}/facts/`.
+The original `value_indexed/` production is complete across all nine places
+(`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`,
+`other_state`, `other_machine`, `target_body`), with matching reject twins. It
+uses `Counted<Count: u64>` and records the exact selected runtime index rather
+than requiring a fixed nominal carrier. Constant carrier eligibility,
+monomorphization inference across constrained generic carriers, and constructor
+static binding resolution have been repaired so all positive places pass
+Terminal Psi and native execution agreement (`omega run --both`, exit 0), and
+all nine reject twins reject for the specific fact violation.
 
 ## Requirements and evidence
 

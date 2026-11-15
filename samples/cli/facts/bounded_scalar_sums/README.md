@@ -76,9 +76,6 @@ Restoring the operand bounds restores clean compilation and zero exit.
 - **Requirement family IDs:** `language-numeric-values-001`, `language-numeric-values-006`
 - **Ticket:** `7bbdd20aa82e4150ac40f12c4dd79750`
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/bounded_scalar_sums_through_<place>_exit/`
-  - Negative controls: `tests/omega/fail/facts/bounded_scalar_sums_through_<place>_rejected/`
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** Individual operand upper/lower bounds (`a <= 50`, `b <= 50` with `50 + 50 <= u64::MAX`) establish overflow-free exact scalar addition and the sum's interval bound (`result <= 100`) directly from contract preconditions without any post-hoc caller equality guard (`transition sum == 100`). The caller actuals (`30, 40` and `50, 50`) discharge the callee preconditions statically.

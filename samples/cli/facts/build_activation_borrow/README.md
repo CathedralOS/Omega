@@ -45,7 +45,6 @@ field displacement traps. This observes writes through live caller-owned storage
 
 ```sh
 omega run --both samples/cli/facts/build_activation_borrow/field/main.omg
-python3 tools/corpus_gate.py --both --filter facts/build_activation_borrow,build/activation_owned_field_refused,build/activation_borrowed_field_replacement_refused
 ```
 
 The unchanged minimal field program rejects on `aea6289579e399b931161740f7ffd6f770c78830`
@@ -53,18 +52,10 @@ with `the compiler-owned Build activation cannot be stored in field builder`
 (the diagnostic quotes the field name). A helper-returned original builder
 already runs on that base; the defect is the field admission rule.
 
-The positive and negative projects are copied into
-[`tests/omega/pass/facts/build_activation_borrow`](../../../../tests/omega/pass/facts/build_activation_borrow)
-and
-[`tests/omega/fail/facts/build_activation_borrow`](../../../../tests/omega/fail/facts/build_activation_borrow).
-Additional controls retain rejection of
-[owned Build fields](../../../../tests/omega/fail/build/activation_owned_field_refused)
-and
-[whole-activation replacement through a borrowed field](../../../../tests/omega/fail/build/activation_borrowed_field_replacement_refused).
 A [reference-rebind control](controls/reference_rebind/main.omg) retains legal
-shared-view descriptor assignment inside an ordinary helper. Its product
-selects a different cell through the rebound view and checks both referents
-and their neighbors. Existing counterfeit-local controls remain unchanged.
+shared-view descriptor assignment inside an ordinary helper. Its product selects a
+different cell through the rebound view and checks both referents and their neighbors.
+Existing counterfeit-local controls remain unchanged.
 
 The original match and constant places also write settings through their
 borrowed carriers. Descriptor replacement captures its storage home before the
@@ -157,7 +148,7 @@ return; host observations see that write and both neighbor canaries. Its native
 entry then changes the value to 73 and verifies both selections and untouched
 neighbors. The [shared-source twin](controls/invalid_entry_return/main.omg)
 changes only the left input's access, so it cannot supply the required exclusive
-returned loan. Both sources are pinned in `tests/omega/{pass,fail}/facts`.
+returned loan.
 
 This is the checked guest-to-host entry crossing. An opaque host provider's
 reference result is a separate crossing; retaining an entry result does not

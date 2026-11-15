@@ -10,15 +10,11 @@ identical unqualified model executed successfully.
 Each place starts with 48 units, splits 16, reconstructs a strategy with 32
 units remaining and observes both the residual and allocated lengths. Run
 `omega run --both samples/cli/facts/qualified_field_capacity/<place>/main.omg`.
-The nine places are `local`, `field`, `parameter`, `call_result`,
-`match_join`, `const_name`, `other_state`, `other_machine`, and `target_body`.
-Every `invalid/main.omg` differs only by retaining the original remaining
-count instead of subtracting the request; the default-domain obligation must
-reject it. The same sources are pinned under
-`tests/omega/pass/facts/qualified_field_capacity_through_<place>_exit` and
-`tests/omega/fail/facts/qualified_field_capacity_through_<place>_rejected`,
-the corpus reject name the fact census resolves; the nine reject families were
-renamed byte-identically from `_mismatch` and re-recorded under those names.
+The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
+`const_name`, `other_state`, `other_machine`, and `target_body`. Every
+`invalid/main.omg` differs only by retaining the original remaining count
+instead of subtracting the request; the default-domain obligation must reject
+it.
 
 The distinct compiler mechanism is nominal field membership transport into a
 selected call's prerequisites, followed by exact completed-result equations.
@@ -27,23 +23,11 @@ physical-storage authority.
 
 ## Recorded native evidence (macos_arm64)
 
-Measured on `macos_arm64` at revision `19265b33ea18` with the producer built
-from that revision (`opt_level 1`):
-
-```sh
-python3 tools/corpus_gate.py --native --filter pass/facts/qualified_field_capacity_through
-```
-
-Before the record the gate reported all nine positives as `new fixture
-(built)`, and the run reported `9 fixtures ({'built': 9})`,
-`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected fragment
-and 0 fail fixtures that did not reject, so the missing piece was the durable
-native row rather than a compiler refusal. The nine rows now read
-`built ... exit:0 @19265b33ea18` in `tests/omega/corpus_native_macos_arm64.txt`,
-spliced in as a pure addition: +9 lines, 0 deletions, no timeout rows, LOST 0,
-and the golden's diagnostic-line count is unchanged at 79 — the native golden is
-insertion-only and is not sorted, so a re-render would be a content loss a
-key-based check cannot see.
+Before the record the gate reported all nine positives as `new fixture (built)`,
+and the run reported `9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0':
+9})`, 0 rejected without their expected fragment and 0 fail fixtures that did
+not reject, so the missing piece was the durable native row rather than a
+compiler refusal.
 
 The `--both` golden already carried this fact's nine agreement rows
 (`interpreter:agrees`), so native-versus-interpreter agreement was recorded
@@ -80,10 +64,6 @@ did not reject`, and the `target_body` twin keeps its four diagnostics, one per
 checked target body. The rename rewrites the nine key lines in place — 9
 insertions, 9 deletions, 0 continuation lines touched, diagnostic-line count
 unchanged at 4191.
-
-Remaining open on other hosts: `tests/omega/corpus_native_linux_x86_64.txt` and
-`tests/omega/corpus_native_windows_x86_64.txt` carry no row for this fact and
-need those hosts; `linux_arm64` has no native golden in this checkout.
 
 ## Requirements and evidence
 

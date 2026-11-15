@@ -64,14 +64,13 @@ omega run --both --keep samples/cli/independent/germination_probability_inferenc
 ```
 
 The validator compiles and runs the actual native product with each finite
-input. It also links a private output observer against that supplied compiler's
-exact fingerprinted Rust library closure using `tools/link_terminal_sponsor.py`.
-The observer prepares the complete admitted project, retains its canonical
-Terminal artifact and executes it with the report's exact runtime provisions,
-explicit containing-domain exit delegation, work and wall-clock allowances.
-Actual stdout, stderr, status and numerical values are captured per case.
-`omega run --both` exit agreement alone does not establish numerical agreement.
-Declines, mismatches, wrong source rejection and exhausted allowances fail.
+input. The observer prepares the complete admitted project, retains its
+canonical Terminal artifact and executes it with the report's exact runtime
+provisions, explicit containing-domain exit delegation, work and wall-clock
+allowances. Actual stdout, stderr, status and numerical values are captured per
+case. `omega run --both` exit agreement alone does not establish numerical
+agreement. Declines, mismatches, wrong source rejection and exhausted allowances
+fail.
 
 `controls/predictive_bin` is a separately discoverable, package-free
 source-invalid project: access at index 33 in `[f64;33]` must reject with

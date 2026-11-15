@@ -60,19 +60,13 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/scalar_sign_zero_extension --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 18/18 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/scalar_sign_zero_extension_through_*_exit` and
-`tests/omega/fail/facts/scalar_sign_zero_extension_through_*_rejected` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`,
+`linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
 
 ## Requirements and Evidence
 

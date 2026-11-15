@@ -2,11 +2,11 @@
 
 A complete synthetic census forecast in Omega. Source checking has reached
 package admission; native and Terminal execution are currently blocked by a
-denied bundled-std package acceptance. See `EVIDENCE.md` for the exact boundary. Three bounded integer cohorts
-(newborn, juvenile, open-ended adult) evolve under supplied cohort-specific
-survival, fertility and signed migration rates. This is a declared sample model,
-not an empirical demographic prediction. No external scientific library or
-worker candidate is imported.
+denied bundled-std package acceptance. Three bounded integer cohorts (newborn,
+juvenile, open-ended adult) evolve under supplied cohort-specific survival,
+fertility and signed migration rates. This is a declared sample model, not an
+empirical demographic prediction. No external scientific library or worker
+candidate is imported.
 
 Input is exactly 13 signed decimal fields, one per LF-delimited line, ending
 at EOF: horizon; newborn, juvenile, adult; three survival rates; three fertility
@@ -79,6 +79,4 @@ exit agreement and does not attest Terminal stdout. Startup oracle checks make e
 agreement also attest 17 independently frozen transitions (all three cohorts and
 births/deaths/migration/before/after values). An internal oracle disagreement exits 4,
 before reading any user input. The intended-invalid control is checked separately, without
-executing it. Validation evidence and precise supported/denied routes are recorded in
-`EVIDENCE.md`; generated compiler artifacts and actual stdout/stderr remain under ignored
-`build/`.
+executing it.

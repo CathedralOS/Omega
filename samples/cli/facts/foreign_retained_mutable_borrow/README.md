@@ -11,13 +11,11 @@ original Buffer value and the earlier scalar copy. All entries bind
 `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64 and Linux ARM64.
 
 The nine places are [local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [another machine](other_machine/main.omg)
-and [target body](target_body/main.omg). Each has an `invalid/main.omg` twin
-which inserts one read of the original Buffer before its registration completes.
-The row and twins are pinned under
-`tests/omega/{pass,fail}/facts/foreign_retained_mutable_borrow_*`.
+[parameter](parameter/main.omg), [call result](call_result/main.omg), [match
+join](match_join/main.omg), [const name](const_name/main.omg), [nested
+machine](other_state/main.omg), [another machine](other_machine/main.omg) and
+[target body](target_body/main.omg). Each has an `invalid/main.omg` twin which
+inserts one read of the original Buffer before its registration completes.
 
 ## Contracts and requirements
 
@@ -60,14 +58,12 @@ The row and twins are pinned under
 
 ## Running
 
-Build the matching provider with
-`python3 samples/cli/facts/foreign_retained_mutable_borrow/fixture/prepare.py`.
-Put `build/foreign_retained_mutable_fixture` on `LD_LIBRARY_PATH` (Linux),
-`DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows), then run
-`omega run --both samples/cli/facts/foreign_retained_mutable_borrow/local/main.omg`.
-The mixed-issuer control also needs the shared fixture and its library directory.
-`tools/ci/compiler_retained_foreign.py` prepares both providers and runs both
-retained cohorts on the hosted Windows/Linux jobs.
+Build the matching provider with `python3
+samples/cli/facts/foreign_retained_mutable_borrow/fixture/prepare.py`. Put
+`build/foreign_retained_mutable_fixture` on `LD_LIBRARY_PATH` (Linux),
+`DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows), then run `omega run --both
+samples/cli/facts/foreign_retained_mutable_borrow/local/main.omg`. The mixed-issuer
+control also needs the shared fixture and its library directory.
 
 ## Verification and remaining scope
 

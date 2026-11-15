@@ -14,7 +14,6 @@ The final state takes only the maximum, not the grid borrow.
 From the repository root on macOS ARM64:
 
 ```sh
-python3 tools/sample_native_gate.py --cli target/release/omega --target macos_arm64 --filter collections/heat_grid --jobs 1
 target/release/omega run --both samples/cli/collections/heat_grid/main.omg
 ```
 

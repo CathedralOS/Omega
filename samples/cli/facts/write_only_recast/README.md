@@ -42,9 +42,7 @@ or borrow permission still refuses; no source spelling grants a new address.
 Every positive, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for all four hosted targets. Every invalid program keeps the same
 caller and store, but requests a readable `&mut` view from write-only storage.
-That access increase must reject. Each invalid project's `sample.json` records
-its intended diagnostic; the nine positive and negative programs are pinned
-under `tests/omega/{pass,fail}/facts/write_only_recast_through_*`.
+That access increase must reject.
 
 The match example executes both choices. Only its helper branch writes a separate
 marker, and the helper's explicit result lifetime keeps the returned view tied to
@@ -66,12 +64,10 @@ and [Build-owned target selection](../../../../wiki/spec/build/provider_selectio
 - Composition: every place performs the same store and checks the original
   backing afterward. The twin changes only the requested view access and its
   receiving types, never an unrelated caller guard.
-- Soundness: readable access cannot arise from `&write`. The six
-  `tests/omega/fail/recast/write_only_*` controls separately cover shared/readable
-  access, stored-pointer observation, source validity, overlap and local escape.
-  Checked provider bodies prove that their calls never observe the write-only
-  data. An implementation whose body is unavailable still needs a separately
-  admitted proof tied to the selected implementation.
+- Soundness: readable access cannot arise from `&write`. Checked provider bodies
+  prove that their calls never observe the write-only data. An implementation
+  whose body is unavailable still needs a separately admitted proof tied to the
+  selected implementation.
 - Psi lowering: preserve write-only access in Terminal Psi and execute the
   store without observing the old contents.
 - Layout, provider and calling plans: retain the one-field record geometry and

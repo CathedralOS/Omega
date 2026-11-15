@@ -57,16 +57,6 @@ This row establishes that provably disjoint mutable windows over the same base s
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects effective-address calculations (`lea` or pointer add) for subslice bases, 32-bit element stores (`mov [base + index*4], 11` on `x86_64`, `str w11, [base, index, lsl #2]` on `arm64`), and integer comparisons for verification. Activation storage allocates stack frame homes for `entries` and descriptor registers, and inserts standard prologues and epilogues honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements resolve to concrete frame offsets, basic blocks lay out with branch relaxation and offset reflow around comparison jumps, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
-Run the row with a fresh compiler:
-
-```sh
-python3 tools/sample_native_gate.py --filter cli/facts/disjoint_windows --cli <omega> --jobs 4
-python3 tools/corpus_gate.py --filter disjoint_windows_through_
-```
-
-The mirrored corpus pairs are
-`tests/omega/pass/facts/disjoint_windows_through_<place>_exit/` and
-`tests/omega/fail/facts/disjoint_windows_through_<place>_overlap/`.
 Source checking includes every authored target body. Native results establish
 only the matching host target.
 

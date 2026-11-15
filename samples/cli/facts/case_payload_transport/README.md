@@ -56,23 +56,8 @@ omega --check samples/cli/facts/case_payload_transport/<place>/invalid/main.omg
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/case_payload_transport --jobs 4
-```
-
-`sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove ensures contract`).
-
-## Pinned Fixtures
-
-Nine positive fixtures live under
-[`tests/omega/pass/facts/case_payload_transport_through_<place>_exit`](../../../../tests/omega/pass/facts)
-with `expected_native_exit.txt` of `0`, and nine reject twins under
-[`tests/omega/fail/facts/case_payload_transport_through_<place>_rejected`](../../../../tests/omega/fail/facts).
-Each twin differs from its positive place in one line — the payload bound
-`value <= 50` widens to `value <= 80` — leaving the transport, the caller and the
-consuming operation identical.
 
 ## Requirements and Evidence
 

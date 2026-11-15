@@ -86,10 +86,6 @@ missing requirement:
 error: machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
 ```
 
-Positive and negative counterparts are pinned as
-`tests/omega/{pass,fail}/facts/case_type_equation_recovery_through_<place>_{exit,rejected}`
-and `tests/omega/{pass,fail}/facts/case_type_equation_recovery_transition_rows_{exit,rejected}`.
-
 ## Requirement layers
 
 - **Establishment.** Construction proves the whole default domain before a

@@ -53,7 +53,6 @@ omega packages update --project samples/cli/independent/landcover_area_resamplin
 # Read the pending review. Accept only its reviewed decisions, then:
 omega packages update --resume --project samples/cli/independent/landcover_area_resampling
 omega --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
-# Build the documented corpus_runner test target once, then reuse its executable.
 printf '2\n' | omega run --both samples/cli/independent/landcover_area_resampling/main.omg
 omega --check samples/cli/independent/landcover_area_resampling/controls/out_of_bounds/main.omg
 ```

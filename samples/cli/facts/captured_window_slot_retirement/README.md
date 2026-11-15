@@ -16,16 +16,15 @@ captures its destination before the RHS. Retirement ends the old descriptor's
 loan; it neither disposes borrowed backing nor invents rollback.
 
 The selector crosses all nine places: [local](local/main.omg),
-[field](field/main.omg), [parameter](parameter/main.omg),
-[call result](call_result/main.omg), [match join](match_join/main.omg),
+[field](field/main.omg), [parameter](parameter/main.omg), [call
+result](call_result/main.omg), [match join](match_join/main.omg),
 [constant](const_name/main.omg), [nested machine](other_state/main.omg),
-[another machine](other_machine/main.omg), and
-[Build-selected body](target_body/main.omg). Every place keeps the sentence,
-bound and operation above. Its `invalid/main.omg` twin changes only the store's
-selector to the completed call returning one. That store cannot release the
-original backing still held by window zero; the rejection must name its active
-window loan. The nine positives and twins are pinned under
-`tests/omega/{pass,fail}/facts/captured_window_slot_retirement_through_*`.
+[another machine](other_machine/main.omg), and [Build-selected
+body](target_body/main.omg). Every place keeps the sentence, bound and
+operation above. Its `invalid/main.omg` twin changes only the store's selector
+to the completed call returning one. That store cannot release the original
+backing still held by window zero; the rejection must name its active window
+loan.
 
 The frozen optimized `9d0ba50bdc865c2100f7b06763b6706b70bbdcbc`
 producer wrongly refused all nine positives when `check` loaded

@@ -65,7 +65,5 @@ playback consumers (`AudioPlayback`) and `samples/gui/windowed_calculator`.
 - Omega 03–09: the native image calls the same import and exits 0.
 
 Acceptance is `omega run --both <place>/main.omg` with both exits 0 on each
-matching host, plus each twin's rejection. The fixtures are pinned under
-`tests/omega/{pass,fail}/facts/foreign_package_service_reach_through_*`.
-Linux x86_64 is observed; Windows, macOS ARM64 and Linux ARM64 execution remain
-unverified.
+matching host, plus each twin's rejection. Linux x86_64 is observed; Windows,
+macOS ARM64 and Linux ARM64 execution remain unverified.

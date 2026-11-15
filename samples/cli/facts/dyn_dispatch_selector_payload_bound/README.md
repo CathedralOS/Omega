@@ -126,17 +126,14 @@ exact-arithmetic obligation on the subtraction; the unrelated-trait control
 rejects because its selector does not inherit the called trait.
 
 The migration selection comprises 36 corpus fixtures and all 38 original sample
-projects: both roots, eighteen positive places and eighteen reject twins.
-The compiler repair adds a wrong-trait control and four existing dynamic-call
-regressions, bringing its focused selection to 41 fixtures and 39 sample projects. Each
-sample Main/Build pair is copied to its corresponding fixture under
-`tests/omega/{pass,fail}/facts/dyn_dispatch_selector_payload_bound_through_*`
-or `dyn_dispatch_payload_alias_through_*`. Reject diagnostics and raw execution
-records retain their actual producer revision and host in the claim evidence.
+projects: both roots, eighteen positive places and eighteen reject twins. The compiler
+repair adds a wrong-trait control and four existing dynamic-call regressions, bringing
+its focused selection to 41 fixtures and 39 sample projects. Reject diagnostics and raw
+execution records retain their actual producer revision and host in the claim evidence.
 Both producers use verified optimization level 1. The earlier Source and combined
-execution records name the measured repair revision; later documentation,
-explanatory comments and record updates do not claim a new execution.
-Windows x86-64 and Linux ARM64 execution remain unverified.
+execution records name the measured repair revision; later documentation, explanatory
+comments and record updates do not claim a new execution. Windows x86-64 and Linux
+ARM64 execution remain unverified.
 
 The later correction to service declarations is measured separately at
 `811f0cc440abdab14a264b198d85a8f012f830d0` on

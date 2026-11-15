@@ -56,13 +56,6 @@ rejects each twin with one diagnostic —
 2 diagnostics) — exit 1, never a caller guard. `git diff` of each positive
 against its twin shows only that one mutation statement.
 
-The matching corpus pairs are
-`tests/omega/pass/facts/descriptor_payload_exclusive_loan_through_<place>_exit`
-and
-`tests/omega/fail/facts/descriptor_payload_exclusive_loan_through_<place>_rejected`,
-with `expected_native_exit.txt` `0` on each positive and the loan-exclusivity
-fragment in each twin's `expected.txt`.
-
 ## Requirements and Evidence
 
 Owning item: **MATCH-SELECTIVE-LOWERING** in
@@ -141,11 +134,6 @@ nine twins exit 1 with their pinned fragment.
 ```sh
 omega run --both samples/cli/facts/descriptor_payload_exclusive_loan/local/main.omg   # exit 0, native exit 0, interp exit: 0
 omega --check samples/cli/facts/descriptor_payload_exclusive_loan/invalid_local/main.omg   # exit 1, the loan diagnostic
-python3 tools/sample_gate.py --filter cli/facts/descriptor_payload_exclusive_loan --cli <omega>          # 19/19 checked, 9 intended rejections matched
-python3 tools/sample_native_gate.py --filter cli/facts/descriptor_payload_exclusive_loan --cli <omega>   # 10/10 meet oracle, 9/9 controls match
-python3 tools/corpus_gate.py --filter descriptor_payload_exclusive_loan
-python3 tools/corpus_gate.py --native --filter descriptor_payload_exclusive_loan
-python3 tools/corpus_gate.py --both --filter descriptor_payload_exclusive_loan
 ```
 
 Corpus rows recorded at `114906953e11+wt` (row additions only, 0 golden
@@ -156,11 +144,9 @@ records eight `built exit:0` rows with `interpreter-exit:0`,
 `interpreter-stdout:match` and `interpreter:agrees`.
 
 Known red: `pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit`
-is observed `rejected` in the corpus checked-compile route while the same
-source builds and runs through `omega run --both` (and through plain `omega`
-for all four declared targets). Reproduce with
-`OMEGA_CORPUS_NATIVE=1 OMEGA_CORPUS_FIXTURE_FILTER=descriptor_payload_exclusive_loan_through_other_state_exit OMEGA_COMPILER_CHECK_SITES=1 <corpus_runner>`;
-the record is
+is observed `rejected` in the corpus checked-compile route while the same source
+builds and runs through `omega run --both` (and through plain `omega` for all four
+declared targets).
 
 ```
 target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(12)), site: omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs:1283 }
@@ -212,13 +198,8 @@ Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
 precondition representation)`. A requirement signature's own case-membership
 precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
 its scope through a machine state with the same parameters, and a requirement
-has none. It now also lowers in the declaration's own telescope, as a tag
-observation of the parameter referent
-(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
-`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
-payload-free case and still rejects at the caller). Observed on macOS x86-64:
-the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree) and its twin rejects for the live loan. The other hosted targets keep
-their authored rows, unexecuted here.
+has none. Observed on macOS x86-64: the migrated positive exits 0 under `omega
+run --both` (native and Terminal Psi agree) and its twin rejects for the live
+loan. The other hosted targets keep their authored rows, unexecuted here.
 
 The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

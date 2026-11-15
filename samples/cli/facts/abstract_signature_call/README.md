@@ -69,12 +69,8 @@ caller guard. Nested machines declare their own crash routes explicitly.
 | other_machine | [`constant_initializer/other_machine/main.omg`](constant_initializer/other_machine/main.omg) | [`constant_initializer/other_machine/invalid/main.omg`](constant_initializer/other_machine/invalid/main.omg) |
 | target_body | [`constant_initializer/target_body/main.omg`](constant_initializer/target_body/main.omg) | [`constant_initializer/target_body/invalid/main.omg`](constant_initializer/target_body/invalid/main.omg) |
 
-The nine places are pinned as
-`tests/omega/{pass,fail}/facts/abstract_signature_call_constant_initializer_through_<place>_{exit,rejected}`;
-the unchanged root is pinned by the corresponding
-`abstract_signature_call_constant_initializer_{exit,rejected}` fixtures. The
-positive fixtures author exit 0, and the rejects require `structurally false`
-and `premise(kept)`.
+The positive fixtures author exit 0, and the rejects require `structurally
+false` and `premise(kept)`.
 
 The fixed baseline `aa202339cb2f513fbf478efa46f212a6d94680fd` refuses the
 unchanged root before execution with
@@ -236,21 +232,23 @@ These observations do not close the parent capability.
 | another machine | [other machine](constant_initializer/applied_callback/other_machine/main.omg) | [invalid](constant_initializer/applied_callback/other_machine/invalid/main.omg) |
 | target body | [target body](constant_initializer/applied_callback/target_body/main.omg) | [invalid](constant_initializer/applied_callback/target_body/invalid/main.omg) |
 
-Each twin changes only the premise's own result to false. The nine transports
-and root are pinned under
-`tests/omega/{pass,fail}/facts/abstract_signature_call_applied_callback_*`.
-The same selected-tuple mechanism also has positive compositions for an unused
-[type argument](constant_initializer/applied_callback/type_argument/main.omg),
-an unused [copy bound](constant_initializer/applied_callback/type_bound/main.omg),
-[opposite results from two applications of one provider](constant_initializer/applied_callback/opposite_instances/main.omg),
-[a repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
-[forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg)
-and [forwarding an unused type argument](constant_initializer/applied_callback/forwarded_type_argument/main.omg),
-plus an unused [structural array type](constant_initializer/applied_callback/structural_type_argument/main.omg).
+Each twin changes only the premise's own result to false. The same selected-tuple
+mechanism also has positive compositions for an unused [type
+argument](constant_initializer/applied_callback/type_argument/main.omg), an unused
+[copy bound](constant_initializer/applied_callback/type_bound/main.omg), [opposite
+results from two applications of one
+provider](constant_initializer/applied_callback/opposite_instances/main.omg), [a
+repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
+[forwarding through another
+binder](constant_initializer/applied_callback/forwarded_applied/main.omg) and
+[forwarding an unused type
+argument](constant_initializer/applied_callback/forwarded_type_argument/main.omg),
+plus an unused [structural array
+type](constant_initializer/applied_callback/structural_type_argument/main.omg).
 Each has a premise-false twin. Additional controls pin an unused type-bound
 violation, an out-of-range const argument, a stronger callback premise, a wider
-crash contract, and an incorrect result selected by a different application.
-Those controls must reach their own obligations; a missing tuple is insufficient.
+crash contract, and an incorrect result selected by a different application. Those
+controls must reach their own obligations; a missing tuple is insufficient.
 
 The structural array production exposed a second declaration-context gap after
 the numeric and named-type cases passed. The unchanged source
@@ -292,27 +290,12 @@ the exact fixed-37 raw exit 3 boundary below. Integrated receipts, 287 products
 and 41 approved replay locks are retained separately from the earlier producer;
 exact integrated review is a separate qualification gate.
 
-Further valid-positive refusals are retained against fixed baseline 37
-and the historical first candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses
-`an unclosed machine or runtime operand`. Its current producer behavior has not been re-observed.
-A cross-module const alias no longer loses its exact declaration selection: at
-`949694bc033` on windows_x86_64,
-[`cross_module_const_alias_callable_arguments_exit`](../../../../tests/omega/pass/generics/cross_module_const_alias_callable_arguments_exit/main.omg)
-exits 0 on both engines with the alias as a callback const argument, a premise
-subject and an implementation argument, beside a same-spelled consumer constant
-with another value. Its three `cross_module_const_alias_shadowed_*` reject twins
-name that local constant instead and reject.
-The generic abstract-premise confusion of actual and required `T` is the
-[generic exact type actual](#generic-exact-type-actual) production.
-This Type/Const application step does not claim those repairs. The broader
-task's law, declaration migration and other-host acceptance remain open.
-
-The two open-Const contextual positives,
-[`contextual_static_machine_const_scopes_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_const_scopes_exit/main.omg)
-and [`contextual_static_machine_open_const_exit`](../../../../tests/omega/pass/generics/contextual_static_machine_open_const_exit/main.omg),
-which fixed producer 37 and producer `3c2ec6aaf4dd` refused, exit 0 on both
-engines at `949694bc033` on windows_x86_64, and check for the macos_arm64
-realization target.
+Further valid-positive refusals are retained against fixed baseline 37 and the historical first
+candidate `f2dcd8f`: a provider tuple containing a Machine argument refuses `an unclosed machine or
+runtime operand`. Its current producer behavior has not been re-observed. The generic
+abstract-premise confusion of actual and required `T` is the [generic exact type
+actual](#generic-exact-type-actual) production. This Type/Const application step does not claim
+those repairs. The broader task's law, declaration migration and other-host acceptance remain open.
 
 An applied callback may carry its own premise over its const binder:
 [`const_premise`](constant_initializer/applied_callback/const_premise/main.omg)
@@ -414,8 +397,6 @@ Psi interpreter and native execution agreement:
 ```sh
 target/debug/omega run --both samples/cli/facts/abstract_signature_call/<place>/main.omg < /dev/null
 target/debug/omega run --both samples/cli/facts/abstract_signature_call/<place>/invalid/main.omg < /dev/null
-python3 tools/sample_native_gate.py --facts --filter cli/facts/abstract_signature_call
-python3 tools/corpus_gate.py --filter facts/abstract_signature_call
 ```
 
 Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
@@ -430,20 +411,8 @@ Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
   name), `main` state `check` (a nested machine), and `observe` state `entry`
   (parameter, another machine, and each of the four target bodies), each
   beside the specialized `apply$specialized$b37cdd08ebba4760$0` companion.
-- `python3 tools/sample_native_gate.py --cli <producer> --facts --filter
-  cli/facts/abstract_signature_call` reports 9/9 samples meeting their
-  documented oracle on `macos_arm64` with 0 unscored, and 9/9 intended-invalid
-  controls matching their authored rejection.
-
-Main advanced to `8d202634513` before landing; the row was rebased onto it and
-re-measured with an opt-level 1 CLI and corpus runner built from that tree:
-18 of 18 engine runs exit 0, nine of nine twins reject with the same
-fragments, `sample_native_gate.py` again reports 9/9 documented oracles and
-9/9 matched intended-invalid controls, and the corpus re-diff is clean over
-the 36 fixtures (18 `checked`, 18 `rejected`, 0 rejected without their
-expected fragment; the direct `--both` records carry `interpreter-exit:0` and
-`interpreter:agrees` for all 18 positives). The recorded golden rows were
-unchanged and keep their `@c1c6bc8cb8ec+wt` stamp.
+The recorded golden rows were unchanged and keep their `@c1c6bc8cb8ec+wt`
+stamp.
 
 ### The oracle discriminates
 
@@ -479,25 +448,6 @@ to a structurally false fact and proof checking fails closed:
 Every twin also emits the companion diagnostic from the specialized application
 `apply$specialized$…` state `entry` calling `witness` with the same required
 fact, so the refusal names both the instantiation and the specialized body.
-
-## Pinned Fixtures
-
-The row is pinned by eighteen fixtures:
-`tests/omega/pass/facts/abstract_signature_call_through_<place>_exit` (nine
-positives, byte-identical copies of their place `main.omg`, each with a
-`build.omg` binding the four hosted targets and `expected_native_exit.txt` of
-`0`) and
-`tests/omega/fail/facts/abstract_signature_call_through_<place>_rejected` (nine
-twins, byte-identical copies of their twin `main.omg`, each with an
-`expected.txt` carrying `structurally false` and `premise(kept)`).
-
-Their golden rows were recorded by filtered splice at `c1c6bc8cb8ec+wt`:
-+39 lines in `corpus_outcomes.txt` (nine `checked` rows with
-`check-target:macos_arm64`, nine `rejected` rows with 21 diagnostic
-continuation lines), +9 in `corpus_native_macos_arm64.txt` (nine `built` rows
-with `exit:0`) and +9 in `corpus_both_macos_arm64.txt` (nine `built` `exit:0`
-rows with `interpreter-exit:0` and `interpreter:agrees`); no other row moved
-and no fixture key or diagnostic continuation line was lost.
 
 ## Requirements and Evidence
 
@@ -632,8 +582,6 @@ changes only `premise`'s body from `true` to `false`.
 | another machine | [other machine](generic_actual/other_machine/main.omg) | [invalid](generic_actual/other_machine/invalid/main.omg) |
 | target body | [target body](generic_actual/target_body/main.omg) | [invalid](generic_actual/target_body/invalid/main.omg) |
 
-The nine places are pinned as
-`tests/omega/{pass,fail}/facts/abstract_signature_call_generic_actual_through_<place>_{exit,rejected}`.
 Reject fragments are `structurally false` and `premise<T>(kept)`.
 
 On Linux x86_64 at base `3caadfad789f1e6521a06ccb3ebdf043f7733da5`, before the
@@ -668,18 +616,15 @@ nine twins reject the premise. Windows, macOS, and QEMU were not run.
 
 ## Other selected target implementation
 
-The `other_target` place and its twin carry no source target prefix and no
-`target_body` spelling. Ordinary named implementations (`X86...` and `Arm...`)
-of the `SelectedObserve` and `SelectedBodyCheck` requirements are selected by
-explicit target-keyed Build rows; `ProgramEntry` binds the entry wrapper for
-each hosted target. The operation, inputs, contracts and exit oracle are
-unchanged from the other places. The entry wrapper and each implementation check
-a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps at runtime.
-The twin changes only `premise`'s result and rejects with
-`structurally false` and `premise(kept)`. The place is pinned as
-`tests/omega/{pass,fail}/facts/abstract_signature_call_through_other_target_{exit,rejected}`.
-Evidence is recorded below under the validation heading; the other hosted targets
-keep their authored rows, unexecuted here.
+The `other_target` place and its twin carry no source target prefix and no `target_body`
+spelling. Ordinary named implementations (`X86...` and `Arm...`) of the `SelectedObserve` and
+`SelectedBodyCheck` requirements are selected by explicit target-keyed Build rows;
+`ProgramEntry` binds the entry wrapper for each hosted target. The operation, inputs,
+contracts and exit oracle are unchanged from the other places. The entry wrapper and each
+implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps at
+runtime. The twin changes only `premise`'s result and rejects with `structurally false` and
+`premise(kept)`. Evidence is recorded below under the validation heading; the other hosted
+targets keep their authored rows, unexecuted here.
 
 Validation at base `90f3fe11ae75eb63246767979fe483cfe0c312f8` with an optimized
 exact-source `omega` (release profile): all nine positive places pass

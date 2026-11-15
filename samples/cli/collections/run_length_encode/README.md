@@ -23,11 +23,7 @@ an image. Package review remains part of this outer command; do not manufacture
 acceptance to advance the sample.
 
 The maintained native sample gate completes local package review, closes stdin
-at EOF, and checks exit 5 plus the documented `run: C x2` output. On macOS:
-
-```sh
-python3 tools/sample_native_gate.py --cli target/debug/omega --target macos_arm64 --filter collections/run_length_encode
-```
+at EOF, and checks exit 5 plus the documented `run: C x2` output.
 
 In PowerShell use `python` instead of `python3`, `target/debug/omega.exe`, and
 `--target windows_x86_64`. Build that CLI from the current checkout first. The

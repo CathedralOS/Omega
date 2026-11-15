@@ -7,14 +7,12 @@ The index remains a two-variable `i32 in Wrapping` computation and the grid reta
 200 elements. The authored runtime coordinates remain `a = 15`, `b = 3`.
 
 The [root](main.omg) and nine places carry the same sentence and operation:
-[local](local/main.omg), [field](field/main.omg), [parameter](parameter/main.omg),
-[call result](call_result/main.omg), [match join](match_join/main.omg),
-[const name](const_name/main.omg), [nested machine](other_state/main.omg),
-[another machine](other_machine/main.omg), and
-[another target body](target_body/main.omg). Each place has its adjacent
-`invalid/main.omg` and corresponding pass/fail pin under `tests/omega/{pass,fail}/facts`.
-All positive Build files bind `ProgramEntry` for the four hosted targets and
-all positive Sources declare exit zero.
+[local](local/main.omg), [field](field/main.omg), [parameter](parameter/main.omg), [call
+result](call_result/main.omg), [match join](match_join/main.omg), [const
+name](const_name/main.omg), [nested machine](other_state/main.omg), [another
+machine](other_machine/main.omg), and [another target body](target_body/main.omg). All
+positive Build files bind `ProgramEntry` for the four hosted targets and all positive
+Sources declare exit zero.
 
 An ordinary `run_main` wrapper preserves the original `hits = 0`, `a = 15`,
 `b = 3` setup, in that order, before calling the guarded code. That code has an

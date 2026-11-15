@@ -35,10 +35,9 @@ construction rather than an unused invalid generic producer.
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) |
 
 Every positive project binds ProgramEntry for linux_x86_64, linux_arm64,
-macos_arm64 and windows_x86_64 and declares exit 0. Identical sources, Build
-files and oracles are pinned under tests/omega/{pass,fail}/facts.
-Run a witness with `omega run --both <place>/main.omg`; run its twin with
-`omega --check <place>/invalid/main.omg`.
+macos_arm64 and windows_x86_64 and declares exit 0. Run a witness with
+`omega run --both <place>/main.omg`; run its twin with `omega --check
+<place>/invalid/main.omg`.
 
 Local execution evidence and the exact optimized producer are retained in the
 worker qualification directory. Foreign bindings are authored coverage;

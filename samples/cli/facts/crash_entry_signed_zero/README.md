@@ -66,7 +66,6 @@ equality in a writable local that is never written, and
 local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 (`call from `read_zero` to `maybe_nonzero` at statement 2 call 0`).
 
-
 ## Selected target body
 
 `target_body` selects its `forward` through Build. `SelectedForward` is a boundary trait whose one member publishes the same conditional `crashes Trap` route as the callee; `X86Forward` and `ArmForward` satisfy it, and `build.omg` picks one per target with `Build::select_provider`. The public reader therefore publishes `reaches SelectedForward invokes SelectedForward`, and the caller discharges the selected member's route from the entry fact without a crash ceiling of its own. Each entry first calls `SelectedBodyCheck::require_tag` with its target's tag, so a wrong selection traps in both engines: selecting `ArmBodyCheck` for `windows_x86_64` gave native exit `-1073741795` and `interp crash: Trap`. The reject twins differ from the positive only in the entry requirement and reject at the selected `forward` call.
@@ -114,16 +113,11 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 
 ## Recorded runs
 
-Corpus rows measured at the landed revision with an opt-level 1 corpus runner on
-macOS arm64 (`python3 tools/corpus_gate.py --both --record --filter
-facts/crash_entry_nan_equality,facts/crash_entry_signed_zero`), ten pass rows and
-ten fail rows for this row:
-
 | Leg | Rows | Result |
 | --- | --- | --- |
 | check | `pass/facts/crash_entry_signed_zero_through_<place>_exit` and the writable-carrier pin | `checked`, `check-target:macos_arm64`, and 0 structural moves against the pinned rows |
-| native | the same ten in `corpus_native_macos_arm64.txt` | `built`, `exit:0` |
-| both | the same ten in `corpus_both_macos_arm64.txt` | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
+| native |  | `built`, `exit:0` |
+| both |  | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
 | reject twins | `fail/facts/crash_entry_signed_zero_through_<place>_rejected` and the written-local pin | `rejected`, `expected`; 0 rejected without the expected fragment |
 
 Earlier direct runs at `9ff26a87021` with an opt-level 1 CLI and stdin closed:

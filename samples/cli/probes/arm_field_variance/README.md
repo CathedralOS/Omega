@@ -9,6 +9,3 @@ consumed by `Acknowledgement::ack`, a one-member boundary trait requirement
 whose selected provider `ReceiptSink` is an external sink (each target's C
 library `abs`). The acknowledged codes show which arm placed which input.
 
-Without a selected provider, native closure review refuses the program
-(`reachable requirement ... resolves to 0 selected provider rows`), pinned by
-`tests/omega/fail/providers/consuming_trait_requirement_without_provider`.

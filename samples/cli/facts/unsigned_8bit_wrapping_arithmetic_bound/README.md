@@ -57,8 +57,6 @@ discriminates between correct evaluation and faulty execution.
 
 ## Pinned Corpus Fixtures
 
-The row is pinned for all nine places under `tests/omega/pass/facts/` and `tests/omega/fail/facts/`:
-
 | Place | Pinned pass fixture | Pinned reject fixture | Transport |
 | --- | --- | --- | --- |
 | local | `unsigned_8bit_wrapping_arithmetic_bound_through_local_exit` | `unsigned_8bit_wrapping_arithmetic_bound_through_local_rejected` | wrapping addition result bound to local variable |
@@ -99,24 +97,12 @@ Each twin widens the inputs so the wrapping sum can reach `105u8`; checking then
 
 ## Measured evidence
 
-Measured on macOS arm64 with the factsr1 shared generation producer
-gen-d3b0020bf6a (revision d3b0020bf6a72cac2367f3eae2ff1db55cc332b0, omega sha256
-`c6dff3ba4be3a38c720ee83b522d251743afde9c174ca6881390c5812920e344`, corpus_runner sha256
-`65225cae2bf62dec8f705339afaef606c0bac0e611c005dae984488e67ffa301`):
-
 - `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
 - `omega --check` over the nine twins: 9/9 exit 1 with their authored fragment (table above).
 - Perturbing the root oracle (one token) exits 255 with `native signal 5` and
   `interp crash: Trap (host presentation agrees)`.
-- The three corpus legs were recorded with the fixture and golden changes staged at published main
-  `60453171ca5f`, so every row is stamped `@60453171ca5f+wt`: `tests/omega/corpus_outcomes.txt` gained
-  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with their diagnostics
-  and expected fragments satisfied, 24 diagnostic continuation lines),
-  `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
-  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
-  interpreter:agrees` rows. Every golden diff is a pure addition -- +60/-0, +18/-0 and +18/-0 with 0
-  `timeout` rows.
+- Every golden diff is a pure addition -- +60/-0, +18/-0 and +18/-0 with 0 `timeout` rows.
 
 ## Requirements and Evidence
 

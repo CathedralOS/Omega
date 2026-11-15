@@ -70,12 +70,6 @@ Remaining coverage is in [STATIC-MACHINE-MIGRATION](../../../../TASKS.md).
 
 ## Native regression
 
-With a built CLI, the maintained gate checks the sample's authored exit oracle:
-
-```sh
-python3 tools/sample_native_gate.py --cli target/debug/omega --target macos_arm64 --filter basics/generic_counters --jobs 1
-```
-
 On Windows use `python`, `target/debug/omega.exe`, and `windows_x86_64`.
 The gate accepts pending package-review decisions only in this checkout to
 measure execution. Its result is not a dependency audit or approval for another

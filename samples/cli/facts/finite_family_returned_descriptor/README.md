@@ -37,9 +37,8 @@ safe; it does not establish the returned view's lifetime.
 | Selected target body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) |
 
 Each twin changes only the method's returned backing to a local array. It must
-reject because that array does not outlive the call. Main/Build copies are pinned
-under `tests/omega/{pass,fail}/facts/finite_family_returned_descriptor/`.
-All positive programs bind the four hosted targets and expect exit 0.
+reject because that array does not outlive the call. All positive programs bind
+the four hosted targets and expect exit 0.
 
 These places transport the input `Packet` before the common selected call.
 The field place also checks its neighboring values 17 and 23. The match place
@@ -71,9 +70,6 @@ and [provider selection](../../../../wiki/spec/build/provider_selection.md).
 
 ## Evidence and remaining work
 
-The focused [tagged-result program](../../../../tests/omega/pass/traits/finite_family_case_view_result_exit/main.omg)
-failed lowering with the published `3fdbcaba2c8fea5695bbb0336adb0ce473e0eaef`
-compiler, reporting multiple checked public call shapes for one tuple.
 [Run 41967472108](https://github.com/CathedralOS/Omega/actions/runs/41967472108)
 retains that frozen program and the authenticated compiler; neither engine ran.
 

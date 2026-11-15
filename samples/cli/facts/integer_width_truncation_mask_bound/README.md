@@ -11,13 +11,6 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Pinned fixtures
 
-The nine positive places and nine reject twins are pinned as
-`tests/omega/pass/facts/integer_width_truncation_mask_bound_through_<place>_exit`
-and `tests/omega/fail/facts/integer_width_truncation_mask_bound_through_<place>_rejected`.
-Each twin authors `expected.txt` carrying the fragment ``may overflow `u64` ``.
-`tests/omega/corpus_native_macos_arm64.txt` records nine real
-`built ... exit:0` rows, one per place.
-
 ### The oracle discriminates
 
 `0` is strictly discriminative in both directions, and the two directions

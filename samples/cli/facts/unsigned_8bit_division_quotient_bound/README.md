@@ -11,15 +11,15 @@
 | Place | Positive witness (`Expected exit: 0`) | Pinned pass fixture | Reject twin | Pinned fail fixture | Reject diagnostic fragment |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | Root summary | [`main.omg`](main.omg) | — | — | — | — |
-| Local | [`local/main.omg`](local/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_local_exit` | [`invalid_local/main.omg`](invalid_local/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_local_rejected` | `may overflow \`u8\`` |
-| Field | [`field/main.omg`](field/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_field_exit` | [`invalid_field/main.omg`](invalid_field/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_field_rejected` | `may overflow \`u8\`` |
-| Parameter | [`parameter/main.omg`](parameter/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_parameter_exit` | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_parameter_rejected` | `may overflow \`u8\`` |
-| Call result | [`call_result/main.omg`](call_result/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_call_result_exit` | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_call_result_rejected` | `may overflow \`u8\`` |
-| Match join | [`match_join/main.omg`](match_join/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_match_join_exit` | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_match_join_rejected` | `may overflow \`u8\`` |
-| Const name | [`const_name/main.omg`](const_name/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_const_name_exit` | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_const_name_rejected` | `may overflow \`u8\`` |
-| Nested machine | [`other_state/main.omg`](other_state/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_state_exit` | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_other_state_rejected` | `may overflow \`u8\`` |
-| Other machine | [`other_machine/main.omg`](other_machine/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_machine_exit` | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_other_machine_rejected` | `may overflow \`u8\`` |
-| Target body | [`target_body/main.omg`](target_body/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_target_body_exit` | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_target_body_rejected` | `may overflow \`u8\`` |
+| Local | [`local/main.omg`](local/main.omg) |  | [`invalid_local/main.omg`](invalid_local/main.omg) |  | `may overflow \`u8\`` |
+| Field | [`field/main.omg`](field/main.omg) |  | [`invalid_field/main.omg`](invalid_field/main.omg) |  | `may overflow \`u8\`` |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) |  | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |  | `may overflow \`u8\`` |
+| Call result | [`call_result/main.omg`](call_result/main.omg) |  | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |  | `may overflow \`u8\`` |
+| Match join | [`match_join/main.omg`](match_join/main.omg) |  | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |  | `may overflow \`u8\`` |
+| Const name | [`const_name/main.omg`](const_name/main.omg) |  | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |  | `may overflow \`u8\`` |
+| Nested machine | [`other_state/main.omg`](other_state/main.omg) |  | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |  | `may overflow \`u8\`` |
+| Other machine | [`other_machine/main.omg`](other_machine/main.omg) |  | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |  | `may overflow \`u8\`` |
+| Target body | [`target_body/main.omg`](target_body/main.omg) |  | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |  | `may overflow \`u8\`` |
 
 ## Discrimination & Perturbation Proof
 
@@ -42,8 +42,6 @@
 ## Qualification & Claim Record
 
 - Claim ticket: `810deb5781c44224926b42cef59096ed` (`antigravity/w39-5`).
-- Verified on `windows_x86_64`: `sample_native_gate.py --filter cli/facts/unsigned_8bit_division_quotient_bound` (`10/10` pass, `9/9` rejected), `corpus_gate.py --native --filter facts/unsigned_8bit_division_quotient_bound` (`9/9` built and executed with exit `0`), and `corpus_gate.py --filter facts/unsigned_8bit_division_quotient_bound` (`9` checked, `9` rejected).
-
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

@@ -73,5 +73,4 @@ agreement here is not a claim of Terminal stdout equivalence.
 
 The complete positive `reproduction/` preserves the local fixed-byte input loan
 that exposed the compiler gap. Its input `0` plus LF must exit 70 with empty
-stdout in native execution and Terminal. The same control is retained as
-`tests/omega/pass/collections/local_byte_array_input_state_loan_exit`.
+stdout in native execution and Terminal.

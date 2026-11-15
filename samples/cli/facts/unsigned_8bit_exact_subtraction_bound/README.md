@@ -12,15 +12,15 @@ Every place performs the same operation: subtract bounded 8-bit unsigned operand
 | Place | Positive Project | Reject Twin | Transport Mechanism | Pinned Pass Fixture | Pinned Reject Fixture |
 | --- | --- | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 8-bit unsigned exact subtraction, headroom subtraction, and margin discharge | — | — |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the 8-bit operands are copied into locals before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_local_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_local_rejected` |
-| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the 8-bit operands are stored in record fields before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_field_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_field_rejected` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | explicit machine parameters receive bounded 8-bit operands before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_parameter_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_parameter_rejected` |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | contracted helper calls return bounded 8-bit operands before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_call_result_rejected` |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield bounded 8-bit operands and join before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_match_join_rejected` |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply bounded 8-bit operands before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_const_name_rejected` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives bounded 8-bit operands before subtraction and interval discharge | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_other_state_rejected` |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine receives and passes bounded 8-bit operands to subtraction | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_other_machine_rejected` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target-scoped machine bodies subtracts bounded 8-bit operands and discharges interval | `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_target_body_rejected` |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the 8-bit operands are copied into locals before subtraction and interval discharge |  |  |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the 8-bit operands are stored in record fields before subtraction and interval discharge |  |  |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | explicit machine parameters receive bounded 8-bit operands before subtraction and interval discharge |  |  |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | contracted helper calls return bounded 8-bit operands before subtraction and interval discharge |  |  |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield bounded 8-bit operands and join before subtraction and interval discharge |  |  |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply bounded 8-bit operands before subtraction and interval discharge |  |  |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives bounded 8-bit operands before subtraction and interval discharge |  |  |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine receives and passes bounded 8-bit operands to subtraction |  |  |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target-scoped machine bodies subtracts bounded 8-bit operands and discharges interval |  |  |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -53,19 +53,9 @@ The recorded 0 exit is discriminating:
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_<place>_exit`
-and `tests/omega/fail/facts/unsigned_8bit_exact_subtraction_bound_through_<place>_rejected` for the nine
-places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
-`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its place's
-`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
-of its place twin's `main.omg`/`build.omg`/`expected.txt`. Positive versus twin `git diff` moves only
-the fact's own bound (`lhs <= 180u8` to `lhs <= 181u8`, and the twin's own comments), so a red place
-or twin names this fact's establishment, not a shape recognizer.
-
-Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d3326d2` (base
-`f1b0d3326d2dcc6ee9aad44ecd2f177a88bebec4`; omega sha256
-`4e3950e53eb15fbb3b54868f9c8964e23e7efc5bdced336e07f18eb27e28ac4a`, corpus_runner sha256
-`c25372101a8cd22676fc23b3b80b2387a58609a988353552f158251c65650b96`):
+Positive versus twin `git diff` moves only the fact's own bound (`lhs <= 180u8` to `lhs <= 181u8`,
+and the twin's own comments), so a red place or twin names this fact's establishment, not a shape
+recognizer.
 
 - `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
 - `omega run --both` over the nine twins: 9/9 exit 200 at checking with their authored fragment
@@ -73,16 +63,8 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d33
   `target_body` emitting four diagnostics for four target bodies); none reaches native execution.
 - Perturbing the root oracle (one token: `transition res == 100` -> `== 101`) exits 255 with
   `native signal 5` and `interp crash: Trap (host presentation agrees)`.
-- `python3 tools/sample_gate.py --cli <generation omega> --filter unsigned_8bit_exact_multiplication_bound,unsigned_8bit_exact_subtraction_bound`
-  records 38/38 projects checked on Darwin arm64 with 18 of these matched intended rejection controls.
-- The three corpus legs were recorded with the fixture and golden changes staged at published main
-  `f1b0d3326d2d`, so every row is stamped `@f1b0d3326d2d+wt`: `tests/omega/corpus_outcomes.txt` gained
-  60 lines for this row's 18 fixtures (nine `checked` carrying `check-target:macos_arm64` and nine
-  `rejected` carrying their diagnostics with the expected fragments satisfied),
-  `tests/omega/corpus_native_macos_arm64.txt` gained nine `built ... exit:0` rows and
-  `tests/omega/corpus_both_macos_arm64.txt` gained nine `built ... exit:0 interpreter-exit:0
-  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); the legs exited 0
-  with 36/36, 18/18 and 18/18 fixtures done, 0 unimplemented rows and 0 rows recording a lost success.
+- Every golden diff is a pure addition (0 deletions); the legs exited 0 with 36/36, 18/18 and
+  18/18 fixtures done, 0 unimplemented rows and 0 rows recording a lost success.
 
 ## Requirements and Evidence
 

@@ -57,16 +57,10 @@ guard proof). The `read_at` contract `requires Index < items.len` cannot be sati
 checking strictly refuses compilation with exit code 1 and diagnostic:
 `error: cannot prove requires contract for call read_at... (needs fact Index < items.len here)`.
 
-The unknown-field control is `tests/omega/fail/generics/value_binder_unknown_field`. A `const` binder
-still rejects a runtime name, as in `tests/omega/fail/generics/const_generic_runtime_argument`.
-
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Pinned fixtures:**
-  - Positive passes: `tests/omega/pass/facts/runtime_count_index_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg`, recorded in `tests/omega/corpus_native_macos_arm64.txt` with native exit 0).
-  - Negative controls: `tests/omega/fail/facts/runtime_count_index_through_<place>_rejected` (9 places pinned under the canonical reject name, each byte-identical to `<place>/controls/out_of_bounds/main.omg` and `<place>/invalid/main.omg`, rejecting with `cannot prove requires contract`).
-
 ### Specification and Lowering Layers
 
 1. **Establishment:** The runtime value-binder count `Index: u32` and the entry contract `requires Index < items.len` on generic `read_at<Index: u32>(items: &[u8]) -> u8` establish memory-safe indexing into the 4-byte slice `[9u8, 8u8, 7u8, 6u8]` at index `1` producing `8u8`. Safe access is established by the static contract discharge at the call site, without any post-hoc caller equality guard (`transition x == 100`) after the operation completes.

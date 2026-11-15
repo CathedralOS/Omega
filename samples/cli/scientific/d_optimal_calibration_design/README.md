@@ -62,13 +62,7 @@ Native-only and native/Terminal runs retain separate result directories. Full
 qualification still requires captured Terminal values; the native iteration path
 does not replace that gate.
 
-Repeated full requalification can use one admitted Terminal artifact. This optional
-linker currently requires mbx build receipts and its output layout; the public CLI
-validation route above also works with a compiler built by ordinary Cargo:
-
-```
-python tools/link_terminal_sponsor.py --omega /absolute/path/to/omega --source samples/cli/independent/d_optimal_calibration_design/validation/terminal_capture.rs --output samples/cli/independent/d_optimal_calibration_design/build/terminal-sponsor
-```
+Repeated full requalification can use one admitted Terminal artifact.
 
 Retain `omega-program` from the public CLI's `--keep` directory. The sponsor
 links the verified compiler's exact dependency units, performs normal accepted

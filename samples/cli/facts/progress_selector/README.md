@@ -12,22 +12,19 @@ also declares the lifetime relation needed to return both references. All
 positive programs bind `ProgramEntry` for the four hosted targets.
 
 The nine places are [local](local/main.omg), [field](field/main.omg),
-[parameter](parameter/main.omg), [call result](call_result/main.omg),
-[match join](match_join/main.omg), [const name](const_name/main.omg),
-[nested machine](other_state/main.omg), [other machine](other_machine/main.omg),
-and [target body](target_body/main.omg). Each invalid example removes only the
-right token reference's `Fair` requirement:
-[local](invalid_local/main.omg), [field](invalid_field/main.omg),
-[parameter](invalid_parameter/main.omg), [call result](invalid_call_result/main.omg),
-[match join](invalid_match_join/main.omg), [const name](invalid_const_name/main.omg),
-[nested machine](invalid_other_state/main.omg),
-[other machine](invalid_other_machine/main.omg), and
-[target body](invalid_target_body/main.omg). The corresponding corpus fixtures
-are `tests/omega/{pass,fail}/facts/progress_selector_through_*`. Four existing
-controls replace a slot, replace the entire array, introduce an unknown
-alternative or write the referenced contents; each must reject reuse of the
-old qualification. Supplemental snapshot controls remain under
-`tests/omega/*/termination`.
+[parameter](parameter/main.omg), [call result](call_result/main.omg), [match
+join](match_join/main.omg), [const name](const_name/main.omg), [nested
+machine](other_state/main.omg), [other machine](other_machine/main.omg), and [target
+body](target_body/main.omg). Each invalid example removes only the right token
+reference's `Fair` requirement: [local](invalid_local/main.omg),
+[field](invalid_field/main.omg), [parameter](invalid_parameter/main.omg), [call
+result](invalid_call_result/main.omg), [match join](invalid_match_join/main.omg),
+[const name](invalid_const_name/main.omg), [nested
+machine](invalid_other_state/main.omg), [other
+machine](invalid_other_machine/main.omg), and [target
+body](invalid_target_body/main.omg). Four existing controls replace a slot, replace
+the entire array, introduce an unknown alternative or write the referenced contents;
+each must reject reuse of the old qualification.
 
 The original baseline at `d6cf554fd1cbf20551983d29bae26f5cf3b81664`
 rejected the positive row because it could not prove the published termination
@@ -76,18 +73,15 @@ additional layout/backend obligations keep their separate acceptance.
 
 The `TERMINATION-RANKING-CHECKS` / TPR6 continuation is in
 [`owned_arrivals/`](owned_arrivals/local/main.omg). It copies the qualified tokens
-into separate local homes before selecting and transferring a reference. Its
-nine places are local, field, parameter, call result, match join, const name,
-nested machine (`other_state`), other machine and target body. Each retains
-37/43, exactly two calls, exit 0 and an invalid example omitting only the right
-input's `Fair` requirement. Corpus mirrors are
-`tests/omega/{pass,fail}/facts/progress_selector_owned_arrival_through_*`.
+into separate local homes before selecting and transferring a reference. Its nine
+places are local, field, parameter, call result, match join, const name, nested
+machine (`other_state`), other machine and target body. Each retains 37/43,
+exactly two calls, exit 0 and an invalid example omitting only the right input's
+`Fair` requirement.
 
 The [`nested` production](owned_arrivals/nested/local/main.omg) first puts the
 same reference array inside an owned envelope, reads the stored references
 through two explicit loads, and transports them through the same nine places.
-Its missing-subject twins are pinned as
-`tests/omega/{pass,fail}/facts/progress_selector_nested_arrival_through_*`.
 The call-result place passes the copied array through a checked helper and
 preserves the two independently captured token references in the result.
 

@@ -100,9 +100,6 @@ it does not assume counts and addresses have the same width in general.
 Both engines return 0. Host-adapter tests separately check that retirement invalidates every
 retained handle and that unknown or out-of-bounds ranges supply no storage.
 
-The [package allocator customer](../../../../tests/omega/pass/memory/bump_allocator_canary/README.md)
-extends this lifecycle through the ordinary Bump package: exhausted allocation,
-release without cursor rewind, checked recomposition, full reset, and reuse.
 Generic Vec element ownership and cleanup remain the parent outcome's acceptance.
 
 The [generic-move production](generic_move/README.md) extracts and reinstalls a

@@ -26,13 +26,12 @@ oracle after that proved operation.
 | Another target body | [target body](target_body/main.omg) | [head 8](invalid_target_body/main.omg) |
 
 Every twin changes only the constructor's head from 7 to 8 while retaining the
-claimed Total, bound and consuming operation. Separate controls reject a
-[wrong Type fiber](wrong_type_fiber/main.omg), a
-[wrong value fiber](wrong_value_fiber/main.omg), and the
-[root's wrong head](invalid/main.omg). The paired fixtures are
-`tests/omega/{pass,fail}/facts/source_indexed_type_parameter_through_<place>_*`.
-Root, parameter and match fixtures also request independent canonical receiving
-through the existing source-produced inspection controls.
+claimed Total, bound and consuming operation. Separate controls reject a [wrong
+Type fiber](wrong_type_fiber/main.omg), a [wrong value
+fiber](wrong_value_fiber/main.omg), and the [root's wrong
+head](invalid/main.omg). Root, parameter and match fixtures also request
+independent canonical receiving through the existing source-produced inspection
+controls.
 
 Applicable requirements:
 

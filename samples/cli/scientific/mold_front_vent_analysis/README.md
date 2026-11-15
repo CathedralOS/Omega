@@ -111,8 +111,6 @@ The separate intended-invalid control must reject for `cannot prove index` at
 It is deliberately a complete compile-only source with its own build metadata,
 so it can validate bounds independently of the application's console dependency.
 
-`validation/EVIDENCE.md` records actual commands, compiler/binary/base identity,
-resources, results and any denied or unsupported routes. Local generated output
-stays under ignored `build/`. The clean candidate and separate review bundle
-preserve source, frozen oracles and execution evidence without checking generated
-compiler artifacts into the sample.
+Local generated output stays under ignored `build/`. The clean candidate and
+separate review bundle preserve source, frozen oracles and execution evidence
+without checking generated compiler artifacts into the sample.

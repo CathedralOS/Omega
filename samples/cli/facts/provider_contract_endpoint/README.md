@@ -95,11 +95,10 @@ identify that the captured input 7 exceeds the selected closed endpoint 6.
   with Terminal execution at exit 0. Other hosted targets' bindings are authored;
   native execution on those hosts is a separate, currently unverified claim.
 
-The nine places and their twins are pinned under `tests/omega/{pass,fail}/facts`.
 [Existing soundness controls](controls/README.md) pin formation, target ownership,
-write snapshots, result identity and authenticated Build request transport.
-The focused corpus passes on the current captured producer; exact-candidate
-review remains a publication gate.
+write snapshots, result identity and authenticated Build request transport. The
+focused corpus passes on the current captured producer; exact-candidate review
+remains a publication gate.
 
 The three named endpoint customers now use explicit free machines, selected
 provider/operator evidence, and ordinary `requires` clauses. The historical

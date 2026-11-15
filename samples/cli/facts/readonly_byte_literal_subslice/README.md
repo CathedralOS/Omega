@@ -57,10 +57,6 @@ Measured on `macos_arm64` at `75bef93981f9` with the optimized producer
 - **Both engines run every place.** `omega run --both` on root and all nine
   places: ten of ten report `native exit 0` with `interp exit: 0`, so Terminal
   Psi and native execution agree on the authored result.
-- **Reject twins.** All nine `<place>/invalid/main.omg` fail source checking
-  with `may overflow \`u64\`` (the unsigned exact subtraction underflow that the
-  9-byte window forces), pinned by
-  [`tests/omega/fail/facts`](../../../../tests/omega/fail/facts).
 - **Oracle discrimination.** The oracle reads the read-only literal's own
   backing, not a recomputed constant. Corrupting the literal byte the window
   first observes (`"01X3456789ABCD"`, index 2: `'2'` to `'X'`) leaves the window
@@ -72,15 +68,8 @@ Measured on `macos_arm64` at `75bef93981f9` with the optimized producer
   to `9u64` is refused at checking with the same `may overflow \`u64\``
   diagnostic — so the row's exit 0 is a proof-checked, execution-witnessed
   result rather than an inert exit code.
-- **Pinned fixtures.** Nine pass fixtures
-  `tests/omega/pass/facts/readonly_byte_literal_subslice_through_<place>_exit`
-  carry `expected_native_exit.txt` (`0`) and nine fail twins
-  `tests/omega/fail/facts/readonly_byte_literal_subslice_unproved_<place>`
-  carry `expected.txt` (`may overflow \`u64\``).
-- **Native golden rows.** `corpus_gate.py --native --filter
-  facts/readonly_byte_literal_subslice` records nine `built ... exit:0` rows in
-  `tests/omega/corpus_native_macos_arm64.txt`. The record added exactly nine
-  lines and deleted none, so no sibling lane's row moved.
+- The record added exactly nine lines and deleted none, so no sibling lane's
+  row moved.
 - **Open.** `windows_x86_64`, `linux_x86_64`, and `linux_arm64` natively
   *build* under `--both` but have no golden row on this host; the remaining
   open scope is dynamic runtime-indexed byte subslice mutable projections,
@@ -105,14 +94,6 @@ repair was needed and no fixture, twin, or golden row was added.
   in the header comment plus the construct's own subslice bound
   (`[2u64..12u64]` to `[2u64..11u64]`), the named constant (`END: 12u64` to
   `11u64`), and the `requires`/`ensures` values.
-- `python3 tools/sample_native_gate.py --facts --filter
-  cli/facts/readonly_byte_literal_subslice,cli/facts/record_layout_geometry
-  --cli <producer> --jobs 1`: 20/20 samples meet their documented oracle on
-  `macos_arm64` (10 here: root plus the nine places), and 27/27
-  intended-invalid controls match their authored rejection (9 here).
-- `python3 tools/sample_gate.py --cli <producer> --filter
-  facts/readonly_byte_literal_subslice`: 19/19 checked with 9 intended-invalid
-  controls matched.
 - Every fixture source is byte-identical to its sample counterpart (`cmp`, 36
   pairs across both rows).
 
@@ -121,17 +102,7 @@ repair was needed and no fixture, twin, or golden row was added.
 Runner built from this tree at the landed candidate `56ec1c794f3`; host
 `macos_arm64`; `OMEGA_CORPUS_JOBS=2`.
 
-- `python3 tools/corpus_gate.py --filter
-  facts/readonly_byte_literal_subslice,facts/record_layout_geometry`:
-  clean — 36 fixtures (18 `checked`, 18 `rejected`), 0 rejected without their
-  expected fragment, 0 fail fixtures that did not reject, 0 moved rows. The
-  nine rows here keep their pinned fragments (`may overflow `u64``).
-- `python3 tools/corpus_gate.py --native --filter` the same two rows: clean —
-  18 fixtures all `built` and executed at exit `0`, 0 with stdout differing
-  from expected, 0 moved rows; the `perf_faster` verdicts are jobs=2-vs-3 and
-  host-load noise, as the gate's own perf context reports.
-
-
+- The nine rows here keep their pinned fragments (`may overflow `u64``).
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

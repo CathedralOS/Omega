@@ -10,6 +10,3 @@ prints `17` and exits 0.
 `../invalid_const_extent_node_ordinal/` indexes that six-node table with a plain `u64` and must reject
 with `cannot prove index `index` is within length 6`.
 
-```sh
-python3 tools/sample_native_gate.py --cli "$omega" --filter collections/const_extent_node_ordinal --jobs 1
-```

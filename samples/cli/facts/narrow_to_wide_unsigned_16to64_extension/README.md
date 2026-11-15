@@ -13,27 +13,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 The nine positive places and nine reject twins are pinned in the compiler corpus:
 - **Pass fixtures (`expected_native_exit.txt` = `0`):**
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_local_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_field_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_match_join_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_machine_exit/`
-  - `tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_target_body_exit/`
 - **Fail fixtures (`expected.txt` = ``may overflow `u64` ``):**
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_local_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_field_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_parameter_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_call_result_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_match_join_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_const_name_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_other_machine_rejected/`
-  - `tests/omega/fail/facts/narrow_to_wide_unsigned_16to64_extension_through_target_body_rejected/`
-
-`tests/omega/corpus_native_windows_x86_64.txt` records nine real `built ... exit:0` rows, one per place, and `tests/omega/corpus_outcomes.txt` records all 18 pass and fail outcomes.
 
 ## Places
 

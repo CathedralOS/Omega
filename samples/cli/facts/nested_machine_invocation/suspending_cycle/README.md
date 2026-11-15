@@ -88,8 +88,6 @@ arm's block.
   (at 32 KiB both the empty program and the 100,000-round image fail at
   startup), so the cycle adds no stack per round.
 
-Pins: `tests/omega/{pass,fail}/facts/nested_machine_suspending_cycle_*`.
-
 ## Parking scheduler
 
 The inline scheduler answers at once, so `omega run --both` never parks. The
