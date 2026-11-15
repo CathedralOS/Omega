@@ -63,7 +63,7 @@ machine run_task(main: &mut Main, task: Task) {
     }
 
     machine do_reset(main: &mut Main) {
-        main.runner.score = 0;
+        main.runner.score = 0 as +Saturating;
     }
 
     machine do_clamp(main: &mut Main, max: i32 in Saturating) {
@@ -82,12 +82,12 @@ machine run_task(main: &mut Main, task: Task) {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
-    run_task(main, Task::Compute { value: 10 });
-    run_task(main, Task::Compute { value: 15 });
+    run_task(main, Task::Compute { value: 10 as +Saturating });
+    run_task(main, Task::Compute { value: 15 as +Saturating });
     run_task(main, Task::Double);
-    run_task(main, Task::Compute { value: 5 });
-    run_task(main, Task::Clamp { max: 45 });
-    run_task(main, Task::Compute { value: 25 });
+    run_task(main, Task::Compute { value: 5 as +Saturating });
+    run_task(main, Task::Clamp { max: 45 as +Saturating });
+    run_task(main, Task::Compute { value: 25 as +Saturating });
 
     transition main.runner.score == 70 {
         true -> block good(main)

@@ -105,14 +105,14 @@ machine set_g(main: &mut Main, idx: i32 in Saturating, val: i32 in Saturating) {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
-    set_r(main, 0, 10);
-    set_g(main, 0, 5);
-    set_r(main, 1, 20);
-    set_g(main, 1, 10);
-    set_r(main, 2, 15);
-    set_g(main, 2, 5);
-    set_r(main, 3, 5);
-    set_g(main, 3, 0);
+    set_r(main, 0 as +Saturating, 10 as +Saturating);
+    set_g(main, 0 as +Saturating, 5 as +Saturating);
+    set_r(main, 1 as +Saturating, 20 as +Saturating);
+    set_g(main, 1 as +Saturating, 10 as +Saturating);
+    set_r(main, 2 as +Saturating, 15 as +Saturating);
+    set_g(main, 2 as +Saturating, 5 as +Saturating);
+    set_r(main, 3 as +Saturating, 5 as +Saturating);
+    set_g(main, 3 as +Saturating, 0 as +Saturating);
 
     // Sum: (10+5) + (20+10) + (15+5) + (5+0) = 15+30+20+5 = 70.
     let p0: i32 in Saturating = main.canvas.pixels[0].r + main.canvas.pixels[0].g;

@@ -37,15 +37,15 @@ machine price_of(context: &mut Main, item: i32 in Wrapping) -> i32 in Wrapping {
         true -> cheap()
         _ -> upper(item)
     }
-    machine cheap() -> i32 in Wrapping { 35 }
+    machine cheap() -> i32 in Wrapping { 35 as +Wrapping }
     machine upper(item: i32 in Wrapping) -> i32 in Wrapping {
         transition item == 1 {
             true -> mid()
             _ -> dear()
         }
     }
-    machine mid() -> i32 in Wrapping { 50 }
-    machine dear() -> i32 in Wrapping { 65 }
+    machine mid() -> i32 in Wrapping { 50 as +Wrapping }
+    machine dear() -> i32 in Wrapping { 65 as +Wrapping }
 }
 
 // A dispatch-bodied STRUCT result: quarters greedily, arms are PURE (bare
@@ -57,24 +57,24 @@ machine make_change(paid: i32 in Wrapping, price: i32 in Wrapping) -> Change {
         _ -> rest(owed)
     }
     machine coin(owed: i32 in Wrapping) -> Change {
-        Change { quarters: 1, remainder: owed - 25 }
+        Change { quarters: 1 as +Wrapping, remainder: owed - 25 }
     }
     machine rest(owed: i32 in Wrapping) -> Change {
-        Change { quarters: 0, remainder: owed }
+        Change { quarters: 0 as +Wrapping, remainder: owed }
     }
 }
 
 machine main(context: &mut Main) reaches ProcessExit + Console {
     // Same callee, two sites in one state: each site keeps ITS call's result.
-    context.a = price_of(context, 0);
-    context.b = price_of(context, 1);
+    context.a = price_of(context, 0 as +Wrapping);
+    context.b = price_of(context, 1 as +Wrapping);
 
     // A value call directly in the guard subject.
-    transition price_of(context, 1) == 50 { true -> buy(context) _ -> bad(context, 90) }
+    transition price_of(context, 1 as +Wrapping) == 50 { true -> buy(context) _ -> bad(context, 90) }
 
     machine buy(context: &mut Main) {
         // Struct result delivered straight into a field.
-        context.change = make_change(100, 65);
+        context.change = make_change(100 as +Wrapping, 65 as +Wrapping);
         transition context.change.quarters == 1 { true -> chk_rem(context) _ -> bad(context, 91) }
     }
 
@@ -84,7 +84,7 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
 
     machine handoff(context: &mut Main) {
         // Value calls as transition arguments (different + repeated callees).
-        transition context.a == 35 { true -> report(context, make_change(100, 55), 17) _ -> bad(context, 93) }
+        transition context.a == 35 { true -> report(context, make_change(100 as +Wrapping, 55 as +Wrapping), 17 as +Wrapping) _ -> bad(context, 93) }
     }
 
     machine report(context: &mut Main, extra: Change, bonus: i32 in Wrapping) {

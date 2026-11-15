@@ -73,7 +73,7 @@ machine apply(main: &mut Main, event: Event) {
     }
 
     machine do_reset(main: &mut Main) {
-        main.log.stats.balance = 0;
+        main.log.stats.balance = 0 as +Saturating;
     }
 
     machine done() {}
@@ -81,11 +81,11 @@ machine apply(main: &mut Main, event: Event) {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
-    apply(main, Event::Deposit { amount: 100 });
-    apply(main, Event::Deposit { amount: 50 });
-    apply(main, Event::Withdraw { amount: 30 });
-    apply(main, Event::Deposit { amount: 20 });
-    apply(main, Event::Withdraw { amount: 70 });
+    apply(main, Event::Deposit { amount: 100 as +Saturating });
+    apply(main, Event::Deposit { amount: 50 as +Saturating });
+    apply(main, Event::Withdraw { amount: 30 as +Saturating });
+    apply(main, Event::Deposit { amount: 20 as +Saturating });
+    apply(main, Event::Withdraw { amount: 70 as +Saturating });
 
     // Verify balance == 70.
     transition main.log.stats.balance == 70 {

@@ -86,7 +86,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     log(main, LogLevel::Warn);
 
     // Log one Error with code 4.
-    log(main, LogLevel::Error { code: 4 });
+    log(main, LogLevel::Error { code: 4 as +Saturating });
 
     // Compute weighted score: info*2 + warn*5 + error_code_sum*10.
     // = 5*2 + 4*5 + 4*10 = 10+20+40 = 70.

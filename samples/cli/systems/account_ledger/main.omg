@@ -167,22 +167,22 @@ machine do_freeze(main: &mut Main, idx: i32 in Wrapping) {
         true -> fr0(main)
         _ -> fr_try1(main, idx)
     }
-    machine fr0(main: &mut Main) { main.accounts[0].frozen = 1; }
+    machine fr0(main: &mut Main) { main.accounts[0].frozen = 1 as +Wrapping; }
     machine fr_try1(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> fr1(main)
             _ -> fr_try2(main, idx)
         }
     }
-    machine fr1(main: &mut Main) { main.accounts[1].frozen = 1; }
+    machine fr1(main: &mut Main) { main.accounts[1].frozen = 1 as +Wrapping; }
     machine fr_try2(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> fr2(main)
             _ -> fr3(main)
         }
     }
-    machine fr2(main: &mut Main) { main.accounts[2].frozen = 1; }
-    machine fr3(main: &mut Main) { main.accounts[3].frozen = 1; }
+    machine fr2(main: &mut Main) { main.accounts[2].frozen = 1 as +Wrapping; }
+    machine fr3(main: &mut Main) { main.accounts[3].frozen = 1 as +Wrapping; }
 }
 
 machine do_unfreeze(main: &mut Main, idx: i32 in Wrapping) {
@@ -190,22 +190,22 @@ machine do_unfreeze(main: &mut Main, idx: i32 in Wrapping) {
         true -> uf0(main)
         _ -> uf_try1(main, idx)
     }
-    machine uf0(main: &mut Main) { main.accounts[0].frozen = 0; }
+    machine uf0(main: &mut Main) { main.accounts[0].frozen = 0 as +Wrapping; }
     machine uf_try1(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> uf1(main)
             _ -> uf_try2(main, idx)
         }
     }
-    machine uf1(main: &mut Main) { main.accounts[1].frozen = 0; }
+    machine uf1(main: &mut Main) { main.accounts[1].frozen = 0 as +Wrapping; }
     machine uf_try2(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> uf2(main)
             _ -> uf3(main)
         }
     }
-    machine uf2(main: &mut Main) { main.accounts[2].frozen = 0; }
-    machine uf3(main: &mut Main) { main.accounts[3].frozen = 0; }
+    machine uf2(main: &mut Main) { main.accounts[2].frozen = 0 as +Wrapping; }
+    machine uf3(main: &mut Main) { main.accounts[3].frozen = 0 as +Wrapping; }
 }
 
 // Read frozen flag (value-returning).
@@ -365,7 +365,7 @@ machine apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reaches Pr
     }
 
     machine xfer_do(main: &mut Main, to: i32 in Wrapping, amount: i32 in Wrapping) {
-        do_withdraw(main, 0, amount);
+        do_withdraw(main, 0 as +Wrapping, amount);
         do_deposit(main, to, amount);
     }
 
@@ -389,16 +389,16 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls. `apply` acknowledges `block` transitively (its failure
     // arms call `block console.read_line`), so each call site repeats it.
-    block apply(main, 0, Transaction::Deposit { amount: 100 });
-    block apply(main, 1, Transaction::Deposit { amount: 200 });
-    block apply(main, 1, Transaction::Withdraw { amount: 80 });
-    block apply(main, 2, Transaction::Freeze);
-    block apply(main, 2, Transaction::Deposit { amount: 50 });
-    block apply(main, 0, Transaction::Transfer { to: 3, amount: 40 });
-    block apply(main, 2, Transaction::Unfreeze);
-    block apply(main, 2, Transaction::Deposit { amount: 30 });
-    block apply(main, 1, Transaction::Query);
-    block apply(main, 0, Transaction::Withdraw { amount: 20 });
+    block apply(main, 0 as +Wrapping, Transaction::Deposit { amount: 100 as +Wrapping });
+    block apply(main, 1 as +Wrapping, Transaction::Deposit { amount: 200 as +Wrapping });
+    block apply(main, 1 as +Wrapping, Transaction::Withdraw { amount: 80 as +Wrapping });
+    block apply(main, 2 as +Wrapping, Transaction::Freeze);
+    block apply(main, 2 as +Wrapping, Transaction::Deposit { amount: 50 as +Wrapping });
+    block apply(main, 0 as +Wrapping, Transaction::Transfer { to: 3 as +Wrapping, amount: 40 as +Wrapping });
+    block apply(main, 2 as +Wrapping, Transaction::Unfreeze);
+    block apply(main, 2 as +Wrapping, Transaction::Deposit { amount: 30 as +Wrapping });
+    block apply(main, 1 as +Wrapping, Transaction::Query);
+    block apply(main, 0 as +Wrapping, Transaction::Withdraw { amount: 20 as +Wrapping });
 
     // Layer 1: raw field guards (bypass value-call entirely).
     transition main.accounts[0].balance == 40 {
@@ -457,7 +457,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
     machine vcall_check_b0(main: &mut Main) {
-        let b0: i32 in Wrapping = balance_of(main, 0);
+        let b0: i32 in Wrapping = balance_of(main, 0 as +Wrapping);
         transition b0 == 40 {
             true -> block vcall_check_b2(main, b0)
             _ -> block bad_vcall0(main)
@@ -472,7 +472,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     machine vcall_check_b2(main: &mut Main, b0: i32 in Wrapping) {
-        let b2: i32 in Wrapping = balance_of(main, 2);
+        let b2: i32 in Wrapping = balance_of(main, 2 as +Wrapping);
         transition b2 == 30 {
             true -> vcall_check_sum(main, b0, b2)
             _ -> bad_vcall2(main)

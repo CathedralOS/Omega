@@ -60,7 +60,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console + FilesystemContentR
         transition main.opened { OpenResult::Ok { file } -> block read(main, file) _ -> done(main) }
     }
     machine read(main: &mut Main, file: File) {
-        main.transferred = block FilesystemService::read(file, &mut main.buffer, 17);
+        main.transferred = block FilesystemService::read(file, &mut main.buffer[..], 17);
         main.result = block FilesystemService::close(file);
         transition main.result { UnitResult::Ok -> block read_complete(main) _ -> done(main) }
     }

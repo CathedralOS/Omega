@@ -37,12 +37,12 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
-    deposit(main, 500);
-    deposit(main, 200);
-    withdraw(main, 150);
-    deposit(main, 300);
-    withdraw(main, 80);
-    withdraw(main, 700);
+    deposit(main, 500 as +Saturating);
+    deposit(main, 200 as +Saturating);
+    withdraw(main, 150 as +Saturating);
+    deposit(main, 300 as +Saturating);
+    withdraw(main, 80 as +Saturating);
+    withdraw(main, 700 as +Saturating);
 
     // Compute balance from transaction list (const-indexed reads).
     let sum: i32 in Saturating = main.ledger.txns[0]
