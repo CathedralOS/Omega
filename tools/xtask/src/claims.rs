@@ -185,9 +185,10 @@ fn lease_timestamps(now: SystemTime) -> Result<(String, String), String> {
 }
 
 // A claim lives at most one lease past its last sign of life: when it was taken
-// or last renewed, whatever expiry it records. Hand-written far-future expiries
-// (2099) kept 66 claims on paths that no longer exist visible for weeks, so a
-// recorded expiry can shorten a claim but never lengthen it. Unknown times still
+// or last renewed, whatever expiry it records. 66 claims, all stamped
+// 2026-11-07T00:00:00Z with a 2099 expiry, stayed visible a week later, some on
+// paths that no longer existed, so a recorded expiry can shorten a claim but
+// never lengthen it. Unknown times still
 // keep a claim visible: only a parsed instant proves that it ended.
 fn claim_expiry(claim: &serde_json::Value) -> Option<i128> {
     let instant = |field: &str| {
@@ -236,12 +237,13 @@ fn renew_claim(record: &mut ClaimsRecord, ticket: &str, now: SystemTime) -> Resu
     Ok(true)
 }
 
-// Every write republishes the whole record, and nothing reads an ended claim
-// or a note whose claim has ended: status hides the first and only counts the
-// second. Kept, they grew the record to 915 claims and 1,148 notes (1.7 MB per
-// write). A write therefore drops ended claims and the notes of any ticket that
-// no longer has a visible claim. A claim whose expiry cannot be read stays,
-// with its notes, as status keeps it.
+// Every write republishes the whole record. Ended claims and their notes grew
+// it to 915 claims and 1,148 notes (1.7 MB per write); status hides the first
+// and only counts the second. A write therefore drops ended claims and the
+// notes of any ticket that no longer has a visible claim, so a note lasts only
+// as long as its claim. Earlier records stay in the reference's history, which
+// this does not rewrite. A claim whose expiry cannot be read stays, with its
+// notes, as status keeps it.
 fn prune_registry(record: &mut ClaimsRecord, now: SystemTime) {
     let now = epoch_nanoseconds(now);
     record
