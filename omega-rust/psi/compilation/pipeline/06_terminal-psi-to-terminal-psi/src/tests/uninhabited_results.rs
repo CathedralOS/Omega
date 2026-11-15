@@ -779,7 +779,14 @@ fn a_conditional_public_postcondition_uses_the_actual_integer_argument() {
             literal.kind = terminal_psi::OperationKind::IntegerConstant {
                 value: semantic_vocabulary::IntegerValue::Unsigned(0),
             };
-            assert!(terminal_codec::ClosedTerminalModule::new(forged).is_err());
+            let refusal = terminal_codec::ClosedTerminalModule::new(forged)
+                .expect_err("a returning actual cannot justify a no-normal invocation");
+            match refusal {
+                terminal_codec::CodecError::MalformedStructuralFoundation(detail) => {
+                    assert_eq!(detail, "no-normal invocation callee has a normal return");
+                }
+                other => panic!("the changed actual must remove its return exclusion: {other:?}"),
+            }
         }
     }
 }
