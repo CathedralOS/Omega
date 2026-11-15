@@ -801,9 +801,7 @@ fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
 
 #[test]
 fn completed_scalar_call_preserves_wrapping_index_guard() {
-    let target = "linux_x86_64";
-    let mut failures = Vec::new();
-    for (fixture, accepted) in [
+    check_wrapping_index_guards(&[
         (
             "pass/facts/compound_index_guard_through_call_result_exit",
             true,
@@ -812,6 +810,13 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_call_result_rejected",
             false,
         ),
+        ("fail/facts/compound_index_guard_wrong_call_actual", false),
+    ]);
+}
+
+#[test]
+fn match_join_preserves_wrapping_index_guard() {
+    check_wrapping_index_guards(&[
         (
             "pass/facts/compound_index_guard_through_match_join_exit",
             true,
@@ -820,18 +825,36 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_match_join_rejected",
             false,
         ),
-        ("fail/facts/compound_index_guard_wrong_call_actual", false),
-    ] {
+    ]);
+}
+
+fn check_wrapping_index_guards(fixtures: &[(&str, bool)]) {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for &(fixture, accepted) in fixtures {
         let source = kept_fixture(fixture).join("main.omg");
-        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-            &source,
-            Some(target),
+        let result = orchestration::check_source(
+            &mut CompilationSession::default(),
+            CheckedCompileRequest::new(&source, Some(target)),
         )
-        .and_then(|mut prepared| {
-            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
-        });
+        .result
+        .map_err(|failure| failure.into_diagnostics());
         match result {
-            Ok(_) if accepted => eprintln!("SOURCE_CHECK {fixture}: accepted"),
+            Ok(checked) if accepted => {
+                let publication = checked
+                    .terminal_publication()
+                    .published()
+                    .expect("the checked fixture retains its Psi publication");
+                let bytes = publication.artifact().to_bytes();
+                let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+                    .expect("reopen the checked fixture's saved Psi");
+                assert_eq!(
+                    reopened.manifest().semantic(),
+                    publication.artifact().manifest().semantic(),
+                    "{fixture}"
+                );
+                eprintln!("SOURCE_CHECK {fixture}: accepted and reopened");
+            }
             Err(diagnostics)
                 if !accepted
                     && diagnostics.iter().any(|diagnostic| {
@@ -841,7 +864,7 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             {
                 eprintln!("SOURCE_CHECK {fixture}: intended bound refusal {diagnostics:?}")
             }
-            Ok(_) => failures.push(format!("{fixture}: invalid upperless source accepted")),
+            Ok(_) => failures.push(format!("{fixture}: invalid index source accepted")),
             Err(diagnostics) => failures.push(format!("{fixture}: {diagnostics:?}")),
         }
     }

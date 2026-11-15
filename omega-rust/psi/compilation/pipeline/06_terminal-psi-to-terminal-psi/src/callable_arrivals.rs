@@ -85,7 +85,14 @@ fn check_witness(mut witness: CallableArrivalWitness) -> Checked<Vec<crate::Unpr
                 site,
                 cause,
                 detail: refused.detail.clone(),
-                statement: crate::describe::unproved(elaboration, machine, tables, row.kind, site),
+                statement: crate::describe::unproved(
+                    elaboration,
+                    machine,
+                    tables,
+                    obligation,
+                    row.kind,
+                    site,
+                ),
                 consumed: None,
             });
         }

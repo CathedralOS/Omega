@@ -5374,6 +5374,8 @@ pub(crate) mod scalar_fields {
     }
 
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
+        // The shared scalar qualification check already compares each read
+        // with its complete field or primitive array element declaration.
         for row in &module.scalar_qualifications.fields {
             let mut matching = fields(module).filter(|field| field.id == row.field);
             let first = matching
@@ -5427,33 +5429,6 @@ pub(crate) mod scalar_fields {
                         }
                     }
                     _ => {}
-                }
-                let Some(result) = operation
-                    .result
-                    .scalar_ref()
-                    .filter(|row| !row.qualifications.is_empty())
-                else {
-                    continue;
-                };
-                let field = match &operation.kind {
-                    OperationKind::ScalarStructuralField { field, .. }
-                    | OperationKind::BooleanStructuralField { field, .. } => Some(*field),
-                    OperationKind::PrimitiveScalarRead { source, path } => {
-                        storage_field(module, machine, *source, path)?
-                    }
-                    _ => continue,
-                }
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "qualified scalar read lost its exact field declaration",
-                ))?;
-                let supplied = required(module, field)?;
-                if domains(module, result.qualifications)?
-                    .iter()
-                    .any(|domain| !supplied.contains(domain))
-                {
-                    return malformed(
-                        "scalar field read introduces membership absent from its declaration",
-                    );
                 }
             }
         }

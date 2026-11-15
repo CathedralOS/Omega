@@ -87,6 +87,20 @@ framework or a list of unimplemented features.
 - Cost: An explicitly suffixed float literal needs an extra binding or call to reach ordinary IEEE equality. Preserve its carrier through the existing operator selection and keep typed-operand and mismatched-format controls.
 - Reported: 2026-11-15, Codex, while checking typed slice reads
 
+### Fixture review stops even when a project has no dangerous service
+- Category: fake gates
+- Where: [fixture discovery call](omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs#L709), [service discovery](omega-rust/omega/compilation/compiler/tests/support/dangerous_service_acceptance.rs#L47)
+- Saw: After the compound-index call-result source passes preliminary Check, its two-file project with only `ProgramEntry` bindings fails fixture review on Linux x86-64 with “fixture dangerous-service discovery requires lowered-route call custody”. Ordinary Build/Check and native/Psi already accept the same program. The fixture helper unconditionally refuses every caller and its result is required for each package.
+- Cost: Any fixture reaching discovery through that path stalls before its positive test can observe the build result. Serve discovery from the actual reached-call roster, including a proved empty roster, and preserve refusal when that custody is unavailable.
+- Reported: 2026-11-15, Codex, while replaying the compiler's kept compound-index checks.
+
+### The match index probe cannot share a mutable scalar across its arms
+- Category: knowledge crossing a boundary
+- Where: [match bound controls](omega-rust/omega/compilation/compiler/tests/package_review.rs), [qualified match](tests/fixtures/pass/facts/compound_index_guard_through_match_join_exit/main.omg#L30)
+- Saw: On `4ca9e890360` the two kept match fixtures refuse the enclosing array's `Wrapping` qualifier. In scratch, qualify the element and stored literals with the same policy. The reader then refuses “expression match with a qualified result”. Allowing that unchanged policy-only result in the existing scalar join advances to “call loan of a value local on some paths only” at `&mut route`. Each arm calls `mark_coordinate` with the same mutable binder declared before the match.
+- Cost: Both match placements stop before checking the index. Carry the exact wrapping value and mutable binder through the existing join and storage owners. Preserve both route tags, the original indexed writeback and neighboring slots, and the missing-upper-bound refusal.
+- Reported: 2026-11-15, Codex, while replaying the kept compound-index fixtures.
+
 ### Product declaration requests rescan the source roster
 - Category: re-deriving
 - Where: [Product path and author resolution](omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs#L1241), [exact source matcher](omega-rust/psi/foundation/symbols/src/table.rs#L2041), [Build declaration formations](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L589)
@@ -128,13 +142,6 @@ framework or a list of unimplemented features.
 - Saw: The original `fetch_mark` support package was deleted in `67936f8b622`. On `8329cdc221e` its exact archived `values.omg:1:64` requires a crash ceiling. Adding `crashes none` and removing the retired sibling import in scratch reaches package review, which refuses the complete boundary/service inventory.
 - Cost: The exact inferred `Mark` reach still has no live recovery witness. Preserve the original private-to-public call and require the recovered row to retain the inferred reach, its absent authored ceiling, and the exact service identity.
 - Reported: 2026-11-15, Codex, while reconnecting package review's kept fixtures.
-
-### The compound index probes stop at the wrapping array type
-- Category: tests that pin the bug
-- Where: [five bound controls](omega-rust/omega/compilation/compiler/tests/package_review.rs#L658), [stored array declaration](tests/fixtures/pass/facts/compound_index_guard_through_call_result_exit/main.omg#L7)
-- Saw: With its kept fixture paths on `8329cdc221e`, both positives and all three invalid operands stop at `Main.grid: [i32; 200] in Wrapping` with “type arithmetic policy on a type that is not an integer”.
-- Cost: The 200-element upper-bound proofs, their missing-bound and wrong-actual twins, and the original writeback never get checked. Establish the same wrapping meaning on the array elements through the existing numeric type owner while preserving the exact guard and index.
-- Reported: 2026-11-15, Codex, while replaying the package-review fixture paths.
 
 ### Two package-review probes use retired source declarations
 - Category: zombie machinery
