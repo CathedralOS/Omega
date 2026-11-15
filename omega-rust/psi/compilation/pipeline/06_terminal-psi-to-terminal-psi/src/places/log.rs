@@ -494,6 +494,8 @@ impl Storage<'_> {
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ByteSequenceRead { .. }
+            | OperationKind::StructuralByteSequenceFieldLength { .. }
+            | OperationKind::StructuralByteSequenceFieldRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. } => {}

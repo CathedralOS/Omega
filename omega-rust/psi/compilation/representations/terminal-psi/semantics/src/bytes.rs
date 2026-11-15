@@ -41,16 +41,26 @@ pub(crate) mod operation_bounds {
                 obligation,
                 ..
             }
+            | OperationKind::StructuralByteSequenceFieldRead {
+                index,
+                length,
+                obligation,
+                ..
+            }
             | OperationKind::ByteSequenceWrite {
                 index,
                 length,
                 obligation,
                 ..
             } => {
-                let tag = if matches!(operation.kind, OperationKind::ByteSequenceRead { .. }) {
-                    OperationSemanticTag::ByteSequenceRead
-                } else {
-                    OperationSemanticTag::ByteSequenceWrite
+                let tag = match operation.kind {
+                    OperationKind::ByteSequenceRead { .. } => {
+                        OperationSemanticTag::ByteSequenceRead
+                    }
+                    OperationKind::StructuralByteSequenceFieldRead { .. } => {
+                        OperationSemanticTag::StructuralByteSequenceFieldRead
+                    }
+                    _ => OperationSemanticTag::ByteSequenceWrite,
                 };
                 (
                     *obligation,

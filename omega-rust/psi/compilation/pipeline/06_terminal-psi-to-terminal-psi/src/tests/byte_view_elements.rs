@@ -137,11 +137,10 @@ machine use(byte: u8) { }",
     assert_eq!(found, [true]);
 }
 
-/// The forms this route does not lower yet are refused by name, with no
-/// verdict: an index of another width than the read's `u64`, a byte of a
-/// view that is itself stored in a field, and a store through a view.
+/// Byte indices use the length carrier's `u64`; another width still refuses
+/// before any indexing obligation is published.
 #[test]
-fn the_forms_not_lowered_are_refused_by_name() {
+fn a_byte_view_index_of_another_width_is_refused_by_name() {
     assert_eq!(
         verdict(
             "machine build_entry(path: &[u8], index: u8) requires path.len > 255 { use(path[index]); }
@@ -149,14 +148,132 @@ machine use(byte: u8) { }"
         ),
         "typing byte view index that is not a u64 while reading the body of `build_entry`"
     );
-    assert_eq!(
-        verdict(
-            "data Holder<'held> { path: &'held [u8]; }
-machine build_entry<'held>(holder: &Holder<'held>) requires holder.path.len > 0 { use(holder.path[0]); }
-machine use(byte: u8) { }"
+}
+
+/// A record keeps the descriptor's own extent and backing. A sibling view's
+/// bound cannot authorize its bytes, even under the same enclosing record.
+#[test]
+fn stored_byte_reads_keep_their_field_extent_and_bounds() {
+    let source = r#"
+data Holder<'held> { known: &'held [u8]; path: &'held [u8]; }
+data Outer<'held> { holder: Holder<'held>; count: u32; }
+machine build_entry<'held>(outer: &Outer<'held>)
+requires outer.holder.path.len > 0
+{ use(outer.holder.path[0]); }
+machine use(byte: u8) {}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    for changed in [
+        source.replace("requires outer.holder.path.len > 0", ""),
+        source.replace(
+            "requires outer.holder.path.len > 0",
+            "requires outer.holder.known.len > 0",
         ),
-        "expression byte of a view stored in a field"
+        source.replace("path[0]", "path[1]"),
+    ] {
+        assert_eq!(verdict(&changed), "rejected", "{changed}");
+    }
+    let accepted = match judge_build(source).unwrap() {
+        RouteVerdict::Accepted(accepted) => *accepted,
+        other => panic!("{other:?}"),
+    };
+    let pairs = accepted
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| block.operations.windows(2))
+        .filter_map(|pair| match (&pair[0].kind, &pair[1].kind) {
+            (
+                OperationKind::StructuralByteSequenceFieldLength {
+                    source: measured,
+                    path: measured_path,
+                    field: measured_field,
+                },
+                OperationKind::StructuralByteSequenceFieldRead {
+                    source,
+                    path,
+                    field,
+                    length,
+                    ..
+                },
+            ) => Some(
+                measured == source
+                    && measured_path == path
+                    && measured_field == field
+                    && !path.is_empty()
+                    && pair[0]
+                        .result
+                        .scalar_ref()
+                        .is_some_and(|result| result.id == *length),
+            ),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(pairs, [true]);
+    accepted.publish_invocation().unwrap();
+}
+
+/// Receiving an edited program must rejoin its exact field and length;
+/// a valid bound on the original field cannot authenticate a sibling read.
+#[test]
+fn a_stored_byte_read_cannot_substitute_a_sibling_field() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        r#"
+data Holder<'held> { left: &'held [u8]; right: &'held [u8]; }
+machine build_entry<'held>(holder: &Holder<'held>)
+requires holder.left.len > 0 && holder.right.len > 0
+{ use(holder.left[0], holder.right[0]); }
+machine use(left: u8, right: u8) {}
+"#,
     );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let mut changed = elaborate();
+    let fields = changed
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| machine.operations())
+        .filter_map(|operation| match operation.kind {
+            OperationKind::StructuralByteSequenceFieldRead { field, .. } => Some(field),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 2);
+    assert_ne!(fields[0], fields[1]);
+    let read = changed
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::StructuralByteSequenceFieldRead { .. }
+            )
+        })
+        .unwrap();
+    let OperationKind::StructuralByteSequenceFieldRead { field, .. } = &mut read.kind else {
+        unreachable!()
+    };
+    *field = fields[1];
+    assert!(!matches!(judge(Ok(changed)), Ok(RouteVerdict::Accepted(_))));
 }
 
 #[test]

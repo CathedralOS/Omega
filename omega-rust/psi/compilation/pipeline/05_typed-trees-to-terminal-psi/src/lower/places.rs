@@ -2749,16 +2749,6 @@ impl<'a> Lowering<'a> {
         ) {
             return Err(self.internal("a byte read has no byte descriptor"));
         }
-        // `ByteSequenceRead` names a whole view root. A view stored in a
-        // field is read by the field form, which this lowering does not
-        // emit yet.
-        if !at.path.is_empty() {
-            return Err(refuse(
-                self.id,
-                Construct::Machine,
-                Unserved::Expression("byte of a view stored in a field"),
-            ));
-        }
         let selector = continuing!(self.scalar(index));
         let unsigned = |bits| {
             ScalarType::Integer(
@@ -2772,18 +2762,38 @@ impl<'a> Lowering<'a> {
         self.name_contents(at.place, ValueType::record(at.record))?;
         self.project(at.place, Segment::Extent)?;
         let measurement = self.operation_identity(source);
-        let Value::Scalar(length) = self.emit(
-            measurement,
-            Some(unsigned(64)),
-            OperationKind::ByteSequenceLength {
-                source: StructuralArgument {
-                    place: at.root,
-                    path: Vec::new(),
-                    access: StructuralAccess::SharedBorrow,
-                },
+        let mut path =
+            self.storage_path(&at.path, ExecutionSite::Operation(measurement), source)?;
+        // The field form measures and reads the same stored descriptor;
+        // its enclosing path keeps nested records and case payloads exact.
+        let field = match path.last() {
+            Some(StructuralPathSegment::Field(_)) => match at.path.last() {
+                Some(step) => Some(self.declared(*step)?.id),
+                None => return Err(self.internal("a byte field lost its source step")),
             },
-        )?
-        else {
+            None => None,
+            _ => {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("byte of a view outside a whole home or declared field"),
+                ));
+            }
+        };
+        let measure = match field {
+            Some(field) => {
+                path.pop();
+                OperationKind::StructuralByteSequenceFieldLength {
+                    source: at.root,
+                    path: path.clone(),
+                    field,
+                }
+            }
+            None => OperationKind::ByteSequenceLength {
+                source: StructuralArgument::whole(at.root, StructuralAccess::SharedBorrow),
+            },
+        };
+        let Value::Scalar(length) = self.emit(measurement, Some(unsigned(64)), measure)? else {
             return Err(self.internal("a length observation produced no scalar"));
         };
         let operation = self.operation_identity(source);
@@ -2795,17 +2805,24 @@ impl<'a> Lowering<'a> {
             before,
             source,
         );
-        self.emit(
-            operation,
-            Some(unsigned(8)),
-            OperationKind::ByteSequenceRead {
+        let read = match field {
+            Some(field) => OperationKind::StructuralByteSequenceFieldRead {
+                source: at.root,
+                path,
+                field,
+                index: selector,
+                length,
+                obligation,
+            },
+            None => OperationKind::ByteSequenceRead {
                 source: at.root,
                 index: selector,
                 length,
                 obligation,
             },
-        )
-        .map(Reached::Value)
+        };
+        self.emit(operation, Some(unsigned(8)), read)
+            .map(Reached::Value)
     }
 
     /// `let x: T;`. The operations are the ones the current pipeline emits,
