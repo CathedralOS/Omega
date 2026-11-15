@@ -77,8 +77,8 @@ impl Error {
 #[derive(Debug, Default)]
 pub struct Plan {
     pub affine_roots: IdSet<PlaceId>,
-    /// Owned copyable storage with trivial cleanup may be discarded or retired.
-    /// Borrowed storage grants no such authority.
+    /// Owned copyable storage with trivial cleanup may retire its binding.
+    /// It owns no affine contents to discard.
     pub copyable_owned_roots: IdSet<PlaceId>,
     pub cleanup: Vec<(EdgeId, Vec<TerminalAffineCleanupAction>)>,
     /// Exact receiving regions determine whether a store fills a vacancy or
@@ -622,18 +622,16 @@ fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error>
                 {
                     return Err(Error::malformed("cleanup root is outside the machine"));
                 }
-                // Affine cleanup must match the schedule below. Copyable
-                // storage may be discarded or retired only by its owner.
+                // Retirement can end a copyable binding. Whole-root discard
+                // consumes an affine obligation from the schedule below.
                 if !plan.affine_roots.contains(action.place())
-                    && (!matches!(
-                        action,
-                        TerminalAffineCleanupAction::RetireHome(_)
-                            | TerminalAffineCleanupAction::DiscardRoot(_)
-                    ) || !plan.copyable_owned_roots.contains(action.place()))
+                    && (!matches!(action, TerminalAffineCleanupAction::RetireHome(_))
+                        || !plan.copyable_owned_roots.contains(action.place()))
                 {
                     return Err(Error::unsupported(
                         "disposal of storage the affine schedule does not own",
-                    ));
+                    )
+                    .at(Site::Edge(edge)));
                 }
             }
             let actual = actions
@@ -653,6 +651,31 @@ fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error>
         }
     }
     Ok(plan)
+}
+
+/// The multiplicity supplied by a structural type and its access mode.
+/// A fresh permission-producing operation can require its own affine result.
+pub fn declared_multiplicity(
+    declaration: &StructuralTypeDeclaration,
+    access: StructuralAccess,
+) -> terminal_psi::StructuralMultiplicity {
+    use terminal_psi::StructuralMultiplicity;
+    if declaration.copyable || access != StructuralAccess::Owned {
+        StructuralMultiplicity::Unrestricted
+    } else if declaration.owns_linear_claim {
+        StructuralMultiplicity::Linear
+    } else {
+        StructuralMultiplicity::Affine
+    }
+}
+
+pub(crate) fn required_result_multiplicity(
+    operation: &terminal_psi::Operation,
+) -> Option<terminal_psi::StructuralMultiplicity> {
+    crate::StructuralEffectSemanticRow::for_tag(crate::OperationSemanticTag::for_operation(
+        &operation.kind,
+    ))
+    .and_then(|row| row.schema().required_result_multiplicity())
 }
 
 fn analyze(
@@ -752,10 +775,7 @@ fn analyze(
             terminal_psi::OperationKind::MoveStructuralField { .. }
         );
         if let Some(result) = operation.result.as_structural() {
-            let required_result = crate::StructuralEffectSemanticRow::for_tag(
-                crate::OperationSemanticTag::for_operation(&operation.kind),
-            )
-            .and_then(|row| row.schema().required_result_multiplicity());
+            let required_result = required_result_multiplicity(operation);
             if required_result.is_some() {
                 // An operation-owned permission is distinct from the type's
                 // later copy permission. Bind that custody to its actual
@@ -882,14 +902,7 @@ fn analyze(
         }
         let required_result = contracts[roots.len()].and_then(|(_, _, _, required)| required);
         if let Some((declared_type, multiplicity, access, required)) = contracts[roots.len()] {
-            let type_multiplicity = if declaration.copyable || access != StructuralAccess::Owned {
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            } else if declaration.owns_linear_claim {
-                terminal_psi::StructuralMultiplicity::Linear
-            } else {
-                terminal_psi::StructuralMultiplicity::Affine
-            };
-            let expected = required.unwrap_or(type_multiplicity);
+            let expected = required.unwrap_or_else(|| declared_multiplicity(declaration, access));
             if declared_type != ty || multiplicity != expected {
                 return Err(Error::malformed(
                     "place custody disagrees with its exact type declaration",
@@ -897,14 +910,9 @@ fn analyze(
             }
         }
         if contracts[roots.len()].is_none() {
-            let multiplicity = if declaration.copyable {
-                terminal_psi::StructuralMultiplicity::Unrestricted
-            } else if declaration.owns_linear_claim {
-                terminal_psi::StructuralMultiplicity::Linear
-            } else {
-                terminal_psi::StructuralMultiplicity::Affine
-            };
-            contracts[roots.len()] = Some((ty, multiplicity, StructuralAccess::Owned, None));
+            let access = StructuralAccess::Owned;
+            contracts[roots.len()] =
+                Some((ty, declared_multiplicity(declaration, access), access, None));
         }
         // Fresh permission ownership also owes a disposition; copyability
         // only permits later copies, not forgetting this producing root.
@@ -1508,11 +1516,7 @@ impl Analysis<'_> {
             if bound_output {
                 for action in supplied {
                     if self.root(action.place())?.is_some_and(|root| !root.affine)
-                        && matches!(
-                            action,
-                            TerminalAffineCleanupAction::DiscardRoot(_)
-                                | TerminalAffineCleanupAction::RetireHome(_)
-                        )
+                        && matches!(action, TerminalAffineCleanupAction::RetireHome(_))
                     {
                         outgoing.regions[index(action.place().get())?] = None;
                     }

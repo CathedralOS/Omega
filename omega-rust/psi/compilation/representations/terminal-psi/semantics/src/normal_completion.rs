@@ -8,11 +8,12 @@
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
-    Terminator, ValueDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::inhabitation::{Inhabitation, Status};
+use crate::plain_affine::{declared_multiplicity, required_result_multiplicity};
 
 /// A loan-producing operation owns an affine occurrence even for a copyable
 /// shared-reference type. A checked return transfers that occurrence and its
@@ -44,7 +45,18 @@ pub fn structural_return_carrier_matches(
 #[derive(Debug)]
 pub struct ReturnSources<'machine> {
     scalars: Vec<&'machine ValueDeclaration>,
-    places: Vec<(PlaceId, StructuralTypeId, StructuralAccess)>,
+    places: Vec<StructuralSource>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StructuralSource {
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    access: StructuralAccess,
+    /// A trivial local derives multiplicity from its structural type.
+    explicit_multiplicity: Option<StructuralMultiplicity>,
+    /// A fresh reference can own an affine permission while its type is copyable.
+    required_result_multiplicity: Option<StructuralMultiplicity>,
 }
 
 impl<'machine> ReturnSources<'machine> {
@@ -67,18 +79,29 @@ impl<'machine> ReturnSources<'machine> {
             .structural_parameters
             .iter()
             .chain(machine.block_structural_parameters())
-            .map(|parameter| (parameter.place, parameter.structural_type, parameter.access))
+            .map(|parameter| StructuralSource {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                access: parameter.access,
+                explicit_multiplicity: Some(parameter.multiplicity),
+                required_result_multiplicity: None,
+            })
             .chain(machine.operations().filter_map(|operation| {
                 let result = operation.result.structural()?;
-                Some((
-                    result.place,
-                    result.structural_type,
-                    StructuralAccess::Owned,
-                ))
+                Some(StructuralSource {
+                    place: result.place,
+                    structural_type: result.structural_type,
+                    access: StructuralAccess::Owned,
+                    explicit_multiplicity: Some(result.multiplicity),
+                    required_result_multiplicity: required_result_multiplicity(operation),
+                })
             }))
             .collect();
-        contracts.sort_unstable_by_key(|(place, _, _)| *place);
-        if contracts.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        contracts.sort_unstable_by_key(|row| row.place);
+        if contracts
+            .windows(2)
+            .any(|pair| pair[0].place == pair[1].place)
+        {
             return Err("normal return sources repeat a structural identity");
         }
         let mut places = Vec::with_capacity(machine.structural_places.len());
@@ -87,25 +110,35 @@ impl<'machine> ReturnSources<'machine> {
                 StructuralPlaceKind::Parameter { .. }
                 | StructuralPlaceKind::BlockParameter { .. }
                 | StructuralPlaceKind::OperationResult { .. } => contracts
-                    .binary_search_by_key(&declaration.id, |(place, _, _)| *place)
+                    .binary_search_by_key(&declaration.id, |row| row.place)
                     .ok()
-                    .map(|index| (contracts[index].1, contracts[index].2)),
+                    .map(|index| contracts[index]),
                 StructuralPlaceKind::TrivialAffineLocal {
                     structural_type, ..
-                }
-                | StructuralPlaceKind::ByteSequenceLiteral {
+                } => Some(StructuralSource {
+                    place: declaration.id,
+                    structural_type,
+                    access: StructuralAccess::Owned,
+                    explicit_multiplicity: None,
+                    required_result_multiplicity: None,
+                }),
+                StructuralPlaceKind::ByteSequenceLiteral {
                     structural_type, ..
-                } => Some((structural_type, StructuralAccess::Owned)),
+                } => Some(StructuralSource {
+                    place: declaration.id,
+                    structural_type,
+                    access: StructuralAccess::Owned,
+                    explicit_multiplicity: Some(StructuralMultiplicity::Unrestricted),
+                    required_result_multiplicity: None,
+                }),
                 StructuralPlaceKind::Result | StructuralPlaceKind::ProviderAttachment { .. } => {
                     None
                 }
             };
-            if let Some((structural_type, access)) = contract {
-                places.push((declaration.id, structural_type, access));
-            }
+            places.extend(contract);
         }
-        places.sort_unstable_by_key(|(place, _, _)| *place);
-        if places.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        places.sort_unstable_by_key(|row| row.place);
+        if places.windows(2).any(|pair| pair[0].place == pair[1].place) {
             return Err("normal return sources repeat a structural place");
         }
         Ok(Self { scalars, places })
@@ -144,7 +177,7 @@ impl<'machine> ReturnSources<'machine> {
                 }
             }
             Terminator::ReturnStructural { source, .. } => {
-                let (actual, _) = self.structural(*source)?;
+                let actual = self.structural(*source)?.structural_type;
                 if expected
                     .structural()
                     .is_some_and(|expected| expected.structural_type == actual)
@@ -172,19 +205,47 @@ impl<'machine> ReturnSources<'machine> {
         let Terminator::ReturnStructural { source, .. } = terminator else {
             return Ok(false);
         };
-        let (actual, access) = self.structural(*source)?;
-        Ok(access == StructuralAccess::Owned && inhabitation.status(actual) == Status::ProvedEmpty)
+        let actual = self.structural(*source)?;
+        Ok(actual.access == StructuralAccess::Owned
+            && inhabitation.status(actual.structural_type) == Status::ProvedEmpty)
     }
 
-    fn structural(
+    /// A whole discard consumes an owned affine value on the normal edge.
+    /// Check its actual input or producer independently of other homes.
+    pub fn validate_whole_discards<'types>(
         &self,
-        source: PlaceId,
-    ) -> Result<(StructuralTypeId, StructuralAccess), &'static str> {
+        terminator: &Terminator,
+        lookup_type: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    ) -> Result<(), &'static str> {
+        const WRONG_CUSTODY: &str = "whole-root discard has no owned affine source";
+        for (_, actions) in terminator.cleanup_rosters() {
+            for action in actions {
+                let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
+                    continue;
+                };
+                let source = self.structural(*place).map_err(|_| WRONG_CUSTODY)?;
+                let declaration = lookup_type(source.structural_type).ok_or(WRONG_CUSTODY)?;
+                let declared = declared_multiplicity(declaration, source.access);
+                if source.access != StructuralAccess::Owned
+                    || source.explicit_multiplicity.unwrap_or(declared)
+                        != StructuralMultiplicity::Affine
+                    || source.required_result_multiplicity.unwrap_or(declared)
+                        != StructuralMultiplicity::Affine
+                    || declaration.owns_linear_claim
+                {
+                    return Err(WRONG_CUSTODY);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn structural(&self, source: PlaceId) -> Result<&StructuralSource, &'static str> {
         let index = self
             .places
-            .binary_search_by_key(&source, |(place, _, _)| *place)
+            .binary_search_by_key(&source, |row| row.place)
             .map_err(|_| "structural return has no actual source declaration")?;
-        Ok((self.places[index].1, self.places[index].2))
+        Ok(&self.places[index])
     }
 }
 
@@ -298,6 +359,37 @@ mod tests {
             )],
             contract,
         }
+    }
+
+    #[test]
+    fn whole_discard_requires_an_owned_affine_source() {
+        let mut machine = machine();
+        let mut types = types();
+        types[0].copyable = false;
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+        let place = machine.structural_parameters[0].place;
+        let terminator = Terminator::ReturnUnit {
+            edge: EdgeId::new(1).unwrap(),
+            cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+        };
+        let check = |machine: &TerminalMachine, types: &[StructuralTypeDeclaration]| {
+            ReturnSources::new(machine)
+                .unwrap()
+                .validate_whole_discards(&terminator, |id| {
+                    terminal_psi::find_structural_type(types, id)
+                })
+        };
+        assert_eq!(check(&machine, &types), Ok(()));
+        let refused = Err("whole-root discard has no owned affine source");
+
+        machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        assert_eq!(check(&machine, &types), refused);
+
+        machine.structural_parameters[0].access = StructuralAccess::Owned;
+        types[0].copyable = true;
+        assert_eq!(check(&machine, &types), refused);
+        machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+        assert_eq!(check(&machine, &types), refused);
     }
 
     #[test]

@@ -3345,6 +3345,9 @@ pub(crate) mod machine_foundations {
                 &scalar_index,
                 &return_sources,
             )?;
+            return_sources
+                .validate_whole_discards(&block.terminator, |ty| module.structural_type(ty))
+                .map_err(CodecError::MalformedStructuralFoundation)?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())
