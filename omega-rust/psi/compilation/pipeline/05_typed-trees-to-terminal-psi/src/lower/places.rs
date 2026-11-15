@@ -2616,6 +2616,74 @@ impl<'a> Lowering<'a> {
             .map(Reached::Value)
     }
 
+    /// Measuring a view keeps the storage form chosen for its descriptor.
+    /// Stored shared-view fields use the field operation; descriptors with
+    /// their own declared type retain the complete ordinary source path.
+    fn measured_byte_view(
+        &mut self,
+        at: &Located,
+        source: SourceOrigin,
+    ) -> Checked<terminal_psi::control_flow::ByteSequenceOperand> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        if !matches!(
+            self.record_type(at.record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        ) {
+            return Err(self.internal("a byte observation has no byte descriptor"));
+        }
+        self.name_contents(at.place, ValueType::record(at.record))?;
+        self.project(at.place, Segment::Extent)?;
+        let operation = self.operation_identity(source);
+        let mut path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
+        let field = match at.path.last() {
+            Some(step @ (Step::Field { .. } | Step::Payload { .. }))
+                if self.is_stored_view(at.record)? =>
+            {
+                Some(self.declared(*step)?.id)
+            }
+            _ => None,
+        };
+        let kind = match field {
+            Some(field) => {
+                path.pop();
+                OperationKind::StructuralByteSequenceFieldLength {
+                    source: at.root,
+                    path: path.clone(),
+                    field,
+                }
+            }
+            None => OperationKind::ByteSequenceLength {
+                source: StructuralArgument {
+                    place: at.root,
+                    path: path.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+        };
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let Value::Scalar(length) = self.emit(operation, Some(count), kind)? else {
+            return Err(self.internal("a length observation produced no scalar"));
+        };
+        let source = StructuralArgument {
+            place: at.root,
+            path,
+            access: StructuralAccess::SharedBorrow,
+        };
+        Ok(match field {
+            Some(field) => ByteSequenceOperand::Field {
+                source,
+                field,
+                length,
+            },
+            None => ByteSequenceOperand::Whole { source, length },
+        })
+    }
+
     pub(super) fn measure_collection(
         &mut self,
         base: &Expression,
@@ -2625,38 +2693,10 @@ impl<'a> Lowering<'a> {
         if measure != typed_trees::expression::CollectionMeasure::Length {
             return Err(self.internal("a collection measure has no canonical operation"));
         }
-        // Locating evaluates a call or constructor base exactly once. Naming
-        // the metadata beneath its actual descriptor lets the same write
-        // history distinguish the initial extent from a replacement's.
+        // Locate a call or constructor once, then measure its actual descriptor.
         let at = continuing!(self.located(base));
-        if !matches!(
-            self.record_type(at.record)?.shape,
-            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-            })
-        ) {
-            return Err(self.internal("a length observation has no byte descriptor"));
-        }
-        let scalar_type = ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid"),
-        );
-        self.name_contents(at.place, ValueType::record(at.record))?;
-        self.project(at.place, Segment::Extent)?;
-        let operation = self.operation_identity(source);
-        let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
-        self.emit(
-            operation,
-            Some(scalar_type),
-            OperationKind::ByteSequenceLength {
-                source: StructuralArgument {
-                    place: at.root,
-                    path,
-                    access: StructuralAccess::SharedBorrow,
-                },
-            },
-        )
-        .map(Reached::Value)
+        let measured = self.measured_byte_view(&at, source)?;
+        Ok(Reached::Value(Value::Scalar(measured.length())))
     }
 
     /// `left == right` on two borrowed byte views. Each operand is located
@@ -2672,21 +2712,8 @@ impl<'a> Lowering<'a> {
     ) -> Evaluation<Value> {
         let left = continuing!(self.located(left));
         let right = continuing!(self.located(right));
-        let count = ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid"),
-        );
         let mut operands = Vec::with_capacity(2);
         for at in [left, right] {
-            if !matches!(
-                self.record_type(at.record)?.shape,
-                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-                })
-            ) {
-                return Err(self.internal("a byte comparison has no byte descriptor"));
-            }
-            // The comparison names a whole view root, as a byte read does.
             if !at.path.is_empty() {
                 return Err(refuse(
                     self.id,
@@ -2694,28 +2721,7 @@ impl<'a> Lowering<'a> {
                     Unserved::Expression("comparison of a view stored in a field"),
                 ));
             }
-            self.name_contents(at.place, ValueType::record(at.record))?;
-            self.project(at.place, Segment::Extent)?;
-            let view = StructuralArgument {
-                place: at.root,
-                path: Vec::new(),
-                access: StructuralAccess::SharedBorrow,
-            };
-            let measurement = self.operation_identity(source);
-            let Value::Scalar(length) = self.emit(
-                measurement,
-                Some(count),
-                OperationKind::ByteSequenceLength {
-                    source: view.clone(),
-                },
-            )?
-            else {
-                return Err(self.internal("a length observation produced no scalar"));
-            };
-            operands.push(terminal_psi::control_flow::ByteSequenceOperand::Whole {
-                source: view,
-                length,
-            });
+            operands.push(self.measured_byte_view(&at, source)?);
         }
         let right = operands.pop().expect("two operands");
         let left = operands.pop().expect("two operands");
@@ -2740,62 +2746,11 @@ impl<'a> Lowering<'a> {
         index: &Expression,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
         let at = continuing!(self.located(base));
-        if !matches!(
-            self.record_type(at.record)?.shape,
-            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-            })
-        ) {
-            return Err(self.internal("a byte read has no byte descriptor"));
-        }
         let selector = continuing!(self.scalar(index));
-        let unsigned = |bits| {
-            ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    bits,
-                )
-                .expect("valid width"),
-            )
-        };
-        self.name_contents(at.place, ValueType::record(at.record))?;
-        self.project(at.place, Segment::Extent)?;
-        let measurement = self.operation_identity(source);
-        let mut path =
-            self.storage_path(&at.path, ExecutionSite::Operation(measurement), source)?;
-        // The field form measures and reads the same stored descriptor;
-        // its enclosing path keeps nested records and case payloads exact.
-        let field = match path.last() {
-            Some(StructuralPathSegment::Field(_)) => match at.path.last() {
-                Some(step) => Some(self.declared(*step)?.id),
-                None => return Err(self.internal("a byte field lost its source step")),
-            },
-            None => None,
-            _ => {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Expression("byte of a view outside a whole home or declared field"),
-                ));
-            }
-        };
-        let measure = match field {
-            Some(field) => {
-                path.pop();
-                OperationKind::StructuralByteSequenceFieldLength {
-                    source: at.root,
-                    path: path.clone(),
-                    field,
-                }
-            }
-            None => OperationKind::ByteSequenceLength {
-                source: StructuralArgument::whole(at.root, StructuralAccess::SharedBorrow),
-            },
-        };
-        let Value::Scalar(length) = self.emit(measurement, Some(unsigned(64)), measure)? else {
-            return Err(self.internal("a length observation produced no scalar"));
-        };
+        let measured = self.measured_byte_view(&at, source)?;
+        let length = measured.length();
         let operation = self.operation_identity(source);
         let before = self.here()?;
         let obligation = self.obligation(
@@ -2805,24 +2760,49 @@ impl<'a> Lowering<'a> {
             before,
             source,
         );
-        let read = match field {
-            Some(field) => OperationKind::StructuralByteSequenceFieldRead {
-                source: at.root,
-                path,
+        let read = match measured {
+            ByteSequenceOperand::Field {
+                source: view,
                 field,
-                index: selector,
-                length,
-                obligation,
-            },
-            None => OperationKind::ByteSequenceRead {
-                source: at.root,
-                index: selector,
-                length,
-                obligation,
-            },
+                ..
+            } => {
+                // Runtime selectors keep their SSA values, but this read owns
+                // its own path obligations independently of the measurement.
+                let mut path =
+                    self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
+                path.pop();
+                OperationKind::StructuralByteSequenceFieldRead {
+                    source: view.place,
+                    path,
+                    field,
+                    index: selector,
+                    length,
+                    obligation,
+                }
+            }
+            ByteSequenceOperand::Whole { source: view, .. } => {
+                if !view.path.is_empty() {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression(
+                            "byte of a view outside a whole home or declared field",
+                        ),
+                    ));
+                }
+                OperationKind::ByteSequenceRead {
+                    source: view.place,
+                    index: selector,
+                    length,
+                    obligation,
+                }
+            }
         };
-        self.emit(operation, Some(unsigned(8)), read)
-            .map(Reached::Value)
+        let byte = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+                .expect("u8 is valid"),
+        );
+        self.emit(operation, Some(byte), read).map(Reached::Value)
     }
 
     /// `let x: T;`. The operations are the ones the current pipeline emits,
