@@ -1,14 +1,6 @@
-// macos_x86_64 ProcessExit provider closure over the compiler-known native
-// process-exit leaf.
-// The `boundary machine` supply is inferred from the exact realization
-// symbol, normalized signature, package custody, and selected target; the
-// canonical requirement identity lives in
-// `omega::language::core::process_exit`.
-use omega::language::core::Never;
+// macos_x86_64 selects the ordinary checked ProcessExit wrapper. The exact
+// core primitive owns irreducible transfer; this package owns no native leaf.
 use omega::language::core::ProcessExit;
-macos_x86_64 boundary machine ProcessExitNativeProvider::exit_process(return_code: i32) -> Never
-    satisfies ProcessExit::exit_process
-    terminates;
 
 macos_x86_64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
     ProcessExitNativeProvider::select_provider<ProcessExit, NativeProcessExit>(defaults);
