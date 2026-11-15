@@ -510,7 +510,7 @@ fn service_identities(
             .ok_or_else(|| unavailable("a service's original boundary declaration"))?;
         if !source.symbols.symbols().nodes().is_valid(original) {
             return Err(unavailable(
-                "a stale boundary declaration in Build's service inventory",
+                "a stale boundary declaration in the accepted module's service inventory",
             ));
         }
         let owner = source.symbols.get(original).parent;
@@ -599,7 +599,7 @@ fn validate_body_effect_inventory(module: &TerminalModule) -> Result<(), Vec<Dia
         || !module.dynamic_dispatch.tables.is_empty()
     {
         return Err(unavailable(
-            "Build's unresolved installation or dynamic effects",
+            "the accepted module's unresolved installation or dynamic effects",
         ));
     }
     if module
@@ -623,7 +623,7 @@ fn validate_body_effect_inventory(module: &TerminalModule) -> Result<(), Vec<Dia
                 )
             })
     {
-        return Err(unavailable("Build's instruction authority"));
+        return Err(unavailable("the accepted module's instruction authority"));
     }
     Ok(())
 }
@@ -635,17 +635,17 @@ fn body_effects(
     let module = accepted.module();
     let body = module
         .machine(machine)
-        .ok_or_else(|| unavailable("Build's effect body"))?;
+        .ok_or_else(|| unavailable("the callable's effect body"))?;
     let original = module
         .unoptimized_machine_behavior(machine)
-        .ok_or_else(|| unavailable("Build's original checked behavior inventory"))?;
+        .ok_or_else(|| unavailable("the callable's original checked behavior inventory"))?;
     let tables = accepted
         .closure()
         .elaboration
         .tables
         .machines
         .get(machine)
-        .ok_or_else(|| unavailable("Build's checked call inventory"))?;
+        .ok_or_else(|| unavailable("the callable's checked call inventory"))?;
     let mut rows = [Vec::new(), Vec::new()];
     let mut operational = [false; 2];
     let mut include = |callee, required| -> Result<(), Vec<Diagnostic>> {
@@ -658,7 +658,7 @@ fn body_effects(
     };
     for (_, call) in tables.invocations.iter() {
         let Callee::Declared(callee) = call.callee else {
-            return Err(unavailable("Build's indirect call effects"));
+            return Err(unavailable("the callable's indirect call effects"));
         };
         include(callee, call.required_contract)?;
     }
@@ -691,7 +691,7 @@ fn contribution(
         TargetMachineCallable::Machine(machine) => {
             let header = module
                 .invocation_machine_contract(machine, required)
-                .ok_or_else(|| unavailable("a Build call's exact public contract"))?;
+                .ok_or_else(|| unavailable("a call's exact public contract"))?;
             Ok((
                 [
                     &header.published_service_ceiling,
@@ -706,11 +706,11 @@ fn contribution(
             }
             let header = module
                 .boundary_machine(boundary)
-                .ok_or_else(|| unavailable("a Build call's boundary contract"))?;
+                .ok_or_else(|| unavailable("a call's boundary contract"))?;
             let declaration = header
                 .declaration
                 .as_ref()
-                .ok_or_else(|| unavailable("Build's checked boundary operational contract"))?;
+                .ok_or_else(|| unavailable("the checked boundary operational contract"))?;
             // A boundary contributes its public rows, not its owning trait
             // name. This is the same rule as the accepted ceiling judgment.
             Ok((
@@ -838,7 +838,9 @@ fn crashes(header: &MachineContract) -> Result<PackagePolicyCrash, Vec<Diagnosti
     let mut published = Vec::new();
     for route in declared {
         if route.alternatives.as_slice() != [CrashRouteGuard::Truth] {
-            return Err(unavailable("Build's conditional published crash guards"));
+            return Err(unavailable(
+                "the callable's conditional published crash guards",
+            ));
         }
         published.push(PackagePolicyCrashRoute {
             cause: cause(route.cause),
