@@ -120,8 +120,12 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         }
     }
     let encoded = terminal_codec::encode_module(module).expect("retained installation module");
-    let decoded = terminal_codec::decode_module(&encoded).expect("installation declaration roundtrip");
-    assert_eq!(decoded.installation_reach_requirements(), abstract_requirements);
+    let decoded =
+        terminal_codec::decode_module(&encoded).expect("installation declaration roundtrip");
+    assert_eq!(
+        decoded.installation_reach_requirements(),
+        abstract_requirements
+    );
     let mut fixed = decoded.clone();
     let required = fixed
         .boundary_machines

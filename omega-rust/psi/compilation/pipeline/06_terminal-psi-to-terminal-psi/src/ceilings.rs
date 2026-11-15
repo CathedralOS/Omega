@@ -167,7 +167,11 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
     if let Some(TargetMachineCallable::Machine(entry)) = module.entry {
         // An unresolved installation row is bounded by its requirement, not
         // an unconditional contribution to this root's concrete services.
-        let root_ceiling = if module.root_service_reach.installation_dependencies.is_empty() {
+        let root_ceiling = if module
+            .root_service_reach
+            .installation_dependencies
+            .is_empty()
+        {
             Cow::Borrowed(module.root_service_reach.concrete.as_slice())
         } else {
             let mut ceiling = module.root_service_reach.concrete.clone();
