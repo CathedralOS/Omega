@@ -135,6 +135,13 @@ pub(super) fn encode_target_structural_argument(
     encode_option(bytes, argument.element_stride, |bytes, stride| {
         crate::codec_bytes::push_encoded(bytes, stride.to_le_bytes())
     });
+    encode_len(bytes, argument.indices.len());
+    for index in &argument.indices {
+        super::normalized_foreign::encode_scalar_source(bytes, index.operand);
+        crate::codec_bytes::push_encoded(bytes, index.stride.to_le_bytes());
+        optimization_core::encode_option_u64(bytes, index.extent);
+        crate::codec_bytes::push_encoded(bytes, index.obligation.get().to_le_bytes());
+    }
     match &argument.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             bytes.push(5);

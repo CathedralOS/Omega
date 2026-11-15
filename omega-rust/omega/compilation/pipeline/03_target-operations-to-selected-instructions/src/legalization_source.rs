@@ -170,13 +170,11 @@ pub(crate) mod scalar_graph {
                     .collect::<Vec<_>>();
                 for argument in arguments {
                     lowered.push(LegalizedScalarArgument::Structural {
-                        indices: crate::legalization::runtime_indices::projection(
-                            optimized,
-                            unit,
+                        indices: crate::legalization::runtime_indices::retained_operands(
+                            &unit.accepted_obligation_facts,
+                            optimized.machine,
                             *psi_operation,
-                            argument.root_structural_type,
-                            &argument.path,
-                            unit.geometry(),
+                            &argument.indices,
                         )?,
                         semantic: terminal_psi::StructuralArgument {
                             place: argument.place,
@@ -272,7 +270,6 @@ pub(crate) mod scalar_graph {
                 node: &optimization_unit::OptimizationNode,
                 optimized: &optimization_unit::PsiOptimizationFunction,
                 native: &TargetOperationPlan,
-                plan: &crate::native_geometry::NativePlan<'_>,
                 unit: &crate::native_geometry::NativeUnit<'_>,
                 operation: OperationId,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
@@ -313,13 +310,11 @@ pub(crate) mod scalar_graph {
                         structural_indices: structural_arguments
                             .iter()
                             .map(|argument| {
-                                crate::legalization::runtime_indices::projection(
-                                    optimized,
-                                    unit,
+                                crate::legalization::runtime_indices::retained_operands(
+                                    &unit.accepted_obligation_facts,
+                                    optimized.machine,
                                     operation,
-                                    argument.root_structural_type,
-                                    &argument.path,
-                                    plan.geometry(),
+                                    &argument.indices,
                                 )
                             })
                             .collect::<Result<Vec<_>, _>>()?,
@@ -2228,7 +2223,7 @@ pub(crate) mod scalar_graph {
                         .is_some() =>
                     {
                         call_instructions::project_normalized_foreign_call(
-                            node, optimized, native, plan, unit, operation,
+                            node, optimized, native, unit, operation,
                         )?
                     }
                     AbstractOperation::BoundaryCall {
@@ -2820,13 +2815,11 @@ pub(crate) mod scalar_graph {
                         .collect::<Vec<_>>();
                     for (argument, semantic) in structural.iter().zip(structural_arguments) {
                         actuals.push(legalized_operations::LegalizedScalarArgument::Structural {
-                            indices: crate::legalization::runtime_indices::projection(
-                                function,
-                                unit,
+                            indices: crate::legalization::runtime_indices::retained_operands(
+                                &unit.accepted_obligation_facts,
+                                function.machine,
                                 optimization_unit::PsiProvenance::Edge(*psi_edge),
-                                argument.root_structural_type,
-                                &argument.path,
-                                unit.geometry(),
+                                &argument.indices,
                             )?,
                             semantic: semantic.clone(),
                             target: argument.clone(),

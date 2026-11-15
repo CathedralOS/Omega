@@ -935,7 +935,7 @@ mod structural_case {
         (
             u32,
             u32,
-            Vec<(semantic_vocabulary::ValueId, u32)>,
+            Vec<crate::structural_layout::RuntimeIndex>,
             Vec<target_operations::TargetCasePointerSlot>,
         ),
         LoweringError,
