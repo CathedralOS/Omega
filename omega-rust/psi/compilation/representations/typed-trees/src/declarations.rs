@@ -2868,8 +2868,7 @@ pub mod visibility {
         for _ in 0..=origin_count {
             let mut origins = program
                 .machine_specializations
-                .iter()
-                .filter(|specialization| specialization.instance == declaration)
+                .for_instance(declaration)
                 .map(|specialization| specialization.template)
                 .chain(
                     program

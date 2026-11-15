@@ -164,13 +164,6 @@ framework or a list of features that remain unimplemented.
 - Cost: A scoped replacement needs resolution to say, per value/call occurrence, that no local, parameter, import or qualified path visible there has the name, rather than typing re-deriving it; narrowing the global query to visible top-level kinds alone would misclassify names typing leaves unbound but readers still resolve (fields, cases, callable locals). Acceptance needs same-leaf names in other machines and declaration kinds, inaccessible imports, qualified unknown names and unreachable malformed uses.
 - Reported: 2026-11-14, Codex, during the owner-requested architecture/data-flow audit at `07d22466d48ff`; narrowed 2026-11-15 by Claude Code after the `invokes` and domain readers moved to typing's scoped outcome
 
-### Specialization receipt queries scan every receipt per dispatched call
-- Category: re-deriving
-- Where: [receipt lookup](omega-rust/psi/compilation/representations/typed-trees/src/callable_signature_shapes.rs#L127)
-- Saw: `selected_implementation_receipt` filters all of `machine_specializations` for the one receipt of an instance, once per dispatched call read by stage 05, proof scope and build-time evaluation. Stage 04 application lookup and the repeated scan in `source_call_requirement_signature` are indexed or removed already.
-- Cost: D dispatched calls over S receipts cost D*S symbol comparisons. A carried instance-to-receipt index has to survive `machine_specializations` being a public `Vec` that declaration projection retains and tests mutate, so it needs one stage-owned construction point rather than a cache. Keep the missing/ambiguous/stale refusals.
-- Reported: 2026-11-14, Claude Code, while indexing stage 04 generated applications; structural bound, not a benchmark
-
 ### Completing selected bodies copies the retained typed program
 - Category: re-deriving
 - Where: [selected continuation](omega-rust/psi/compilation/source-compiler/src/source_compilation.rs#L935), [activation copy](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L566), [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L847), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)

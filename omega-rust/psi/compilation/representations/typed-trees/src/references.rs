@@ -1889,8 +1889,9 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
     }
 }
 
+/// Machine-owned rows found by owner symbol. Specialization receipts carry
+/// their own instance index ([`crate::MachineSpecializations`]).
 pub struct MachineSidecarIndex {
-    specializations: Vec<(SymbolHandle, u32)>,
     service_reaches: Vec<(SymbolHandle, u32)>,
 }
 
@@ -1914,13 +1915,6 @@ fn sidecar_symbol_rows(
 
 impl MachineSidecarIndex {
     pub fn build(program: &TypedTrees) -> Self {
-        let mut specializations: Vec<(SymbolHandle, u32)> = program
-            .machine_specializations
-            .iter()
-            .enumerate()
-            .map(|(index, row)| (row.instance, index as u32))
-            .collect();
-        specializations.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
         let mut service_reaches: Vec<(SymbolHandle, u32)> = program
             .authored_service_reach_rows
             .iter()
@@ -1928,10 +1922,7 @@ impl MachineSidecarIndex {
             .map(|(index, row)| (row.owner, index as u32))
             .collect();
         service_reaches.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
-        Self {
-            specializations,
-            service_reaches,
-        }
+        Self { service_reaches }
     }
 }
 
@@ -3673,18 +3664,8 @@ fn visit_machine_with_sidecars(
                 visit_closed_conformance(program, retained, application);
             }
         };
-        if let Some(sidecars) = sidecars {
-            for &(_, index) in sidecar_symbol_rows(&sidecars.specializations, machine.symbol) {
-                visit_specialization(&program.machine_specializations[index as usize]);
-            }
-        } else if !program.machine_specializations.is_empty() {
-            for specialization in program
-                .machine_specializations
-                .iter()
-                .filter(|row| row.instance == machine.symbol)
-            {
-                visit_specialization(specialization);
-            }
+        for specialization in program.machine_specializations.for_instance(machine.symbol) {
+            visit_specialization(specialization);
         }
         if !program.ranking_expression_custody.is_empty() {
             for custody in program

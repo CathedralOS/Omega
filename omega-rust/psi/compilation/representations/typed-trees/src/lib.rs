@@ -211,10 +211,7 @@ pub(crate) mod authored_targets {
                     }
                     return Ok(Some(member.target.as_str()));
                 }
-                let mut origins = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|specialization| specialization.instance == symbol);
+                let mut origins = self.machine_specializations.for_instance(symbol);
                 if let Some(origin) = origins.next() {
                     if origins.next().is_some() {
                         return Err("machine has repeated specialization origins");
@@ -298,6 +295,8 @@ pub mod compiler_intrinsics;
 pub mod declaration_projection;
 mod declared_bindings;
 pub mod deferred_refusals;
+mod machine_specializations;
+pub use machine_specializations::MachineSpecializations;
 pub mod references;
 pub mod service_declarations;
 pub use service_declarations::provider_declarations;
@@ -1086,7 +1085,7 @@ pub struct TypedTrees {
     pub wire_placements: Arena<wire::WirePlacement>,
     pub wire_encode_obligations: Arena<wire::WireEncodeObligation>,
     pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
-    pub machine_specializations: Vec<MachineSpecialization>,
+    pub machine_specializations: MachineSpecializations,
     pub captured_machine_applications: Arena<CapturedMachineApplication>,
     pub captured_machine_states: Arena<CapturedMachineState>,
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
@@ -1363,7 +1362,7 @@ impl TypedTrees {
             wire_placements: Arena::new(),
             wire_encode_obligations: Arena::new(),
             wire_schema_plans: Vec::new(),
-            machine_specializations: Vec::new(),
+            machine_specializations: MachineSpecializations::default(),
             captured_machine_applications: Arena::new(),
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),
