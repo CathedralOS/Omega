@@ -571,6 +571,7 @@ pub(crate) fn follow_the_lowered_form(
                 obligation, ..
             }
             | terminal_psi::OperationKind::ByteSequenceWrite { obligation, .. }
+            | terminal_psi::OperationKind::ElementViewRead { obligation, .. }
             | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. } =
                 &operation.kind
             {

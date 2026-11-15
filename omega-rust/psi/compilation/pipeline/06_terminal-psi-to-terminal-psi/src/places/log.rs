@@ -556,6 +556,7 @@ impl Storage<'_> {
             | OperationKind::ByteSequenceLength { .. }
             | OperationKind::ElementViewLength { .. }
             | OperationKind::ByteSequenceRead { .. }
+            | OperationKind::ElementViewRead { .. }
             | OperationKind::StructuralByteSequenceFieldLength { .. }
             | OperationKind::StructuralByteSequenceFieldRead { .. }
             | OperationKind::ScalarStructuralField { .. }

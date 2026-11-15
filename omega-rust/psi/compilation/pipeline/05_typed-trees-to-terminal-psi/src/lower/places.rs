@@ -1357,24 +1357,28 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
-        let (_, _, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
-            return Err(self.internal("sequence index needs its actual current length"));
-        };
-        let fixed = match expression.kind {
-            ExpressionKind::Integer(IntegerValue::Unsigned(value)) => Some(u64::try_from(value)),
-            ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
-            _ => None,
-        };
-        let fixed = match fixed {
-            Some(Ok(index)) if index < length => Some(index),
-            Some(_) => {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Typing("array index outside its declared extent"),
-                ));
+        let (_, _, extent) = self.array_element(owner)?;
+        let fixed = if let CollectionExtent::Fixed(length) = extent {
+            let fixed = match expression.kind {
+                ExpressionKind::Integer(IntegerValue::Unsigned(value)) => {
+                    Some(u64::try_from(value))
+                }
+                ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
+                _ => None,
+            };
+            match fixed {
+                Some(Ok(index)) if index < length => Some(index),
+                Some(_) => {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Typing("array index outside its declared extent"),
+                    ));
+                }
+                None => None,
             }
-            None => None,
+        } else {
+            None
         };
         let selector = continuing!(self.scalar(expression));
         Ok(Reached::Value(Step::Index {
@@ -3226,6 +3230,32 @@ impl<'a> Lowering<'a> {
         scalar_type: ScalarType,
         source: SourceOrigin,
     ) -> Checked<Value> {
+        for (position, step) in steps.iter().enumerate() {
+            if let Step::Index {
+                owner, selector, ..
+            } = *step
+                && matches!(
+                    self.record_type(owner)?.shape,
+                    StorageShape::ElementView { .. }
+                )
+            {
+                if position != 0 {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Machine,
+                        Unserved::Expression("slice read without a whole descriptor"),
+                    ));
+                }
+                let view = Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record: owner,
+                    fresh: false,
+                };
+                return self.read_element_view(&view, selector, &steps[1..], scalar_type, source);
+            }
+        }
         self.name_contents(leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
@@ -3279,6 +3309,49 @@ impl<'a> Lowering<'a> {
         steps.push(step);
         self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
             .map(Reached::Value)
+    }
+
+    fn read_element_view(
+        &mut self,
+        at: &Located,
+        index: ValueId,
+        steps: &[Step],
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        if steps.iter().any(|step| {
+            !matches!(
+                step,
+                Step::Field { .. } | Step::Index { fixed: Some(_), .. }
+            )
+        }) {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("slice element read without a static scalar projection"),
+            ));
+        }
+        let (_, _, length) = self.measured_view(at, source)?;
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            self.here()?,
+            source,
+        );
+        self.emit(
+            operation,
+            Some(scalar_type),
+            OperationKind::ElementViewRead {
+                source: at.root,
+                index,
+                length,
+                obligation,
+                path,
+            },
+        )
     }
 
     /// Measuring a view keeps the storage form chosen for its descriptor.

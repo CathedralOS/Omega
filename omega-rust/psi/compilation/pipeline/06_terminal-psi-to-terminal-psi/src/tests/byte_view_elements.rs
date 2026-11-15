@@ -102,6 +102,19 @@ machine use(byte: u8) { }"
     );
 }
 
+#[test]
+fn a_typed_slice_read_needs_a_bound_on_its_own_descriptor() {
+    let source = |view: &str, index: u64| {
+        format!(
+            "machine build_entry(numbers: &[u32], peer: &[u32]) requires {view}.len > 0 {{ use(numbers[{index}]); }}
+             machine use(number: u32) {{ }}"
+        )
+    };
+    assert_eq!(verdict(&source("numbers", 0)), "accepted");
+    assert_eq!(verdict(&source("numbers", 1)), "rejected");
+    assert_eq!(verdict(&source("peer", 0)), "rejected");
+}
+
 /// The lowered form of an accepted read is the measurement of the view and
 /// then the read that names it, with nothing between.
 #[test]
