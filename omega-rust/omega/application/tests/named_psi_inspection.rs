@@ -61,7 +61,7 @@ fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures");
     for (tier, name) in [
         ("run", "owned_record_sequence"),
-        ("pending", "runtime_record_sequence"),
+        ("run", "runtime_record_sequence"),
     ] {
         let project = fixtures.join(tier).join("ownership").join(name);
         let artifact = scratch.path().join(format!("{name}.psi"));

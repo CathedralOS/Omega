@@ -100,10 +100,13 @@ mod storage {
                     roots.insert(result.structural_type);
                 }
             }
-            calling_conventions::terminal_layout::StructuralLayouts::new(declarations.into_values())
-                .map_err(|error| format!("native storage declarations: {error:?}"))?
-                .required_scalar_extents(roots)
-                .map_err(|error| format!("native storage extent demand: {error:?}"))
+            calling_conventions::terminal_layout::StructuralLayouts::with_owned_sequence_bounds(
+                declarations.into_values(),
+                &self.owned_sequence_bounds,
+            )
+            .map_err(|error| format!("native storage declarations: {error:?}"))?
+            .required_scalar_extents(roots)
+            .map_err(|error| format!("native storage extent demand: {error:?}"))
         }
     }
 }
@@ -158,6 +161,7 @@ pub struct NativeExecutionScope {
     entry_call: Option<crate::SelectedProgramEntryCall>,
     callbacks: Vec<backend_plan::TerminalCallbackOccurrenceProposal>,
     machines: Vec<MachineId>,
+    owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
     boundaries: Vec<BoundaryMachineId>,
     boundaries_set: std::collections::BTreeSet<BoundaryMachineId>,
     selected_candidate_positions: Vec<usize>,
@@ -250,6 +254,7 @@ impl NativeExecutionScope {
             entry_call: entry_call.cloned(),
             callbacks: callbacks.to_vec(),
             machines: Vec::new(),
+            owned_sequence_bounds: Vec::new(),
             boundaries: Vec::new(),
             boundaries_set: std::collections::BTreeSet::new(),
             selected_candidate_positions: Vec::new(),
@@ -339,6 +344,11 @@ impl NativeExecutionScope {
         scope.machines.sort_unstable();
         scope.boundaries.sort_unstable();
         scope.selected_candidate_positions.sort_unstable();
+        scope.owned_sequence_bounds =
+            abstract_operations::closed_owned_sequence_bounds(module, |machine| {
+                scope.contains_machine(machine)
+            })
+            .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
         Ok(scope)
     }
 
@@ -476,11 +486,20 @@ impl NativeExecutionScope {
             entry_call: None,
             callbacks: Vec::new(),
             machines,
+            owned_sequence_bounds: abstract_operations::closed_owned_sequence_bounds(
+                module,
+                |_| true,
+            )
+            .map_err(str::to_owned)?,
             boundaries_set: boundaries.iter().copied().collect(),
             boundaries,
             selected_candidate_positions: (0..module.provider_candidates.len()).collect(),
         };
         full.scalar_application_demand(module, layouts)
+    }
+
+    pub fn owned_sequence_bounds(&self) -> &[(semantic_vocabulary::StructuralTypeId, u64)] {
+        &self.owned_sequence_bounds
     }
 
     pub const fn entry(&self) -> MachineId {
