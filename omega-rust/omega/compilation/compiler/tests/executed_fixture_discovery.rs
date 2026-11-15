@@ -162,3 +162,30 @@ fn completed_outputs_keep_exact_bytes_after_package_staging_closes() {
         b"public const GENERATED: u32 = 73;\n",
     );
 }
+
+#[test]
+fn target_audit_rejoins_compiled_foreign_operands() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+    let report = orchestration::compile_sources(
+        &mut compiler::CompilationSession::default(),
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: root,
+            build_dir: None,
+            target_name: Some("macos_arm64".to_owned()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .unwrap_or_else(|errors| panic!("process-ID native production: {errors:?}"));
+    let artifact = report
+        .retained_native_artifact()
+        .expect("retain the emitted direct native artifact");
+    assert_eq!(
+        artifact.object().foreign_calls().len(),
+        1,
+        "the kept source reaches its native process-ID binding"
+    );
+    image_emission::verify_retained_target_operations(artifact.object())
+        .unwrap_or_else(|error| panic!("process-ID target audit: {error:?}"));
+}

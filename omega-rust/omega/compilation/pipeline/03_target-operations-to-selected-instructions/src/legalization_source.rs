@@ -221,33 +221,26 @@ pub(crate) mod scalar_graph {
             }
 
             pub(crate) fn project_normalized_foreign_call(
-                node: &optimization_unit::OptimizationNode,
-                optimized: &optimization_unit::PsiOptimizationFunction,
+                machine: semantic_vocabulary::MachineId,
+                facts: &[optimization_unit::AcceptedObligationFact],
                 native: &TargetOperationPlan,
-                unit: &crate::native_geometry::NativeUnit<'_>,
                 operation: OperationId,
+                targeted: &target_operations::TargetUnitOperation,
             ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-                let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
-                    unreachable!("dispatched project_normalized_foreign_call")
-                };
-                let Some(target_operations::TargetUnitOperation::NormalizedForeignCall {
+                let target_operations::TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
-                    boundary: row_boundary,
+                    boundary,
                     provider_execution,
                     binding,
                     scalar_arguments,
                     structural_arguments,
                     result,
                     descriptor_input,
-                }) = scalar_graph_input::normalized_foreign::row(
-                    native,
-                    optimized.machine,
-                    operation,
-                )?
+                } = targeted
                 else {
                     return Err(Error::custody());
                 };
-                if *psi_operation != operation || *row_boundary != *boundary {
+                if *psi_operation != operation {
                     return Err(Error::custody());
                 }
                 let callbacks =
@@ -265,8 +258,8 @@ pub(crate) mod scalar_graph {
                             .iter()
                             .map(|argument| {
                                 crate::legalization::runtime_indices::retained_operands(
-                                    &unit.accepted_obligation_facts,
-                                    optimized.machine,
+                                    facts,
+                                    machine,
                                     operation,
                                     &argument.indices,
                                 )
@@ -2009,6 +2002,17 @@ pub(crate) mod scalar_graph {
                 )?
             } else if matches!(
                 targeted,
+                target_operations::TargetUnitOperation::NormalizedForeignCall { .. }
+            ) {
+                call_instructions::project_normalized_foreign_call(
+                    optimized.machine,
+                    &unit.accepted_obligation_facts,
+                    native,
+                    operation,
+                    targeted,
+                )?
+            } else if matches!(
+                targeted,
                 target_operations::TargetUnitOperation::Call { .. }
             ) {
                 call_instructions::project_call(
@@ -2634,18 +2638,6 @@ pub(crate) mod scalar_graph {
                     }
                     AbstractOperation::StorageAddress { .. } => {
                         storage_instructions::project_storage_address(node, optimized, unit)?
-                    }
-                    AbstractOperation::BoundaryCall { .. }
-                        if scalar_graph_input::normalized_foreign::row(
-                            native,
-                            optimized.machine,
-                            operation,
-                        )?
-                        .is_some() =>
-                    {
-                        call_instructions::project_normalized_foreign_call(
-                            node, optimized, native, unit, operation,
-                        )?
                     }
                     AbstractOperation::BoundaryCall {
                         boundary,

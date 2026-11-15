@@ -73,6 +73,13 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### The bounded concat probe describes an operation its source no longer uses
+- Category: the documents disagree
+- Where: [probe guide](samples/cli/probes/bounded_concat/README.md#L5), [explicit copies](samples/cli/probes/bounded_concat/main.omg#L45), [fixed-array rule](wiki/spec/language/domains.md#domains-and-qualification)
+- Saw: The guide advertises direct bounded concatenation and a green check. Since `c7ae4c207c2`, the source uses two explicit copies into fixed array storage. At `d0e4a8657962` on macOS arm64, checking exits 1 and paired execution exits 200. The retained probe reaches unresolved ASCII declarations or memberships and a retired data-attached `Main::main`.
+- Cost: The probe supplies no concatenation evidence and currently cannot check the explicit-copy result. Restore its current explicit storage and live-length oracle through ordinary source owners, and describe the operation the probe actually exercises.
+- Reported: 2026-11-15, Codex, while tracing retained byte-sequence target operands.
+
 ### An affine-view refusal hides the source sequence bounds test
 - Category: tests that pin the bug
 - Where: [literal index witness](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L36), [exact diagnostic assertion](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/sequence_values.rs#L207)
@@ -217,7 +224,7 @@ framework or a list of unimplemented features.
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving
 - Where: [ordinary native selection](omega-rust/omega/compilation/native-compiler/src/pipeline.rs#L110), [paired instruction projection](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_source.rs) (`instruction::project`), [body-derived runtime indices](omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization.rs) (`runtime_indices::operands`, `runtime_indices::projection`)
-- Saw: Ordinary Omega 03 still pairs target instructions with optimized operation nodes. Whole byte-sequence copies and concatenation, element-view writes, bounded-owned byte-field writes, storage addresses, accessor and access-lifecycle operations, static interrupts and descriptor-table setup still read operand or selector geometry from the earlier body. Boundary and normalized foreign calls still read the abstract operation. A folded byte length still uses its earlier opcode to identify the immediate row. The body-reading `successor` is reachable only in the independent audit.
+- Saw: Ordinary Omega 03 still pairs target instructions with optimized operation nodes. Whole byte-sequence copies and concatenation, element-view writes, bounded-owned byte-field writes, storage addresses, accessor and access-lifecycle operations, static interrupts and descriptor-table setup still read operand or selector geometry from the earlier body. Some specialized boundary calls still read the abstract operation. A folded byte length still uses its earlier opcode to identify the immediate row. The body-reading `successor` is reachable only in the independent audit.
 - Cost: Changing one of these operations can require matching recognizers across stages. Move the remaining operands to the retained target row and keep source reconstruction in the audit. Acceptance: ordinary `instruction::project` takes no optimized node or function, and `TargetSelectionInput` drops `source` and `unit` except for the independent validator. The native publication tests exercise the independent target audit on compiled programs. Explicit compiler validator requests still lack a route to that audit.
 - Reported: 2026-11-15, Codex, while verifying representation handoffs after the IR cleanup; static source and caller-chain evidence only. Narrowed 2026-11-15, Claude Code, after moving leaf copies, field stores and case membership to retained target rows.
 
