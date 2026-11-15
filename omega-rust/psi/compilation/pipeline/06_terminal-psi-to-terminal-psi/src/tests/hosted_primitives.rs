@@ -244,10 +244,14 @@ fn a_copied_primitive_name_does_not_receive_compiler_custody() {
         "use omega::language::core::Never; use omega::language::core::ProcessExit; public boundary machine ProcessExitPrimitive(return_code: i32) -> Never satisfies ProcessExit::exit_process reaches ProcessExit crashes none terminates; machine main() reaches ProcessExit crashes none terminates { ProcessExitPrimitive(7); }",
     );
     let verdicts = judge_program(&typed);
-    let diagnostic = format!("{verdicts:?}");
-    assert!(verdicts.iter().any(Result::is_err), "{diagnostic}");
+    let [Ok(RouteVerdict::FallBack(refusal))] = verdicts.as_slice() else {
+        panic!("the ordinary copied declaration must have no compiler supply: {verdicts:?}");
+    };
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
     assert!(
-        diagnostic.contains("boundary conformer is callable only through its provider slot"),
-        "{diagnostic}"
+        refusal
+            .detail
+            .contains("supply mode other than a checked body"),
+        "{refusal:?}"
     );
 }

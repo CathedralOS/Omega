@@ -1817,13 +1817,21 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
-        if self.typed.trait_machine_signature(target).is_some()
-            || matches!(
-                self.typed.symbols.sealed_intrinsic(target),
+        // A free-machine call can name its implicit entry state. Resolve that
+        // existing entry relation before checking custody on the authored
+        // declaration; the generated state itself has no sealed source span.
+        let (target, boundary_call) = if self.typed.trait_machine_signature(target).is_some() {
+            (target, true)
+        } else {
+            let machine = self.call_target_symbol(id, target)?;
+            let boundary = matches!(
+                self.typed.symbols.sealed_intrinsic(machine),
                 Some(language_core::sealed_intrinsics::SealedIntrinsic::HostedPrimitive(_))
-            )
-        {
-            self.visible_to(id, target)?;
+            );
+            (machine, boundary)
+        };
+        self.visible_to(id, target)?;
+        if boundary_call {
             let boundary = self.boundary_declaration(id, target)?;
             return self.call_of(
                 id,
@@ -1837,11 +1845,9 @@ impl<'t> Program<'t> {
                 expected,
             );
         }
-        let machine = self.call_target_symbol(id, target)?;
-        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(machine)?;
+        let callee = self.machine(target)?;
         self.call_of(
             id,
             slots,
