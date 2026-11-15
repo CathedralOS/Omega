@@ -1872,16 +1872,17 @@ pub mod closed_reach {
             identity(application.template_identity)?;
             if application.template_commitment == [0; 32]
                 || application.specialization_commitment == [0; 32]
-                || machine
-                    .declaration
-                    .as_ref()
-                    .and_then(|declaration| declaration.specialization.as_ref())
-                    .map(|specialization| specialization.commitment)
+                || declaration.map(|specialization| specialization.commitment)
                     != Some(application.specialization_commitment)
             {
                 return Err(
                     "closed reach application differs from its checked declaration commitment",
                 );
+            }
+            if declaration.map(|specialization| specialization.template_semantic_declaration)
+                != Some(application.template_identity)
+            {
+                return Err("closed reach application differs from its checked template identity");
             }
             match (
                 declaration.and_then(|declaration| declaration.capture.as_ref()),

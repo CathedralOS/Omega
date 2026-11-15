@@ -89,14 +89,15 @@ pub fn prepare_compilation(
             Ok(witness)
         })
         .collect();
-    let (mut closure, source, signatures) =
+    let (mut closure, source, signatures, ordinary_applications) =
         match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
             Ok(prepared) => (
                 Ok(prepared.program),
                 prepared.source,
                 prepared.selected_calls,
+                prepared.ordinary_applications,
             ),
-            Err(refusal) => (Err(refusal), Default::default(), Vec::new()),
+            Err(refusal) => (Err(refusal), Default::default(), Vec::new(), Vec::new()),
         };
     let mut templates = Vec::new();
     let mut rows: Vec<WitnessRow<'_>> = Vec::new();
@@ -185,6 +186,19 @@ pub fn prepare_compilation(
         closure = Err(reason);
     }
     let forms = prepare_generic_forms(typed, templates, &captures);
+    if let Ok(elaboration) = &mut closure
+        && let Err((owner, reason)) = crate::declare::close_ordinary_specializations(
+            &forms,
+            ordinary_applications,
+            elaboration,
+        )
+    {
+        closure = Err(crate::refuse(
+            owner,
+            terminal_check_tables::Construct::Machine,
+            crate::Unserved::Declaration(reason),
+        ));
+    }
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {

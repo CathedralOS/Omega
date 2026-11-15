@@ -4254,6 +4254,38 @@ mod routed_scalar_tests {
             decode_module(&encode_module(&module).unwrap()).unwrap(),
             module
         );
+        let mut missing = module.clone();
+        missing.machines[0].closed_reach_application = None;
+        assert_eq!(
+            decode_module(&encode_raw(&missing).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "checked specialization has no retained application",
+            ))
+        );
+        let mut another_template = module.clone();
+        another_template.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .template_identity = TerminalIdentityIndex(2);
+        assert_eq!(
+            decode_module(&encode_raw(&another_template).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed reach application differs from its checked template identity",
+            ))
+        );
+        let mut another_specialization = module.clone();
+        another_specialization.machines[0]
+            .closed_reach_application
+            .as_mut()
+            .unwrap()
+            .specialization_commitment = [8; 32];
+        assert_eq!(
+            decode_module(&encode_raw(&another_specialization).unwrap()),
+            Err(crate::CodecError::MalformedStructuralFoundation(
+                "closed reach application differs from its checked declaration commitment",
+            ))
+        );
         {
             use language_semantics::{
                 ScopedPermissionClaimIdentity, ScopedPermissionEventSource, SuspensionValueOrigin,
