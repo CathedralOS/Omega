@@ -5,8 +5,6 @@
 */
 
 mod references {
-    use crate::tables::body_expressions;
-    use diagnostics::Diagnostic;
     use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
     use super::super::expression_paths::{
@@ -23,9 +21,6 @@ mod references {
         resolve_state_scoped_table_path_member_symbols,
     };
     use super::super::targets::assign_call_machine_argument_symbols;
-    use std::collections::BTreeSet;
-    use std::collections::HashSet;
-    use symbol_resolved_trees::data::DataMember;
     use symbol_resolved_trees::data::TypeParameterKind;
     use symbol_resolved_trees::expression::ExpressionHandle;
     use symbol_resolved_trees::expression::ExpressionNode;
@@ -38,67 +33,6 @@ mod references {
     use symbol_resolved_trees::signature::StateParameter;
     use symbol_resolved_trees::statement::Statement;
     use symbol_resolved_trees::types::TypeReference;
-
-    /*
-        A case is a member of its carrier, never an expected-type-dependent bare
-        value. Reject the exact unresolved spelling here so no later consumer can
-        reinterpret it as an implicit constructor.
-    */
-    pub(crate) fn reject_unqualified_case_values(
-        program: &symbol_resolved_trees::SymbolResolvedTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let case_names = program
-            .data_definitions
-            .iter()
-            .flat_map(|definition| program.data_members(definition.members))
-            .filter_map(|member| match member {
-                DataMember::Variant(case) => Some(case.name.as_str()),
-                DataMember::Field(_) => None,
-            })
-            .collect::<BTreeSet<_>>();
-        let path_heads = body_expressions(program)
-            .iter_expressions()
-            .filter_map(|(_, expression)| match expression {
-                ExpressionNode::Call(call) => Some(call.receiver),
-                ExpressionNode::Member(member) => Some(member.receiver),
-                _ => None,
-            })
-            .filter(|handle| handle.is_valid())
-            .collect::<HashSet<_>>();
-        let diagnostics = body_expressions(program)
-            .iter_expressions()
-            .filter_map(|(expression_handle, expression)| {
-                if path_heads.contains(&expression_handle) {
-                    return None;
-                }
-                let ExpressionNode::Name(path) = expression else {
-                    return None;
-                };
-                let [name] = body_expressions(program).name_path_members(path.members) else {
-                    return None;
-                };
-                (!path.head_symbol.is_valid()
-                    && !path.symbol.is_valid()
-                    && body_expressions(program)
-                        .authored_expression_exposure(expression_handle)
-                        .is_some()
-                    && case_names.contains(name.as_str()))
-                .then(|| {
-                    Diagnostic::error(format!(
-                        "case value `{}` requires its carrier-qualified `Type::{}` path",
-                        name.as_str(),
-                        name.as_str(),
-                    ))
-                    .with_source_span(name.source_span())
-                })
-            })
-            .collect::<Vec<_>>();
-        if diagnostics.is_empty() {
-            Ok(())
-        } else {
-            Err(diagnostics)
-        }
-    }
 
     /*
         The spelled member names of a `self`-rooted receiver path, root -> leaf
@@ -1452,7 +1386,6 @@ mod traversal {
     }
 }
 
-pub(crate) use references::reject_unqualified_case_values;
 pub(super) use references::{
     NameRole, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_struct_literal_symbols, lexical_value_head, normalize_qualified_case_value,
