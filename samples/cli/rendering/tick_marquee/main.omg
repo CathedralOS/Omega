@@ -44,8 +44,8 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine finish(main: &mut Main) {
         let elapsed: Duration = elapsed_since(main.t_start);
         transition elapsed.seconds == 0 {
-            true -> check_subsecond(main, elapsed.subsecond_nanoseconds)
-            false -> ok(main)
+            true -> block check_subsecond(main, elapsed.subsecond_nanoseconds)
+            false -> block ok(main)
         }
     }
     machine check_subsecond(main: &mut Main, subsecond_nanoseconds: u32) {
