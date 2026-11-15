@@ -25,21 +25,21 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = instant_now();
     main.frame = 0u32 as +Wrapping;
-    transition { _ -> frame_loop(main) }
+    transition { _ -> block frame_loop(main) }
     machine frame_loop(main: &mut Main) {
-        transition main.frame < 24 { true -> draw(main) _ -> finish(main) }
+        transition main.frame < 24 { true -> block draw(main) _ -> block finish(main) }
     }
     machine draw(main: &mut Main) {
         main.line = "            ";
         main.pos = main.frame % 12;
-        transition main.pos < 12 { true -> put(main) _ -> finish(main) }
+        transition main.pos < 12 { true -> block put(main) _ -> block finish(main) }
     }
     machine put(main: &mut Main) {
         main.line[main.pos] = 35;
         Console::write_line(&main.line[..]);
         Clock::sleep(15);
         main.frame = main.frame + 1;
-        transition { _ -> frame_loop(main) }
+        transition { _ -> block frame_loop(main) }
     }
     machine finish(main: &mut Main) {
         let elapsed: Duration = elapsed_since(main.t_start);
@@ -49,7 +49,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         }
     }
     machine check_subsecond(main: &mut Main, subsecond_nanoseconds: u32) {
-        transition subsecond_nanoseconds >= 100000000 { true -> ok(main) _ -> bad(main) }
+        transition subsecond_nanoseconds >= 100000000 { true -> block ok(main) _ -> block bad(main) }
     }
     machine ok(main: &mut Main)  {
         Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
