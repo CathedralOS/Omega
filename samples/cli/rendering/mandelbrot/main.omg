@@ -99,7 +99,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=28] under the standing owner domain.
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.row);
+        Console::write_line(&main.row[..]);
         transition main.y >= 0 && main.y < 28 { true -> block row_advance(main) _ -> block done(main) }
     }
     machine row_advance(main: &mut Main) {

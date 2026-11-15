@@ -59,7 +59,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.frame < 60 { true -> block frame_start(main) _ -> block finish(main) }
     }
     machine frame_start(main: &mut Main) {
-        Console::write(main.home);
+        Console::write(&main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -136,7 +136,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // y_bump is what proves the increment (y < 16 always holds inside the row
     // loop, so the else arm is unreachable).
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         transition main.y < 16 { true -> block y_bump(main) _ -> block bad(main) }
     }
     machine y_bump(main: &mut Main) {

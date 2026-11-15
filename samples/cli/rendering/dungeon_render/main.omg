@@ -42,14 +42,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         Cell::Wall,  Cell::Floor, Cell::Water, Cell::Floor, Cell::Floor, Cell::Wall,
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall
     ];
-    main.r = 0;
+    main.r = 0u32 as +Wrapping;
     transition { _ -> block row_loop(main) }
 
     machine row_loop(main: &mut Main) {
         transition main.r < 4 { true -> block col_start(main) _ -> block done(main) }
     }
     machine col_start(main: &mut Main) {
-        main.c = 0;
+        main.c = 0u32 as +Wrapping;
         main.line = "      ";
         transition { _ -> block col_loop(main) }
     }
@@ -82,7 +82,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         main.r = main.r + 1;
         transition { _ -> block row_loop(main) }
     }

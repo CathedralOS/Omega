@@ -52,7 +52,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.frame < 12 { true -> block frame_init(main) _ -> block finish(main) }
     }
     machine frame_init(main: &mut Main) {
-        Console::write(main.home);
+        Console::write(&main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -111,7 +111,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=22] under the standing owner domain.
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.row);
+        Console::write_line(&main.row[..]);
         transition main.y >= 0 && main.y < 22 { true -> block row_advance(main) _ -> block frame_end(main) }
     }
     machine row_advance(main: &mut Main) {

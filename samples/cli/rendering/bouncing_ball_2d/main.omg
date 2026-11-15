@@ -55,7 +55,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.frame < 70 { true -> block frame_start(main) _ -> block finish(main) }
     }
     machine frame_start(main: &mut Main) {
-        Console::write(main.home);
+        Console::write(&main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -96,7 +96,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         transition main.y >= 0 && main.y < 12 { true -> block y_bump(main) _ -> block row_loop(main) }
     }
     machine y_bump(main: &mut Main) {

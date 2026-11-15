@@ -97,7 +97,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 
     // --- render the grid in place ---
     machine render_init(main: &mut Main) {
-        Console::write(main.home);
+        Console::write(&main.home[..]);
         main.ry = 0 as +Wrapping;
         transition { _ -> block render_row(main) }
     }
@@ -125,7 +125,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> render_col(main) }
     }
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         main.ry = main.ry + 1;
         transition { _ -> block render_row(main) }
     }

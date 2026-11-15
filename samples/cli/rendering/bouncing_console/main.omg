@@ -59,8 +59,8 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // branches on `dir` so each direction's re-guard proves its own +1 / -1 --
     // fully Exact, no domain.
     machine emit(main: &mut Main) {
-        Console::write(main.cr);
-        Console::write(main.line);
+        Console::write(&main.cr[..]);
+        Console::write(&main.line[..]);
         Clock::sleep(25);
         transition main.frame < 50 { true -> block frame_bump(main) _ -> block finish(main) }
     }

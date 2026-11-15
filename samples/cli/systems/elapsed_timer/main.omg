@@ -58,7 +58,7 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
         line[24] = digits[hundreds];
         line[25] = digits[tens];
         line[26] = digits[ones];
-        Console::write_line(line);
+        Console::write_line(&line[..]);
         transition milliseconds >= 50 {
             true -> good(context)
             false -> fail_elapsed(context)

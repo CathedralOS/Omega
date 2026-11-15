@@ -24,7 +24,7 @@ data Main {
 machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = instant_now();
-    main.frame = 0;
+    main.frame = 0u32 as +Wrapping;
     transition { _ -> frame_loop(main) }
     machine frame_loop(main: &mut Main) {
         transition main.frame < 24 { true -> draw(main) _ -> finish(main) }
@@ -36,7 +36,7 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     }
     machine put(main: &mut Main) {
         main.line[main.pos] = 35;
-        Console::write_line(main.line);
+        Console::write_line(&main.line[..]);
         Clock::sleep(15);
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main) }
