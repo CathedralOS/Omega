@@ -133,7 +133,25 @@ fn prepare_and_judge(
     chosen_defaults: &[crate::checked::ChosenDefaultLayout],
 ) -> Result<JudgedSource, Vec<Diagnostic>> {
     let build = &pass.computed_build_config.config;
-    let layout_scopes = layout_target_scopes(&typed, build, chosen_defaults)?;
+    // A library is judged where it is demanded, not wholesale. Every native
+    // supply this package's own Build declares needs its exact boundary and
+    // signature for calling-policy validation and trust disclosure, even
+    // when its target or requirement is unused, so those declarations are
+    // claimed here. A dependency's bindings are not: like its provider
+    // defaults, they are reached only through the supplies a target chooses
+    // for this package's entries (`judge_supplied_product`), where the
+    // provider's own calls read each requirement it uses.
+    let root = pass.package_inputs.map(PackageCompilationInputs::root);
+    let claimed = build
+        .native_bindings
+        .iter()
+        .filter(|supply| root.is_none_or(|root| supply.selection.supplier_package == root))
+        .collect::<Vec<_>>();
+    let claimed_selections = claimed
+        .iter()
+        .map(|supply| &supply.selection)
+        .collect::<Vec<_>>();
+    let layout_scopes = layout_target_scopes(&typed, build, chosen_defaults, &claimed_selections)?;
     let external_roots = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // The Build's own provider selections are supplies of this compilation
@@ -150,20 +168,9 @@ fn prepare_and_judge(
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().copied());
     }
-    // A library is judged where it is demanded, not wholesale. Every native
-    // supply this package's own Build declares needs its exact boundary and
-    // signature for calling-policy validation and trust disclosure, even
-    // when its target or requirement is unused, so those declarations are
-    // claimed here. A dependency's bindings are not: like its provider
-    // defaults, they are reached only through the supplies a target chooses
-    // for this package's entries (`judge_supplied_product`), where the
-    // provider's own calls read each requirement it uses.
-    let root = pass.package_inputs.map(PackageCompilationInputs::root);
     selected.extend(
-        build
-            .native_bindings
+        claimed
             .iter()
-            .filter(|supply| root.is_none_or(|root| supply.selection.supplier_package == root))
             .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
     );
     // Representation declarations are claimed source dependencies; preparation
@@ -374,10 +381,16 @@ fn inspection_root(
 /// chose (`chosen_defaults`). A default no target chose is never a root, so
 /// an imported default cannot request geometry, or add its target, before a
 /// target chooses it (wiki/spec/layouts/plans.md#layout-demand-and-validation).
+/// `claimed` are the native bindings this compilation claims: each is a
+/// layout root on its own target, because its requirement's signature is
+/// read in full (`prepare_and_judge`) and a type there laid out by a policy
+/// (`[CLayout<DarwinTimespec>; 2]`) has a layout only for the target the
+/// binding names.
 pub(super) fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
     build: &products::BuildConfig,
     chosen_defaults: &[crate::checked::ChosenDefaultLayout],
+    claimed: &[&build_time_evaluation::native_bindings::NativeBindingSelection],
 ) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
     let choices = build.provider_selections.iter().collect::<Vec<_>>();
     let mut profiles = Vec::new();
@@ -406,6 +419,14 @@ pub(super) fn layout_target_scopes(
     for chosen in chosen_defaults {
         if !profiles.contains(&chosen.target) {
             profiles.push(chosen.target);
+        }
+    }
+    for selection in claimed {
+        let profile =
+            target::TargetProfile::from_canonical_target_name(selection.target.canonical_name())
+                .map_err(|error| vec![error])?;
+        if !profiles.contains(&profile) {
+            profiles.push(profile);
         }
     }
     if profiles.is_empty() {
@@ -444,6 +465,16 @@ pub(super) fn layout_target_scopes(
                 entries.push(binding.implementation_symbol);
             }
         }
+        for selection in claimed {
+            if selection.target.canonical_name() != profile.target_name() {
+                continue;
+            }
+            for symbol in [selection.subject, selection.requirement] {
+                if !entries.contains(&symbol) {
+                    entries.push(symbol);
+                }
+            }
+        }
         let mut providers = choices
             .iter()
             .filter(|choice| {
@@ -476,6 +507,7 @@ mod layout_demand_tests {
             &typed_trees::TypedTrees::default(),
             &products::BuildConfig::default(),
             &[],
+            &[],
         )
         .unwrap();
         assert!(
@@ -484,5 +516,45 @@ mod layout_demand_tests {
                 .all(|scope| scope.entry_declarations.is_empty()),
             "an entryless product needs explicit empty layout roots, not all declarations: {scopes:?}"
         );
+    }
+
+    /// A claimed native binding's requirement is read in full, so the types
+    /// in its signature are laid out, and only on the target the binding
+    /// names: a macOS binding's `[CLayout<DarwinTimespec>; 2]` has macOS
+    /// geometry and no other.
+    #[test]
+    fn a_claimed_native_binding_is_a_layout_root_on_its_own_target() {
+        use language_semantics::declaration_selection::{NativeBindingProducer, ProductTarget};
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap();
+        let subject = symbols::SymbolHandle::from_parts(1, 0);
+        let requirement = symbols::SymbolHandle::from_parts(2, 0);
+        let selection = build_time_evaluation::native_bindings::NativeBindingSelection {
+            application: None,
+            subject,
+            requirement,
+            target: ProductTarget::MacosArm64,
+            locator: semantic_vocabulary::NativeBindingLocator::Syscall { number: 1 },
+            producer: NativeBindingProducer {
+                package,
+                declaration_path: "build".into(),
+                callable_identity: "build::bind_times".into(),
+            },
+            source_occurrence_digest: [5; 32],
+            supplier_package: package,
+            source_span: Default::default(),
+        };
+        let scopes = super::layout_target_scopes(
+            &typed_trees::TypedTrees::default(),
+            &products::BuildConfig::default(),
+            &[],
+            &[&selection],
+        )
+        .unwrap();
+        for scope in &scopes {
+            let roots = scope.entry_declarations.contains(&subject)
+                && scope.entry_declarations.contains(&requirement);
+            assert_eq!(roots, scope.target == "macos_arm64", "{scopes:?}");
+        }
+        assert!(scopes.iter().any(|scope| scope.target == "macos_arm64"));
     }
 }

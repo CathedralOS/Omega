@@ -140,7 +140,7 @@ fn frozen_frontier(
 ) -> Result<TypedFrontier, CompileFailure> {
     // Like the product check's first preparation: no target has chosen a
     // dependency default yet, so none is a layout root.
-    let layout_scopes = super::source_checking::layout_target_scopes(&typed, build, &[])?;
+    let layout_scopes = super::source_checking::layout_target_scopes(&typed, build, &[], &[])?;
     let entries = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // The root of a stated graph is the subject. A source given no graph is
