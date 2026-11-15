@@ -446,8 +446,8 @@ machine entry() -> u32 terminates crashes none {{ countdown(4) }}
         verdicts.iter().any(|verdict| matches!(verdict,
             Err(crate::CompilationRefusal::Elaboration(refusal)) | Ok(RouteVerdict::FallBack(refusal))
                 if matches!(refusal.detail.as_str(),
-                    "contract selected ranking view is not an admitted compiler ranking declaration"
-                        | "contract ranking view has no admitted resolved selection")
+                    "contract selected ranking view is not an admitted compiler ranking declaration while reading the body of `countdown`"
+                        | "contract ranking view has no admitted resolved selection while reading the body of `countdown`")
         )),
         "an authored bool function must not select the closed integer theory: {:?}",
         observed_verdicts(&verdicts)

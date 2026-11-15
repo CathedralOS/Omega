@@ -131,10 +131,10 @@ enum LoanRegion {
 }
 
 impl LoanRegion {
-    fn overlaps(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Storage(left), Self::Storage(right)) => overlap(left, right),
-            _ => true,
+    fn known_storage(&self) -> Option<&super::Lineage> {
+        match self {
+            Self::Storage(storage) => Some(storage),
+            Self::Provider => None,
         }
     }
 
@@ -175,7 +175,9 @@ fn competing_borrows(
     right: ReferenceAccess,
     right_place: &LoanRegion,
 ) -> Option<LoanConflict> {
-    if !left_place.overlaps(right_place) || !left.is_exclusive() && !right.is_exclusive() {
+    if !overlap(left_place.known_storage(), right_place.known_storage())
+        || !left.is_exclusive() && !right.is_exclusive()
+    {
         None
     } else if left.is_exclusive() && right.is_exclusive() {
         Some(LoanConflict::TwiceExclusive)
@@ -1026,7 +1028,7 @@ impl Storage<'_> {
                         }
                     };
                     if loan.access.is_exclusive()
-                        && loan.lineage.overlaps(&backing)
+                        && overlap(loan.lineage.known_storage(), backing.known_storage())
                         && !self.authorized_reference(loan, &place, at, formed)?
                     {
                         return Ok(Some((concerns, LoanConflict::ObserveWhileExclusive)));
@@ -1048,7 +1050,7 @@ impl Storage<'_> {
                             (place, backing)
                         }
                     };
-                    if loan.lineage.overlaps(&backing)
+                    if overlap(loan.lineage.known_storage(), backing.known_storage())
                         && (!loan.access.is_exclusive()
                             || !self.authorized_reference(loan, &place, at, formed)?)
                     {
@@ -1065,7 +1067,7 @@ impl Storage<'_> {
                 for action in actions {
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
                     let backing = self.backing(&cleaned, block.id, usize::MAX, concerns)?;
-                    if loan.lineage.overlaps(&LoanRegion::Storage(backing)) {
+                    if overlap(loan.lineage.known_storage(), &backing) {
                         return Ok(Some((concerns, LoanConflict::ChangeWhileBorrowed)));
                     }
                 }
@@ -1206,7 +1208,7 @@ impl Storage<'_> {
                             .lifetime
                             .as_ref()
                             .is_some_and(|life| life.live.contains(&at))
-                            && loan.lineage.overlaps(&backing)
+                            && overlap(loan.lineage.known_storage(), backing.known_storage())
                             && (loan.access.is_exclusive() || access.is_exclusive())
                             && !self.authorized_reference(loan, &raw, at, formed)?
                         {

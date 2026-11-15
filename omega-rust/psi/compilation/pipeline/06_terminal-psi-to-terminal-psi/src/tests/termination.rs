@@ -303,7 +303,11 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
             "contract ranking view has no normalized integer relation",
         ),
     ] {
-        assert_eq!(refused(&looping(scalars, measure)), detail, "{measure}");
+        assert_eq!(
+            refused(&looping(scalars, measure)),
+            format!("{detail} while reading the body of `spend`"),
+            "{measure}"
+        );
     }
     // A signed subject: `Nat::Descending` is declared for unsigned values.
     assert_eq!(
@@ -317,7 +321,7 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
                  }\n\
              }\n"
         ),
-        "contract natural ranking needs an unsigned integer subject"
+        "contract natural ranking needs an unsigned integer subject while reading the body of `sink`"
     );
 }
 

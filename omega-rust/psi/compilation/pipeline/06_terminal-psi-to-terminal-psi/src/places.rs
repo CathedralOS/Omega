@@ -179,7 +179,15 @@ pub(crate) fn lineage(
 ///
 /// It is stated over lineages, not table rows, because the walk also asks it
 /// about leaves the place table has not interned.
-pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
+/// An unknown physical region, such as provider-owned backing, cannot prove
+/// disjointness from any storage. Known regions use the same path relation.
+pub(crate) fn overlap<'a>(
+    left: impl Into<Option<&'a Lineage>>,
+    right: impl Into<Option<&'a Lineage>>,
+) -> bool {
+    let (Some(left), Some(right)) = (left.into(), right.into()) else {
+        return true;
+    };
     if left.root != right.root {
         return false;
     }
@@ -680,7 +688,6 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Lineage> {
-        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
         let borrowed_arrival =
             matches!(
                 self.root_kind(place.root, concerns)?,
