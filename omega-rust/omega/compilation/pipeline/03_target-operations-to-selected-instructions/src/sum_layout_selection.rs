@@ -1106,6 +1106,236 @@ fn retained_storage_copies_stores_and_tag_tests_project_without_bodies() {
 }
 
 #[test]
+fn retained_sequence_lengths_project_with_only_their_rows_and_facts() {
+    use crate::legalization_source::scalar_graph::instruction::storage_instructions::project_sequence_length;
+    use legalized_operations::LegalizedScalarInstructionKind as Kind;
+    use target_operations::{TargetIntegerExpression as Expression, TargetStructuralRuntimeIndex};
+
+    let operation = op(3);
+    let obligation = semantic_vocabulary::ObligationId::new(2).unwrap();
+    let source = terminal_psi::StructuralArgument {
+        place: place(1),
+        path: vec![StructuralPathSegment::RuntimeIndex {
+            index: val(1),
+            obligation,
+        }],
+        access: StructuralAccess::SharedBorrow,
+    };
+    let index = TargetStructuralRuntimeIndex {
+        operand: TargetUnitScalarArgumentSource::Parameter {
+            parameter_index: 0,
+            source_value: val(1),
+            scalar_type: target_operations::selector_carrier_type(),
+        },
+        stride: 16,
+        extent: Some(6),
+        obligation,
+    };
+    let fact = optimization_unit::AcceptedObligationFact::new(
+        psi(),
+        [4; 32],
+        machine(),
+        optimization_unit::PsiProvenance::Operation(operation),
+        obligation,
+        vec![2],
+    );
+    let facts = std::slice::from_ref(&fact);
+    let result = AbstractResult {
+        value: val(2),
+        scalar_type: ScalarType::Integer(u64_type()),
+    };
+    let definition = |expression| TargetUnitOperation::ScalarDefinition {
+        result_home: target_operations::TargetUnitScalarHomeRequirement {
+            defining_operation: operation,
+            source_value: result.value,
+            scalar_type: result.scalar_type,
+            shape: crate::legalization::scalar_graph_input::scalar_shape(result.scalar_type)
+                .unwrap(),
+        },
+        expression: target_operations::TargetScalarExpression::Integer {
+            scalar_type: u64_type(),
+            expression,
+        },
+    };
+    let byte = definition(Expression::ByteSequenceLength {
+        psi_operation: operation,
+        source_value: result.value,
+        source: source.clone(),
+        indices: vec![index.clone()],
+        length_byte_offset: 0,
+    });
+    let element = definition(Expression::ElementViewLength {
+        psi_operation: operation,
+        source_value: result.value,
+        source: source.clone(),
+        indices: vec![index.clone()],
+        length_byte_offset: 8,
+    });
+    let field = TargetUnitOperation::StructuralByteSequenceFieldLength {
+        psi_operation: operation,
+        result,
+        source: source.clone(),
+        field: StructuralFieldId::new(1).unwrap(),
+        indices: vec![index],
+    };
+    for (row, expected_offset) in [(&byte, Some(0)), (&element, Some(8)), (&field, None)] {
+        let (projected_source, indices, observed_offset) =
+            match project_sequence_length(machine(), facts, operation, row).unwrap() {
+                Kind::ByteSequenceLength {
+                    source,
+                    indices,
+                    length_byte_offset,
+                } => (source, indices, Some(length_byte_offset)),
+                Kind::ElementViewLength {
+                    source,
+                    indices,
+                    length_byte_offset,
+                } => (source, indices, Some(length_byte_offset)),
+                Kind::StructuralByteSequenceFieldLength {
+                    source,
+                    indices,
+                    field,
+                } => {
+                    assert_eq!(field, StructuralFieldId::new(1).unwrap());
+                    (source, indices, None)
+                }
+                actual => panic!("expected length, got {actual:?}"),
+            };
+        assert_eq!(projected_source, source);
+        assert_eq!(observed_offset, expected_offset);
+        assert_eq!(indices.len(), 1);
+        assert_eq!(
+            (
+                indices[0].stride,
+                indices[0].extent,
+                indices[0].accepted_fact
+            ),
+            (16, Some(6), fact.identity)
+        );
+        assert!(project_sequence_length(machine(), &[], operation, row).is_err());
+        assert!(project_sequence_length(machine(), facts, op(4), row).is_err());
+    }
+    let folded = definition(Expression::Immediate {
+        source_value: result.value,
+        value: IntegerValue::Unsigned(33),
+    });
+    assert!(matches!(
+        project_sequence_length(machine(), &[], operation, &folded),
+        Ok(Kind::Constant(IntegerValue::Unsigned(33)))
+    ));
+}
+
+#[test]
+fn retained_byte_length_audit_reconstructs_the_descriptor_and_exact_fold() {
+    use target_operations::TargetIntegerExpression as Expression;
+    use terminal_psi::ByteSequenceCarrier;
+
+    let borrowed = ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let bounded = ByteSequenceCarrier::BoundedView {
+        access: Some(StructuralAccess::SharedBorrow),
+        capacity: 19,
+    };
+    for carrier in [borrowed, bounded] {
+        let mut names = TerminalIdentityTableBuilder::default();
+        let mut bytes = reference_type(1, names.intern("bytes"), ty(1));
+        bytes.shape = StructuralTypeShape::ByteSequence(carrier);
+        let parameter = parameter(ty(1));
+        let source = terminal_psi::StructuralArgument {
+            place: parameter.place,
+            path: Vec::new(),
+            access: parameter.access,
+        };
+        let result = AbstractResult {
+            value: val(1),
+            scalar_type: ScalarType::Integer(u64_type()),
+        };
+        let operation = AbstractOperation::ByteSequenceLength {
+            psi_operation: op(1),
+            result,
+            source: source.clone(),
+        };
+        let function = function_with_body(
+            vec![parameter],
+            vec![entry(
+                1,
+                vec![
+                    operation.clone(),
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: edge(1),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            )],
+        );
+        let plan = plan(names, vec![bytes], function);
+        let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
+        let unit =
+            reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+                .unwrap();
+        let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        let plan_view = crate::native_geometry::NativeInput::new(&plan, &geometry);
+        let unit_view = crate::native_geometry::NativeInput::new(&unit, &geometry);
+        let function_inputs =
+            crate::legalization_function_inputs::FunctionInputs::new(&unit.functions[0]);
+        let source_inputs = crate::legalization_target::control_flow::sources::SourceInputs::new(
+            &target.functions[0].graph,
+            &unit.functions[0],
+        );
+        let audit = |expression| {
+            let row = TargetUnitOperation::ScalarDefinition {
+                result_home: target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: op(1),
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: crate::legalization::scalar_graph_input::scalar_shape(
+                        result.scalar_type,
+                    )
+                    .unwrap(),
+                },
+                expression: target_operations::TargetScalarExpression::Integer {
+                    scalar_type: u64_type(),
+                    expression,
+                },
+            };
+            crate::legalization_target::unit::validate_operation(
+                &target.functions[0],
+                &row,
+                &operation,
+                &[],
+                &target.functions[0].graph.parameters,
+                &mut source_inputs.available(block_id(1)),
+                &Default::default(),
+                &function_inputs,
+                &target,
+                &plan_view,
+                &unit_view,
+            )
+        };
+        let descriptor = |length_byte_offset| Expression::ByteSequenceLength {
+            psi_operation: op(1),
+            source_value: result.value,
+            source: source.clone(),
+            indices: Vec::new(),
+            length_byte_offset,
+        };
+        let immediate = |value| Expression::Immediate {
+            source_value: result.value,
+            value: IntegerValue::Unsigned(value),
+        };
+        if carrier == borrowed {
+            audit(descriptor(8)).expect("borrowed descriptor length");
+            assert!(audit(immediate(19)).is_err());
+        } else {
+            audit(immediate(19)).expect("exact bounded length");
+            assert!(audit(immediate(20)).is_err());
+        }
+        assert!(audit(descriptor(0)).is_err(), "{carrier:?}");
+    }
+}
+
+#[test]
 fn retained_view_inputs_project_without_bodies_and_keep_independent_custody() {
     use target_operations::{
         TargetByteView, TargetElementView, TargetElementViewRegion, TargetIntegerExpression,

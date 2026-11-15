@@ -2698,7 +2698,13 @@ pub(crate) mod expressions {
                     *source_value == resolved
                         && crate::legalization::scalar_graph_input::element_views::byte_length_geometry(self.optimized, source, self.types)
                             .is_some_and(|(geometry, carrier)| {
-                                *length_byte_offset == if matches!(carrier, terminal_psi::ByteSequenceCarrier::BorrowedView { .. }) { 8 } else { 0 }
+                                let expected_offset = match carrier {
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 8,
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 0,
+                                    // A bounded view's length is its exact capacity.
+                                    terminal_psi::ByteSequenceCarrier::BoundedView { .. } => return false,
+                                };
+                                *length_byte_offset == expected_offset
                                 && super::unit::runtime_indices_rejoin(indices, &geometry.elements, self.available.unwrap_or(&crate::legalization_target::control_flow::sources::EMPTY))
                             })
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
