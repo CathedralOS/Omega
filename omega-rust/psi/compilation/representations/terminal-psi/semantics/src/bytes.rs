@@ -1053,9 +1053,6 @@ pub(crate) mod byte_sequence_predicates {
         Computed(semantic_vocabulary::ScalarTerm),
     }
 
-    /// Resolve each actual scalar definition once. Arithmetic belongs to the
-    /// existing typed term evaluator; this owner only follows real value IDs.
-    /// A cycle, unavailable input or exhausted search supplies no constant.
     type KnownScalar = (
         semantic_vocabulary::ScalarType,
         semantic_vocabulary::IntegerValue,
@@ -1066,6 +1063,9 @@ pub(crate) mod byte_sequence_predicates {
         Complete(Option<KnownScalar>),
     }
 
+    /// Resolve each actual scalar definition once. Arithmetic belongs to the
+    /// existing typed term evaluator; this owner only follows real value IDs.
+    /// A cycle, unavailable input or exhausted search supplies no constant.
     #[derive(Default)]
     pub struct ScalarConstants {
         values: std::collections::BTreeMap<semantic_vocabulary::ValueId, ScalarConstantState>,

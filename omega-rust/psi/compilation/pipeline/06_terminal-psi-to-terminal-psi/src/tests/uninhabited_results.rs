@@ -924,6 +924,16 @@ fn a_computed_integer_actual_uses_the_public_postcondition_and_receiving_source(
 }
 
 #[test]
+fn a_no_normal_call_still_checks_its_computed_arguments_arithmetic_safety() {
+    let verdicts = program(
+        "public machine stop(fatal: u8) -> u32 ensures false crashes Trap { crash Trap; } machine main() crashes Trap { stop(255u8 + 1); }",
+    );
+    assert!(verdicts.iter().any(|verdict| matches!(verdict,
+        Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|obligation| matches!(obligation.kind, terminal_check_tables::obligations::ObligationKind::OperationSafety { .. }))
+    )), "a false postcondition does not discharge operand safety: {verdicts:?}");
+}
+
+#[test]
 fn a_published_no_return_promise_still_owes_its_own_bodys_guarantee() {
     for text in [
         "public machine stop() -> u32 ensures false { 7u32 } machine main() {}",
