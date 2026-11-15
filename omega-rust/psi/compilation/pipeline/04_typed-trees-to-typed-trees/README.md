@@ -91,7 +91,9 @@ the checker refuses the pattern where a program reaches it.
 The deleted preparation ran about forty passes of five kinds. Three kinds are
 this stage's work and return as passes: annotations the checker reads,
 specialization of generic machines and requirement applications, and selection
-(operator calls, authored selections, calls bound through a value receiver).
+(calls bound through a value receiver). Operator calls and their authored
+selection/static-argument packets are prepared by the typed producer in
+[Psi 03](../03_symbol-resolved-trees-to-typed-trees/src/expression_meanings.rs).
 The first annotation pass and specialization by type arguments exist. Until
 the others are rebuilt, the
 requests they would serve stay in the trees as typing left them, and

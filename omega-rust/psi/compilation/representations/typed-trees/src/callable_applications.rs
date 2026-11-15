@@ -8975,6 +8975,26 @@ impl TypedTrees {
         .type_reference(self, original)
     }
 
+    /// Copies every form of callable contract fact under the same declaration
+    /// and static bindings as its entry. No fact becomes checking evidence here.
+    pub fn copy_callable_contract(
+        &mut self,
+        original: &signature::SignatureContract,
+        symbols: crate::SymbolRebinding<'_>,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        declaration: SymbolHandle,
+    ) -> Result<signature::SignatureContract, &'static str> {
+        let mut application = CallableApplication {
+            region_scope: declaration,
+            types: substitutions.to_vec(),
+            symbols: symbols.iter().copied().collect(),
+            ..CallableApplication::default()
+        };
+        let mut copied = original.clone();
+        copied.facts = application.facts(self, original.facts)?;
+        Ok(copied)
+    }
+
     /// Applies one declaration's types throughout a copied entry and its clauses.
     /// Signatures, local annotations, patterns, static operands and expression
     /// metadata all use the same substitution owner; applying a domain also

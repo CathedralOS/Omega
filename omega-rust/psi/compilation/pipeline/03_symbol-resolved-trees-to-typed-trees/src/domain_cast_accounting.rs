@@ -99,84 +99,108 @@ fn entry_sites(
         .collect()
 }
 
-pub(crate) fn account(
-    source: &symbol_resolved_trees::SymbolResolvedTrees,
-    program: &mut TypedTrees,
-    frontier: usize,
-    cast_destinations: &[TypeReferenceHandle],
-) -> Result<(), Diagnostic> {
-    let sites = entry_sites(program, frontier);
-    if sites.is_empty() {
-        return Ok(());
-    }
-    // A non-first entry's operand is the previous entry of the same run.
-    let inner: Vec<ExpressionHandle> = sites
-        .iter()
-        .filter(|(_, cast)| !cast.form.entry().is_some_and(|entry| entry.first))
-        .map(|(_, cast)| cast.value)
-        .collect();
-    let owners = typed_trees::references::collect_program_operand_owners(program);
-    // A retained constant and its exact initializer entry share source
-    // expressions. They are one source owner, unlike two unrelated callables
-    // that happen to retain the same expression handle.
-    let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
-    let mut initializer_owners = program
-        .const_declarations()
-        .iter()
-        .filter(|declaration| {
-            program
-                .tables
-                .machines
-                .is_valid(declaration.evaluation_entry)
-        })
-        .map(|declaration| {
-            (
+pub(crate) struct PreparedCasts {
+    runs: Vec<Run>,
+    initializer_owners: Vec<(SymbolHandle, SymbolHandle)>,
+}
+
+impl PreparedCasts {
+    pub(crate) fn new(program: &TypedTrees, frontier: usize) -> Result<Self, Diagnostic> {
+        let sites = entry_sites(program, frontier);
+        if sites.is_empty() {
+            return Ok(Self {
+                runs: Vec::new(),
+                initializer_owners: Vec::new(),
+            });
+        }
+        // A non-first entry's operand is the previous entry of the same run.
+        let inner: Vec<ExpressionHandle> = sites
+            .iter()
+            .filter(|(_, cast)| !cast.form.entry().is_some_and(|entry| entry.first))
+            .map(|(_, cast)| cast.value)
+            .collect();
+        // A retained constant and its exact initializer entry share source
+        // expressions. They are one source owner, unlike two unrelated callables
+        // that happen to retain the same expression handle.
+        let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut initializer_owners = program
+            .const_declarations()
+            .iter()
+            .filter(|declaration| {
                 program
                     .tables
                     .machines
-                    .get(declaration.evaluation_entry)
-                    .symbol,
-                declaration.symbol,
-            )
-        })
-        .collect::<Vec<_>>();
-    initializer_owners.sort_unstable_by_key(|(entry, _)| symbol_key(*entry));
-    if initializer_owners
-        .windows(2)
-        .any(|pair| pair[0].0 == pair[1].0)
-    {
-        return Err(Diagnostic::error(
-            "domain cast initializer entry has more than one constant owner",
-        ));
-    }
-    let mut runs: Vec<Run> = Vec::new();
-    for (outermost, _) in sites.iter().filter(|(handle, _)| !inner.contains(handle)) {
-        let mut run = Vec::new();
-        let mut cursor = *outermost;
-        while let Some(cast) = program.expression_table.cast_node(cursor).copied() {
-            let Some(entry) = cast.form.entry() else {
-                break;
-            };
-            run.push((cursor, cast, entry));
-            if entry.first {
-                break;
-            }
-            cursor = cast.value;
+                    .is_valid(declaration.evaluation_entry)
+            })
+            .map(|declaration| {
+                (
+                    program
+                        .tables
+                        .machines
+                        .get(declaration.evaluation_entry)
+                        .symbol,
+                    declaration.symbol,
+                )
+            })
+            .collect::<Vec<_>>();
+        initializer_owners.sort_unstable_by_key(|(entry, _)| symbol_key(*entry));
+        if initializer_owners
+            .windows(2)
+            .any(|pair| pair[0].0 == pair[1].0)
+        {
+            return Err(Diagnostic::error(
+                "domain cast initializer entry has more than one constant owner",
+            ));
         }
-        run.reverse();
-        runs.push(run);
+        let mut runs: Vec<Run> = Vec::new();
+        for (outermost, _) in sites.iter().filter(|(handle, _)| !inner.contains(handle)) {
+            let mut run = Vec::new();
+            let mut cursor = *outermost;
+            while let Some(cast) = program.expression_table.cast_node(cursor).copied() {
+                let Some(entry) = cast.form.entry() else {
+                    break;
+                };
+                run.push((cursor, cast, entry));
+                if entry.first {
+                    break;
+                }
+                cursor = cast.value;
+            }
+            run.reverse();
+            runs.push(run);
+        }
+
+        Ok(Self {
+            runs,
+            initializer_owners,
+        })
     }
-    // Operands are allocated before the casts over them, so inner runs settle first.
-    runs.sort_by_key(|run| run[0].0.arena_index());
-    for run in runs {
+
+    pub(crate) fn sites(&self) -> impl Iterator<Item = (ExpressionHandle, usize)> + '_ {
+        self.runs
+            .iter()
+            .enumerate()
+            .map(|(position, run)| (run[0].0, position))
+    }
+
+    pub(crate) fn account(
+        &self,
+        position: usize,
+        source: &symbol_resolved_trees::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        owners: &typed_trees::references::ProgramOperandOwners,
+        cast_destinations: &[TypeReferenceHandle],
+    ) -> Result<(), Diagnostic> {
+        let run = &self.runs[position];
+        let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
         let outermost = run[run.len() - 1].0;
         let mut holders = owners
             .expression_owners(outermost)
             .filter(|owner| owner.is_valid())
             .map(|owner| {
-                initializer_owners
+                self.initializer_owners
                     .binary_search_by_key(&symbol_key(owner), |(entry, _)| symbol_key(*entry))
-                    .map_or(owner, |position| initializer_owners[position].1)
+                    .map_or(owner, |position| self.initializer_owners[position].1)
             })
             .collect::<Vec<_>>();
         holders.sort_unstable_by_key(|owner| symbol_key(*owner));
@@ -192,8 +216,8 @@ pub(crate) fn account(
                 ));
             }
         };
-        let request = match account_run(source, program, owner, &run, cast_destinations) {
-            Ok(()) => continue,
+        let request = match account_run(source, program, owner, run, cast_destinations) {
+            Ok(()) => return Ok(()),
             Err(Unaccounted::Rejected(diagnostic)) => return Err(diagnostic),
             Err(Unaccounted::Deferred(request)) => request,
         };
@@ -208,10 +232,10 @@ pub(crate) fn account(
         for holder in holders {
             program.record_deferred_refusal(holder, request, source_span);
         }
-    }
-    Ok(())
-}
 
+        Ok(())
+    }
+}
 fn refuse(program: &TypedTrees, handle: ExpressionHandle, message: String) -> Diagnostic {
     Diagnostic::error(message).with_source_span(expression_table(program).source_span(handle))
 }

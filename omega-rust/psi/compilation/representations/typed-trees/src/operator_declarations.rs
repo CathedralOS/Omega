@@ -14,7 +14,7 @@ pub mod operator {
 
         use super::{OperatorConstBinding, OperatorDefinition};
         use crate::declarations::operator::operand_signatures::normalized_operand_parameters;
-        use crate::declarations::operator::spellings::declared_domain_constraints_match;
+        use crate::declarations::operator::spellings::qualifications_match;
         use crate::declarations::operator::type_matching::type_reference_matches_with_policy;
         use crate::static_applications;
 
@@ -157,55 +157,20 @@ pub mod operator {
             }) {
                 return None;
             }
-            if type_parameters.is_empty() {
-                return Some(Vec::new());
-            }
-            let parameters = program.operator_parameters(operator);
-            if parameters.len() != operand_types.len() {
-                return None;
-            }
-            let mut bindings = Vec::new();
-            let mut const_bindings = Vec::new();
-            let matches = operand_types
+            let operands = operand_types
                 .iter()
-                .zip(normalized_operand_parameters(parameters))
-                .enumerate()
-                .all(|(position, (actual, expected))| {
-                    actual.is_none_or(|actual| {
-                        let (matched_actual, matched_expected) =
-                            if indexed_collection && position == 0 {
-                                super::indexing::shared_collection_elements(
-                                    program,
-                                    actual,
-                                    expected.type_reference,
-                                )
-                                .unwrap_or((actual, expected.type_reference))
-                            } else {
-                                (actual, expected.type_reference)
-                            };
-                        type_reference_matches_with_policy(
-                            program,
-                            matched_actual,
-                            matched_expected,
-                            None,
-                            type_parameters,
-                            &mut bindings,
-                            &mut const_bindings,
-                            false,
-                        ) && declared_domain_constraints_match(
-                            program,
-                            actual,
-                            expected.type_reference,
-                        ) && declared_domain_constraints_match(
-                            program,
-                            matched_actual,
-                            matched_expected,
-                        )
-                    })
-                });
-            if !matches {
-                return None;
-            }
+                .copied()
+                .map(super::OperandType::from_reference)
+                .collect::<Vec<_>>();
+            let super::spellings::OperatorOperandBindings {
+                types: bindings,
+                constants: const_bindings,
+            } = super::spellings::operand_bindings_with_indexed_collection(
+                program,
+                operator,
+                &operands,
+                indexed_collection,
+            )?;
             let application = type_parameters
                 .iter()
                 .map(|parameter| match parameter.kind {
@@ -284,10 +249,11 @@ pub mod operator {
                             &mut type_bindings,
                             &mut const_bindings,
                             false,
-                        ) && declared_domain_constraints_match(
+                        ) && qualifications_match(
                             program,
                             actual,
                             expected.type_reference,
+                            &type_bindings,
                         )
                     })
                 })
@@ -386,10 +352,11 @@ pub mod operator {
                     &mut type_bindings,
                     &mut const_bindings,
                     false,
-                ) || !declared_domain_constraints_match(
+                ) || !qualifications_match(
                     program,
                     state.return_type,
                     operator.return_type,
+                    &type_bindings,
                 ) {
                     return None;
                 }
@@ -2050,7 +2017,7 @@ pub mod operator {
             .is_some()
         }
 
-        fn operand_bindings_with_indexed_collection(
+        pub(super) fn operand_bindings_with_indexed_collection(
             program: &TypedTrees,
             operator: &OperatorDefinition,
             operand_types: &[OperandType],
@@ -2069,12 +2036,7 @@ pub mod operator {
                 .enumerate()
                 .all(|(position, (actual, expected))| {
                     let actual = match *actual {
-                        OperandType::Unknown => return true,
-                        OperandType::Primitive(primitive) => {
-                            return program
-                                .primitive_type_reference(expected.type_reference)
-                                .is_none_or(|expected| expected == primitive);
-                        }
+                        OperandType::Unknown | OperandType::Primitive(_) => return true,
                         OperandType::Reference(actual) => actual,
                     };
                     let (matched_actual, matched_expected) = if indexed_collection && position == 0
@@ -2107,21 +2069,157 @@ pub mod operator {
                         type_parameters,
                         &mut bindings,
                         &mut const_bindings,
-                    )) && declared_domain_constraints_match(
-                        program,
-                        actual,
-                        expected.type_reference,
-                    ) && declared_domain_constraints_match(
-                        program,
-                        matched_actual,
-                        matched_expected,
-                    )
+                    )) && qualifications_match(program, actual, expected.type_reference, &bindings)
                 });
-            (matches && bindings_satisfy_known_multiplicities(program, type_parameters, &bindings))
-                .then_some(OperatorOperandBindings {
-                    types: bindings,
-                    constants: const_bindings,
-                })
+            // Missing numeric syntax supplies a carrier only. Check it after
+            // inference, so a formal `T` uses the known partner's substitution
+            // but a qualified formal can never manufacture a domain on a literal.
+            let numeric_operands_match = matches && operand_types.iter().zip(normalized_operand_parameters(parameters)).all(|(actual, expected)| {
+                let reference = || plain_parameter_type(program, expected.type_reference, &bindings);
+                match actual {
+                    OperandType::Reference(_) => true,
+                    OperandType::Unknown => reference().is_some_and(|reference| {
+                        program.primitive_type_reference(reference).is_some_and(|primitive| primitive.accepts_integer_literal() || primitive.accepts_float_literal())
+                            || matches!(program.type_reference_table.type_reference(reference), TypeReferenceNode::Named {symbol, ..} if matches!(program.symbols.builtin_type_atom(*symbol), Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)))
+                    }),
+                    OperandType::Primitive(actual) => reference().and_then(|reference| program.primitive_type_reference(reference)) == Some(*actual),
+                }
+            });
+            (numeric_operands_match
+                && bindings_satisfy_known_multiplicities(program, type_parameters, &bindings))
+            .then_some(OperatorOperandBindings {
+                types: bindings,
+                constants: const_bindings,
+            })
+        }
+
+        fn plain_parameter_type(
+            program: &TypedTrees,
+            expected: TypeReferenceHandle,
+            bindings: &[(SymbolHandle, TypeReferenceHandle)],
+        ) -> Option<TypeReferenceHandle> {
+            if !qualification_identity(program, expected, bindings)?.is_empty() {
+                return None;
+            }
+            let projected =
+                crate::static_applications::project_type_operand(program, expected, bindings);
+            Some(projected)
+        }
+
+        /// Compare complete qualifications under the inferred declaration
+        /// application. Predicates and policies are identities too, not merely
+        /// membership facts a caller may add or remove implicitly.
+        pub(super) fn qualifications_match(
+            program: &TypedTrees,
+            actual: TypeReferenceHandle,
+            expected: TypeReferenceHandle,
+            bindings: &[(SymbolHandle, TypeReferenceHandle)],
+        ) -> bool {
+            let Some(actual) = qualification_identity(program, actual, &[]) else {
+                return false;
+            };
+            let Some(expected) = qualification_identity(program, expected, bindings) else {
+                return false;
+            };
+            actual == expected
+        }
+
+        type QualificationIdentity = Vec<(
+            (u32, u32),
+            crate::type_identity::constraint_identity::NormalizedConstraint,
+        )>;
+
+        fn qualification_identity(
+            program: &TypedTrees,
+            reference: TypeReferenceHandle,
+            bindings: &[(SymbolHandle, TypeReferenceHandle)],
+        ) -> Option<QualificationIdentity> {
+            use crate::type_identity::constraint_identity::normalized_constraints;
+            use crate::type_identity::identity_context::{
+                SubstitutionSemantics, TypeIdentityContext,
+            };
+            if !program.contains_type_reference(reference) {
+                return None;
+            }
+            let projected =
+                crate::static_applications::project_type_operand(program, reference, bindings);
+            // Supplied arguments already belong to their own telescope.
+            if projected != reference {
+                return qualification_identity(program, projected, &[]);
+            }
+            match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { referee, .. } => {
+                    qualification_identity(program, *referee, bindings)
+                }
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    let mut result = qualification_identity(program, *base_type, bindings)?;
+                    let nodes = program.type_reference_table.constraint_span(*constraints)?;
+                    for node in nodes {
+                        match node {
+                            crate::types::TypeConstraintNode::Named(_) => return None,
+                            crate::types::TypeConstraintNode::Domain(domain)
+                                if domain.subject
+                                    == crate::types::DomainConstraintSubject::Declared
+                                    && (!program
+                                        .symbols
+                                        .symbols()
+                                        .nodes()
+                                        .is_valid(domain.symbol)
+                                        || program.symbols.get(domain.symbol).kind
+                                            != symbols::SymbolKind::Domain) =>
+                            {
+                                return None;
+                            }
+                            _ => {}
+                        }
+                    }
+                    let invalid = std::cell::Cell::new(false);
+                    let context = TypeIdentityContext {
+                        substitutions: bindings,
+                        substitution_semantics: SubstitutionSemantics::Simultaneous,
+                        invalid_index_argument: Some(&invalid),
+                        invalid_application: Some(&invalid),
+                        ..Default::default()
+                    };
+                    // Normalized argument meanings do not replace nominal
+                    // declaration custody, and a diagnostic alias is no identity.
+                    result.extend(
+                        nodes
+                            .iter()
+                            .zip(normalized_constraints(program, *constraints, &context))
+                            .map(|(node, meaning)| {
+                                let declaration = match node {
+                                    crate::types::TypeConstraintNode::Domain(domain)
+                                        if domain.subject
+                                            == crate::types::DomainConstraintSubject::Declared =>
+                                    {
+                                        domain.symbol
+                                    }
+                                    _ => SymbolHandle::invalid(),
+                                };
+                                (
+                                    (declaration.arena_index(), declaration.generation()),
+                                    meaning,
+                                )
+                            }),
+                    );
+                    if invalid.get() {
+                        return None;
+                    }
+                    result.sort();
+                    result.dedup();
+                    Some(result)
+                }
+                _ => match program.layout_storage_arguments(reference) {
+                    Some(storage) => {
+                        qualification_identity(program, storage.semantic_type, bindings)
+                    }
+                    None => Some(Vec::new()),
+                },
+            }
         }
 
         fn bindings_satisfy_known_multiplicities(
@@ -2303,23 +2401,6 @@ pub mod operator {
             matched
         }
 
-        pub(crate) fn declared_domain_constraints_match(
-            program: &TypedTrees,
-            actual: TypeReferenceHandle,
-            expected: TypeReferenceHandle,
-        ) -> bool {
-            let expected_domains = declared_domain_constraints(program, expected);
-            if expected_domains.is_empty() {
-                return true;
-            }
-            let actual_domains = declared_domain_constraints(program, actual);
-            expected_domains.iter().all(|expected| {
-                actual_domains
-                    .iter()
-                    .any(|actual| declared_domain_constraint_matches(program, actual, expected))
-            })
-        }
-
         pub fn declared_domain_constraints(
             program: &TypedTrees,
             type_reference: TypeReferenceHandle,
@@ -2351,28 +2432,6 @@ pub mod operator {
                         declared_domain_constraints(program, storage.semantic_type)
                     }),
             }
-        }
-
-        fn declared_domain_constraint_matches(
-            program: &TypedTrees,
-            actual: &crate::types::DomainConstraint,
-            expected: &crate::types::DomainConstraint,
-        ) -> bool {
-            if actual.semantic_id.is_valid() && expected.semantic_id.is_valid() {
-                return actual.semantic_id == expected.semantic_id;
-            }
-            if !actual.symbol.is_valid() || actual.symbol != expected.symbol {
-                return false;
-            }
-            actual.arguments.len() == expected.arguments.len()
-                && actual
-                    .arguments
-                    .iter()
-                    .zip(&expected.arguments)
-                    .all(|(actual, expected)| {
-                        program.normalized_type_identity(*actual)
-                            == program.normalized_type_identity(*expected)
-                    })
         }
 
         fn operator_matches_receiver(
@@ -2587,6 +2646,85 @@ pub mod operator {
                     })
                     .collect()
             }
+            #[test]
+            fn qualification_matching_keeps_nominal_declarations_not_diagnostic_aliases() {
+                let mut builder = SymbolTableBuilder::new();
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let children = builder.insert_children(
+                    root,
+                    symbols::builtin_type_symbols().into_iter().chain([
+                        (SymbolKind::Domain, SymbolNameRef::Static("First")),
+                        (SymbolKind::Domain, SymbolNameRef::Static("Second")),
+                    ]),
+                );
+                let first = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+                let second = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+                let mut program = TypedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let carrier_symbol = program
+                    .symbols
+                    .builtin_atom_symbol(symbols::BuiltinTypeAtom::Integer(
+                        numerics::integer_carrier::FixedInteger::unsigned(64),
+                    ))
+                    .unwrap();
+                let carrier = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: carrier_symbol,
+                        name: Identifier::generated("u64"),
+                    });
+                for (symbol, label) in [(first, "First"), (second, "Second")] {
+                    program.push_domain_definition(DomainDefinition {
+                        symbol,
+                        name: Identifier::generated(label),
+                        target_type: carrier,
+                        ..Default::default()
+                    });
+                }
+                let qualify = |program: &mut TypedTrees, symbol, label, identity| {
+                    let constraints = program.type_reference_table.insert_constraints([
+                        crate::types::TypeConstraintNode::Domain(crate::types::DomainConstraint {
+                            symbol,
+                            semantic_id: identity,
+                            name: Identifier::generated(label),
+                            ..Default::default()
+                        }),
+                    ]);
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Constrained {
+                            base_type: carrier,
+                            constraints,
+                        })
+                };
+                let selected = qualify(&mut program, first, "Alias", Default::default());
+                let renamed = qualify(&mut program, first, "AnotherAlias", Default::default());
+                let unrelated = qualify(&mut program, second, "Alias", Default::default());
+                assert!(super::qualifications_match(
+                    &program,
+                    selected,
+                    renamed,
+                    &[]
+                ));
+                assert!(!super::qualifications_match(
+                    &program,
+                    selected,
+                    unrelated,
+                    &[]
+                ));
+                let meaning = program.semantic_domains.intern("SharedMeaning");
+                let shared_first = qualify(&mut program, first, "Alias", meaning);
+                let shared_other = qualify(&mut program, second, "Alias", meaning);
+                assert!(!super::qualifications_match(
+                    &program,
+                    shared_first,
+                    shared_other,
+                    &[]
+                ));
+            }
+
             fn identities(rows: &[SpelledOperator<'_>]) -> Vec<(usize, Option<usize>)> {
                 rows.iter()
                     .map(|row| {
@@ -3506,6 +3644,36 @@ pub mod operator {
             const_bindings: &mut Vec<OperatorConstBinding>,
             allow_name_fallback: bool,
         ) -> bool {
+            let original_types = bindings.len();
+            let original_constants = const_bindings.len();
+            let matched =
+                carrier_type_reference_matches(
+                    program,
+                    actual,
+                    expected,
+                    bindable_owner,
+                    type_parameters,
+                    bindings,
+                    const_bindings,
+                    allow_name_fallback,
+                ) && super::spellings::qualifications_match(program, actual, expected, bindings);
+            if !matched {
+                bindings.truncate(original_types);
+                const_bindings.truncate(original_constants);
+            }
+            matched
+        }
+
+        fn carrier_type_reference_matches(
+            program: &TypedTrees,
+            actual: TypeReferenceHandle,
+            expected: TypeReferenceHandle,
+            bindable_owner: Option<SymbolHandle>,
+            type_parameters: &[TypeParameter],
+            bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+            const_bindings: &mut Vec<OperatorConstBinding>,
+            allow_name_fallback: bool,
+        ) -> bool {
             macro_rules! match_reference {
                 ($actual:expr, $expected:expr $(,)?) => {
                     type_reference_matches_with_policy(
@@ -3520,7 +3688,26 @@ pub mod operator {
                     )
                 };
             }
-            if !actual.is_valid() || !expected.is_valid() {
+            // Constraints and references describe the same qualified value
+            // position. Its complete set is checked by the outer matcher;
+            // compound children ask that matcher for their own positions.
+            macro_rules! match_carrier_reference {
+                ($actual:expr, $expected:expr $(,)?) => {
+                    carrier_type_reference_matches(
+                        program,
+                        $actual,
+                        $expected,
+                        bindable_owner,
+                        type_parameters,
+                        bindings,
+                        const_bindings,
+                        allow_name_fallback,
+                    )
+                };
+            }
+            if !program.contains_type_reference(actual)
+                || !program.contains_type_reference(expected)
+            {
                 return false;
             }
             if let Some(parameter) =
@@ -3579,7 +3766,7 @@ pub mod operator {
                     },
                 ) => {
                     actual_access == expected_access
-                        && match_reference!(*actual_referee, *expected_referee)
+                        && match_carrier_reference!(*actual_referee, *expected_referee)
                 }
                 (
                     TypeReferenceNode::Constrained {
@@ -3587,14 +3774,14 @@ pub mod operator {
                         ..
                     },
                     _,
-                ) => match_reference!(*actual_base, expected),
+                ) => match_carrier_reference!(*actual_base, expected),
                 (
                     _,
                     TypeReferenceNode::Constrained {
                         base_type: expected_base,
                         ..
                     },
-                ) => match_reference!(actual, *expected_base),
+                ) => match_carrier_reference!(actual, *expected_base),
                 (
                     TypeReferenceNode::FixedArray {
                         element_type: actual_element,
@@ -3719,7 +3906,7 @@ pub mod operator {
         ) -> Option<&'a TypeParameter> {
             type_parameters.iter().find(|parameter| {
                 (symbol.is_valid() && parameter.symbol == *symbol)
-                    || (allow_name_fallback && parameter.name == *name)
+                    || (!symbol.is_valid() && allow_name_fallback && parameter.name == *name)
             })
         }
 
@@ -3804,14 +3991,11 @@ pub mod operator {
             expected_name: &str,
             allow_name_fallback: bool,
         ) -> bool {
-            if allow_name_fallback {
-                return (actual_symbol.is_valid() && actual_symbol == expected_symbol)
-                    || actual_name == expected_name;
-            }
             if actual_symbol.is_valid() || expected_symbol.is_valid() {
-                return actual_symbol.is_valid()
-                    && expected_symbol.is_valid()
-                    && actual_symbol == expected_symbol;
+                return actual_symbol.is_valid() && actual_symbol == expected_symbol;
+            }
+            if allow_name_fallback {
+                return actual_name == expected_name;
             }
             false
         }
