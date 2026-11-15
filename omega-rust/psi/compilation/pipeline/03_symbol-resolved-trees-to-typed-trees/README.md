@@ -42,6 +42,14 @@ custody. There is no separate generated-source shape whitelist or recursive
 type admissibility checker. Unsupported source still rejects in its ordinary
 resolution, typing, proof, ownership or realization owner.
 
+Within a cohort, [expression meanings](src/expression_meanings.rs) prepares
+domain casts and selected operator calls from operands outward. A cast can
+supply an operator's operand type, and an applied operator can supply an
+enclosing cast's result type. The selected call retains ordinary static
+arguments and its authored declaration choice; typing supplies no checking
+evidence. Closed type and const applications reach ordinary specialization,
+while unsupported domain applications remain the lowered checker's refusal.
+
 The continuation keeps the exact resolved/typed predecessor. Resolution may
 append semantic domains, service definitions and rows, external binding
 identities and evidence forwardings; each retained ID still names the same

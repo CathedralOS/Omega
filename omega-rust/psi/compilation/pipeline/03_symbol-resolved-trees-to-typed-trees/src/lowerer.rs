@@ -1756,7 +1756,6 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_expressions,
         &cast_destinations,
     )?;
-    crate::operator_calls::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
     // A projected assignment can acquire its receiving type only after a
     // domain cast on its reference has settled. Keep the ordinary landing
     // pass here as well; already prepared constructors retain their identity.

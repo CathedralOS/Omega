@@ -3103,7 +3103,7 @@ pub(crate) mod qualification_casts {
         expression_frontier: usize,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
-        crate::domain_cast_accounting::account(
+        crate::expression_meanings::prepare(
             source,
             program,
             expression_frontier,

@@ -986,6 +986,13 @@ impl DeclaredExpressionTypes {
         if !table.expression_is_valid(expression) {
             return None;
         }
+        let retained = table.constructed_value_type_reference(expression);
+        if program
+            .type_reference_table
+            .contains_type_reference(retained)
+        {
+            return Some(retained);
+        }
         if let ExpressionNode::Call(call) = table.expression(expression)
             && call.selects_only_nominal_route()
             && !call.receiver.is_valid()
@@ -1070,9 +1077,10 @@ impl DeclaredExpressionTypes {
                     )
                     .ok()
                     .flatten()
+                    && target.arguments.is_empty()
                 {
                     return program
-                        .machine_by_symbol(target)
+                        .machine_by_symbol(target.target)
                         .and_then(|machine| program.machine_states(machine).first())
                         .map(|state| state.return_type)
                         .filter(|reference| {
@@ -1091,7 +1099,13 @@ impl DeclaredExpressionTypes {
                     else {
                         return None;
                     };
-                    if program.symbols.get(*symbol).kind != SymbolKind::BuiltinType
+                    let kind = program.symbols.get(*symbol).kind;
+                    // A suffixed primitive fixes its result to the operand
+                    // carrier even before a generic carrier is applied. This
+                    // type query does not establish that its arithmetic is valid.
+                    if !(kind == SymbolKind::BuiltinType
+                        || (binary.policy != ArithmeticDomain::Exact
+                            && kind == SymbolKind::TypeParameter))
                         || result.is_some_and(|earlier| earlier != *symbol)
                     {
                         return None;
