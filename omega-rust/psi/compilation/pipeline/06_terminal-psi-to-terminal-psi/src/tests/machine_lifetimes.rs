@@ -361,3 +361,22 @@ machine weigh(shape: Shape) -> u32 {
         "accepted"
     );
 }
+
+/// Elision is judged at the declaration that owns it. lifetimes.md:
+/// "Ambiguous elision requires an explicit relation, not a guess by name or
+/// position." Each elided input is its own lifetime of `pick`, so `pick`
+/// alone, never called, is refused whichever input it returns; the
+/// diagnostic does not wait for a caller that passes two regions.
+#[test]
+fn an_ambiguous_elided_result_is_refused_without_a_caller() {
+    for returned in ["view", "other"] {
+        assert_eq!(
+            verdict(&format!(
+                "machine build_entry() {{ }}\n\
+                 machine pick(view: &[u8], other: &[u8]) -> &[u8] {{ {returned} }}\n"
+            )),
+            "typing result without a lifetime of a signature with several input lifetimes",
+            "{returned}"
+        );
+    }
+}

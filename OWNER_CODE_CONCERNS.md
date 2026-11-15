@@ -179,20 +179,12 @@ framework or a list of features that remain unimplemented.
 - Cost: the sole lowered checker cannot independently contradict a missing or forged whole-value structural membership or reconstruct its establishment authority; carry the existing structural catalog and exact projected qualifications through their producer, storage and checker owners
 - Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts
 
-### Data applied at a lifetime is one record whose stored views name only the data's own binders
+### A data field's view written without a lifetime is one region in every declaration
 - Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
-- Saw: `Session<'a>` and bare `Session` are the same `ValueType::Record`, and the field `name: &'storage [u8]` has the type "view of `Session`'s `'storage`" in every value. So `long.name = short.name` between two `Session` values is accepted without anything relating the regions the two were applied at, and `with_alias<'s>(d: &mut Description<'s>, alias: &'s [u8]) { d.alias = alias; }` is refused as a type mismatch because the lifetime argument relates nothing. It is safe today only because a view of a formal's region can never enter a record at all
-- Cost: the toolchain's own `dependency::with_alias` cannot be judged, and the first slice that lets a formal's view into a record (or forms a view of local storage) inherits an unchecked exchange between records of different regions. The type of a record value needs its lifetime arguments
-- Reported: 2026-11-13, Claude Code, while reading machines with lifetime parameters
-
-### Every view written without a lifetime is one type in every machine
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/type_identity.rs` (`RegionForm::Elided`, no owner and no position); `05_typed-trees-to-terminal-psi/src/read/bytes.rs` (`source_byte_view`), `read/calls.rs` (`view_regions`)
-- Saw: `&[u8]` renders one identity wherever it is written, so two formals without a lifetime have the same type and `pick(a: &[u8], b: &[u8]) -> &[u8] { b }` is accepted as a declaration, though lifetimes.md says "Ambiguous elision requires an explicit relation". The call is what refuses it, and only when the two views passed are of different regions
-- Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
-- Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
-
+- Where: `05_typed-trees-to-terminal-psi/src/read/regions.rs` (`Elision::Members`, `elided_region` returning `None`, then `fixed_region` of the typed trees' `RegionForm::Elided` identity); bundled data such as `core/seq.omg` (`items: &[u64]`), `core/wire.omg` (`bytes_and_ordering: &[u8]`), `std/calling.omg` (`reason: &[u8] in Utf8`)
+- Saw: signatures and locals now give each elided position its own lifetime or region variable, and a data field that elides a *data application's* lifetime is refused. A field that elides a *reference's* lifetime, `data D { name: &[u8]; }`, still takes the one fixed region of its ownerless rendered identity, so `a.name = b.name` between any two such values is accepted and a formal's view is refused as a type mismatch. It is sound today only because nothing but literals and other such fields produces a value of that region.
+- Cost: the first slice that forms a view of local storage, or lets a variable decide as that region, exchanges views across unrelated records. lifetimes.md says borrow-carrying data "declares the lifetimes of its views"; either refuse the form (and state lifetimes in the bundled data above) or give each field its own region
+- Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes; narrowed 2026-11-15
 
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
