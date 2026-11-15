@@ -2528,12 +2528,14 @@ impl<'a> Lowering<'a> {
                     Unserved::Call("shared-view descriptor without copy permission"),
                 ));
             }
+            // The copy is the same view, in the same domains
+            // (`&[u8] in Path` lent to a formal of that type).
             let root = continuing!(self.record(place));
             (
                 root,
                 Vec::new(),
                 self.exact_root(root)?,
-                ValueType::record(record),
+                value_type,
                 Some(root),
             )
         } else if matches!(value_type, ValueType::Record(..)) {

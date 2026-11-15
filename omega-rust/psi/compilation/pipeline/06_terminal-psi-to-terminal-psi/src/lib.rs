@@ -1318,8 +1318,10 @@ pub(crate) fn prepare_with_inhabitation(
         }
     }
     // A value of a type parameter has no type the kernel could hold it at,
-    // so the context does not list it (`concrete`).
-    let context = PropositionContext::from_value_types(
+    // so the context does not list it (`concrete`). The machine's own places
+    // are listed so a goal may name one: a byte predicate of an input view
+    // (`Storage::byte_source`) stays a term over that input's place.
+    let context = PropositionContext::from_value_types_and_places(
         types
             .iter()
             .filter(|(value, _)| {
@@ -1329,6 +1331,10 @@ pub(crate) fn prepare_with_inhabitation(
                     .is_none_or(|row| row.rigid.is_none())
             })
             .map(|(value, scalar_type)| (value, *scalar_type)),
+        lowered
+            .structural_places
+            .iter()
+            .map(|place| (place.id, place.kind)),
     )
     .map_err(|_| {
         refusal(
@@ -1754,6 +1760,15 @@ impl Bindings for ErasedTerms<'_> {
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, Unbound> {
         self.runtime.extent(root, path, scalar_type)
+    }
+
+    fn byte_predicate(
+        &mut self,
+        predicate: semantic_vocabulary::ByteSequencePredicate,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.byte_predicate(predicate, root, path)
     }
 
     fn case(
