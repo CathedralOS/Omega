@@ -157,8 +157,8 @@ impl Program<'_> {
     /// typed element view of the same backing. Both are the one
     /// `ArrayView` formation, which Terminal Psi establishes as a
     /// `WholeCollection` element view whose length is the array's exact
-    /// extent. Existing byte views retain that view's region and endpoint
-    /// proofs through `byte_subslice`.
+    /// extent. A partial range retains that backing through the descriptor's
+    /// checked subslice operation.
     pub(super) fn borrowed_array_range(
         &mut self,
         machine: MachineId,
@@ -299,18 +299,13 @@ impl Program<'_> {
         // A partial range of fixed storage is the window of the whole-array
         // loan: the loan keeps the backing's exact extent `N`, and the
         // window's `start <= end <= N` legs are checked against that loan's
-        // own length like any other byte subslice (byte_views.md, "Source
-        // correspondence"). A writable window would need a live mutable
-        // subslice descriptor, which that vocabulary does not admit.
+        // own length like any other subslice (byte_views.md, "Source
+        // correspondence"). A writable window also needs to keep its
+        // exclusive descriptor live through the subslice.
         let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
         if partial && requested != StructuralAccess::SharedBorrow {
             return Err(unavailable(
                 "mutable partial array views need a live mutable subslice descriptor",
-            ));
-        }
-        if partial && typed_element.is_some() {
-            return Err(unavailable(
-                "partial typed array views need their element-view subslice formation",
             ));
         }
         let element = match typed_element {
@@ -323,7 +318,7 @@ impl Program<'_> {
                     unavailable("typed array view without a closed array of its exact element")
                 })?,
         };
-        self.byte_range_selection(machine, borrow.target, backing)?;
+        self.collection_range_selection(machine, borrow.target, backing)?;
         let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
@@ -370,7 +365,7 @@ impl Program<'_> {
         };
         if partial {
             return self
-                .byte_window(machine, slots, whole, range, source)
+                .collection_window(machine, slots, whole, range, source)
                 .map(Some);
         }
         Ok(Some(whole))

@@ -1338,6 +1338,26 @@ pub(super) fn binary_selection(
             boolean
         }
         Operands::Ordering if integer(left_type) && left_type == right_type => boolean,
+        Operands::Arithmetic
+            if left_type.as_ieee_float().is_some()
+                && right_type.as_ieee_float().is_some()
+                && left_type != right_type =>
+        {
+            let name = |scalar| match scalar {
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => "f32",
+                ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => "f64",
+                _ => unreachable!("the mismatch has two known float formats"),
+            };
+            return Err(reject(
+                id,
+                right_source,
+                format!(
+                    "float arithmetic operand types differ: {} and {}; this operation has no implicit format conversion",
+                    name(left_type),
+                    name(right_type),
+                ),
+            ));
+        }
         Operands::Arithmetic | Operands::Shift | Operands::Equality | Operands::Ordering => {
             return Err(typing("operand types"));
         }
@@ -1362,9 +1382,9 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,
             (
-                ExpressionKind::LayoutObservation { subject: a, measurement: am },
-                ExpressionKind::LayoutObservation { subject: b, measurement: bm },
-            ) => a == b && am == bm,
+                ExpressionKind::LayoutObservation { application: a },
+                ExpressionKind::LayoutObservation { application: b },
+            ) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
@@ -1431,7 +1451,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::ArrayView { base: a, access: aa, element: ae }, ExpressionKind::ArrayView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
-            (ExpressionKind::ByteSubslice { base: a, start: ast, end: ae }, ExpressionKind::ByteSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
+            (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -1530,7 +1550,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
         | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::ByteElement { .. }
             | ExpressionKind::ArrayView { .. }
-            | ExpressionKind::ByteSubslice { .. }
+            | ExpressionKind::CollectionSubslice { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

@@ -1002,9 +1002,13 @@ impl Program<'_> {
             && !self
                 .declared_domains
                 .iter()
-                .any(|(symbol, _)| *symbol == domain)
+                .any(|declared| declared.instance == domain)
         {
-            self.declared_domains.push((domain, plain));
+            self.declared_domains.push(super::DeclaredDomain {
+                instance: domain,
+                carrier: plain,
+                predicate: None,
+            });
         }
         Ok(())
     }

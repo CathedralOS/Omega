@@ -223,23 +223,29 @@ pub fn prepare_compilation(
         let mut witness = match signature {
             Some(signature) => crate::elaborate_applied_witness(
                 typed,
-                compilation.purpose,
                 signature,
                 *declaring_trait,
                 *requirement,
                 arguments,
                 *implementation,
-                captures.clone(),
+                crate::WitnessInputs {
+                    captures: captures.clone(),
+                    purpose: compilation.purpose,
+                    outcome_subjects: Some(compilation.subjects),
+                },
             ),
             None => crate::elaborate_witness_with_captures(
                 typed,
-                compilation.purpose,
                 *declaring_trait,
                 *requirement,
                 arguments,
                 *implementation,
                 None,
-                captures.clone(),
+                crate::WitnessInputs {
+                    captures: captures.clone(),
+                    purpose: compilation.purpose,
+                    outcome_subjects: Some(compilation.subjects),
+                },
             ),
         };
         if let Ok(witness) = &mut witness {

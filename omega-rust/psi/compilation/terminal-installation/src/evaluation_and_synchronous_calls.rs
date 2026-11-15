@@ -1729,6 +1729,63 @@ pub(crate) mod synchronous_calls {
             Ok((callee, true))
         }
 
+        /// Describe the services of the ordinary call closure while its
+        /// installation-bound calls still name their exact requirements.
+        pub fn service_reach_from(
+            &self,
+            root: MachineId,
+            installation_requirements: &[BoundaryMachineId],
+            inherited_root_bound: bool,
+        ) -> Result<terminal_psi::TerminalRootServiceReach, String> {
+            let closure = self.from_root(root)?;
+            let mut concrete = BTreeSet::new();
+            let mut installation_dependencies = Vec::new();
+            for body in closure.machines {
+                if body.id != root || !inherited_root_bound {
+                    concrete.extend(body.declared_service_reach.iter().flatten().copied());
+                }
+                for operation in body.operations() {
+                    let service = match operation.kind {
+                        OperationKind::PortWrite { service, .. } => Some(service),
+                        OperationKind::RegisterAccess { service, .. } => service,
+                        _ => None,
+                    };
+                    if let Some(service) = service {
+                        let row = self.module.service(service).ok_or_else(|| {
+                            format!("service reach lost instruction service {service:?}")
+                        })?;
+                        concrete.insert(service);
+                        concrete.extend(row.parents.iter().copied());
+                    }
+                }
+            }
+            for called in closure.boundaries {
+                let required = self
+                    .module
+                    .boundary_machine(called)
+                    .ok_or_else(|| format!("service reach lost boundary {called:?}"))?;
+                if installation_requirements.binary_search(&called).is_ok() {
+                    installation_dependencies.push(terminal_psi::InstallationReachDependency {
+                        requirement_identity: required.identity,
+                        upper_bound: required.published_service_ceiling.clone(),
+                    });
+                } else {
+                    concrete.extend(required.published_service_ceiling.iter().copied());
+                }
+            }
+            installation_dependencies.sort_by_key(|row| row.requirement_identity);
+            if installation_dependencies
+                .windows(2)
+                .any(|pair| pair[0].requirement_identity == pair[1].requirement_identity)
+            {
+                return Err("installation reach repeats an exact requirement identity".into());
+            }
+            Ok(terminal_psi::TerminalRootServiceReach {
+                concrete: concrete.into_iter().collect(),
+                installation_dependencies,
+            })
+        }
+
         pub fn from_root(
             &self,
             root: MachineId,

@@ -7151,6 +7151,7 @@ pub(crate) mod function_structure {
                     | O::ByteSequenceLength { source, .. }
                     | O::EstablishElementView { source, .. }
                     | O::ElementViewLength { source, .. }
+                    | O::ElementViewRead { source, .. }
                     | O::ElementViewSubslice { source, .. } => {
                         vec![source.place]
                     }
@@ -7166,7 +7167,6 @@ pub(crate) mod function_structure {
                         destination: source,
                         ..
                     }
-                    | O::ElementViewRead { source, .. }
                     | abstract_operations::byte_len_or_field_read_pattern!(source, ..)
                     | O::StructuralScalarFieldRead { source, .. }
                     | O::ReturnStructural { source, .. } => {
@@ -10664,6 +10664,11 @@ pub(crate) mod operation_contracts {
                     Proposition::StructuralIdentity { left, right } => {
                         roots.insert(left.root());
                         roots.insert(right.root());
+                    }
+                    Proposition::FloatMeaningEqual(clause) => {
+                        for source in clause.sources() {
+                            scalar_term_roots(source, roots);
+                        }
                     }
                     Proposition::ContentConservation(conservation) => {
                         content_term_roots(conservation.left(), roots);

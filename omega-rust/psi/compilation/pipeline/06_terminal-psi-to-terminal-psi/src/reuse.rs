@@ -409,6 +409,14 @@ impl Transport<'_> {
                 .collect::<Option<Vec<_>>>()
         };
         Some(match proposition {
+            Proposition::FloatMeaningEqual(clause) => Proposition::FloatMeaningEqual(
+                clause
+                    .map_sources::<&'static str>(|source| {
+                        self.term(source)
+                            .ok_or("float meaning source cannot be transported")
+                    })
+                    .ok()?,
+            ),
             Proposition::Truth | Proposition::Falsehood => proposition.clone(),
             Proposition::Equal(left, right) => {
                 Proposition::Equal(self.term(left)?, self.term(right)?)
@@ -1163,7 +1171,10 @@ impl Instantiation {
 fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -> bool {
     fn term<'p>(term: &'p ScalarTerm, out: &mut Vec<&'p ScalarTerm>) -> bool {
         match term {
-            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => {
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::IeeeFloatLiteral(_) => {
                 out.push(term);
                 true
             }
@@ -1172,6 +1183,7 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
     }
     match proposition {
         Proposition::Truth | Proposition::Falsehood => true,
+        Proposition::FloatMeaningEqual(clause) => clause.sources().all(|source| term(source, out)),
         Proposition::Equal(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::LessOrEqual(left, right) => term(left, out) && term(right, out),
@@ -2146,5 +2158,60 @@ mod ieee_transport_tests {
             };
             assert!(changed_format.certificate(&proof).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod meaning_unification_tests {
+    use super::*;
+    use numerics::float_semantics::{
+        FloatSemanticOperation,
+        FloatSemanticValueKind::{Format, Meaning},
+    };
+    use semantic_vocabulary::{FloatMeaningClause, IeeeFloatFormat};
+    use terminal_check_tables::values::{ValueOrigin, ValueRow};
+
+    #[test]
+    fn float_meaning_template_pairing_checks_the_whole_catalog_equation() {
+        let scalar = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+        let mut tables = MachineTables::default();
+        for position in 0..3 {
+            tables.values.push(ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::MachineParameter { position },
+                rigid: None,
+            });
+        }
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), scalar);
+        let equation = |name| {
+            let operation = FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                name,
+                &[Format, Meaning, Meaning],
+                Meaning,
+            )
+            .unwrap();
+            Proposition::FloatMeaningEqual(
+                FloatMeaningClause::result_equation(
+                    value(3),
+                    operation.contract_identity(),
+                    IeeeFloatFormat::Binary32,
+                    [value(1), value(2)],
+                )
+                .unwrap(),
+            )
+        };
+        let subtract = equation("subtract");
+        let mut instance = Instantiation {
+            owner: MachineId::new(7).unwrap(),
+            types: Vec::new(),
+            authored: 3,
+            bound: Vec::new(),
+        };
+        assert!(instance.unify(&tables, &subtract, &subtract));
+        assert!(
+            !instance.unify(&tables, &subtract, &equation("divide")),
+            "matching source values cannot replace the operation's full contract"
+        );
     }
 }

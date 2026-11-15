@@ -1300,6 +1300,26 @@ fn conclude(
             },
         );
     }
+    let applications = &mut elaboration.module.scalar_applications;
+    let mut pending = Vec::new();
+    for (_, machine) in discharged.machines.iter() {
+        for (_, verdict) in machine.verdicts.iter() {
+            if let Ok(crate::Discharged::TargetCondition(condition)) = verdict
+                && let terminal_psi::ScalarConditionSubject::Declaration(owner) = condition.subject
+            {
+                pending.push(owner);
+                applications
+                    .conditions
+                    .insert_predicate((**condition).clone());
+            }
+        }
+    }
+    pending.sort_unstable();
+    pending.dedup();
+    applications
+        .proof_scope
+        .pending_evaluation_conditions
+        .insert_many(pending);
     if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
         return fall_back_or_defect(refused);
     }

@@ -811,7 +811,7 @@ pub enum LegalizedScalarInstructionKind {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ElementViewRead {
-        source: semantic_vocabulary::PlaceId,
+        source: terminal_psi::StructuralArgument,
         index: ValueId,
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,

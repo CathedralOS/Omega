@@ -15,7 +15,7 @@ representatives across all 64 elements and self-verifies:
 On agreement it prints `PASS` and exits `0`.
 
 An intended-invalid control in `controls/find_out_of_range` invokes
-`DisjointSet::find` with an out-of-range element (`64`, violating `element < 64`) and is
+`find` with an out-of-range element (`64`, violating `element < 64`) and is
 rejected at compile time.
 
 After ordinary package review on macOS arm64:

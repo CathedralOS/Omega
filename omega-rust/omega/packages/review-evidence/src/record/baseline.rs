@@ -21,7 +21,7 @@ use crate::record::PackageReviewDangerousAuthoritySlack;
 mod component_assumptions;
 pub(crate) use component_assumptions::PackagePolicyComponentAssumption;
 mod native_bindings;
-pub(crate) use native_bindings::PackagePolicyNativeBinding;
+pub use native_bindings::PackagePolicyNativeBinding;
 mod boundary_owners;
 mod external;
 mod getters;

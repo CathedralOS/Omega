@@ -545,7 +545,13 @@ pub(super) fn service_origins(
                 "a stale boundary declaration in the accepted module's service inventory",
             ));
         }
-        boundaries.push((service, source.symbols.get(original).parent));
+        // A specialized protocol call retains its typed requirement even
+        // when its generated symbol has no lexical trait parent.
+        let owner = source.trait_machine_signature(original).map_or_else(
+            || source.symbols.get(original).parent,
+            |(declaration, _)| declaration.symbol,
+        );
+        boundaries.push((service, owner));
     }
     boundaries.sort_unstable_by_key(|(service, _)| *service);
     boundaries.dedup();
@@ -649,16 +655,9 @@ pub(super) fn reviewed_services(
 pub(super) fn validate_body_effect_inventory(
     module: &TerminalModule,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !module
-        .root_service_reach
-        .installation_dependencies
-        .is_empty()
-        || !module.dynamic_dispatch.interfaces.is_empty()
-        || !module.dynamic_dispatch.tables.is_empty()
+    if !module.dynamic_dispatch.interfaces.is_empty() || !module.dynamic_dispatch.tables.is_empty()
     {
-        return Err(unavailable(
-            "the accepted module's unresolved installation or dynamic effects",
-        ));
+        return Err(unavailable("the accepted module's dynamic effects"));
     }
     if module
         .unoptimized_behavior

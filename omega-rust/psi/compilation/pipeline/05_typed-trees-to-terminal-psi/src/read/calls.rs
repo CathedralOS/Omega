@@ -905,7 +905,7 @@ impl<'t> Program<'t> {
     /// storage geometry this reader can name; a scalar, a rigid type
     /// parameter and the value form `align_of(view)` stay refused here
     /// rather than receive a fabricated measurement.
-    fn layout_query(
+    pub(super) fn layout_query(
         &mut self,
         id: MachineId,
         call: &TableCallExpression,
@@ -930,19 +930,21 @@ impl<'t> Program<'t> {
             DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
             DataLayoutQueryKind::Alignment => terminal_psi::LayoutMeasurement::Alignment,
         };
+        let scalar_type = semantic_vocabulary::ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
+        );
+        let application = crate::qualifications::layout_observation(
+            &mut self.scalar_applications,
+            subject,
+            measurement,
+            scalar_type,
+        )
+        .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
         Ok(Expression {
             call_context: None,
-            kind: ExpressionKind::LayoutObservation {
-                subject,
-                measurement,
-            },
-            result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .map_err(|_| refuse(id, Construct::Machine, Unserved::Call("u64 carrier")))?,
-            ))),
+            kind: ExpressionKind::LayoutObservation { application },
+            result: Some(ValueType::plain(scalar_type)),
             source,
         })
     }
@@ -2903,7 +2905,7 @@ fn mentions<'a>(
             }
             Ok(false)
         }
-        ExpressionKind::ByteSubslice { base, start, end } => {
+        ExpressionKind::CollectionSubslice { base, start, end } => {
             for operand in std::iter::once(base.as_ref())
                 .chain(start.as_deref())
                 .chain(end.as_deref())

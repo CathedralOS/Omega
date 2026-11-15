@@ -366,9 +366,10 @@ impl Program<'_> {
             return self.erased_local(id, slots, local);
         }
         if !local.initial_value.is_valid() {
-            // `let x: T;`: the declared type is all there is. Storage is
-            // reserved and nothing is stored, so the slot starts with no
-            // content (`Statement::Declare`).
+            // `let x: T;` constructs the declared type's zero value. Lowering
+            // records that actual initializer, and the checker proves its
+            // default-domain obligations before observation. This is not an
+            // assumed zero for genuinely uninitialized storage.
             if !local.type_reference.is_valid() {
                 return unserved("uninitialized local without a declared type");
             }

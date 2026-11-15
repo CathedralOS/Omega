@@ -856,7 +856,7 @@ pub mod descriptor_lifetimes {
         birth: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> BTreeSet<DescriptorPosition> {
-        location_live_positions(steps, birth, descriptor, false, false, None).live
+        location_live_positions(steps, birth, descriptor, false, false, None, |_, _| false).live
     }
 
     struct DescriptorDemand {
@@ -871,6 +871,7 @@ pub mod descriptor_lifetimes {
         at_entry: bool,
         borrowed_authority: bool,
         successor: Option<DescriptorPosition>,
+        needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
     ) -> DescriptorDemand {
         type Occurrence = (DescriptorPosition, DescriptorLocation);
         let mut pending = Vec::new();
@@ -908,6 +909,8 @@ pub mod descriptor_lifetimes {
                 if step.may_escape {
                     escaped.push(*position);
                 }
+            } else if needs_contents(*position, name) {
+                observations.push(occurrence.clone());
             }
             let mut outputs = Vec::new();
             if !step
@@ -988,7 +991,17 @@ pub mod descriptor_lifetimes {
         entry: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> DescriptorLifetime {
-        let demand = location_live_positions(steps, entry, descriptor, true, true, None);
+        descriptor_entry_lifetime_with_contents(steps, entry, descriptor, |_, _| false)
+    }
+
+    pub(crate) fn descriptor_entry_lifetime_with_contents(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        entry: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+        needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+    ) -> DescriptorLifetime {
+        let demand =
+            location_live_positions(steps, entry, descriptor, true, true, None, needs_contents);
         DescriptorLifetime {
             live: demand.live,
             demanded: demand.names,
@@ -1010,7 +1023,17 @@ pub mod descriptor_lifetimes {
         birth: DescriptorPosition,
         descriptor: &DescriptorLocation,
     ) -> DescriptorLifetime {
-        let demand = location_live_positions(steps, birth, descriptor, false, true, None);
+        descriptor_location_lifetime_with_contents(steps, birth, descriptor, |_, _| false)
+    }
+
+    pub(crate) fn descriptor_location_lifetime_with_contents(
+        steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+        birth: DescriptorPosition,
+        descriptor: &DescriptorLocation,
+        needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+    ) -> DescriptorLifetime {
+        let demand =
+            location_live_positions(steps, birth, descriptor, false, true, None, needs_contents);
         let authorized = authorized_locations(steps, birth, descriptor, &demand.live);
         let surviving = if authorized.is_empty() {
             BTreeMap::new()
@@ -1047,7 +1070,15 @@ pub mod descriptor_lifetimes {
         {
             return None;
         }
-        let demand = location_live_positions(steps, birth, descriptor, false, true, Some(target));
+        let demand = location_live_positions(
+            steps,
+            birth,
+            descriptor,
+            false,
+            true,
+            Some(target),
+            |_, _| false,
+        );
         let authorized =
             transported_locations(steps, birth, descriptor, false, false, false, Some(target));
         let surviving =
@@ -11592,7 +11623,10 @@ pub mod descriptor_results {
                         3,
                         bytes,
                         OperationKind::ElementViewRead {
-                            source: PlaceId::new(1).unwrap(),
+                            source: terminal_psi::StructuralArgument::whole(
+                                PlaceId::new(1).unwrap(),
+                                StructuralAccess::SharedBorrow,
+                            ),
                             index: ValueId::new(1).unwrap(),
                             length: ValueId::new(2).unwrap(),
                             obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
@@ -15605,10 +15639,11 @@ pub mod descriptor_results {
                             ..
                         } => {
                             if let Some(result) = result {
-                                let mut selected = vec![StructuralPathSegment::RuntimeIndex {
+                                let mut selected = source.path.clone();
+                                selected.push(StructuralPathSegment::RuntimeIndex {
                                     index: *index,
                                     obligation: *obligation,
-                                }];
+                                });
                                 selected.extend_from_slice(path);
                                 graph.contents_transfers.insert(
                                     position,
@@ -15616,8 +15651,8 @@ pub mod descriptor_results {
                                         &module.structural_types,
                                         slot_kind,
                                         DescriptorContentsOperand {
-                                            root: *source,
-                                            root_type: *graph.place_types.get(source)?,
+                                            root: source.place,
+                                            root_type: *graph.place_types.get(&source.place)?,
                                             path: &selected,
                                             field: None,
                                         },

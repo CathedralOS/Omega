@@ -1507,51 +1507,58 @@ pub(crate) mod scalar_graph {
                 else {
                     return Ok(None);
                 };
-                let (owner, result, source, index, length, obligation, path) = match expression {
-                    TargetScalarExpression::Integer {
-                        expression:
-                            TargetIntegerExpression::ElementViewRead {
+                let (owner, result, source, indices, index, length, obligation, path) =
+                    match expression {
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ElementViewRead {
+                                    psi_operation,
+                                    source_value,
+                                    source,
+                                    indices,
+                                    index,
+                                    length,
+                                    obligation,
+                                    path,
+                                    ..
+                                },
+                            ..
+                        }
+                        | TargetScalarExpression::Boolean(
+                            TargetBooleanExpression::ElementViewRead {
                                 psi_operation,
                                 source_value,
                                 source,
+                                indices,
                                 index,
                                 length,
                                 obligation,
                                 path,
                                 ..
                             },
-                        ..
-                    }
-                    | TargetScalarExpression::Boolean(TargetBooleanExpression::ElementViewRead {
-                        psi_operation,
-                        source_value,
-                        source,
-                        index,
-                        length,
-                        obligation,
-                        path,
-                        ..
-                    })
-                    | TargetScalarExpression::IeeeFloatElementViewRead {
-                        psi_operation,
-                        source_value,
-                        source,
-                        index,
-                        length,
-                        obligation,
-                        path,
-                        ..
-                    } => (
-                        psi_operation,
-                        source_value,
-                        source,
-                        index,
-                        length,
-                        obligation,
-                        path,
-                    ),
-                    _ => return Ok(None),
-                };
+                        )
+                        | TargetScalarExpression::IeeeFloatElementViewRead {
+                            psi_operation,
+                            source_value,
+                            source,
+                            indices,
+                            index,
+                            length,
+                            obligation,
+                            path,
+                            ..
+                        } => (
+                            psi_operation,
+                            source_value,
+                            source,
+                            indices,
+                            index,
+                            length,
+                            obligation,
+                            path,
+                        ),
+                        _ => return Ok(None),
+                    };
                 // A checked by-value read may choose a runtime element of the
                 // slice, but the scalar leaf inside that element is static.
                 if *owner != operation
@@ -1568,7 +1575,7 @@ pub(crate) mod scalar_graph {
                     return Err(Error::custody());
                 }
                 Ok(Some(LegalizedScalarInstructionKind::ElementViewRead {
-                    source: *source,
+                    source: source.clone(),
                     index: index.operand_value().ok_or(Error::custody())?,
                     length: *length,
                     obligation: *obligation,
@@ -1579,7 +1586,9 @@ pub(crate) mod scalar_graph {
                         *obligation,
                     )?,
                     path: path.clone(),
-                    indices: Vec::new(),
+                    indices: crate::legalization::runtime_indices::retained_operands(
+                        facts, machine, operation, indices,
+                    )?,
                 }))
             }
 

@@ -4146,7 +4146,7 @@ pub(crate) mod structural_effect {
                 result: ValueId,
             },
             ElementViewRead {
-                source: PlaceId,
+                source: StructuralArgument,
                 index: ValueId,
                 length: ValueId,
                 result: ValueId,
@@ -4423,7 +4423,7 @@ pub(crate) mod structural_effect {
                         ..
                     },
                 ) => StructuralEffectObservation::ElementViewRead {
-                    source: *source,
+                    source: source.clone(),
                     index: *index,
                     length: *length,
                     result: operation.result.expect_scalar().id,

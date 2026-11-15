@@ -8,7 +8,7 @@ Fixed-capacity ring buffer over `[i32 in Saturating; 8]` with modular head/tail 
 - Direct runtime-indexed array reads and writes, justified by the ring's
   `head < 8, tail < 8` invariant
 - Modular head/tail arithmetic (`tail mod 8`, `head mod 8`) for the ring wrap
-- `Ring::pop` returns its value instead of using a persistent result field
+- `pop` returns its value instead of using a persistent result field
 - All three popped values, final size and remaining element sum are checked
 - Console input storage exists only in the finishing state
 

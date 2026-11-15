@@ -1825,9 +1825,9 @@ pub mod values {
         impl OperationKind {
             pub fn structural_observation_source(&self) -> Option<PlaceId> {
                 match self {
-                    Self::ElementViewLength { source } | Self::ByteSequenceLength { source } => {
-                        Some(source.place)
-                    }
+                    Self::ElementViewLength { source }
+                    | Self::ElementViewRead { source, .. }
+                    | Self::ByteSequenceLength { source } => Some(source.place),
                     Self::PrimitiveScalarRead { source, .. }
                     | Self::StructuralByteSequenceFieldLength { source, .. }
                     | Self::StructuralByteSequenceFieldRead { source, .. }
@@ -1835,7 +1835,6 @@ pub mod values {
                     | Self::StructuralLeafCopy { source, .. }
                     | Self::StructuralCaseLeafCopy { source, .. }
                     | Self::ByteSequenceRead { source, .. }
-                    | Self::ElementViewRead { source, .. }
                     | Self::BooleanStructuralField { source, .. }
                     | Self::ScalarStructuralField { source, .. } => Some(*source),
                     _ => None,
@@ -1906,7 +1905,9 @@ pub mod values {
                         lower.place = map(lower.place, lower.access);
                         upper.place = map(upper.place, upper.access);
                     }
-                    Self::ElementViewLength { source } | Self::ByteSequenceLength { source } => {
+                    Self::ElementViewLength { source }
+                    | Self::ElementViewRead { source, .. }
+                    | Self::ByteSequenceLength { source } => {
                         source.place = map(source.place, StructuralAccess::SharedBorrow);
                     }
                     Self::ReleaseReference { source, .. } => {
@@ -1926,7 +1927,6 @@ pub mod values {
                     | Self::StructuralLeafCopy { source, .. }
                     | Self::StructuralCaseLeafCopy { source, .. }
                     | Self::ByteSequenceRead { source, .. }
-                    | Self::ElementViewRead { source, .. }
                     | Self::BooleanStructuralField { source, .. }
                     | Self::ScalarStructuralField { source, .. } => {
                         *source = map(*source, StructuralAccess::SharedBorrow)
@@ -2017,12 +2017,6 @@ pub mod values {
             }
 
             pub fn structural_projections(&self) -> Vec<OperationProjection<'_>> {
-                if let Self::ElementViewRead { source, path, .. } = self {
-                    return vec![OperationProjection {
-                        root: *source,
-                        path,
-                    }];
-                }
                 let mut projections = Vec::new();
                 for storage in self.storage_uses() {
                     match storage {
@@ -2118,10 +2112,7 @@ pub mod values {
                     }
                     Self::ElementViewRead { source, path, .. } => {
                         projections.push(StructuralStorageUse::Element {
-                            descriptor: OperationProjection {
-                                root: *source,
-                                path: &[],
-                            },
+                            descriptor: argument_projection(source),
                             path,
                         });
                     }
@@ -2297,6 +2288,7 @@ pub mod values {
                     | Self::EstablishElementView { source, .. }
                     | Self::EstablishMutableElementView { source, .. }
                     | Self::ElementViewLength { source }
+                    | Self::ElementViewRead { source, .. }
                     | Self::ByteSequenceLength { source }
                     | Self::ByteSequenceSubslice { source, .. }
                     | Self::ElementViewSubslice { source, .. } => {
@@ -2317,7 +2309,6 @@ pub mod values {
                     }
                     Self::ReleaseReference { path, .. }
                     | Self::PrimitiveScalarRead { path, .. }
-                    | Self::ElementViewRead { path, .. }
                     | Self::AtomicAccess { path, .. }
                     | Self::WriteOnlyPrimitiveStore { path, .. }
                     | Self::StructuralByteSequenceFieldLength { path, .. }
@@ -2428,6 +2419,30 @@ pub mod values {
                 assert_eq!(projections[0].root, place(2));
                 assert_eq!(projections[0].path, path.as_slice());
                 assert_eq!(operation.structural_projection_paths_mut().len(), 1);
+            }
+
+            #[test]
+            fn element_read_normalizes_only_the_descriptor_projection() {
+                let mut operation = OperationKind::ElementViewRead {
+                    source: argument(1),
+                    index: ValueId::new(2).unwrap(),
+                    length: ValueId::new(3).unwrap(),
+                    obligation: ObligationId::new(2).unwrap(),
+                    path: vec![StructuralPathSegment::FixedIndex(1)],
+                };
+                let projections = operation.structural_projections();
+                assert_eq!(projections.len(), 1);
+                assert_eq!(projections[0].root, place(1));
+                assert_eq!(projections[0].path, [runtime()]);
+
+                let mut paths = operation.structural_projection_paths_mut();
+                assert_eq!(paths.len(), 1);
+                paths[0][0] = StructuralPathSegment::FixedIndex(0);
+                let OperationKind::ElementViewRead { source, path, .. } = operation else {
+                    unreachable!("normalized element read");
+                };
+                assert_eq!(source.path, [StructuralPathSegment::FixedIndex(0)]);
+                assert_eq!(path, [StructuralPathSegment::FixedIndex(1)]);
             }
 
             #[test]

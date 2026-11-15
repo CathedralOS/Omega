@@ -882,7 +882,7 @@ pub(crate) mod analysis {
             parameter: usize,
             path: &[DescriptorPathSegment],
         ) -> Result<bool, &'static str> {
-            let (callee, descriptor) = {
+            let callee = {
                 let machine = self
                     .replay
                     .machine(caller)
@@ -893,6 +893,18 @@ pub(crate) mod analysis {
                 let Some(callee) = call.stored_effects_callee() else {
                     return Ok(false);
                 };
+                callee
+            };
+            self.preserves_descriptor_storage(callee, parameter, path)
+        }
+
+        pub fn preserves_descriptor_storage(
+            &mut self,
+            callee: MachineId,
+            parameter: usize,
+            path: &[DescriptorPathSegment],
+        ) -> Result<bool, &'static str> {
+            let descriptor = {
                 let body = self
                     .replay
                     .machine(callee)
@@ -910,18 +922,13 @@ pub(crate) mod analysis {
                 else {
                     return Ok(false);
                 };
-                if !is_descriptor(self.replay.types.iter(), selected)
-                    || !self.replay.slot_kind.is_slot(self.replay.types, selected)
-                {
+                if !self.replay.slot_kind.is_slot(self.replay.types, selected) {
                     return Ok(false);
                 }
-                (
-                    callee,
-                    DescriptorLocation {
-                        root: root.place,
-                        path: path.to_vec(),
-                    },
-                )
+                DescriptorLocation {
+                    root: root.place,
+                    path: path.to_vec(),
+                }
             };
             if self.replay.prepare_states(callee).is_none() {
                 return Ok(false);

@@ -233,8 +233,21 @@ pub(crate) fn derive_normalized_foreign_child(
         })
         .transpose()?;
     let result_shape = match (source_result, &declaration.result, &foreign.scalar_result) {
-        (Some(OperationResult::Unit), BoundaryMachineResult::Unit, None)
-        | (None, BoundaryMachineResult::Unit, None) => None,
+        (Some(OperationResult::Unit), BoundaryMachineResult::Unit, None) => None,
+        (None, declared, None) => {
+            // The terminal event keeps its logical Never result, while the
+            // exact proved-empty type has no physical result to receive.
+            if !terminal_semantics::inhabitation::external_result_is_erased(
+                completion,
+                declared.structural(),
+                &module.structural_types,
+            )
+            .map_err(|_| "normalized foreign completion result is not proved uninhabited")?
+            {
+                return Err("normalized foreign completion still has a normal result");
+            }
+            None
+        }
         (
             Some(OperationResult::Scalar(value)),
             BoundaryMachineResult::Scalar(declared),

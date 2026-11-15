@@ -37,6 +37,64 @@ fn reviewed_fixture_discovers_an_empty_dangerous_service_roster() {
 }
 
 #[test]
+fn fixture_accepts_the_entry_schema_from_its_checked_supplier() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let workspace = repo_root().join("build").join(format!(
+        "fixture-entry-schema-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&workspace).unwrap();
+    let standard_library = fixture_package_inputs::bundled_standard_library_root();
+    let root = workspace.join("main.omg");
+    std::fs::write(&root, "machine main() {}\n").unwrap();
+    std::fs::write(
+        root.with_file_name("build.omg"),
+        format!(
+            r#"machine build(builder: &mut Build) {{
+    Build::application(builder, "fixture_entry_schema");
+    let supplier: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {{ location: {standard_library:?} }}));
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}}"#
+        ),
+    )
+    .unwrap();
+    let discovered =
+        discover_fixture(&root, Default::default()).expect("complete the fixture Build");
+    let profile = TargetProfile::MacosArm64;
+    let mut prepared = review_fixture(
+        discovered,
+        &[profile],
+        CompilationProduct::Terminal(Default::default()),
+    )
+    .expect("admit the checked standard-library entry schema");
+    let inputs = prepared.package_inputs.as_ref().unwrap();
+    let standard_library = standard_library.canonicalize().unwrap();
+    let (supplier, _) = inputs
+        .packages()
+        .find(|(_, root)| *root == standard_library)
+        .expect("exact standard-library package");
+    let role = package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry;
+    let accepted = inputs.accepted_semantic_binding(role).unwrap();
+    assert_eq!(accepted.package(), supplier);
+    assert_eq!(accepted.declaration_path(), "MacosApplication");
+    let published = produce_fixture(&mut prepared, Some(profile.target_name()))
+        .expect("carry the accepted binding into Product completion");
+    assert!(
+        published
+            .into_report()
+            .unwrap()
+            .into_retained_terminal_artifact()
+            .is_some()
+    );
+    drop(prepared);
+    std::fs::remove_dir_all(workspace).unwrap();
+}
+
+#[test]
 fn native_project_build_publishes_the_reached_boundary_calling_application() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");

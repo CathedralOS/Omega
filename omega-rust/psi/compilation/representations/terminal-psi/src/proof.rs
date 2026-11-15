@@ -709,14 +709,7 @@ pub(crate) mod values {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct FloatProjectionInputId(pub u32);
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct FloatProjectionContractIdentity {
-        pub format: u16,
-        pub operation: u8,
-        pub declaration: u8,
-        pub catalog_version: u16,
-        pub commitment: [u8; 32],
-    }
+    pub use numerics::float_projection::FloatProjectionContractIdentity;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum FloatMeaningProjectionOperation {

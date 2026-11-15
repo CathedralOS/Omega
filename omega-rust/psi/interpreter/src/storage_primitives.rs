@@ -4657,8 +4657,7 @@ pub(crate) mod primitive_storage {
 
 pub(crate) mod runtime_indexes {
     use terminal_psi::{
-        Operation, OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment,
-        StructuralTypeShape,
+        Operation, StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeShape,
     };
 
     use crate::boundary::errors::{TerminalInterpretError, malformed};
@@ -4683,14 +4682,6 @@ pub(crate) mod runtime_indexes {
                 }
                 let root = projection.root;
                 let root_type = self.live_structural_type(root)?;
-                let root_type = if matches!(operation.kind, OperationKind::ElementViewRead { .. }) {
-                    match self.structural_declaration(root_type)?.shape {
-                        StructuralTypeShape::ElementView { element, .. } => element,
-                        _ => return Err(malformed()),
-                    }
-                } else {
-                    root_type
-                };
                 self.select_runtime_projection(root, root_type, projection.path, path)?;
             }
             Ok(selected)

@@ -1036,16 +1036,9 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
-    /// `size_of<T>()` or `align_of<T>()` of the record row `subject`.
-    /// layouts/plans.md: "Queries consume the same exact schema, target and
-    /// layout-policy application as placement and ABI" and "Interpretation
-    /// reports the selected target's layout". The value is therefore not
-    /// known here: lowering publishes one module layout observation for the
-    /// row and reads it, and installation closes it under the selected
-    /// target's validated geometry or refuses.
+    /// A query of the selected target's exact layout for its subject.
     LayoutObservation {
-        subject: StructuralTypeId,
-        measurement: terminal_psi::LayoutMeasurement,
+        application: semantic_vocabulary::ScalarApplicationId,
     },
     /// One byte of a borrowed byte view, read at `index`. The view is
     /// measured where the byte is read, and the read owes `index < length`
@@ -1058,7 +1051,7 @@ pub enum ExpressionKind {
     },
     /// A new descriptor over the same shared backing. Missing endpoints
     /// mean zero and the captured descriptor's own length, respectively.
-    ByteSubslice {
+    CollectionSubslice {
         base: Box<Expression>,
         start: Option<Box<Expression>>,
         end: Option<Box<Expression>>,

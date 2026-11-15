@@ -1,0 +1,39 @@
+// Canonical f32/f64 arithmetic uses runtime operands and keeps quiet IEEE results.
+// Reject: an f64 operand cannot enter an f32 arithmetic operation.
+machine arithmetic32(left: f32, right: f32, sum: f32, difference: f32, product: f32, quotient: f32) -> bool {
+    let actual_sum: f32 = left + 1.0f64;
+    let actual_difference: f32 = left - right;
+    let actual_product: f32 = left * right;
+    let actual_quotient: f32 = left / right;
+    actual_sum == sum && actual_difference == difference && actual_product == product && actual_quotient == quotient
+}
+machine arithmetic64(left: f64, right: f64, sum: f64, difference: f64, product: f64, quotient: f64) -> bool {
+    let actual_sum: f64 = left + right;
+    let actual_difference: f64 = left - right;
+    let actual_product: f64 = left * right;
+    let actual_quotient: f64 = left / right;
+    actual_sum == sum && actual_difference == difference && actual_product == product && actual_quotient == quotient
+}
+machine quiet32(zero: f32) -> bool {
+    let nan: f32 = zero / zero;
+    let infinity: f32 = 1.0f32 / zero;
+    nan != nan && infinity < 0.0f32
+}
+machine quiet64(zero: f64) -> bool {
+    let nan: f64 = zero / zero;
+    let infinity: f64 = 1.0f64 / zero;
+    nan != nan && infinity < 0.0f64
+}
+machine main() crashes Trap {
+    transition
+        arithmetic32(7.0f32, 2.0f32, 9.0f32, 5.0f32, 14.0f32, 3.5f32)
+        && arithmetic32(-6.0f32, 2.0f32, -4.0f32, -8.0f32, -12.0f32, -3.0f32)
+        && arithmetic32(16777216.0f32, 1.0f32, 16777216.0f32, 16777215.0f32, 16777216.0f32, 16777216.0f32)
+        && arithmetic64(7.0f64, 2.0f64, 9.0f64, 5.0f64, 14.0f64, 3.5f64)
+        && arithmetic64(-6.0f64, 2.0f64, -4.0f64, -8.0f64, -12.0f64, -3.0f64)
+        && arithmetic64(9007199254740992.0f64, 1.0f64, 9007199254740992.0f64, 9007199254740991.0f64, 9007199254740992.0f64, 9007199254740992.0f64)
+        && quiet32(-0.0f32) && quiet64(-0.0f64)
+    { true -> done() _ -> bad() }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

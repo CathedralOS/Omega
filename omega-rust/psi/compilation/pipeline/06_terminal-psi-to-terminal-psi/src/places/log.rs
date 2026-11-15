@@ -220,6 +220,15 @@ fn zero_constant(operation: &Operation, scalar_type: ScalarType) -> Option<Value
         OperationKind::IntegerConstant { value } => {
             matches!(value, IntegerValue::Signed(0) | IntegerValue::Unsigned(0))
         }
+        OperationKind::IeeeFloatConstant { value } => {
+            // A zeroed storage representation is positive zero. IEEE equality
+            // would also accept negative zero, which has different stored bits.
+            matches!(
+                value,
+                semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                    | semantic_vocabulary::IeeeFloatValue::Binary64(0)
+            ) && scalar_type == ScalarType::IeeeFloat(value.format())
+        }
         _ => false,
     };
     (zero && result.scalar_type == scalar_type).then_some(result.id)
@@ -524,7 +533,8 @@ impl Storage<'_> {
                     Stored::Moved(self.stored_at(*source, &[], concerns)?),
                 ));
             }
-            OperationKind::ByteSequenceSubslice { .. } => {
+            OperationKind::ByteSequenceSubslice { .. }
+            | OperationKind::ElementViewSubslice { .. } => {
                 self.shared_subslice(operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
@@ -735,5 +745,48 @@ impl Storage<'_> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod zero_constant_tests {
+    use super::*;
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    use terminal_psi::{OperationResult, ValueDeclaration};
+
+    #[test]
+    fn zero_field_identity_requires_positive_bits_and_the_actual_format() {
+        let operation = |value, scalar_type| {
+            Operation::unsuspended(
+                OperationId::new(1).unwrap(),
+                OperationResult::Scalar(ValueDeclaration {
+                    id: ValueId::new(1).unwrap(),
+                    scalar_type,
+                    qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+                }),
+                OperationKind::IeeeFloatConstant { value },
+            )
+        };
+        for value in [IeeeFloatValue::Binary32(0), IeeeFloatValue::Binary64(0)] {
+            let scalar = ScalarType::IeeeFloat(value.format());
+            assert_eq!(
+                zero_constant(&operation(value, scalar), scalar),
+                ValueId::new(1)
+            );
+            let wrong = ScalarType::IeeeFloat(match value.format() {
+                IeeeFloatFormat::Binary32 => IeeeFloatFormat::Binary64,
+                IeeeFloatFormat::Binary64 => IeeeFloatFormat::Binary32,
+            });
+            assert_eq!(zero_constant(&operation(value, wrong), wrong), None);
+        }
+        for value in [
+            IeeeFloatValue::Binary32(0x8000_0000),
+            IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+            IeeeFloatValue::Binary32(0x7fc0_0000),
+            IeeeFloatValue::Binary64(0x7ff8_0000_0000_0000),
+        ] {
+            let scalar = ScalarType::IeeeFloat(value.format());
+            assert_eq!(zero_constant(&operation(value, scalar), scalar), None);
+        }
     }
 }

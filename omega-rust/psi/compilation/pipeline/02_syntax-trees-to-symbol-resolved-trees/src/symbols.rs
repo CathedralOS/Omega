@@ -5376,13 +5376,11 @@ pub(crate) mod target_siblings {
                 {
                     return None;
                 }
-                let named = child_symbol_by_kinds(symbols, candidate, &[SymbolKind::State], leaf);
-                let state = if named.is_valid() {
-                    named
-                } else {
-                    child_symbol_by_kinds(symbols, candidate, &[SymbolKind::State], "entry")
-                };
-                state.is_valid().then_some(state)
+                crate::symbols::select_machine_entry(leaf, |name| {
+                    let state =
+                        child_symbol_by_kinds(symbols, candidate, &[SymbolKind::State], name);
+                    state.is_valid().then_some(state)
+                })
             };
             retarget_machine_calls(program, body, inputs, work.contains(&body), &mut decide);
         }

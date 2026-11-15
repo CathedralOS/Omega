@@ -178,7 +178,7 @@ fn direct_array_windows_check_endpoints_against_the_whole_loan() {
         view,
     );
     let window = of_type(
-        ExpressionKind::ByteSubslice {
+        ExpressionKind::CollectionSubslice {
             base: Box::new(whole),
             start: Some(endpoint(1)),
             end: Some(endpoint(3)),

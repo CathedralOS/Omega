@@ -369,7 +369,9 @@ enum QueryKind {
 }
 
 struct Reaching {
-    active: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    // Active equations for exact queries; all discovered equations for initialization.
+    equations: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    initialization_only: bool,
     remaining: usize,
     crossed_entries: Vec<bool>,
     used: Option<ProgramPoint>,
@@ -574,6 +576,9 @@ pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
     module: &'a terminal_psi::TerminalModule,
+    float_meanings: std::cell::OnceCell<
+        Result<terminal_semantics::float_meaning_sources::Sources, &'static str>,
+    >,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
@@ -625,6 +630,7 @@ impl<'a> Storage<'a> {
             machine,
             lowered,
             module,
+            float_meanings: std::cell::OnceCell::new(),
             types: &module.structural_types,
             graph,
             initial_contents: contents.entry,
@@ -694,6 +700,23 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(storage)
+    }
+
+    fn validate_float_meaning_source(&self, source: &ScalarTerm) -> Result<(), crate::Unbound> {
+        let sources = self
+            .float_meanings
+            .get_or_init(|| {
+                if self.lowered.id != self.machine {
+                    return Err("float meaning source owner differs from the checked machine");
+                }
+                terminal_semantics::float_meaning_sources::Sources::for_machine(self.lowered)
+            })
+            .as_ref()
+            .map_err(|detail| crate::Unbound::Unsupported(detail))?;
+        sources
+            .source(source)
+            .map(|_| ())
+            .map_err(crate::Unbound::Unsupported)
     }
 
     /// Resolve a permission crossing at its actual use. Descriptor identity
@@ -1984,14 +2007,15 @@ impl<'a> Storage<'a> {
                 }
                 if let OperationKind::ByteSequenceSubslice {
                     obligation: owned, ..
+                }
+                | OperationKind::ElementViewSubslice {
+                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
-                        return Err(
-                            self.foreign(concerns, "a byte subslice owns another obligation")
-                        );
+                        return Err(self.foreign(concerns, "a subslice owns another obligation"));
                     }
-                    return self.byte_subslice_goal(operation, types);
+                    return self.subslice_goal(operation, types);
                 }
                 if let OperationKind::ByteSequenceRead {
                     obligation: owned, ..
@@ -2001,9 +2025,6 @@ impl<'a> Storage<'a> {
                 }
                 | OperationKind::StructuralByteSequenceFieldRead {
                     obligation: owned, ..
-                }
-                | OperationKind::ElementViewRead {
-                    obligation: owned, ..
                 } = &operation.kind
                 {
                     if *owned != obligation {
@@ -2011,6 +2032,12 @@ impl<'a> Storage<'a> {
                             self.foreign(concerns, "a byte operation owns another obligation")
                         );
                     }
+                    return self.collection_index_goal(operation, types);
+                }
+                if matches!(operation.kind, OperationKind::ElementViewRead {
+                    obligation: owned, ..
+                } if owned == obligation)
+                {
                     return self.collection_index_goal(operation, types);
                 }
                 operation.kind.structural_projections()
@@ -2153,34 +2180,36 @@ impl<'a> Storage<'a> {
                 path,
                 ..
             } => {
-                let root = self.root_type(*source, concerns)?;
-                let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
-                    self.declaration(root, concerns)?.shape
+                let root = self.root_type(source.place, concerns)?;
+                let Some(terminal_psi::StructuralTypeShape::ElementView { element, .. }) =
+                    terminal_semantics::runtime_structural_path_tip(
+                        self.types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .map(|declaration| &declaration.shape)
                 else {
                     return Err(self.foreign(concerns, "an element read needs a declared view"));
                 };
                 if operation.result.scalar_ref().is_none_or(|result| {
-                    terminal_semantics::element_view_read_scalar(self.types, element, path)
+                    terminal_semantics::element_view_read_scalar(self.types, *element, path)
                         != Some(result.scalar_type)
                 }) {
                     return Err(
                         self.foreign(concerns, "an element read needs a copyable scalar leaf")
                     );
                 }
-                let source = StructuralArgument::whole(
-                    *source,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                );
-                if terminal_semantics::structural_projection_authority(
-                    self.lowered,
-                    self.types,
-                    &source,
-                )
-                .is_none_or(|access| !access.admits_referent(source.access))
+                if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                    || terminal_semantics::structural_projection_authority(
+                        self.lowered,
+                        self.types,
+                        source,
+                    )
+                    .is_none_or(|available| !source.access.admits_referent(available))
                 {
                     return Err(self.foreign(concerns, "an element read needs a readable view"));
                 }
-                (source, *index, *length)
+                (source.clone(), *index, *length)
             }
             _ => return Err(self.foreign(concerns, "byte bounds requested for another operation")),
         };
@@ -2321,6 +2350,7 @@ impl<'a> Storage<'a> {
                         && matches!(
                             self.operation(row.operation, concerns)?.kind,
                             OperationKind::ByteSequenceSubslice { .. }
+                                | OperationKind::ElementViewSubslice { .. }
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
                                 | OperationKind::EstablishElementView { .. }
                                 | OperationKind::EstablishMutableElementView { .. }
@@ -2550,9 +2580,8 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Reached> {
         // Each alternative arrival has its own copy chain. Restore the depth
-        // on return so a sibling starts with the same bound. Active equations
-        // and crossed-entry history remain shared: every path is checked, and
-        // a partial cyclic result cannot be treated as established contents.
+        // on return so a sibling starts with the same bound. Equation membership
+        // and crossed-entry history remain shared across alternative arrivals.
         let remaining = budget.remaining;
         let reached = (|| {
             let original = asked.place();
@@ -2569,8 +2598,9 @@ impl<'a> Storage<'a> {
                 Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
                 Asked::Window { .. } => None,
             };
+            let root_query = budget.equations.is_empty();
             if let Some(key) = &key
-                && !budget.active.insert(key.clone())
+                && !budget.equations.insert(key.clone())
             {
                 return Ok(Reached::Cycle);
             }
@@ -2665,7 +2695,8 @@ impl<'a> Storage<'a> {
                         last = Some((index, row));
                     }
                 }
-                if let Asked::Contents(leaf) = asked
+                if !budget.initialization_only
+                    && let Asked::Contents(leaf) = asked
                     && let Some(observations) = self.observations[index(block.get())].get(leaf)
                 {
                     let end =
@@ -2858,10 +2889,19 @@ impl<'a> Storage<'a> {
                 Reached::Unknown
             });
             if let Some(key) = key {
-                budget.active.remove(&key);
-                if budget.active.is_empty() && reached == Reached::Cycle {
+                if !budget.initialization_only {
+                    budget.equations.remove(&key);
+                }
+                if root_query && reached == Reached::Cycle {
                     reached = Reached::Unestablished;
                 }
+            }
+            // Expanding an equation once preserves initialization, but does
+            // not establish a shared value identity or enclosing type depth.
+            if budget.initialization_only
+                && !matches!(reached, Reached::Unestablished | Reached::Cycle)
+            {
+                reached = Reached::Unknown;
             }
             if let Reached::Value(value) = reached
                 && let Some(ValueOrigin::Operation(operation)) =
@@ -2889,12 +2929,27 @@ impl<'a> Storage<'a> {
 
     fn budget(&self) -> Reaching {
         Reaching {
-            active: BTreeSet::new(),
+            equations: BTreeSet::new(),
+            initialization_only: false,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
             used: None,
             #[cfg(test)]
             scanned_rows: 0,
+        }
+    }
+
+    fn initialization_budget(&self) -> Reaching {
+        // Initialization needs every arrival to supply storage, not the exact
+        // value or enclosing type evidence. Expand each copy equation once:
+        // revisits add no initial contents, while a missing arrival propagates
+        // through its first expansion to the root. A cycle without any real
+        // supply remains unestablished. Keep all arrivals even after a supply.
+        // Reads do not initialize storage, so this mode ignores observations;
+        // exact value and case queries retain their path-sensitive tracing.
+        Reaching {
+            initialization_only: true,
+            ..self.budget()
         }
     }
 
@@ -3523,7 +3578,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<Checked<()>> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
-                let mut budget = self.budget();
+                let mut budget = self.initialization_budget();
                 budget.used = Some(point);
                 if self.reaching(
                     tables,
@@ -4481,6 +4536,10 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
 
 impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
     type Error = crate::Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
+
     fn value(
         &mut self,
         id: ValueId,
@@ -4908,6 +4967,10 @@ fn formal_observation_path(
 
 impl crate::Bindings for AtCall<'_, '_> {
     type Error = crate::Unbound;
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.storage.validate_float_meaning_source(source)
+    }
+
     fn value(
         &mut self,
         id: ValueId,
@@ -4958,6 +5021,10 @@ pub(crate) struct AtJoin<'s, 'a> {
 
 impl crate::Bindings for AtJoin<'_, '_> {
     type Error = crate::Unbound;
+
+    fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
+        self.inputs.storage.validate_float_meaning_source(source)
+    }
 
     fn value(
         &mut self,
@@ -5590,6 +5657,34 @@ mod observation_tests {
             trace.scanned_rows
         );
 
+        // Initialization must check every incoming value, but reconverging
+        // copies must not multiply the work with every alternative path.
+        let mut initialization = storage.initialization_budget();
+        let initialized = storage
+            .reaching(
+                tables,
+                Asked::Contents(&leaf),
+                block,
+                after - 1,
+                &mut initialization,
+                Construct::Operation(operation.id),
+            )
+            .unwrap();
+        assert!(!matches!(
+            initialized,
+            Reached::Unestablished | Reached::Cycle
+        ));
+        let row_budget = storage.log.len() * graph.block_count();
+        eprintln!(
+            "COPY_TRACE full_rows={} initialization_rows={} polynomial_row_budget={row_budget}",
+            trace.scanned_rows, initialization.scanned_rows,
+        );
+        assert!(
+            initialization.scanned_rows <= row_budget,
+            "initialization revisited reconverging copy equations: {} rows, budget {row_budget}",
+            initialization.scanned_rows,
+        );
+
         let row_index = storage
             .log
             .iter()
@@ -5613,37 +5708,48 @@ mod observation_tests {
         if let Stored::Moved(source) = &mut storage.log[row_index].stored {
             source.segments.extend_from_slice(&leaf.segments);
         }
-        let mut shallower = storage.budget();
-        let reached = storage
-            .reaching(
-                tables,
-                Asked::Contents(&leaf),
-                block,
-                after - 1,
-                &mut shallower,
-                Construct::Operation(operation.id),
-            )
-            .unwrap();
-        assert_eq!(reached, Reached::Established(0));
-        storage.log[row_index].lineage = destination;
-
-        // That same arrival now supplies no contents. A valid sibling arrival
-        // cannot establish the joined value on its behalf.
-        storage.log[row_index].stored = Stored::Vacated;
-        let mut missing = storage.budget();
-        assert_eq!(
-            storage
+        for initialization_only in [false, true] {
+            let mut shallower = if initialization_only {
+                storage.initialization_budget()
+            } else {
+                storage.budget()
+            };
+            let reached = storage
                 .reaching(
                     tables,
                     Asked::Contents(&leaf),
                     block,
                     after - 1,
-                    &mut missing,
-                    Construct::Operation(operation.id)
+                    &mut shallower,
+                    Construct::Operation(operation.id),
                 )
-                .unwrap(),
-            Reached::Unestablished
-        );
+                .unwrap();
+            if initialization_only {
+                assert!(!matches!(reached, Reached::Unestablished | Reached::Cycle));
+            } else {
+                assert_eq!(reached, Reached::Established(0));
+            }
+        }
+        storage.log[row_index].lineage = destination;
+
+        // That same arrival now supplies no contents. A valid sibling arrival
+        // cannot establish the joined value on its behalf.
+        storage.log[row_index].stored = Stored::Vacated;
+        for mut missing in [storage.budget(), storage.initialization_budget()] {
+            assert_eq!(
+                storage
+                    .reaching(
+                        tables,
+                        Asked::Contents(&leaf),
+                        block,
+                        after - 1,
+                        &mut missing,
+                        Construct::Operation(operation.id)
+                    )
+                    .unwrap(),
+                Reached::Unestablished
+            );
+        }
         storage.log[row_index].stored = Stored::Moved(source);
 
         // Remove the invocation's incoming edge from the equation graph.
@@ -5657,20 +5763,21 @@ mod observation_tests {
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
         storage.graph = &cyclic_graph;
-        let mut cycle = storage.budget();
-        assert_eq!(
-            storage
-                .reaching(
-                    &unseeded,
-                    Asked::Contents(&leaf),
-                    block,
-                    after - 1,
-                    &mut cycle,
-                    Construct::Operation(operation.id)
-                )
-                .unwrap(),
-            Reached::Unestablished
-        );
+        for mut cycle in [storage.budget(), storage.initialization_budget()] {
+            assert_eq!(
+                storage
+                    .reaching(
+                        &unseeded,
+                        Asked::Contents(&leaf),
+                        block,
+                        after - 1,
+                        &mut cycle,
+                        Construct::Operation(operation.id)
+                    )
+                    .unwrap(),
+                Reached::Unestablished
+            );
+        }
     }
 
     #[test]

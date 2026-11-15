@@ -1849,6 +1849,37 @@ pub(crate) mod proposition_wire {
     use super::{CodecError, decode_scalar_term, encode_scalar_term};
     use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
+    use super::module_wire::float_meaning_wire;
+    use super::wire_fields::{Field, List, u32_newtypes, wire_enum, wire_record};
+    use semantic_vocabulary::{
+        FloatMeaningClause, FloatMeaningClauseOperand, FloatMeaningClauseValue, FloatMeaningSlot,
+        ScalarTerm,
+    };
+
+    struct MeaningSource;
+    impl Field<ScalarTerm> for MeaningSource {
+        fn write(writer: &mut Writer, source: &ScalarTerm) -> Result<(), CodecError> {
+            encode_scalar_term(writer, source)
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<ScalarTerm, CodecError> {
+            decode_scalar_term(reader)
+        }
+    }
+    u32_newtypes! { MeaningSlot: FloatMeaningSlot; }
+    wire_record! {
+        MeaningEquation: FloatMeaningClause { values: List<MeaningValue>, left: MeaningSlot, right: MeaningSlot }
+    }
+    wire_enum! {
+        MeaningValue: FloatMeaningClauseValue, "FloatMeaningClauseValue" {
+            0 => Projection { source: MeaningSource, contract: float_meaning_wire::ProjectionContract },
+            1 => Application { contract: float_meaning_wire::ApplicationContract, format: float_meaning_wire::Format, operands: List<MeaningOperand> },
+        }
+        MeaningOperand: FloatMeaningClauseOperand, "FloatMeaningClauseOperand" {
+            0 => Format(format: float_meaning_wire::Format),
+            1 => Meaning(slot: MeaningSlot),
+        }
+    }
+
     /// Encodes one proposition as a postorder table (`crate::term_table`);
     /// its scalar, integer math and content operands are their own encodings
     /// inside the row.
@@ -1981,6 +2012,10 @@ pub(crate) mod proposition_wire {
                 )?;
                 writer.id(*case);
             }
+            Proposition::FloatMeaningEqual(clause) => {
+                writer.u8(19);
+                MeaningEquation::write(writer, clause)?;
+            }
             Proposition::StructuralIdentity { left, right } => {
                 writer.u8(18);
                 for subject in [left, right] {
@@ -2078,8 +2113,61 @@ pub(crate) mod proposition_wire {
                     right: subject()?,
                 }
             }
+            19 => Proposition::FloatMeaningEqual(MeaningEquation::read(reader)?),
             tag => return Err(CodecError::InvalidTag("Proposition", tag)),
         })
+    }
+    #[cfg(test)]
+    mod meaning_equation_tests {
+        use super::*;
+        use numerics::float_semantics::{
+            FloatSemanticOperation,
+            FloatSemanticValueKind::{Format, Meaning},
+        };
+        use semantic_vocabulary::{IeeeFloatFormat, ScalarType, ValueId};
+
+        #[test]
+        fn float_meaning_equations_round_trip_the_full_catalog_and_scalar_sources() {
+            let format = IeeeFloatFormat::Binary64;
+            let scalar = ScalarType::IeeeFloat(format);
+            let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+            let operation = FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                "divide",
+                &[Format, Meaning, Meaning],
+                Meaning,
+            )
+            .unwrap();
+            let original = Proposition::FloatMeaningEqual(
+                FloatMeaningClause::result_equation(
+                    value(3),
+                    operation.contract_identity(),
+                    format,
+                    [value(1), value(2)],
+                )
+                .unwrap(),
+            );
+            let mut writer = Writer::default();
+            encode_proposition(&mut writer, &original).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            let decoded = decode_proposition(&mut reader).unwrap();
+            decoded.validate().unwrap();
+            assert_eq!(reader.remaining(), 0);
+            assert_eq!(decoded, original);
+            let mut changed = bytes;
+            let commitment = operation.contract_identity().commitment;
+            let position = changed
+                .windows(commitment.len())
+                .position(|window| window == commitment)
+                .unwrap();
+            changed[position] ^= 1;
+            let decoded = decode_proposition(&mut Reader::new(&changed)).unwrap();
+            assert!(
+                decoded.validate().is_err(),
+                "catalog commitment mutation cannot become an opaque accepted equality"
+            );
+        }
     }
 }
 

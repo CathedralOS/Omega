@@ -956,7 +956,7 @@ pub(crate) mod structural_place_wire {
 
         #[test]
         fn owned_cleanup_wire_change_rejects_previous_module_version() {
-            for previous in [274_u16, 275] {
+            for previous in [275_u16, 276] {
                 let mut encoded = super::super::MAGIC.to_vec();
                 crate::codec_bytes::push_encoded(&mut encoded, previous.to_le_bytes());
                 assert!(matches!(
