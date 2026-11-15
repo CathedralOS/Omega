@@ -9,18 +9,6 @@ use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 use omega_language_std::Clock;
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 48]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 3]::Utf8
-requires
-    valid_utf8(self);
 
 data Main
 requires self.frame >= 0 && self.frame <= 12,
@@ -28,9 +16,9 @@ requires self.frame >= 0 && self.frame <= 12,
     self.y >= 0 && self.y <= 22,
     self.k >= 0 && self.k <= 40
 {
-    row: [u8; 48] in Utf8;
-    palette: [u8; 8] in Utf8;
-    home: [u8; 3] in Utf8;
+    row: [u8; 48];
+    palette: [u8; 8];
+    home: [u8; 3];
     frame: i32;
     span: f64;
     x: i32;
@@ -48,7 +36,7 @@ requires self.frame >= 0 && self.frame <= 12,
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     main.palette = " .:-=+*#";
     main.row = "................................................";
@@ -64,7 +52,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
         transition main.frame < 12 { true -> block frame_init(main) _ -> block finish(main) }
     }
     machine frame_init(main: &mut Main) {
-        Console::write(main.home);
+        Console::write(&main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -123,7 +111,7 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // Re-guard so the increment's direct edge proves `y + 1` lands in
     // [1..=22] under the standing owner domain.
     machine emit_row(main: &mut Main) {
-        Console::write_line(main.row);
+        Console::write_line(&main.row[..]);
         transition main.y >= 0 && main.y < 22 { true -> block row_advance(main) _ -> block frame_end(main) }
     }
     machine row_advance(main: &mut Main) {
@@ -144,13 +132,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
     machine finish(main: &mut Main) {
         Console::write_line("PASS: 12 zoom frames rendered (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: internal bounds check failed (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -158,5 +146,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
