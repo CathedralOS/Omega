@@ -75,6 +75,7 @@ use typed_trees::{
 };
 
 mod named_conformances;
+mod reflected_fields;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = GeneratedMachines::default();
@@ -83,6 +84,21 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
+        match reflected_fields::elaborate(program, position) {
+            Ok(()) => {}
+            Err((Stop::Unserved(detail), span)) => {
+                program.record_deferred_refusal_with_detail(
+                    holder,
+                    DeferredRequest::StaticApplication,
+                    span,
+                    detail.unwrap_or(""),
+                );
+            }
+            Err((Stop::Rejected(message), span)) => {
+                return Err(vec![Diagnostic::error(message).with_source_span(span)]);
+            }
+            Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
+        }
         for site in call_sites(program, position) {
             let served = named_conformances::serve(program, site, &mut captures)
                 .and_then(|handled| {
