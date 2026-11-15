@@ -80,13 +80,6 @@ framework or a list of unimplemented features.
 - Cost: The installed-reach and related review assertions do not run. Rejoin the tests to their actual kept fixtures and retain the authored authority and policy assertions.
 - Reported: 2026-11-15, Codex, while tracing checked provider custody in package review.
 
-### Top-level help hides the standalone Psi work budget
-- Category: the documents disagree
-- Where: [top-level help](omega-rust/omega/application/src/arguments/compile.rs#L28), [run help](omega-rust/omega/application/src/arguments/run.rs#L23), [standalone budget argument control](omega-rust/omega/application/src/arguments/run.rs#L403)
-- Saw: The macOS arm64 compiler built from `0deefd85076` prints `--psi-work-budget` inside the `--both` alternative in `omega --help`. The same build's `omega run --help` lists it separately, and the committed parser test accepts it with `--engine psi`.
-- Cost: A standalone Psi user reading the top-level help can miss the command's runtime work limit. Make both help screens reflect the accepted options and keep the budget limited to Psi execution and host comparisons.
-- Reported: 2026-11-15, Codex, while tracing standalone Psi work-budget reporting.
-
 ### A typed slice refuses indexing after proving its live extent
 - Category: branch per shape
 - Where: [typed collection reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/arrays.rs#L442), [collection access contract](wiki/spec/language/expressions.md#indexing-and-ranges)
