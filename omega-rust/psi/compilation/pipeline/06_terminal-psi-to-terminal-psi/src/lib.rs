@@ -408,6 +408,22 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         carried,
     );
     let module = &elaboration.module;
+    // Every empty observation asks about this exact immutable family. Keep
+    // the catalog and its exclusion graph once for the whole discharge.
+    let empty_contracts =
+        terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
+    let empty_types = terminal_semantics::inhabitation::Inhabitation::prepare(&empty_contracts)
+        .map_err(|error| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                module.machines.first().map_or_else(
+                    || MachineId::new(1).expect("one is nonzero"),
+                    |machine| machine.id,
+                ),
+                Construct::Machine,
+                &format!("declared empty type family is malformed: {error:?}"),
+            )
+        })?;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
     for id in identities {
@@ -450,6 +466,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             &beyond,
             inputs.carried.map(|position| &carried[position]),
             inputs.branches,
+            &empty_contracts,
+            &empty_types,
         )?);
     }
     Ok(Discharge { machines })
@@ -544,6 +562,7 @@ fn terminal_machine(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn machine(
     module: &TerminalModule,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
@@ -552,6 +571,8 @@ fn machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
+    empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
+    empty_types: &terminal_semantics::inhabitation::Inhabitation,
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
     let invariants = &module.scalar_block_invariants;
@@ -762,7 +783,7 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(tables)?;
+    let mut uses = storage.uses(tables, empty_contracts, empty_types)?;
     // A store into a field of a byte domain is judged by the bytes it
     // supplies; a refused store is that operation's verdict.
     for judged in storage.byte_predicate_stores()? {

@@ -23,8 +23,9 @@ fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
 
 fn accepted(text: &str) -> Box<crate::verdict::AcceptedClosure> {
     let mut verdicts = program(text);
-    let RouteVerdict::Accepted(accepted) = verdicts.remove(0).expect("source formation") else {
-        panic!("the declared empty result must be judged: {verdicts:?}");
+    let first = verdicts.remove(0).expect("source formation");
+    let RouteVerdict::Accepted(accepted) = first else {
+        panic!("the declared empty result must be judged: {first:?}; remaining: {verdicts:?}");
     };
     assert!(
         verdicts
@@ -274,4 +275,51 @@ fn an_empty_result_does_not_waive_the_bodys_construction_predicate() {
             if unproved.iter().any(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
         "a reachable construction still owes the actual false default domain: {verdicts:?}",
     );
+}
+
+#[test]
+fn a_closed_sum_needs_no_arm_for_a_proved_empty_payload() {
+    let text = r#"
+public data Empty requires false {}
+public data Outcome<T, E> {
+    case Ok(value: T);
+    case Err(error: E);
+}
+public machine take_value(outcome: Outcome<u32, Empty>) -> u32 {
+    match outcome {
+        Outcome::Ok { value } -> value
+    }
+}
+machine main() crashes Trap {
+    let outcome: Outcome<u32, Empty> = Outcome::Ok { value: 42u32 };
+    let value: u32 = take_value(outcome);
+    transition value == 42u32 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#;
+    let borrowed = text
+        .replace("outcome: Outcome", "outcome: &Outcome")
+        .replace("take_value(outcome)", "take_value(&outcome)");
+    for text in [text, &borrowed] {
+        accepted(text)
+            .publish_invocation()
+            .expect("the actual closed sum keeps its excluded payload evidence");
+
+        // Changing only the payload argument removes the exclusion evidence.
+        let inhabited = text.replace("Outcome<u32, Empty>", "Outcome<u32, u32>");
+        let verdicts = program(&inhabited);
+        assert!(
+            verdicts.iter().any(|verdict| matches!(
+                verdict,
+                Ok(RouteVerdict::Rejected { unestablished, .. })
+                    if unestablished.iter().any(|refusal|
+                        refusal.detail == "a dispatch selects no arm for a declared case")
+            )),
+            "an unknown payload still needs its own coverage: {verdicts:?}",
+        );
+    }
 }
