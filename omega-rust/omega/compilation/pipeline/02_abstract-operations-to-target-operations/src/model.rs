@@ -15,6 +15,11 @@ pub use provider_admission::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    DescriptorCallOrigins {
+        machine: MachineId,
+        result: PlaceId,
+        reason: &'static str,
+    },
     NativeStructuralLayout(calling_conventions::terminal_layout::TerminalLayoutError),
     ForeignLoweringFacts(&'static str),
     ForeignNativeCallbackCohort,

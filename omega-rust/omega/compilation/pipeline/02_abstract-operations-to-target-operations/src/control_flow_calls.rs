@@ -1348,6 +1348,7 @@ pub(crate) mod calls {
                     callee_result,
                     result_home: Some(result_home),
                     reference_results,
+                    descriptor_origins: Vec::new(),
                 }
             }
         })

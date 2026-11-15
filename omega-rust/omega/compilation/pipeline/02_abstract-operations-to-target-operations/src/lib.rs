@@ -38,6 +38,7 @@
   03 (`03_target-operations-to-selected-instructions`).
 */
 
+mod call_result_origins;
 pub(crate) mod control_flow;
 mod coordination;
 mod function_signature;
@@ -447,6 +448,7 @@ pub(crate) mod optimized {
         let program =
             super::coordination::lower_to_target_operations_with_settlements_and_installation(
                 optimized.plan(),
+                optimized.unit(),
                 target,
                 &bindings,
                 installed,

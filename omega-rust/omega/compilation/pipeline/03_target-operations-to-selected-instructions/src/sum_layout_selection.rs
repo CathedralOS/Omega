@@ -37,6 +37,174 @@ use terminal_psi::{
 
 const HOST: fn() -> NativeTarget = NativeTarget::linux_x64;
 
+// Exercise the origin handoff itself; full call ABI construction is covered by
+// the kept returned-window program, not this deliberately minimal target row.
+#[test]
+fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
+    use target_operations::{
+        TargetCallResult, TargetDescriptorOrigin, TargetStructuralResultContract,
+    };
+    let mut names = TerminalIdentityTableBuilder::default();
+    let mut view = reference_type(1, names.intern("bytes"), ty(1));
+    view.shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+    let declaration = terminal_psi::StructuralResultDeclaration {
+        place: place(1),
+        structural_type: ty(1),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    };
+    let result = structural_result(place(2), ty(1));
+    let callee = MachineId::new(2).unwrap();
+    let caller = function_with_body(
+        vec![parameter(ty(1))],
+        vec![entry(
+            1,
+            vec![
+                AbstractOperation::CallStructural {
+                    psi_operation: op(1),
+                    callee: callee.into(),
+                    arguments: Vec::new(),
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
+                        place: place(1),
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                    result: abstract_operations::AbstractStructuralCallResult::Structural {
+                        result: result.clone(),
+                        selected_evidence: Vec::new(),
+                    },
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge(1),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        )],
+    );
+    let mut plan = plan(names, vec![view], caller);
+    let mut forwarded = function_with_body(
+        vec![parameter(ty(1))],
+        vec![entry(
+            1,
+            vec![AbstractOperation::ReturnStructural {
+                psi_edge: edge(2),
+                source: place(1),
+                returned_claims: Vec::new(),
+                trivial_affine_locals: Vec::new(),
+                cleanup_actions: Vec::new(),
+            }],
+        )],
+    );
+    forwarded.machine = callee;
+    forwarded.result = AbstractFunctionResult::Structural(declaration.clone());
+    plan.functions.push(forwarded);
+    let expected = vec![TargetDescriptorOrigin::Argument {
+        source: terminal_psi::StructuralArgument {
+            place: place(1),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        },
+        exact: true,
+        indirect: false,
+    }];
+    let row = TargetUnitOperation::Call {
+        psi_operation: op(1),
+        origin: target_operations::NativeCallOrigin::Authored,
+        target: target_operations::NativeCallTarget::Machine(callee),
+        call_plan: calling_conventions::evaluate_call_plan(
+            CallingPolicy::native_for_target(HOST()),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .unwrap(),
+        result: TargetCallResult::Structural {
+            result,
+            callee_result: TargetStructuralResultContract::Machine(declaration),
+            result_home: None,
+            reference_results: Vec::new(),
+            descriptor_origins: expected.clone(),
+        },
+        scalar_arguments: Vec::new(),
+        arguments: Vec::new(),
+        access_bindings: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let target = target_plan(&plan, vec![block(1, vec![row.clone()], return_unit(1))]);
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .unwrap();
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let source = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    let native_unit = crate::native_geometry::NativeInput::new(&unit, &geometry);
+    crate::legalization::validate_call_descriptor_origins(&target, &source, &native_unit)
+        .expect("exact source backing");
+    for mutation in 0..5 {
+        let mut changed = target.clone();
+        let TargetUnitOperation::Call {
+            result:
+                TargetCallResult::Structural {
+                    descriptor_origins, ..
+                },
+            ..
+        } = &mut changed.functions[0].graph.blocks[0].operations[0]
+        else {
+            panic!("call result")
+        };
+        match mutation {
+            0 => descriptor_origins.clear(),
+            1 => *descriptor_origins = vec![TargetDescriptorOrigin::Empty],
+            2 => *descriptor_origins = vec![TargetDescriptorOrigin::Opaque],
+            3 => {
+                let TargetDescriptorOrigin::Argument { source, .. } = &mut descriptor_origins[0]
+                else {
+                    panic!("argument")
+                };
+                source.place = place(99);
+            }
+            _ => {
+                let TargetDescriptorOrigin::Argument { exact, .. } = &mut descriptor_origins[0]
+                else {
+                    panic!("argument")
+                };
+                *exact = false;
+            }
+        }
+        assert!(
+            crate::legalization::validate_call_descriptor_origins(&changed, &source, &native_unit)
+                .is_err(),
+            "tampered backing {mutation}"
+        );
+    }
+    let caller = unit.functions[0].clone();
+    let mut absent = unit.clone();
+    absent.functions.clear();
+    let absent = crate::native_geometry::NativeInput::new(&absent, &geometry);
+    let lowered =
+        crate::legalization_source::scalar_graph::instruction::call_instructions::project_call(
+            &caller, &absent, &row,
+        )
+        .expect("construction consumes target origins without source history");
+    let legalized_operations::LegalizedScalarInstructionKind::Call(lowered) = lowered else {
+        panic!("legalized call")
+    };
+    assert_eq!(lowered.descriptor_origins, expected);
+    assert!(
+        crate::legalization::validate_call_descriptor_origins(&target, &source, &absent).is_err(),
+        "independent audit still requires source correspondence"
+    );
+}
+
 #[test]
 fn stored_sum_rows_select_the_same_instructions_as_main() {
     let dump = [

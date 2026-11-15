@@ -4548,6 +4548,7 @@ pub(crate) mod unit {
                             callee_result,
                             result_home,
                             reference_results,
+                            ..
                         },
                         AbstractOperation::CallStructural {
                             psi_operation,
