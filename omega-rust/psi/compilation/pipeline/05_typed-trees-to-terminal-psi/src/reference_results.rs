@@ -33,6 +33,77 @@ pub(crate) fn publish(
     publish_parents(elaboration, &successor_loans)
 }
 
+/// A generic check form's requirement has no body whose returns could
+/// supply its origins. Its declared lifetime groups stand for them, every
+/// input of a leaf's lifetime a possible source (lifetimes.md, "Returned
+/// views"), so a rigid call keeps each such input region borrowed. Run
+/// before the bodies' own results are reconstructed, which read this header.
+pub(crate) fn publish_requirements(
+    module: &mut TerminalModule,
+    program: &crate::read::Program<'_>,
+    requirements: &[MachineId],
+) -> Checked<()> {
+    let unavailable =
+        |machine: MachineId, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
+    for requirement in requirements {
+        let requirement = *requirement;
+        let machine = module
+            .machine(requirement)
+            .ok_or_else(|| unavailable(requirement, "requirement result lost its declaration"))?;
+        let Some(result) = machine.result.structural().filter(|result| {
+            terminal_psi::structural_type_contains_reference_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        }) else {
+            continue;
+        };
+        if !machine.blocks.is_empty() || !result.reference_sources.is_empty() {
+            return Err(unavailable(
+                requirement,
+                "requirement reference result already has body origins",
+            ));
+        }
+        let signature = terminal_check_tables::row(
+            &program.signatures,
+            requirement,
+            requirement,
+            Construct::Machine,
+        )?;
+        let groups = program
+            .declared_result_lifetimes(requirement, signature, &module.structural_types)
+            .map_err(|reason| unavailable(requirement, reason))?
+            .ok_or_else(|| {
+                unavailable(
+                    requirement,
+                    "requirement result has an unresolved declared lifetime frontier",
+                )
+            })?;
+        let sources = terminal_semantics::declared_reference_result_sources(
+            module,
+            &machine.contract,
+            &groups,
+        )
+        .map_err(|reason| unavailable(requirement, reason))?;
+        let machine = module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == requirement)
+            .ok_or_else(|| {
+                unavailable(requirement, "requirement result declaration disappeared")
+            })?;
+        let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.contract.result
+        else {
+            return Err(unavailable(
+                requirement,
+                "requirement result changed before publication",
+            ));
+        };
+        result.reference_sources = sources;
+    }
+    Ok(())
+}
+
 /// A real reborrow on a block edge keeps its exact formation occurrence.
 /// Passing an unchanged permission continues it; borrowing owned storage or
 /// reducing access creates a child loan whose lifetime follows the new name.
@@ -186,6 +257,11 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
         .machines
         .iter()
         .filter_map(|machine| {
+            // A bodiless requirement's header is its declared relation
+            // (`publish_requirements`); there are no returns to reconstruct.
+            if machine.blocks.is_empty() {
+                return None;
+            }
             machine
                 .result
                 .structural()
