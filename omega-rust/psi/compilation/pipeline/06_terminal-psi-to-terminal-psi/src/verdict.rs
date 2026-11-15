@@ -354,26 +354,30 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
     let mut headers = scope
         .callable_headers
         .iter()
-        .map(|(_, header)| header.declaration)
+        .map(|(handle, header)| (header.declaration, handle))
         .collect::<Vec<_>>();
-    headers.sort_unstable();
-    if headers.windows(2).any(|rows| rows[0] == rows[1]) {
+    headers.sort_unstable_by_key(|(declaration, _)| *declaration);
+    if headers.windows(2).any(|rows| rows[0].0 == rows[1].0) {
         return Err(invalid(
             first,
             "proof callable has competing declaration headers",
         ));
     }
     for (declaration, _) in &bodies {
-        if headers.binary_search(declaration).is_err() {
+        if headers
+            .binary_search_by_key(declaration, |(declaration, _)| *declaration)
+            .is_err()
+        {
             return Err(invalid(
                 first,
                 "accepted proof body has no exact declaration header",
             ));
         }
     }
-    for (_, header) in scope.callable_headers.iter() {
+    for (declaration, handle) in headers {
+        let header = scope.callable_headers.get_mut(handle);
         let Ok(position) =
-            bodies.binary_search_by_key(&header.declaration, |(declaration, _)| *declaration)
+            bodies.binary_search_by_key(&declaration, |(declaration, _)| *declaration)
         else {
             if header.supplies_checked_body {
                 return Err(invalid(
@@ -384,11 +388,14 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
             continue;
         };
         let machine = bodies[position].1;
-        let accepted = usize::try_from(machine.get() - 1)
+        let body = usize::try_from(machine.get() - 1)
             .ok()
             .and_then(|position| bodies_source.get(position))
             .filter(|body| body.id == machine)
-            .and_then(|body| body.declaration.as_ref())
+            .ok_or_else(|| invalid(first, "proof callable lost its accepted source declaration"))?;
+        let accepted = body
+            .declaration
+            .as_ref()
             .ok_or_else(|| invalid(first, "proof callable lost its accepted source declaration"))?;
         if discharge.machines.get(machine).is_none() {
             return Err(invalid(
@@ -410,15 +417,14 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
                 "proof callable differs from this closure's accepted declaration",
             ));
         }
-    }
-    scope.callable_headers.for_each_mut(|_, header| {
-        if bodies
-            .binary_search_by_key(&header.declaration, |(declaration, _)| *declaration)
-            .is_ok()
-        {
-            header.supplies_checked_body = true;
+        header.supplies_checked_body = true;
+        if let Ok(facts) = &mut header.compiler_evaluation {
+            // The accepted ranking covers every reachable local cycle and
+            // has discharged every rank comparison. Separate machine-call
+            // cycles still need their exact invocation-edge proof.
+            facts.local_terminates |= body.ranked_scc.is_some();
         }
-    });
+    }
     Ok(())
 }
 

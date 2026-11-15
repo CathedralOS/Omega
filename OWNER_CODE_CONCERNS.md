@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Typed size and alignment queries are refused as unresolved calls
+- Category: knowledge crossing a boundary
+- Where: [layout query typing](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/expression_lowering.rs#L1999), [deferred call formation](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs#L711), [layout observation consumer](omega-rust/psi/compilation/terminal-installation/src/scalar_applications.rs#L2597), [kept C scalar record](samples/cli/facts/c_layout_scalar_record/local/main.omg#L31)
+- Saw: On macOS arm64 at `a80de4a6944`, including #3422, the unchanged C scalar evaluator checks size 24, alignment 8, and offsets `[0, 8, 16]` for `linux_x86_64`. Both the direct Product check and `omega run --both` then refuse `size_of<CLayout<Record>>()` at line 31, column 159 as a call whose name resolves to no declaration. The CLI exits 200. Typing already identifies the layout query, while the checked artifact's layout observation consumer has no source producer for that request.
+- Cost: Placement can compute the exact selected layout, but a program cannot observe its extent or alignment through these core queries. Join the retained typed request to the existing checked layout observation path. Preserve target scope, policy identity and the existing refusal for unavailable or invalid geometry.
+- Reported: 2026-11-15, Codex, while restoring ranked Build-time invocation
+
 ### A reference match loses the incoming loan at its result
 - Category: knowledge crossing a boundary
 - Where: [incoming descriptor authentication](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/references.rs#L429)
@@ -101,26 +108,12 @@ framework or a list of features that remain unimplemented.
 - Cost: A caller cannot use a reference returned from an ordinary checked call even when it directly forwards an incoming borrow. Carry that exact accepted origin through the existing target return and ABI correspondence, with the original lifetime and permission.
 - Reported: 2026-11-15, Codex, while checking persistent qualified references.
 
-### Checked ranked control loops are refused at Build-time installation
-- Category: a verdict with nothing behind it
-- Where: [local termination summary](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/proof_scope.rs#L227), [invocation admission](omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs#L979), [ranked parity witness](tests/fixtures/run/views/ranked_slice_iteration/main.omg#L10)
-- Saw: On macOS arm64 at `028760775d4`, the kept `parity` machine is accepted with its original checked rank. Preparing `parity(3, false)` succeeds, then invocation refuses `has no ordinary checked Terminates guarantee`. The acyclic control with the same inputs returns true. Replacing `remaining - 1` with `remaining` still refuses during source checking because removing strict edges leaves a cycle. The scalar C plan reaches the same installation refusal on `c_abi_fields` once diagnosis gets past its source and invocation-provenance blockers.
-- Cost: A checked local cycle loses its ordinary termination guarantee when a Build-time consumer runs it. Carry the accepted local ranking evidence to the existing admission check and preserve checks for exact recursive-call edges and nondecreasing ranks.
-- Reported: 2026-11-15, Codex, while replaying the generic C layout plan
-
 ### An assigned local worktree can lose its warm target between checks
 - Category: verifying costs more than writing
 - Where: [pool assignments](tools/xtask/src/worktree.rs#L166), [pool cache retention](tools/docs/testing.md#L589), [mbx 1.29.2 collection order](https://github.com/jdx/mr-boxington/blob/v1.29.2/docs/managed-targets.md#keep-or-evict-specific-checkouts)
 - Saw: On macOS arm64 at `c55c52f59b1`, mbx 1.29.2 collected assigned `worker-8` between commands below the workstation's 45.0 GiB free-space floor. The recovered test build compiled from cold in 3m 12s. In two isolated checkouts, `MBX_TARGET_EVICT_FIRST` changed one collector's choice under a one-target budget. An independent collector reverted to oldest-first. Under a zero budget and simulated low disk, a real `mbx run` lease and an explicit `MBX_TARGET_KEEP` each kept the view. After the command ended, that same scratch view was collectible without an explicit keep.
 - Cost: Worktree assignments outlast mbx command leases. A per-command eviction hint cannot protect the next check from an independent collector, and a hard keep can exceed the disk budget. Expose advisory managed-view priority in mbx and feed it from the pool’s existing assignment state. Honor explicit operator rules and running-command locks, and keep assigned views eligible for reclamation under pressure.
 - Reported: 2026-11-15, Codex, while validating const-index record arguments
-
-### The C layout field walk omits ranks on five recursive helpers
-- Category: a verdict with nothing behind it
-- Where: [C ABI field walk](source/library/core/c_layout.omg#L36), [scalar C-layout control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs.rs#L1202)
-- Saw: On macOS arm64 at `01ee33b7779`, the existing scalar `Record` on `linux_x86_64` fails with `contract termination promise over a call cycle`. `c_abi_fields` decreases `remaining_steps` before calling `place`. The cycle passes through `represented`, `checked`, `extent`, and `append` before returning to `c_abi_fields`. Those five helpers omit that measure. Adding it exposes the value match in `represented`, where the compiler rejects the recursive call as nonterminal. With the ranks and an equivalent terminal test of the two accepted tags, the guard repair leaves the padding value-match guarantee as the only reported proof failure.
-- Cost: The compiler refuses the unchanged layout before checking size 24, alignment 8, and offsets `[0, 8, 16]`. The scalar and nested-representation samples use this field walk at all nine placements. Preserve the same rank, field order, bounds, and invalid-layout controls through the existing terminal proof mechanisms.
-- Reported: 2026-11-15, Codex, after the Build-time reflection and field lifetime repairs
 
 ### The shared typed-view Build-time control stops before its mutable twin
 - Category: knowledge crossing a boundary

@@ -1289,7 +1289,7 @@ pub(crate) mod tests {
                 &[FixedLayoutTargetScope {
                     target: facts.profile.clone(),
                     facts: Some(facts),
-                    entry_declarations: Some(vec![root]),
+                    entry_declarations: vec![root],
                     provider_declarations: Vec::new(),
                 }],
                 None,
@@ -3480,6 +3480,44 @@ pub(crate) mod tests {
             compiler_storage::encode(&accounting, compiler_storage::RecordLimits::default())
                 .expect_err("temporary callers cannot become portable cached evidence");
         assert!(error.to_string().contains("invocation-local"), "{error}");
+    }
+
+    #[test]
+    fn source_jobs_run_the_kept_ranked_control_loop() {
+        let fixture = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        ));
+        let ranked = fixture
+            .split_once("machine parity(")
+            .and_then(|(_, source)| source.split_once("data Packet"))
+            .map(|(tail, _)| format!("machine parity({tail}"))
+            .expect("the kept fixture declares parity before Packet");
+        let arguments = [BuildTimeValue::Int(3), BuildTimeValue::Bool(false)];
+
+        let trees = with_reflection(&ranked);
+        let parity = query_machine(&trees, "parity");
+        let entry = PreparedBuildMachineProgram::prepare(&trees, None)
+            .unwrap()
+            .entry(parity, parity, &arguments)
+            .expect("the original rank proves the local control cycle");
+        assert_eq!(
+            entry.invoke(target(), &mut terminal_work::WorkMeter::unbounded()),
+            Ok(BuildTimeValue::Bool(true)),
+        );
+
+        let trees = with_reflection(&ranked.replace("remaining - 1", "remaining"));
+        let parity = query_machine(&trees, "parity");
+        let Err(refusal) = PreparedBuildMachineProgram::prepare(&trees, None)
+            .unwrap()
+            .entry(parity, parity, &arguments)
+        else {
+            panic!("a nondecreasing local cycle must fail source checking");
+        };
+        assert!(
+            refusal.contains("removing strict rank edges leaves a control cycle"),
+            "{refusal}",
+        );
     }
 
     #[test]
