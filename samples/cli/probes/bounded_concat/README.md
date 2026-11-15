@@ -1,21 +1,20 @@
-# Bounded Concat
+# Bounded byte copies
 
-Compile-scope probe: bounded text carriers concatenate. No
-standard-library dependency.
+The [probe](main.omg) copies the five bytes of `"Room "` into a 16-byte array at
+offset 0. It then copies the label's two live bytes, `"A1"`, from its four-byte
+array into that same destination at offset 5. The destination stores its used
+length separately. The entry checks that the live view equals `"Room A1"` and
+has length 7, then traps if either check fails.
 
-- `"Room " + main.label` copies the literal and the label's live
-  bytes into a fresh owned result before replacing text's inline
-  storage.
-- Capacity is a bound, not readable content: label has capacity 4
-  but holds 2 bytes; the receiving proof establishes the result fits
-  text's capacity 16.
-- `main.text == "Room A1"` — byte-equality observes length 7.
+The [Build file](build.omg) selects an entry for all four hosted targets. The
+probe currently stops before the entry executes. On macOS arm64 at
+`93f7c2a52bf`, checking refused the fixed-array ASCII predicates and the
+data-attached `Main::main` declaration. [The repair queue](../../../../OWNER_CODE_CONCERNS.md#the-bounded-copy-probe-stops-before-its-byte-and-length-checks)
+tracks the remaining compiler and source work.
 
-Compile-checked only (no ProcessExit provider):
+Reproduce from this directory:
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/bounded_concat/main.omg
-mbx run -p omega -- packages update --project samples/cli/probes/bounded_concat
+omega --check --build-input build.omg --build-input main.omg ./main.omg < /dev/null
+omega run --both --build-input build.omg --build-input main.omg ./main.omg < /dev/null
 ```
-
-Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
