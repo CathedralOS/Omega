@@ -1203,6 +1203,7 @@ pub enum ExpressionKind {
     Call {
         callee: TargetMachineCallable,
         required_contract: Option<semantic_vocabulary::ContractId>,
+        static_reach_binding: Option<u32>,
         source_call: Option<(
             MachineId,
             typed_trees::expression::ExpressionHandle,

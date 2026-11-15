@@ -608,7 +608,7 @@ impl Lowering<'_> {
             typed_trees::statement::StatementHandle,
         )>,
         arguments: Arguments,
-        source: SourceOrigin,
+        (source, static_reach_binding): (SourceOrigin, Option<u32>),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<()> {
         let routes = self.call_routes(callee, required_contract)?;
@@ -676,7 +676,7 @@ impl Lowering<'_> {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => self
                 .terminate(Terminator::InvokeNoNormal {
                     edge,
-                    static_reach_binding: None,
+                    static_reach_binding,
                     required_contract: self
                         .signatures
                         .canonical_contract(required_contract, self.id)?,
@@ -788,13 +788,14 @@ impl Lowering<'_> {
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
-        (source, source_call): (
+        (source, source_call, static_reach_binding): (
             SourceOrigin,
             Option<(
                 MachineId,
                 typed_trees::expression::ExpressionHandle,
                 typed_trees::statement::StatementHandle,
             )>,
+            Option<u32>,
         ),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
@@ -824,7 +825,7 @@ impl Lowering<'_> {
                 required_contract,
                 source_call,
                 arguments,
-                source,
+                (source, static_reach_binding),
                 acknowledgement
             ));
             return Ok(Reached::Ended(source));
@@ -997,6 +998,7 @@ impl Lowering<'_> {
             return Err(self.internal("a selected contract lost its exact call operation"));
         }
         emitted.required_contract = canonical_contract;
+        emitted.static_reach_binding = static_reach_binding;
         if let Some((selecting, expression, statement)) = source_call {
             self.calls.push((
                 selecting,

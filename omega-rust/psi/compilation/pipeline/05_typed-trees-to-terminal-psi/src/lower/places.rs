@@ -2114,6 +2114,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Call {
                 callee,
                 required_contract,
+                static_reach_binding,
                 source_call,
                 arguments,
                 designated,
@@ -2124,7 +2125,7 @@ impl<'a> Lowering<'a> {
                     arguments,
                     *designated,
                     expression.result,
-                    (expression.source, *source_call),
+                    (expression.source, *source_call, *static_reach_binding),
                     expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
@@ -4238,6 +4239,7 @@ mod tests {
                         }],
                         designated: None,
                         required_contract: None,
+                        static_reach_binding: None,
                         source_call: None,
                     },
                     result: Some(plain),

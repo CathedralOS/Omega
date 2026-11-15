@@ -417,6 +417,7 @@ pub(crate) fn declaration_contract(
                 .map(|outcome| outcome.service_reach.clone())
                 .unwrap_or_default(),
         },
+        fixed_service_reach: None,
         synchronous_entries: match &signature.invokes {
             crate::Ceiling::Authored(row) => row.clone(),
             crate::Ceiling::Inferred => selected
