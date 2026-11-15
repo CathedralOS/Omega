@@ -712,8 +712,12 @@ impl Program<'_> {
                 "record pattern over a value that is not a record",
             )));
         };
-        let source =
-            terminal_check_tables::row(&self.record_sources, record.record(), id, Construct::Machine)?;
+        let source = terminal_check_tables::row(
+            &self.record_sources,
+            record.record(),
+            id,
+            Construct::Machine,
+        )?;
         if source.declaration != local.pattern_subject {
             return Err(refused(Unserved::Typing(
                 "record pattern resolved against another record",

@@ -342,8 +342,7 @@ impl Program<'_> {
         let regions = base
             .result
             .map_or(crate::body::Regions::NONE, ValueType::regions);
-        let element_regions =
-            self.collection_element_regions(machine, array.record(), regions)?;
+        let element_regions = self.collection_element_regions(machine, array.record(), regions)?;
         let result = super::places::with_regions(
             self.storage_value_type(machine, element)?,
             element_regions,
