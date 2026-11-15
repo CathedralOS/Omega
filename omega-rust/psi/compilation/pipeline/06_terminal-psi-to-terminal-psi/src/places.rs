@@ -5861,13 +5861,18 @@ mod observation_tests {
         }
         storage.log[row_index].stored = Stored::Moved(source);
 
-        // Remove the invocation's incoming edge from the equation graph.
+        // Disconnect the invocation's incoming edges from the equation graph.
+        // Keep their identities so each cleanup still names its actual source.
         // The remaining backedges can carry contents but cannot initialize them.
         let mut unseeded = tables.clone();
-        unseeded.edges = IdTable::default();
-        for (_, edge) in tables.edges.iter() {
-            if edge.source != graph.entry() {
-                unseeded.edges.push(edge.clone());
+        for (_, edge) in unseeded.edges.iter_mut() {
+            if edge.source == graph.entry()
+                && matches!(
+                    edge.destination,
+                    terminal_check_tables::edges::Destination::Block(_)
+                )
+            {
+                edge.destination = terminal_check_tables::edges::Destination::Return;
             }
         }
         let cyclic_graph = Graph::new(machine.id, machine, &unseeded).unwrap();
