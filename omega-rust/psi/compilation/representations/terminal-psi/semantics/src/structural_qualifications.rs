@@ -1,8 +1,8 @@
-//! A structural value's domains are part of its declared type, exactly as a
-//! scalar's are (`scalar_qualifications`). Source lowering, the sole lowered
-//! checker and artifact ingress share this judgment, so a record formal,
-//! result or field that names a domain is a contract the lowered form must
-//! keep, not a label the reader alone checked.
+//! A structural value's domains are part of its declared type, as a scalar's
+//! are (`scalar_qualifications`). Source lowering, the lowered-form checker and
+//! artifact ingress share this one judgment, so a domain named on a record
+//! parameter, result or field is a contract the lowered form must keep, not a
+//! label only the reader checked.
 //!
 //! Every root place declares its whole-value domains and the projected
 //! domains of the fields beneath it (`StructuralPathQualification`). A place

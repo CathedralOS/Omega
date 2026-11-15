@@ -1,4 +1,4 @@
-//! Universal resource replay of one checked activation's guarded path program.
+//! Replay resources along every guarded path of one checked activation.
 //!
 //! The canonical owner must derive every node, outcome guard, call summary and
 //! retained return value before constructing this program. It is not an input

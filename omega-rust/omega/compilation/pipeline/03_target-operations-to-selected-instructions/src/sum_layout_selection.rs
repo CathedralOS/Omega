@@ -1,4 +1,4 @@
-//! Selected instructions for sum rows the target plan already stores.
+//! Tests selection for sum rows the target plan already stores.
 //!
 //! Each scenario builds the target row directly and runs legalization and
 //! selection. The row carries the tag, offset, layout, pointer chase, and

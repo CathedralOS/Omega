@@ -1,7 +1,7 @@
-//! Compare the calling shape before constructing a callable's body or proof
-//! witness. Type correspondence remains the caller's operation: generic
-//! applications supply their exact binder substitutions, and closed bindings
-//! use resolved identities. Neither path needs to lower a type to compare it.
+//! Compare a callable's calling shape before building its body or proof
+//! witness. Matching the types stays the caller's job: generic applications
+//! supply their exact binder substitutions, and closed bindings use resolved
+//! identities. Neither needs to lower a type to compare it.
 
 use crate::signature::StateParameter;
 use crate::types::TypeReferenceHandle;

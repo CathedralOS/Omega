@@ -1,7 +1,7 @@
-//! Keep the policy's evaluated placements when records enter Terminal Psi.
-//! The semantic schema and represented record have distinct identities and
-//! field namespaces; both the checker and native emission consume this same
-//! existing layout application, before the module receives a verdict.
+//! Keeps the policy's evaluated placements when records enter Terminal Psi.
+//! The semantic schema and represented record have separate identities and
+//! field namespaces; the checker and native emission both use this same
+//! layout application, before the module gets a verdict.
 
 use semantic_vocabulary::{
     AuthoredFieldStorage, AuthoredRecordStorage, MachineId, StructuralFieldId,

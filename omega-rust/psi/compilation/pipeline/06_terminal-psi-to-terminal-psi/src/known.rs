@@ -1,13 +1,14 @@
-//! Equality transport at one program point, shared by proof search and
-//! private-input description. A taken Boolean comparison can expose the value
-//! of another Boolean, including a join parameter: `(b == true) == true`
-//! establishes `b == true` before a predicate about `b` crosses a call.
+//! Equality transport (carrying facts across proved equalities) at one
+//! program point, shared by proof search and private-input description. A
+//! taken Boolean comparison can expose another Boolean's value, including a
+//! join parameter: `(b == true) == true` establishes `b == true` before a
+//! predicate about `b` crosses a call.
 //!
-//! Every derived form retains its ordinary transport evidence and its original
-//! premises. Definitions precede branch literals; a newly derived literal only
-//! fills an undefined value. Dense value users revisit affected predicates,
+//! Every derived form keeps its transport evidence and original premises.
+//! Definitions precede branch literals; a derived literal only fills an
+//! undefined value. Dense value users revisit affected predicates,
 //! and each value gains at most one definition. This computes no new domain,
-//! authority or assumption, and final obligation discharge still checks the
+//! authority or assumption; final obligation discharge still checks the
 //! evidence with the kernel.
 
 use std::collections::VecDeque;

@@ -1,7 +1,7 @@
-//! A constant position requests an ordinary zero-argument computation.
-//! Retain that computation as typed machine input; only structural discharge
-//! and invocation admission may authorize running it. The authored expression
-//! remains separate from the value subsequently materialized by evaluation.
+//! A constant position asks for an ordinary zero-argument computation, kept as
+//! typed machine input. Only structural discharge and invocation admission may
+//! allow running it. The written expression stays separate from the value
+//! evaluation later produces.
 
 use arena::Handle;
 use diagnostics::Diagnostic;

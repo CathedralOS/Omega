@@ -1,10 +1,10 @@
-//! Current scalar and storage copies of native resource values in one activation.
+//! Which acquired Windows handles each scalar and storage copy holds in one activation.
 //!
-//! A whole HANDLE word and bits computed from that word are different things.
-//! Both remain uses for retirement and escape checks, but only an exact whole
-//! word can be supplied to a native handle operation. The canonical replay owns
-//! initialization, access, address resolution, active cases and all-path custody;
-//! these maps do not infer any of those facts from an absent entry.
+//! A whole HANDLE word and bits computed from it differ: both count as uses
+//! when checking retirement and escape, but only an exact whole word may be
+//! passed to a native handle operation. The canonical replay decides
+//! initialization, access, address resolution, active cases and all-path
+//! custody; these maps never infer those facts from a missing entry.
 
 use std::collections::{BTreeMap, BTreeSet};
 

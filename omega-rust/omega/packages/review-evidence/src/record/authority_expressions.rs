@@ -1,8 +1,8 @@
 // Closed structural runtime-requirement evidence used by crash review.
 //
-// Runtime indices project `CheckedRuntimeIndex` coordinates verbatim (scalar
-// parameter, assignment index step, program-point field read, or immutable
-// integer local). `StructuralParameterByteLength` measures live carrier extent
+// Runtime indices copy the checker's runtime-index coordinates verbatim
+// (scalar parameter, assignment index step, program-point field read, or
+// immutable integer local). `StructuralParameterByteLength` measures live carrier extent
 // rather than capacity; `StructuralParameterIndexedRead` retains ordered
 // element selections and the final scalar projection so each index preserves
 // its own extent obligation; `RepresentationView` observes storage bits under

@@ -1,7 +1,7 @@
 //! A returned permission keeps the actual input storage its body returned.
-//! Publish those existing canonical origin mappings from the shared descriptor
-//! analysis; this derives a contract, never establishes its loan or authority.
-//! The checker must independently reconstruct formation and completion.
+//! This publishes those existing canonical origin mappings from the shared
+//! descriptor analysis. It derives a contract, never its loan or authority;
+//! the checker reconstructs formation and completion itself.
 
 use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;

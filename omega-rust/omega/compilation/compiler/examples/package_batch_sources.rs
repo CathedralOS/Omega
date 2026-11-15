@@ -1,8 +1,8 @@
-//! Measure mixed-source products from executed discovery, including preparation.
+//! Measures mixed-source products from executed discovery, including preparation.
 //!
-//! Actual Build execution supplies the source graph; package admission supplies
-//! Product plans. No fixture parser or second discovery pass is involved.
-//! Run alone because work counters are process-wide.
+//! Running the Build supplies the source graph; package admission supplies
+//! Product plans. No fixture parser or second discovery pass is used. Run
+//! alone: work counters are process-wide.
 
 use artifacts::compile_timings::counters;
 use compiler::{

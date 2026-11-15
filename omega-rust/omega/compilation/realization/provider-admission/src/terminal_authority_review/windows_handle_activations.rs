@@ -1,10 +1,10 @@
-//! Match origin transport through the same actual invocation on both sides.
+//! Tracks a handle's origin across calls, matching each call to its return.
 //!
 //! An ordinary return enters one callee's formal namespace; reading a formal
 //! leaves that namespace only through the matching caller. Computing balanced
 //! paths as a finite relation handles recursive equations without unrolling a
-//! call stack or treating a revisited machine as preserving. This relation is
-//! custody transport, not scalar equality, initialization or lifetime proof.
+//! call stack or treating a revisited machine as preserving. The relation
+//! tracks custody only, not scalar equality, initialization or lifetime.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 

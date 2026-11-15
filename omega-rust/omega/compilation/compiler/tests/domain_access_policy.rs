@@ -1,7 +1,7 @@
 //! A domain selects the policy that governs it with `access Policy`
 //! (`wiki/spec/language/domains.md`, "Domain-owned read and write
 //! authority"). The parser reads the clause, name resolution selects the one
-//! named implementation it names, and the typed trees carry that selection on
+//! implementation it names, and the typed trees carry that selection on
 //! the domain, so a reader of `as +D` asks the declaration who may issue it.
 //!
 //! Two programs pin it from source: one whose policy is declared, and its

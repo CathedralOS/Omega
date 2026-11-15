@@ -1,7 +1,7 @@
-//! In-crate replay coverage for the fail-closed arms of the native
-//! relocation patcher. The sibling target `text_relocation_envelope` pins
-//! the applied path - declared fields patched, evidence replayed. This
-//! target pins the rejections a malformed or hostile relocation plan must
+//! In-crate tests that the native relocation patcher rejects bad input.
+//! The sibling target `text_relocation_envelope` pins the
+//! applied path - declared fields patched, evidence replayed. This target
+//! pins the rejections a malformed or hostile relocation plan must
 //! produce: every failure surfaces as a `Diagnostic` rather than a panic
 //! or a silent patch, and a rejected single-record plan leaves the encoded
 //! section bytes bit-identical, so the same text envelope still replays
