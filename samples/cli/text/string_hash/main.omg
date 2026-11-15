@@ -63,7 +63,7 @@ machine hash_text(text: &[u8; 5] in Utf8) -> u32 in Wrapping {
     }
 }
 
-machine Main::main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: &mut Main) reaches ProcessExit + Console {
     Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     let text: [u8; 5] in Utf8 = "omega";
     let hash: u32 in Wrapping = hash_text(&text);
@@ -79,5 +79,5 @@ machine Main::main(context: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
