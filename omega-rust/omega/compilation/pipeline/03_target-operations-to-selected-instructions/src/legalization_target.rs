@@ -6744,6 +6744,7 @@ pub(crate) mod unit {
                     field,
                     destination_storage,
                     field_byte_offset,
+                    field_byte_size,
                     source,
                     indices,
                 },
@@ -6839,7 +6840,7 @@ pub(crate) mod unit {
                     }
                     _ => false,
                 };
-                let (offset, _, elements) =
+                let (offset, byte_size, elements) =
                     crate::structural_inputs::structural_reference_input::store(
                         expected_destination.structural_type(),
                         &expected_path,
@@ -6854,6 +6855,7 @@ pub(crate) mod unit {
                     || field != expected_field
                     || !storage_matches
                     || *field_byte_offset != offset
+                    || *field_byte_size != byte_size
                     || !runtime_indices_rejoin(indices, &elements, sources)
                     || !sources
                         .matching(value.value)

@@ -1,0 +1,19 @@
+// The indexed read returns the full-width value written to the selected cell.
+// Expected exit: 0
+data Cell { value: i64; }
+machine select(cells: &mut [Cell; 2], index: u64) -> i64
+requires index < 2
+{
+    cells[index].value = 4294967339;
+    cells[index].value
+}
+machine main() crashes Trap {
+    let mut cells: [Cell; 2] = [Cell { value: 17 }, Cell { value: 29 }];
+    let observed: i64 = select(&mut cells, 1);
+    transition observed == 4294967339 && cells[0].value == 17 && cells[1].value == 4294967339 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
