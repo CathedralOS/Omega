@@ -436,6 +436,32 @@ fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
     for failure in &failures {
         assert_no_descent(std::slice::from_ref(failure));
     }
+
+    // CAbi's represented-field helper completes through a value-position
+    // match. Both scalar and case selectors must forward their chosen arm
+    // without leaving a value continuation after the recursive transfer.
+    let scalar_match = program.replace(
+        "count(next, spare, payload)",
+        "match payload.value == 0 { true -> count(next, spare, payload) false -> count(next, spare, payload) }",
+    );
+    accepted(&scalar_match);
+    let case_match = program.replace(
+        "data Packet { value: u64; }",
+        "data Choice { case Left; case Right; } data Packet { value: u64; choice: Choice; }",
+    ).replace(
+        "count(next, spare, payload)",
+        "match payload.choice { Choice::Left -> count(next, spare, payload) Choice::Right -> count(next, spare, payload) }",
+    );
+    accepted(&case_match);
+    let wrong_case = case_match.replace(
+        "Choice::Right -> count(next, spare, payload)",
+        "Choice::Right -> count(spare, next, payload)",
+    );
+    let failures = unproved(&wrong_case);
+    assert!(!failures.is_empty());
+    for failure in &failures {
+        assert_no_descent(std::slice::from_ref(failure));
+    }
 }
 
 /// The lowered loop with one field of its ranking changed.

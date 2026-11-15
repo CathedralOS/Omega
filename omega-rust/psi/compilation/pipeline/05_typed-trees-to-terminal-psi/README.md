@@ -524,7 +524,18 @@ expressions and the selected view declaration, checking explicit
 carrier's canonical default; an authored lookalike grants no ranking theory.
 Supported measures use scalar formals, integer constants, exact subtraction,
 and the length of a borrowed byte-view formal. Ranked mutual call components
-retain a private measure for every member.
+retain a private measure for every member. One authored root measure can
+supply those helper observations through exact callee-formal to actual-argument
+substitution. The helper observation must use its own formals in the served
+ranking vocabulary; a local, field read or call is not an entry observation.
+Every internal edge still proves its comparison, and every complete cycle
+still contains strict descent. This preparation adds no public termination
+promise to a helper.
+
+A final value-position `match` forwards its selected arm's result just as a
+terminal transition does. Its arm calls can therefore become backedges;
+its scrutinee, patterns and other operands still have continuations. A match
+used by another expression keeps its ordinary result join instead.
 [Rankings](#rankings) describes their lowering. A bare `terminates` can rely
 on such loops only when every reachable cycle is ranked.
 

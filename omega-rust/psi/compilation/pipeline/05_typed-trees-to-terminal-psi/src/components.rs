@@ -179,12 +179,14 @@ pub(crate) fn components(
 fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'body>>) {
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. } | Statement::Evaluate(value) => expression(value, sites),
+            Statement::Bind { value, .. } | Statement::Evaluate(value) => {
+                expression(value, false, sites)
+            }
             Statement::Store {
                 destination, value, ..
             } => {
-                expression(destination, sites);
-                expression(value, sites);
+                expression(destination, false, sites);
+                expression(value, false, sites);
             }
             // Declarations, erased terms and reference captures call nothing.
             Statement::Declare { .. }
@@ -196,7 +198,7 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
                 default,
                 ..
             } => {
-                expression(subject, sites);
+                expression(subject, false, sites);
                 for (_, arm, _) in arms {
                     target(arm, sites);
                 }
@@ -208,7 +210,7 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
                 guard, target: arm, ..
             } => {
                 if let Some(guard) = guard {
-                    expression(guard, sites);
+                    expression(guard, false, sites);
                 }
                 target(arm, sites);
             }
@@ -216,38 +218,15 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut Vec<CallSite<'b
     }
 }
 
-/// An arm's target is the one terminal position: a call there forwards its
-/// result as the machine's (`wiki/spec/language/machines.md`: "A machine
-/// call in a terminal `transition` arm forwards its normal result as the
-/// current invocation's result, with no continuation in that invocation.").
+/// A completed match forwards its selected arm's result. Its subject and
+/// operands still run before that result and are never terminal calls.
 fn target<'body>(target: &'body Target, sites: &mut Vec<CallSite<'body>>) {
-    match target {
-        Target::Unit | Target::Crash(_) => {}
-        Target::Value(value) => match &value.kind {
-            ExpressionKind::Call {
-                callee,
-                required_contract,
-                arguments,
-                ..
-            } => {
-                for argument in arguments {
-                    expression(argument, sites);
-                }
-                if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee {
-                    sites.push(CallSite {
-                        callee: *callee,
-                        terminal: true,
-                        required_contract: *required_contract,
-                        arguments,
-                    });
-                }
-            }
-            _ => expression(value, sites),
-        },
+    if let Target::Value(value) = target {
+        expression(value, true, sites);
     }
 }
 
-fn expression<'body>(value: &'body Expression, sites: &mut Vec<CallSite<'body>>) {
+fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut Vec<CallSite<'body>>) {
     match &value.kind {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
@@ -267,10 +246,10 @@ fn expression<'body>(value: &'body Expression, sites: &mut Vec<CallSite<'body>>)
         | ExpressionKind::IsCase {
             subject: operand, ..
         }
-        | ExpressionKind::Borrow { place: operand, .. } => expression(operand, sites),
+        | ExpressionKind::Borrow { place: operand, .. } => expression(operand, false, sites),
         ExpressionKind::Array { elements } => {
             for element in elements {
-                expression(element, sites);
+                expression(element, false, sites);
             }
         }
         ExpressionKind::ByteSubslice { base, start, end } => {
@@ -278,16 +257,16 @@ fn expression<'body>(value: &'body Expression, sites: &mut Vec<CallSite<'body>>)
                 .chain(start.as_deref())
                 .chain(end.as_deref())
             {
-                expression(operand, sites);
+                expression(operand, false, sites);
             }
         }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
-            expression(base, sites);
-            expression(index, sites);
+            expression(base, false, sites);
+            expression(index, false, sites);
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
-                expression(operand, sites);
+                expression(operand, false, sites);
             }
         }
         ExpressionKind::Match {
@@ -296,18 +275,21 @@ fn expression<'body>(value: &'body Expression, sites: &mut Vec<CallSite<'body>>)
             default,
             ..
         } => {
-            expression(subject, sites);
-            for (_, arm) in arms {
-                expression(arm, sites);
+            expression(subject, false, sites);
+            for (selector, arm) in arms {
+                if let crate::body::Selector::Value(pattern) = selector {
+                    expression(pattern, false, sites);
+                }
+                expression(arm, terminal, sites);
             }
             if let Some(arm) = default {
-                expression(arm, sites);
+                expression(arm, terminal, sites);
             }
         }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
-            expression(left, sites);
-            expression(right, sites);
+            expression(left, false, sites);
+            expression(right, false, sites);
         }
         ExpressionKind::Call {
             callee,
@@ -316,12 +298,12 @@ fn expression<'body>(value: &'body Expression, sites: &mut Vec<CallSite<'body>>)
             ..
         } => {
             for argument in arguments {
-                expression(argument, sites);
+                expression(argument, false, sites);
             }
             if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee {
                 sites.push(CallSite {
                     callee: *callee,
-                    terminal: false,
+                    terminal,
                     required_contract: *required_contract,
                     arguments,
                 });
