@@ -154,6 +154,87 @@ machine entry() -> u8 {{
 }
 
 #[test]
+fn cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view() {
+    let typed = super::boundary_calls::typed(
+        r#"
+data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+machine inspect(bytes: &[u8]) -> bool { bytes.len == 3 }
+machine entry(first: bool) -> bool {
+    let packet: Packet = Packet { before: 11, bytes: [17, 42, 99], after: 97 };
+    let view: &[u8] = &packet.bytes[..];
+    first && inspect(view) && packet.before == 11 && packet.after == 97
+}
+"#,
+    );
+    let mut input = super::boundary_calls::compilation_results_of(&typed)
+        .into_iter()
+        .map(|result| match result {
+            Ok(RouteVerdict::Accepted(accepted)) => accepted.elaboration,
+            other => panic!("the short-circuit path must accept: {other:?}"),
+        })
+        .next()
+        .expect("the entry has a checked body");
+    let machine = input
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.blocks.iter().any(|block| {
+                matches!(
+                    &block.terminator,
+                    Terminator::Conditional { when_false, .. }
+                        if !when_false.cleanup_actions.is_empty()
+                )
+            })
+        })
+        .expect("the false edge retires the unused packet");
+    let identity = machine.id;
+    let block = machine
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            matches!(
+                &block.terminator,
+                Terminator::Conditional { when_false, .. } if !when_false.cleanup_actions.is_empty()
+            )
+        })
+        .unwrap();
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut block.terminator
+    else {
+        unreachable!();
+    };
+    // The same cleanup is valid on the false path, but would invalidate
+    // the view before inspect on the continuing path.
+    when_true.cleanup_actions = when_false.cleanup_actions.clone();
+    let tables = input.tables.machines.get_mut(identity).unwrap();
+    let prepared = crate::prepare(&input.module, &input.domains, identity, tables).unwrap();
+    let references = prepared.references(&input.module.structural_types);
+    let machine = input.module.machine(identity).unwrap();
+    let storage = crate::places::Storage::new(
+        identity,
+        machine,
+        &input.module,
+        &input.domains,
+        &prepared.graph,
+        tables,
+        &prepared.types,
+        &references,
+    )
+    .unwrap();
+    let (_, conflicts) = storage.loans(&input.module, tables).unwrap();
+    assert!(
+        conflicts
+            .iter()
+            .any(|conflict| conflict.conflict == crate::LoanConflict::ChangeWhileBorrowed),
+        "cleanup on the continuing edge must preserve the packet's live view"
+    );
+}
+
+#[test]
 fn an_empty_shared_payload_keeps_its_owned_permission_at_a_call() {
     let typed = super::boundary_calls::typed(
         r#"

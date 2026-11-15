@@ -55,7 +55,7 @@ certificate, as the initialization judgment has none. Two refusals, each
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{InvocationSite, ObligationId};
-use terminal_check_tables::edges::{Actual, Fate};
+use terminal_check_tables::edges::{Actual, Destination, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
@@ -1080,14 +1080,28 @@ impl Storage<'_> {
                 if !lifetime.live.contains(&at) && !(loan.at == at && !lifetime.live.is_empty()) {
                     continue;
                 }
+                // The condition runs before either edge. Cleanup runs only
+                // on its selected edge, where the other path's later uses
+                // no longer keep the borrow live. Returning or escaping a
+                // view still has no successor and keeps the terminal check.
+                if let Destination::Block(target) = self.graph.edge_destination(edge)?
+                    && !lifetime.live.contains(&(target, 0))
+                {
+                    continue;
+                }
                 for action in actions {
                     let cleaned = self.stored_at(action.place(), action.path(), concerns)?;
-                    let backing = self.backing(&cleaned, block.id, usize::MAX, concerns)?;
+                    let backing = LoanRegion::Storage(self.backing(
+                        &cleaned,
+                        block.id,
+                        usize::MAX,
+                        concerns,
+                    )?);
                     if competing_borrows(
                         loan.access,
                         &loan.lineage,
                         ReferenceAccess::Mutable,
-                        &LoanRegion::Storage(backing),
+                        &backing,
                     )
                     .is_some()
                     {

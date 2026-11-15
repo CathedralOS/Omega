@@ -153,17 +153,11 @@ impl Lowering<'_> {
                 operation: Strict::Subtract,
                 left,
                 right,
+                ..
             } => {
                 let left = self.rank_expression(left, inputs)?;
                 let right = self.rank_expression(right, inputs)?;
-                self.strict(
-                    Strict::Subtract,
-                    scalar_type,
-                    left,
-                    right,
-                    Some(scalar_type),
-                    expression.source,
-                )?
+                self.strict_expression(expression, left, right)?
             }
             ExpressionKind::CollectionMeasure {
                 base,

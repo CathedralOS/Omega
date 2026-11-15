@@ -587,3 +587,47 @@ fn a_private_countdown_measure_survives_loop_lowering() {
         semantic_vocabulary::Termination::NoGuarantee
     );
 }
+
+#[test]
+fn ranking_observations_keep_the_selected_arithmetic_policy() {
+    let mut observation = less_one(0);
+    let ExpressionKind::Strict { policy, right, .. } = &mut observation.kind else {
+        unreachable!()
+    };
+    *policy = Some(crate::body::Policy::Wrapping);
+    **right = integer(0);
+    let mut declared = signature(vec![u32_type()], Some(u32_type()));
+    declared.ranking = Some(vec![observation]);
+    let lowered = elaborate(vec![countdown(declared)]).expect("the canonical measure lowers");
+    let machine = &lowered.module.machines[0];
+    let Some(terminal_psi::TerminalRankedScc::Natural(cycles)) = &machine.ranked_scc else {
+        panic!("the loop retains its progress measure");
+    };
+    for cycle in cycles {
+        for values in cycle
+            .ranks
+            .iter()
+            .map(|rank| rank.values)
+            .chain(cycle.edges.iter().map(|edge| edge.successor_ranks))
+        {
+            let value = cycle.scalar_rank_value(values).unwrap().value;
+            let operation = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| {
+                    operation
+                        .result
+                        .scalar()
+                        .is_some_and(|result| result.id == value)
+                });
+            assert!(
+                matches!(
+                    operation.map(|operation| &operation.kind),
+                    Some(OperationKind::WrappingIntegerSubtract { .. })
+                ),
+                "the measured value must use its selected policy on every arrival"
+            );
+        }
+    }
+}

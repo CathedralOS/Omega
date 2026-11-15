@@ -1,4 +1,4 @@
-//! Canonical controls for one relation and every edge of actual CFG cycles.
+//! Loop progress controls tie each comparison to the cycle and value it checks.
 use super::*;
 use crate::reverify;
 use terminal_check_tables::obligations::ObligationRow;
@@ -27,6 +27,7 @@ fn ranked(signed: bool, tuple: bool, stalls: bool) -> typed_trees_to_terminal_ps
         expression(
             ExpressionKind::Strict {
                 operation: Strict::Greater,
+                policy: None,
                 left: Box::new(slot(0, scalar)),
                 right: Box::new(literal(limit)),
             },
