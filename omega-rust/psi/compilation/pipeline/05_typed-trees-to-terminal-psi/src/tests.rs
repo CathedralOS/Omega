@@ -115,7 +115,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
     bodies.push(Body {
         slots: Vec::new(),
         statements: vec![
-            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::discard(call(2, Vec::new(), None)),
             Statement::Arm {
                 guard: None,
                 target: Target::Unit,
@@ -553,8 +553,8 @@ fn every_call_owes_one_requirement_per_callee_requires_clause() {
     let body = Body {
         slots: scalars(vec![u32_type()]),
         statements: vec![
-            Statement::Evaluate(call(2, vec![slot(0, u32_type())], None)),
-            Statement::Evaluate(call(2, vec![slot(0, u32_type())], None)),
+            Statement::discard(call(2, vec![slot(0, u32_type())], None)),
+            Statement::discard(call(2, vec![slot(0, u32_type())], None)),
         ],
     };
     let callee = Signature {
@@ -1346,7 +1346,7 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
                 slot: 0,
                 value: call(2, vec![first, later.clone()], Some(u32_type())),
             },
-            Statement::Evaluate(later),
+            Statement::discard(later),
         ],
     };
     let lowered = try_lower(
@@ -1534,7 +1534,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     let body = Body {
         slots: scalars(vec![u32_type(), u32_type(), u32_type()]),
         statements: vec![
-            Statement::Evaluate(call_f),
+            Statement::discard(call_f),
             Statement::Witness {
                 slot: 1,
                 term: integer(0),
@@ -1543,7 +1543,7 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
                 slot: 2,
                 value: sum,
             },
-            Statement::Evaluate(call_g),
+            Statement::discard(call_g),
         ],
     };
     let lowered = try_lower(
@@ -1584,7 +1584,7 @@ fn statements_after_a_call_that_may_return_are_lowered() {
     let body = Body {
         slots: scalars(vec![u32_type(), u32_type()]),
         statements: vec![
-            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::discard(call(2, Vec::new(), None)),
             Statement::Bind {
                 slot: 1,
                 value: strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type()),
@@ -1620,7 +1620,7 @@ fn an_erased_binding_after_a_call_that_never_returns_is_not_reported() {
     let body = Body {
         slots: scalars(vec![u32_type()]),
         statements: vec![
-            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::discard(call(2, Vec::new(), None)),
             Statement::Witness {
                 slot: 0,
                 term: integer(0),
@@ -1656,7 +1656,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
         try_lower(
             Body {
                 slots: Vec::new(),
-                statements: vec![Statement::Evaluate(statement)],
+                statements: vec![Statement::discard(statement)],
             },
             vec![signature(Vec::new(), None), signature(Vec::new(), None)],
             vec![returns_normally(), returns_normally()],
@@ -1744,7 +1744,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     // machine 1 calls 2; 2 is `{ crash Trap; }`.
     let caller = Body {
         slots: Vec::new(),
-        statements: vec![Statement::Evaluate(call(2, Vec::new(), None))],
+        statements: vec![Statement::discard(call(2, Vec::new(), None))],
     };
     let crashing = Body {
         slots: Vec::new(),
@@ -1843,7 +1843,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     };
     let quiet = || Vec::new();
     let crashing = || vec![crash_arm(None, CrashCause::Trap)];
-    let calls = || vec![Statement::Evaluate(call(2, Vec::new(), None))];
+    let calls = || vec![Statement::discard(call(2, Vec::new(), None))];
 
     assert_eq!(run(quiet(), quiet()).unwrap(), returns_normally());
     assert_eq!(run(calls(), quiet()).unwrap(), returns_normally());
@@ -1963,7 +1963,7 @@ fn settle_both(
         let statements = steps
             .iter()
             .map(|step| match *step {
-                Step::Call(callee) => Statement::Evaluate(call(callee, Vec::new(), None)),
+                Step::Call(callee) => Statement::discard(call(callee, Vec::new(), None)),
                 Step::Tail(callee) => Statement::Arm {
                     guard: Some(yes()),
                     target: Target::Value(call(callee, Vec::new(), None)),
@@ -1971,7 +1971,7 @@ fn settle_both(
                 },
                 Step::Return(callee) => returns(call(callee, Vec::new(), None)),
                 Step::Crash(guarded, cause) => crash_arm(guarded.then(yes), cause),
-                Step::Refuse => Statement::Evaluate(expression(
+                Step::Refuse => Statement::discard(expression(
                     ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Boundary(id(1)),
                         arguments: Vec::new(),

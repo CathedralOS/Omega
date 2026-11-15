@@ -305,7 +305,7 @@ fn a_loop_with_no_way_out_never_completes_and_its_caller_does_not_continue() {
     // machine 1 { spin(); }   machine spin() { spin() }
     let caller = Body {
         slots: Vec::new(),
-        statements: vec![Statement::Evaluate(call(2, Vec::new(), None))],
+        statements: vec![Statement::discard(call(2, Vec::new(), None))],
     };
     let spin = Body {
         slots: Vec::new(),

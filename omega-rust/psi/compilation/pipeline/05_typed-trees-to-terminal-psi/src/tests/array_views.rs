@@ -76,7 +76,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
             view,
         );
         let mut statements = statements;
-        statements.push(Statement::Evaluate(call(2, vec![argument], None)));
+        statements.push(Statement::discard(call(2, vec![argument], None)));
         statements.push(Statement::Arm {
             guard: None,
             target: Target::Unit,

@@ -3376,7 +3376,7 @@ mod tests {
                         source,
                     },
                 },
-                Statement::Evaluate(Expression {
+                Statement::discard(Expression {
                     call_context: None,
                     kind: ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(
