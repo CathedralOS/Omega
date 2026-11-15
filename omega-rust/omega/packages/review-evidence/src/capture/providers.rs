@@ -71,12 +71,14 @@ pub(super) struct AcceptedDeclarations<'module> {
     bodies: Vec<&'module TerminalMachine>,
     behaviors: Vec<&'module UnoptimizedMachineBehavior>,
     authored_reach_owners: Vec<SymbolHandle>,
+    service_origins: &'module [(ServiceId, SymbolHandle)],
     service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
 }
 
 impl<'module> AcceptedDeclarations<'module> {
     pub(super) fn new(
         accepted: &'module source_compiler::AcceptedTerminalSource,
+        service_origins: &'module [(ServiceId, SymbolHandle)],
         service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
         plans: &[ProviderPlan],
     ) -> Self {
@@ -110,6 +112,7 @@ impl<'module> AcceptedDeclarations<'module> {
             bodies,
             behaviors,
             authored_reach_owners,
+            service_origins,
             service_names,
         }
     }
@@ -126,12 +129,12 @@ impl PackageReviewInput<'_> {
         &self,
         package: PackageKeyIdentity,
         target: TargetProfile,
-        service_origins: &[(ServiceId, SymbolHandle)],
         declarations: &AcceptedDeclarations<'_>,
         native_bindings: &[(PackagePolicyNativeBinding, PackagePolicyCallable)],
     ) -> Result<ReviewedProviders, Vec<Diagnostic>> {
         let checked = self.compilation();
         let selected = checked.execution().plans();
+        let service_origins = declarations.service_origins;
         let accepted = declarations.accepted;
         let module = accepted.module();
         let mut review = ReviewedProviders {
@@ -544,7 +547,6 @@ impl PackageReviewInput<'_> {
                 requirement.clone(),
             )?;
             let (projected, callable) = self.checked_method(
-                service,
                 signature,
                 boundary,
                 method,
@@ -565,6 +567,7 @@ impl PackageReviewInput<'_> {
             rows.push(row);
             review.boundaries.push(boundary.id);
             review.services.push(service_id);
+            review.services.extend(&boundary.published_service_ceiling);
         }
         if local_service && service.is_public {
             review.public_traits.push(service_trait(
@@ -752,7 +755,6 @@ impl PackageReviewInput<'_> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn checked_method(
         &self,
-        service: &TraitDefinition,
         signature: &StateSignature,
         boundary: &BoundaryMachineDeclaration,
         method: &ServiceMethod,
@@ -761,38 +763,46 @@ impl PackageReviewInput<'_> {
         requirement_owner: PackageReviewNominalIdentity,
         declarations: &AcceptedDeclarations<'_>,
     ) -> Result<(PackagePolicyServiceMethod, PackagePolicyCallable), Vec<Diagnostic>> {
-        let source = self.typed();
-        let declared_service = source
-            .service_reaches
-            .id_for_symbol(service.symbol)
-            .and_then(|service| source.service_reaches.definition(service))
-            .ok_or_else(|| unavailable("the selected requirement's own service"))?;
-        let mut authority = vec![requirement_owner.clone()];
-        let ceiling_matches = if signature.service_reach_is_installation_bound {
-            authority.extend(reviewed_services(
-                declarations.service_names,
-                &boundary.published_service_ceiling,
-            )?);
-            authority.sort();
-            authority.dedup();
-            let mut names = authority
-                .iter()
-                .map(PackageReviewNominalIdentity::path)
-                .collect::<Vec<_>>();
-            names.sort_unstable();
-            names
-                == method
-                    .service_reach
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>()
-        } else {
-            method.service_reach.as_slice() == [declared_service.name.as_str()]
-                && boundary
-                    .published_service_ceiling
-                    .iter()
-                    .all(|id| Some(*id) == boundary.owning_service)
-        };
+        let owner = boundary
+            .owning_service
+            .ok_or_else(|| unavailable("the selected requirement's owning service"))?;
+        let owner_index = declarations
+            .service_names
+            .binary_search_by_key(&owner, |(service, _)| *service)
+            .map_err(|_| unavailable("the selected requirement's own service"))?;
+        if declarations.service_names[owner_index].1 != requirement_owner {
+            return Err(unavailable(
+                "the selected requirement's exact owning service",
+            ));
+        }
+
+        // Provider authority includes the selected slot. Calls contribute only
+        // the requirement's own reach, which the callable below publishes.
+        let mut reach = boundary.published_service_ceiling.clone();
+        reach.push(owner);
+        reach.sort_unstable();
+        reach.dedup();
+        let authority = reviewed_services(declarations.service_names, &reach)?;
+        // The plan stores source names. Resolve those from the same checked
+        // coordinates, even when the nominal identities have qualified paths.
+        let source = declarations.accepted.source();
+        let mut names = reach
+            .iter()
+            .map(|service| {
+                let index = declarations
+                    .service_origins
+                    .binary_search_by_key(service, |(id, _)| *id)
+                    .map_err(|_| unavailable("the selected service's exact source"))?;
+                source
+                    .trait_definition_by_symbol(declarations.service_origins[index].1)
+                    .map(|declaration| declaration.name.as_str())
+                    .ok_or_else(|| unavailable("the selected service's authored name"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        names.sort_unstable();
+        let ceiling_matches = names
+            .into_iter()
+            .eq(method.service_reach.iter().map(String::as_str));
         if method.completion != boundary.completion
             || method.terminates_guarantee != boundary.unconditional_termination
             || !ceiling_matches

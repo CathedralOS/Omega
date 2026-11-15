@@ -1,26 +1,27 @@
-use omega::language::core::ProcessExit;
 // Expected exit: 0.
 // The package boundary retains read capability for one method, an empty reach
 // for the other, and the separately declared synchronous interface for both.
-use reviewed_service::operations;
-use omega_language_std::Console;
+use reviewed_service::Operations;
+use reviewed_service::ReadCapability;
+use reviewed_service::pure_value;
+use reviewed_service::read_value;
 Reader satisfies Operations {
-    machine read(value: i32) -> i32 reaches ReadCapability { read_value_provider(value) }
+    machine read(value: i32) -> i32 { read_value_provider(value) }
     machine identity(value: i32) -> i32 { identity_provider(value) }
 }
 machine read_value_provider(value: i32) -> i32 { value }
 machine identity_provider(value: i32) -> i32 { value }
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine check_reviewed_operations(main: &mut Main) reaches ReadCapability crashes Trap {
     let read: i32 = read_value(17);
     let pure: i32 = pure_value(39);
     transition read == 17 && pure == 39 { true -> good() false -> bad() }
-    machine good() { ProcessExit::exit_process(0); }
-    machine bad() { ProcessExit::exit_process(1); }
+    machine good() {}
+    machine bad() { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ReadCapability crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    check_reviewed_operations(&mut entry_storage);
 }
