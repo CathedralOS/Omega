@@ -5,9 +5,10 @@
 //! the domain, so a reader of `as +D` asks the declaration who may issue it.
 //!
 //! Two programs pin it from source: one whose policy is declared, and its
-//! twin whose policy is declared nowhere.
+//! twin whose policy is declared nowhere. A demanded domain also carries the
+//! plan its policy returned (`build_time_evaluation`, `domain_access_plans`).
 
-use typed_trees::domain::DomainIssuance;
+use typed_trees::domain::{AccessPlanJudgment, CheckedIssuance, DomainIssuance};
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -21,13 +22,16 @@ fn fixture(name: &str) -> std::path::PathBuf {
 
 /// Psi 00 through 04 on one fixture, without its Build.
 fn typed_frontier(name: &str) -> Result<typed_trees::FrozenTypedTrees, Vec<String>> {
+    typed_frontier_of(&fixture(name))
+}
+
+fn typed_frontier_of(main: &std::path::Path) -> Result<typed_trees::FrozenTypedTrees, Vec<String>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let main = fixture(name);
     compiler::CompilationSession::default()
         .typed_frontier_without_build(
-            compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            compiler::CheckedCompileRequest::new(main, Some("linux_x86_64")),
             None,
         )
         .map(|frontier| frontier.typed)
@@ -54,17 +58,28 @@ fn a_domain_carries_the_policy_its_access_clause_selects() {
     };
 
     let controlled = domain("Cell::Controlled");
-    let DomainIssuance::Planned(policy) = controlled.issuance() else {
-        panic!(
-            "a domain with an access policy has planned issuance, not {:?}",
-            controlled.issuance()
-        );
-    };
+    let policy = controlled
+        .access_policy
+        .as_ref()
+        .expect("a domain with an access clause keeps its policy");
     let implementation = typed.symbols.get(policy.implementation());
     assert_eq!(implementation.kind, symbols::SymbolKind::Conformance);
     assert_eq!(typed.symbols.name(policy.implementation()), "CellAccess");
     // The policy is named bare, so nothing about it is left unserved.
     assert!(typed.deferred_refusal(controlled.symbol).is_none());
+    // Checking the package demands the domain, so the Build ran its plan.
+    // `Issuance::Only { routes: [] }` permits nobody; it is not read as
+    // unrestricted.
+    let AccessPlanJudgment::Checked(plan) = &policy.plan else {
+        panic!(
+            "the demanded domain's plan is checked, not {:?}",
+            policy.plan
+        );
+    };
+    assert_eq!(typed.symbols.name(plan.plan_machine), "CellAccess::plan");
+    assert_eq!(plan.issuance, CheckedIssuance::Only(Vec::new()));
+    assert_eq!(controlled.issuance(), DomainIssuance::Only(&[]));
+    assert!(!controlled.access_unjudged());
 
     // The same domain without the clause restricts nobody.
     assert_eq!(
@@ -211,6 +226,58 @@ fn a_numeric_policy_argument_keeps_its_value_without_a_declaration_dependency() 
         refusal.request,
         typed_trees::deferred_refusals::DeferredRequest::AccessPolicyApplication
     );
+}
+
+/// A plan the Build cannot judge is kept with its reason and shows nobody to
+/// be an issuer. `let plan: AccessPlan; plan` returns the zero plan, whose
+/// schema is not the subject's.
+#[test]
+fn a_plan_that_describes_another_schema_is_left_unjudged() {
+    let root = std::env::temp_dir().join(format!(
+        "omega-domain-access-unjudged-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&root).expect("staging directory");
+    let main = root.join("main.omg");
+    std::fs::write(
+        &main,
+        "\
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::reflect::TypeSchema;
+
+data Seal { mark: i32; }
+SealAccess satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        let plan: AccessPlan;
+        plan
+    }
+}
+domain Seal::Issued access SealAccess;
+machine main() { }
+",
+    )
+    .expect("staged source");
+    let typed = typed_frontier_of(&main);
+    let _ = std::fs::remove_dir_all(&root);
+    let typed = typed
+        .unwrap_or_else(|diagnostics| panic!("Psi 00 through 04 must complete: {diagnostics:?}"));
+    let issued = typed
+        .domain_definitions
+        .iter()
+        .map(|(_, domain)| domain)
+        .find(|domain| domain.name.as_str() == "Seal::Issued")
+        .expect("the domain is declared");
+    let policy = issued
+        .access_policy
+        .as_ref()
+        .expect("the policy is selected");
+    let AccessPlanJudgment::Unjudged(reason) = &policy.plan else {
+        panic!("a plan of another schema is not checked: {:?}", policy.plan);
+    };
+    assert!(reason.contains("another schema"), "{reason}");
+    assert!(matches!(issued.issuance(), DomainIssuance::Planned(_)));
+    assert!(issued.access_unjudged());
 }
 
 #[test]

@@ -509,10 +509,11 @@ impl Qualifications {
             .ok_or_else(|| unavailable("record domain identity overflow"))?;
         let identity =
             domain_identity(typed, sources, symbol, &mut self.identities).map_err(unavailable)?;
-        // A governed domain's access plan decides who may issue it, and
-        // nothing evaluates a plan yet: no machine in the program is shown to
-        // be an issuer, so the lowered form permits nobody. Its values still
-        // pass whole through formals, results and fields.
+        // A governed domain's access plan decides who may issue it. An
+        // evaluated plan reads as its routes below; a plan nobody has run
+        // shows no machine to be an issuer, so the lowered form permits
+        // nobody. Its values still pass whole through formals, results and
+        // fields.
         let planned = matches!(
             definition.issuance(),
             typed_trees::domain::DomainIssuance::Planned(_)

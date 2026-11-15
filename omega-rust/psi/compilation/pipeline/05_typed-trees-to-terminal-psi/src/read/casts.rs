@@ -433,8 +433,10 @@ impl Program<'_> {
     /// of the routes, or the cast is rejected. A requirement route
     /// authorizes "the invocation through that requirement and its selected
     /// implementation": the machine that declares that requirement's edge.
-    /// A policy states its issuers in its plan, which no pass evaluates
-    /// (`DomainIssuance::Planned`): nobody is shown to be one.
+    /// A policy states its issuers in its plan. Build-time evaluation runs
+    /// the plan of each demanded domain and records its routes, which this
+    /// reads as `DomainIssuance::Only`; a plan nobody has run
+    /// (`DomainIssuance::Planned`) shows nobody to be an issuer.
     ///
     /// Authorization proves no predicate ("Policy authorization cannot
     /// prove those predicates"): the cast owes the domain's predicates of
