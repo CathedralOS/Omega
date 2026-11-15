@@ -2552,8 +2552,10 @@ pub(crate) mod scalar_graph {
                         destination: *destination,
                         value: *value,
                     },
-                    AbstractOperation::DecomposeStructuralValue { .. } => {
-                        return Err(Error::custody());
+                    AbstractOperation::DecomposeStructuralValue { subject, .. } => {
+                        LegalizedScalarInstructionKind::DecomposeStructuralValue {
+                            subject: subject.clone(),
+                        }
                     }
                     AbstractOperation::EstablishTrivialAffineLocal {
                         place,

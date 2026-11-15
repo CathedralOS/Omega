@@ -10358,6 +10358,12 @@ mod source {
                         _ => false,
                     }).count() == 1
                 }
+                AbstractOperation::DecomposeStructuralValue { psi_operation, subject } => {
+                    graph.operations().filter(|row| matches!(row,
+                        TargetUnitOperation::DecomposeStructuralValue { psi_operation: retained, subject: retained_subject }
+                            if retained == psi_operation && retained_subject == subject
+                    )).count() == 1
+                }
                 AbstractOperation::EstablishTrivialAffineLocal { psi_operation, place, structural_type } => {
                     graph.operations().filter(|row| matches!(row,
                         TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation: retained, place: retained_place, structural_type: retained_type }
@@ -20273,16 +20279,12 @@ mod source {
                         }
                         retained
                     }
-                    AbstractOperation::DecomposeStructuralValue { psi_operation, .. } => {
-                        // This event changes checked custody only. It has no
-                        // value transfer or machine instruction to reconstruct.
-                        targeted.provenance.operations.contains(psi_operation)
-                    }
                     AbstractOperation::StructuralCaseMembership { .. }
                     | abstract_operations::establish_record_or_case_pattern!(..)
                     | AbstractOperation::StructuralLeafCopy { .. }
                     | AbstractOperation::MoveStructuralValue { .. }
                     | AbstractOperation::TransformContent { .. }
+                    | AbstractOperation::DecomposeStructuralValue { .. }
                     | abstract_operations::move_or_store_structural_field_pattern!()
                     | AbstractOperation::EstablishTrivialAffineLocal { .. }
                     | AbstractOperation::EstablishReference { .. }

@@ -285,6 +285,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::SelectImplementation { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
+            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
@@ -708,6 +709,10 @@ pub enum LegalizedScalarInstructionKind {
         shape: calling_conventions::ValueShape,
         indices: Vec<LegalizedRuntimeIndexOperand>, // Resolved operands for `RuntimeIndex` segments in path order.
     },
+    /// A checked custody partition; selection emits no machine instruction.
+    DecomposeStructuralValue {
+        subject: terminal_psi::StructuralArgument,
+    },
     EstablishTrivialAffineLocal {
         place: terminal_psi::StructuralPlaceDeclaration,
         structural_type: terminal_psi::StructuralTypeDeclaration,
@@ -1022,6 +1027,7 @@ impl LegalizedScalarInstructionKind {
             | Self::StructuralByteSequenceFieldByteStore { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StoreStructuralField { .. }
+            | Self::DecomposeStructuralValue { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::WriteOnlyPrimitiveStore { .. }
             | Self::HostedWriteByteI32 { .. }

@@ -378,6 +378,16 @@ pub(crate) fn project(
             destination: *destination,
             value: *value,
         },
+        Operation::DecomposeStructuralValue { subject, .. } => {
+            if source.result.is_some() {
+                return Err(Error::instruction_metadata(
+                    "decomposition unexpectedly defines a scalar result",
+                ));
+            }
+            Kind::DecomposeStructuralValue {
+                subject: subject.clone(),
+            }
+        }
         Operation::EstablishTrivialAffineLocal {
             place,
             structural_type,

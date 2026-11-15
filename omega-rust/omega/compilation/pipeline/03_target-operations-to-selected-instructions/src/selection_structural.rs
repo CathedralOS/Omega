@@ -5578,6 +5578,7 @@ pub(crate) fn operation(
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::ReleaseReference { .. }
+            | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
     ) {
         if row.result.is_some() {

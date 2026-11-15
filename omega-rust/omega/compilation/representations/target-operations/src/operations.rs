@@ -441,6 +441,11 @@ pub enum TargetUnitOperation {
         result: ValueId,
         value: IeeeFloatValue,
     },
+    /// Retain the checked custody partition without moving bytes or defining a value.
+    DecomposeStructuralValue {
+        psi_operation: OperationId,
+        subject: StructuralArgument,
+    },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

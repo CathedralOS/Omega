@@ -7570,6 +7570,7 @@ pub(crate) fn select_function(
                     | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::StoreStructuralField { .. }
+                    | LegalizedScalarInstructionKind::DecomposeStructuralValue { .. }
                     | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::EstablishAccessReference { .. }

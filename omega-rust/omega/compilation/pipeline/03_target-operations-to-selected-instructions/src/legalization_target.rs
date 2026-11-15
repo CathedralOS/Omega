@@ -1252,7 +1252,32 @@ pub(crate) mod control_flow {
                 ));
             }
         };
+        // Decomposition has no bytes to witness its subject later. Bind the
+        // retained row here, alongside its ordinary instruction annotations.
+        let decomposition_matches = match (&instruction.kind, &node.operation) {
+            (
+                TargetUnitOperation::DecomposeStructuralValue {
+                    psi_operation,
+                    subject,
+                },
+                AbstractOperation::DecomposeStructuralValue {
+                    psi_operation: expected_operation,
+                    subject: expected_subject,
+                },
+            ) => {
+                psi_operation == expected_operation
+                    && subject == expected_subject
+                    && source.result.is_none()
+            }
+            (TargetUnitOperation::DecomposeStructuralValue { .. }, _)
+            | (_, AbstractOperation::DecomposeStructuralValue { .. }) => false,
+            _ => true,
+        };
         for (matches, reason) in [
+            (
+                decomposition_matches,
+                "decomposition identity or subject differs",
+            ),
             (
                 Some(source.operation) == node.operation.psi_operation(),
                 "instruction operation identity differs",
@@ -6298,6 +6323,16 @@ pub(crate) mod unit {
                 borrowed_windows::validate(target, abstracted, optimized, sources, plan, custody)?;
             }
             (
+                TargetUnitOperation::DecomposeStructuralValue {
+                    psi_operation,
+                    subject,
+                },
+                AbstractOperation::DecomposeStructuralValue {
+                    psi_operation: expected_operation,
+                    subject: expected_subject,
+                },
+            ) if psi_operation == expected_operation && subject == expected_subject => {}
+            (
                 TargetUnitOperation::EstablishTrivialAffineLocal {
                     psi_operation,
                     place,
@@ -7230,4 +7265,114 @@ fn location_matches(location: ScalarParameterLocation, placement: &ValuePlacemen
             && matches!(placement.locations.as_slice(),
                 [ValueLocation::Stack { stack_byte_offset, .. }]
                     if location == ScalarParameterLocation::IncomingStack { byte_offset: *stack_byte_offset }))
+}
+
+#[cfg(test)]
+mod decomposition_tests {
+    use super::control_flow::validate_instruction_metadata;
+    use abstract_operations::AbstractOperation;
+    use optimization_unit::{EffectLink, OptimizationNode};
+    use semantic_vocabulary::{OperationId, PsiSemanticId};
+    use target_operations::{
+        TargetInstruction, TargetInstructionSource, TargetOperationMetadata, TargetUnitOperation,
+    };
+    use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
+
+    fn id<T: PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).unwrap()
+    }
+
+    #[test]
+    fn decomposition_metadata_rejects_changed_subject_identity_and_scalar_result() {
+        let operation = id::<OperationId>(1);
+        let subject = StructuralArgument {
+            place: id(2),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        };
+        let node = OptimizationNode {
+            operation: AbstractOperation::DecomposeStructuralValue {
+                psi_operation: operation,
+                subject: subject.clone(),
+            },
+            provenance: vec![],
+            work: vec![],
+            effect: EffectLink {
+                input: 0,
+                output: 0,
+            },
+            definitions: vec![],
+            uses: vec![],
+            successors: vec![],
+            ownership: vec![],
+        };
+        let instruction = TargetInstruction {
+            source: Some(TargetInstructionSource {
+                operation,
+                result: None,
+                metadata: TargetOperationMetadata {
+                    work: node.work.clone(),
+                    effect: node.effect,
+                    ownership: node.ownership.clone(),
+                },
+            }),
+            kind: TargetUnitOperation::DecomposeStructuralValue {
+                psi_operation: operation,
+                subject,
+            },
+        };
+        assert!(validate_instruction_metadata(&instruction, &node).is_ok());
+        for mutation in 0..7 {
+            let mut changed = instruction.clone();
+            match mutation {
+                0..=3 => {
+                    let TargetUnitOperation::DecomposeStructuralValue {
+                        psi_operation,
+                        subject,
+                    } = &mut changed.kind
+                    else {
+                        panic!("decomposition fixture")
+                    };
+                    match mutation {
+                        0 => *psi_operation = id(9),
+                        1 => subject.place = id(9),
+                        2 => subject.path.push(StructuralPathSegment::Field(
+                            terminal_psi::TerminalIdentityIndex(9),
+                        )),
+                        3 => subject.access = StructuralAccess::SharedBorrow,
+                        _ => unreachable!(),
+                    }
+                }
+                4 => changed.source.as_mut().unwrap().operation = id(9),
+                5 => changed.source = None,
+                6 => {
+                    changed.kind = TargetUnitOperation::BooleanConstant {
+                        psi_operation: operation,
+                        result: id(9),
+                        value: false,
+                    }
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                validate_instruction_metadata(&changed, &node).is_err(),
+                "mutation {mutation}"
+            );
+        }
+        // Even a matching forged scalar definition cannot turn partitioning
+        // custody into a value-producing instruction.
+        let definition = optimization_unit::ValueDefinition {
+            value: id(9),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            site: optimization_unit::ValueDefinitionSite::Node {
+                block: id(8),
+                node: 0,
+            },
+        };
+        let mut changed_node = node.clone();
+        changed_node.definitions.push(definition);
+        let mut changed_instruction = instruction.clone();
+        changed_instruction.source.as_mut().unwrap().result = Some(definition);
+        assert!(validate_instruction_metadata(&changed_instruction, &changed_node).is_err());
+    }
 }

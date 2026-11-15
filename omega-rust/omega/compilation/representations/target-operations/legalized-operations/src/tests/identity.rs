@@ -836,3 +836,40 @@ fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
         })
     );
 }
+
+#[test]
+fn decomposition_identity_binds_exact_subject_and_keeps_no_result_or_scalar_use() {
+    let mut plan = scalar_call_unit_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[0];
+    row.result = None;
+    row.kind = LegalizedScalarInstructionKind::DecomposeStructuralValue {
+        subject: terminal_psi::StructuralArgument {
+            place: id(201),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        },
+    };
+    assert!(row.kind.get_structural_result().is_none());
+    let mut operands = vec![];
+    row.visit_scalar_operands(|value| operands.push(value));
+    assert!(operands.is_empty());
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..4 {
+        let mut changed = plan.clone();
+        let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
+        let LegalizedScalarInstructionKind::DecomposeStructuralValue { subject } = &mut row.kind
+        else {
+            panic!("decomposition fixture")
+        };
+        match mutation {
+            0 => subject.place = id(202),
+            1 => subject.path.push(StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(203),
+            )),
+            2 => subject.access = StructuralAccess::MutableBorrow,
+            3 => row.operation = id(204),
+            _ => unreachable!(),
+        }
+        assert_identity_drift(identity, &changed);
+    }
+}

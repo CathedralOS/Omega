@@ -106,3 +106,123 @@ pub(crate) fn retain(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::instructions;
+    use abstract_operations::AbstractOperation;
+    use optimization_unit::{
+        EffectLink, OptimizationBlock, OptimizationNode, PsiProvenance, WorkSettlement,
+    };
+    use semantic_vocabulary::{MachineId, OperationId, PlaceId, PsiSemanticId, ScalarType};
+    use target_operations::TargetUnitOperation;
+    use terminal_psi::{StructuralAccess, StructuralArgument};
+
+    fn id<T: PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).unwrap()
+    }
+
+    fn node(operation: AbstractOperation) -> OptimizationNode {
+        let work = operation
+            .psi_operation()
+            .map(|operation| WorkSettlement {
+                site: PsiProvenance::Operation(operation),
+                units: 1,
+            })
+            .into_iter()
+            .collect();
+        OptimizationNode {
+            operation,
+            provenance: vec![],
+            work,
+            effect: EffectLink {
+                input: 3,
+                output: 3,
+            },
+            definitions: vec![],
+            uses: vec![],
+            successors: vec![],
+            ownership: vec![],
+        }
+    }
+
+    #[test]
+    fn decomposition_keeps_its_instruction_slot_and_annotations() {
+        let subject = StructuralArgument {
+            place: id::<PlaceId>(7),
+            path: vec![],
+            access: StructuralAccess::Owned,
+        };
+        let operation = id::<OperationId>(2);
+        let following = id::<OperationId>(3);
+        let value = id(11);
+        let block_id = id(1);
+        let mut scalar = node(AbstractOperation::BooleanConstant {
+            psi_operation: following,
+            result: value,
+            value: true,
+        });
+        scalar.definitions.push(optimization_unit::ValueDefinition {
+            value,
+            scalar_type: ScalarType::Boolean,
+            site: optimization_unit::ValueDefinitionSite::Node {
+                block: block_id,
+                node: 1,
+            },
+        });
+        let block = OptimizationBlock {
+            id: block_id,
+            structural_parameters: vec![],
+            parameters: vec![],
+            nodes: vec![
+                node(AbstractOperation::DecomposeStructuralValue {
+                    psi_operation: operation,
+                    subject: subject.clone(),
+                }),
+                scalar,
+                node(AbstractOperation::ReturnUnit {
+                    psi_edge: id(4),
+                    cleanup_actions: vec![],
+                }),
+            ],
+        };
+        let rows = vec![
+            TargetUnitOperation::DecomposeStructuralValue {
+                psi_operation: operation,
+                subject,
+            },
+            TargetUnitOperation::BooleanConstant {
+                psi_operation: following,
+                result: value,
+                value: true,
+            },
+        ];
+        let retained = instructions(id::<MachineId>(1), &block, rows.clone()).unwrap();
+        assert_eq!(retained.len(), 2);
+        let partition = retained[0].source.as_ref().unwrap();
+        assert_eq!(partition.operation, operation);
+        assert!(partition.result.is_none());
+        assert_eq!(partition.metadata.work, block.nodes[0].work);
+        assert_eq!(partition.metadata.effect, block.nodes[0].effect);
+        assert_eq!(partition.metadata.ownership, block.nodes[0].ownership);
+        let scalar = retained[1].source.as_ref().unwrap();
+        assert_eq!(scalar.operation, following);
+        assert_eq!(scalar.result, Some(block.nodes[1].definitions[0]));
+        assert_eq!(retained[0].kind, rows[0]);
+        assert_eq!(retained[1].kind, rows[1]);
+
+        let mut missing = rows.clone();
+        missing.remove(0);
+        let mut duplicate = rows.clone();
+        duplicate.insert(0, rows[0].clone());
+        for malformed in [missing, duplicate] {
+            assert!(matches!(
+                instructions(id::<MachineId>(1), &block, malformed),
+                Err(crate::LoweringError::InstructionMetadata {
+                    reason: "target instruction roster differs from its input",
+                    ..
+                })
+            ));
+        }
+    }
+}
