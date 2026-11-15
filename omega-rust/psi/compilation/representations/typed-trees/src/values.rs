@@ -4216,15 +4216,18 @@ pub mod expression {
                 .map(|(_, handle)| (*handle, self.expressions.get(*handle)))
         }
 
+        /// Keep the unowned expression roots `retain` accepts. It reads the
+        /// table as it was before any root left.
         pub fn retain_expression_roots(
             &mut self,
-            mut retain: impl FnMut(ExpressionHandle) -> bool,
+            mut retain: impl FnMut(&Self, ExpressionHandle) -> bool,
         ) {
-            let retained = self
+            let table = &*self;
+            let retained = table
                 .expression_roots
                 .iter()
                 .map(|(_, handle)| *handle)
-                .filter(|handle| retain(*handle))
+                .filter(|handle| retain(table, *handle))
                 .collect::<Vec<_>>();
             self.expression_roots.reset_retain_capacity();
             self.expression_roots.insert_many(retained);
