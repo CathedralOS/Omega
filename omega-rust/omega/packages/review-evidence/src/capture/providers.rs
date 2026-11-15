@@ -12,8 +12,8 @@ use crate::record::{
     PackagePolicyServiceMethod, PackagePolicyServiceReachDependency, PackagePolicyServiceSignature,
     PackagePolicyTargetContext, PackagePolicyTermination, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
-    PackageReviewCrashInterface, PackageReviewNominalIdentity, PackageReviewSignatureParameter,
-    PackageReviewWriteFrameCompleteness,
+    PackageReviewCrashInterface, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewSignatureParameter, PackageReviewWriteFrameCompleteness,
 };
 use backend_plan::SelectedCheckedInvocationRow;
 use build_time_evaluation::provider_declarations::{
@@ -398,13 +398,29 @@ impl PackageReviewInput<'_> {
         let package = plan
             .origin_package_identity
             .ok_or_else(|| unavailable("the selected provider's package"))?;
+        let schema_declaration = self.nominal(service.symbol)?;
+        let service_package = choice
+            .subject
+            .package
+            .ok_or_else(|| unavailable("the selected requirement's defining package"))?;
+        let local_service = service_package == package;
         if !closed_service(source, service)
             || methods.len() != plan.schema.declaration.methods.len()
             || methods.len() != plan.rows.len()
-            || !self.owns(service.symbol, package)?
+            || schema_declaration.owner != PackageReviewNominalOwner::Package(service_package)
+            || !self.owns(service.symbol, service_package)?
+            || (!local_service && !service.is_public)
         {
             return Err(unavailable(
-                "the selected provider's complete local service application",
+                "the selected provider's complete service application and source custody",
+            ));
+        }
+        let provider_type_declaration = self.nominal(choice.provider.symbol)?;
+        if provider_type_declaration.owner != PackageReviewNominalOwner::Package(package)
+            || !self.owns(choice.provider.symbol, package)?
+        {
+            return Err(unavailable(
+                "the selected provider's local source declaration",
             ));
         }
         let declaration_symbols = &declarations.accepted.closure().elaboration.boundaries;
@@ -421,7 +437,6 @@ impl PackageReviewInput<'_> {
         {
             return Err(unavailable("one selected row for the exact service method"));
         }
-        let schema_declaration = self.nominal(service.symbol)?;
         let mut projected_methods = Vec::new();
         let mut public_requirements = Vec::new();
         let mut rows = Vec::new();
@@ -476,16 +491,20 @@ impl PackageReviewInput<'_> {
                 schema_declaration.clone(),
                 declarations,
             )?;
-            if service.is_public {
-                public_requirements.push(service_requirement(&callable));
+            // The plan refers to the exact requirement. The defining
+            // package's review publishes that requirement as a callable.
+            if local_service {
+                if service.is_public {
+                    public_requirements.push(service_requirement(&callable));
+                }
+                review.callables.push(callable);
             }
             projected_methods.push(projected);
-            review.callables.push(callable);
             rows.push(row);
             review.boundaries.push(boundary.id);
             review.services.push(service_id);
         }
-        if service.is_public {
+        if local_service && service.is_public {
             review.public_traits.push(service_trait(
                 schema_declaration.clone(),
                 public_requirements,
@@ -497,7 +516,7 @@ impl PackageReviewInput<'_> {
             realizing_package: plan.origin_package_identity,
             schema_declaration,
             provider_type: plan.provider_type.clone(),
-            provider_type_declaration: Some(self.nominal(choice.provider.symbol)?),
+            provider_type_declaration: Some(provider_type_declaration),
             target: plan.target.clone(),
             methods: projected_methods,
             rows,
