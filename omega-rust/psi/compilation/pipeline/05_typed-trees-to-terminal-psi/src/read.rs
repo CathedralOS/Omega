@@ -1745,6 +1745,8 @@ mod tests {
                 }))
         };
         let whole = name(&mut typed, local, "p");
+        let whole_span = source::SourceSpan::new(source::SourceId(0), source::Span::new(14, 15));
+        typed.expression_table.set_source_span(whole, whole_span);
         let named_constant = name(&mut typed, constant, "LIMIT");
         let projected =
             typed
@@ -1789,19 +1791,24 @@ mod tests {
             borrowed: None,
             borrowed_regions: crate::body::Regions::NONE,
         }];
+        let refused = program
+            .assignment(
+                machine(),
+                &frozen,
+                &TableAssignment {
+                    target: whole,
+                    value,
+                },
+            )
+            .unwrap_err();
         assert_eq!(
-            program
-                .assignment(
-                    machine(),
-                    &frozen,
-                    &TableAssignment {
-                        target: whole,
-                        value,
-                    },
-                )
-                .unwrap_err()
-                .detail,
-            "statement assignment to an immutable binding"
+            refused.reason,
+            terminal_check_tables::RefusalReason::Violation
+        );
+        assert_eq!(refused.source_span, Some(whole_span));
+        assert_eq!(
+            refused.detail,
+            "writing to an immutable owned binding requires `mut`"
         );
         let mut declared = |role, initial_value| {
             program

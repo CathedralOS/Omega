@@ -115,12 +115,12 @@ framework or a list of features that remain unimplemented.
 - Cost: The test can no longer verify which stable observation justifies the subtraction. Trace the retained identities and keep the two-same-leaf positive and different-leaf negative.
 - Reported: 2026-11-14, Codex, while attributing Stage 06 failures after the ranked-loop changes
 
-### Writes to immutable owned bindings are reported as unavailable
+### Writes through shared formals report a binding mutability gap
 - Category: a verdict with nothing behind it
-- Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L83), [projected store reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L182)
-- Saw: At `c06ddb0f570`, `immutable_scalar_assigned` and `immutable_record_stored` in `lowered_route_subjects` produce unsupported refusals while reading `spare`. Their same-carrier mutable controls accept. The reader has already identified the owned root and determined it is not assignable. The [mutability rule](wiki/spec/language/ownership.md#owned-local-mutability) requires `mut` for either write.
-- Cost: The diagnostic reports a feature gap for an invalid write and omits the assignment's source position. Preserve legal writes through an existing mutable reference held in an immutable binding.
-- Reported: 2026-11-14, Codex, while checking compiler subject fixture verdicts
+- Where: [assignment reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/statements.rs#L50), [whole replacement control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/mutable_formals.rs#L352), [field store control](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_views.rs#L125)
+- Saw: The existing whole-record replacement and field-store controls through `&T` demand unavailable `immutable binding` refusals. These checks still pass with the owned-binding repair on `315ea16cc38`. The formal's slot already carries shared access, and the reference-crossing reader reports a positioned authority violation for structurally stored shared references.
+- Cost: A write through a shared formal lacks exclusive authority regardless of binding mutability. Authors see an unavailable operation with no source span instead of the loan rule that forbids the write.
+- Reported: 2026-11-14, Codex, while checking writes to immutable owned bindings
 
 ### Instruction selection reconstructs target operands from earlier executable bodies
 - Category: re-deriving

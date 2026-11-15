@@ -19,7 +19,7 @@ use typed_trees::statement::{TableAssignment, TableLocalData};
 use super::authority::Access;
 use super::{Program, Slot};
 use crate::body::{ExpressionKind, Statement, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn assignment(
@@ -47,6 +47,19 @@ impl Program<'_> {
             )
         };
         let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
+        let write_refusal = |slot: &Slot, unsupported| {
+            // An owned binding's mutability already settles whether this
+            // write is legal. Borrowed and erased slots have separate rules.
+            if slot.borrowed.is_some() || slot.erased {
+                unserved(unsupported)
+            } else {
+                reject(
+                    id,
+                    source,
+                    "writing to an immutable owned binding requires `mut`",
+                )
+            }
+        };
         match self.node(id, assignment.target)? {
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
@@ -81,7 +94,10 @@ impl Program<'_> {
                     });
                 }
                 if !slots[slot].assignable {
-                    return Err(unserved("assignment to an immutable binding"));
+                    return Err(write_refusal(
+                        &slots[slot],
+                        "assignment to an immutable binding",
+                    ));
                 }
                 // A slice formal carries a view rather than a borrowed
                 // value's storage. Keep whole-view assignment at its existing
@@ -180,7 +196,10 @@ impl Program<'_> {
                     language_core::ReferenceAccess::Mutable,
                 )?;
                 if !crossed && !byte_store && !slots[slot].assignable {
-                    return Err(unserved("store into an immutable binding"));
+                    return Err(write_refusal(
+                        &slots[slot],
+                        "store into an immutable binding",
+                    ));
                 }
                 if byte_store
                     && slots[slot].borrowed == Some(language_core::ReferenceAccess::Shared)
