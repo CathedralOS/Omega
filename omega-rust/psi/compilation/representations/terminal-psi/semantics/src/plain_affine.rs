@@ -1983,6 +1983,28 @@ impl Analysis<'_> {
             }
             retained.reverse();
             outgoing.active = retained;
+            // A copyable home is not an affine owner, so the loop above never
+            // disposes of it. When one arrival released the descriptor it
+            // holds and this arrival did not, the successor enters without
+            // it: the planner retires it on this edge. A checked plan must
+            // supply that retirement itself (below).
+            if let (false, Some(there)) = (bound_output, owned_there) {
+                for (raw, root) in self.roots.iter().enumerate() {
+                    let retire = root.as_ref().is_some_and(|root| {
+                        root.owned
+                            && !root.affine
+                            && root.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Unrestricted
+                    }) && outgoing.regions[raw].is_some()
+                        && there.regions[raw].is_none();
+                    if retire {
+                        let place = PlaceId::new(raw as u64 + 1)
+                            .ok_or(Error::malformed("place identity overflow"))?;
+                        actions.push(TerminalAffineCleanupAction::RetireHome(place));
+                        outgoing.regions[raw] = None;
+                    }
+                }
+            }
             // Explicit retirement still ends a copyable home's availability;
             // merely copying its value above does not. These supplied actions
             // confer no affine scheduling authority.

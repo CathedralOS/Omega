@@ -253,8 +253,12 @@ machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
 }}
 {ENTRY}"#
     ));
-    assert_eq!(
-        joined,
-        Err("reference use without exact live backing correspondence".to_owned())
+    // The refusal names its cause first, then where it stopped (#3491).
+    let joined = joined.unwrap_err();
+    assert!(
+        joined.starts_with("reference use without exact live backing correspondence for machine ")
+            && joined.contains("checking StructuralScalarFieldStore")
+            && joined.contains("path(journey)"),
+        "{joined}"
     );
 }
