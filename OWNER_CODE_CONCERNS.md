@@ -129,13 +129,6 @@ framework or a list of features that remain unimplemented.
 - Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Defer wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` coverage is actively churning those stages unless a measured continuation bottleneck requires it earlier. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals
 
-### Forming a field's domain predicate loses the field carrier's default requirements
-- Category: a proof loses its subject's premises
-- Where: `05_typed-trees-to-terminal-psi/src/read/places.rs` (field-domain clause instantiation) and `06_terminal-psi-to-terminal-psi/src/formation.rs` (structural type default formation)
-- Saw: `data Reading requires number >= 1 { number: u32; }`, `domain Reading::Nonzero requires self.number - 1 <= 4294967295u32;`, and `data Carry { item: Reading in Nonzero; }` produce `data domain: contract arithmetic is not proved total before its condition: the operands' bounds exceed the carrier`. The clause under `Carry.item.number` is checked without the lower bound guaranteed by `Reading` at that same field. The separate declaration check can use `Reading`'s bound. A control with the lower bound in the named domain passes.
-- Cost: a field's valid domain predicate needs to repeat a bound its declared carrier already guarantees.
-- Reported: 2026-11-14, Codex, macOS arm64. Reproduced with the issuer-guard-only candidate `8c04fa2` over `294241784f4` and with the record-domain catalog repair.
-
 ### Some record-domain placements still have no checked representation
 - Category: a verdict with nothing behind it
 - Where: `05_typed-trees-to-terminal-psi/src/qualifications.rs` (`declare_structural`, `structural_establishments`); `lower/places.rs` (`projected_memberships`); `terminal-psi/semantics/src/structural_qualifications.rs`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (boundary calls with qualified structural formals)

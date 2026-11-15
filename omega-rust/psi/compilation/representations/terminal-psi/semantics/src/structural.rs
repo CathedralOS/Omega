@@ -3179,7 +3179,7 @@ pub(crate) mod static_path {
         root: StructuralTypeId,
         path: &[CanonicalStructuralPathSegment],
     ) -> Option<&'a StructuralTypeDeclaration> {
-        let selected = canonical_projection_type(declarations.clone(), root, path, None, None)?;
+        let selected = canonical_projection_type(declarations.clone(), root, path, None)?;
         let mut matching = declarations.filter(|declaration| declaration.id == selected);
         let declaration = matching.next()?;
         matching.next().is_none().then_some(declaration)
@@ -3193,7 +3193,7 @@ pub(crate) mod static_path {
         path.iter()
             .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
             .then_some(())?;
-        canonical_projection_type(types, root, path, None, None)
+        canonical_projection_type(types, root, path, None)
     }
 
     pub fn canonical_structural_storage_path<'a>(
@@ -3202,7 +3202,7 @@ pub(crate) mod static_path {
         path: &[CanonicalStructuralPathSegment],
     ) -> Option<Vec<StructuralPathSegment>> {
         let mut storage = Vec::with_capacity(path.len());
-        canonical_projection_type(types, root, path, Some(&mut storage), None)?;
+        canonical_projection_type(types, root, path, Some(&mut storage))?;
         Some(storage)
     }
 
@@ -3212,22 +3212,66 @@ pub(crate) mod static_path {
         path: &[CanonicalStructuralPathSegment],
         dependencies: &mut std::collections::BTreeSet<StructuralTypeId>,
     ) -> Option<()> {
-        canonical_projection_type(types, root, path, None, Some(dependencies))?;
+        let declaration = |identity| exactly_one(types.clone(), |row| row.id == identity);
+        canonical_projection_type_with_lookup(
+            types.clone(),
+            declaration,
+            root,
+            path,
+            None,
+            Some(dependencies),
+        )?;
+        Some(())
+    }
+
+    /// Visit the exact owned carrier at each inline prefix until the path
+    /// crosses a referent, an inactive case, or a non-inline element.
+    pub fn visit_canonical_inline_carriers<'a>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        declaration: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+        mut carrier: &'a StructuralTypeDeclaration,
+        path: &[CanonicalStructuralPathSegment],
+        mut visit: impl FnMut(usize, &'a StructuralTypeDeclaration),
+    ) -> Option<()> {
+        for (index, step) in path.iter().enumerate() {
+            match step {
+                CanonicalStructuralPathSegment::Field(_) => {}
+                CanonicalStructuralPathSegment::FixedIndex(_)
+                    if matches!(carrier.shape, StructuralTypeShape::FixedArray { .. }) => {}
+                _ => break,
+            }
+            let selected = canonical_projection_type_with_lookup(
+                types.clone(),
+                &declaration,
+                carrier.id,
+                std::slice::from_ref(step),
+                None,
+                None,
+            )?;
+            carrier = declaration(selected)?;
+            visit(index + 1, carrier);
+        }
         Some(())
     }
 
     fn canonical_projection_type<'a>(
         types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[CanonicalStructuralPathSegment],
+        storage: Option<&mut Vec<StructuralPathSegment>>,
+    ) -> Option<StructuralTypeId> {
+        let declaration = |identity| exactly_one(types.clone(), |row| row.id == identity);
+        canonical_projection_type_with_lookup(types.clone(), declaration, root, path, storage, None)
+    }
+
+    fn canonical_projection_type_with_lookup<'a>(
+        types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        declaration: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
         mut root: StructuralTypeId,
         path: &[CanonicalStructuralPathSegment],
         mut storage: Option<&mut Vec<StructuralPathSegment>>,
         mut dependencies: Option<&mut std::collections::BTreeSet<StructuralTypeId>>,
     ) -> Option<StructuralTypeId> {
-        let declaration = |identity| {
-            let mut matching = types.clone().filter(|candidate| candidate.id == identity);
-            let selected = matching.next()?;
-            matching.next().is_none().then_some(selected)
-        };
         let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
         for segment in path {
             if let Some(dependencies) = dependencies.as_mut() {
