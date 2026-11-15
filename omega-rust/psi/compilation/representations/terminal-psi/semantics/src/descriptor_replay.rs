@@ -6878,21 +6878,48 @@ pub(crate) mod engine {
                     .read_contents(&graph[0], &moved, &cell_query)
                     .is_none()
             );
-            drop(replay);
-
-            // Repeated public queries retain the exact cut. Losing the pointer
-            // at the later definition cannot poison its earlier valid backing.
+            // Storage identity survives a loss of readable contents. Repeated
+            // queries must agree with direct replay at each completed cut.
             fn send_and_sync<T: Send + Sync>() {}
             send_and_sync::<DescriptorAnalysis<'_>>();
             let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &graph);
             let original_backing = analysis.location(id, positions[0], &leaf);
             assert!(original_backing.is_some());
-            assert_eq!(analysis.location(id, positions[1], &leaf), None);
+            for position in positions[..2].iter().copied() {
+                assert_eq!(
+                    analysis.location(id, position, &leaf),
+                    replay.canonical_storage(&graph[0], &completed[&position], &leaf, None)
+                );
+            }
+            assert_eq!(analysis.location(id, positions[1], &leaf), original_backing);
             assert_eq!(analysis.location(id, positions[0], &leaf), original_backing);
-            assert_eq!(analysis.location(id, positions[1], &leaf), None);
+            assert_eq!(analysis.location(id, positions[1], &leaf), original_backing);
             let foreign = location(u64::MAX);
             assert_eq!(analysis.location(id, positions[0], &foreign), None);
             assert_eq!(analysis.location(id, positions[0], &foreign), None);
+            drop(analysis);
+
+            drop(replay);
+
+            // Replacing the reference really changes the later address. A
+            // cached query at either cut must not overwrite the other cut.
+            let mut retargeted = graph.clone();
+            retargeted[0]
+                .flow
+                .get_mut(&positions[0])
+                .unwrap()
+                .derivations
+                .push((replacement_parameter.clone(), parameter.clone()));
+            let mut analysis = DescriptorAnalysis::with_reference_slots(&types, &retargeted);
+            assert_eq!(
+                analysis.location(id, positions[1], &leaf),
+                Some(replacement_leaf.clone())
+            );
+            assert_eq!(analysis.location(id, positions[0], &leaf), original_backing);
+            assert_eq!(
+                analysis.location(id, positions[1], &leaf),
+                Some(replacement_leaf)
+            );
             drop(analysis);
 
             let mut limited =
