@@ -263,47 +263,183 @@ fn review_policy_round_trip_distinguishes_explicit_and_inferred_empty_reach() {
     assert_eq!(inferred.published_service_reach(), Some([].as_slice()));
 }
 
+fn historical_constant_source() -> PathBuf {
+    fixture_package_inputs::repo_root()
+        .join("samples/cli/facts/target_layout_derived_constant/main.omg")
+}
+
+fn historical_constant_snapshot() -> package_compilation::BuildSnapshotRequest {
+    use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+    // Each nested placement is a different project with its own Answer.
+    let source = BuildSourceCaptureRequest::new(["build.omg", "main.omg"].map(|file| {
+        (
+            file.as_bytes().to_vec(),
+            BuildSourceCaptureObligation::Required,
+        )
+    }))
+    .expect("exact historical source inventory");
+    package_compilation::BuildSnapshotRequest::scoped([], source)
+}
+
+fn historical_answer_workspace(source: &Path, directory: &Path) -> PathBuf {
+    std::fs::create_dir_all(directory).unwrap();
+    std::fs::copy(source, directory.join("main.omg")).unwrap();
+    std::fs::copy(
+        source.with_file_name("build.omg"),
+        directory.join("build.omg"),
+    )
+    .unwrap();
+    directory.join("main.omg")
+}
+
+fn select_historical_linux_answer(project: &Path, original_build: &str, provider: Option<&str>) {
+    let original = "Build::select_provider<Answer, Small>(builder, linux_x86_64);";
+    assert_eq!(original_build.matches(original).count(), 1);
+    let statement = provider.map_or_else(String::new, |provider| {
+        format!("Build::select_provider<Answer, {provider}>(builder, linux_x86_64);")
+    });
+    std::fs::write(
+        project.with_file_name("build.omg"),
+        original_build.replacen(original, &statement, 1),
+    )
+    .unwrap();
+}
+
+#[test]
+fn historical_constant_build_retains_its_authored_answer_selections() {
+    use package_compilation::provider_selection_codec::{
+        decode_package_provider_selections, encode_package_provider_selections,
+    };
+
+    fn authored_name(declaration: &symbols::RetainedDeclaration) -> &str {
+        let span = declaration.span();
+        &declaration.source().source[span.start..span.end]
+    }
+
+    fn check(
+        source: &Path,
+        session_path: &Path,
+        linux_provider: Option<&str>,
+    ) -> semantic_vocabulary::PackageKeyIdentity {
+        let target = target::TargetProfile::LinuxX64;
+        let (_session, build, _) = captured_package_build(
+            source,
+            session_path,
+            target,
+            Some(historical_constant_snapshot()),
+        );
+        let handoff = build.build_handoff();
+        assert_eq!(handoff.target(), target);
+        let bytes = encode_package_provider_selections(
+            handoff.provider_selections(),
+            handoff.selection_observation(),
+        );
+        let (selections, observation) =
+            decode_package_provider_selections(&bytes).expect("recover retained Build selections");
+        assert!(observation.is_some());
+        assert_eq!(
+            encode_package_provider_selections(&selections, observation),
+            bytes
+        );
+        let mut answers = selections
+            .iter()
+            .filter(|selection| authored_name(&selection.subject) == "Answer")
+            .map(|selection| {
+                for declaration in [&selection.subject, &selection.provider] {
+                    let source = declaration.source();
+                    assert_eq!(source.package_identity, Some(handoff.package()));
+                    assert_eq!(
+                        source.path.strip_prefix(&source.package_root).unwrap(),
+                        Path::new("main.omg")
+                    );
+                }
+                (
+                    selection.target.canonical_name(),
+                    authored_name(&selection.provider),
+                )
+            })
+            .collect::<Vec<_>>();
+        answers.sort_unstable();
+        let mut expected = vec![
+            ("linux_arm64", "Small"),
+            ("macos_arm64", "Large"),
+            ("windows_x86_64", "Large"),
+        ];
+        if let Some(provider) = linux_provider {
+            expected.insert(1, ("linux_x86_64", provider));
+        }
+        assert_eq!(answers, expected);
+        handoff.package()
+    }
+
+    let source = historical_constant_source();
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "historical-answer-build",
+        false,
+    )
+    .unwrap();
+    check(&source, &workspace.path().join("original"), Some("Small"));
+
+    let project = historical_answer_workspace(&source, &workspace.path().join("project"));
+    let original_build = std::fs::read_to_string(source.with_file_name("build.omg")).unwrap();
+    let package = check(&project, &workspace.path().join("small"), Some("Small"));
+    select_historical_linux_answer(&project, &original_build, Some("Same"));
+    assert_eq!(
+        check(&project, &workspace.path().join("same"), Some("Same")),
+        package
+    );
+    select_historical_linux_answer(&project, &original_build, None);
+    assert_eq!(
+        check(&project, &workspace.path().join("absent"), None),
+        package
+    );
+}
+
 #[test]
 fn historical_constant_closure_requires_exact_target_and_provider() {
-    use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
+    use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 
-    fn produce(
-        root: &Path,
-        target_name: &str,
-        product: RequestedCompileProduct,
-    ) -> compiler::CompileReport {
-        let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-            root,
-            Some(target_name),
-        )
-        .expect("source-backed package inputs");
-        let mut request = CompileRequest::new(CompileOptions {
-            root_path: prepared.root_path,
-            build_dir: Some(std::env::temp_dir().join(format!(
+    fn produce(root: &Path, target_name: &str, product: ProjectProduct) -> compiler::CompileReport {
+        let profile = target::TargetProfile::from_canonical_target_name(target_name).unwrap();
+        let outcomes = orchestration::build(BuildRequest {
+            root_path: root.to_path_buf(),
+            build_directory: Some(std::env::temp_dir().join(format!(
                 "omega-layout-closure-{}-{target_name}",
                 std::process::id(),
             ))),
-            target_name: Some(target_name.to_owned()),
+            targets: BuildTargets::Single(profile),
+            product,
+            timings: false,
+            offline: true,
+            verify: false,
+            require_package_project: true,
+            optimization_rollback: Default::default(),
+            build_snapshot: Some(historical_constant_snapshot()),
         })
-        .with_requested_product(product);
-        if let Some(inputs) = prepared.package_inputs {
-            request = request.with_package_inputs(inputs);
-        }
-        orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
-            .expect("request admission")
-            .into_single_report()
-            .expect("source reaches its requested product")
+        .expect("admit the source-backed package request");
+        let [outcome] = <[_; 1]>::try_from(outcomes)
+            .unwrap_or_else(|_| panic!("one requested historical layout target"));
+        assert_eq!(outcome.target, profile);
+        outcome
+            .result
+            .unwrap_or_else(|error| panic!("source reaches its requested product: {error}"))
+            .into_report()
+            .expect("report of the requested product")
+            .report
     }
 
-    let root = fixture_package_inputs::repo_root()
-        .join("samples/cli/facts/target_layout_derived_constant/main.omg");
-    let retained = produce(
-        &root,
-        "linux_x86_64",
-        RequestedCompileProduct::TerminalArtifact,
+    let root = historical_constant_source();
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "historical-answer-closure",
+        false,
     )
-    .into_retained_terminal_artifact()
-    .expect("native proposal");
+    .unwrap();
+    // Compare two actual selections for one exact package. A second
+    // package's identity could independently falsify the substitution.
+    let project = historical_answer_workspace(&root, &workspace.path().join("project"));
+    let retained = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
+        .into_retained_terminal_artifact()
+        .expect("native proposal");
     let proposal = retained
         .native_realization_proposal()
         .expect("native proposal");
@@ -356,32 +492,12 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         "folded constant normalized plan input differs from its retained commitment"
     );
 
-    let scratch = fixture_package_inputs::repo_root()
-        .join("build")
-        .join(format!(
-            "omega-equal-layout-provider-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos(),
-        ));
-    std::fs::create_dir(&scratch).expect("private source control directory");
-    let source = std::fs::read_to_string(&root).expect("authored witness");
-    let alternate_source = source.replace(
-        "select_provider<Answer, Small>",
-        "select_provider<Answer, Same>",
-    );
-    assert_ne!(alternate_source, source);
-    std::fs::write(scratch.join("main.omg"), alternate_source).unwrap();
-    std::fs::copy(root.with_file_name("build.omg"), scratch.join("build.omg")).unwrap();
-    let alternate = produce(
-        &scratch.join("main.omg"),
-        "linux_x86_64",
-        RequestedCompileProduct::TerminalArtifact,
-    )
-    .into_retained_terminal_artifact()
-    .expect("alternate native proposal");
+    let original_build = std::fs::read_to_string(root.with_file_name("build.omg"))
+        .expect("authored Build selections");
+    select_historical_linux_answer(&project, &original_build, Some("Same"));
+    let alternate = produce(&project, "linux_x86_64", ProjectProduct::Terminal)
+        .into_retained_terminal_artifact()
+        .expect("alternate native proposal");
     let alternate_plans = alternate
         .native_realization_proposal()
         .unwrap()
@@ -408,14 +524,17 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         admit("linux_x86_64", &alternate_inputs).unwrap_err(),
         "folded constant normalized plan input differs from its retained commitment"
     );
-    std::fs::remove_dir_all(scratch).unwrap();
     // This emits a Windows product but executes only its Terminal semantics on
     // this host. The frozen source's branch traps unless the derived value is
     // exactly 9 (the Windows provider extent 8 plus 1), rather than Linux's 5.
     let windows = produce(
         &root,
         "windows_x86_64",
-        RequestedCompileProduct::NativeArtifact,
+        ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+            installation_assumptions: Vec::new(),
+        },
     );
     let artifact = windows
         .retained_native_artifact()
@@ -552,7 +671,7 @@ fn reviewed_and_recovered(
     )
     .unwrap();
     let target = target::TargetProfile::from_omega_target_name(Some(target)).unwrap();
-    let (mut session, build, _) = captured_package_build(fixture, workspace.path(), target);
+    let (mut session, build, _) = captured_package_build(fixture, workspace.path(), target, None);
     let reviewed = session
         .compiler()
         .review_package_build(build, usize::MAX)
@@ -1407,7 +1526,7 @@ fn captured_review_compilation_at(
     std::fs::write(project.join("build.omg"), build_source).unwrap();
     let target = target::TargetProfile::host_if_supported().expect("host Product target");
     let (mut session, build, inputs) =
-        captured_package_build(&project.join("main.omg"), session_path, target);
+        captured_package_build(&project.join("main.omg"), session_path, target, None);
     let checked = session
         .compiler()
         .check_package_build(build)
@@ -1430,6 +1549,7 @@ fn captured_package_build(
     root_path: &Path,
     session_path: &Path,
     target: target::TargetProfile,
+    snapshot: Option<package_compilation::BuildSnapshotRequest>,
 ) -> (
     orchestration::BuildSession,
     compiler::PackageBuild,
@@ -1446,6 +1566,7 @@ fn captured_package_build(
             preparation,
             execution: package_compilation::BuildExecutionInputs {
                 profile: target::TargetProfile::host_if_supported(),
+                snapshot,
                 ..Default::default()
             },
             collect_timings: false,
