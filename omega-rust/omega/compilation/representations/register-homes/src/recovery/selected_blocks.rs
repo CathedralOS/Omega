@@ -97,6 +97,10 @@ pub(super) fn decode_block(
     };
     let instructions = decode_list(cursor, decode_instruction)?;
     let terminator = match cursor.byte()? {
+        10 => SelectedTerminator::EliminateEmpty {
+            instruction: decode_instruction(cursor)?,
+            psi_edge: decode_id(cursor, EdgeId::new)?,
+        },
         9 => SelectedTerminator::OperationInvokeNoNormal {
             instruction: decode_instruction(cursor)?,
             operation: decode_id(cursor, OperationId::new)?,

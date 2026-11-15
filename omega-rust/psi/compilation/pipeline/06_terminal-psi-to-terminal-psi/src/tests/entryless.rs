@@ -5,6 +5,17 @@ use super::*;
 
 pub(super) fn judged(text: &str, select_first: bool) -> RouteVerdict {
     let typed = typed(text);
+    judged_typed(&typed, select_first)
+}
+
+pub(super) fn judged_typed(typed: &typed_trees::TypedTrees, select_first: bool) -> RouteVerdict {
+    judged_typed_result(typed, select_first).unwrap()
+}
+
+pub(super) fn judged_typed_result(
+    typed: &typed_trees::TypedTrees,
+    select_first: bool,
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let selected = if select_first {
         vec![typed.machines()[0].symbol]
     } else {
@@ -12,7 +23,7 @@ pub(super) fn judged(text: &str, select_first: bool) -> RouteVerdict {
     };
     let mut verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-            &typed,
+            typed,
             typed_trees_to_terminal_psi::Compilation {
                 declaration_metadata: &[],
                 entries: &[],
@@ -27,7 +38,7 @@ pub(super) fn judged(text: &str, select_first: bool) -> RouteVerdict {
         .program,
     );
     assert_eq!(verdicts.len(), 1);
-    verdicts.remove(0).unwrap()
+    verdicts.remove(0)
 }
 
 #[test]

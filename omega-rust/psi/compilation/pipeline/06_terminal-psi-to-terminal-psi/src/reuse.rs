@@ -84,6 +84,7 @@ pub fn reverify(
         &row.kind,
         tables,
         &prepared.types,
+        &prepared.ranking_bindings,
     )?;
     let hypotheses =
         crate::hypotheses(&prepared.graph, tables, machine, obligation, row.created_at)?;
@@ -793,6 +794,7 @@ pub fn reverify_specialization(
             &row.kind,
             tables,
             &prepared.types,
+            &prepared.ranking_bindings,
         )
         .and_then(|goal| {
             carry.certify(

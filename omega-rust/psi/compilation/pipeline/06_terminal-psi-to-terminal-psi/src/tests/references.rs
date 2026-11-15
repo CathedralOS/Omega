@@ -97,6 +97,7 @@ pub(super) fn lower_lending(
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records())

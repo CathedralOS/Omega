@@ -427,6 +427,7 @@ fn operation_observations(
         ),
         O::InvokeNoNormal { .. } => (vec![event(C::InternalCall)], May, May),
         O::ExternalCompletion { .. } => (vec![event(C::ExternalCompletion)], No, No),
+        O::EliminateEmpty { .. } => (Vec::new(), No, No),
         O::Crash { .. } => (vec![event(C::CrashExit)], Yes, No),
         O::TrappingInteger { .. } => (vec![event(C::CrashExit)], May, No),
         O::FloatResultPolicy { policy, .. } => {

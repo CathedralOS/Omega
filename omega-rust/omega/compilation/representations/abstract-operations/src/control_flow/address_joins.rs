@@ -30,9 +30,41 @@ pub fn is_address_join<'a>(
             | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && lookup(parameter.structural_type).is_some_and(|declaration| {
-            declaration.id == parameter.structural_type
-                && !declaration.shape.is_canonical_view_descriptor()
+            declaration.id == parameter.structural_type && !declaration.shape.is_view_descriptor()
         })
+}
+
+/// A block edge copies a view's descriptor value, including its retained
+/// access. This is distinct from a callable's public ABI presentation.
+pub fn is_descriptor_join<'a>(
+    parameter: &StructuralParameterDeclaration,
+    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
+) -> bool {
+    matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && matches!(
+        parameter.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) && lookup(parameter.structural_type).is_some_and(|declaration| {
+        declaration.id == parameter.structural_type
+            && declaration.shape.is_view_descriptor()
+            && (parameter.projected_qualifications.is_empty()
+                || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                    && parameter
+                        .projected_qualifications
+                        .iter()
+                        .all(|row| row.is_element_membership()))
+    })
+}
+
+pub fn is_descriptor_join_in(
+    parameter: &StructuralParameterDeclaration,
+    types: &[StructuralTypeDeclaration],
+) -> bool {
+    is_descriptor_join(parameter, |identity| {
+        unique_structural_type(types.iter(), identity)
+    })
 }
 
 pub fn is_address_join_in(
@@ -374,5 +406,40 @@ mod tests {
             ),
             None
         );
+    }
+    #[test]
+    fn stored_access_views_cross_edges_as_values_but_references_keep_addresses() {
+        use super::{is_address_join_in, is_descriptor_join_in};
+        use terminal_psi::{StructuralMultiplicity, StructuralParameterDeclaration};
+        let mut types = catalog();
+        let mut stored = types[2].clone();
+        stored.id = type_id(4);
+        stored.shape = StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        });
+        let mut reference = stored.clone();
+        reference.id = type_id(5);
+        reference.shape = StructuralTypeShape::Reference {
+            referent: stored.id,
+            access: StructuralAccess::SharedBorrow,
+        };
+        types.extend([stored, reference]);
+        let mut parameter = StructuralParameterDeclaration {
+            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            position: 0,
+            structural_type: type_id(4),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+        assert!(is_descriptor_join_in(&parameter, &types));
+        assert!(!is_address_join_in(&parameter, &types));
+        for address in [type_id(1), type_id(5)] {
+            parameter.structural_type = address;
+            assert!(is_address_join_in(&parameter, &types));
+            assert!(!is_descriptor_join_in(&parameter, &types));
+        }
     }
 }

@@ -67,7 +67,7 @@ mod minted;
 mod operational;
 mod places;
 mod prove;
-mod ranking;
+mod rankings;
 mod result_summaries;
 mod reuse;
 mod verdict;
@@ -75,6 +75,7 @@ mod verdict;
 pub use ceilings::Axis as CeilingAxis;
 pub use formation::{ReplayScope, prepare_replay};
 pub use places::{ConflictingLoan, LoanConflict};
+pub use rankings::FiniteIntegerRanking;
 pub use reuse::{
     Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
 };
@@ -177,13 +178,21 @@ pub enum Discharged {
     /// judgment with no certificate, and the loan ends when its call
     /// returns, so it owes nothing after it.
     Lent,
+    /// The canonical finite integer relation and its complete authenticated
+    /// private bindings. Every internal edge comparison has a separate kernel
+    /// certificate; no Truth proposition stands in for well-foundedness.
+    FiniteIntegerRanking(FiniteIntegerRanking),
 }
 
 impl Discharged {
     pub const fn certificate(&self) -> Option<&Evidence> {
         match self {
             Self::Certificate(evidence) => Some(evidence),
-            Self::EveryExit(_) | Self::Window(_) | Self::Preserved | Self::Lent => None,
+            Self::EveryExit(_)
+            | Self::Window(_)
+            | Self::Preserved
+            | Self::Lent
+            | Self::FiniteIntegerRanking(_) => None,
         }
     }
 }
@@ -332,6 +341,7 @@ impl Discharge {
                     reason: RefusalReason::Unsupported,
                     machine,
                     concerns: Construct::Obligation(obligation),
+                    source_span: None,
                     detail: format!("evidence encoding {error:?}"),
                 })?;
                 seals.push(seal);
@@ -370,6 +380,25 @@ pub fn discharge_carrying(
 }
 
 fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
+    for boundary in &elaboration.module.boundary_machines {
+        terminal_semantics::boundary_result_lifetimes(
+            &elaboration.module.structural_types,
+            boundary,
+        )
+        .map_err(|detail| {
+            refusal(
+                RefusalReason::Unsupported,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    }
     let mut scope = prepare_replay(elaboration)?;
     let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
@@ -420,6 +449,11 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         requirements,
         carried,
     );
+    // Observe the same immutable type family used by inference above. The
+    // existing module-scoped exclusion graph serves every machine; only this
+    // borrowed declaration view is needed beside it for projected paths.
+    let empty_contracts =
+        terminal_semantics::inhabitation::TerminalContracts::new(module.structural_types.iter());
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = checking.machines.keys().collect();
     for id in identities {
@@ -463,6 +497,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             &beyond,
             inputs.carried.map(|position| &carried[position]),
             inputs.branches,
+            &empty_contracts,
         )?);
     }
     Ok(Discharge { machines })
@@ -534,6 +569,7 @@ fn refusal(
         reason,
         machine,
         concerns,
+        source_span: None,
         detail: detail.to_owned(),
     }
 }
@@ -557,6 +593,7 @@ fn terminal_machine(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn machine(
     formed: formation::FormedModule<'_>,
     inhabitation: &terminal_semantics::inhabitation::Inhabitation,
@@ -566,6 +603,7 @@ fn machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
+    empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
 ) -> Checked<MachineDischarge> {
     let module = formed.source();
     let machines = &module.machines;
@@ -584,6 +622,7 @@ fn machine(
         graph,
         context,
         reference_graph,
+        ranking_bindings,
     } = prepare_with_inhabitation(formed, domains, id, tables, inhabitation)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
@@ -636,6 +675,7 @@ fn machine(
             types: &types,
             graph: &graph,
             context: &context,
+            ranking_bindings: &ranking_bindings,
             declared: &declared,
             unreached,
         },
@@ -653,8 +693,23 @@ fn machine(
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
             continue;
         }
+        if let ObligationKind::WellFoundedness { component } = row.kind {
+            decided[index] = Some(
+                rankings::well_founded(lowered, &ranking_bindings, obligation, component)
+                    .map(Discharged::FiniteIntegerRanking),
+            );
+            continue;
+        }
         let verdict = goal(
-            module, lowered, &storage, id, obligation, &row.kind, tables, &types,
+            module,
+            lowered,
+            &storage,
+            id,
+            obligation,
+            &row.kind,
+            tables,
+            &types,
+            &ranking_bindings,
         )
         .and_then(|goal| {
             if let Some(carry) = &carrier
@@ -777,7 +832,7 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(tables)?;
+    let mut uses = storage.uses(tables, empty_contracts, inhabitation)?;
     // A store into a field of a byte domain is judged by the bytes it
     // supplies; a refused store is that operation's verdict.
     for judged in storage.byte_predicate_stores()? {
@@ -821,6 +876,7 @@ fn machine(
                     reason: RefusalReason::Unestablished,
                     machine: id,
                     concerns: consumption.at,
+                    source_span: None,
                     detail: format!(
                         "zeroed storage of a gated type is used before its requires holds: {}",
                         unproved.detail
@@ -1067,6 +1123,7 @@ pub(crate) struct Prepared {
     pub(crate) graph: Graph,
     pub(crate) context: PropositionContext,
     reference_graph: Vec<terminal_semantics::descriptor_results::DescriptorMachine>,
+    ranking_bindings: rankings::Bindings,
 }
 
 impl Prepared {
@@ -1133,11 +1190,9 @@ pub(crate) fn prepare_with_inhabitation(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
-    // A ranking is admitted whole before any of its comparisons is decided,
-    // and a terminating machine may leave no cycle unranked (`ranking`).
-    ranking::admit(id, lowered, tables, &graph)?;
     let reference_graph = places::reference_graph(module, id)?;
-    if fill {
+    let ranking_bindings;
+    {
         let references = std::cell::RefCell::new(
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
@@ -1154,8 +1209,11 @@ pub(crate) fn prepare_with_inhabitation(
             &types,
             &references,
         )?;
-        storage.owed_are_minted(tables)?;
-        fill_knowledge(module, id, lowered, tables, &types, &storage)?;
+        ranking_bindings = rankings::admit(lowered, tables, &graph, &storage)?;
+        if fill {
+            storage.owed_are_minted(tables)?;
+            fill_knowledge(module, id, lowered, tables, &types, &storage)?;
+        }
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
@@ -1183,6 +1241,7 @@ pub(crate) fn prepare_with_inhabitation(
         graph,
         context,
         reference_graph,
+        ranking_bindings,
     })
 }
 
@@ -1273,6 +1332,7 @@ fn semantics_refusal(
         reason: RefusalReason::Unsupported,
         machine,
         concerns: Construct::Operation(operation),
+        source_span: None,
         detail: format!("operation semantics {error:?}"),
     }
 }
@@ -1689,9 +1749,18 @@ fn goal(
     kind: &ObligationKind,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    ranking_bindings: &rankings::Bindings,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
-        module, lowered, storage, id, obligation, kind, tables, types,
+        module,
+        lowered,
+        storage,
+        id,
+        obligation,
+        kind,
+        tables,
+        types,
+        ranking_bindings,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -1738,6 +1807,7 @@ fn stated_goal(
     kind: &ObligationKind,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    ranking_bindings: &rankings::Bindings,
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
@@ -1866,17 +1936,15 @@ fn stated_goal(
         ObligationKind::CrashCoverage { site, cause } => {
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
-        ObligationKind::WellFoundedness { component } => {
-            ranking::floor_goal(lowered, id, obligation, component)
-        }
         ObligationKind::RankComparison { component, edge } => {
-            ranking::comparison_goal(lowered, id, obligation, component, edge)
+            rankings::goal(lowered, ranking_bindings, obligation, component, edge)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }
         | ObligationKind::RestorationWindow { .. }
         | ObligationKind::DomainDebt { .. }
-        | ObligationKind::EstablishmentDebt { .. } => Err(refusal(
+        | ObligationKind::EstablishmentDebt { .. }
+        | ObligationKind::WellFoundedness { .. } => Err(refusal(
             RefusalReason::Unsupported,
             id,
             concerns,
@@ -1964,6 +2032,7 @@ fn unproved(
         reason: RefusalReason::Unproved(cause),
         machine: id,
         concerns: Construct::Obligation(obligation),
+        source_span: None,
         detail,
     }
 }

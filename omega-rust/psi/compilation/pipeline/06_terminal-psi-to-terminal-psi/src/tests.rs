@@ -62,6 +62,7 @@ mod provider_supplies;
 mod published_no_return;
 mod qualified_terms;
 mod ranges;
+pub(crate) mod rankings;
 mod reach;
 mod references;
 mod result_fields;
@@ -73,6 +74,7 @@ mod scalar_joins;
 mod sequence_regions;
 mod stored_references;
 mod stored_views;
+mod successor_loans;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;
@@ -226,6 +228,7 @@ fn lower(machines: Vec<Machine>) -> Checked<typed_trees_to_terminal_psi::Elabora
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -1219,12 +1222,24 @@ fn an_unsupported_closure_falls_back_whole_and_a_route_defect_is_not_accepted() 
         reason,
         machine: id(1),
         concerns: Construct::Machine,
+        source_span: None,
         detail: String::from("test"),
     };
-    assert!(matches!(
-        judge(Err(refused(RefusalReason::Unsupported))),
-        Ok(RouteVerdict::FallBack(_))
-    ));
+    let authored = source::SourceSpan::new(source::SourceId(1), source::Span::new(13, 19));
+    for source_span in [None, Some(authored)] {
+        let unsupported = refused(RefusalReason::Unsupported).with_source_span(source_span);
+        assert!(matches!(
+            judge(Err(unsupported.clone())),
+            Ok(RouteVerdict::FallBack(carried)) if carried == unsupported
+        ));
+        let violation = refused(RefusalReason::Violation).with_source_span(source_span);
+        let RouteVerdict::Rejected { violations, .. } = judge(Err(violation)).unwrap() else {
+            panic!("a source rule violation must reject the program");
+        };
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].site, source_span);
+        assert_eq!(violations[0].statement, "test");
+    }
     assert!(judge(Err(refused(RefusalReason::ForeignIdentity))).is_err());
 }
 
@@ -1927,6 +1942,7 @@ fn elaborate_over(
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
     }
     typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
@@ -2733,6 +2749,7 @@ fn the_verdict_rejects_a_closure_elaboration_refused_as_unestablished() {
         reason: RefusalReason::Unestablished,
         machine: id(1),
         concerns: terminal_check_tables::Construct::Block(id(2)),
+        source_span: None,
         detail: String::from("a dispatch selects no arm for a declared case"),
     };
     let RouteVerdict::Rejected {
@@ -6296,6 +6313,7 @@ mod generic_bodies {
                 invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
                 crashes: CrashCeiling::DeclaredNone,
                 termination: typed_trees_to_terminal_psi::Termination::Silent,
+                ranking: None,
             });
         }
         typed_trees_to_terminal_psi::lower_generic(
@@ -6401,6 +6419,7 @@ mod generic_bodies {
             reason: RefusalReason::Unsupported,
             machine: id(1),
             concerns: Construct::Machine,
+            source_span: None,
             detail: "refinement unavailable".to_owned(),
         };
         let verdicts = crate::judge_compilation(prepared_refinement(2, double(), Err(refused)));
@@ -6895,6 +6914,7 @@ fn crashing_below_ten(
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(routes),
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -6987,6 +7007,7 @@ fn crashing_at_zero(
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -7042,6 +7063,7 @@ fn calling_a_zero_route(
         invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     bodies.push(Body {
         slots: vec![u32_type().into()],
@@ -7071,6 +7093,7 @@ fn calling_a_zero_route(
             )),
         )])),
         termination: typed_trees_to_terminal_psi::Termination::Silent,
+        ranking: None,
     });
     let mut elaboration =
         typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
@@ -7168,6 +7191,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(caller_routes),
             termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
         });
         bodies.push(Body {
             slots: vec![u32_type().into()],
@@ -7192,6 +7216,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
         });
         let mut elaboration = typed_trees_to_terminal_psi::lower_bodies(
             id(1),

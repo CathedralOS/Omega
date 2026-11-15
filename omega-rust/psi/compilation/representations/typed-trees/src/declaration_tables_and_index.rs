@@ -613,7 +613,7 @@ pub mod declaration_index {
                     self.tables.machine_states.revision(),
                     self.tables.state_parameters.revision(),
                     self.tables.machine_owned_data.revision(),
-                    self.statement_table.revision(),
+                    self.statement_table.declaration_revision(),
                     self.tables.propositions.revision(),
                     self.roots.machines,
                     self.roots.propositions,
@@ -1518,65 +1518,6 @@ pub mod declaration_index {
 
     type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 
-    fn roster_marker<T>(span: HandleSpan<T>) -> u64 {
-        ((span.start().arena_index() as u64) << 32) | span.count() as u64
-    }
-
-    fn tables_fingerprint(tables: &crate::TypedTreeTables) -> u64 {
-        tables
-            .const_declarations
-            .revision()
-            .wrapping_add(tables.data_definitions.revision())
-            .wrapping_add(tables.data_application_definitions.revision())
-            .wrapping_add(tables.data_type_parameters.revision())
-            .wrapping_add(tables.data_members.revision())
-            .wrapping_add(tables.data_payload_fields.revision())
-            .wrapping_add(tables.domain_definitions.revision())
-            .wrapping_add(tables.proof_facts.revision())
-            .wrapping_add(tables.propositions.revision())
-            .wrapping_add(tables.proposition_binders.revision())
-            .wrapping_add(tables.mathematical_definitions.revision())
-            .wrapping_add(tables.mathematical_parameters.revision())
-            .wrapping_add(tables.mathematical_types.revision())
-            .wrapping_add(tables.domain_path_members.revision())
-            .wrapping_add(tables.operator_path_members.revision())
-            .wrapping_add(tables.machines.revision())
-            .wrapping_add(tables.measures.revision())
-            .wrapping_add(tables.measure_path_members.revision())
-            .wrapping_add(tables.operators.revision())
-            .wrapping_add(tables.machine_owned_data.revision())
-            .wrapping_add(tables.machine_trait_conformances.revision())
-            .wrapping_add(tables.machine_states.revision())
-            .wrapping_add(tables.state_parameters.revision())
-            .wrapping_add(tables.traits.revision())
-            .wrapping_add(tables.conformances.revision())
-            .wrapping_add(tables.trait_requirements.revision())
-            .wrapping_add(tables.trait_machine_signatures.revision())
-            .wrapping_add(tables.applied_callable_signatures.revision())
-            .wrapping_add(tables.signature_invokes.revision())
-            .wrapping_add(tables.signature_contracts.revision())
-            .wrapping_add(tables.expression_table.revision())
-            .wrapping_add(tables.statement_table.revision())
-            .wrapping_add(tables.type_reference_table.revision())
-            .wrapping_add(tables.wire_schemas.revision())
-            .wrapping_add(tables.wire_members.revision())
-    }
-
-    fn roots_fingerprint(roots: &crate::TypedTreeRoots) -> u64 {
-        roster_marker(roots.const_declarations)
-            .wrapping_add(roster_marker(roots.data_definitions))
-            .wrapping_add(roster_marker(roots.domain_definitions))
-            .wrapping_add(roster_marker(roots.machines))
-            .wrapping_add(roster_marker(roots.measures))
-            .wrapping_add(roster_marker(roots.operators))
-            .wrapping_add(roster_marker(roots.machine_token_bindings))
-            .wrapping_add(roster_marker(roots.propositions))
-            .wrapping_add(roster_marker(roots.mathematical_definitions))
-            .wrapping_add(roster_marker(roots.traits))
-            .wrapping_add(roster_marker(roots.conformances))
-            .wrapping_add(roster_marker(roots.wire_schemas))
-    }
-
     type StatePositionIndex = SymbolRows<(u32, u32)>;
 
     pub use crate::data_definitions::DataDefinitionIndex;
@@ -1713,37 +1654,6 @@ pub mod declaration_index {
             indexes.call_targets.unseal();
             indexes.requirement_applications.unseal();
             indexes.operator_spellings.unseal();
-        }
-
-        pub fn structural_fingerprint(&self) -> u64 {
-            tables_fingerprint(&self.tables)
-                .wrapping_add(roots_fingerprint(&self.roots))
-                .wrapping_add(self.service_reaches.definitions().len() as u64)
-                .wrapping_add(self.service_reach_rows.len() as u64)
-                .wrapping_add(self.authored_service_reach_rows.len() as u64)
-                .wrapping_add(self.semantic_domains.len() as u64)
-                .wrapping_add(self.external_bindings.identities().len() as u64)
-                .wrapping_add(self.plan_laid_layouts.len() as u64)
-                .wrapping_add(self.access_view_plans.len() as u64)
-                .wrapping_add(self.access_lifecycle_plans.revision())
-                .wrapping_add(self.access_policy_invocations.revision())
-                .wrapping_add(self.access_borrow_factories.len() as u64)
-                .wrapping_add(self.wire_placements.revision())
-                .wrapping_add(self.wire_encode_obligations.revision())
-                .wrapping_add(self.wire_schema_plans.len() as u64)
-                .wrapping_add(self.machine_specializations.len() as u64)
-                .wrapping_add(self.data_implementation_applications.revision())
-                .wrapping_add(self.trait_implementation_applications.revision())
-                .wrapping_add(self.captured_machine_applications.revision())
-                .wrapping_add(self.boundary_completion_declarations.revision())
-                .wrapping_add(self.evidence_forwardings.len() as u64)
-                .wrapping_add(self.proof_output_calls.len() as u64)
-                .wrapping_add(self.ranking_expression_custody.len() as u64)
-                .wrapping_add(self.pending_const_range_endpoints.len() as u64)
-                .wrapping_add(self.constant_recipes.revision())
-                .wrapping_add(self.constant_expression_contexts.revision())
-                .wrapping_add(self.constant_recipe_closure.values.len() as u64)
-                .wrapping_add(self.excluded_authored_selection_occurrences.fingerprint())
         }
 
         pub fn machine_position_by_symbol(&self, symbol: SymbolHandle) -> Option<usize> {

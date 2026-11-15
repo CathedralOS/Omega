@@ -780,6 +780,7 @@ pub(crate) mod ancestry {
                             }
                         }
                         Terminator::Crash { .. }
+                        | Terminator::EliminateEmpty { .. }
                         | Terminator::ExternalCompletion { .. }
                         | Terminator::InvokeNoNormal { .. } => {}
                     }

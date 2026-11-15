@@ -1480,6 +1480,22 @@ fn encode_cleanup_calls(
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::EliminateEmpty {
+            psi_edge,
+            source,
+            path,
+            work,
+            effect,
+            ownership,
+        } => {
+            bytes.push(9);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+            super::structural_types::encode_structural_path(bytes, path);
+            encode_work(bytes, work);
+            encode_effect(bytes, *effect);
+            encode_ownership_roster(bytes, ownership);
+        }
         LegalizedScalarTerminator::InvokeNoNormal {
             psi_edge,
             call,

@@ -75,8 +75,8 @@ fn named_captures(typed: &TypedTrees) -> NamedCaptures {
 
 pub use body::{
     Axis, Body, Borrowed, BorrowedReferent, CaseType, Ceiling, CrashCeiling, DomainSet, Expression,
-    ExpressionKind, Policy, Qualification, Ranking, RecordField, RecordType, Selector, Signature,
-    Statement, StorageShape, Strict, Target, Termination, ValueType, self_place,
+    ExpressionKind, Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement,
+    StorageShape, Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
@@ -228,6 +228,7 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
         reason: RefusalReason::Unsupported,
         machine,
         concerns,
+        source_span: None,
         detail: format!("{} {}", unserved.family(), unserved.construct()),
     }
 }
@@ -239,12 +240,10 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 /// rejection must never be said of a valid program.
 pub(crate) fn reject(machine: MachineId, at: SourceOrigin, rule: impl Into<String>) -> Refusal {
     Refusal {
-        reason: RefusalReason::Violation(match at {
-            SourceOrigin::Authored(span) => Some(span),
-            SourceOrigin::Unpositioned(_) => None,
-        }),
+        reason: RefusalReason::Violation,
         machine,
         concerns: Construct::Machine,
+        source_span: at.authored_span(),
         detail: rule.into(),
     }
 }
@@ -1027,6 +1026,7 @@ fn lower_generic_for<'source>(
                     reason,
                     machine: machine.id,
                     concerns,
+                    source_span: None,
                     detail: match (operation, origin) {
                         (Some(operation), Some(SourceOrigin::Authored(span))) => format!(
                             "while checking {operation} at source {} bytes {}..{}: {detail}",
@@ -1095,6 +1095,7 @@ fn lower_generic_for<'source>(
                 }
                 Terminator::Crash { .. }
                 | Terminator::InvokeNoNormal { .. }
+                | Terminator::EliminateEmpty { .. }
                 | Terminator::ExternalCompletion { .. } => {}
             }
         }
@@ -1221,6 +1222,7 @@ mod publication_scope_tests {
             invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
+            ranking: None,
         });
         let lower = |publication| {
             lower_generic_for(

@@ -1195,7 +1195,10 @@ mod terminator {
                 return None;
             }
             let parameter = function.arrival_parameter(place)?;
-            if !terminal_semantics::view_descriptor_parameter(parameter, types.values().copied()) {
+            if !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                parameter,
+                |identity| types.get(identity).copied(),
+            ) {
                 return None;
             }
             (parameter.structural_type, parameter.multiplicity)
@@ -1556,6 +1559,15 @@ mod terminator {
                     frontier_lower_bound: frontier_lower_bound.clone(),
                 })
             }
+            AbstractOperation::EliminateEmpty {
+                psi_edge,
+                source,
+                path,
+            } => Ok(TargetControlTerminator::EliminateEmpty {
+                psi_edge: *psi_edge,
+                source: *source,
+                path: path.clone(),
+            }),
             AbstractOperation::Crash {
                 psi_edge,
                 cause,
@@ -2212,9 +2224,9 @@ mod transfers {
                         }
                         continue;
                     }
-                    if terminal_semantics::view_descriptor_parameter(
+                    if abstract_operations::control_flow::address_joins::is_descriptor_join(
                         parameter,
-                        structural_types.values().copied(),
+                        |identity| structural_types.get(identity).copied(),
                     ) {
                         let selected = crate::scalar::descriptor_operands::descriptor_projection(
                             function,
@@ -2459,6 +2471,7 @@ mod transfers {
             AbstractOperation::Return { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::EliminateEmpty { .. }
             | AbstractOperation::Crash { .. }
             | AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::ReturnUnit { .. }
@@ -2694,6 +2707,10 @@ pub(crate) fn lower(
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
                     && !is_immutable_byte_carrier_parameter(parameter, structural_types)
                     && !is_element_view_parameter(parameter, structural_types)
+                    && !abstract_operations::control_flow::address_joins::is_descriptor_join(
+                        parameter,
+                        |identity| structural_types.get(identity).copied(),
+                    )
                     && !transfers::is_address_join(parameter, structural_types)
                     && !is_owned_byte_parameter(parameter, structural_types)
                     && !abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan(
@@ -2768,6 +2785,7 @@ pub(crate) fn lower(
             AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::EliminateEmpty { .. }
             | AbstractOperation::Crash { .. } => Vec::new(),
             abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
                 if cleanup_actions.iter().all(|action| {

@@ -123,7 +123,9 @@ impl Program<'_> {
             .then_some(element)
     }
 
-    pub(super) fn array_view(
+    /// Borrow a byte range using the backing's shape. Existing byte views
+    /// retain that view's region and endpoint proofs through `byte_subslice`.
+    pub(super) fn borrowed_byte_range(
         &mut self,
         machine: MachineId,
         slots: &[Slot],
@@ -175,11 +177,6 @@ impl Program<'_> {
                 "array view access differs from its explicit borrow",
             ));
         }
-        if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
-            return Err(unavailable(
-                "partial array views need their endpoint and window correspondence",
-            ));
-        }
         let mut base = self.expression(machine, slots, indexed.collection, None)?;
         if let Some((referent, _)) = self.reference_referent(
             machine,
@@ -193,13 +190,27 @@ impl Program<'_> {
                 result: Some(referent),
             };
         }
+        let Some(backing_type @ ValueType::Record(backing, _, _)) = base.result else {
+            return Err(unavailable("array view without a plain closed u8 array"));
+        };
+        if self.is_readable_byte_view(machine, backing)? {
+            if requested != StructuralAccess::SharedBorrow {
+                return Err(unavailable("byte range with a mutable borrow"));
+            }
+            self.authorized(machine, backing_type, Access::Read)?;
+            return self
+                .byte_subslice(machine, slots, base, range, borrow.target, source)
+                .map(Some);
+        }
+        if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
+            return Err(unavailable(
+                "partial array views need their endpoint and window correspondence",
+            ));
+        }
         let element = self
             .byte_array_element(base.result)
             .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?;
-        let Some(ValueType::Record(array, _, _)) = base.result else {
-            unreachable!()
-        };
-        self.byte_range_selection(machine, borrow.target, array)?;
+        self.byte_range_selection(machine, borrow.target, backing)?;
         let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
@@ -214,7 +225,7 @@ impl Program<'_> {
         }
         self.authorized(
             machine,
-            base.result.unwrap(),
+            backing_type,
             if borrow.access == ReferenceAccess::Mutable {
                 Access::Write
             } else {

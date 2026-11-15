@@ -44,6 +44,14 @@ fn a_call_of_a_name_nothing_declares_is_rejected() {
         &program("undeclared"),
         "an unknown machine name is an error",
     );
+    // Another machine's parameter cannot answer this occurrence's lookup.
+    rejected(
+        &format!(
+            "{}machine unrelated(undeclared: u32) {{ }}",
+            program("undeclared")
+        ),
+        "an unknown machine name is an error",
+    );
 }
 
 /// state_contracts.md: "an unknown machine name or malformed type is an

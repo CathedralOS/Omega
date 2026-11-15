@@ -2125,6 +2125,7 @@ pub mod control_flow {
                                         );
                                 }
                                 StatementNode::Call(TableCall {
+                                    unresolved_name: call.unresolved_name,
                                     installed_interrupt_operation,
                                     authored_machine_application,
                                     static_machine_parameter: call.static_machine_parameter,
@@ -2840,6 +2841,7 @@ pub mod control_flow {
                         TransitionTargetNode::Named {
                             static_machine_parameter: *static_machine_parameter,
                             path: TableNamePath {
+                                unresolved_name: path.unresolved_name,
                                 members,
                                 receiver_symbol: path.receiver_symbol,
                                 head_symbol: path.head_symbol,
@@ -2986,14 +2988,10 @@ pub mod control_flow {
                 self.statements.len()
             }
 
-            pub fn revision(&self) -> u64 {
-                self.statements
-                    .revision()
-                    .wrapping_add(self.expression_handles.revision())
-                    .wrapping_add(self.name_path_members.revision())
-                    .wrapping_add(self.transition_targets.revision())
-                    .wrapping_add(self.transition_patterns.revision())
-                    .wrapping_add(self.outcome_proof_selectors.revision())
+            /// Identifies the statement records read by declaration lookup. Operand
+            /// lists and transition payloads do not change a local's symbol or type.
+            pub(crate) fn declaration_revision(&self) -> u64 {
+                self.statements.revision()
             }
 
             pub fn transition_targets(
@@ -3014,6 +3012,24 @@ pub mod control_flow {
         impl Default for StatementTable {
             fn default() -> Self {
                 Self::new()
+            }
+        }
+
+        #[cfg(test)]
+        mod declaration_revision_tests {
+            use super::{StatementNode, StatementTable};
+
+            #[test]
+            fn declaration_revision_tracks_records_not_operand_lists() {
+                let mut table = StatementTable::new();
+                let statement = table.insert(StatementNode::default());
+                let original = table.declaration_revision();
+                table.insert_expression_handles([Default::default()]);
+                assert_eq!(table.declaration_revision(), original);
+                let copy = table.clone();
+                *table.statement_mut(statement) = StatementNode::default();
+                assert_ne!(table.declaration_revision(), original);
+                assert_eq!(copy.declaration_revision(), original);
             }
         }
 
@@ -3111,6 +3127,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableCall {
+            pub unresolved_name: symbols::UnresolvedName,
             pub installed_interrupt_operation:
                 Option<crate::expression::InstalledInterruptOperationRequest>,
             pub authored_machine_application:
@@ -3269,6 +3286,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableNamePath {
+            pub unresolved_name: symbols::UnresolvedName,
             pub receiver_symbol: SymbolHandle,
             pub members: HandleSpan<Identifier>,
             pub head_symbol: SymbolHandle,

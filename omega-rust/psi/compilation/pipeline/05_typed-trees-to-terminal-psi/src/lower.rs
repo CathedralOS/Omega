@@ -110,9 +110,9 @@ struct Head {
     member: MachineId,
     block: BlockId,
     parameters: Vec<ValueId>,
-    /// The position in `parameters` of the subject of the member's
-    /// `terminates by` witness, when it supplies one (`ranking`).
-    subject: Option<usize>,
+    structural_parameters: Vec<StructuralParameterDeclaration>,
+    /// Each authored formal keeps its own slot, whichever runtime lane it uses.
+    bindings: Vec<Option<Bound>>,
 }
 
 /// Lowers machine `id`. `component` holds the members of its call component
@@ -162,6 +162,9 @@ pub(crate) fn machine(
         return lowering.finish(entry, formals, result, contract);
     }
     if component.is_empty() {
+        // Acyclic bodies still owe formation of an authored measure. In
+        // particular, its partial arithmetic cannot disappear unchecked.
+        lowering.begin_ranking(id)?;
         lowering.body(body)?;
     } else {
         lowering.component(id, bodies, component, &formals)?;
@@ -287,6 +290,7 @@ pub(crate) fn boundary(
         structural_parameters: formals.records,
         result,
         result_reference_regions: Vec::new(),
+        result_lifetimes: None,
         crash_routes: crash_routes.to_vec(),
         scalar_requires: signature.requires.clone(),
         scalar_ensures: signature.ensures.clone(),
@@ -348,9 +352,7 @@ fn contract_header(
         published_synchronous_entries: outcome.synchronous_entries.clone(),
         termination: match signature.termination {
             crate::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
-            crate::Termination::Promised | crate::Termination::Witnessed(_) => {
-                semantic_vocabulary::Termination::Terminates
-            }
+            crate::Termination::Promised => semantic_vocabulary::Termination::Terminates,
         },
         crash_routes: outcome.crash_routes.clone(),
         erased_scalar_formals: formals.erased,
@@ -472,6 +474,9 @@ impl<'a> Lowering<'a> {
             exclusive_roots: Vec::new(),
             joining: 0,
             fallthrough: None,
+            block_ranks: IdTable::default(),
+            active_rank: None,
+            successor_ranks: Vec::new(),
         }
     }
 }
@@ -480,8 +485,13 @@ impl Lowering<'_> {
     /// A body and an interface declare the same scalar and storage formals.
     /// Construct those identities once without inventing executable blocks
     /// or guarantees for a bodyless declaration.
-    fn formals(&mut self) -> Checked<(Formals, TerminalMachineResult)> {
-        let signature = self.signature;
+    /// Machine entries and loop heads bind the same authored formals. Only
+    /// their declaration site differs; access and multiplicity stay unchanged.
+    fn parameter_formals(
+        &mut self,
+        signature: &Signature,
+        block: Option<BlockId>,
+    ) -> Checked<Formals> {
         let mut formals = Formals::default();
         let formal_values = signature.formal_values();
         for (position, value_type) in signature.parameters.iter().enumerate() {
@@ -505,9 +515,15 @@ impl Lowering<'_> {
                     }
                 };
                 let lane = self.position(formals.records.len())?;
-                let (place, _) =
-                    self.root(StructuralPlaceKind::Parameter { position: lane }, referent)?;
-                if place.get() != formals.records.len() as u64 + 1 {
+                let kind =
+                    block.map_or(StructuralPlaceKind::Parameter { position: lane }, |block| {
+                        StructuralPlaceKind::BlockParameter {
+                            block,
+                            position: lane,
+                        }
+                    });
+                let (place, _) = self.root(kind, referent)?;
+                if block.is_none() && place.get() != formals.records.len() as u64 + 1 {
                     return Err(self.internal("place formals are not the first places"));
                 }
                 formals.records.push(StructuralParameterDeclaration {
@@ -540,16 +556,26 @@ impl Lowering<'_> {
                     let (scalar_type, rigid) = value_type
                         .declared()
                         .ok_or_else(|| self.internal("a value formal has no declaration"))?;
-                    let value = self.tables.values.push(ValueRow {
-                        scalar_type,
-                        origin: ValueOrigin::MachineParameter {
+                    let origin = match block {
+                        Some(block) => ValueOrigin::BlockParameter {
+                            block,
+                            position: self.position(formals.scalars.len())?,
+                        },
+                        None => ValueOrigin::MachineParameter {
                             position: self.position(position)?,
                         },
+                    };
+                    let value = self.tables.values.push(ValueRow {
+                        scalar_type,
+                        origin,
                         rigid,
                     });
+                    if let Some(block) = block {
+                        self.parameter(block, value, scalar_type)?;
+                    }
                     // Clause propositions name each value formal by the
                     // identity `body::formal_values` gives it.
-                    if formal_values.get(position) != Some(&Some(value)) {
+                    if block.is_none() && formal_values.get(position) != Some(&Some(value)) {
                         return Err(self.internal("scalar formals are not the first values"));
                     }
                     formals.scalars.push(declaration(value, scalar_type));
@@ -561,11 +587,17 @@ impl Lowering<'_> {
                 // activation; what it holds at entry is entry content.
                 ValueType::Record(record, _, _) => {
                     let lane = self.position(formals.records.len())?;
-                    let (place, _) =
-                        self.root(StructuralPlaceKind::Parameter { position: lane }, record)?;
+                    let kind =
+                        block.map_or(StructuralPlaceKind::Parameter { position: lane }, |block| {
+                            StructuralPlaceKind::BlockParameter {
+                                block,
+                                position: lane,
+                            }
+                        });
+                    let (place, _) = self.root(kind, record)?;
                     // Clause terms name the `k`-th record formal as place
                     // `k + 1` (`Signature::requires`).
-                    if place.get() != formals.records.len() as u64 + 1 {
+                    if block.is_none() && place.get() != formals.records.len() as u64 + 1 {
                         return Err(self.internal("place formals are not the first places"));
                     }
                     formals.records.push(StructuralParameterDeclaration {
@@ -583,6 +615,25 @@ impl Lowering<'_> {
                 }
             }
         }
+        if let Some(block) = block {
+            self.blocks
+                .get_mut(block)
+                .ok_or_else(|| Refusal {
+                    reason: RefusalReason::ForeignIdentity,
+                    machine: self.id,
+                    concerns: Construct::Block(block),
+                    source_span: None,
+                    detail: String::from("a parameter block is missing"),
+                })?
+                .structural_parameters = formals.records.clone();
+        }
+        Ok(formals)
+    }
+
+    fn formals(&mut self) -> Checked<(Formals, TerminalMachineResult)> {
+        let signature = self.signature;
+        let mut formals = self.parameter_formals(signature, None)?;
+        let formal_values = signature.formal_values();
         // The scalar result pseudo-value comes right after the scalar formals,
         // which is how `ensures` clauses name `result` (`Signature::result`). A
         // record result is the machine's result place, a root of its own.
@@ -736,6 +787,15 @@ struct Lowering<'a> {
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
     fallthrough: Option<crate::Branch>,
+    /// A state-head measure remains the same observation in its implementation
+    /// blocks. Tail transfers separately measure the successor's actual values.
+    block_ranks: IdTable<BlockId, Option<Vec<terminal_psi::TerminalIntegerRankValue>>>,
+    active_rank: Option<Vec<terminal_psi::TerminalIntegerRankValue>>,
+    successor_ranks: Vec<(
+        BlockId,
+        MachineId,
+        Vec<terminal_psi::TerminalIntegerRankValue>,
+    )>,
 }
 
 /// What lowering an evaluation reached: its result, or the expression with
@@ -822,6 +882,7 @@ impl<'a> Lowering<'a> {
                 reason: RefusalReason::ForeignIdentity,
                 machine: self.id,
                 concerns: Construct::Machine,
+                source_span: None,
                 detail: "a qualification names a value outside this lowering".into(),
             })?;
         if slot.is_some_and(|previous| previous != qualification) {
@@ -942,26 +1003,25 @@ impl<'a> Lowering<'a> {
         component: &[MachineId],
         formals: &Formals,
     ) -> Checked<()> {
+        let entered_bindings = self.slots.clone();
         for member in component {
             let signature = self.signatures.get((*member).into(), id)?;
             let block = self.block(SourceOrigin::Unpositioned(Unpositioned::LoopHead));
             self.sources.heads.push((block, *member));
-            let mut parameters = Vec::with_capacity(signature.parameters.len());
-            for value_type in &signature.parameters {
-                let ValueType::Scalar(scalar_type, _) = *value_type else {
-                    return Err(self.internal("a record formal on a call cycle"));
-                };
-                let position = self.position(parameters.len())?;
-                let value =
-                    self.value(scalar_type, ValueOrigin::BlockParameter { block, position });
-                self.parameter(block, value, scalar_type)?;
-                self.qualify(value, value_type.qualification())?;
-                parameters.push(value);
-            }
+            self.slots = vec![None; signature.parameters.len()];
+            let parameters = self.parameter_formals(signature, Some(block))?;
+            let scalars: Vec<_> = parameters.scalars.iter().map(|formal| formal.id).collect();
+            let roots: Vec<_> = parameters
+                .records
+                .iter()
+                .map(|formal| formal.place)
+                .collect();
             if !signature.requires.is_empty() {
                 let mut clauses = Vec::with_capacity(signature.requires.len());
                 for clause in &signature.requires {
-                    clauses.push(canonical::substitute(clause, &parameters, id)?);
+                    clauses.push(canonical::substitute_parameters(
+                        clause, &scalars, &roots, id,
+                    )?);
                 }
                 self.invariants.push(ScalarBlockInvariant {
                     machine: id,
@@ -970,47 +1030,53 @@ impl<'a> Lowering<'a> {
                     arrivals: Vec::new(),
                 });
             }
-            let subject = match signature.termination {
-                crate::Termination::Witnessed(ranking) => {
-                    let subject = usize::try_from(ranking.subject)
-                        .ok()
-                        .filter(|subject| *subject < parameters.len())
-                        .ok_or_else(|| self.internal("a ranking subject past the formals"))?;
-                    Some(subject)
-                }
-                crate::Termination::Silent | crate::Termination::Promised => None,
-            };
+            let bindings = parameters
+                .records
+                .iter()
+                .enumerate()
+                .map(|(position, formal)| {
+                    let source = PlaceId::new(position as u64 + 1)
+                        .ok_or_else(|| self.internal("structural formal identity overflow"))?;
+                    Ok((source, self.exact_root(formal.place)?))
+                })
+                .collect::<Checked<Vec<_>>>()?;
+            for clause in &signature.requires {
+                self.name_clause_contents(clause, &bindings, None)?;
+            }
             self.heads.push(Head {
                 member: *member,
                 block,
-                parameters,
-                subject,
+                parameters: scalars,
+                structural_parameters: parameters.records,
+                bindings: self.slots.clone(),
             });
         }
+        self.slots = entered_bindings;
         let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
+        let structural = formals
+            .records
+            .iter()
+            .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
+            .collect();
         self.arrive(
             id,
             entered,
+            structural,
+            Vec::new(),
             SourceOrigin::Unpositioned(Unpositioned::MachineEntry),
             None,
         )?;
         for position in 0..self.heads.len() {
             let (member, block) = (self.heads[position].member, self.heads[position].block);
             let body = terminal_check_tables::row(bodies, member, id, Construct::Machine)?;
-            // Each member's body names its own slots, and the branch
-            // decisions before a head do not lie on every path to it.
+            // Every head binds its own arguments. Branch facts from a prior
+            // invocation cannot enter the next one without an invariant.
             self.slot_types = &body.slots;
-            self.slots = vec![None; body.slots.len()];
-            for (slot, value) in self.heads[position]
-                .parameters
-                .clone()
-                .into_iter()
-                .enumerate()
-            {
-                *self.slot_mut(slot)? = Some(Bound::Scalar(value));
-            }
+            self.slots = self.heads[position].bindings.clone();
+            self.slots.resize(body.slots.len(), None);
             self.path.clear();
             self.enter(block);
+            self.begin_ranking(member)?;
             self.body(body)?;
         }
         Ok(())
@@ -1021,6 +1087,7 @@ impl<'a> Lowering<'a> {
             reason: RefusalReason::Unsupported,
             machine: self.id,
             concerns: self.current.map_or(Construct::Machine, Construct::Block),
+            source_span: None,
             detail: format!("completion {detail}"),
         }
     }
@@ -1035,6 +1102,7 @@ impl<'a> Lowering<'a> {
             reason: RefusalReason::ForeignIdentity,
             machine: id,
             concerns: Construct::Machine,
+            source_span: None,
             detail: String::from("slot is past the end of this body"),
         })
     }
@@ -1044,6 +1112,7 @@ impl<'a> Lowering<'a> {
             reason: RefusalReason::ForeignIdentity,
             machine: self.id,
             concerns: Construct::Machine,
+            source_span: None,
             detail: String::from("slot is past the end of this body"),
         })
     }
@@ -1096,8 +1165,13 @@ impl<'a> Lowering<'a> {
                     edge,
                     target,
                     arguments,
+                    structural_arguments,
                     ..
-                }) => vec![(*edge, *target, !arguments.is_empty())],
+                }) => vec![(
+                    *edge,
+                    *target,
+                    !arguments.is_empty() || !structural_arguments.is_empty(),
+                )],
                 Some(Terminator::Conditional {
                     when_true,
                     when_false,
@@ -1106,12 +1180,14 @@ impl<'a> Lowering<'a> {
                     (
                         when_true.edge,
                         when_true.target,
-                        !when_true.arguments.is_empty(),
+                        !when_true.arguments.is_empty()
+                            || !when_true.structural_arguments.is_empty(),
                     ),
                     (
                         when_false.edge,
                         when_false.target,
-                        !when_false.arguments.is_empty(),
+                        !when_false.arguments.is_empty()
+                            || !when_false.structural_arguments.is_empty(),
                     ),
                 ],
                 _ => Vec::new(),
@@ -1211,20 +1287,6 @@ impl<'a> Lowering<'a> {
             .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
             .collect();
         self.call_formations.sort_unstable_by_key(|row| row.site);
-        // The one cycle a witness ranks is the loop of the machine that
-        // wrote it (`components` refuses a witness on a cycle of several
-        // machines), so a ranked head stands alone.
-        let ranked = match self.heads.as_slice() {
-            [head] => head.subject.map(|subject| ranking::RankedHead {
-                block: head.block,
-                subject,
-                rank: head.parameters[subject],
-            }),
-            heads if heads.iter().any(|head| head.subject.is_some()) => {
-                return Err(self.internal("a ranking on a call cycle of several machines"));
-            }
-            _ => None,
-        };
         let mut machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
@@ -1232,7 +1294,7 @@ impl<'a> Lowering<'a> {
             nominal_cleanup_subject: None,
             ranked_scc: None,
             structural_places,
-            call_formations: self.call_formations,
+            call_formations: std::mem::take(&mut self.call_formations),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -1241,10 +1303,7 @@ impl<'a> Lowering<'a> {
             blocks,
             contract,
         };
-        if let Some(head) = ranked {
-            machine.ranked_scc =
-                ranking::rank(&machine, head, &mut self.tables, &mut self.sources)?;
-        }
+        self.publish_rankings(&mut machine)?;
         self.qualifications
             .complete(&machine, self.coercions_start)?;
         // A scalar machine has no structural place, so its place, root and

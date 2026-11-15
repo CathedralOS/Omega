@@ -640,6 +640,7 @@ pub(crate) struct Machine<'a> {
     pub(crate) types: &'a semantic_vocabulary::IdTable<ValueId, ScalarType>,
     pub(crate) graph: &'a Graph,
     pub(crate) context: &'a PropositionContext,
+    pub(crate) ranking_bindings: &'a crate::rankings::Bindings,
     /// Keep the producer's original predicates separate from inferred facts.
     /// An inference can be discarded; a failed declared claim still rejects.
     pub(crate) declared: &'a [(BlockId, Proposition)],
@@ -684,6 +685,7 @@ pub(crate) fn check(
                 &kind,
                 tables,
                 machine.types,
+                machine.ranking_bindings,
             )
             .and_then(|goal| {
                 decide(

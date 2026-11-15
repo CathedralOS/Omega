@@ -68,14 +68,6 @@ pub(crate) mod callable_identity {
         text: String,
     }
 
-    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-    enum DeclarationKey {
-        Machine(usize),
-        TraitRequirement(usize, usize),
-        Operator(usize),
-        BoundaryOperatorRequirement(usize),
-    }
-
     #[derive(Clone, compiler_storage::Record)]
     struct CallableIdentityRecord {
         path: CallablePathId,
@@ -104,25 +96,6 @@ pub(crate) mod callable_identity {
         >,
         boundary_operator_slots:
             HashMap<(CallablePathId, Vec<TypeIdentityId>, TypeIdentityId), CallableIdentityId>,
-    }
-
-    #[derive(Default)]
-    pub struct CallableIdentityMemo {
-        by_text: HashMap<Box<str>, CallableIdentityId>,
-        by_declaration: HashMap<DeclarationKey, CallableIdentityId>,
-        machines: Vec<Vec<u32>>,
-        swept: bool,
-    }
-
-    impl Clone for CallableIdentityMemo {
-        fn clone(&self) -> Self {
-            Self {
-                by_declaration: HashMap::default(),
-                by_text: self.by_text.clone(),
-                machines: self.machines.clone(),
-                swept: self.swept,
-            }
-        }
     }
 
     impl CallableIdentityTable {
@@ -214,11 +187,12 @@ pub(crate) mod callable_identity {
     }
 
     impl TypedTrees {
+        /// Derives from the supplied signature, then reuses the canonical record.
+        /// Callers may supply temporary declarations that are not owned by these
+        /// trees, so neither their address nor a tree revision identifies their contents.
         pub fn machine_callable_identity(&self, machine: &Machine) -> CallableIdentityId {
-            self.interned_callable_identity(
-                DeclarationKey::Machine(machine as *const Machine as usize),
-                || self.machine_callable_identity_parts(machine),
-            )
+            let parts = self.machine_callable_identity_parts(machine);
+            self.intern_callable_identity(parts)
         }
 
         pub fn trait_requirement_callable_identity(
@@ -226,20 +200,9 @@ pub(crate) mod callable_identity {
             trait_definition: &TraitDefinition,
             requirement: &StateSignature,
         ) -> CallableIdentityId {
-            self.interned_callable_identity(
-                DeclarationKey::TraitRequirement(
-                    trait_definition as *const TraitDefinition as usize,
-                    requirement as *const StateSignature as usize,
-                ),
-                || {
-                    Some(
-                        self.trait_requirement_callable_identity_parts(
-                            trait_definition,
-                            requirement,
-                        ),
-                    )
-                },
-            )
+            let parts =
+                self.trait_requirement_callable_identity_parts(trait_definition, requirement);
+            self.intern_callable_identity(Some(parts))
         }
 
         /// Keep the declaration's own parameter categories with its signature.
@@ -404,10 +367,7 @@ pub(crate) mod callable_identity {
             &self,
             operator: &OperatorDefinition,
         ) -> CallableIdentityId {
-            self.interned_callable_identity(
-                DeclarationKey::Operator(operator as *const OperatorDefinition as usize),
-                || Some(self.operator_callable_identity_parts(operator)),
-            )
+            self.intern_callable_identity(Some(self.operator_callable_identity_parts(operator)))
         }
 
         pub fn boundary_operator_requirement_callable_identity(
@@ -420,23 +380,12 @@ pub(crate) mod callable_identity {
             if let Some(requirement) = self.machine(operator.symbol) {
                 return self.machine_callable_identity(requirement);
             }
-            let declaration = DeclarationKey::BoundaryOperatorRequirement(
-                operator as *const OperatorDefinition as usize,
-            );
-            let revision = self.structural_fingerprint();
-            if let Some(identity) =
-                self.read_callable_memo(|memo| memo.by_declaration.get(&declaration).copied())
-            {
-                return identity;
-            }
             let parts = self.boundary_operator_identity_parts(operator);
-            let identity = self.callable_identities.with_mut(|table| {
+            self.callable_identities.with_mut(|table| {
                 parts
                     .map(|parts| table.intern_boundary_operator(parts))
                     .unwrap_or_default()
-            });
-            self.memoize_callable_identity(revision, declaration, identity);
-            identity
+            })
         }
 
         fn boundary_operator_identity_parts(
@@ -469,41 +418,12 @@ pub(crate) mod callable_identity {
             })
         }
 
-        fn interned_callable_identity(
+        fn intern_callable_identity(
             &self,
-            declaration: DeclarationKey,
-            derive: impl FnOnce() -> Option<CallableIdentityParts>,
+            parts: Option<CallableIdentityParts>,
         ) -> CallableIdentityId {
-            let revision = self.structural_fingerprint();
-            if let Some(interned) =
-                self.read_callable_memo(|memo| memo.by_declaration.get(&declaration).copied())
-            {
-                return interned;
-            }
-            let parts = derive();
-            let interned = self
-                .callable_identities
-                .with_mut(|table| parts.map(|parts| table.intern(parts)).unwrap_or_default());
-            self.memoize_callable_identity(revision, declaration, interned);
-            interned
-        }
-
-        fn memoize_callable_identity(
-            &self,
-            revision: u64,
-            declaration: DeclarationKey,
-            identity: CallableIdentityId,
-        ) {
-            let text = self.read_callable_identities(|table| {
-                table.record(identity).map(|record| record.text.clone())
-            });
-            self.callable_identity_memo
-                .with_mut(revision, CallableIdentityMemo::default, |memo| {
-                    memo.by_declaration.insert(declaration, identity);
-                    if let Some(text) = text {
-                        memo.by_text.insert(text, identity);
-                    }
-                });
+            self.callable_identities
+                .with_mut(|table| parts.map(|parts| table.intern(parts)).unwrap_or_default())
         }
 
         pub fn callable_identity_path(&self, identity: CallableIdentityId) -> CallablePathId {
@@ -643,145 +563,113 @@ pub(crate) mod callable_identity {
                 .with_mut(|table| table.intern_result_dispatch(result_dispatch.clone()))
         }
 
-        pub fn callable_identity_by_text(&self, text: &str) -> CallableIdentityId {
-            self.sweep_callable_identities();
-            self.read_callable_memo(|memo| memo.by_text.get(text).copied().unwrap_or_default())
-        }
-
-        pub fn machine_by_callable_identity(
-            &self,
-            identity: CallableIdentityId,
-            declarations: &crate::references::DeclarationSelection,
-        ) -> Option<&Machine> {
-            if !identity.is_valid() {
-                return None;
-            }
-            self.sweep_callable_identities();
-            let position = self.read_callable_memo(|memo| {
-                let mut positions =
-                    memo.machines
-                        .get(identity.slot()?)?
-                        .iter()
-                        .copied()
-                        .filter(|position| {
-                            self.machines()
-                                .get(*position as usize)
-                                .is_some_and(|machine| declarations.contains(machine.symbol))
-                        });
-                let position = positions.next()?;
-                positions.next().is_none().then_some(position)
-            })?;
-            self.machines().get(position as usize)
-        }
-
-        pub fn machines_by_callable_identity(&self, identity: CallableIdentityId) -> Vec<&Machine> {
-            let Some(slot) = identity.slot() else {
-                return Vec::new();
-            };
-            self.sweep_callable_identities();
-            let positions = self
-                .read_callable_memo(|memo| memo.machines.get(slot).cloned().unwrap_or_default());
-            let machines = self.machines();
-            positions
-                .into_iter()
-                .filter_map(|position| machines.get(position as usize))
-                .collect()
-        }
-
         fn read_callable_identities<R>(&self, read: impl FnOnce(&CallableIdentityTable) -> R) -> R {
             self.callable_identities.with(read)
         }
+    }
+    #[cfg(test)]
+    mod tests {
+        use crate::TypedTrees;
+        use crate::machine::Machine;
+        use crate::name::Identifier;
+        use crate::signature::StateSignature;
+        use crate::state::State;
+        use crate::trait_definition::TraitDefinition;
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 
-        fn read_callable_memo<R>(&self, read: impl FnOnce(&CallableIdentityMemo) -> R) -> R {
-            self.callable_identity_memo.with(
-                self.structural_fingerprint(),
-                CallableIdentityMemo::default,
-                read,
-            )
+        #[test]
+        fn callable_identity_reads_the_supplied_machine_not_its_address() {
+            let mut symbols = SymbolTableBuilder::new();
+            let symbol = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("first"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let states = program.machine_states.insert_many([State::default()]);
+            let mut machine = Machine {
+                symbol,
+                name: Identifier::generated("first"),
+                states,
+                ..Default::default()
+            };
+            let original = program.machine_callable_identity(&machine);
+            assert!(original.is_valid());
+            machine.name = Identifier::generated("second");
+            let changed = program.machine_callable_identity(&machine);
+            let cold = program.clone().machine_callable_identity(&machine);
+            assert_eq!(changed, cold);
+            assert_ne!(changed, original);
+            machine.name = Identifier::generated("first");
+            assert_eq!(program.machine_callable_identity(&machine), original);
+            program
+                .statement_table
+                .insert(crate::statement::StatementNode::default());
+            assert_eq!(program.machine_callable_identity(&machine), original);
+            program
+                .callable_identities
+                .with(|table| assert_eq!(table.records.len(), 2));
         }
 
-        fn sweep_callable_identities(&self) {
-            let revision = self.structural_fingerprint();
-            if self.read_callable_memo(|memo| memo.swept) {
-                return;
-            }
-            let mut derived = Vec::with_capacity(self.machines().len());
-            for (position, machine) in self.machines().iter().enumerate() {
-                if machine.target.is_some() {
-                    continue;
-                }
-                let Some(parts) = self.machine_callable_identity_parts(machine) else {
-                    continue;
+        #[test]
+        fn callable_identity_reads_the_supplied_requirement_not_its_address() {
+            let mut symbols = SymbolTableBuilder::new();
+            let owner = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Order"));
+            let program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let definition = TraitDefinition {
+                symbol: owner,
+                name: Identifier::generated("Order"),
+                ..Default::default()
+            };
+            let mut requirement = StateSignature {
+                name: Identifier::generated("first"),
+                ..Default::default()
+            };
+            let original = program.trait_requirement_callable_identity(&definition, &requirement);
+            assert!(original.is_valid());
+            requirement.name = Identifier::generated("second");
+            let changed = program.trait_requirement_callable_identity(&definition, &requirement);
+            let cold = program
+                .clone()
+                .trait_requirement_callable_identity(&definition, &requirement);
+            assert_eq!(changed, cold);
+            assert_ne!(changed, original);
+        }
+
+        #[test]
+        fn callable_identity_reads_the_supplied_operator_not_its_address() {
+            let mut program = TypedTrees::default();
+            let first = program
+                .operator_path_members
+                .insert_many([Identifier::generated("first")]);
+            let second = program
+                .operator_path_members
+                .insert_many([Identifier::generated("second")]);
+            for is_boundary in [false, true] {
+                let mut operator = crate::operator::OperatorDefinition {
+                    is_boundary,
+                    name: first,
+                    ..Default::default()
                 };
-                derived.push((
-                    position as u32,
-                    DeclarationKey::Machine(machine as *const Machine as usize),
-                    parts,
-                ));
-            }
-            let boundary_operators = self
-                .all_operators()
-                .filter(|operator| operator.is_boundary && self.machine(operator.symbol).is_none())
-                .filter_map(|operator| {
-                    Some((
-                        DeclarationKey::BoundaryOperatorRequirement(
-                            operator as *const OperatorDefinition as usize,
-                        ),
-                        self.boundary_operator_identity_parts(operator)?,
-                    ))
-                })
-                .collect::<Vec<_>>();
-            let (machines, boundary_operators) = self.callable_identities.with_mut(|table| {
-                let machines = derived
-                    .into_iter()
-                    .map(|(position, declaration, parts)| {
-                        let identity = table.intern(parts);
-                        let text = table
-                            .record(identity)
-                            .expect("interned callable record")
-                            .text
-                            .clone();
-                        (position, declaration, identity, text)
-                    })
-                    .collect::<Vec<_>>();
-                let boundary_operators = boundary_operators
-                    .into_iter()
-                    .map(|(declaration, parts)| {
-                        let identity = table.intern_boundary_operator(parts);
-                        let text = table
-                            .record(identity)
-                            .expect("interned callable record")
-                            .text
-                            .clone();
-                        (declaration, identity, text)
-                    })
-                    .collect::<Vec<_>>();
-                (machines, boundary_operators)
-            });
-            self.callable_identity_memo
-                .with_mut(revision, CallableIdentityMemo::default, |memo| {
-                    if memo.swept {
-                        return;
-                    }
-                    for (position, declaration, identity, text) in machines {
-                        memo.by_declaration.insert(declaration, identity);
-                        memo.by_text.insert(text, identity);
-                        let Some(slot) = identity.slot() else {
-                            continue;
-                        };
-                        memo.machines
-                            .resize_with(memo.machines.len().max(slot + 1), Vec::new);
-                        let positions = &mut memo.machines[slot];
-                        if !positions.contains(&position) {
-                            positions.push(position);
+                let identity =
+                    |program: &TypedTrees, operator: &crate::operator::OperatorDefinition| {
+                        if is_boundary {
+                            program.boundary_operator_requirement_callable_identity(operator)
+                        } else {
+                            program.operator_callable_identity(operator)
                         }
-                    }
-                    for (declaration, identity, text) in boundary_operators {
-                        memo.by_declaration.insert(declaration, identity);
-                        memo.by_text.insert(text, identity);
-                    }
-                    memo.swept = true;
-                });
+                    };
+                let original = identity(&program, &operator);
+                assert!(original.is_valid());
+                operator.name = second;
+                let changed = identity(&program, &operator);
+                assert_eq!(changed, identity(&program.clone(), &operator));
+                assert_ne!(changed, original);
+                operator.name = first;
+                assert_eq!(identity(&program, &operator), original);
+            }
         }
     }
 }
@@ -7083,8 +6971,8 @@ pub(crate) mod substitution {
 }
 
 pub use callable_identity::{
-    CallableIdentityId, CallableIdentityMemo, CallableIdentityTable, CallableParametersId,
-    CallablePathId, CallableResultDispatchId,
+    CallableIdentityId, CallableIdentityTable, CallableParametersId, CallablePathId,
+    CallableResultDispatchId,
 };
 pub use language_semantics::type_identity::{
     TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,

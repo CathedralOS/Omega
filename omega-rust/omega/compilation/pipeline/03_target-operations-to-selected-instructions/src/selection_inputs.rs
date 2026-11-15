@@ -1251,9 +1251,11 @@ pub(crate) mod aggregate_result_input {
             parameter.access,
             terminal_psi::reading_borrow_pair_pattern!()
         ) {
-            if !terminal_semantics::view_descriptor_parameter(
+            // A control edge copies the complete descriptor, rather than
+            // retaining an address the next iteration may overwrite.
+            if !abstract_operations::control_flow::address_joins::is_descriptor_join_in(
                 parameter,
-                signature.structural_types.iter(),
+                &signature.structural_types,
             ) {
                 return None;
             }
@@ -2455,7 +2457,8 @@ pub(crate) mod established_view_input {
     ) -> bool {
         source.blocks.iter().any(|block| {
             let successors = match &block.terminator {
-                legalized_operations::LegalizedScalarTerminator::Crash { .. }
+                legalized_operations::LegalizedScalarTerminator::EliminateEmpty { .. }
+                | legalized_operations::LegalizedScalarTerminator::Crash { .. }
                 | legalized_operations::LegalizedScalarTerminator::InvokeNoNormal { .. }
                 | legalized_operations::LegalizedScalarTerminator::ExternalCompletion { .. }
                 | legalized_operations::LegalizedScalarTerminator::Return(_)

@@ -1538,6 +1538,10 @@ pub(crate) mod control_flow {
                             )
                 }
                 (
+                    TargetControlTerminator::EliminateEmpty { psi_edge, source, path },
+                    AbstractOperation::EliminateEmpty { psi_edge: expected_edge, source: expected_source, path: expected_path },
+                ) => psi_edge == expected_edge && source == expected_source && path == expected_path,
+                (
                     TargetControlTerminator::Crash {
                         psi_edge,
                         cause,
@@ -2138,7 +2142,9 @@ pub(crate) mod element_view {
                 return false;
             };
             let descriptor_carrier =
-                terminal_semantics::view_descriptor_parameter(parameter, self.types.iter());
+                abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                    parameter, self.types,
+                );
             let backing = parameter.access == terminal_psi::StructuralAccess::Owned
                 || (block != self.optimized.entry
                     && (is_address_join_in(parameter, self.types) || descriptor_carrier)
@@ -6923,6 +6929,7 @@ pub(crate) fn validate_target(
             | AbstractOperation::ReturnUnit { psi_edge, .. }
             | AbstractOperation::ExternalCompletion { psi_edge, .. }
             | AbstractOperation::InvokeNoNormal { psi_edge, .. }
+            | AbstractOperation::EliminateEmpty { psi_edge, .. }
             | AbstractOperation::Crash { psi_edge, .. }
             | AbstractOperation::Jump { psi_edge, .. } => vec![*psi_edge],
             AbstractOperation::Conditional {

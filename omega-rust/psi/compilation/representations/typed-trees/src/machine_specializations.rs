@@ -126,8 +126,7 @@ impl MachineSpecializations {
     }
 
     pub fn retain(&mut self, keep: impl FnMut(&MachineSpecialization) -> bool) {
-        self.rows.retain(keep);
-        self.reindex();
+        self.edit(|rows| rows.retain(keep));
     }
 
     pub fn clear(&mut self) {
@@ -136,11 +135,19 @@ impl MachineSpecializations {
         self.runs.clear();
     }
 
-    /// Change the rows freely, then rebuild the index once.
+    /// Rebuild the index from the remaining rows when the callback ends,
+    /// including when it unwinds after changing part of the table.
     pub fn edit<R>(&mut self, change: impl FnOnce(&mut Vec<MachineSpecialization>) -> R) -> R {
-        let result = change(&mut self.rows);
-        self.reindex();
-        result
+        struct ReindexOnDrop<'table>(&'table mut MachineSpecializations);
+
+        impl Drop for ReindexOnDrop<'_> {
+            fn drop(&mut self) {
+                self.0.reindex();
+            }
+        }
+
+        let edit = ReindexOnDrop(self);
+        change(&mut edit.0.rows)
     }
 
     /// The closed conformance applications of one row. They do not touch the
@@ -269,6 +276,40 @@ mod tests {
         for instance in 0..200 {
             assert_eq!(templates(&table, instance), templates(&rebuilt, instance));
         }
+    }
+
+    #[test]
+    fn unwound_receipt_edit_preserves_index() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let mut table = MachineSpecializations::from_rows(vec![receipt(5, 1), receipt(6, 2)]);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            table.edit(|rows| {
+                rows.remove(0);
+                panic!("stop after one edit");
+            });
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(table.len(), 1);
+        assert_eq!(templates(&table, 6), [2]);
+    }
+
+    #[test]
+    fn unwound_receipt_retain_preserves_index() {
+        use std::panic::{AssertUnwindSafe, catch_unwind};
+
+        let mut table = MachineSpecializations::from_rows(vec![receipt(5, 1), receipt(6, 2)]);
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            table.retain(|row| match row.template.arena_index() {
+                1 => false,
+                _ => panic!("stop after removing one row"),
+            });
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(table.len(), 1);
+        assert_eq!(templates(&table, 6), [2]);
     }
 
     #[test]

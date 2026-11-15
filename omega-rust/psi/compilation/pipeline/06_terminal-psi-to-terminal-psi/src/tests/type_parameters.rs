@@ -61,6 +61,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> typed_trees_to_terminal_p
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::DeclaredNone,
             termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
         });
     }
     let contracts: Vec<MachineId> = contracts.iter().map(|raw| id(*raw)).collect();
@@ -347,6 +348,7 @@ fn rigid_result_transport(
             invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::DeclaredNone,
             termination: typed_trees_to_terminal_psi::Termination::Silent,
+            ranking: None,
         });
     }
     typed_trees_to_terminal_psi::lower_generic(
