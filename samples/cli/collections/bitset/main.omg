@@ -17,7 +17,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("bitset: insert {3, 5, 7} into a u32 bitset via runtime shifts, then test membership of 5, 4, 7");
     main.vals[0] = 3;
     main.vals[1] = 5;
@@ -60,13 +60,13 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
     machine ok(main: &mut Main) {
         Console::write_line("PASS: 5 in, 4 out, 7 in -- bits == 168 behaves as a set (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a membership test gave the wrong bit (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -74,5 +74,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block main(&mut entry_storage);
 }
