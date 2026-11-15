@@ -484,3 +484,76 @@ terminates by remaining {
         "{obligations:?}"
     );
 }
+
+const CONJOINED_GUARD: &str = r#"
+machine first(index: u64, remaining: u64, alignment: u64) -> u64
+requires index <= 32 && remaining >= 1 && remaining <= 33 && alignment >= 1 && alignment <= 16
+terminates by remaining {
+    transition index < 32 && remaining > 1 {
+        true -> later(index, remaining - 1, alignment)
+        false -> alignment
+    }
+}
+machine later(index: u64, remaining: u64, alignment: u64) -> u64
+requires index < 32 && remaining >= 1 && remaining <= 32 && alignment >= 1 && alignment <= 16
+terminates by remaining {
+    first(index + 1, remaining, alignment)
+}
+"#;
+
+#[test]
+fn a_ranked_arrival_keeps_its_conjoined_guard() {
+    accepted(CONJOINED_GUARD);
+    let acyclic = CONJOINED_GUARD
+        .replace("terminates by remaining", "")
+        .replace("first(index + 1, remaining, alignment)", "alignment");
+    accepted(&acyclic);
+
+    // Each comparison is needed at the arrival. With index 32 or remaining
+    // 1, the corresponding weaker guard would transfer an out-of-range value.
+    for (strict, weak) in [
+        ("transition index < 32", "transition index <= 32"),
+        ("remaining > 1", "remaining > 0"),
+    ] {
+        let obligations = unproved(&CONJOINED_GUARD.replacen(strict, weak, 1));
+        assert!(
+            obligations.iter().any(|row| matches!(
+                row.kind,
+                ObligationKind::ArrivalInvariant { .. }
+            ) && row.statement.contains("call later from first")),
+            "{obligations:?}"
+        );
+    }
+}
+
+#[test]
+fn a_ranked_arrival_uses_only_the_current_iterations_guard() {
+    // With index 31 and remaining 3, the first visit takes the checked arm.
+    // `later` advances to index 32 with remaining 2. The next visit can
+    // reach `retry`, whose guard permits that index without checking it.
+    let source = CONJOINED_GUARD.replace(
+        "false -> alignment",
+        "false -> retry(index, remaining, alignment)",
+    );
+    let source = format!(
+        "{source}{}",
+        r#"
+machine retry(index: u64, remaining: u64, alignment: u64) -> u64
+requires index <= 32 && remaining >= 1 && remaining <= 33 && alignment >= 1 && alignment <= 16
+terminates by remaining {
+    transition remaining > 1 {
+        true -> later(index, remaining - 1, alignment)
+        false -> alignment
+    }
+}
+"#
+    );
+    let obligations = unproved(&source);
+    assert!(
+        obligations.iter().any(
+            |row| matches!(row.kind, ObligationKind::ArrivalInvariant { .. })
+                && row.statement.contains("call later from retry")
+        ),
+        "{obligations:?}"
+    );
+}
