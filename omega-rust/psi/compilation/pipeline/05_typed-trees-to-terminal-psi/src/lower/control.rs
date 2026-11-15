@@ -849,10 +849,23 @@ impl Lowering<'_> {
             self.point = Some(point);
             let (scalars, structures) = match (&result, value) {
                 (Value::Scalar(_), Value::Scalar(value)) => (vec![value], Vec::new()),
-                (Value::Record(_), Value::Record(place)) => (
-                    Vec::new(),
-                    vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
-                ),
+                (Value::Record(_), Value::Record(place)) => {
+                    let ValueType::Record(record, qualification, _) = result_type else {
+                        return Err(self.internal("a record join without a record type"));
+                    };
+                    let multiplicity = self.records.multiplicity(record, self.id)?;
+                    let place = self.join_arrival(
+                        place,
+                        record,
+                        qualification,
+                        multiplicity,
+                        SourceOrigin::Unpositioned(Unpositioned::MatchJoin),
+                    )?;
+                    (
+                        Vec::new(),
+                        vec![StructuralArgument::whole(place, StructuralAccess::Owned)],
+                    )
+                }
                 _ => return Err(self.internal("a match arm does not supply its join's value lane")),
             };
             self.jump_with_structural(

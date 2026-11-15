@@ -273,6 +273,77 @@ pub(crate) mod reference_completion {
         original.ok_or("the view's original borrow cannot be identified")
     }
 
+    /// A shared reference whose arrivals each bring a different live loan
+    /// (`match choice { true -> incoming, _ -> incoming }` forms one loan per
+    /// arm) has no single parent loan at the join. It still borrows the
+    /// caller's storage when the arrival replay traces every arrival to the
+    /// same exact field of one borrowed input: that input is the lender of
+    /// each arm's loan. Arrivals from different inputs or local storage stay
+    /// refused, and so do exclusive references, whose reborrow must descend
+    /// from the one loan its arrival brought.
+    fn joined_incoming_loans(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+    ) -> Result<BorrowedLoanSource, &'static str> {
+        use crate::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+        const UNRESOLVED: &str =
+            "reference descriptor has an unresolved surviving immediate loan occurrence";
+        let shared = machine
+            .structural_place_type(descriptor.root)
+            .and_then(|ty| {
+                let path = crate::descriptor_lifetimes::descriptor_path(
+                    &module.structural_types,
+                    ty,
+                    &descriptor.path,
+                )?;
+                crate::runtime_structural_path_tip(module.structural_types.iter(), ty, &path)
+            })
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+            });
+        if !shared {
+            return Err(UNRESOLVED);
+        }
+        let origins = analysis
+            .symbolic_source_origins(machine.id, at, descriptor)
+            .ok_or(UNRESOLVED)?;
+        let [
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection }),
+        ] = origins.as_slice()
+        else {
+            return Err("joined reference arms borrow from different lenders");
+        };
+        let parameter =
+            crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
+                parameter.place == *source
+            })
+            .filter(|parameter| parameter.access != StructuralAccess::Owned)
+            .ok_or("joined reference arms borrow from different lenders")?;
+        let path = projection.original_descriptor_path().ok_or(UNRESOLVED)?;
+        if projection.window.is_some()
+            || projection
+                .enclosing_storage()
+                .is_none_or(|storage| storage.path != path)
+            || !crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                path,
+            )
+        {
+            return Err(UNRESOLVED);
+        }
+        Ok(BorrowedLoanSource::Incoming)
+    }
+
     /// Read the source from the descriptor's actual value and arrival flow.
     pub fn borrowed_loan_source<'a>(
         module: &terminal_psi::TerminalModule,
@@ -288,6 +359,9 @@ pub(crate) mod reference_completion {
         >,
     ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
+        // Loans that may still own the descriptor here, but not on every
+        // arrival: each arm of a join formed its own loan.
+        let mut joined = false;
         for (identity, lifetime) in candidates {
             let authorized = lifetime
                 .authorized
@@ -299,9 +373,13 @@ pub(crate) mod reference_completion {
                 .is_some_and(|names| names.contains(descriptor))
                 && !authorized
             {
-                return Err(
-                    "reference descriptor has an unresolved surviving immediate loan occurrence",
-                );
+                if !lifetime.live.contains(&at) {
+                    return Err(
+                        "reference descriptor has an unresolved surviving immediate loan occurrence",
+                    );
+                }
+                joined = true;
+                continue;
             }
             if !authorized {
                 continue;
@@ -310,6 +388,14 @@ pub(crate) mod reference_completion {
                 return Err("reference descriptor has ambiguous immediate loan occurrences");
             }
             parent = Some(identity);
+        }
+        if joined {
+            if parent.is_some() {
+                return Err(
+                    "reference descriptor has an unresolved surviving immediate loan occurrence",
+                );
+            }
+            return joined_incoming_loans(module, machine, analysis, at, descriptor);
         }
         if let Some(parent) = parent {
             return Ok(BorrowedLoanSource::Loan(parent));

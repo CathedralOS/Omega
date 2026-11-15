@@ -1,0 +1,14 @@
+data Ticket { number: i32; }
+machine verify(ticket: &Ticket) -> i32 { ticket.number }
+machine through_join(choice: bool, incoming: &Ticket, other: &Ticket) -> i32 {
+    let joined: &Ticket = match choice { true -> incoming, _ -> other };
+    verify(joined)
+}
+machine main() crashes Trap {
+    let issued: Ticket = Ticket { number: 4 };
+    let spare: Ticket = Ticket { number: 4 };
+    let observed: i32 = through_join(true, &issued, &spare);
+    transition observed == 4 { true -> done() false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
