@@ -103,13 +103,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine finish(main: &mut Main) {
         Console::write_line("done: all 6 face frequencies charted (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: a rolled face left the 0..5 range (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }

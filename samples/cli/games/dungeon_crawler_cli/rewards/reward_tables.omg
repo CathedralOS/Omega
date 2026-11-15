@@ -1,8 +1,3 @@
-use enemies::enemies;
-use inventory::items;
-use rewards::rewards;
-use rng::random;
-use rng::random_state;
 
 data RewardTables {
     rng: Random;

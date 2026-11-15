@@ -1,16 +1,6 @@
-use text::buffer;
 use omega::language::core::max_u32;
 use omega::language::core::max_u64;
 
-use enemies::enemies;
-use events::room_events;
-use events::events;
-use inventory::items;
-use rng::random;
-use rng::random_state;
-use rewards::rewards;
-use rooms::map;
-use rooms::rooms;
 
 data MazeBuilder {
     events: RoomEvents;

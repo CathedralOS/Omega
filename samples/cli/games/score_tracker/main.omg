@@ -38,7 +38,7 @@ data Main {
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("score_tracker: replays score/bonus/reset events for two players");
-    apply(main, Event::Score { player: 0, points: 30 });
+    apply(main, Event::Score { player: 0 as +Saturating, points: 30 });
     apply(main, Event::Score { player: 1, points: 20 });
     apply(main, Event::Bonus { player: 0 });
     apply(main, Event::Score { player: 1, points: 10 });
@@ -56,14 +56,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine good(main: &mut Main) {
         Console::write_line("PASS: final scores 60 + 10 total 70 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(main: &mut Main) {
         Console::write_line("FAIL: event replay total did not equal 70 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 }
@@ -115,11 +115,11 @@ machine apply(main: &mut Main, event: Event) {
     }
 
     machine reset_p0(main: &mut Main) {
-        main.scores[0] = 0;
+        main.scores[0] = 0 as +Saturating;
     }
 
     machine reset_p1(main: &mut Main) {
-        main.scores[1] = 0;
+        main.scores[1] = 0 as +Saturating;
     }
 
     machine done(main: &mut Main) {

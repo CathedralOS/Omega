@@ -1,13 +1,5 @@
 use omega::language::core::max_i32;
 
-use combat::combat_round;
-use events::events;
-use player::player;
-use player::player_state;
-use rewards::reward_tables;
-use rewards::rewards;
-use rng::random;
-use rng::random_state;
 
 data CombatSystem {
     player_system: PlayerSystem;

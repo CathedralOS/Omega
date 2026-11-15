@@ -4,7 +4,6 @@
 // Expected exit: 0.
 // Expected output contains: A bottomless dark room near the dungeon heart.
 domain [u8]::Utf8 requires valid_utf8(self);
-use game::game;
 
 data Main {
     game: Game;

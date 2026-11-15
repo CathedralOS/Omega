@@ -1,9 +1,3 @@
-use text::buffer;
-use events::events;
-use player::player_state;
-use rooms::map;
-use rooms::room_lookup;
-use rooms::rooms;
 
 data RoomFormatter {
     lookup: RoomLookup;

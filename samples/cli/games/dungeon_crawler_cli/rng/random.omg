@@ -1,4 +1,3 @@
-use rng::random_state;
 use omega::language::core::narrow_u64_to_u32_wrapping;
 
 data Random {

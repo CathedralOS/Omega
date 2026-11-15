@@ -1,6 +1,3 @@
-use rooms::room_lookup;
-use rooms::map;
-use rooms::rooms;
 
 data CommandParser {
     lookup: RoomLookup;

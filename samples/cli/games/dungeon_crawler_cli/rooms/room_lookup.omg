@@ -1,6 +1,3 @@
-use text::buffer;
-use rooms::map;
-use rooms::rooms;
 
 data RoomLookup {
 }

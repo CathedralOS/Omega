@@ -51,13 +51,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine hero_wins(main: &mut Main) {
         Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
     machine monster_wins(main: &mut Main) {
         Console::write_line("result: the monster won this fight (exit 2)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(2);
     }
 }

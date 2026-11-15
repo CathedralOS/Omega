@@ -740,14 +740,14 @@ machine main(context: &mut Main) reaches ProcessExit + Console {
     machine good(context: &mut Main) {
         Console::write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut context.pause);
+        _ = block Console::read_line(&mut context.pause[..]);
         ProcessExit::exit_process(70);
     }
 
     machine bad(context: &mut Main) {
         Console::write_line("FAIL: wrong checksum after one generation (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut context.pause);
+        _ = block Console::read_line(&mut context.pause[..]);
         ProcessExit::exit_process(71);
     }
 }

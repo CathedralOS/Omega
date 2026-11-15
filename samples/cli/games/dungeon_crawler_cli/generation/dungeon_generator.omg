@@ -1,5 +1,3 @@
-use generation::maze_builder;
-use rooms::rooms;
 
 data DungeonGenerator {
     maze: MazeBuilder;

@@ -1,4 +1,3 @@
-use inventory::items;
 
 data RewardKind [copy] {
     case None;

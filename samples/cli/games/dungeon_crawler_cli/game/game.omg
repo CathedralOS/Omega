@@ -1,11 +1,6 @@
 use omega::language::core::ProcessExit;
-use text::buffer;
-use commands::command_parser;
-use dungeon::dungeon;
 use omega_language_std::Console;
 use omega_language_std::LineReadResult;
-use rooms::map;
-use view::game_view;
 
 data Game {
     dungeon: Dungeon;
@@ -62,7 +57,7 @@ machine run_game_loop(game: &mut Game) reaches ProcessExit + Console {
 
     machine read_command(game: &mut Game) {
         render_prompt();
-        transition block Console::read_line(&mut game.input) {
+        transition block Console::read_line(&mut game.input[..]) {
             LineReadResult::LineComplete { count } -> block received_command(game, count)
             LineReadResult::EndOfInput { count } -> block received_command(game, count)
             // Full and Invalid do not establish a completed command.
@@ -333,7 +328,7 @@ machine run_game_loop(game: &mut Game) reaches ProcessExit + Console {
     machine finished(game: &mut Game) {
         Console::write_line("the crawl has ended -- goodbye (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut game.pause);
+        _ = block Console::read_line(&mut game.pause[..]);
         ProcessExit::exit_process(0);
     }
 }

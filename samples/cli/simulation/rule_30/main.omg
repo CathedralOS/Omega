@@ -24,7 +24,7 @@ requires self.g >= 0 && self.g <= 16,
 
 machine main(main: &mut Main) reaches ProcessExit + Console {
     Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
-    main.cells = 0x8000; // single live cell in the centre (bit 15)
+    main.cells = 0x8000 as +Wrapping; // single live cell in the centre (bit 15)
     main.g = 0;
     transition { _ -> block gen_loop(main) }
 
@@ -79,7 +79,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 
     machine finish(main: &mut Main) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(&mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }

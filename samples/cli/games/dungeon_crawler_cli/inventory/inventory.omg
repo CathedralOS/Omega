@@ -1,5 +1,3 @@
-use inventory::items;
-use rewards::rewards;
 
 data InventorySystem {
 }
