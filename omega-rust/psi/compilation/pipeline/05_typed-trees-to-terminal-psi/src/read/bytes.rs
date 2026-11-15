@@ -506,12 +506,11 @@ impl Program<'_> {
             });
         }
         if measure != CollectionMeasure::Length
-            || !matches!(
-                self.data_type(machine, record)?.shape,
-                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-                })
-            )
+            || self
+                .data_type(machine, record)?
+                .shape
+                .length_operation()
+                .is_none()
         {
             return Err(refuse(
                 machine,

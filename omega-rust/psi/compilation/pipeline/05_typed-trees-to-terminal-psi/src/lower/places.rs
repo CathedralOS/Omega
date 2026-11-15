@@ -3052,20 +3052,20 @@ impl<'a> Lowering<'a> {
     /// Measuring a view keeps the storage form chosen for its descriptor.
     /// Stored shared-view fields use the field operation; descriptors with
     /// their own declared type retain the complete ordinary source path.
-    fn measured_byte_view(
+    fn measured_view(
         &mut self,
         at: &Located,
         source: SourceOrigin,
-    ) -> Checked<terminal_psi::control_flow::ByteSequenceOperand> {
-        use terminal_psi::control_flow::ByteSequenceOperand;
-        if !matches!(
-            self.record_type(at.record)?.shape,
-            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-            })
-        ) {
-            return Err(self.internal("a byte observation has no byte descriptor"));
-        }
+    ) -> Checked<(
+        StructuralArgument,
+        Option<semantic_vocabulary::StructuralFieldId>,
+        ValueId,
+    )> {
+        let read = self
+            .record_type(at.record)?
+            .shape
+            .length_operation()
+            .ok_or_else(|| self.internal("a length observation has no collection descriptor"))?;
         self.name_contents(at.place, ValueType::record(at.record))?;
         self.project(at.place, Segment::Extent)?;
         let operation = self.operation_identity(source);
@@ -3087,13 +3087,11 @@ impl<'a> Lowering<'a> {
                     field,
                 }
             }
-            None => OperationKind::ByteSequenceLength {
-                source: StructuralArgument {
-                    place: at.root,
-                    path: path.clone(),
-                    access: StructuralAccess::SharedBorrow,
-                },
-            },
+            None => read(StructuralArgument {
+                place: at.root,
+                path: path.clone(),
+                access: StructuralAccess::SharedBorrow,
+            }),
         };
         let count = ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -3107,6 +3105,24 @@ impl<'a> Lowering<'a> {
             path,
             access: StructuralAccess::SharedBorrow,
         };
+        Ok((source, field, length))
+    }
+
+    fn measured_byte_view(
+        &mut self,
+        at: &Located,
+        source: SourceOrigin,
+    ) -> Checked<terminal_psi::control_flow::ByteSequenceOperand> {
+        use terminal_psi::control_flow::ByteSequenceOperand;
+        if !matches!(
+            self.record_type(at.record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        ) {
+            return Err(self.internal("a byte observation has no byte descriptor"));
+        }
+        let (source, field, length) = self.measured_view(at, source)?;
         Ok(match field {
             Some(field) => ByteSequenceOperand::Field {
                 source,
@@ -3128,8 +3144,8 @@ impl<'a> Lowering<'a> {
         }
         // Locate a call or constructor once, then measure its actual descriptor.
         let at = continuing!(self.located(base));
-        let measured = self.measured_byte_view(&at, source)?;
-        Ok(Reached::Value(Value::Scalar(measured.length())))
+        let (_, _, length) = self.measured_view(&at, source)?;
+        Ok(Reached::Value(Value::Scalar(length)))
     }
 
     /// `left == right` on two borrowed byte views. Each operand is located

@@ -552,6 +552,7 @@ impl Storage<'_> {
             // The operations that only observe storage.
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ByteSequenceLength { .. }
+            | OperationKind::ElementViewLength { .. }
             | OperationKind::ByteSequenceRead { .. }
             | OperationKind::StructuralByteSequenceFieldLength { .. }
             | OperationKind::StructuralByteSequenceFieldRead { .. }

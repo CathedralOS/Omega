@@ -356,6 +356,27 @@ pub enum StorageShape {
     },
 }
 
+impl StorageShape {
+    /// Select the checked metadata read from the descriptor's storage type.
+    pub(crate) fn length_operation(
+        &self,
+    ) -> Option<fn(terminal_psi::StructuralArgument) -> terminal_psi::OperationKind> {
+        use terminal_psi::{ByteSequenceCarrier, OperationKind, StructuralAccess};
+
+        match self {
+            Self::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            }) => Some(|source| OperationKind::ByteSequenceLength { source }),
+            Self::ElementView {
+                access:
+                    None | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                ..
+            } => Some(|source| OperationKind::ElementViewLength { source }),
+            _ => None,
+        }
+    }
+}
+
 impl RecordType {
     pub fn fields(&self) -> &[RecordField] {
         match &self.shape {

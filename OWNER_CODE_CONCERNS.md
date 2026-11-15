@@ -73,6 +73,34 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Named map checks ask for portable template identities
+- Category: knowledge crossing a boundary
+- Where: [check form preparation](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/compilation.rs), [application closure](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/declare.rs), [named-map controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/boundary_calls.rs)
+- Saw: All seven `generic_named_map_*` Stage06 checks pass on clean `4d76bebd83e` and fail on clean macOS arm64 `781f2f5cb50`. The complete invocation closure refuses “a specialization's template check form has no exact contract.” Its anonymous template cannot supply a portable identity. The independently published named-map artifact can still be reloaded.
+- Cost: The closure and its generic check forms need to use the same identity scope. Preserve the published capture and its arguments, and recover the original weaker body, requirement, reach and owner verdicts in the invocation checks.
+- Reported: 2026-11-15, Codex, while comparing Stage06 collection validation against clean source.
+
+### A descriptor length premise cannot cross the loop join
+- Category: knowledge crossing a boundary
+- Where: [descriptor ranking](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/rankings.rs#L720), [arrival substitution](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/joins.rs#L675)
+- Saw: On macOS arm64 with stored-length reads on `4d76bebd83e`, a loop using `terminates by (tickets.len - position) -> Nat::Descending` and `requires position <= tickets.len` reaches “join predicate form outside the scalar subset.” Replacing the owned record sequence with an actual borrowed byte descriptor and keeping the same rank and requirement reaches the same refusal. The original non-loop stored length machine executes in Psi.
+- Cost: The rank observes the current descriptor, but the arrival substitution only maps scalar values. Rebind the extent to the actual descriptor and path coming into each join, preserving the existing refusal for a rebound or unrelated descriptor.
+- Reported: 2026-11-15, Codex, while carrying stored record sequence length through checking and execution.
+
+### Typed whole-array slice probes stop before their length checks
+- Category: tests that pin the bug
+- Where: [kept typed slice probe](samples/cli/facts/as_slice_views/local/main.omg#L8), [invalid twin](samples/cli/facts/as_slice_views/invalid_local/main.omg#L8), [borrow expression reader](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/expressions.rs)
+- Saw: On macOS arm64 at `0eefa10be23` and after the stored-length read repair on `4d76bebd83e`, both kept local probes stop at `let view: &[Entry] = &entries[..];` with “typing borrow without a reference destination.” The authored assertion and the twin's weaker range never reach judgment.
+- Cost: The kept tests cannot distinguish a correct whole-array extent from the wrong one. Join this exact authored fixed-array range to the existing typed-view formation and preserve the shared backing and the exact length premise.
+- Reported: 2026-11-15, Codex, while checking element length through the same operation as byte length.
+
+### Stage06 reference controls disagree with their existing verdicts
+- Category: tests that pin the bug
+- Where: [byte cohort controls](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/byte_view_elements.rs#L493), [boundary result views](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/returned_views.rs#L62), [owned record with a reference](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs#L631)
+- Saw: On clean macOS arm64 `4d76bebd83e` and `781f2f5cb50`, the same 14 Stage06 tests fail. Two byte-view cohort positives reject, ten returned-view checks diverge from their verdicts, and two owned record transfers refuse incomplete reference disposition. The unknown-origin returned-view control is accepted where it expects one conflicting loan.
+- Cost: The suite no longer establishes when a returned descriptor keeps or retires its exact loan. Reproduce the accepted and rejected cases through their actual authored source and distinguish stale artifact fixtures from changes to the loan and disposition checks before changing their oracles.
+- Reported: 2026-11-15, Codex, while comparing the stored-length repair with an unchanged Stage06 test baseline.
+
 ### Build-time returned views keep their caller loans past last use
 - Category: knowledge crossing a boundary
 - Where: [shared returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L576), [exclusive returned-view control](omega-rust/psi/compilation/build-time-evaluation/src/source_jobs/borrowed_views.rs#L631)
@@ -114,13 +142,6 @@ framework or a list of features that remain unimplemented.
 - Saw: On clean `ce501a3161d4` on macOS arm64, `equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute` fails at its fixture's separate Linux ProgramEntry preparation. Checking the whole std supplier rejects `ConsoleNativeProvider::read_line` with `a data declaration cannot own a machine`. Even if that check succeeds, the helper always returns an error about an unpublished service schema. The separate ordinary and named artifact reload test passes.
 - Cost: The imported-package acceptance and copied-owner rejection are never exercised. Use the existing Build and package admission route for the actual entry, with both captured sources and the original nominal-type controls intact.
 - Reported: 2026-11-15, Codex, while verifying named-map artifact reload.
-
-### A stored-length element sequence cannot report its length
-- Category: knowledge crossing a boundary
-- Where: [source measurement](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/read/bytes.rs#L533), [measurement emission](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower/places.rs#L3020), [Psi element length operation](omega-rust/psi/compilation/representations/terminal-psi/src/control_flow.rs#L1445)
-- Saw: On macOS arm64 at `146cd87aed0`, an ordinary `observe(tickets: [Ticket]) -> u64` returning `tickets.len` stopped at `collection measurement without its descriptor operation`. Its caller passed the exact single-element result of `make(number)` and expected a length of one. Changing only the owned declarations to `[Ticket; 1]` ran with both engines at exit 0. The stored-length maker and by-value consumer reach native target lowering when the consumer has no measurement.
-- Cost: Source admits length from a fixed extent or a byte descriptor while the same stored-length element carrier already has a Psi observation operation. Use that operation for the exact located descriptor and preserve the existing per-place extent and index proof obligations.
-- Reported: 2026-11-15, Codex, while tracing native owned sequence backing.
 
 ### Native lowering loses a stored byte view's length
 - Category: knowledge crossing a boundary

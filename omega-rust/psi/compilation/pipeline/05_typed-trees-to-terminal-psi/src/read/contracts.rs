@@ -723,17 +723,12 @@ impl Program<'_> {
                 else {
                     return unserved("extent of non-collection storage");
                 };
-                if !matches!(
-                    self.data_type(id, record)?.shape,
-                    crate::StorageShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(
-                                terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow
-                            ),
-                        }
-                    )
-                ) {
+                if self
+                    .data_type(id, record)?
+                    .shape
+                    .length_operation()
+                    .is_none()
+                {
                     return unserved("extent without its descriptor operation");
                 }
                 let scalar_type = semantic_vocabulary::IntegerType::new(
