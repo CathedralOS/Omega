@@ -200,6 +200,10 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
             "policy operator operand types differ",
         ),
         (
+            "machine sum(left: u32, right: u64) -> u32 { left +% right }",
+            "policy operator operand types differ",
+        ),
+        (
             "machine sum() -> u32 { 7 +% 1 }",
             "policy operator on a wholly anonymous tree",
         ),

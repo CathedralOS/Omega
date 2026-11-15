@@ -1101,7 +1101,7 @@ pub(super) fn binary_selection(
     }
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
     if suffix.is_some() {
-        crate::policy::suffixed(operator).map_err(unserved)?;
+        let operation = crate::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
             return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
         }
@@ -1115,6 +1115,17 @@ pub(super) fn binary_selection(
                     return Err(unserved(crate::policy::QUALIFIED_OPERAND));
                 }
             }
+        }
+        // A suffix chooses a carrier-specific operation, so mismatched
+        // carriers are invalid source. Only a shift count keeps its own type.
+        if !crate::policy::shifts(operation)
+            && left.and_then(ValueType::scalar) != right.and_then(ValueType::scalar)
+        {
+            return Err(crate::reject(
+                id,
+                source,
+                "policy operator operand types differ",
+            ));
         }
     }
     let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
