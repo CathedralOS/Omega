@@ -8539,7 +8539,7 @@ impl TypedTrees {
         let invalid = Cell::new(false);
         let (lifetime_owner, lifetime_binders) = request
             .lifetime_scope
-            .unwrap_or((SymbolHandle::INVALID, &[]));
+            .unwrap_or((SymbolHandle::invalid(), &[]));
         if request.lifetime_scope.is_some() && !lifetime_owner.is_valid() {
             return None;
         }
