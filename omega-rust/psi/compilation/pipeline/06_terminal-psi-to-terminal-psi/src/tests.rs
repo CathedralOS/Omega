@@ -39,6 +39,7 @@ mod case_payloads;
 mod ceilings;
 mod collection_members;
 mod compiler_primitive_headers;
+mod connected_facts;
 mod contract_formation;
 mod empty_records;
 mod entry_inputs;
